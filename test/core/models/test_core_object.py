@@ -311,11 +311,16 @@ def test_core_object_strips_computed_field_input():
         status.model_dump(mode="json")
     ) == (status)
 
-    # Including the camelCase spelling ParticipantStatus still emits, because it
-    # inherits alias_generator=to_camel pending #2288/#2289.
-    assert ParticipantStatus.model_validate(
-        status.model_dump(mode="json", by_alias=True)
-    ) == (status)
+    # Including the camelCase spelling, which is the AS2 wire form every core
+    # class emits (ADR-0099 detail 2).  Compared by dump, not ``==``: the wire
+    # dump carries ``@context``, and a parsed document keeps it in ``context_``
+    # (detail 1), which the locally built ``status`` never set.
+    assert (
+        ParticipantStatus.model_validate(
+            status.model_dump(mode="json", by_alias=True)
+        ).model_dump()
+        == status.model_dump()
+    )
 
 
 # ---------------------------------------------------------------------------

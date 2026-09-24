@@ -238,6 +238,34 @@ def _is_datetime_field(field: FieldInfo) -> bool:
     return False
 
 
+#: Validation-context key that marks a ``model_validate`` call as reading
+#: *inbound* data.  ``parse_activity`` sets it; nothing else should.  Defined in
+#: core because both ``as_Base`` and ``CoreObject`` gate on it, and under
+#: ADR-0099 detail 3 a core class is what an inbound payload validates into.
+INBOUND_CONTEXT_KEY = "inbound_wire"
+
+
+def blank_times_as_none(
+    cls: type[BaseModel], data: dict[str, Any]
+) -> dict[str, Any]:
+    """Read a blank-string timestamp in *data* as ``None`` (CS-08-001).
+
+    The core counterpart of ``as_Object.validate_datetime``'s blank handling:
+    a blank carries no time, so it is absence rather than a malformed value.
+    Checks every spelling a datetime field can arrive under.
+    """
+    for name, field in cls.model_fields.items():
+        if not _is_datetime_field(field):
+            continue
+        for key in {name, field.alias, field.validation_alias}:
+            if not isinstance(key, str):
+                continue
+            value = data.get(key)
+            if isinstance(value, str) and not value.strip():
+                data[key] = None
+    return data
+
+
 def absent_times_as_none(
     cls: type[BaseModel], data: dict[str, Any]
 ) -> dict[str, Any]:

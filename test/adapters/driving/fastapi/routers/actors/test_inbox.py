@@ -237,13 +237,13 @@ def test_store_nested_inbox_object_skips_when_no_body(datalayer):
 def test_store_nested_inbox_object_projection_failure_surfaces_on_read(
     datalayer, caplog
 ):
-    """An unpersistable inline object surfaces its failure on read (#2232, #2940).
+    """An unreadable inline object surfaces its failure on read (#2232, #2940).
 
     Since #2940 removed write-side wire→core normalisation (``extra="forbid"``
     is the boundary contract now), ingress stores the inline object verbatim
-    rather than rejecting it at write.  The projection failure is not silently
-    swallowed: reading the row back logs a WARNING and returns the un-projected
-    wire object rather than a misleading "not found" or a wrong core object.
+    rather than rejecting it at write.  The failure is not silently swallowed
+    on the way back out: reading the row logs a WARNING naming #2232 rather
+    than reporting a misleading "not found" with no trace.
     """
     import logging
 
@@ -254,10 +254,9 @@ def test_store_nested_inbox_object_projection_failure_surfaces_on_read(
     # — legal on the lenient wire class, rejected by the core class's
     # ``NonEmptyString``, so "constructible yet unprojectable". Collapsing the pair
     # removes that state: one class means such an object fails *construction*
-    # instead of projection. That is the improvement, not a gap — but the ERROR-vs-
-    # DEBUG distinction still needs an object that reaches the store and cannot be
-    # written, so this shadows a core type from the wire package without a
-    # ``to_core()``, which is the other way ``object_to_record`` refuses.
+    # instead of projection, and there is no wire object left to hand back on
+    # read. What still reaches the store is a shape the core class refuses — here
+    # a key no ``CaseParticipant`` field accepts, which ``extra="forbid"`` rejects.
     #
     # Deliberately a plain ``BaseModel`` and not a ``CoreObject`` subclass: the
     # latter self-registers in ``CORE_TYPE_MAP`` via ``__init_subclass__``, and with
@@ -267,6 +266,7 @@ def test_store_nested_inbox_object_projection_failure_surfaces_on_read(
     class _ShadowingParticipant(BaseModel):
         id_: str = "urn:uuid:participant-2232-unprojectable"
         type_: str = "CaseParticipant"
+        not_a_participant_field: str = "x"
 
     _ShadowingParticipant.__module__ = "vultron.wire.as2.vocab.objects.fake"
 
@@ -280,10 +280,8 @@ def test_store_nested_inbox_object_projection_failure_surfaces_on_read(
     with caplog.at_level(logging.WARNING):
         result = datalayer.read(unprojectable.id_)
 
-    # Present (not silently absent) but surfaced as the un-projected wire
-    # fallback, with the failure logged loudly.
-    assert result is not None
-    assert type(result).__module__.startswith("vultron.wire.as2")
+    # No class can read the row, so it reads as absent — but loudly.
+    assert result is None
     assert "issue #2232" in caplog.text
 
 

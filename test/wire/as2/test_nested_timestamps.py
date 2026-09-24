@@ -407,8 +407,12 @@ def test_inline_object_without_a_type_is_not_stamped_either(spelling: str):
     (``as_Base.carry_absent_times_on_inbound``), which is the only place that
     knows both that the object has timestamps and which they are.
     """
+    # ``context`` is carried because the class the parent chooses is now the
+    # core ``CaseStatus`` (ADR-0099 detail 3), which requires it; the looser
+    # wire class it replaced did not.
     status: dict[str, Any] = {
         "id": "https://example.org/cases/c1/statuses/1",
+        "context": CASE_ID,
         "published": SENDER_PUBLISHED,
     }
     ABSENT[spelling](status)

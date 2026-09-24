@@ -29,7 +29,10 @@ from vultron.errors import (
     VultronNotFoundError,
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.registry import (
+    declared_wire_type,
+    find_in_vocabulary,
+)
 from vultron.wire.as2.vocab.objects.base import as_VultronObject
 
 if TYPE_CHECKING:  # pragma: no cover - deferred to avoid a wire import cycle
@@ -102,7 +105,8 @@ def _to_wire_object(core_obj: Any, object_id: str) -> Any:
             no match for *object_id*) — not a vocabulary error about
             ``'NoneType'``.
         VultronActivityConstructionError: when no wire class is registered for
-            the object's type, the registered class has no ``from_core``
+            the object's type, the object's class declares no wire ``type``
+            (an abstract core class), the registered class has no ``from_core``
             projection, or the projection fails with a ``ValueError``
             (including ``ValidationError``) or ``TypeError``. The original
             error, if any, is the ``__cause__``.
@@ -122,6 +126,15 @@ def _to_wire_object(core_obj: Any, object_id: str) -> Any:
     # Checked here rather than left to _to_wire: a class that is its own wire
     # class need not be an as_VultronObject, so the gate below would refuse it.
     if isinstance(core_obj, wire_cls):
+        # Under ADR-0099 an activity's object refs admit any CoreObject, so
+        # as_Add no longer refuses an abstract one (``CoreActor``) for us. An
+        # abstract class declares no ``type`` (its instances fill ``type_`` from
+        # the class name), so it has no wire form a receiver could dispatch.
+        if declared_wire_type(type(core_obj)) is None:
+            raise VultronActivityConstructionError(
+                f"object '{object_id}': {type_name!r} declares no wire type"
+                " and cannot be carried in an activity"
+            )
         return core_obj
     if not issubclass(wire_cls, as_VultronObject):
         raise VultronActivityConstructionError(

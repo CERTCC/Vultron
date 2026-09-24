@@ -284,7 +284,11 @@ def _build_case_object(obj: object) -> dict[str, Any]:
         raw_statuses = getattr(obj, "case_statuses", []) or []
         case_statuses: list[str | CaseStatus] = []
         for cs in raw_statuses:
-            if hasattr(cs, "to_core"):
+            # Under ADR-0099 detail 3 the parsed status already *is* the core
+            # class; reducing it to its id would drop the status it carries.
+            if isinstance(cs, CaseStatus):
+                case_statuses.append(cs)
+            elif hasattr(cs, "to_core"):
                 case_statuses.append(cs.to_core())
             else:
                 cs_id = _get_id(cs)

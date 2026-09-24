@@ -22,6 +22,7 @@ from typing import Any, get_args
 
 from pydantic import BaseModel, ValidationError
 
+from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.wire.as2.enums import (
@@ -48,8 +49,15 @@ def _is_generic_object_ref(annotation: Any) -> bool:
     single property that separates the AS2 Activity object-reference fields
     from narrowed refs, JSON-LD ``context``/``in_reply_to`` (typed ``Any``),
     and unrelated types' refs (``as_Relationship.subject``, …).
+
+    Under ADR-0099 detail 3 the aliases also admit ``CoreObject`` — a core
+    object *is* its own wire object, so it may sit inline in an activity — and
+    that widened form is matched too.  Missing it silently drops ``object_``,
+    ``target``, ``origin`` and ``instrument`` from dehydration, so a stored
+    activity's inline object reads back as a bare ``as_Object`` and semantic
+    matching no longer recognises the activity.
     """
-    args = set(get_args(annotation))
+    args = set(get_args(annotation)) - {CoreObject}
     return args in (
         {as_Object, as_Link, str},
         {as_Object, as_Link, str, type(None)},

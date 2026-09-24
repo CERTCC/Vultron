@@ -288,8 +288,11 @@ class TestAddObjectToCaseConversionBranch:
                 )
 
     def test_core_only_class_error_names_its_type(self, adapter, dl):
-        """A core class registered as its own wire class, but not carryable by
-        as_Add (e.g. ``CoreActor``), fails with its type named in the error.
+        """A core class registered as its own wire class, but with no wire
+        ``type`` (the abstract ``CoreActor``), fails with its type named.
+
+        ``as_Add`` admits any ``CoreObject`` under ADR-0099, so the refusal is
+        ``_to_wire_object``'s, not a Pydantic rejection of the ``Add``.
         """
         from vultron.core.models import CoreActor
 
@@ -304,7 +307,7 @@ class TestAddObjectToCaseConversionBranch:
         ):
             with pytest.raises(
                 VultronActivityConstructionError,
-                match="'CoreActor' cannot be carried in an Add activity",
+                match="'CoreActor' declares no wire type",
             ):
                 adapter.add_object_to_case(
                     actor=_ACTOR,

@@ -19,7 +19,10 @@ from typing import Any, ClassVar
 from pydantic import Field, model_validator, ConfigDict, ValidationInfo
 from pydantic.alias_generators import to_camel
 
-from vultron.core.models._helpers import absent_times_as_none
+from vultron.core.models._helpers import (
+    INBOUND_CONTEXT_KEY,
+    absent_times_as_none,
+)
 from vultron.core.models.base import VULTRON_CONTEXT_URI, VultronBase
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import (
@@ -99,7 +102,7 @@ class as_Base(VultronBase):
 
     #: Validation-context key that marks a ``model_validate`` call as reading
     #: *inbound* data.  ``parse_activity`` sets it; nothing else should.
-    INBOUND_CONTEXT_KEY: ClassVar[str] = "inbound_wire"
+    INBOUND_CONTEXT_KEY: ClassVar[str] = INBOUND_CONTEXT_KEY
 
     @model_validator(mode="before")
     @classmethod

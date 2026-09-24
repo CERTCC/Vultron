@@ -26,13 +26,20 @@ from pydantic import (
     Field,
     SerializationInfo,
     SerializerFunctionWrapHandler,
+    ValidationInfo,
     field_serializer,
     model_serializer,
     model_validator,
 )
 from pydantic.alias_generators import to_camel
 
-from vultron.core.models._helpers import _new_urn, now_utc
+from vultron.core.models._helpers import (
+    INBOUND_CONTEXT_KEY,
+    _new_urn,
+    absent_times_as_none,
+    blank_times_as_none,
+    now_utc,
+)
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.primitives import NonEmptyString, UriString  # noqa: F401
 
@@ -338,6 +345,33 @@ class CoreObject(VultronObject):
         if drop:
             data = {k: v for k, v in data.items() if k not in drop}
         return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def _carry_absent_times_on_inbound(
+        cls, data: Any, info: ValidationInfo
+    ) -> Any:
+        """Read an absent or blank timestamp as ``None`` when inbound.
+
+        The core-class twin of ``as_Base.carry_absent_times_on_inbound``, and
+        needed for the same reason (ISSUE-3257, ADR-0103): ``default_factory=
+        now_utc`` correctly stamps an object this process authors, but on
+        inbound data it would fabricate a time the sender never claimed.  Under
+        ADR-0099 detail 3 an inbound ``CaseParticipant``, ``EmbargoEvent`` or
+        ``VulnerabilityCase`` validates straight into this class rather than a
+        wire subclass of ``as_Base``, so without this the rule silently stops
+        holding for every collapsed type.  Gated on the same validation-context
+        key, which ``parse_activity`` sets and Pydantic propagates to nested
+        models.
+        """
+        if not isinstance(data, dict):
+            return data
+        context = info.context
+        if not isinstance(context, dict) or not context.get(
+            INBOUND_CONTEXT_KEY
+        ):
+            return data
+        return absent_times_as_none(cls, blank_times_as_none(cls, dict(data)))
 
     @field_serializer(
         "start_time", "end_time", "published", "updated", when_used="json"

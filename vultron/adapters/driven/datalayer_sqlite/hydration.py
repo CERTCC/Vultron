@@ -167,6 +167,18 @@ def from_row(
             )
             wire_obj = wire_object_from_row(row)
             if wire_obj is None:
+                # Under ADR-0099 detail 3 a paired type's wire class *is* its
+                # core class, so there is no looser fallback left to try.
+                # dl.read() will report the row absent; say why, loudly, or
+                # the caller sees a misleading "not found" (issue #2232).
+                logger.warning(
+                    "Row %r (type %r) failed core validation (%s) and has no"
+                    " wire fallback that validates; reading it as absent"
+                    " (issue #2232).",
+                    row.id_,
+                    row.type_,
+                    exc,
+                )
                 return None
             obj = project_wire_row_to_core(row, wire_obj, exc)
     if obj is None:

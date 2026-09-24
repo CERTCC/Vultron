@@ -21,9 +21,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, ClassVar, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationInfo, model_validator
 
 from vultron.core.models._helpers import (
+    INBOUND_CONTEXT_KEY,
     _new_urn,
     most_recent_status,
     now_utc,
@@ -34,9 +35,46 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.wire_keys import wire_key
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
+
+
+def _present_key(data: dict[str, Any], field_name: str) -> str:
+    """Return the spelling of *field_name* that *data* carries.
+
+    The AS2 spelling when present (an inbound case, ADR-0099 detail 2), else
+    the field name, so a validator writes back under the key it read.
+    """
+    as2 = wire_key(field_name)
+    return as2 if as2 in data else field_name
+
+
+def _genesis_published(data: dict[str, Any], inbound: bool) -> datetime | None:
+    """Return the ``published`` time a genesis hash is computed from.
+
+    Only an *omitted* ``published`` outside the inbound path is this process
+    authoring the case, so only then is one minted (and written into *data*).
+    An explicit ``None`` or blank, or any omission on inbound, is a received
+    case that claimed no time; minting one would give each receiver its own
+    genesis for the same case (ISSUE-3257, ADR-0103).
+    """
+    if "published" not in data and not inbound:
+        minted = now_utc()
+        data["published"] = minted
+        return minted
+    published_val = data.get("published")
+    if published_val is None or published_val == "":
+        return None
+    if isinstance(published_val, datetime):
+        return published_val
+    try:
+        parsed = datetime.fromisoformat(str(published_val))
+    except (ValueError, TypeError):
+        return None
+    data["published"] = parsed
+    return parsed
 
 
 class VulnerabilityCase(CoreObject):
@@ -117,7 +155,9 @@ class VulnerabilityCase(CoreObject):
 
     @model_validator(mode="before")
     @classmethod
-    def _compute_genesis_hash_if_missing(cls, data: Any) -> Any:
+    def _compute_genesis_hash_if_missing(
+        cls, data: Any, info: ValidationInfo
+    ) -> Any:
         """Compute ``genesis_hash`` at case creation when not explicitly set.
 
         Uses ``id_``, ``published``, and ``attributed_to`` (the CaseActor URI)
@@ -130,40 +170,37 @@ class VulnerabilityCase(CoreObject):
         set or when ``attributed_to`` is absent (genesis hash requires a
         CaseActor URI as input).
 
+        Both spellings of each input are read: the class is its own wire class
+        (ADR-0099 detail 3), so an inbound case arrives as ``attributedTo`` and
+        ``genesisHash``.  On the inbound path (ADR-0103) an omitted or blank
+        ``published`` is the sender claiming no time, never a cue to mint one.
+
         Spec: CLP-08-002, CLP-08-003.
         """
         if not isinstance(data, dict):
             return data
-        attributed_to = data.get("attributed_to")
-        genesis_hash = data.get("genesis_hash", "")
+        inbound = (
+            isinstance(info.context, dict)
+            and INBOUND_CONTEXT_KEY in info.context
+        )
+        attributed_to = data.get("attributed_to") or data.get(
+            wire_key("attributed_to")
+        )
+        hash_key = _present_key(data, "genesis_hash")
+        genesis_hash = data.get(hash_key, "")
         if not genesis_hash and attributed_to:
             data = dict(data)
             if not data.get("id") and not data.get("id_"):
                 data["id"] = _new_urn()
             case_id = data.get("id") or data.get("id_")
-            # Only an *omitted* ``published`` is this process authoring the
-            # case; an explicit ``None`` is a received case that claimed no
-            # time, and minting one here would give each receiver its own
-            # genesis for the same case (ISSUE-3257).
-            published_val = data.get("published")
-            if "published" not in data:
-                published_val = now_utc()
-                data["published"] = published_val
-            elif published_val is not None and not isinstance(
-                published_val, datetime
-            ):
-                try:
-                    published_val = datetime.fromisoformat(str(published_val))
-                    data["published"] = published_val
-                except (ValueError, TypeError):
-                    published_val = None
+            published_val = _genesis_published(data, inbound)
             if published_val is not None:
-                data["genesis_hash"] = compute_genesis_hash(
+                data[hash_key] = compute_genesis_hash(
                     case_id=case_id,
                     created_at=published_val,
                     case_actor_id=attributed_to,
                 )
-        if attributed_to and not data.get("genesis_hash"):
+        if attributed_to and not data.get(hash_key):
             case_id = data.get("id") or data.get("id_") or "<unknown>"
             raise VultronValidationError(
                 f"VulnerabilityCase '{case_id}': genesis_hash could not "
@@ -175,18 +212,26 @@ class VulnerabilityCase(CoreObject):
     @model_validator(mode="before")
     @classmethod
     def _init_case_statuses(cls, data: Any) -> Any:
-        """Seed ``case_statuses`` with a default entry when empty."""
+        """Seed ``case_statuses`` with a default entry when empty.
+
+        Reads both spellings (ADR-0099 detail 2), and writes the seed under the
+        one already present so it is not shadowed by an empty camelCase list.
+        """
         if not isinstance(data, dict):
             return data
-        if not data.get("case_statuses") and data.get("attributed_to"):
+        statuses_key = _present_key(data, "case_statuses")
+        attributed_to = data.get("attributed_to") or data.get(
+            wire_key("attributed_to")
+        )
+        if not data.get(statuses_key) and attributed_to:
             data = dict(data)
             if not data.get("id") and not data.get("id_"):
                 data["id"] = _new_urn()
             case_id = data.get("id") or data.get("id_")
-            data["case_statuses"] = [
+            data[statuses_key] = [
                 CaseStatus(
                     context=case_id,
-                    attributed_to=data["attributed_to"],
+                    attributed_to=attributed_to,
                 )
             ]
         return data
