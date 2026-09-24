@@ -48,7 +48,10 @@ class CoreActor(CoreObject):
 
     # Never empty once validated: ``""`` only means "not supplied", and
     # ``_derive_endpoints_from_id`` replaces it.  ActivityPub requires every
-    # actor to publish both endpoints (ISSUE-3616).
+    # actor to publish both endpoints (ISSUE-3616).  Not ``NonEmptyString``:
+    # assigning ``None`` or ``""`` must re-derive the address, and a
+    # field-level constraint would reject it before the model validator runs.
+    # The derived address does not follow a later change to ``id_``.
     inbox: str = ""
     outbox: str = ""
 
@@ -61,15 +64,23 @@ class CoreActor(CoreObject):
         collection dict (from wire-layer as_Service/as_Actor) rather than a
         plain string URI. Extract the id_ or id field for backward compat.
         ``None`` or a collection without an id reads as ``""``, the "not
-        supplied" value ``_derive_endpoints_from_id`` fills.
+        supplied" value ``_derive_endpoints_from_id`` fills.  A collection
+        model whose ``id_`` was never set (the parser expands an inline
+        id-less collection before this runs) counts as having no id: its
+        ``id_`` is a freshly minted ``urn:uuid:`` nobody routes to.
         """
         if v is None:
             return ""
         if isinstance(v, str):
-            return v
+            return v.strip()
         if isinstance(v, dict):
-            return v.get("id_") or v.get("id") or ""
-        return getattr(v, "id_", None) or getattr(v, "id", None) or ""
+            return str(v.get("id_") or v.get("id") or "").strip()
+        fields_set = getattr(v, "model_fields_set", None)
+        if fields_set is not None and "id_" not in fields_set:
+            return ""
+        return str(
+            getattr(v, "id_", None) or getattr(v, "id", None) or ""
+        ).strip()
 
     @model_validator(mode="after")
     def _derive_endpoints_from_id(self) -> Self:

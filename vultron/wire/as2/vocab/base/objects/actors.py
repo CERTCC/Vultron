@@ -49,17 +49,34 @@ class as_Actor(as_Object):
         """Coerce a plain URI string or None to an as_OrderedCollection.
 
         When reading back an actor that was stored via a CoreActor-derived
-        class (inbox/outbox as str | None), the value is normalised:
+        class (inbox/outbox as a URL string), the value is normalised:
 
-        - ``None`` → ``as_OrderedCollection`` at ``{actor_id}/{field}``, the
-          same address ``set_collections`` derives when the field is absent
+        - ``None``, a blank string, or a collection with no ``id`` →
+          ``as_OrderedCollection`` at ``{actor_id}/{field}``, the same
+          address ``set_collections`` derives when the field is absent
         - ``str`` → ``as_OrderedCollection(id_=v)``
         - anything else → returned as-is for Pydantic to validate
+
+        A collection model whose ``id_`` was never set counts as having no
+        id: the parser expands an inline id-less collection before this
+        runs, and its ``default_factory`` id is a ``urn:uuid:`` nobody
+        routes to.
         """
+        derived = _endpoint_collection(info.data.get("id_"), info.field_name)
         if v is None:
-            return _endpoint_collection(info.data.get("id_"), info.field_name)
+            return derived
         if isinstance(v, str):
-            return as_OrderedCollection(id_=v)
+            return (
+                as_OrderedCollection(id_=v.strip()) if v.strip() else derived
+            )
+        if isinstance(v, dict) and not (v.get("id") or v.get("id_")):
+            return as_OrderedCollection.model_validate(
+                {**v, "id": derived.id_}
+            )
+        if isinstance(v, as_OrderedCollection) and (
+            "id_" not in v.model_fields_set
+        ):
+            return v.model_copy(update={"id_": derived.id_})
         return v
 
     @model_validator(mode="after")
@@ -69,7 +86,9 @@ class as_Actor(as_Object):
         Keyed on ``model_fields_set`` rather than on the collection's ``id_``:
         the field's ``default_factory`` builds a collection whose ``id_`` is a
         fresh ``urn:uuid:``, so an ``id_ is None`` test never fires and the
-        actor would publish an address nobody routes to.
+        actor would publish an address nobody routes to.  Recorded in
+        ``model_fields_set``, as ``CoreActor`` does, so an ``exclude_unset``
+        dump still carries the derived address.
         """
         for field_name in ("inbox", "outbox"):
             if field_name not in self.model_fields_set:
@@ -78,6 +97,7 @@ class as_Actor(as_Object):
                     field_name,
                     _endpoint_collection(self.id_, field_name),
                 )
+                self.model_fields_set.add(field_name)
         return self
 
 

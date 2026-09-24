@@ -220,10 +220,10 @@ The collision that caused #3217 was not a naming accident between two live
 classes. It was a **vestigial core class squatting on a name the wire side had
 never claimed**, and both halves of that sentence are load-bearing.
 
-**The core half.** `CoreActor.inbox` and `.outbox` are `str | None` — a plain
-URL, with a `mode="before"` validator that accepts a full collection dict and
-keeps only its `id`, and an absent or `None` endpoint is derived as
-`{id_}/inbox` (#3616), because the Vultron actor types are the wire form too
+**The core half.** `CoreActor.inbox` and `.outbox` are a never-empty `str` — a
+plain URL, with a `mode="before"` validator that accepts a full collection dict
+and keeps only its `id`, and an absent, `None`, blank or id-less endpoint is
+derived as `{id_}/inbox` (#3616), because the Vultron actor types are the wire form too
 (ADR-0099). Core does not model an actor's inbox as a list. But a
 `CoreActorCollection` class was left behind when that reduction happened, and
 because it declared `type_: Literal["OrderedCollection"]` it registered itself in

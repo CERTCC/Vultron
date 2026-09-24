@@ -5,9 +5,10 @@ An actor's inbox and outbox are *addresses* (ActivityPub publishes them as
 URIs); the AS2 ``as_Actor`` branch wraps each in an ``as_OrderedCollection``,
 and ``CoreActor`` — which the Vultron actor types now are on the wire too
 (ADR-0099) — reduces it to the URL.  Each arrival shape — a full collection
-dict, a bare URI, ``None``, absent — must end up at the actor's inbox URL
-(ISSUE-3563 AC-5), and the serialized form must not change as a side effect of
-registering the collection types (ARCH-23-003, ISSUE-3564 AC-5).
+dict, a bare URI, ``None``, absent, a blank string, an id-less collection —
+must end up at the actor's inbox URL (ISSUE-3563 AC-5), and the serialized
+form must not change as a side effect of registering the collection types
+(ARCH-23-003, ISSUE-3564 AC-5).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -35,6 +36,7 @@ from vultron.core.models.actor import (
     VultronPerson,
     VultronService,
 )
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Service
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
@@ -62,14 +64,23 @@ def _arrival_shapes(field_name: str) -> dict[str, dict[str, Any]]:
         "bare-uri": {field_name: url},
         "none": {field_name: None},
         "absent": {},
+        "empty-string": {field_name: ""},
+        "blank-string": {field_name: "   "},
+        "idless-collection-dict": {
+            field_name: {"type": "OrderedCollection", "items": []}
+        },
+        # What the parser hands over for an inline id-less collection: a
+        # model whose ``id_`` came from ``default_factory``, never set.
+        "idless-collection-model": {field_name: as_OrderedCollection()},
     }
+
+
+_SHAPES = list(_arrival_shapes("inbox"))
 
 
 @pytest.mark.parametrize("actor_cls", _ACTOR_CLASSES)
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
-@pytest.mark.parametrize(
-    "shape", ["collection-dict", "bare-uri", "none", "absent"]
-)
+@pytest.mark.parametrize("shape", _SHAPES)
 def test_every_arrival_shape_resolves_to_the_actor_endpoint_url(
     actor_cls, field_name, shape
 ):
@@ -90,9 +101,7 @@ def test_every_arrival_shape_resolves_to_the_actor_endpoint_url(
 
 @pytest.mark.parametrize("actor_cls", _CORE_ACTOR_CLASSES)
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
-@pytest.mark.parametrize(
-    "shape", ["collection-dict", "bare-uri", "none", "absent"]
-)
+@pytest.mark.parametrize("shape", _SHAPES)
 def test_core_actor_reduces_every_arrival_shape_to_the_url(
     actor_cls, field_name, shape
 ):
@@ -145,6 +154,61 @@ def test_core_actor_never_holds_an_empty_endpoint(field_name, empty):
     setattr(actor, field_name, empty)
 
     assert getattr(actor, field_name) == f"{ACTOR_ID}/{field_name}"
+
+
+@pytest.mark.parametrize("field_name", _ENDPOINTS)
+def test_wire_actor_serializes_derived_endpoints_under_exclude_unset(
+    field_name,
+):
+    """The AS2 branch records a derived endpoint as set, as ``CoreActor`` does."""
+    actor = as_Service(id_=ACTOR_ID)
+
+    dumped = actor.model_dump(exclude_unset=True, by_alias=True)
+
+    assert dumped[field_name]["id"] == f"{ACTOR_ID}/{field_name}"
+
+
+@pytest.mark.parametrize("field_name", _ENDPOINTS)
+def test_padded_endpoint_uri_is_stripped(field_name):
+    """Surrounding whitespace is not part of an address, on either branch."""
+    padded = {"id": ACTOR_ID, field_name: " https://example.org/box "}
+
+    assert (
+        getattr(VultronOrganization.model_validate(padded), field_name)
+        == "https://example.org/box"
+    )
+    assert (
+        getattr(as_Service.model_validate(padded), field_name).id_
+        == "https://example.org/box"
+    )
+
+
+@pytest.mark.parametrize("field_name", _ENDPOINTS)
+def test_inline_idless_collection_through_the_parser_derives_the_url(
+    field_name,
+):
+    """An inline actor whose endpoint collection has no ``id`` gets its URL.
+
+    The parser expands the inline dict into an ``as_OrderedCollection``
+    before the actor validates it, and that collection's default id is a
+    fresh ``urn:uuid:``; reading it would publish an address nobody routes
+    to.
+    """
+    activity = parse_activity(
+        {
+            "type": "Announce",
+            "id": "https://example.org/activities/1",
+            "published": "2026-01-01T00:00:00Z",
+            "actor": {
+                "type": "Person",
+                "id": ACTOR_ID,
+                field_name: {"type": "OrderedCollection"},
+            },
+            "object": "https://example.org/objects/1",
+        }
+    )
+
+    assert getattr(activity.actor, field_name) == f"{ACTOR_ID}/{field_name}"
 
 
 @pytest.mark.spec("ARCH-23-003")
