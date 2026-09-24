@@ -27,7 +27,7 @@ The protocol coordinates the case; the judgment, the data, and the side effects 
 | decide which cases to host for others | [EvaluateCaseProposal](#case-admission) | Evaluator |
 | set or accept embargo terms | [SelectEmbargoOfferTerms, EvaluateEmbargoProposal](#embargo-management) | Evaluator |
 | assign Common Vulnerabilities and Exposures (CVE) IDs | [IdAssigned, InScope, AssignId](#cve-vulnerability-id-assignment) | Retriever, Evaluator, Composer |
-| develop or deploy fixes | [CreateFix, DeployFix](#fix-development) | Composer, Evaluator |
+| develop or deploy fixes | [CreateFix](#fix-development), [DeployFix](#fix-deployment) | Composer, Evaluator |
 | know whether an exploit exists | [HaveExploit, FindExploit](#exploit-management) | Retriever |
 | write or publish advisories | [DraftAdvisoryArtifact, ReviewAdvisoryDraft, SubmitAdvisoryArtifact](#publication) | Composer, Evaluator, Actuator |
 | know who else belongs in the case | [IdentifyVendors, ResolveActorDetails, InjectParticipant](#participant-and-actor-discovery) | Retriever, Actuator |

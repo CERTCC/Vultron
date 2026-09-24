@@ -26,4 +26,4 @@ Each step builds on the one before it.
 ## Start contributing
 
 - [Contributing](../about/contributing.md) — how to propose a change and get it merged.
-- [Vultron Developer Docs](../developer/index.md) — setup, testing and day-to-day development tasks.
+- [Vultron Developer Docs](https://github.com/CERTCC/Vultron/blob/main/docs/developer/index.md) — setup, testing and day-to-day development tasks.
