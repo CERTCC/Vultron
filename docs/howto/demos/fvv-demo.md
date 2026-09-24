@@ -1,4 +1,7 @@
 ---
+description: >
+  Run the three-actor Finder, Vendor, Vendor (FVV) demo, in which two vendors
+  each advance an independent fix path with no coordinator.
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
 ---

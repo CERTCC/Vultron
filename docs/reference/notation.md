@@ -1,4 +1,6 @@
 ---
+description: >
+  Notation conventions used throughout the documentation.
 stakeholder_type: ALL
 level: 300
 ---

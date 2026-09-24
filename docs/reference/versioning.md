@@ -1,4 +1,6 @@
 ---
+description: >
+  The version-numbering scheme for the Vultron Protocol.
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 200
 ---

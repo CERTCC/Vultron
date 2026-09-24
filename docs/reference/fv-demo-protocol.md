@@ -1,4 +1,7 @@
 ---
+description: >
+  The message-level protocol interactions of the Finder + Vendor (FV) demo,
+  for developers building interoperable actors.
 stakeholder_type: [platform-developer]
 level: 300
 ---

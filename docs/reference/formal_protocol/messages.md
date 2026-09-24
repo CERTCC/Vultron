@@ -123,7 +123,7 @@ All other RM messages are used to convey the sender's status.
 
     Participants SHOULD track the RM states of the other Participants in the case.
 
-An example object model for such tracking is described in [Case Object](../../howto/case_object.md).
+An example object model for such tracking is described in [The Case Model](../../topics/case_lifecycle/case_model.md).
 Furthermore, while these messages are expected to inform the receiving Participant's choices in their own RM process,
 this protocol intentionally does not specify any other recipient RM state changes upon receipt of an RM message.
 

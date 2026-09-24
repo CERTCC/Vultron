@@ -1,4 +1,7 @@
 ---
+description: >
+  Integrate the Report Management (RM), Embargo Management (EM), and Case
+  State (CS) state machines into an existing workflow management system.
 stakeholder_type: [platform-developer]
 level: 400
 ---

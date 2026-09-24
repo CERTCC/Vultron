@@ -1,4 +1,7 @@
 ---
+description: >
+  A crosswalk of the Vultron Protocol against Stakeholder-Specific
+  Vulnerability Categorization (SSVC).
 stakeholder_type: [cvd-practitioner]
 level: 400
 ---

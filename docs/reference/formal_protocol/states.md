@@ -23,7 +23,7 @@ Good Participant situation awareness makes for good CVD decision making.
     Participants SHOULD track the state of other Participants in a case 
     to inform their own decision making as it pertains to the case.
 
-An example [Case Object](../../howto/case_object.md) model that facilitates such tracking appears elsewhere.
+An example [case model](../../topics/case_lifecycle/case_model.md) that facilitates such tracking appears elsewhere.
 However, the Vultron protocol is expected to function even when incomplete information is available to
 any given Participant.
 

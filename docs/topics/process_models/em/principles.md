@@ -152,7 +152,7 @@ the leaving Participant is no longer involved in the case.
 
     We return to these concepts with the `case_engagement` and
     `embargo_adherence` attributes described in
-    [Case Object](../../../howto/case_object.md).
+    [Case Model](../../case_lifecycle/case_model.md).
     For the per-participant consent state machine that drives
     `embargo_adherence`, see
     [Participant Embargo Consent](participant-embargo-consent.md).

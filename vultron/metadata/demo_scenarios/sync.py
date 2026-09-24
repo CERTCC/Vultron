@@ -64,6 +64,7 @@ from vultron.metadata.demo_scenarios.render import (
     render_page,
     scenario_matrix_json,
 )
+from vultron.metadata.generated_block import splice_between
 
 #: Command that regenerates every artifact, quoted in every failure message.
 WRITE_COMMAND = "uv run demo-scenarios --write"
@@ -119,22 +120,7 @@ def splice(current: str, body: str, path: str) -> str:
             Silently appending a table when the markers are absent would leave
             the stale copy in place above the new one, so this fails instead.
     """
-    for marker, label in ((BEGIN_MARKER, "begin"), (END_MARKER, "end")):
-        count = current.count(marker)
-        if count != 1:
-            raise ValueError(
-                f"{path}: found {count} generated-table {label} markers, "
-                f"expected exactly 1. The marker text is:\n  {marker}"
-            )
-    start = current.index(BEGIN_MARKER)
-    end = current.index(END_MARKER)
-    if end < start:
-        raise ValueError(
-            f"{path}: the generated-table end marker precedes the begin marker"
-        )
-    head = current[: start + len(BEGIN_MARKER)]
-    tail = current[end:]
-    return f"{head}\n\n{body}\n\n{tail}"
+    return splice_between(current, body, path, BEGIN_MARKER, END_MARKER)
 
 
 def _marker_artifact(path: str, slug: str) -> Artifact:

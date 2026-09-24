@@ -1,4 +1,7 @@
 ---
+description: >
+  Moved: the case object is now documented as The Case Model in the
+  Explanation section.
 stakeholder_type: [platform-developer]
 level: 300
 ---

@@ -1,4 +1,7 @@
 ---
+description: >
+  Represent Vultron Protocol message types as ActivityPub messages using the
+  ActivityStreams vocabulary.
 stakeholder_type: [platform-developer]
 level: 300
 ---

@@ -1,4 +1,6 @@
 ---
+description: >
+  Requirements captured as user stories.
 stakeholder_type: [cvd-practitioner, process-researcher]
 level: 200
 ---

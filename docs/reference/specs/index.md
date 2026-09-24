@@ -1,4 +1,7 @@
 ---
+description: >
+  Structured requirements organized by portability tier: Protocol,
+  Architecture, Project, and Process.
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
 ---

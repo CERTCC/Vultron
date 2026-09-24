@@ -954,6 +954,15 @@ two overlapping `docs/` pages owns a topic, or changing a page's level or
 stakeholder type.
 Source: CONCERN-3526.
 
+**`site-coverage-matrix.md`**
+Generated, never hand-edited (`uv run docs-site --write`, DF-11-008): how many
+reader-facing `docs/` pages declare each `stakeholder_type` at each `level`,
+with `ALL` as its own row, plus the counts of pages that declare nothing yet and
+of working-record pages. An empty cell is a planning gap, not a failure.
+**Load when**: deciding which audience or depth the next documentation work
+should serve, or checking how far page declarations have progressed.
+Source: ISSUE-3527.
+
 **`documentation-strategy.md`**
 Docs chronology and trust levels, process models, formal protocol reference,
 behavior simulator reference, Do Work behaviors, and ISO crosswalks. Also the

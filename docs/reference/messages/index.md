@@ -1,4 +1,7 @@
 ---
+description: >
+  How the formal message set relates to the ActivityStreams 2.0 (AS2) wire
+  vocabulary the prototype sends and receives.
 stakeholder_type: [platform-developer]
 level: 400
 ---

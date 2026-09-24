@@ -1,4 +1,7 @@
 ---
+description: >
+  Start the Vultron demo environment with Docker Compose and run three
+  vulnerability-report workflows end to end.
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
 ---
