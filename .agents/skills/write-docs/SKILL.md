@@ -80,6 +80,20 @@ Before writing prose, list the concepts the page must introduce and order them
 so each depends only on what precedes it (SG-10). Concepts the page will not
 introduce get a link to their canonical introduction instead (SG-11).
 
+Settle the page's frontmatter here, because the concept list decides it
+(SG-40):
+
+- **`level`**: the page's prerequisite level (100–500). A page's level must be at
+  least the level of every page whose concepts it uses unlinked (DF-11-002).
+  Placement guidance is in `notes/site-information-architecture.md`.
+- **`introduces:`**: the glossary terms for which this page is the canonical
+  introduction. Leave a term out if another page already introduces it: check
+  with `grep -rn "introduces:" docs/`, since a term has one introducer.
+- **Links out**: for each concept the page uses but does not introduce, link
+  its first use to the page that introduces it, or to its glossary entry.
+  `docs-level-order` fails an unlinked use of a concept introduced above this
+  page's level.
+
 Write the section outline from that order. If the outline requires a forward
 reference, the outline is wrong — reorder, or link out.
 
@@ -146,6 +160,8 @@ list where a recap helps.
 2. Any durable domain term the page introduces gets a `glossary.md` entry with
    a definition and its aliases to avoid (SG-05). For a term that needs
    discussion rather than a definition, invoke `ubiquitous-language`.
+3. If this page is the new term's canonical introduction, add it to the page's
+   `introduces:` list, so lower-level pages that use it must link here.
 
 Never coin a term without registering it.
 
@@ -176,8 +192,14 @@ In this order:
 
 1. `lint-docs` on the pages written — fixes mechanical findings, reports the rest.
    Resolve every reported finding before proceeding.
-2. `format-markdown` — markdownlint-cli2 via `./mdlint.sh`.
-3. `build-docs` — `mkdocs build --strict`, which must pass with no warnings
+2. `uv run docs-frontmatter` and `uv run docs-level-order`, the frontmatter and
+   level-order gates the pre-commit hooks run. Both are site-wide, so a new
+   `introduces:` term can also flag an existing lower-level page that uses it
+   unlinked. Link that use; if the finding is on a page this change does not
+   touch and linking it would collide with another task's ownership of that
+   page, stop and ask rather than baselining it.
+3. `format-markdown` — markdownlint-cli2 via `./mdlint.sh`.
+4. `build-docs` — `mkdocs build --strict`, which must pass with no warnings
    (PD-04-001).
 
 ## Phase 8 — Deliver
