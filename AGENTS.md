@@ -338,9 +338,9 @@ linked file before touching that area. New pitfalls MUST be routed per
 
 ## Skill Interaction Rules
 
-- Always use the `ask_user` tool for user questions — never plain text; provide a
-  recommended answer on every call. Applies transitively when skills compose
-  (`learn` → `grill-me`, etc.).
+Ask the user anything per [`.agents/skills/shared/asking-the-user.md`](.agents/skills/shared/asking-the-user.md), in every session and when skills compose (`learn` → `grill-me`):
+**one question at a time**; **problem before decision** (the problem, why it matters, each option spelled out, your recommendation and why); **plain language**, no metaphor jargon or coined terms;
+**no bare IDs** ("#3512 (the docs navigation reorganization)," not "#3512"); **restate, don't point** by number; **short**, no walls of text ending in "do you agree?" Use `ask_user` for short, discrete choices, with a recommended answer; use plain text when a longer reply is likely.
 
 ---
 
