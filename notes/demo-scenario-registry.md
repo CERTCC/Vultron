@@ -13,6 +13,7 @@ related_specs:
   - specs/multi-actor-demo.yaml
   - specs/meta-specifications.yaml
 related_notes:
+  - notes/demo-interactive-ui.md
   - notes/demo-ci-invariants.md
   - notes/demo-ci-diagnostics.md
   - notes/demo-ci-scenario-coverage.md

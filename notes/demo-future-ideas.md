@@ -12,6 +12,7 @@ related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
 related_notes:
+  - notes/demo-interactive-ui.md
   - notes/demo-scenario-registry.md
   - notes/event-driven-control-flow.md
 ---

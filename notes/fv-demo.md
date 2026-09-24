@@ -15,6 +15,7 @@ related_specs:
   - specs/event-driven-control-flow.yaml
   - specs/embargo-default-semantics.yaml
 related_notes:
+  - notes/demo-interactive-ui.md
   - notes/case-bootstrap-trust.md
   - notes/case-proposal.md
   - notes/participant-case-replica.md

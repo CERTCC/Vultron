@@ -51,7 +51,7 @@ before merging. See `docs/adr/_adr-template.md`.
 Runtime: Python **3.12+** (CI: 3.13), **FastAPI** (BackgroundTasks for long
 ops), **Pydantic v2**, **pytest**, **mkdocs** (Material). Dev tools: **uv**,
 **black**, **flake8**, **mypy**, **pyright**, **markdownlint-cli2** (`mdlint.sh`).
-Do NOT introduce alternative frameworks or package managers without approval.
+No other frameworks/package managers without approval (`ui/` Node/React: ADR-0104).
 
 ---
 
