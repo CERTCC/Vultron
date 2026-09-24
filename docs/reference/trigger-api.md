@@ -1,3 +1,9 @@
+---
+description: >
+  The `POST /actors/{actor_id}/trigger/{behavior}` endpoints, each of which
+  starts a protocol behavior on an actor's behalf.
+---
+
 # Trigger API Reference
 
 {% include-markdown "../includes/not_normative.md" %}

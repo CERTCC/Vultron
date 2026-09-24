@@ -1,3 +1,9 @@
+---
+description: >
+  The Coordinated Vulnerability Disclosure (CVD) stakeholder roles and case
+  terms used throughout this documentation.
+---
+
 # Terms and Definitions
 
 This page defines the Coordinated Vulnerability Disclosure (CVD) stakeholder roles and case terms used throughout this documentation.

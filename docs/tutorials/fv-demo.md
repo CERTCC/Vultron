@@ -1,3 +1,10 @@
+---
+description: >
+  Step through a complete Coordinated Vulnerability Disclosure (CVD) case with
+  the Finder + Vendor (FV) scenario, from report submission through fix,
+  public disclosure, and case closure.
+---
+
 # Tutorial: Run the FV Demo
 
 In this tutorial, we will run the **FV CVD demo** end-to-end using

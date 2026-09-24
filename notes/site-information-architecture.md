@@ -7,6 +7,7 @@ description: >
   rule that nav enumerates groups while routing pages carry leaf sets.
 related_notes:
   - notes/diataxis-framework.md
+  - notes/site-coverage-matrix.md
   - notes/documentation-strategy.md
   - notes/documentation-sweeps.md
   - notes/agents-md-structure.md
@@ -140,11 +141,10 @@ One authority, one chain, so it is clear which copy is which:
 | `docs/includes/stakeholder_types.md` | Generated from that schema and `--check` gated (DF-11-011); the only form any `docs/` page includes |
 | ADR-0102 | A dated literal copy, on purpose — see below |
 
-A caveat on that third row: **the generator does not exist yet.** #3527 builds
-it; until it lands the fragment is hand-written, so a change to the members has
-to be made in DF-11-001 and in the fragment together, and nothing will catch you
-if you forget. That is precisely the state DF-11-011 exists to end, and it is why
-the generator is not optional scope in #3527.
+The fragment is written by `uv run docs-site --write` from `StakeholderType`
+and the wording in `AUDIENCE_DESCRIPTIONS` beside it, and the `docs-site-sync`
+hook fails a commit that leaves it stale. So a change to the members is made in
+DF-11-001 and in `page_schema.py`; the fragment follows.
 
 ADR-0102 states the members literally and deliberately does not include the
 fragment. A decision record is a dated account of what was decided; if the
@@ -312,14 +312,18 @@ taxonomy that no longer existed being described to readers. Hand-maintained
 duplicates of a machine-readable structure always drift; the defect class is
 the duplication, not any individual omission.
 
-Generate the landing pages from page frontmatter and gate them with a sync
-check. Three working examples to build on:
+`uv run docs-site --write` generates the contents listing of each top-level
+section landing page — the `index.md` a top-level nav section opens with — and
+the `docs-site-sync` hook gates it (`vultron/metadata/docs/landing_pages.py`).
+The nav supplies what a section contains, each entry's label, and the fallback
+order; each listed page's `description:` frontmatter supplies the text beside
+its link, and a declared `level` reorders the listing. Only the text between the
+generated-contents markers is replaced, so a landing page's framing,
+prerequisites, and cross-section pointers stay hand-written.
 
-| Prior art | Pattern to reuse |
-|---|---|
-| `vultron/metadata/adr/index_gen.py` | Generates a landing page from frontmatter; `missing_nav_entries()` proves nav completeness by parsing the nav structurally rather than by substring match (MS-14-006) |
-| `vultron/metadata/notes/` + `validate-notes-frontmatter` | Frontmatter schema, loader, and pre-commit hook |
-| `demo-scenarios-sync` (ADR-0098) | `--write` / `--check` so a generated artifact refuses to be hand-edited |
+The generator owns the four top-level landing pages only. Sub-section index
+pages are still hand-written: several carry a themed structure a flat generated
+list would lose, and which of them to generate is open.
 
 ### An `index.md` is a routing surface, not a content page
 
@@ -360,7 +364,8 @@ cheap.
 
 ### The coverage matrix is generated too
 
-The same generator emits a `stakeholder_type` × `level` matrix, so that
+The same generator emits a `stakeholder_type` × `level` matrix,
+[site-coverage-matrix.md](site-coverage-matrix.md), so that
 "we do not serve audience X" is a fact in a file rather than a recurring
 feeling. Two properties matter:
 

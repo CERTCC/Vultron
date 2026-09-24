@@ -1,3 +1,9 @@
+---
+description: >
+  Wire a capability into the reference implementation, replacing a call-out
+  stub with real backend logic.
+---
+
 # Wiring a Capability into the Reference Implementation
 
 {% include-markdown "../includes/not_normative.md" %}

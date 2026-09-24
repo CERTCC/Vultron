@@ -1,3 +1,10 @@
+---
+description: >
+  Explore case initialization, actor management, embargo negotiation,
+  acknowledgement, status updates, and the full Report Management (RM) case
+  lifecycle using the remaining `vultron-demo` sub-commands.
+---
+
 # Tutorial: Running the Other Demos
 
 In this tutorial, we will run the remaining Vultron demo sub-commands

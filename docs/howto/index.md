@@ -28,12 +28,18 @@ In this section, you will find:
 
 <div class="grid cards" markdown>
 
-- :material-database: an abstract [case object](case_object.md) for use in tracking MPCVD cases
-- :fontawesome-solid-gears: Notes on the [core Vultron Protocol subprocesses](process_implementation.md) (RM, EM, and CS), including how the CS model might integrate with
-other processes
-- :simple-activitypub: An in-depth exploration of applying the [ActivityPub](activitypub/index.md) protocol as an underlying foundation to
-  the Vultron Protocol.
-- :material-transit-connection: A guide to [wiring a capability](wire_capability.md) into the reference implementation — replacing a call-out stub with real backend logic.
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+
+<!-- markdownlint-disable MD007 -->
+- [A Case Object](case_object.md) — Moved: the case object is now documented as The Case Model in the Explanation section.
+- [Process Implementation](process_implementation.md) — Integrate the Report Management (RM), Embargo Management (EM), and Case State (CS) state machines into an existing workflow management system.
+- [Vultron ActivityPub](activitypub/index.md) — Represent Vultron Protocol message types as ActivityPub messages using the ActivityStreams vocabulary.
+- [Wiring a Capability](wire_capability.md) — Wire a capability into the reference implementation, replacing a call-out stub with real backend logic.
+- **Demo How-Tos**
+    - [FVV Demo](demos/fvv-demo.md) — Run the three-actor Finder, Vendor, Vendor (FVV) demo, in which two vendors each advance an independent fix path with no coordinator.
+<!-- markdownlint-enable MD007 -->
+
+<!-- END GENERATED SECTION CONTENTS -->
 
 </div>
 

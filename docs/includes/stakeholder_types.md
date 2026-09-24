@@ -1,3 +1,5 @@
+<!-- GENERATED from vultron/metadata/docs/page_schema.py by `uv run docs-site --write` — do not edit (DF-11-011) -->
+
 | Stakeholder type | Who it is | What they want |
 |---|---|---|
 | `cvd-practitioner` | Works CVD cases or the programs around them — including security researchers who report vulnerabilities, vendor PSIRTs, and national CSIRTs, ISACs, and ISAOs | To decide whether to adopt, and how the process changes if they do |

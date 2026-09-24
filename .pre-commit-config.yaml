@@ -67,6 +67,18 @@ repos:
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/page_.*|vultron/metadata/(base|file_loading)\.py)$
         pass_filenames: false
 
+      - id: docs-site-sync
+        name: Docs-site landing pages, stakeholder fragment and coverage matrix in sync
+        entry: uv run docs-site --check
+        language: system
+        # Every input that can make an artifact stale (DF-11-005/008/011): any
+        # docs page (its description:, level or stakeholder_type), the nav, the
+        # schema and generators, and the artifacts themselves so a hand-edit is
+        # caught. test_committed_site_artifacts_are_in_sync is the CI backstop,
+        # and the only one for a deletion, which no staged-file pattern matches.
+        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/.*\.py|vultron/metadata/(base|file_loading|generated_block)\.py|notes/site-coverage-matrix\.md)$
+        pass_filenames: false
+
       - id: adr-index-sync
         name: ADR index and nav in sync
         entry: uv run python -m vultron.metadata.adr.index_gen --check

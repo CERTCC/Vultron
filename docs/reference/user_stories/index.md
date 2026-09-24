@@ -1,3 +1,8 @@
+---
+description: >
+  Requirements captured as user stories.
+---
+
 # User Stories
 
 {% include-markdown "../../includes/not_normative.md" %}

@@ -1,3 +1,9 @@
+---
+description: >
+  The Vultron ActivityStreams objects that extend the ActivityStreams
+  vocabulary.
+---
+
 # Vultron ActivityStreams Objects
 
 {% include-markdown "../../includes/not_normative.md" %}

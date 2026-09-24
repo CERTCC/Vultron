@@ -8,14 +8,18 @@ record). Design rationale: ``notes/site-information-architecture.md``
 This module is the single machine source for the ``stakeholder_type`` members
 and the ``level`` ladder. Anything that needs either — the validator in
 :mod:`vultron.metadata.docs.page_frontmatter`, the generated
-``docs/includes/stakeholder_types.md`` fragment (#3527, DF-11-011) — imports
-:class:`StakeholderType` and :data:`LEVELS` rather than restating them.
+``docs/includes/stakeholder_types.md`` fragment (DF-11-011), the coverage
+matrix (DF-11-008) — imports :class:`StakeholderType`, :data:`LEVELS` and
+:data:`AUDIENCE_DESCRIPTIONS` rather than restating them.
 """
 
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
+from dataclasses import dataclass
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Annotated, Literal, get_args
 
 from pydantic import BaseModel, BeforeValidator, field_validator
@@ -38,6 +42,69 @@ class StakeholderType(StrEnum):
 #: The only permitted spelling of "every stakeholder type": a bare scalar,
 #: never ``[ALL]`` and never a list naming every member (DF-11-001).
 ALL_STAKEHOLDERS = "ALL"
+
+
+@dataclass(frozen=True, slots=True)
+class AudienceDescription:
+    """What the shared ``stakeholder_types.md`` fragment says about one entry.
+
+    Attributes:
+        who: Who the reader is.
+        wants: What that reader wants from the documentation.
+    """
+
+    who: str
+    wants: str
+
+
+#: The reader each :class:`StakeholderType` member names, and the meaning of
+#: :data:`ALL_STAKEHOLDERS`. The generated ``docs/includes/stakeholder_types.md``
+#: fragment renders these (DF-11-011), so a member added to the enum without a
+#: description here fails the generator rather than shipping a blank row.
+AUDIENCE_DESCRIPTIONS: Mapping[str, AudienceDescription] = MappingProxyType(
+    {
+        StakeholderType.CVD_PRACTITIONER: AudienceDescription(
+            who=(
+                "Works CVD cases or the programs around them — including "
+                "security researchers who report vulnerabilities, vendor "
+                "PSIRTs, and national CSIRTs, ISACs, and ISAOs"
+            ),
+            wants=(
+                "To decide whether to adopt, and how the process changes if "
+                "they do"
+            ),
+        ),
+        StakeholderType.PLATFORM_DEVELOPER: AudienceDescription(
+            who=(
+                "Builds or maintains a tracker, platform, or tool that must "
+                "coordinate with others"
+            ),
+            wants=(
+                "What to send and when, and where their own system plugs in"
+            ),
+        ),
+        StakeholderType.PROCESS_RESEARCHER: AudienceDescription(
+            who=(
+                "CVD process engineering, process-improvement research, "
+                "cross-case ecosystem health"
+            ),
+            wants=(
+                "The models, the measurements, and where the process theory "
+                "leads"
+            ),
+        ),
+        StakeholderType.PROJECT_CONTRIBUTOR: AudienceDescription(
+            who="Works on this reference implementation",
+            wants=(
+                "How this codebase is built, and why it was built that way"
+            ),
+        ),
+        ALL_STAKEHOLDERS: AudienceDescription(
+            who="Genuinely every type above",
+            wants="Declared explicitly; never inferred from an absent key",
+        ),
+    }
+)
 
 #: The prerequisite ladder. A page's level is never rendered or navigated by
 #: (DF-11-004); it exists so page ordering can be checked (DF-11-002).

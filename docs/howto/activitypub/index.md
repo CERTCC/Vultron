@@ -1,3 +1,9 @@
+---
+description: >
+  Represent Vultron Protocol message types as ActivityPub messages using the
+  ActivityStreams vocabulary.
+---
+
 # Vultron and ActivityPub
 
 {% include-markdown "../../includes/not_normative.md" %}
