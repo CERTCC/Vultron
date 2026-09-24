@@ -73,13 +73,13 @@ The *propose* and *accept* transitions above are applied atomically at case crea
 
 Because an embargo-eligible case already starts with an *Active* embargo, later proposals are revisions ($q^{em} \in A \xrightarrow{p} R$).
 A case still at EM *None* after creation is one that was not embargo-eligible, and no embargo may be proposed for it while it stays that way (VP-06-001).
-A proposal from *None* ($q^{em} \in N \xrightarrow{p} P$) is therefore possible only for a case that leaves *None* after creation, and nothing produces such a case today ([ADR-0096](../../../adr/0096-protocol-default-embargo.md)).
+A proposal from *None* ($q^{em} \in N \xrightarrow{p} P$) would need a case at *None* to become embargo-eligible after creation, and nothing in the protocol does that today ([ADR-0096](../../../adr/0096-protocol-default-embargo.md)).
 The constraints below apply to either kind of proposal, and the diagrams show the *None* to *Proposed* step.
 Every rule on this page that mentions EM *Proposed* governs only that later step: the case-creation traversal never rests in *Proposed*, so no Participant can observe it there or act on it (EP-04-002).
 
 !!! note ""
 
-    Embargo Management MAY begin in any of the active RM states ($q^{rm} \in \{ R,V,A \}$).
+    A Participant MAY propose embargo terms in any of the active RM states ($q^{rm} \in \{ R,V,A \}$).
 
 The first diagram shows the active RM states, from which proposing is allowed.
 
@@ -102,7 +102,7 @@ stateDiagram-v2
 
 !!! note ""
 
-    Embargo Management SHOULD NOT begin in an inactive RM state ($q^{rm} \in \{ I,D,C \}$).
+    A Participant SHOULD NOT propose embargo terms from an inactive RM state ($q^{rm} \in \{ I,D,C \}$).
 
 The second diagram shows the inactive RM states, from which proposing should be avoided.
 
@@ -163,7 +163,7 @@ stateDiagram-v2
 
 !!! note ""
 
-    Embargo Management SHOULD NOT begin with a proposal from a Participant in RM _Invalid_ ($q^{rm} \in I$).
+    A Participant in RM _Invalid_ ($q^{rm} \in I$) SHOULD NOT propose embargo terms.
 
 The diagram below shows the proposal to avoid.
 
@@ -188,7 +188,7 @@ stateDiagram-v2
 
     Outstanding embargo negotiations ($q^{em} \in P \xrightarrow{\{r,p\}} \{N,P\}$) MAY continue in RM _Invalid_ ($q^{rm} \in I$), for example if additional information is expected that may promote the report from _Invalid_ to _Valid_ ($q^{rm} \in I \xrightarrow{v} V$).
 
-As noted [above](#negotiate-embargoes-for-active-reports), an outstanding proposal in *Proposed* has no producer at present, so this rule governs only a case that leaves *None* after creation.
+As noted [above](#negotiate-embargoes-for-active-reports), an outstanding proposal in *Proposed* has no producer at present, so this rule would govern only a case at *None* that later became embargo-eligible.
 The diagram below shows an outstanding proposal that can still be superseded or rejected while the report waits in *Invalid*.
 
 ```mermaid

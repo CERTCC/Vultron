@@ -335,9 +335,9 @@ CS message to the receiving Participant's state coupled with the expected respon
 |                       $CX$                        | $\lnot C,\{N,X\},\cdot\cdot\cdot px \cdot$ | $-,-,\xrightarrow{\mathbf{X+P}} \cdot\cdot\cdot PX \cdot$ |                       $CK$                       |
 |                       $CX$                        | $\lnot C,*,\cdot\cdot\cdot Px \cdot$ | $-,-,\xrightarrow{\mathbf{X}} \cdot\cdot\cdot PX \cdot$ |                       $CK$                       |
 |                       $CX$                        | $\lnot C,*,\cdot\cdot\cdot PX \cdot$ | $-,-,-$ |                       $CK$                       |
-|                       $CA$                        | $\lnot C,P,\cdot\cdot\cdot p \cdot a$ | $-,\xrightarrow{r} N,\xrightarrow{\mathbf{A}} \cdot\cdot\cdot P \cdot A$ |                       $CK$                       |
-|                       $CA$                        | $\lnot C,\{A,R\},\cdot\cdot\cdot p \cdot a$ | $-,\xrightarrow{t} X,\xrightarrow{\mathbf{A}} \cdot\cdot\cdot P \cdot A$ |                       $CK$                       |
-|                       $CA$                        | $\lnot C,\{N,X\},\cdot\cdot\cdot p \cdot a$ | $-,-,\xrightarrow{\mathbf{A}} \cdot\cdot\cdot P \cdot A$ |                       $CK$                       |
+|                       $CA$                        | $\lnot C,P,\cdot\cdot\cdot p \cdot a$ | $-,\xrightarrow{r} N,\xrightarrow{\mathbf{A}} \cdot\cdot\cdot p \cdot A$ |                       $CK$                       |
+|                       $CA$                        | $\lnot C,\{A,R\},\cdot\cdot\cdot p \cdot a$ | $-,\xrightarrow{t} X,\xrightarrow{\mathbf{A}} \cdot\cdot\cdot p \cdot A$ |                       $CK$                       |
+|                       $CA$                        | $\lnot C,\{N,X\},\cdot\cdot\cdot p \cdot a$ | $-,-,\xrightarrow{\mathbf{A}} \cdot\cdot\cdot p \cdot A$ |                       $CK$                       |
 |                       $CA$                        | $\lnot C,*,\cdot\cdot\cdot P \cdot a$ | $-,-,\xrightarrow{\mathbf{A}} \cdot\cdot\cdot P \cdot A$ |                       $CK$                       |
 |                       $CA$                        | $\lnot C,*,\cdot\cdot\cdot\cdot\cdot A$ | $-,-,-$ |                       $CK$                       |
 | $CE$ | $\lnot C,*,*$ | $-,-,-$ |                     $CK+GI$                      |

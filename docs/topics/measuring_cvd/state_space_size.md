@@ -47,15 +47,12 @@ The role a participant plays narrows this further, as the following sections sho
 ## Vendors (Fix Suppliers)
 
 Vendors are the sole providers of fixes.
-Therefore, they are the only Participants in a CVD case for which the $Vfd \xrightarrow{\mathbf{F}} VFd \xrightarrow{\mathbf{D}} VFD$
-path is possible.
-Furthermore, since they are Vendors by definition, they do not have access to the $vfd$ state or the $\varnothing$
-state that was just added.
+Therefore, they are the only Participants in a CVD case for which the $Vfd \xrightarrow{\mathbf{F}} VFd \xrightarrow{\mathbf{D}} VFD$ path is possible.
+Furthermore, since they are Vendors by definition, they do not have access to the $vfd$ state or the $\varnothing$ state that was just added.
 As a Vendor has a report in $Received$, it is, by definition, at least in the $Vfd$ case state.
 
 Vendors create fixes only when they are in the $Accepted$ RM state.
-Because the $Received$, $Invalid$, and $Valid$ states come strictly *before* the $Accepted$ state in the RM DFA,
-there is no way for the Vendor to be in either $VFd$ or $VFD$ while in any of those states.
+Because the $Received$, $Invalid$, and $Valid$ states come strictly *before* the $Accepted$ state in the RM DFA, there is no way for the Vendor to be in either $VFd$ or $VFD$ while in any of those states.
 
 ???+ note "Vendor CS States When RM is in *Received*, *Invalid*, or *Valid*"
 
@@ -63,8 +60,7 @@ there is no way for the Vendor to be in either $VFd$ or $VFD$ while in any of th
 
 Vendors with the ability to deploy fixes themselves have access to three states in the fix path: $\{Vfd,~VFd,~VFD\}$.
 However, this is not always the case.
-Vendor Participants without a deployment capability can only create fixes, limiting them to the middle two states in
-the fix path: $\{Vfd,~VFd\}$.
+Vendor Participants without a deployment capability can only create fixes, limiting them to the middle two states in the fix path: $\{Vfd,~VFd\}$.
 Additional discussion of the distinction between Vendors with and without a deployment capability can be found in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"}.
 
 Applying these caveats to the [generic Participant state space](../../reference/formal_protocol/states.md) yields the Vendor state shown below.
@@ -247,14 +243,10 @@ As tallied below, there are 128 possible states for a Vendor with deployment cap
 
 As explained above, not all Vendors are Deployers.
 Likewise, not all Deployers are Vendors.
-Most CVD cases leave Non-Vendor Deployers entirely out of the CVD process, so their appearance is expected to be rare in
-actual cases.
-However, there are scenarios when an MPCVD case may include Non-Vendor Deployers, such as when a vulnerability in some
-critical infrastructure component is being handled or when the Vultron Protocol is used in the context of a Vulnerability
-Disclosure Program (VDP).
+Most CVD cases leave Non-Vendor Deployers entirely out of the CVD process, so their appearance is expected to be rare in actual cases.
+However, there are scenarios when an MPCVD case may include Non-Vendor Deployers, such as when a vulnerability in some critical infrastructure component is being handled or when the Vultron Protocol is used in the context of a Vulnerability Disclosure Program (VDP).
 These Non-Vendor Deployers participate only in the $d \xrightarrow{\mathbf{D}} D$ transition on the fix path.
-Similar to the [Vendor](#vendors-fix-suppliers) scenario above, it is expected that Deployers actually deploy fixes only when they are in the
-RM $Accepted$ state (implying their intent to deploy).
+Similar to the [Vendor](#vendors-fix-suppliers) scenario above, it is expected that Deployers actually deploy fixes only when they are in the RM $Accepted$ state (implying their intent to deploy).
 Therefore, their set of possible states is even more restricted than Vendors, as shown below.
 
 !!! note "Non-Vendor Deployer Participant State Space"
@@ -399,8 +391,7 @@ Therefore, their set of possible states is even more restricted than Vendors, as
         (C, *, *) \\
         \end{cases}$$
 
-Thus, Non-Vendor Deployers can be expected to be in 1 of 100 possible
-states, as shown next.
+Thus, Non-Vendor Deployers can be expected to be in 1 of 100 possible states, as shown next.
 
 !!! note "Non-Vendor Deployer State Space Size"
     $$  \begin{split}
@@ -414,10 +405,8 @@ states, as shown next.
 
 Finally, CVD cases often involve Participants who are neither Vendors nor Deployers.
 Specifically, Finder/Reporters fall into this category, as do Coordinators.
-Other roles, as outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"},
-could be included here as well.
-Because they do not participate directly in the Vendor fix path, these Non-Vendor, Non-Deployer CVD Participants fall
-into the $\varnothing$ case substate that the [generic Participant state space](../../reference/formal_protocol/states.md) adds for them.
+Other roles, as outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}, could be included here as well.
+Because they do not participate directly in the Vendor fix path, these Non-Vendor, Non-Deployer CVD Participants fall into the $\varnothing$ case substate that the [generic Participant state space](../../reference/formal_protocol/states.md) adds for them.
 Their state model is shown below.
 
 !!! note "Non-Vendor, Non-Deployer Participant State Space"
@@ -500,8 +489,7 @@ Their state model is shown below.
         (C,*,*) \\
         \end{cases}$$
 
-Non-Vendor Non-Deployer CVD Participants (Finder/Reporters, Coordinators, etc.) will be in 1 of 72 states, as calculated
-below.
+Non-Vendor Non-Deployer CVD Participants (Finder/Reporters, Coordinators, etc.) will be in 1 of 72 states, as calculated below.
 
 !!! note "Non-Vendor, Non-Deployer Participant State Space Size"
 
@@ -513,9 +501,7 @@ below.
 
 ### Finder-Reporters
 
-As discussed in [RM Interactions](../process_models/rm/rm_interactions.md#the-secret-lives-of-finders),
-the early Finder states are largely hidden from view from other CVD Participants unless they choose to engage
-in the CVD process in the first place.
+As discussed in [RM Interactions](../process_models/rm/rm_interactions.md#the-secret-lives-of-finders), the early Finder states are largely hidden from view from other CVD Participants unless they choose to engage in the CVD process in the first place.
 Therefore, for a CVD protocol, Finder states matter only once they have reached RM $Accepted$.
 Coincidentally, this is also a convenient way to mark the transition from Finder to Reporter.
 
@@ -596,8 +582,7 @@ Coincidentally, this is also a convenient way to mark the transition from Finder
         (C,*,*) \\
         \end{cases}$$
 
-Thus, for all practical purposes, the hidden states above can be ignored: Finders who go on to
-become Reporters have only 29 possible states during a CVD case.
+Thus, for all practical purposes, the hidden states above can be ignored: Finders who go on to become Reporters have only 29 possible states during a CVD case.
 
 !!! note "Finder-Reporter State Space Size"
     $$  \begin{split}
@@ -613,22 +598,17 @@ become Reporters have only 29 possible states during a CVD case.
     $$|S_{total}| = \prod_{i=1}^{N} |S_i|$$
 
 The lower bound on the state space of an MPCVD case follows.
-Generically, the state space for $N$ Participants
-takes the form given at right.
+Generically, the state space for $N$ Participants takes the form given at right.
 
 The upper bound on the MPCVD state space is $352^N \approx 10^{2.55N}$.
-However, because of the Role-specific limits just described, this overcounts the possible states
-significantly.
+However, because of the Role-specific limits just described, this overcounts the possible states significantly.
 A tighter bound is possible.
-Ignoring transient states while Participants converge on a consistent view of the global state of a case
-drastically reduces the state space for an MPCVD case.
+Ignoring transient states while Participants converge on a consistent view of the global state of a case drastically reduces the state space for an MPCVD case.
 Why?
 There are two reasons:
 
-1. Because they represent facts about the outside world, the eight
-    $\cdot\cdot\cdot pxa \rightarrow \cdot\cdot\cdot PXA$ CS substates are global to the case, not
-    to individual Participants. This means all Participants should
-    rapidly converge to the same substate.
+1. Because they represent facts about the outside world, the eight $\cdot\cdot\cdot pxa \rightarrow \cdot\cdot\cdot PXA$ CS substates are global to the case, not to individual Participants.
+    This means all Participants should rapidly converge to the same substate.
 
 2. Similarly, the five EM states are also global to the case and should converge rapidly.
 
@@ -677,15 +657,12 @@ With these values in mind:
 
 - A case like Meltdown/Spectre (with six Vendors and no Coordinators) might have $40 \times 3 \times 16^{6} \approx 10^{9}$ states.
 
-- A large, but not atypical, 200-Vendor case handled by the CERT/CC might have
-    $40 \times 3 \times 16^{200} \times 7 \approx 10^{244}$ possible configurations.
+- A large, but not atypical, 200-Vendor case handled by the CERT/CC might have $40 \times 3 \times 16^{200} \times 7 \approx 10^{244}$ possible configurations.
 
-- In the case of the log4j vulnerability [CVE-2021-44228](https://www.kb.cert.org/vuls/id/930724){:target="_blank"} in December
-    2021, the CERT/CC notified around 1,600 Vendors after the vulnerability had been made public. Had this been an
-    embargoed disclosure, the case would have a total state space around $10^{2000}$.
+- In the case of the log4j vulnerability [CVE-2021-44228](https://www.kb.cert.org/vuls/id/930724){:target="_blank"} in December 2021, the CERT/CC notified around 1,600 Vendors after the vulnerability had been made public.
+    Had this been an embargoed disclosure, the case would have a total state space around $10^{2000}$.
 
-That said, while these are dramatic numbers, the reader is reminded that the whole point of the Vultron Protocol is to
-*coordinate* the process so that it is not just hundreds or thousands of Participants behaving randomly.
+That said, while these are dramatic numbers, the reader is reminded that the whole point of the Vultron Protocol is to *coordinate* the process so that it is not just hundreds or thousands of Participants behaving randomly.
 
 ## Where to go next
 

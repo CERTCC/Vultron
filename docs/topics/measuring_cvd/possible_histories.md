@@ -8,12 +8,9 @@ level: 500
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-In [Case State Events](../process_models/cs/cs_model.md#cvd-case-substates), we
-began by identifying a set of events of interest in
-CVD cases. Then we
-constructed a state model describing how the occurrence of these events
-can interact with each other. In this section, we look at paths through
-the resulting state model.
+In [CS Input Symbols](../process_models/cs/transitions.md#cs-input-symbols), we began by identifying a set of events of interest in CVD cases.
+Then we constructed a state model describing how the occurrence of these events can interact with each other.
+In this section, we look at paths through the resulting state model.
 
 ## Sequences of Events
 

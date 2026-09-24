@@ -118,10 +118,8 @@ For a Deployer the fix path narrows to $\{d, D\}$, a role-specific restriction o
 
 ## Unreachable States
 
-For any Participant, the RM $Closed$ state implies that the EM and CVD Case states do
-not matter.
-Similarly, for any Participant, the RM $Start$ state represents a case that the
-Participant doesn't even know about yet.
+For any Participant, the RM $Closed$ state implies that the EM and CVD Case states do not matter.
+Similarly, for any Participant, the RM $Start$ state represents a case that the Participant doesn't even know about yet.
 Therefore, the $Start$ state also implies that the EM and CVD Case states do not matter.
 The symbol $*$ represents the "don't care" value.
 
@@ -129,10 +127,9 @@ The symbol $*$ represents the "don't care" value.
 
     $$q^{rm} \in \{S,C\} \implies (q^{em} \in *) \cup (q^{cs} \in *)$$
 
-A public exploit implies the vulnerability is public as well. In other
-words, $q^{cs} \in \cdot\cdot\cdot pX \cdot$ is an ephemeral state that resolves
-quickly to $q^{cs} \in \cdot\cdot\cdot PX \cdot$. (As a reminder, dots ($\cdot$)
-in CVD case state notation indicate single-character wildcards.)
+A public exploit implies the vulnerability is public as well.
+In other words, $q^{cs} \in \cdot\cdot\cdot pX \cdot$ is an ephemeral state that resolves quickly to $q^{cs} \in \cdot\cdot\cdot PX \cdot$.
+(As a reminder, dots ($\cdot$) in CVD case state notation indicate single-character wildcards.)
 
 ???+ note "Unreachable CS States when CS is in *Public* or *Exploit*"
 
@@ -142,7 +139,7 @@ Furthermore, when a vulnerability becomes public, the EM state no longer matters
 
 ???+ note "Unreachable EM States when CS is in *Public*"
 
-    $$q^{cs} \in \cdot\cdot\cdot PX \cdot \implies q^{em} \in *$$
+    $$q^{cs} \in \cdot\cdot\cdot P \cdot\cdot \implies q^{em} \in *$$
 
 Taken together, these limitations narrow the state model.
 The result is shown below.

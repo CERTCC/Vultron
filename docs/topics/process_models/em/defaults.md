@@ -138,13 +138,15 @@ Where the vulnerability is already public, exploit code is public, or attacks ha
 ### Sender Proposes When Receiver Has No Default Embargo
 
 Here the Sender attaches proposed terms to the report, and the Receiver has published no default embargo.
+The Sender's terms are the only ones on the table, so they become the *Active* embargo when the case is created.
+As on the default path, the *propose* and *accept* steps are applied together and the case never rests in *Proposed* ([EP-04-002](#why-active-and-not-proposed)).
+A Receiver that wants different terms says so with a revision, not by leaving the case without an embargo.
 
 ```mermaid
 stateDiagram-v2
     direction LR
     [*] --> N
-    N --> P : sender proposes
-    P --> A : receiver accepts
+    N --> A : case created with<br/>sender's terms
     A --> R : receiver proposes revision
 ```
 
@@ -152,9 +154,9 @@ stateDiagram-v2
 
     ???+ note inline end "Formalism"
 
-        $$q^{em} \in N \xrightarrow{p_{sender}} P \xrightarrow{a_{sender}} A$$
+        $$q^{em} \in N \xrightarrow{p_{sender}} P \xrightarrow{a_{receiver}} A$$
 
-    If the Sender proposes an embargo and the Receiver has no default embargo specified by policy, the Receiver SHOULD accept the Sender's proposal.
+    If the Sender proposes an embargo and the Receiver has no default embargo specified by policy, the Sender's proposed terms SHALL become the *Active* embargo at case creation.
 
 !!! note ""
 
