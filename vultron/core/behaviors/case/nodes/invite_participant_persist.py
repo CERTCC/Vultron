@@ -48,19 +48,16 @@ class PersistInviteeParticipantNode(DataLayerActionWithPorts):
         self.case_id = case_id
         self.invitee_id = invitee_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["invitee_already_participant"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "invitee_already_participant": PortInformation(
             data_type=object, required=True
-        )
-        ports["new_invite_participant"] = PortInformation(
+        ),
+        "new_invite_participant": PortInformation(
             data_type=object, required=True
-        )
-        ports["invitee_case"] = PortInformation(
-            data_type=object, required=True
-        )
-        return ports
+        ),
+        "invitee_case": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -154,13 +151,12 @@ class AdvanceInviteeToReceivedNode(DataLayerActionWithPorts):
             pxa_state=None,
         )
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["invitee_already_participant"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "invitee_already_participant": PortInformation(
             data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

@@ -7,6 +7,7 @@ description: >
   (StatusAdoptionGate) and whether to execute embargo teardown side-effects (EmbargoTeardownAuthorizationGate).
   Derived from the IDEA-1836 planning session.
 related_specs:
+  - specs/behavior-tree-node-design.yaml
   - specs/received-status-handling.yaml
   - specs/behavior-tree-integration.yaml
   - specs/cs-behavior.yaml
@@ -364,7 +365,7 @@ updated accumulator back via `_set_output(_BB_CS_FILTER_ACC_WRITE, acc)` — an
 explicit write-back using a dual-alias output port (`_BB_CS_FILTER_ACC_WRITE`)
 mapped to the same physical blackboard key (`/{_BB_CS_FILTER_ACC}`). This
 satisfies the py_trees constraint that forbids the same logical port name from
-appearing in both `input_ports()` and `output_ports()` of the same node (#2706).
+appearing in both `INPUT_PORTS` and `OUTPUT_PORTS` of the same node (#2706).
 
 `FinalizeCsFilterNode` runs third: it reads the completed accumulator, builds the
 `model_copy`-filtered `CaseStatus` (refused dimensions carry current values

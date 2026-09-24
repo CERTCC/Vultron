@@ -199,16 +199,15 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
         self._case_id = case_id
         self._sync_port: Any = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        ports["activity"] = PortInformation(data_type=object, required=False)
-        ports["sync_port"] = PortInformation(data_type=object, required=False)
-        ports["ledger_payload_object_override"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+        "activity": PortInformation(data_type=object, required=False),
+        "sync_port": PortInformation(data_type=object, required=False),
+        "ledger_payload_object_override": PortInformation(
             data_type=object, required=False
-        )
-        return ports
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

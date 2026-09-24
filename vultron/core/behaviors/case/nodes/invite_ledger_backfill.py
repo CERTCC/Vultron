@@ -69,21 +69,18 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["invitee_already_participant"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "invitee_already_participant": PortInformation(
             data_type=object, required=False
-        )
-        return ports
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "pre_commit_backfill_target": PortInformation(
-                data_type=object, required=False
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "pre_commit_backfill_target": PortInformation(
+            data_type=object, required=False
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -151,14 +148,13 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
         self.invitee_id = invitee_id
         self._sync_port: SyncActivityPort | None = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["sync_port"] = PortInformation(data_type=object, required=False)
-        ports["pre_commit_backfill_target"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "sync_port": PortInformation(data_type=object, required=False),
+        "pre_commit_backfill_target": PortInformation(
             data_type=object, required=False
-        )
-        return ports
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

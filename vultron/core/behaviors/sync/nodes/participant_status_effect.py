@@ -130,11 +130,10 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
     specs/sync-ledger-replication.yaml SYNC-02-002.
     """
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -332,11 +331,10 @@ class EmitImpossibleStateFaultNode(DataLayerActionWithPorts):
     still fails correctly without raising.
     """
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

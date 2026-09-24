@@ -78,17 +78,14 @@ class EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
             proposal_dict if proposal_dict is not None else proposal_id
         )
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "accept_activity_id": PortInformation(data_type=str, required=True)
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "accept_activity_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

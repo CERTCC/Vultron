@@ -87,14 +87,11 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         self._case_id_bb: str | None = None
         self.wire_render_port = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        ports["wire_render_port"] = PortInformation(
-            data_type=object, required=False
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+        "wire_render_port": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
