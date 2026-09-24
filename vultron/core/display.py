@@ -13,10 +13,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.core.models.base import VultronBase
+from vultron.core.models.base import CoreRecord
 
 
-def friendly_name(obj: VultronBase | str | None) -> str:
+def friendly_name(obj: CoreRecord | str | None) -> str:
     """Return a short, friendly display name for a domain object or URI.
 
     Resolution order:
@@ -29,7 +29,7 @@ def friendly_name(obj: VultronBase | str | None) -> str:
     3. ``"—"`` — returned when *obj* is ``None`` or no usable segment exists.
 
     Args:
-        obj: A ``VultronBase`` domain object, a plain URI string, or ``None``.
+        obj: A ``CoreRecord`` domain object, a plain URI string, or ``None``.
 
     Returns:
         A short, human-readable label.
@@ -37,7 +37,7 @@ def friendly_name(obj: VultronBase | str | None) -> str:
     if obj is None:
         return "—"
 
-    if isinstance(obj, VultronBase):
+    if isinstance(obj, CoreRecord):
         if obj.name:
             return obj.name
         uri: str | None = getattr(obj, "id_", None)

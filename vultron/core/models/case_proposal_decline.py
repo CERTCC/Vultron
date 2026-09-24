@@ -55,11 +55,11 @@ from pydantic import Field, model_validator
 from vultron.core.models.base import (
     NonEmptyString,
     UriString,
-    VultronObject,
+    CoreRecord,
 )
 
 
-class CaseProposalDeclineRecord(VultronObject):
+class CaseProposalDeclineRecord(CoreRecord):
     """Durable record that this service declined a ``CaseProposal``.
 
     Attributes:

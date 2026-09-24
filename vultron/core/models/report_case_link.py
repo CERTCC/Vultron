@@ -21,11 +21,11 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import NonEmptyString, UriString, VultronObject
+from vultron.core.models.base import NonEmptyString, UriString, CoreRecord
 from vultron.core.states.rm import RM
 
 
-class VultronReportCaseLink(VultronObject):
+class VultronReportCaseLink(CoreRecord):
     """Track the case associated with a submitted vulnerability report.
 
     The DataLayer id is derived from ``report_id`` alone (:meth:`build_id`), so

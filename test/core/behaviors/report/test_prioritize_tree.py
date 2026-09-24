@@ -26,7 +26,7 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreObject
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
@@ -84,7 +84,7 @@ def _make_engage_request(
     return EngageCaseReceivedEvent(
         activity_id=f"{case.id_}/activities/engage",
         actor_id=actor_id,
-        object_=VultronObject(id_=case.id_),
+        object_=CoreObject(id_=case.id_),
         semantic_type=MessageSemantics.ENGAGE_CASE,
         activity=VultronActivity(
             type_="Announce",
@@ -101,7 +101,7 @@ def _make_defer_request(
     return DeferCaseReceivedEvent(
         activity_id=f"{case.id_}/activities/defer",
         actor_id=actor_id,
-        object_=VultronObject(id_=case.id_),
+        object_=CoreObject(id_=case.id_),
         semantic_type=MessageSemantics.DEFER_CASE,
         activity=VultronActivity(
             type_="Announce",

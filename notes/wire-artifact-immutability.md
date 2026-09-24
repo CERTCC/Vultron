@@ -1,6 +1,8 @@
 ---
 title: Wire Artifact Immutability
 status: active
+related_specs:
+  - specs/architecture.yaml (ARCH-12-001, ARCH-21-002)
 ---
 
 # Wire Artifact Immutability
@@ -24,11 +26,12 @@ A wire Activity is immutable once it is complete:
 
 Flexibility and immutability are **orthogonal**. A wire model can allow
 optional fields, `Any`-typed sub-fields, and string-as-reference values (all
-required by the lenient wire branch per ARCH-12-002) while simultaneously
-preventing post-construction mutation via `ConfigDict(frozen=True)`. The
-`validate_assignment=False` exemption on `as_Object` (ADR-0064) affects
-type-checking on field writes — it does not preclude `frozen=True`, which
-rejects any attribute assignment regardless of type. Under Pydantic v2 that
+permitted by the lenient wire branch) while simultaneously preventing
+post-construction mutation via `ConfigDict(frozen=True)`. The wire branch not
+validating assignment (ADR-0064, ARCH-21-002 — it inherits nothing from the
+core `CoreRecord` root that carries the flag) concerns type-checking on field
+writes — it does not preclude `frozen=True`, which rejects any attribute
+assignment regardless of type. Under Pydantic v2 that
 rejection surfaces as a `ValidationError` with `type=frozen_instance`, not a
 `TypeError`; code that means to clear a field on a wire object must build a
 new one via `model_copy(update=...)` instead (issue #2904).
@@ -145,11 +148,14 @@ event, breaking the accountability invariant.
 
 - **ADR-0074**: wire Activity artifact immutability — the decision record for
   this design principle (frozen=True on wire branch, A/B split, dumb-relay ports).
-- **ADR-0017**: two-branch hierarchy (`VultronBase` shared root, core branch
-  strict, wire branch lenient). Wire branch flexibility does not preclude wire
-  branch immutability.
-- **ADR-0064**: `validate_assignment=False` on wire branch — exempts wire
-  branch from post-construction type validation. Orthogonal to `frozen=True`.
+- **ADR-0017**: two-branch hierarchy (core branch strict, wire branch
+  lenient). Its shared root is gone: under ADR-0099 detail 4 `as_Base` stands
+  on `pydantic.BaseModel` directly and inherits nothing from core
+  (ARCH-12-001). Wire branch flexibility does not preclude wire branch
+  immutability.
+- **ADR-0064**: the wire branch does not validate assignment — it never
+  inherits `validate_assignment` from the core `CoreRecord` root
+  (ARCH-21-002). Orthogonal to `frozen=True`.
 - **ADR-0073**: per-actor DataLayer isolation — each actor's artifact store
   holds only what that actor received, preserving each actor's independent view.
 

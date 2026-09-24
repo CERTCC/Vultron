@@ -113,19 +113,17 @@ ACTIVITY_TYPE_EXEMPTIONS: frozenset[str] = frozenset(
 # ---------------------------------------------------------------------------
 # Known pre-existing wire escapes for CORE_VOCABULARY types.
 #
-# Each entry is a ``CORE_VOCABULARY`` key (i.e., the ``type_`` string used
-# when the object was persisted) that currently round-trips back as a wire
-# object rather than a core object.  These are actor types whose ``type_``
-# value ("Person", "Service", etc.) is intercepted by the wire VOCABULARY
-# before the core-vocabulary path can resolve them.
-#
-# Fix: ensure ``_from_row`` resolves these via ``CORE_VOCABULARY`` before
-# falling back to the wire path.  No migration issue filed yet; file one
-# when this ratchet is ready to be tightened.
-#
+# Each entry is a ``CORE_VOCABULARY`` key (a class name) whose saved instance
+# currently round-trips back as a wire object rather than a core object.
 # Remove an entry from this set when the round-trip regression is fixed.
+#
+# ``VultronNote`` is pre-existing rather than new: ``from_row`` looks up the
+# stored ``type_`` ("Note"), which never matched its class-name key, so a
+# stored note has always read back as the unpaired wire ``as_Note``.  It
+# became visible here only when ADR-0099 detail 4 moved it onto
+# ``CoreObject`` and so into ``CORE_VOCABULARY``.  Tracked by #3647.
 # ---------------------------------------------------------------------------
-KNOWN_WIRE_ESCAPES: frozenset[str] = frozenset()
+KNOWN_WIRE_ESCAPES: frozenset[str] = frozenset({"VultronNote"})
 
 
 def _collect_wire_escapes() -> frozenset[str]:

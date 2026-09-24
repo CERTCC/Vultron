@@ -8,24 +8,23 @@ from pydantic import BaseModel
 from vultron.core.models import (
     CORE_VOCABULARY,
     CoreObject,
-    VultronObject,
     find_in_core_vocabulary,
 )
-from vultron.core.models.base import VULTRON_CONTEXT_URI, VultronBase
+from vultron.core.models.base import VULTRON_CONTEXT_URI, CoreRecord
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry as CoreCaseLedgerEntry,
 )
 from vultron.core.models.note import VultronNote
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.report import VulnerabilityReport, VultronReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 
 # --- Inheritance shape ------------------------------------------------------
 
 
-def test_core_object_inherits_vultron_object():
-    assert issubclass(CoreObject, VultronObject)
-    assert issubclass(CoreObject, VultronBase)
+def test_core_object_extends_the_core_record_root():
+    assert issubclass(CoreObject, CoreRecord)
     assert issubclass(CoreObject, BaseModel)
 
 
@@ -49,8 +48,10 @@ def test_core_object_has_required_as2_fields():
 def test_core_object_default_instance():
     obj = CoreObject()
     assert obj.id_.startswith("urn:uuid:")
-    # Bare CoreObject is treated as concrete by the type-from-classname validator.
-    assert obj.type_ == "CoreObject"
+    # The bare root is the extractor's minimal reference: its type is the
+    # referenced object's, so the class name is never invented for it.
+    assert obj.type_ is None
+    assert CoreObject(type_="Invite").type_ == "Invite"
     # context_ is a wire concern and defaults to None on the domain side.
     assert obj.context_ is None
     assert obj.published is not None
@@ -212,23 +213,15 @@ def test_registry_robust_under_future_annotations(tmp_path, isolated_vocab):
     assert CORE_VOCABULARY["FutureAnnotConcrete"] is mod.FutureAnnotConcrete
 
 
-# --- AC-4: legacy Vultron* stubs are untouched ------------------------------
+# --- ADR-0099 detail 4: AS2-shaped stubs sit on the one AS2 root -----------
 
 
-def test_legacy_vultron_stubs_do_not_inherit_core_object():
-    """AC-4: existing Vultron* core stubs not yet migrated.
-
-    VultronNote still inherits VultronObject (not CoreObject) and must not
-    appear in CORE_VOCABULARY.  VultronCase is now an alias for
-    VulnerabilityCase (migrated in #729) so it IS a CoreObject.
-    """
-    for cls in (VultronNote,):
-        assert issubclass(cls, VultronObject)
-        assert not issubclass(cls, CoreObject), (
-            f"{cls.__name__} prematurely inherits CoreObject; "
-            "it has not been migrated yet."
-        )
-        assert cls.__name__ not in CORE_VOCABULARY
+def test_as2_shaped_vultron_stubs_are_core_objects():
+    """``VultronNote`` and the ``VultronActivity`` family carry AS2 object
+    fields, so they extend ``CoreObject`` — the one AS2 object root — rather
+    than the retired middle level (ADR-0099 detail 4)."""
+    for cls in (VultronNote, VultronActivity):
+        assert issubclass(cls, CoreObject)
 
 
 # --- AC-1/#727: migrated types inherit CoreObject ---------------------------
@@ -368,3 +361,52 @@ def test_case_ledger_entry_derives_id_from_wire_spelled_coordinates():
         }
     )
     assert entry.id_ == "urn:uuid:case-wire/log/3"
+
+
+# --- #3578 AC-5/AC-6: AS2 envelope spelling on every core vocabulary entry ---
+
+_ENVELOPE_SPELLING = {
+    "media_type": "mediaType",
+    "start_time": "startTime",
+    "end_time": "endTime",
+    "attributed_to": "attributedTo",
+    "in_reply_to": "inReplyTo",
+}
+
+
+def test_every_core_vocabulary_entry_spells_the_as2_envelope_in_camel_case():
+    """Each ``CORE_VOCABULARY`` entry dumps the shared AS2 envelope fields in
+    AS2 camelCase, not snake_case (#3578 AC-5).
+
+    Before the alias generator reached every core object (ADR-0099 detail 2),
+    ten classes — ``CaseParticipant``, ``CaseActor`` and ``CaseReference``
+    among them — dumped ``media_type`` / ``start_time`` / ``end_time`` /
+    ``attributed_to`` verbatim.
+    """
+    from datetime import datetime, timezone
+
+    from test.support.core_vocab import build_core_vocab
+
+    when = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    built, unconstructible = build_core_vocab(
+        "envelope",
+        {
+            "media_type": "text/plain",
+            "start_time": when,
+            "end_time": when,
+            "attributed_to": "urn:test:attributed-to:1",
+            "in_reply_to": "urn:test:in-reply-to:1",
+        },
+    )
+    assert not unconstructible, unconstructible
+    misspelled = {
+        name: sorted(
+            field
+            for field, camel in _ENVELOPE_SPELLING.items()
+            if camel not in dumped or field in dumped
+        )
+        for name, obj in built
+        if (dumped := obj.model_dump(by_alias=True, exclude_none=True))
+    }
+    misspelled = {name: bad for name, bad in misspelled.items() if bad}
+    assert not misspelled, f"non-AS2 envelope spelling: {misspelled}"

@@ -16,14 +16,20 @@
 
 from typing import Any, ClassVar
 
-from pydantic import Field, model_validator, ConfigDict, ValidationInfo
+from pydantic import (
+    BaseModel,
+    Field,
+    model_validator,
+    ConfigDict,
+    ValidationInfo,
+)
 from pydantic.alias_generators import to_camel
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     absent_times_as_none,
 )
-from vultron.core.models.base import VULTRON_CONTEXT_URI, VultronBase
+from vultron.core.models.base import VULTRON_CONTEXT_URI
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
@@ -52,7 +58,16 @@ __all__ = [
 ]
 
 
-class as_Base(VultronBase):
+class as_Base(BaseModel):
+    """Root of the wire vocabulary for AS2 types that have no core class.
+
+    Under ADR-0099 detail 4 this root inherits nothing from core: the core
+    classes are the object model and AS2 is their serialization, so there is no
+    shared ancestor to keep lenient for both.  What remains here is unpaired AS2
+    vocabulary (``as_Link``, the generic activities) and it declares its own
+    fields and configuration.
+    """
+
     model_config = ConfigDict(
         alias_generator=to_camel,
         validate_by_name=True,

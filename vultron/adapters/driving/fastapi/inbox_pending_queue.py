@@ -155,7 +155,7 @@ def _expire_pending_case_activities(
         try:
             question = bootstrap_replay_question_activity(
                 actor=actor_id,
-                to=pending.case_actor_id,
+                to=[pending.case_actor_id],
                 case_id=case_id,
             )
             dl.save(question)

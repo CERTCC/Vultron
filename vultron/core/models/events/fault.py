@@ -26,7 +26,7 @@ class CreateProcessingFaultReceivedEvent(VultronEvent):
     """Sender received a Create(ProcessingFault) NACK from a receiver.
 
     Indicates the receiver could not process the sender's status assertion
-    (ADR-0080, ASK-07-001).  ``object_`` contains a minimal ``VultronObject``
+    (ADR-0080, ASK-07-001).  ``object_`` contains a minimal ``CoreObject``
     wrapping the ``as_ProcessingFault``; the ``in_reply_to`` field on that
     object points to the failed activity URI (ASK-07-004).
     """

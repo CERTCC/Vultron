@@ -10,7 +10,7 @@ copy/paste mistake in any property on the same class cannot pass undetected.
 import pytest
 
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import VultronEmbargoEvent
@@ -103,7 +103,7 @@ _activity = VultronActivity(
     type_="Offer",
     actor=_ACTOR_URI,
 )
-_obj = VultronObject(id_="https://example.org/objects/o1")
+_obj = CoreObject(id_="https://example.org/objects/o1")
 
 
 def _mk(cls, semantic, **fields):

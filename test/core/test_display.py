@@ -14,11 +14,11 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.core.display import friendly_name
-from vultron.core.models.base import VultronBase
+from vultron.core.models.base import CoreRecord
 
 
-class _NamedObj(VultronBase):
-    """Minimal VultronBase subclass used in tests."""
+class _NamedObj(CoreRecord):
+    """Minimal CoreRecord subclass used in tests."""
 
 
 # ---------------------------------------------------------------------------
@@ -31,7 +31,7 @@ def test_friendly_name_none_returns_dash():
 
 
 # ---------------------------------------------------------------------------
-# VultronBase with name field set
+# CoreRecord with name field set
 # ---------------------------------------------------------------------------
 
 
@@ -78,7 +78,7 @@ def test_friendly_name_empty_string_returns_dash():
 
 
 # ---------------------------------------------------------------------------
-# VultronBase without name — falls back to id_ heuristic
+# CoreRecord without name — falls back to id_ heuristic
 # ---------------------------------------------------------------------------
 
 

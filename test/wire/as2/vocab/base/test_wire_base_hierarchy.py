@@ -1,11 +1,9 @@
 #!/usr/bin/env python
-"""Boundary tests verifying the wire base hierarchy inherits from the shared
-root (ARCH-12-001, ARCH-12-002, issue #799).
+"""Boundary tests verifying the wire base hierarchy has its own root.
 
-AC-1: issubclass(as_Base, VultronBase) is True.
-AC-2: issubclass(as_Object, VultronObject) is True.
-AC-3: No new mypy or pyright errors (validated via linters, not here).
-AC-4: All existing tests pass; inheritance chain confirmed here.
+ADR-0099 detail 4 retired the shared root that issue #799 introduced:
+``as_Base`` now stands on ``BaseModel`` directly, so no wire class inherits
+core fields, configuration or registration hooks (ARCH-12-001, ARCH-12-002).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -26,28 +24,25 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from vultron.core.models.base import VultronBase, VultronObject
+from vultron.core.models.base import CoreObject, CoreRecord
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.base.utils import URN_UUID_PREFIX
 
-# --- AC-1/AC-2: Inheritance chain (ARCH-12-001) ----------------------------
+# --- Own root (ADR-0099 detail 4, ARCH-12-001) -----------------------------
 
 
-def test_as_base_inherits_vultron_base():
-    """AC-1: issubclass(as_Base, VultronBase) is True."""
-    assert issubclass(as_Base, VultronBase)
+def test_as_base_stands_directly_on_base_model():
+    """``as_Base`` has its own root; nothing core sits between it and Pydantic."""
+    assert as_Base.__bases__ == (BaseModel,)
 
 
-def test_as_object_inherits_vultron_object():
-    """AC-2: issubclass(as_Object, VultronObject) is True."""
-    assert issubclass(as_Object, VultronObject)
-
-
-def test_as_base_still_inherits_base_model():
-    """Transitive: as_Base -> VultronBase -> BaseModel."""
-    assert issubclass(as_Base, BaseModel)
+def test_wire_base_inherits_no_core_root():
+    """Neither wire base inherits either core root."""
+    for wire_cls in (as_Base, as_Object):
+        assert not issubclass(wire_cls, CoreRecord)
+        assert not issubclass(wire_cls, CoreObject)
 
 
 def test_as_object_still_inherits_as_base():
@@ -55,17 +50,14 @@ def test_as_object_still_inherits_as_base():
     assert issubclass(as_Object, as_Base)
 
 
-def test_as_object_inherits_vultron_base():
-    """as_Object transitively inherits VultronBase via both branches."""
-    assert issubclass(as_Object, VultronBase)
-
-
-def test_as_object_mro():
-    """MRO confirms diamond linearisation: as_Object -> as_Base -> VultronObject -> VultronBase."""
-    mro_names = [cls.__name__ for cls in as_Object.__mro__]
-    assert mro_names.index("as_Object") < mro_names.index("as_Base")
-    assert mro_names.index("as_Base") < mro_names.index("VultronObject")
-    assert mro_names.index("VultronObject") < mro_names.index("VultronBase")
+def test_as_object_mro_is_wire_only():
+    """No ``vultron.core`` class appears in ``as_Object``'s MRO."""
+    core_bases = [
+        cls.__qualname__
+        for cls in as_Object.__mro__
+        if cls.__module__.startswith("vultron.core")
+    ]
+    assert core_bases == []
 
 
 # --- Field-precedence / wire-semantics preserved ---------------------------
@@ -145,10 +137,9 @@ def test_as_object_naive_datetime_object_normalized_to_utc():
 def test_as_object_attributed_to_accepts_non_string():
     """Wire field attributed_to remains Any|None — non-string values must be accepted.
 
-    VultronObject narrows attributed_to to NonEmptyString | None, but as_Object
-    re-declares it as Any | None.  The wire declaration must win via MRO so that
-    AS2 payloads carrying nested objects or dicts are accepted without validation
-    errors.  A plain annotation check (looking for NoneType in __args__) would
+    ``CoreObject`` narrows attributed_to to NonEmptyString | None; the wire
+    branch declares it as Any | None so that AS2 payloads carrying nested
+    objects or dicts are accepted without validation errors.  A plain annotation check (looking for NoneType in __args__) would
     pass even if NonEmptyString | None took over, so we use a runtime round-trip.
     """
     # dict (inline AS2 object) must not raise

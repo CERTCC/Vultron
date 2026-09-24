@@ -9,7 +9,7 @@ description: >
   live in vultron/wire/as2/vocab/AGENTS.md.
 related_specs:
   - specs/vocabulary-model.yaml
-  - specs/architecture.yaml
+  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-12-010)
   - specs/docs-build-workflow.yaml
 related_notes:
   - notes/activitystreams-semantics.md
@@ -31,7 +31,7 @@ decorator application:
 
 ```python
 @activitystreams_object  # writes to VOCABULARY.objects at import time
-class VulnerabilityCase(VultronObject): ...
+class VulnerabilityCase(as_VultronObject): ...
 ```
 
 This created two fragility points:
@@ -62,7 +62,7 @@ guarantee, but not as the primary mechanism.
 Use the `type_` field annotation as the heuristic. A class is treated as
 concrete (and registered) if its `type_` annotation is `Literal[...]`.
 Abstract/intermediate bases (for example, `as_Object`, `as_Activity`,
-`VultronObject`, `as_Actor`) leave `type_` typed as `str | None` and are
+`as_VultronObject`, `as_Actor`) leave `type_` typed as `str | None` and are
 skipped.
 
 This avoids boilerplate on abstract classes and matches the existing
@@ -82,7 +82,7 @@ vestigial; all callers use the plain `find_in_vocabulary(name)` form.
 Introduce a `VocabNamespace` enum (`AS`, `VULTRON`) in
 `vultron/wire/as2/vocab/base/enums.py`. Each `as_Base` subclass carries a
 `_vocab_ns: ClassVar[VocabNamespace]` attribute (default:
-`VocabNamespace.AS`). `VultronObject` overrides it to
+`VocabNamespace.AS`). `as_VultronObject` overrides it to
 `VocabNamespace.VULTRON`.
 
 Namespace is **not** part of the dict key — the type name alone is the
@@ -174,9 +174,10 @@ The fix:
 
 1. **`CORE_TYPE_MAP`** (`vultron/core/models/registry.py`) — a new dict
    separate from `VOCABULARY` and `CORE_VOCABULARY`. Auto-populated by
-   `VultronObject.__init_subclass__` (for concrete `Literal[...]` `type_`
-   annotations) and by `CoreObject.__init_subclass__` (for no-`type_`
-   subclasses that use `_set_type_from_class_name`).
+   `CoreRecord.__init_subclass__` (for concrete `Literal[...]` `type_`
+   annotations, keyed by class name and by the `Literal` value) and by
+   `CoreObject.__init_subclass__` (for no-`type_` subclasses that use
+   `_set_type_from_class_name`).
 
 2. **`find_in_vocabulary()` fallback** — after checking `VOCABULARY`, the
    function calls `find_in_core_type_map()` before raising `KeyError`.
@@ -198,17 +199,20 @@ The fix:
 3. **Wire re-export modules** (`offer_record.py`, etc.) no longer write to
    `VOCABULARY`. They import and re-export the core class unchanged.
 
-**Why `VultronObject`, not `CoreObject`**: five of the six affected types
-inherit `VultronObject` directly (not through `CoreObject`), so the hook must
-live on the shared root. See
-`plan/incoming/learnings/20260819-core-type-map-hook-on-vultronobject-not-coreobject.md`.
+**Why `CoreRecord`, not `CoreObject`**: the bookkeeping records
+(`VultronOfferRecord`, `VultronPendingCaseInbox`, `PendingCreateCaseActivity`,
+`VultronReplicationState`, …) extend `CoreRecord` but not `CoreObject`, so the
+hook must live on the record root (ARCH-12-002, ARCH-12-010). It was
+originally placed on the old shared root for the same reason.
+Ratchet: `test_core_record_types_in_core_type_map`.
 
-**Wire-branch guard** (issue #2416): `as_Object` (the wire-branch root)
-overrides `_is_core_branch: ClassVar[bool] = False`. All wire subclasses
-inherit this value; `VultronObject.__init_subclass__` checks
-`cls._is_core_branch` at entry and returns immediately for any wire-branch
-type. Confirmed by `test_no_wire_types_in_core_type_map` in
-`test/architecture/test_hierarchy_invariants.py`.
+**No wire-branch guard is needed any more** (issue #2416). While wire classes
+inherited the core root, its `__init_subclass__` had to skip them through an
+`_is_core_branch` sentinel. ADR-0099 detail 4 made `as_Base` stand on
+`pydantic.BaseModel` directly (ARCH-12-001), so no wire class ever reaches the
+core hook and the sentinel is gone. `test_no_wire_types_in_core_type_map` in
+`test/architecture/test_hierarchy_invariants.py` stays as a regression
+guard.
 
 ---
 

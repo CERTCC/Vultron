@@ -57,19 +57,37 @@ VULTRON_CONTEXT_URI = "https://certcc.github.io/Vultron/ns/context.jsonld"
 class ValidatedAssignmentMixin(BaseModel):
     """Mixin that enables Pydantic post-construction field validation on core models.
 
-    Apply to core-branch roots only (ARCH-21-001). ``VultronBase`` is permanently
-    excluded because it is the shared base of both branches and ``as_Base``
-    inherits it (ARCH-12-001, ARCH-12-002). Composes correctly with
-    ``VultronBase.model_config`` (``populate_by_name=True``) across the MRO:
-    Pydantic v2 merges ``model_config`` from all BaseModel ancestors, so the
-    result carries both ``validate_assignment=True`` and ``populate_by_name=True``.
+    Applied by :class:`CoreRecord`, so every core root and everything below it
+    validates assignment to the same standard as construction (ARCH-21-001).
+    Also composed directly onto the core ``BaseModel`` subclasses that are not
+    records — dimensions, the hash-chain ledger record, dispatch events.
+    Pydantic v2 merges ``model_config`` across the MRO, so the flag composes
+    with each class's own configuration.
     """
 
     model_config = ConfigDict(validate_assignment=True)
 
 
-class VultronBase(BaseModel):
+class CoreRecord(ValidatedAssignmentMixin):
+    """Minimal core root: a stored record that is not an AS2 object.
+
+    ADR-0099 detail 4 gives core two roots.  This one carries only the
+    identity every stored record needs — ``id_``, ``type_``, ``name`` — for
+    records that never go on the wire in their own right: dead letters,
+    offer bookkeeping, replication state.  It has no ``@context``, no alias
+    generator and no AS2 object fields, so it has no AS2 spelling, which is
+    why the rendering port refuses it (ARCH-20-003).
+
+    The AS2-shaped root is :class:`CoreObject`, which extends this one.
+
+    Every concrete subclass that declares a ``Literal`` ``type_`` registers in
+    :data:`CORE_TYPE_MAP` so a stored row can be reconstructed by its type
+    string (ARCH-12-010).  Wire classes do not inherit this root, so nothing
+    here has to guard against them (#2416).
+    """
+
     model_config = ConfigDict(populate_by_name=True)
+
     id_: NonEmptyString = Field(
         default_factory=_new_urn,
         validation_alias="id",
@@ -81,36 +99,14 @@ class VultronBase(BaseModel):
         serialization_alias="type",
     )
     name: NonEmptyString | None = None
-    preview: NonEmptyString | None = None
-    media_type: NonEmptyString | None = None
-
-
-class VultronObject(ValidatedAssignmentMixin, VultronBase):
-    """Base class for core domain object models.
-
-    Captures the common ``id_``, ``type_``, and ``name`` fields shared by
-    all domain object types, mirroring the ``as_Base``/``as_Object`` class
-    hierarchy in the wire layer.  Concrete domain object classes inherit from
-    this base rather than directly from ``BaseModel``.
-    """
-
-    # Sentinel: True on the core branch (default), overridden to False on
-    # as_Object so wire-branch types never self-register in CORE_TYPE_MAP
-    # (issue #2416).  CoreObject subclasses inherit True and are guarded by
-    # CoreObject.__init_subclass__ instead.
-    _is_core_branch: ClassVar[bool] = True
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
-        # Wire-branch types inherit _is_core_branch=False from as_Object and
-        # must not self-register in CORE_TYPE_MAP (issue #2416).
-        if not cls._is_core_branch:
-            return
-        # Register every concrete VultronObject subclass in CORE_TYPE_MAP so
-        # that find_in_vocabulary() can locate them without placing them in the
-        # wire VOCABULARY dict (ARCH-12-003). Only subclasses that declare
-        # their own concrete type_ annotation are registered; abstract bases
-        # that inherit or omit type_ are skipped (same guard as CoreObject).
+        # Register every concrete core subclass in CORE_TYPE_MAP so that
+        # find_in_vocabulary() can locate it without placing it in the wire
+        # VOCABULARY dict. Only subclasses that declare their own concrete
+        # type_ annotation are registered; abstract bases that inherit or omit
+        # type_ are skipped (same guard as CoreObject).
         own_annotations = cls.__dict__.get("__annotations__", {})
         if "type_" not in own_annotations:
             return
@@ -142,47 +138,24 @@ class VultronObject(ValidatedAssignmentMixin, VultronBase):
         ):
             CORE_TYPE_MAP[literal_args[0]] = cls
 
-    replies: Any | None = None
-    url: NonEmptyString | None = None
-    generator: Any | None = None
-    context: Any | None = None
-    tag: Any | None = None
-    in_reply_to: Any | None = Field(
-        default=None,
-        validation_alias="inReplyTo",
-        serialization_alias="inReplyTo",
-    )
 
-    duration: timedelta | None = None
-    start_time: datetime | None = None
-    end_time: datetime | None = None
-    published: datetime | None = Field(default_factory=now_utc)
-    updated: datetime | None = Field(default_factory=now_utc)
+class CoreObject(CoreRecord):
+    """The one AS2 object root of the Vultron core domain model.
 
-    # content
-    content: Any | None = None
-    summary: NonEmptyString | None = None
-    icon: Any | None = None
-    image: Any | None = None
-    attachment: Any | None = None
-    location: Any | None = None
-    to: Any | None = None
-    cc: Any | None = None
-    bto: Any | None = None
-    bcc: Any | None = None
-    audience: Any | None = None
-    attributed_to: NonEmptyString | None = None
+    ADR-0099 detail 4: under one object model the core classes *are* the AS2
+    objects, so this root carries the AS2 object fields, the JSON-LD
+    ``@context`` and the timestamps, on top of the identity from
+    :class:`CoreRecord`.  Its ``by_alias`` dump is the AS2 wire form.
 
+    The AS2 fields core does not use (``bto``, ``bcc``, ``generator``,
+    ``icon``, ``image``, …) stay declared on purpose: a declared-but-unused
+    field is a *recognised* field core ignores, whereas an undeclared one
+    would be an unrecognised field rejected on every message carrying it
+    (ADR-0099 details 7 and 8).
 
-class CoreObject(VultronObject):
-    """Base class for the migrated Vultron core domain object hierarchy.
-
-    Mirrors ``as_Base`` / ``as_Object`` in the wire layer and carries the
-    minimal AS2-derived fields a domain object needs to participate in
-    federated coordination: ``id_``, ``type_``, ``name`` (inherited from
-    :class:`VultronBase`), ``attributed_to``, ``published``, ``updated``
-    (inherited from :class:`VultronObject`), and ``context_`` (added here
-    as the JSON-LD ``@context`` field).
+    A bare ``CoreObject(id_=..., type_=...)`` is the minimal reference the
+    extractor wraps an otherwise-unmodelled object in; it keeps the ``type_``
+    it was given, including ``None``.
 
     Subclasses that override ``type_`` with a concrete (non-union)
     annotation — e.g. ``type_: Literal["VulnerabilityCase"] = ...`` —
@@ -194,10 +167,6 @@ class CoreObject(VultronObject):
     reaches a stored row: ADR-0099 detail 1 keeps persistence on Python field
     names with no ``@context``.  It is emitted only on the AS2 path — see
     :meth:`_serialize_with_jsonld_context`.
-
-    See ``docs/adr/0017-domain-wire-object-separation.md`` for the
-    rationale, and ``notes/domain-model-separation.md`` for the broader
-    architectural direction (tracked by issue #699).
     """
 
     # The AS2 spelling of every field, derived rather than hand-maintained.
@@ -215,11 +184,9 @@ class CoreObject(VultronObject):
     # derivation honest is a closed-world test on the projected key set
     # (test_core_object_projection_keys), not the declaration site.
     #
-    # ARCH-20-001 forbids this, on a rationale that predates ADR-0099: it reads
-    # "keeps every fact about wire spelling ... behind the adapter-side translator
-    # that owns projection (ARCH-12-005)", and ADR-0099 removed that translator.
-    # The part of the rule that still binds — one rendering seam — is unaffected:
-    # the port remains the only caller that passes `by_alias=True`.
+    # This is the mechanism behind the rendering port, not a licence for core
+    # code to dump its own objects: the port remains the only caller that
+    # passes `by_alias=True` on a core object (ARCH-12-003, ARCH-20-001).
     #
     # No unknown key may enter a core object: a wire-shaped payload handed to a
     # core type is rejected loudly rather than silently dropping every
@@ -228,7 +195,7 @@ class CoreObject(VultronObject):
     # (ARCH-12-003, ADR-0082; closes the strong form of #2262).  The generator is
     # what makes the two compatible: every AS2 spelling is a declared alias, so
     # ``extra="forbid"`` refuses only keys that match no field at all.  Merged
-    # with VultronBase.populate_by_name and ValidatedAssignmentMixin
+    # with CoreRecord.populate_by_name and ValidatedAssignmentMixin
     # validate_assignment across the MRO.
     model_config = ConfigDict(alias_generator=to_camel, extra="forbid")
 
@@ -247,12 +214,17 @@ class CoreObject(VultronObject):
     #: are defined, rather than in a registry somewhere else that can fall behind.
     local_only_fields: ClassVar[frozenset[str]] = frozenset()
 
-    context_: NonEmptyString | None = Field(
-        default=None,
-        validation_alias="@context",
-        serialization_alias="@context",
-        exclude=True,
-    )
+    preview: NonEmptyString | None = None
+    media_type: NonEmptyString | None = None
+    replies: Any | None = None
+    url: NonEmptyString | None = None
+    generator: Any | None = None
+    context: Any | None = None
+    tag: Any | None = None
+    in_reply_to: Any | None = None
+    duration: timedelta | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
 
     # An object this process authors takes the local clock (default_factory);
     # an object it *receives* carries the sender's time, which AS2 lets the
@@ -261,6 +233,26 @@ class CoreObject(VultronObject):
     # its absence at the wire edge, not here.
     published: datetime | None = Field(default_factory=now_utc)
     updated: datetime | None = Field(default_factory=now_utc)
+
+    content: Any | None = None
+    summary: NonEmptyString | None = None
+    icon: Any | None = None
+    image: Any | None = None
+    attachment: Any | None = None
+    location: Any | None = None
+    to: Any | None = None
+    cc: Any | None = None
+    bto: Any | None = None
+    bcc: Any | None = None
+    audience: Any | None = None
+    attributed_to: NonEmptyString | None = None
+
+    context_: NonEmptyString | None = Field(
+        default=None,
+        validation_alias="@context",
+        serialization_alias="@context",
+        exclude=True,
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -484,7 +476,7 @@ class CoreObject(VultronObject):
             # annotation is not a valid type (TypeError) — do not register.
             # Silent registration of a half-constructed class is worse than a
             # missing entry, which surfaces immediately at lookup time.  Kept
-            # symmetric with VultronObject.__init_subclass__, which runs the
+            # symmetric with CoreRecord.__init_subclass__, which runs the
             # same get_type_hints(cls) call for every CoreObject subclass; a
             # divergent catch here would let one handler swallow what the other
             # crashes on (CS-23-001).
@@ -501,6 +493,10 @@ class CoreObject(VultronObject):
     @model_validator(mode="before")
     @classmethod
     def _set_type_from_class_name(cls, data: Any) -> Any:
+        # The bare root is the extractor's minimal reference wrapper: its type is
+        # whatever the referenced object's was, and "CoreObject" is never one.
+        if cls is CoreObject:
+            return data
         if isinstance(data, dict):
             if not data.get("type") and not data.get("type_"):
                 field_info = cls.model_fields.get("type_")

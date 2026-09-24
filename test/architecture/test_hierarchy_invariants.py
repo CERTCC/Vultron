@@ -51,7 +51,7 @@ Reference: `docs/adr/0017-domain-wire-object-separation.md`
 
 import pytest
 
-from vultron.core.models.base import CoreObject, VultronBase
+from vultron.core.models.base import CoreObject, CoreRecord
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.registry import VOCABULARY
@@ -89,12 +89,10 @@ class TestCoreVocabularyHierarchy:
     def test_core_object_uses_vultron_base_not_as_base(self) -> None:
         """CoreObject classes must not inherit from as_Base.
 
-        Enforces the layer boundary: core inherits from VultronBase (shared
-        lenient root), not as_Base (which adds AS2 serialization concerns).
+        Enforces the layer boundary: core inherits from its own roots
+        (``CoreRecord`` / ``CoreObject``), never from the wire vocabulary.
         """
         for name, cls in CORE_VOCABULARY.items():
-            # Core classes may inherit from CoreObject or VultronBase, but
-            # not as_Base (which is wire-layer specific).
             assert not issubclass(
                 cls, as_Base
             ), f"{name} inherits from as_Base (wire layer)"
@@ -181,25 +179,71 @@ class TestWireVocabularyHierarchy:
             "VOCABULARY must contain only wire-layer ActivityStreams classes."
         )
 
-    def test_all_vocabulary_inherit_transitive_vultron_base(self) -> None:
-        """All VOCABULARY classes inherit from VultronBase (via as_Base).
+    def test_wire_vocabulary_inherits_nothing_from_core(self) -> None:
+        """No VOCABULARY class has a core class anywhere in its MRO.
 
-        Ensures both the core and wire branches share the common lenient
-        root (VultronBase) defined in ARCH-12-002.
+        ADR-0099 detail 4 deletes the shared root: ``as_Base`` gets its own,
+        so the wire branch no longer inherits core fields, configuration or
+        registration hooks (ARCH-12-001).
         """
         if not VOCABULARY:
             pytest.skip(
                 "VOCABULARY is empty; wire objects may not be imported yet"
             )
 
-        non_vultron_base: dict[str, type] = {}
-        for name, cls in VOCABULARY.items():
-            if not issubclass(cls, VultronBase):
-                non_vultron_base[name] = cls
-
+        intruders = {
+            name: [
+                base.__qualname__
+                for base in cls.__mro__
+                if base.__module__.startswith("vultron.core")
+            ]
+            for name, cls in VOCABULARY.items()
+        }
+        intruders = {name: bases for name, bases in intruders.items() if bases}
         assert (
-            not non_vultron_base
-        ), f"Non-VultronBase classes in VOCABULARY: {list(non_vultron_base.keys())}"
+            not intruders
+        ), f"wire classes inheriting from core: {intruders} (ARCH-12-001)"
+
+
+class TestCoreRoots:
+    """Core has exactly two roots (ADR-0099 detail 4, ARCH-12-002)."""
+
+    def test_core_object_sits_directly_on_core_record(self) -> None:
+        """``CoreObject`` is the one AS2 root, directly on the record root;
+        the old middle level is gone."""
+        import vultron.core.models.base as base
+
+        assert CoreObject.__bases__ == (CoreRecord,)
+        for retired in ("VultronBase", "VultronObject"):
+            assert not hasattr(
+                base, retired
+            ), f"{retired} is retired by ADR-0099 detail 4; do not restore it"
+
+    def test_core_record_has_only_identity_fields(self) -> None:
+        """The record root carries ``id_``, ``type_``, ``name`` and nothing
+        else — no ``@context``, no timestamps, no AS2 object fields."""
+        assert set(CoreRecord.model_fields) == {"id_", "type_", "name"}
+        assert "alias_generator" not in CoreRecord.model_config
+
+    def test_dead_letter_records_sit_on_the_record_root(self) -> None:
+        """#3489 AC-2: both dead-letter records are ``CoreRecord``s, so they
+        carry neither ``@context`` nor required AS2 timestamps."""
+        from vultron.adapters.outbox_dead_letter import OutboxDeadLetterEntry
+        from vultron.core.models.dead_letter import DeadLetterRecord
+
+        for cls in (DeadLetterRecord, OutboxDeadLetterEntry):
+            assert issubclass(cls, CoreRecord)
+            assert not issubclass(cls, CoreObject)
+            for field in ("context_", "published", "updated"):
+                assert field not in cls.model_fields, (cls.__name__, field)
+
+    def test_shared_root_sentinel_is_gone(self) -> None:
+        """``_is_core_branch`` existed only because wire classes inherited
+        the shared root (#2416); nothing inherits it now."""
+        from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+        for cls in (CoreRecord, CoreObject, as_Object):
+            assert "_is_core_branch" not in dir(cls)
 
 
 class TestCoreTypeMapHierarchy:
@@ -208,8 +252,9 @@ class TestCoreTypeMapHierarchy:
     def test_no_wire_types_in_core_type_map(self) -> None:
         """CORE_TYPE_MAP must contain only core-branch types, never wire types.
 
-        VultronObject.__init_subclass__ must guard against wire-layer types
-        self-registering via the shared root hook (issue #2416).
+        Structural since ADR-0099 detail 4: the registration hook lives on
+        ``CoreRecord``, which no wire class inherits.  Kept as a regression
+        guard for the #2416 contamination (ARCH-12-011).
 
         Spec: ARCH-12-003 — core-branch types MUST NOT carry wire-specific
         concerns; the converse also holds: CORE_TYPE_MAP must not be
@@ -231,47 +276,59 @@ class TestCoreTypeMapHierarchy:
             "CORE_TYPE_MAP must contain only core-branch types (issue #2416)."
         )
 
-    def test_vultron_object_direct_types_in_core_type_map(self) -> None:
-        """VultronObject-direct core types must be reachable via CORE_TYPE_MAP.
+    def test_core_record_types_in_core_type_map(self) -> None:
+        """Every ``CoreRecord`` that is not a ``CoreObject`` is in CORE_TYPE_MAP.
 
-        These five types extend VultronObject but not CoreObject; they must
-        register in CORE_TYPE_MAP (not CORE_VOCABULARY) so that
-        find_in_vocabulary() can reconstruct them without VOCABULARY
-        registration (ARCH-12-003). Enforces ARCH-12-004 as updated per
-        issue #2417.
+        These types register in CORE_TYPE_MAP (not CORE_VOCABULARY) so that
+        stored rows can be reconstructed by type string (ARCH-12-004,
+        ARCH-12-010, issue #2417) — under both the class name and the
+        ``Literal`` value.  The subject set is discovered, not listed, so a new
+        record type is covered the day it lands.  It includes the adapter's
+        ``OutboxDeadLetterEntry``: the registration hook is inherited from
+        ``CoreRecord``, which #3489 AC-2 puts it on.
         """
-        from vultron.core.models.offer_record import VultronOfferRecord
-        from vultron.core.models.pending_case_inbox import (
-            VultronPendingCaseInbox,
-        )
-        from vultron.core.models.pending_create_case_activity import (
-            PendingCreateCaseActivity,
-        )
-        from vultron.core.models.registry import CORE_TYPE_MAP
-        from vultron.core.models.replication_state import (
-            VultronReplicationState,
-        )
-        from vultron.core.models.report_case_link import VultronReportCaseLink
+        import typing
 
-        expected = [
-            ("OfferRecord", VultronOfferRecord),
-            ("VultronOfferRecord", VultronOfferRecord),
-            ("PendingCaseInbox", VultronPendingCaseInbox),
-            ("VultronPendingCaseInbox", VultronPendingCaseInbox),
-            ("PendingCreateCaseActivity", PendingCreateCaseActivity),
-            ("ReplicationState", VultronReplicationState),
-            ("VultronReplicationState", VultronReplicationState),
-            ("ReportCaseLink", VultronReportCaseLink),
-            ("VultronReportCaseLink", VultronReportCaseLink),
-        ]
-        missing = [
-            key for key, cls in expected if CORE_TYPE_MAP.get(key) is not cls
-        ]
-        assert not missing, (
-            f"Expected CORE_TYPE_MAP entries missing or wrong: {missing}\n"
-            "VultronObject-direct core types must register in CORE_TYPE_MAP"
-            " (ARCH-12-004, issue #2417)."
+        import vultron.adapters.outbox_dead_letter  # noqa: F401
+        from test.support.core_vocab import import_all_core_models
+        from vultron.core.models.registry import CORE_TYPE_MAP
+
+        import_all_core_models()
+
+        def walk(cls: type[CoreRecord]) -> set[type[CoreRecord]]:
+            found = set(cls.__subclasses__())
+            for sub in cls.__subclasses__():
+                found |= walk(sub)
+            return found
+
+        records = {
+            cls
+            for cls in walk(CoreRecord)
+            if not issubclass(cls, CoreObject)
+            and not cls.__module__.startswith("test")
+            and typing.get_origin(cls.model_fields["type_"].annotation)
+            is typing.Literal
+        }
+        assert records, "discovered no CoreRecord-only types"
+        wrong = sorted(
+            f"{cls.__name__}[{key}]"
+            for cls in records
+            for key in (
+                cls.__name__,
+                *typing.get_args(cls.model_fields["type_"].annotation),
+            )
+            if CORE_TYPE_MAP.get(key) is not cls
         )
+        assert not wrong, (
+            f"CORE_TYPE_MAP entries missing or wrong: {wrong}\n"
+            "CoreRecord types must register in CORE_TYPE_MAP"
+            " (ARCH-12-010, issue #2417)."
+        )
+        from vultron.core.models.dead_letter import DeadLetterRecord
+        from vultron.core.models.offer_record import VultronOfferRecord
+
+        # Floor: discovery must not silently narrow to nothing relevant.
+        assert {DeadLetterRecord, VultronOfferRecord} <= records
 
 
 class TestCoreObjectModelConfig:

@@ -28,15 +28,16 @@ violations, or validating core/wire separation.
 
 **`core-wire-rendering-port.md`**
 Why core legitimately needs wire-shaped JSON (only for
-`CaseLedgerEntry.payloadSnapshot`), why `alias_generator=to_camel` on core types
-was both an ARCH-12-003 violation and structurally insufficient, and the
-`WireRenderPort` driven seam that replaces it. Lists the five consumers of the
-old core-side aliasing, the reject-guard that MUST accompany deletion of any
-flat-field shim (SDO-03-005), and why persisted rows are unaffected.
-The decision stands; the ADR-0082 mechanism it named is **superseded by
-ADR-0099**. The pairing registry and the adapter-side translators are cancelled,
-so the port collapses to the core object's own `model_dump(by_alias=True)` plus
-the delivery-supplied `@context` — which requires amending ARCH-20-003. The
+`CaseLedgerEntry.payloadSnapshot`), and the `WireRenderPort` driven seam core
+uses to get it. Under ADR-0099 every `CoreObject` inherits
+`alias_generator=to_camel` on purpose (ARCH-12-003), so the port is the core
+object's own `model_dump(by_alias=True)`; `@context` comes from `CoreObject`'s
+`by_alias` serializer, not from delivery. Core logic still MUST NOT dump its own
+objects `by_alias` (ARCH-20-001, ratchet `test_core_by_alias_dumps.py`). Also
+lists the five consumers of the old core-side aliasing, the `extra="forbid"`
+guard that replaces any flat-field reject-guard (SDO-03-005), and why persisted
+rows are unaffected. The ADR-0082 pairing registry and adapter-side translators
+are cancelled, and ARCH-20-003 now raises only for a non-`CoreObject`. The
 mirror-image `WireParsePort` (#2938) was **rejected**, not deferred:
 `rehydrate()` owns ID-to-object materialisation (VM-06-007). Design rationale:
 `notes/wire-core-boundary.md`.
@@ -117,8 +118,8 @@ Design principle for wire Activity immutability: received artifacts MUST be
 frozen at receipt (A/B split — A = frozen ledger snapshot, B = separately
 constructed hydrated routing copy); emitted blobs MUST be frozen by the factory
 and used unchanged as both `payloadSnapshot` and delivery payload; ports are
-dumb relays (no adapter enrichment). Covers the orthogonality of lenient field
-types (`validate_assignment=False`) and post-construction immutability
+dumb relays (no adapter enrichment). Covers the orthogonality of the lenient
+wire branch (no `validate_assignment`) and post-construction immutability
 (`frozen=True`). Spec requirements: `VM-08-002`, `VM-08-003`.
 **Load when**: implementing or reviewing the inbound pipeline (inbox freeze
 point), outbound factory/port interfaces (`TriggerActivityPort`,

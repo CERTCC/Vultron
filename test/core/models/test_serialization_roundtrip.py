@@ -1,6 +1,6 @@
-"""Tests for VultronBase/VultronActivity serialization round-trip fidelity.
+"""Tests for CoreRecord/VultronActivity serialization round-trip fidelity.
 
-BUG-2026040902: VultronBase.id_ has no validation/serialization aliases,
+BUG-2026040902: CoreRecord.id_ has no validation/serialization aliases,
 so ``model_dump(by_alias=True)`` emits ``"id_"`` instead of ``"id"``,
 and ``model_validate({"id": "..."})`` generates a NEW UUID.
 
@@ -21,19 +21,19 @@ from vultron.core.models.activity import (
     VultronCreateCaseActivity,
     VultronOffer,
 )
-from vultron.core.models.base import VultronBase, VultronObject
+from vultron.core.models.base import CoreRecord, CoreObject
 
 # ---------------------------------------------------------------------------
-# VultronBase.id_ alias tests
+# CoreRecord.id_ alias tests
 # ---------------------------------------------------------------------------
 
 
-class TestVultronBaseIdAlias:
-    """VultronBase.id_ must serialise as ``"id"`` and deserialise from ``"id"``."""
+class TestCoreRecordIdAlias:
+    """CoreRecord.id_ must serialise as ``"id"`` and deserialise from ``"id"``."""
 
     def test_model_dump_by_alias_uses_id_key(self):
         """model_dump(by_alias=True) must emit ``"id"``, not ``"id_"``."""
-        obj = VultronBase(id_="urn:uuid:keep-me")
+        obj = CoreRecord(id_="urn:uuid:keep-me")
         dumped = obj.model_dump(by_alias=True)
         assert (
             "id" in dumped
@@ -45,27 +45,27 @@ class TestVultronBaseIdAlias:
 
     def test_model_validate_from_id_key(self):
         """model_validate({'id': ...}) must populate id_ from the ``"id"`` key."""
-        obj = VultronBase.model_validate({"id": "urn:uuid:from-json"})
+        obj = CoreRecord.model_validate({"id": "urn:uuid:from-json"})
         assert obj.id_ == "urn:uuid:from-json"
 
     def test_model_validate_from_id_underscore_key(self):
         """model_validate({'id_': ...}) must still work (populate_by_name)."""
-        obj = VultronBase.model_validate({"id_": "urn:uuid:from-field-name"})
+        obj = CoreRecord.model_validate({"id_": "urn:uuid:from-field-name"})
         assert obj.id_ == "urn:uuid:from-field-name"
 
     def test_id_survives_dump_validate_roundtrip(self):
         """id_ must survive a dump → validate round-trip unchanged."""
-        original = VultronBase(id_="urn:uuid:roundtrip")
+        original = CoreRecord(id_="urn:uuid:roundtrip")
         dumped = original.model_dump(by_alias=True)
-        restored = VultronBase.model_validate(dumped)
+        restored = CoreRecord.model_validate(dumped)
         assert restored.id_ == "urn:uuid:roundtrip"
 
 
 class TestVultronObjectIdAlias:
-    """VultronObject inherits from VultronBase; id_ aliases must propagate."""
+    """CoreObject inherits from CoreRecord; id_ aliases must propagate."""
 
     def test_model_dump_by_alias_uses_id_key(self):
-        obj = VultronObject(id_="urn:uuid:obj-test")
+        obj = CoreObject(id_="urn:uuid:obj-test")
         dumped = obj.model_dump(by_alias=True)
         assert "id" in dumped
         assert dumped["id"] == "urn:uuid:obj-test"

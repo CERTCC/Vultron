@@ -9,10 +9,10 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 if TYPE_CHECKING:
-    from vultron.core.models.base import VultronObject
+    from vultron.core.models.base import CoreObject
     from vultron.core.models.case import VulnerabilityCase as VultronCase
 else:
-    VultronObject = object
+    CoreObject = object
     VultronCase = object
 
 
@@ -155,8 +155,8 @@ class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
         return self.inner_object_id
 
     @property
-    def invitee(self) -> "VultronObject | None":
-        return cast("VultronObject | None", self.inner_object)
+    def invitee(self) -> "CoreObject | None":
+        return cast("CoreObject | None", self.inner_object)
 
 
 class RejectInviteActorToCaseReceivedEvent(VultronEvent):

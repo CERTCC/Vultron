@@ -30,7 +30,7 @@ from vultron.core.behaviors.embargo.announce_teardown_tree import (
     remove_embargo_from_case_tree,
 )
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.embargo import (
     RemoveEmbargoEventFromCaseReceivedEvent,
@@ -83,8 +83,8 @@ def _make_remove_event(
     return RemoveEmbargoEventFromCaseReceivedEvent(
         activity_id=activity_id,
         actor_id=ACTOR_ID,
-        object_=VultronObject(id_=embargo.id_),
-        origin=VultronObject(id_=case.id_),
+        object_=CoreObject(id_=embargo.id_),
+        origin=CoreObject(id_=case.id_),
         receiving_actor_id=CASE_MANAGER_ACTOR,
         activity=VultronActivity(
             id_=activity_id,

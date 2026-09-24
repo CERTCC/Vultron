@@ -9,7 +9,7 @@ description: >
   extra="forbid" on the core branch) is superseded by ADR-0099, which removes the
   second hierarchy instead. Read it for the problem, not the mechanism.
 related_specs:
-  - specs/architecture.yaml
+  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002)
   - specs/vocabulary-model.yaml
 related_notes:
   - notes/vocabulary-registry.md
@@ -88,8 +88,11 @@ reachable target is **30 of 31 clear**.
 
 Three MUST-level requirements made zero impossible:
 
-- **ARCH-12-001** — `as_Base` MUST inherit `VultronBase`, which lived in
-  `vultron/core/models/base.py`. A required inheritance is a permanent import.
+- **ARCH-12-001** (as originally written) — `as_Base` MUST inherit a shared
+  root that lived in `vultron/core/models/base.py`. A required inheritance is a
+  permanent import. ADR-0099 detail 4 has since deleted that root, and
+  ARCH-12-001 now says the opposite: a wire class MUST NOT inherit a core
+  class, and `as_Base` stands on `pydantic.BaseModel` directly.
 - **ARCH-20-002** (as originally written) — the rendering adapter MUST locate the
   wire counterpart and invoke *that class's* `from_core()` projection, which
   constructs core objects at runtime. Cite **ARCH-20-002**, not ARCH-12-005, as
@@ -137,9 +140,11 @@ name. Details are in
 At All".
 
 An implementer working the easy files would reach the base classes and have to
-choose which MUST to break. ADR-0082 removes the first two structural causes —
-the shared base moves to a branch-neutral layer, and projection moves to the
-adapter side — and retargets the goal test at a one-member exemption set.
+choose which MUST to break. ADR-0082 removed the first two structural causes —
+the shared base was to move to a branch-neutral layer, and projection to the
+adapter side — and retargeted the goal test at a one-member exemption set.
+ADR-0099 superseded both moves: detail 4 deleted the shared base outright, and
+the rendering adapter now dumps the core object itself (ARCH-20-002).
 
 **Lesson for future ratchets**: a goal test that asserts an unreachable state is
 worse than no goal test — it invites an implementer to violate a MUST in order to
@@ -243,7 +248,7 @@ Get this right before scoping #2933 or #2940: keying persistence on wire-facing
 names would **not** fix the 110 `id_` failures, and would spend a migration on a
 false premise.
 
-**`id_` is a sanctioned input.** `VultronBase.model_config` resolves to
+**`id_` is a sanctioned input.** `CoreRecord.model_config` resolves to
 `validate_by_name=True` (alongside `populate_by_name=True` and
 `validate_by_alias=True`), so a field declared `validation_alias="id"` accepts
 **either** `id` or `id_`. Verified: `Record.from_obj(p).to_obj().id_ == p.id_`

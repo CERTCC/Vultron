@@ -3,6 +3,7 @@ title: Case State Model Notes
 status: active
 description: "CVD case state model: six binary dimensions (RM/EM/CS), CaseStatus append-only history, and canonical CaseLedgerEntry history."
 related_specs:
+  - specs/architecture.yaml (ARCH-12-002)
   - specs/case-management.yaml
   - specs/cs-behavior.yaml
   - specs/received-status-handling.yaml
@@ -186,17 +187,20 @@ The how-to doc describes a UML class diagram for a `Case` object with:
 
 This design was written before the ActivityStreams vocabulary was adopted.
 
-### Current Implementation (`vultron/wire/as2/vocab/objects/vulnerability_case.py`)
+### Current Implementation (`vultron/core/models/case.py`)
 
-The `VulnerabilityCase` class is a Pydantic model inheriting from
-`VultronObject` (which inherits from the ActivityStreams `as_Object`). It
-incorporates:
+`VulnerabilityCase` is a Pydantic model extending `CoreObject`, the one AS2
+object root of the core model (ADR-0099 detail 4, ARCH-12-002). There is no
+separate wire class: `as_VulnerabilityCase` in
+`vultron/wire/as2/vocab/objects/vulnerability_case.py` is an alias of the core
+class (ADR-0099 detail 3). It incorporates:
 
-- Links to `CaseParticipant` objects (via `CaseParticipantRef`)
-- Links to `CaseStatus` objects (via `CaseStatusRef`)
-- Links to `EmbargoEvent` objects (via `EmbargoEventRef`)
-- Links to `VulnerabilityReport` objects
-- Links to `as_Activity` history
+- `case_participants` — `CaseParticipant` objects or their IDs
+- `case_statuses` — `CaseStatus` objects or their IDs (append-only history)
+- `active_embargo` — an inline `EmbargoEvent` (or its ID), plus
+  `proposed_embargoes` as IDs
+- `vulnerability_reports` — `VulnerabilityReport` objects or their IDs
+- `case_activity` and `notes` — activity and note IDs
 
 The VFD/PXA state tracking is embedded in `CaseStatus` and `CaseParticipant`
 objects, not directly on the case. This reflects the ActivityStreams-first

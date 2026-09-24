@@ -35,10 +35,10 @@ from typing import Literal, Protocol
 
 from pydantic import Field
 
-from vultron.core.models.base import NonEmptyString, VultronBase
+from vultron.core.models.base import CoreRecord, NonEmptyString
 
 
-class OutboxDeadLetterEntry(VultronBase):
+class OutboxDeadLetterEntry(CoreRecord):
     """Record of an outbox activity that exhausted its total delivery budget.
 
     Attributes:

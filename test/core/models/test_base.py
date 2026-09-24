@@ -1,4 +1,4 @@
-"""Tests for VultronObject base class and domain model inheritance."""
+"""Tests for CoreObject base class and domain model inheritance."""
 
 from datetime import datetime, timezone
 
@@ -11,7 +11,7 @@ from vultron.core.models.activity import (
     VultronCreateCaseActivity,
     VultronOffer,
 )
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_status import CaseStatus
@@ -68,8 +68,8 @@ def make_instance(cls, **extra):
 
 
 @pytest.mark.parametrize("cls", DOMAIN_OBJECT_CLASSES)
-def test_inherits_from_vultron_object(cls):
-    assert issubclass(cls, VultronObject)
+def test_inherits_from_core_object(cls):
+    assert issubclass(cls, CoreObject)
 
 
 @pytest.mark.parametrize("cls", DOMAIN_OBJECT_CLASSES)
@@ -107,7 +107,7 @@ def test_vultron_participant_status_context_required():
     with pytest.raises(ValidationError):
         ParticipantStatus()
     ps = ParticipantStatus(context="urn:uuid:case-123")
-    assert issubclass(ParticipantStatus, VultronObject)
+    assert issubclass(ParticipantStatus, CoreObject)
     assert ps.id_.startswith("urn:uuid:")
     assert ps.type_ == "ParticipantStatus"
     assert ps.context == "urn:uuid:case-123"

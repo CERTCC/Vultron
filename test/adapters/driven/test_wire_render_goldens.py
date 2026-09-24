@@ -18,6 +18,11 @@
 The goldens were captured from ``As2WireRenderAdapter.render()`` *before* it
 stopped resolving a wire counterpart (ADR-0099 detail 1), so this test is the
 evidence that the one-object-model render is a behaviour-preserving change.
+The ``VultronNote`` and ``VultronActivity``-family entries were added after:
+the port refused them until ADR-0099 detail 4 moved them onto ``CoreObject``.
+Later ``main`` changes were then regenerated in: ``CoreActorCollection`` was
+deleted (#3563), and actors now derive an absent inbox/outbox from their id
+(#3616).
 
 Two value classes are generated afresh on every construction by nested
 defaults and are normalised before comparison: minted ``urn:uuid:`` ids and
@@ -82,7 +87,8 @@ def _render_all() -> dict[str, Any]:
 
 
 def _golden() -> dict[str, Any]:
-    return json.loads(GOLDEN_PATH.read_text())
+    golden: dict[str, Any] = json.loads(GOLDEN_PATH.read_text())
+    return golden
 
 
 def test_goldens_cover_every_core_vocabulary_entry() -> None:

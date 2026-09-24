@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from typing import Any, Callable
 
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.dimensions import (
     DDimension,
@@ -95,15 +95,15 @@ def _get_type(field: object) -> str | None:
     return str(t) if t is not None else None
 
 
-def _to_domain_obj(as_obj: object) -> VultronObject | None:
-    """Wrap a bare AS2 object reference as a minimal VultronObject."""
+def _to_domain_obj(as_obj: object) -> CoreObject | None:
+    """Wrap a bare AS2 object reference as a minimal CoreObject."""
     if as_obj is None:
         return None
     obj_id = _get_id(as_obj)
     if not obj_id:
         return None
     obj_type = _get_type(as_obj)
-    return VultronObject(
+    return CoreObject(
         id_=obj_id,
         type_=obj_type,
         published=_get_timestamp(as_obj, "published"),
@@ -628,7 +628,7 @@ def _build_object_kwargs(
     else:
         obj_id = _get_id(obj)
         if obj_id:
-            kw["object_"] = VultronObject(
+            kw["object_"] = CoreObject(
                 id_=obj_id,
                 type_=_get_type(obj),
                 published=_get_timestamp(obj, "published"),

@@ -37,7 +37,7 @@ Structure:
        ├─ EmitCreateCaseActivity       # Generate CreateCaseActivity activity
        └─ UpdateActorOutbox            # Append activity to actor outbox
 
-Note: ``ValidateCaseObject`` was removed (#716).  ``VultronBase.id_`` is typed
+Note: ``ValidateCaseObject`` was removed (#716).  ``CoreRecord.id_`` is typed
 ``NonEmptyString`` with a ``default_factory``, so Pydantic enforces a valid
 ``id_`` at construction time (ARCH-10-001).  Additionally, ``case_obj.id_`` is
 read on entry to this factory function, making a downstream BT validation node
