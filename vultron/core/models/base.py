@@ -194,11 +194,13 @@ class CoreObject(VultronObject):
         exclude=True,
     )
 
-    # Re-narrow published/updated: the core branch guarantees these are always
-    # populated (default_factory ensures it).  VultronObject uses datetime|None
-    # (per ARCH-12-002: shared base must be lenient for the wire branch).
-    published: datetime = Field(default_factory=now_utc)
-    updated: datetime = Field(default_factory=now_utc)
+    # An object this process authors takes the local clock (default_factory);
+    # an object it *receives* carries the sender's time, which AS2 lets the
+    # sender omit, so an explicit ``None`` stays ``None`` rather than becoming
+    # the receiver's clock (ISSUE-3257).  Decisions that need the time refuse
+    # its absence at the wire edge, not here.
+    published: datetime | None = Field(default_factory=now_utc)
+    updated: datetime | None = Field(default_factory=now_utc)
 
     @model_validator(mode="before")
     @classmethod

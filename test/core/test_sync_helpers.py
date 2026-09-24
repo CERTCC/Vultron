@@ -298,41 +298,49 @@ class TestEquivalentRecordedEntry:
 
     A miss appends a *new* ledger index for an assertion already recorded, which
     is exactly the ledger-index instability ADR-0041 forbids.  The snapshots a
-    retry rebuilds are not byte-identical to the originals: ``as_Base`` stamps
-    ``published`` and ``updated`` with ``now_utc`` at construction, so every
-    embedded object gets a fresh pair whenever the snapshot is rebuilt.  These
-    tests fix which differences count.
+    retry rebuilds are not byte-identical to the originals: the CaseActor stamps
+    the snapshot's own top-level ``published`` with ``now_utc`` every time it
+    builds one (CLP-14-002).  The objects embedded in it carry their own time,
+    which a rebuild does not change (ISSUE-2553).  These tests fix which
+    differences count.
     """
 
     _OBJECT_ID = "https://example.org/activities/log-0"
     _EVENT = "add_participant_status_to_participant"
+    _CARRIED = "2025-05-05T05:05:05+00:00"
 
-    def _snapshot(self, stamp: str, rm_state: str = "RECEIVED") -> dict:
+    def _snapshot(
+        self,
+        stamp: str,
+        rm_state: str = "RECEIVED",
+        carried: str = _CARRIED,
+    ) -> dict:
         """A snapshot in the shape ``build_add_participant_status_snapshot``
-        produces: a re-rendered object *and* a re-rendered target whose own
-        nested status list carries timestamps too."""
+        produces: the build stamp on top, over a re-rendered object *and* a
+        re-rendered target whose own nested status list carries time too."""
         return {
             "type": "Add",
             "actor": CASE_ACTOR_ID,
             "context": CASE_ID,
+            "published": stamp,
             "object": {
                 "id": "https://example.org/statuses/ps-0",
                 "type": "ParticipantStatus",
                 "rmState": rm_state,
-                "published": stamp,
-                "updated": stamp,
+                "published": carried,
+                "updated": carried,
             },
             "target": {
                 "id": "https://example.org/participants/p-0",
                 "type": "CaseParticipant",
-                "published": stamp,
-                "updated": stamp,
+                "published": carried,
+                "updated": carried,
                 "participantStatuses": [
                     {
                         "id": "https://example.org/statuses/ps-0",
                         "rmState": rm_state,
-                        "published": stamp,
-                        "updated": stamp,
+                        "published": carried,
+                        "updated": carried,
                     }
                 ],
             },
@@ -361,7 +369,7 @@ class TestEquivalentRecordedEntry:
         )
 
     def test_a_rebuilt_snapshot_still_matches(self, dl):
-        """The regression: only the restamped timestamps differ, at every depth.
+        """The regression: a retry re-stamps only the snapshot's build time.
 
         ``now_utc`` truncates to whole seconds, so byte equality made this a
         coin flip on whether the retry landed in the same second as the
@@ -372,10 +380,27 @@ class TestEquivalentRecordedEntry:
         found = self._find(dl, self._snapshot("2026-01-01T00:00:07+00:00"))
 
         assert found is not None, (
-            "a retry whose snapshot differs only in restamped published/updated"
-            " values is the same assertion, and must not append a new index"
+            "a retry whose snapshot differs only in its own build stamp is the"
+            " same assertion, and must not append a new index"
         )
         assert found.log_index == 0
+
+    def test_a_different_carried_time_is_a_new_assertion(self, dl):
+        """An embedded object's own time is part of what the entry asserts.
+
+        Core objects carry the time they were authored or received with, and
+        re-rendering does not change it (ISSUE-2553).  So a nested
+        ``published``/``updated`` that differs is a different object state, not
+        render noise, and must not be folded into the recorded entry.
+        """
+        stamp = "2026-01-01T00:00:00+00:00"
+        self._record(dl, self._snapshot(stamp))
+
+        found = self._find(
+            dl, self._snapshot(stamp, carried="2025-06-06T06:06:06+00:00")
+        )
+
+        assert found is None
 
     def test_a_real_difference_still_misses(self, dl):
         """The dedup must stay a dedup: a changed state is a new assertion.

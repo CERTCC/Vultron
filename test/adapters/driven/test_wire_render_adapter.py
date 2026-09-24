@@ -173,6 +173,39 @@ def test_render_excludes_none_fields(adapter):
         ), f"Field {key!r} should be excluded (exclude_none=True) but has value None"
 
 
+def test_render_same_object_twice_across_clock_tick_is_equal(
+    adapter, monkeypatch
+):
+    """Rendering carries the object's time; it never mints a new one.
+
+    Regression pin for ISSUE-2553: the wire classes default ``published`` and
+    ``updated`` to ``now_utc``, so a render that let those defaults fire gave
+    the same object a new time on each render, and a snapshot of it compared
+    unequal whenever a second boundary fell between two renders.
+    """
+    from datetime import datetime, timezone
+
+    from vultron.core.models import _helpers
+
+    class _AdvancingClock:
+        """A ``datetime`` stand-in whose ``now()`` steps forward a second."""
+
+        def __init__(self, start: datetime) -> None:
+            self._t = start
+
+        def now(self, tz: timezone | None = None) -> datetime:
+            self._t += timedelta(seconds=1)
+            return self._t
+
+    obj = VulnerabilityCase(id_="https://example.org/cases/c1")
+    obj.case_statuses = [CaseStatus(context=obj.id_)]
+    monkeypatch.setattr(
+        _helpers, "datetime", _AdvancingClock(datetime.now(timezone.utc))
+    )
+
+    assert adapter.render(obj) == adapter.render(obj)
+
+
 # ---------------------------------------------------------------------------
 # AC-3: VultronValidationError for core types with no wire counterpart
 # ---------------------------------------------------------------------------

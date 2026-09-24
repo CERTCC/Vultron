@@ -58,7 +58,7 @@ class as_EmbargoEvent(as_Event):
         serialization_alias="type",
     )
 
-    start_time: datetime = Field(
+    start_time: datetime | None = Field(
         default_factory=now_utc, json_schema_extra={"format": "date-time"}
     )
     end_time: datetime = Field(
@@ -71,17 +71,14 @@ class as_EmbargoEvent(as_Event):
 
     @model_validator(mode="after")
     def set_name(self):
-        start_iso = self.start_time.isoformat()
-        end_iso = self.end_time.isoformat()
-
         parts = [
             "Embargo for",
             name_of(self.context),
         ]
         if self.start_time:
-            parts.append(f"start: {start_iso}")
+            parts.append(f"start: {self.start_time.isoformat()}")
         if self.end_time:
-            parts.append(f"end: {end_iso}")
+            parts.append(f"end: {self.end_time.isoformat()}")
         object.__setattr__(
             self, "name", " ".join([str(part) for part in parts])
         )

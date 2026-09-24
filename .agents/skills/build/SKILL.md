@@ -125,7 +125,10 @@ Invoke the `orient-agent` skill.
    or class is present, the referenced behavior is implemented).
 
    If **no** `- [ ] AC-N:` items are found in the issue body (prose-format
-   or free-form ACs), skip this gate and proceed directly to step 7.
+   or free-form ACs), the gate cannot run mechanically — and that is where
+   already-delivered work slips through. Read the prose, list its concrete
+   claims, and check each against `origin/main` by hand as above. Only then
+   proceed to step 7 (or close per the rules below) (#1907, #3036).
 
    If **all** ACs are confirmed satisfied on `origin/main`:
 
