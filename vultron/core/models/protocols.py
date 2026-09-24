@@ -22,7 +22,7 @@ removed in favour of direct ``isinstance`` checks against core domain classes
 (ADR-0034, DL-05-003).
 """
 
-from typing import TYPE_CHECKING, Any, Mapping, Protocol, TypeGuard
+from typing import TYPE_CHECKING, Any, Mapping, Protocol
 
 if TYPE_CHECKING:
     from vultron.core.models.dimensions import EmDimension, PxaDimension
@@ -45,16 +45,3 @@ class PersistableModel(Protocol):
 class CaseStatusModel(Protocol):
     em: "EmDimension"
     pxa: "PxaDimension"
-
-
-class OutboxCollectionModel(Protocol):
-    items: list[object]
-
-
-class ActorModel(PersistableModel, Protocol):
-    inbox: OutboxCollectionModel
-    outbox: OutboxCollectionModel
-
-
-def has_outbox(obj: PersistableModel | None) -> TypeGuard[ActorModel]:
-    return bool(obj is not None and hasattr(obj, "outbox"))
