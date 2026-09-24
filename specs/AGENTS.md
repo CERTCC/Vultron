@@ -124,7 +124,8 @@ that bite most often:
   removed. If SR-11-003 fires on a new entry, the usual fix is a corrected
   `kind:`, not a suppression.
 - **`priority:`** — underscores, not spaces: `MUST_NOT`, `SHOULD_NOT`. A space
-  is a FATAL registry load error.
+  is a FATAL registry load error. A `MUST_NOT` is the MUST tier (MS-02-003), so
+  it needs a `verification:` clause exactly as a `MUST` does (MS-10-003).
 - **`rel_type:`** — one of the enumerated values; `related_to` is not among them.
 - **`references:`** — not a schema field, silently dropped. Use `adr:`.
 - **Item format is field presence, not a class you pick** (ADR-0101).

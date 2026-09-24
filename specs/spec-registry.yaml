@@ -4,7 +4,7 @@ description: >-
   Requirements for the structured spec registry: YAML spec files governed by Pydantic models,
   with linting, pytest integration, and context-generation tooling. The registry provides a
   single source of truth for spec IDs, prefixes, titles, and cross-reference validation.
-version: 1.2.0
+version: 1.3.0
 scope:
 - prototype
 - production
@@ -887,6 +887,16 @@ groups:
       The spec linter MUST flag as a hard error any `kind: protocol` spec with
       `priority: MUST` that has no `stories:` entry. This check MUST be suppressible
       per-spec via `lint_suppress: [missing_story_reference]`.
+    note: >-
+      Deliberately MUST-only for now, which is the one exception MS-02-003 records.
+      Protocol MUST_NOTs with no `stories:` are adjudicated in #3601, and the gate
+      extends to `priority: MUST_NOT` as #2717's closing step once their stories exist.
+    tracking_issue: '#3601 (adjudication); #2717 (MUST_NOT extension)'
+    verification: >-
+      `test/metadata/specs/test_lint.py::test_protocol_must_no_stories_is_hard_error`,
+      `::test_protocol_must_with_stories_passes`, and
+      `::test_protocol_must_suppress_missing_story_reference` cover the error, the pass,
+      and the suppression.
     rationale: >-
       Protocol-level MUST requirements represent the strongest normative obligations
       in the spec corpus. Making story coverage a hard-error gate for this tier ensures
@@ -904,11 +914,16 @@ groups:
     kind: process
     statement: >-
       The spec linter SHOULD emit an advisory warning for any `kind: protocol` spec
-      with `priority: SHOULD` or `priority: MAY` that has no `stories:` entry. This
+      with `priority: SHOULD`, `priority: SHOULD_NOT`, or `priority: MAY` that has no
+      `stories:` entry. This
       check SHOULD be suppressible per-spec via `lint_suppress: [missing_story_reference]`.
+    tracking_issue: '#3522'
     relationships:
     - rel_type: refines
       spec_id: SR-11-003
+    - rel_type: refines
+      spec_id: MS-02-003
+      note: SHOULD_NOT is the SHOULD tier
     tags:
     - documentation
     - tooling

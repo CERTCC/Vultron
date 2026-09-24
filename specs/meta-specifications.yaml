@@ -2,7 +2,7 @@ id: MS
 title: Meta-Specification Style Guide
 description: Normative rules for authoring specification files in this project. Covers file structure, requirement format,
   IDs, writing rules, cross-references, lifecycle, quality criteria, and the delineation between spec files and ADRs.
-version: 1.4.0
+version: 1.5.0
 scope:
 - prototype
 - production
@@ -49,6 +49,58 @@ groups:
       implementation of this normative requirement, not its source.
     tags:
     - documentation
+  - id: MS-02-003
+    priority: MUST
+    kind: process
+    statement: >-
+      Any spec requirement, lint check, ratchet, or tool that selects requirements by
+      priority MUST treat a negative keyword as the same tier as its positive: `MUST_NOT`
+      with `MUST`, and `SHOULD_NOT` with `SHOULD`.
+    rationale: >-
+      RFC 2119 makes MUST NOT the same absolute strength as MUST, and SHOULD NOT the same
+      strength as SHOULD; a prohibition is no less binding than an obligation. A gate that
+      names only the positive keyword silently drops every prohibition. See
+      `notes/spec-authoring-rules.md` for the gaps this left in the corpus.
+    verification: >-
+      Review: a spec requirement that selects by priority names the tier, or explicitly
+      excludes the negative form and says why. Code gates are checked mechanically under
+      MS-02-004.
+    exceptions:
+    - SR-11-003 stays MUST-only until every protocol MUST_NOT it would newly flag has
+      been adjudicated (#3601) and given a user story (#2717); flipping it earlier needs
+      new suppressions, which MS-12-007 forbids.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-02-002
+    tags:
+    - documentation
+    - tooling
+  - id: MS-02-004
+    priority: MUST
+    kind: process
+    statement: >-
+      Code that selects spec requirements by priority MUST obtain the MS-02-003 tiering
+      from a single shared definition on `RFC2119Priority`, not by comparing against
+      individual enum members.
+    rationale: >-
+      Selecting with `== RFC2119Priority.MUST` is easy to write and fails silently, and
+      each hand-written member list (`backstop/_model.py` has one) re-decides which
+      members count. One shared definition means the tiering is decided once. Display
+      code that maps each member to a label is not a selection and is out of scope.
+    verification: >-
+      A unit test in `test/metadata/specs/` asserts the shared tier definition maps each
+      of the five priorities to its tier. A static check fails if a priority-selecting
+      comparison in `vultron/metadata/specs/` or `scripts/` tests equality or membership
+      against individual `RFC2119Priority` members or priority strings instead of the
+      shared definition. The SR-11-003 selector is allowlisted while the MS-02-003
+      exception stands.
+    tracking_issue: '#3522'
+    relationships:
+    - rel_type: refines
+      spec_id: MS-02-003
+    tags:
+    - documentation
+    - tooling
 - id: MS-03
   title: Requirement Format
   specs:
@@ -236,14 +288,15 @@ groups:
     kind: process
     statement: >-
       Spec files MUST be testable with verifiable acceptance criteria per
-      requirement; every `priority: MUST` requirement MUST include a
-      `verification:` field.
+      requirement; every `priority: MUST` or `priority: MUST_NOT` requirement MUST
+      include a `verification:` field.
     rationale: >-
       Untestable specs cannot be reliably implemented; a MUST requirement with no
       verification field provides no contract for reviewers or agents. Upgraded
       from SHOULD to MUST (CONCERN-2382) to align with MS-05-003 and enable
-      progressive linter enforcement. See MS-10-005 for the current enforcement
-      mechanism.
+      progressive linter enforcement. MUST_NOT is in scope per MS-02-003: a
+      prohibition with nothing checking it is the same gap. See MS-10-005 through
+      MS-10-007 for enforcement.
     relationships:
     - rel_type: refines
       spec_id: MS-05-003
@@ -254,21 +307,111 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      spec-lint MUST emit an advisory warning ([WARN]) for any `priority: MUST`
-      requirement whose `verification:` field is null or absent, until that
-      requirement has been backfilled.
+      For each kind that still has a ceiling under MS-10-006, spec-lint MUST report in its
+      default output one summary line giving the number of `priority: MUST` or
+      `priority: MUST_NOT` requirements of that kind whose `verification:` field is null or
+      absent, alongside that kind's ceiling. It MUST list the offending IDs only when
+      asked through an opt-in flag, and MUST NOT print one line per offending requirement
+      by default.
     rationale: >-
-      MS-05-003 and MS-10-003 require MUST requirements to carry measurable
-      acceptance criteria. The linter cannot impose a hard error on the existing
-      backlog immediately, but a visible advisory signal (a) prevents the
-      backlog from growing, (b) makes the gap visible in CI output without
-      blocking merges, and (c) provides the foundation for a future hard-error
-      upgrade once the backlog is addressed. Tracked by CONCERN-2382.
+      MS-05-003 and MS-10-003 require MUST and MUST_NOT requirements to carry measurable
+      acceptance criteria. The original per-item [WARN] (CONCERN-2382) grew to more than a
+      thousand lines, which made a newly introduced instance invisible. A per-kind count
+      against a ceiling keeps the backlog legible and makes each backfill's progress
+      visible. Once a kind reaches zero, MS-10-007 replaces its count with a hard error.
+    verification: Unit tests in `test/metadata/specs/test_lint.py` assert that a fixture
+      corpus with unverified MUST and MUST_NOT items produces exactly one summary line per
+      kind with the correct count and ceiling, no per-item lines by default, and the IDs
+      when the opt-in flag is passed.
+    tracking_issue: '#3522'
     relationships:
     - rel_type: implements
       spec_id: MS-05-003
     - rel_type: implements
       spec_id: MS-10-003
+    - rel_type: depends_on
+      spec_id: MS-10-006
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-006
+    priority: MUST
+    kind: process
+    statement: >-
+      A ratchet test MUST pin, per kind, the number of `priority: MUST` or
+      `priority: MUST_NOT` requirements with no `verification:` field, counting those that
+      carry `lint_suppress: [must_without_verification]`, to a ceiling equal to the live
+      count. The ceilings live in one table under `vultron/metadata/specs/` that spec-lint
+      (MS-10-005) also reads. Each non-zero ceiling MUST name the issue that owns driving it
+      to zero, and the test MUST fail if any non-zero ceiling names no owner.
+    rationale: >-
+      A ceiling that is merely not raised can stay at its seed value indefinitely. Pinning
+      it to the live count forces every backfill to lower it, and a new unverified MUST
+      fails at once. Counting suppressed items means a kind cannot reach zero by
+      suppression. A named owner gives every backlog a tracked path to zero; a closed
+      owner on a live ceiling is a defect for review. One shared table keeps lint's
+      printed number and the test's pinned number in step.
+    verification: '`test/metadata/specs/test_must_verification_ratchet.py` fails when a
+      kind''s live count, suppressed items included, differs from its ceiling in either
+      direction, and when a non-zero ceiling entry carries no owning issue reference; a
+      fixture-based test proves both failure modes fire.'
+    tracking_issue: '#3522'
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: implements
+      spec_id: MS-10-003
+    - rel_type: refines
+      spec_id: MS-02-003
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-007
+    priority: MUST
+    kind: process
+    statement: >-
+      When a kind's MS-10-006 ceiling reaches zero, spec-lint MUST treat any
+      `priority: MUST` or `priority: MUST_NOT` requirement of that kind with no
+      `verification:` field as a hard error that `lint_suppress` cannot silence, and that
+      kind's ceiling entry MUST be removed in the same change.
+    rationale: >-
+      Zero is the only state a ratchet cannot drift from, and only if nothing can raise it
+      back. Because MS-10-006 counts suppressed items, a kind at zero has no suppressions
+      left to honour, and a suppression added afterwards would be an unratcheted way back
+      up. A hard error makes the end state permanent and retires the ceiling, so the
+      ceiling table shrinks to empty as each tier is finished. The `protocol` tier flips
+      first (#3612); the other kinds flip when their backfill Tasks finish.
+    verification: >-
+      Unit tests in `test/metadata/specs/test_lint.py` assert that, for a kind
+      with no ceiling entry, an unverified MUST and an unverified MUST_NOT each make lint
+      exit 1, including when the spec carries `lint_suppress: [must_without_verification]`.
+    tracking_issue: '#3612'
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-10-006
+    - rel_type: implements
+      spec_id: MS-10-003
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-008
+    priority: MUST
+    kind: process
+    statement: >-
+      A change that moves a `priority: MUST` or `priority: MUST_NOT` requirement with no
+      `verification:` field from one kind to another MUST add its `verification:` field in
+      the same change.
+    rationale: >-
+      Without this rule, a kind reclassification (MS-12) would force an upward edit to the
+      destination kind's MS-10-006 ceiling, which is exactly the edit the ratchet exists to
+      forbid.
+    verification: >-
+      The MS-10-006 ratchet test fails on the destination kind when a relabel moves an
+      unverified requirement without backfilling it, because that kind's live count
+      rises above its ceiling.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-006
     tags:
     - documentation
     - tooling
