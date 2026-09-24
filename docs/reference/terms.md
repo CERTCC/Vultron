@@ -2,6 +2,8 @@
 description: >
   The Coordinated Vulnerability Disclosure (CVD) stakeholder roles and case
   terms used throughout this documentation.
+stakeholder_type: [cvd-practitioner]
+level: 200
 ---
 
 # Terms and Definitions

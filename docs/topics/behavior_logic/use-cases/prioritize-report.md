@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Prioritize Report
 
 Prioritizing a report is the decision to work a case now or to park it.

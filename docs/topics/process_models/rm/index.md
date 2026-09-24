@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer, process-researcher]
+level: 400
+---
+
 # Report Management Process Model
 
 {% include-markdown "../../../includes/normative.md" %}

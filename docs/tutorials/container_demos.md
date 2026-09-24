@@ -3,6 +3,8 @@ description: >
   Run the Finder + Vendor (FV) scenario and the other multi-actor scenarios,
   such as Finder + Coordinator + Vendor (FCV), to see the full Vultron Protocol
   at work across isolated participant containers.
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 300
 ---
 
 # Tutorial: Running the Multi-Actor Container Demos

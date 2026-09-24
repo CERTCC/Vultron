@@ -5,6 +5,8 @@ description: >
   Reference definitions for the distinct concepts that together constitute
   Vultron. Use this document to understand what each named concept covers,
   what it excludes, and how the concepts relate to each other.
+stakeholder_type: [platform-developer, project-contributor]
+level: 300
 ---
 
 # Vultron Concept Taxonomy

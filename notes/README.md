@@ -940,6 +940,20 @@ page's stakeholder type or level, changing `mkdocs.yml` nav structure, building
 or editing a section landing page, or planning any documentation reorganization.
 Source: CONCERN-3512.
 
+**`reader-facing-docs-audit.md`**
+The dated audit (#3526) of every reader-facing `docs/` page against ADR-0102:
+the routing ledger (level, stakeholder type, verdict, and owning remediation
+task for each page), the ten pages reclassified as working record, the finding
+that no page narrows `cvd-practitioner`, and the cross-page rulings a page-local
+fixer cannot make — which of four concept registries wins, where the Background
+essay goes, which Case State, PEC, case-proposal and discovery page owns each
+overlapping topic, inbound-link counts, upward level dependencies, and the
+missing pages.
+**Load when**: working any remediation task spawned by #3526, deciding which of
+two overlapping `docs/` pages owns a topic, or changing a page's level or
+stakeholder type.
+Source: CONCERN-3526.
+
 **`site-coverage-matrix.md`**
 Generated, never hand-edited (`uv run docs-site --write`, DF-11-008): how many
 reader-facing `docs/` pages declare each `stakeholder_type` at each `level`,

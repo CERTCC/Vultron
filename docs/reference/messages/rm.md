@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Report Management (RM) Messages
 
 The RM shorthands inform other Participants of the sender's report-handling

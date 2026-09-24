@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Faults and Acknowledgements
 
 The formal Vultron protocol defines per-state-machine error and acknowledgement

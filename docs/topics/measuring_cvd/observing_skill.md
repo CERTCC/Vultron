@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+---
+
 # Observing CVD in the Wild
 
 {% include-markdown "../../includes/not_normative.md" %}

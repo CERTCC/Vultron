@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner]
+level: 300
+---
+
 # Adding Participants to an Embargoed Case
 
 {% include-markdown "../../../includes/normative.md" %}

@@ -53,7 +53,7 @@ This annex derives that result. It is informative: this specification does not y
 state the ordering constraints normatively
 ([§8.3](index.md#83-case-state-as-a-compound-tuple)).
 
-{% include-markdown "../../topics/measuring_cvd/possible_histories.md" heading-offset=2 %}
+{% include-markdown "../../topics/measuring_cvd/possible_histories.md" start="<!-- possible-histories-start -->" end="<!-- possible-histories-end -->" heading-offset=2 %}
 
 !!! info "See also"
     - [CS Transitions](../../topics/process_models/cs/transitions.md) — the

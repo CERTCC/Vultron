@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # Message Semantics
 
 This page explains two basic design decisions that shape how Vultron messages

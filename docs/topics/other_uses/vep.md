@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 400
+---
+
 # Vulnerability Equities Process
 
 {% include-markdown "../../includes/not_normative.md" %}

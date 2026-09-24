@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Case Ownership Transfer
 
 This page explains why case ownership transfers route through the Case

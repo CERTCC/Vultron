@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+---
+
 # Vulnerability Response Situation Awareness
 
 {% include-markdown "../../includes/not_normative.md" %}

@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+---
+
 # CVD Roles and Their Influence
 
 {% include-markdown "../../includes/not_normative.md" %}

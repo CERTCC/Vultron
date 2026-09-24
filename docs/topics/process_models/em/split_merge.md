@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner]
+level: 300
+---
+
 # Case Splitting and Merging
 
 {% include-markdown "../../../includes/normative.md" %}

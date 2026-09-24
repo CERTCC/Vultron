@@ -2,6 +2,8 @@
 description: >
   The `POST /actors/{actor_id}/trigger/{behavior}` endpoints, each of which
   starts a protocol behavior on an actor's behalf.
+stakeholder_type: [platform-developer]
+level: 400
 ---
 
 # Trigger API Reference

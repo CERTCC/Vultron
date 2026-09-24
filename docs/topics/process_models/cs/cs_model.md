@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, process-researcher]
+level: 400
+---
+
 # CVD Case State Model
 
 {% include-markdown "../../../includes/normative.md" %}

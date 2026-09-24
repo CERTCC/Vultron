@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # How to Initialize a Case
 
 Use this guide to open a `VulnerabilityCase` after validating a report.

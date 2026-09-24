@@ -1,6 +1,8 @@
 ---
 title: Demo Scenario Narratives
 status: stable
+stakeholder_type: [project-contributor]
+level: 300
 ---
 
 # Demo Scenario Narratives

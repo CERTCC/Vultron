@@ -2,6 +2,8 @@
 description: >
   Domain terminology for the Vultron Coordinated Vulnerability Disclosure
   (CVD) protocol and its reference implementation, with the aliases to avoid.
+stakeholder_type: [project-contributor]
+level: 300
 ---
 
 # Glossary — Vultron

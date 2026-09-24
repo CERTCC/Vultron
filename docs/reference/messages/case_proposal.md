@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Case Proposal Messages
 
 A *case proposal* is a pre-case bootstrap message flow described in

@@ -2,6 +2,8 @@
 description: >
   The Vultron ActivityStreams objects that extend the ActivityStreams
   vocabulary.
+stakeholder_type: [platform-developer]
+level: 300
 ---
 
 # Vultron ActivityStreams Objects

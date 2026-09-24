@@ -1,3 +1,9 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+---
+
+<!-- possible-histories-start -->
 # Sequences of Events and Possible Histories in CVD
 
 {% include-markdown "../../includes/not_normative.md" %}
@@ -107,3 +113,5 @@ precedes Exploit Public (**X**) or must immediately follow it.
 
 This model is amenable for analysis of CVD, but we need to add a way to express
 preferences before it is complete. That is the subject of the [Desirable Histories](./desirable_histories.md) section.
+
+<!-- possible-histories-end -->

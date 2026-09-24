@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, process-researcher]
+level: 200
+---
+
 # What Does *Success* Mean in CVD?
 
 !!! info inline end "Formalism development in Measuring CVD"

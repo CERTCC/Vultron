@@ -58,6 +58,8 @@ causal_edges:
     note: >
       Report submission by the Finder is an out-of-band API call that
       precedes the case.
+stakeholder_type: [platform-developer, project-contributor]
+level: 300
 ---
 
 # FCCV-handoff Scenario: Finder + C1 → C2 + Vendor

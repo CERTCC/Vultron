@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner]
+level: 300
+---
+
 # Embargo Principles
 
 {% include-markdown "../../../includes/normative.md" %}

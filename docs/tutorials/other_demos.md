@@ -3,6 +3,8 @@ description: >
   Explore case initialization, actor management, embargo negotiation,
   acknowledgement, status updates, and the full Report Management (RM) case
   lifecycle using the remaining `vultron-demo` sub-commands.
+stakeholder_type: [platform-developer]
+level: 300
 ---
 
 # Tutorial: Running the Other Demos

@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Propose Case
 
 Proposing a case is how an actor asks a service to open and manage a coordination case on its behalf.

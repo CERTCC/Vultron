@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # Vultron Vocabulary Namespace
 
 **Namespace URI**: `https://certcc.github.io/Vultron/ns`

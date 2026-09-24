@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, process-researcher]
+level: 200
+---
+
 # Vultron Contextualized
 
 !!! tip inline end "Prerequisites"

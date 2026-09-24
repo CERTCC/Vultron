@@ -2,6 +2,8 @@
 description: >
   Wire a capability into the reference implementation, replacing a call-out
   stub with real backend logic.
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
 ---
 
 # Wiring a Capability into the Reference Implementation

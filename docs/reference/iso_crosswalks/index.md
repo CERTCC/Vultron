@@ -2,6 +2,8 @@
 description: >
   A crosswalk of the Vultron Protocol against the ISO/IEC standards on
   vulnerability handling and disclosure.
+stakeholder_type: [cvd-practitioner]
+level: 200
 ---
 
 # ISO Crosswalk

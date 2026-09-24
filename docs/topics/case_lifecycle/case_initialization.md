@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Case Initialization
 
 This page explains why the CASE_MANAGER creates every

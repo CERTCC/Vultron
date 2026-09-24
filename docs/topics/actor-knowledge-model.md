@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # Actor Knowledge Model
 
 This page explains a foundational invariant of the Vultron protocol: an

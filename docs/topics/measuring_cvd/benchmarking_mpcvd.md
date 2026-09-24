@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+---
+
 # Measuring and Benchmarking MPCVD
 
 Multiparty Coordinated Vulnerability Disclosure (MPCVD) is the

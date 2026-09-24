@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 200
+---
+
 # Vultron Protocol Frequently Asked Questions
 
 ## What does the Vultron Protocol need to reach widespread use?

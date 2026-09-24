@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Reference Implementation Architecture
 
 This page explains how the Vultron reference implementation is structured.

@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, process-researcher]
+level: 400
+---
+
 # CS Transitions
 
 {% include-markdown "../../../includes/normative.md" %}

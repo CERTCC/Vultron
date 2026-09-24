@@ -2,6 +2,8 @@
 description: >
   A single-page summary of the protocol's state machines, message types, and
   how they interact.
+stakeholder_type: [platform-developer]
+level: 400
 ---
 
 # Protocol Quick Reference

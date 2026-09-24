@@ -2,6 +2,8 @@
 description: >
   The Multi-Party Coordinated Vulnerability Disclosure (MPCVD) process defined
   as a communicating hierarchical state machine.
+stakeholder_type: [platform-developer, process-researcher]
+level: 400
 ---
 
 # A Formal Protocol Definition for MPCVD

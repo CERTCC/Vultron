@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # How to Establish an Embargo
 
 Use this guide to put a case under embargo.

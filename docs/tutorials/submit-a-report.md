@@ -3,6 +3,8 @@ description: >
   Start the reference implementation, construct a
   `Create(VulnerabilityReport)` message by hand, post it to an actor's inbox,
   and confirm the actor received it.
+stakeholder_type: [platform-developer]
+level: 200
 ---
 
 # Tutorial: Submit a report to a Vultron actor

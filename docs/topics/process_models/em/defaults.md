@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 300
+---
+
 # Default Embargoes
 
 {% include-markdown "../../../includes/normative.md" %}

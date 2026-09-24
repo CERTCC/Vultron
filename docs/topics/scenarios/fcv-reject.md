@@ -43,6 +43,8 @@ causal_edges:
     note: >
       Report submission by the Finder is an out-of-band API call that
       precedes the case.
+stakeholder_type: [platform-developer, project-contributor]
+level: 300
 ---
 
 # FCV-reject Scenario: Finder + Coordinator + Vendor (Vendor Rejects)

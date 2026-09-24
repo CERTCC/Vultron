@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Activity Vocabulary Design
 
 Vultron carries its protocol messages as ActivityStreams Vocabulary 2.0 (AS2) activities rather than as a bespoke message format.

@@ -42,6 +42,8 @@ causal_edges:
     note: >
       The Finder's initial report submission is an out-of-band API call;
       no ledger entry exists until validation occurs.
+stakeholder_type: [platform-developer, project-contributor]
+level: 300
 ---
 
 # FVV Scenario: Finder + Vendor1 + Vendor2

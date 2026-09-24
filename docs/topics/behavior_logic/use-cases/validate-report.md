@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Validate Report
 
 Validating a report is the decision that a received report describes a real problem worth coordinating.

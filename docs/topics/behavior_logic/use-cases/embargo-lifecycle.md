@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Embargo Lifecycle
 
 An embargo is an agreement that Participants will not disclose a vulnerability before an agreed moment.

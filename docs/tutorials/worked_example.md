@@ -3,6 +3,8 @@ description: >
   Sequence diagrams of a few usage scenarios, from a finder becoming a
   reporter through embargo negotiation, coordination, publication, and case
   closure.
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 400
 ---
 
 # Worked Example

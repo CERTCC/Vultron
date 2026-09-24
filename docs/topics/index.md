@@ -1,3 +1,8 @@
+---
+stakeholder_type: ALL
+level: 200
+---
+
 # Explanation
 
 !!! tip inline end "Prerequisites"
@@ -19,19 +24,19 @@ This section provides an overview of the Vultron Protocol, including:
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
 - [Background](background/index.md)
+- [Other Uses of Vultron](other_uses/index.md)
+- [Measuring CVD](measuring_cvd/index.md)
 - [Case Lifecycle](case_lifecycle/index.md)
 - [Protocol Event Flow](protocol_flow.md)
 - [Message Semantics](message_semantics.md)
-- [Activity Vocabulary Design](activity_vocabulary_design.md)
 - [Actor Knowledge Model](actor-knowledge-model.md)
-- [Reference Implementation Architecture](reference_architecture.md)
 - [Process Models](process_models/index.md)
+- [Demo Scenarios](scenarios/index.md)
+- [Future Work](future_work/index.md)
+- [Activity Vocabulary Design](activity_vocabulary_design.md)
+- [Reference Implementation Architecture](reference_architecture.md)
 - [Behavior Logic](behavior_logic/index.md)
 - [Capability Model](capability_model/index.md)
-- [Other Uses of Vultron](other_uses/index.md)
-- [Demo Scenarios](scenarios/index.md)
-- [Measuring CVD](measuring_cvd/index.md)
-- [Future Work](future_work/index.md)
 
 <!-- END GENERATED SECTION CONTENTS -->
 
