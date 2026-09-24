@@ -28,7 +28,7 @@ from vultron.core.behaviors.case.nodes import (
     EmitCreateCaseActivity,
 )
 from vultron.core.models.vultron_types import (
-    VultronCase,
+    VulnerabilityCase,
     VultronCaseActor,
     VultronReport,
 )
@@ -88,8 +88,8 @@ def report(bt_scenario: BTTestScenario) -> VultronReport:
 @pytest.fixture
 def case_obj(
     bt_scenario: BTTestScenario, report: VultronReport
-) -> VultronCase:
-    case = VultronCase(
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-001",
         name="Test Case",
         vulnerability_reports=[report.id_],
@@ -120,7 +120,7 @@ class TestEmitCreateCaseActivity:
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
     ) -> None:
         case_obj.actor_participant_index[actor_id] = (
             "https://example.org/participants/vendor"
@@ -147,7 +147,7 @@ class TestEmitCreateCaseActivity:
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
     ) -> None:
         result = bt_scenario.run(
             CreateAndPersistCaseActivityNode(),

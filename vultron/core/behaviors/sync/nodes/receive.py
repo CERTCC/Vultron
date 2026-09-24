@@ -28,7 +28,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -37,20 +36,14 @@ from vultron.errors import VultronError
 logger = logging.getLogger(__name__)
 
 
-def _require_log_entry(
-    activity: Any, node_name: str
-) -> VultronCaseLedgerEntry:
+def _require_log_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
     entry = getattr(activity, "log_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
     if isinstance(entry, CaseLedgerEntry):
-        if isinstance(entry, VultronCaseLedgerEntry):
-            return entry
-        return VultronCaseLedgerEntry.model_validate(
-            entry.model_dump(mode="json")
-        )
+        return entry
     raise VultronError(
-        f"{node_name}: activity did not carry a VultronCaseLedgerEntry"
+        f"{node_name}: activity did not carry a CaseLedgerEntry"
     )
 
 

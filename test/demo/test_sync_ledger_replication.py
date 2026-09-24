@@ -29,7 +29,7 @@ from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
     compute_genesis_hash,
 )
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
@@ -105,7 +105,7 @@ def _make_log_entry(
     log_index: int,
     prev_hash: str,
     event_type: str,
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     record = HashChainLedgerRecord(
         case_id=case_id,
         log_index=log_index,

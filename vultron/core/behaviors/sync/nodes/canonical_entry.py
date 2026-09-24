@@ -33,7 +33,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from vultron.core.models._helpers import as_utc, parse_published
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.wire_keys import wire_key
 from vultron.errors import VultronCanonicalEntryError
 
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 #: How CLP-07 spells ``CaseLedgerEntry.payload_snapshot`` in every requirement it
 #: states, read from the field's own alias so the diagnostics below can quote the
 #: spec's spelling without core logic typing an AS2 name (ADR-0099 detail 2).
-_PAYLOAD_SNAPSHOT = wire_key("payload_snapshot", VultronCaseLedgerEntry)
+_PAYLOAD_SNAPSHOT = wire_key("payload_snapshot", CaseLedgerEntry)
 
 # Every ``(activity_type, object_type)`` pair that may appear as a canonical
 # ledger ``payloadSnapshot``.  Audited against the CaseActor-authoritative

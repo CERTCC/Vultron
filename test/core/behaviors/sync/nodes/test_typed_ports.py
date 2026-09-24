@@ -19,9 +19,9 @@ Covers BTND-03-011 (NoDataAvailable on missing required port) and happy-path
 execution via BTTestScenario for sync Type-B nodes.
 
 Also covers the ``log_entry`` / ``replay_entry`` ledger-handoff type contract
-(#2907): both keys carry a ``VultronCaseLedgerEntry`` and every declaration
+(#2907): both keys carry a ``CaseLedgerEntry`` and every declaration
 says so, so a wrong-typed value is rejected at the port instead of reaching the
-``cast(VultronCaseLedgerEntry, ...)`` in each node's ``update()``.
+``cast(CaseLedgerEntry, ...)`` in each node's ``update()``.
 """
 
 from typing import Any
@@ -50,7 +50,7 @@ from vultron.core.behaviors.sync.nodes.receive import (
     CheckHashMatchesNode,
     LogDeliveryConfirmationNode,
 )
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.core.behaviors.port_contract import (
     PortDecl,
@@ -345,7 +345,7 @@ class TestFanoutCollectorsRequireCase:
         case_id = "https://example.org/cases/absent-case"
         # log_entry is a required port, so provide one — the failure must come
         # from the unresolved case, not from a missing hand-off value.
-        entry = VultronCaseLedgerEntry(
+        entry = CaseLedgerEntry(
             case_id=case_id,
             log_object_id="https://example.org/activities/act-001",
             event_type="close_case",
@@ -371,8 +371,8 @@ class TestFanoutCollectorsRequireCase:
 # ---------------------------------------------------------------------------
 
 
-def _make_ledger_entry() -> VultronCaseLedgerEntry:
-    return VultronCaseLedgerEntry(
+def _make_ledger_entry() -> CaseLedgerEntry:
+    return CaseLedgerEntry(
         case_id=LEDGER_CASE_ID,
         log_object_id="https://example.org/activities/act-001",
         event_type="close_case",
@@ -411,25 +411,21 @@ class TestLedgerPortRosterDiscovery:
 class TestLedgerPortDeclarations:
     """Every tracked declaration names the ledger-entry class.
 
-    ``VultronCaseLedgerEntry`` is an alias of ``CaseLedgerEntry`` (the same
-    class object), so these assertions check that the declaration is the ledger
-    entry type at all — they do not distinguish the two names, and would pass
-    equally for ``data_type=CaseLedgerEntry``. What the tightening excludes is a
-    value that is not a ``CaseLedgerEntry``.
+    What the tightening excludes is a value that is not a ``CaseLedgerEntry``.
     """
 
     @pytest.mark.parametrize("decl", LEDGER_READERS, ids=decl_id)
     def test_reader_declares_ledger_entry(self, decl: PortDecl) -> None:
         node_cls, port_name = decl
         port = node_cls.input_ports()[port_name]  # type: ignore[attr-defined]
-        assert port.data_type is VultronCaseLedgerEntry
+        assert port.data_type is CaseLedgerEntry
         assert port.required is True
 
     @pytest.mark.parametrize("decl", LEDGER_WRITERS, ids=decl_id)
     def test_writer_declares_ledger_entry(self, decl: PortDecl) -> None:
         node_cls, port_name = decl
         port = node_cls.output_ports()[port_name]  # type: ignore[attr-defined]
-        assert port.data_type is VultronCaseLedgerEntry
+        assert port.data_type is CaseLedgerEntry
         assert port.required is True
 
 

@@ -26,7 +26,7 @@ from typing import Any, cast
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.participant import VultronParticipant
 from vultron.core.models.dimensions import RmDimension
@@ -41,7 +41,7 @@ def case_with_participant(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
     report: VultronReport,
-) -> tuple[VultronCase, VultronParticipant]:
+) -> tuple[VulnerabilityCase, VultronParticipant]:
     """Create a case whose participant is already in RM.VALID."""
     case_id = "https://example.org/cases/case-001"
     participant = VultronParticipant(
@@ -61,7 +61,7 @@ def case_with_participant(
             ),
         ],
     )
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=case_id,
         name="Participant Case",
         vulnerability_reports=[report.id_],
@@ -78,9 +78,9 @@ def case_without_participant(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
     report: VultronReport,
-) -> VultronCase:
+) -> VulnerabilityCase:
     """Create a case without a participant for the test actor."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-002",
         name="Missing Participant Case",
         vulnerability_reports=[report.id_],
@@ -93,7 +93,7 @@ def case_without_participant(
 def test_transition_participant_rm_to_accepted(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
-    case_with_participant: tuple[VultronCase, VultronParticipant],
+    case_with_participant: tuple[VulnerabilityCase, VultronParticipant],
 ) -> None:
     """CreateParticipantStatusNode(rm_state=ACCEPTED) appends RM.ACCEPTED."""
     case, participant = case_with_participant
@@ -118,7 +118,7 @@ def test_transition_participant_rm_to_accepted(
 def test_transition_participant_rm_to_accepted_same_state_persists_confirmation(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
-    case_with_participant: tuple[VultronCase, VultronParticipant],
+    case_with_participant: tuple[VulnerabilityCase, VultronParticipant],
 ) -> None:
     """CreateParticipantStatusNode(rm_state=ACCEPTED) called twice appends two records.
 
@@ -171,7 +171,7 @@ def test_transition_participant_rm_to_accepted_same_state_persists_confirmation(
 def test_transition_participant_rm_to_accepted_fails_without_participant(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
-    case_without_participant: VultronCase,
+    case_without_participant: VulnerabilityCase,
 ) -> None:
     """CreateParticipantStatusNode(rm_state=ACCEPTED) fails when actor has no participant."""
     result = bt_scenario.run(
@@ -191,7 +191,7 @@ def test_transition_participant_rm_to_accepted_fails_without_participant(
 def test_transition_participant_rm_to_deferred(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
-    case_with_participant: tuple[VultronCase, VultronParticipant],
+    case_with_participant: tuple[VulnerabilityCase, VultronParticipant],
 ) -> None:
     """CreateParticipantStatusNode(rm_state=DEFERRED) appends RM.DEFERRED."""
     case, participant = case_with_participant
@@ -216,7 +216,7 @@ def test_transition_participant_rm_to_deferred(
 def test_transition_participant_rm_to_deferred_same_state_persists_confirmation(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
-    case_with_participant: tuple[VultronCase, VultronParticipant],
+    case_with_participant: tuple[VulnerabilityCase, VultronParticipant],
 ) -> None:
     """CreateParticipantStatusNode(rm_state=DEFERRED) called twice appends two records.
 
@@ -269,7 +269,7 @@ def test_transition_participant_rm_to_deferred_same_state_persists_confirmation(
 def test_transition_participant_rm_to_deferred_fails_without_participant(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
-    case_without_participant: VultronCase,
+    case_without_participant: VulnerabilityCase,
 ) -> None:
     """CreateParticipantStatusNode(rm_state=DEFERRED) fails when actor has no participant."""
     result = bt_scenario.run(

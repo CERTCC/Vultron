@@ -58,11 +58,8 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     SyncLogEntryRequest,
 )
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case import VulnerabilityCase
-from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-    as_CaseLedgerEntry as WireCaseLedgerEntry,
-)
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 
@@ -282,7 +279,7 @@ def demo_close_case(
     status_code=status.HTTP_202_ACCEPTED,
     summary="[Demo] Commit a case ledger entry and fan it out to participants.",
     description=(
-        "Demo-only trigger. Commits a ``VultronCaseLedgerEntry`` for the "
+        "Demo-only trigger. Commits a ``CaseLedgerEntry`` for the "
         "given case via the canonical BT commit path and queues an "
         "``Announce(CaseLedgerEntry)`` per participant for fan-out delivery. "
         "Uses ``Announce(VulnerabilityCase)`` as the canonical payload type. "
@@ -390,7 +387,7 @@ def demo_sync_log_entry(
         )
 
     from vultron.core.models.case_ledger_entry import (
-        VultronCaseLedgerEntry as DomainEntry,
+        CaseLedgerEntry as DomainEntry,
     )
 
     if not isinstance(entry, DomainEntry):
@@ -412,7 +409,7 @@ def demo_sync_log_entry(
     summary="[Demo] List all case ledger entries for a case, sorted by log_index.",
     description=(
         "Demo-only read endpoint. "
-        "Returns all ``VultronCaseLedgerEntry`` objects for the specified case, "
+        "Returns all ``CaseLedgerEntry`` objects for the specified case, "
         "sorted ascending by ``log_index``. "
         "Default response is ``application/json``. "
         "Request ``Accept: application/x-ndjson`` or pass ``?format=ndjson`` "
@@ -445,26 +442,15 @@ def demo_get_case_ledger(
     Demo/observability only — do not expose as a participant-facing endpoint.
     """
     canonical_case_id = _resolve_case_id(case_id, dl)
-    raw_entries = [
+    entries = [
         e
         for e in dl.list_objects("CaseLedgerEntry")
-        if isinstance(e, (VultronCaseLedgerEntry, WireCaseLedgerEntry))
-        and e.case_id == canonical_case_id
+        if isinstance(e, CaseLedgerEntry) and e.case_id == canonical_case_id
     ]
-    raw_entries.sort(key=lambda e: e.log_index)
-    wire_entries = [
-        (
-            e
-            if isinstance(e, WireCaseLedgerEntry)
-            else WireCaseLedgerEntry.model_validate(
-                e.model_dump(by_alias=True, serialize_as_any=True)
-            )
-        )
-        for e in raw_entries
-    ]
+    entries.sort(key=lambda e: e.log_index)
     payloads = [
         e.model_dump(mode="json", by_alias=True, exclude_none=True)
-        for e in wire_entries
+        for e in entries
     ]
 
     accept = request.headers.get("accept", "")
@@ -480,7 +466,7 @@ def demo_get_case_ledger(
     summary="[Demo] Get a single case ledger entry by log_index.",
     description=(
         "Demo-only read endpoint. "
-        "Returns the single ``VultronCaseLedgerEntry`` at the given ``log_index`` "
+        "Returns the single ``CaseLedgerEntry`` at the given ``log_index`` "
         "for the specified case. "
         "Returns HTTP 404 if no entry exists at that index. "
         "Only available in ``RunMode.PROTOTYPE``. "
@@ -504,7 +490,7 @@ def demo_get_case_ledger_entry(
     canonical_case_id = _resolve_case_id(case_id, dl)
     entry_id = f"{canonical_case_id}/log/{index}"
     obj = dl.read(entry_id)
-    if not isinstance(obj, (VultronCaseLedgerEntry, WireCaseLedgerEntry)):
+    if not isinstance(obj, CaseLedgerEntry):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
@@ -516,11 +502,4 @@ def demo_get_case_ledger_entry(
                 "activity_id": None,
             },
         )
-    wire_obj = (
-        obj
-        if isinstance(obj, WireCaseLedgerEntry)
-        else WireCaseLedgerEntry.model_validate(
-            obj.model_dump(by_alias=True, serialize_as_any=True)
-        )
-    )
-    return wire_obj.model_dump(mode="json", by_alias=True)
+    return obj.model_dump(mode="json", by_alias=True)

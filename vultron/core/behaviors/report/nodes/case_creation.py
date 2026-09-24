@@ -22,7 +22,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models.activity import VultronCreateCaseActivity
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.errors import VultronAlreadyExistsError
 
@@ -120,7 +120,7 @@ class CreateCaseNode(DataLayerActionWithPorts):
                 return Status.FAILURE
 
             report_id_ref = report_obj.id_
-            case = VultronCase(
+            case = VulnerabilityCase(
                 name=f"Case for Report {self.report_id}",
                 vulnerability_reports=[report_id_ref],
                 attributed_to=self.actor_id,

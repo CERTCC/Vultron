@@ -11,7 +11,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.semantic_registry import extract_event
@@ -72,7 +72,7 @@ def case_actor(datalayer):
 
 def _make_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -86,7 +86,7 @@ def _make_entry(
 
 
 def _make_event(
-    entry: VultronCaseLedgerEntry, actor_id: str
+    entry: CaseLedgerEntry, actor_id: str
 ) -> AnnounceLogEntryReceivedEvent:
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")

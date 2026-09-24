@@ -31,7 +31,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
     UpdateActorOutbox,
 )
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 
@@ -66,7 +66,7 @@ class _CreateCaseRecordNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
-        case = VultronCase(
+        case = VulnerabilityCase(
             name=self._case_name,
             content=self._case_content,
             attributed_to=self.actor_id,

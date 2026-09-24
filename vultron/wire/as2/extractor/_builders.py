@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any, Callable
 
 from vultron.core.models.base import VultronObject
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
@@ -31,7 +31,7 @@ from vultron.core.models.vultron_types import (
     EmbargoEvent,
     ParticipantStatus,
     VultronActivity,
-    VultronCase,
+    VulnerabilityCase,
     VultronNote,
     VultronParticipant,
     VultronReport,
@@ -295,7 +295,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 if cs_id:
                     case_statuses.append(cs_id)
         return {
-            "object_": VultronCase(
+            "object_": VulnerabilityCase(
                 id_=object_id,
                 name=getattr(obj, "name", None),
                 summary=getattr(obj, "summary", None),
@@ -408,7 +408,7 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
         and published is not None
     ):
         return {
-            "object_": VultronCaseLedgerEntry(
+            "object_": CaseLedgerEntry(
                 id_=object_id,
                 case_id=case_id,
                 log_index=log_index,

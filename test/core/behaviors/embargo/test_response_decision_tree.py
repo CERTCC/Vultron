@@ -44,7 +44,10 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
 )
-from vultron.core.models.vultron_types import VultronCase, VultronParticipant
+from vultron.core.models.vultron_types import (
+    VulnerabilityCase,
+    VultronParticipant,
+)
 from vultron.demo.fuzzer.bundles.embargo import EMBARGO_STOCHASTIC
 from vultron.demo.fuzzer.embargo import (
     CaseOwnerApprovesEmbargoResponse,
@@ -405,8 +408,8 @@ def _make_participant(
 def _make_case_with_participants(
     scenario: BTTestScenario,
     *participants: VultronParticipant,
-) -> VultronCase:
-    case = VultronCase(
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_=_INT_CASE_ID,
         name="EMB-15 Integration Test Case",
         case_participants=[p.id_ for p in participants],
@@ -635,7 +638,7 @@ class TestBTBridgeIntegration:
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
         # Case has no entry for _UNKNOWN_ACTOR so CheckIsCaseOwner returns FAILURE
-        case = VultronCase(
+        case = VulnerabilityCase(
             id_=_INT_CASE_ID,
             name="Flow A Counter Test",
             case_participants=[known_p.id_],
@@ -676,7 +679,7 @@ class TestBTBridgeIntegration:
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
-        case = VultronCase(
+        case = VulnerabilityCase(
             id_=_INT_CASE_ID,
             name="Flow A Reject Test",
             case_participants=[known_p.id_],
@@ -742,7 +745,7 @@ class TestBTBridgeIntegration:
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
-        case = VultronCase(
+        case = VulnerabilityCase(
             id_=_INT_CASE_ID,
             name="Flow B Reject Test",
             case_participants=[known_p.id_],

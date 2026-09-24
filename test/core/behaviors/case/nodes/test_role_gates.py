@@ -35,7 +35,10 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
-from vultron.core.models.vultron_types import VultronCase, VultronParticipant
+from vultron.core.models.vultron_types import (
+    VulnerabilityCase,
+    VultronParticipant,
+)
 from vultron.enums.roles import CVDRole
 
 CASE_ID = "https://example.org/cases/case-gate-001"
@@ -57,7 +60,7 @@ class _Spy(py_trees.behaviour.Behaviour):
 
 
 @pytest.fixture
-def case_with_manager(bt_scenario: BTTestScenario) -> VultronCase:
+def case_with_manager(bt_scenario: BTTestScenario) -> VulnerabilityCase:
     manager = VultronParticipant(
         id_="https://example.org/participants/coordinator-gate-001",
         attributed_to=MANAGER_ACTOR_ID,
@@ -70,7 +73,7 @@ def case_with_manager(bt_scenario: BTTestScenario) -> VultronCase:
         context=CASE_ID,
         case_roles=[CVDRole.VENDOR],
     )
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Gated Case",
         case_participants=[manager.id_, vendor.id_],
@@ -86,7 +89,7 @@ def case_with_manager(bt_scenario: BTTestScenario) -> VultronCase:
 class TestCaseManagerGate:
     @pytest.mark.executes_as(MANAGER_ACTOR_ID)
     def test_the_case_manager_runs_the_children(
-        self, bt_scenario: BTTestScenario, case_with_manager: VultronCase
+        self, bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
     ) -> None:
         child = _Spy("Work")
         result = bt_scenario.run(
@@ -97,7 +100,7 @@ class TestCaseManagerGate:
         assert child.ticks == 1
 
     def test_a_non_manager_skips_without_running_the_children(
-        self, bt_scenario: BTTestScenario, case_with_manager: VultronCase
+        self, bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
     ) -> None:
         """SUCCESS here means "not my job", and must not run the work."""
         child = _Spy("Work")
@@ -110,7 +113,7 @@ class TestCaseManagerGate:
 
     @pytest.mark.executes_as(MANAGER_ACTOR_ID)
     def test_a_failure_by_the_case_manager_is_not_masked(
-        self, bt_scenario: BTTestScenario, case_with_manager: VultronCase
+        self, bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
     ) -> None:
         """The reason BTND-07-005 forbids the hand-rolled form.
 
@@ -128,7 +131,7 @@ class TestCaseManagerGate:
 
     @pytest.mark.executes_as(MANAGER_ACTOR_ID)
     def test_a_mid_sequence_failure_propagates(
-        self, bt_scenario: BTTestScenario, case_with_manager: VultronCase
+        self, bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
     ) -> None:
         """Multiple children are a Sequence, so a partial run is a failure.
 

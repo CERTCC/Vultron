@@ -34,7 +34,6 @@ from vultron.core.behaviors.sync.nodes.canonical_entry import (
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.sync_helpers import _find_equivalent_recorded_entry
 from vultron.core.sync_helpers import _find_prev_actor_published
@@ -46,20 +45,14 @@ from vultron.errors import VultronValidationError
 logger = logging.getLogger(__name__)
 
 
-def _require_log_entry(
-    activity: Any, node_name: str
-) -> VultronCaseLedgerEntry:
+def _require_log_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
     entry = getattr(activity, "log_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
     if isinstance(entry, CaseLedgerEntry):
-        if isinstance(entry, VultronCaseLedgerEntry):
-            return entry
-        return VultronCaseLedgerEntry.model_validate(
-            entry.model_dump(mode="json")
-        )
+        return entry
     raise VultronError(
-        f"{node_name}: activity did not carry a VultronCaseLedgerEntry"
+        f"{node_name}: activity did not carry a CaseLedgerEntry"
     )
 
 
@@ -76,8 +69,8 @@ def _require_case_id_from_activity(activity: Any, node_name: str) -> str:
 
 def _to_persistable_entry(
     chain_entry: HashChainLedgerRecord,
-) -> VultronCaseLedgerEntry:
-    return VultronCaseLedgerEntry(
+) -> CaseLedgerEntry:
+    return CaseLedgerEntry(
         case_id=chain_entry.case_id,
         log_index=chain_entry.log_index,
         term=chain_entry.term,
@@ -204,14 +197,7 @@ class UpdateReplicationStateNode(DataLayerActionWithPorts):
             entry = getattr(activity, "object_", None)
         if not isinstance(entry, CaseLedgerEntry):
             raise VultronError(
-                f"{self.name}: activity did not carry a VultronCaseLedgerEntry"
-            )
-
-        if isinstance(entry, VultronCaseLedgerEntry):
-            rejected_entry = entry
-        else:
-            rejected_entry = VultronCaseLedgerEntry.model_validate(
-                entry.model_dump(mode="json")
+                f"{self.name}: activity did not carry a CaseLedgerEntry"
             )
 
         peer_id = activity.actor_id
@@ -221,7 +207,7 @@ class UpdateReplicationStateNode(DataLayerActionWithPorts):
             )
 
         state = VultronReplicationState(
-            case_id=rejected_entry.case_id,
+            case_id=entry.case_id,
             peer_id=peer_id,
             last_acknowledged_hash=activity.last_accepted_hash,
         )
@@ -261,9 +247,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
-        "log_entry": PortInformation(
-            data_type=VultronCaseLedgerEntry, required=True
-        ),
+        "log_entry": PortInformation(data_type=CaseLedgerEntry, required=True),
         "log_entry_preexisting": PortInformation(
             data_type=object, required=True
         ),
@@ -333,12 +317,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             entries=recorded or None,
         )
         if existing is not None:
-            if isinstance(existing, VultronCaseLedgerEntry):
-                entry = existing
-            else:
-                entry = VultronCaseLedgerEntry.model_validate(
-                    existing.model_dump(mode="json")
-                )
+            entry = existing
             self._set_output("log_entry", entry)
             self._set_output("log_entry_preexisting", True)
             self.logger.info(
@@ -370,9 +349,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
 class PersistLogEntryNode(DataLayerActionWithPorts):
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        "log_entry": PortInformation(
-            data_type=VultronCaseLedgerEntry, required=True
-        ),
+        "log_entry": PortInformation(data_type=CaseLedgerEntry, required=True),
         "log_entry_preexisting": PortInformation(
             data_type=bool, required=False
         ),
@@ -397,7 +374,7 @@ class PersistLogEntryNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        entry = cast(VultronCaseLedgerEntry, self.log_entry)
+        entry = cast(CaseLedgerEntry, self.log_entry)
         preexisting = bool(self.log_entry_preexisting)
         if preexisting:
             self.logger.info(

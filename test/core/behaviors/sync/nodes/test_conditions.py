@@ -24,7 +24,7 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     _ADD_PARTICIPANT_STATUS_EVENT,
     _REMOVE_EMBARGO_EVENT,
 )
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
 
 @pytest.mark.parametrize(
@@ -119,7 +119,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
         e0 = _make_entry(0)
         datalayer.save(e0)
         # Skip index 1; jump to index 2
-        e2 = VultronCaseLedgerEntry(
+        e2 = CaseLedgerEntry(
             case_id=CASE_ID,
             log_index=2,
             log_object_id="https://example.org/activities/log-2",
@@ -143,7 +143,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
         """SYNC-10-004: hash mismatch at any link is stale."""
         e0 = _make_entry(0)
         datalayer.save(e0)
-        bad_e1 = VultronCaseLedgerEntry(
+        bad_e1 = CaseLedgerEntry(
             case_id=CASE_ID,
             log_index=1,
             log_object_id="https://example.org/activities/log-1",
@@ -170,7 +170,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
         # Create a gap
         e0 = _make_entry(0)
         datalayer.save(e0)
-        e2 = VultronCaseLedgerEntry(
+        e2 = CaseLedgerEntry(
             case_id=CASE_ID,
             log_index=2,
             log_object_id="https://example.org/activities/log-2",

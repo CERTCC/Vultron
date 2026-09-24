@@ -38,7 +38,7 @@ Spec: SYNC-01-002, SYNC-02-003, SYNC-03-001 through SYNC-03-003.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -154,14 +154,6 @@ class CaseLedgerEntry(CoreObject):
         return data
 
 
-#: Legacy Vultron-prefixed alias; prefer :class:`CaseLedgerEntry` in new code.
-VultronCaseLedgerEntry = CaseLedgerEntry
-
-#: Convenience type alias for optional references in use-case code.
-VultronCaseLedgerEntryRef: TypeAlias = CaseLedgerEntry | None
-
 __all__ = [
     "CaseLedgerEntry",
-    "VultronCaseLedgerEntry",
-    "VultronCaseLedgerEntryRef",
 ]

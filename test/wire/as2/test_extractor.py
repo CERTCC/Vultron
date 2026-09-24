@@ -130,7 +130,7 @@ def test_extract_intent_report_pass_through_fields():
 
 @pytest.mark.spec("VAM-03-001")
 def test_extract_intent_case_pass_through_fields():
-    """New VultronCase fields (published, updated) survive extraction."""
+    """New VulnerabilityCase fields (published, updated) survive extraction."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
