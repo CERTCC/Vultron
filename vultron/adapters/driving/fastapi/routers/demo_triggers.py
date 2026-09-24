@@ -420,7 +420,7 @@ def demo_sync_log_entry(
         "file capture (``curl ... > case.jsonl``). "
         "This endpoint is for demo tooling, test scripts, and live display "
         "only. It MUST NOT be used as a participant-facing log-replication "
-        "mechanism (use the ActivityStreams inbox channel per SYNC-07). "
+        "mechanism (use the ActivityStreams inbox channel per SYNC-02-001). "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: TRIG-09-001, SYNC-01-002, SYNC-02-003."
     ),

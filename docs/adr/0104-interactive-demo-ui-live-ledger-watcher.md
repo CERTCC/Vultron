@@ -34,23 +34,29 @@ The questions this record settles are: what vehicle the stakeholder demo uses, w
 
 - Vehicle: the React/ReactFlow app on `feature/demo-ui`; a self-contained HTML live page reusing the report tool's timeline model; the existing static report presented after the fact; no UI for now.
 - Source of truth: the real system's case ledgers, live; the branch's TypeScript simulation; both on equal footing.
+- Transport: server-sent events; a WebSocket per actor container, as the 2026-05-15 session proposed.
 - Identity: operator-side tooling with no case identity; an Observer participant receiving `Announce(CaseLedgerEntry)`.
 - Change notification for the stream: server-side polling of the DataLayer; an in-process per-case notification queue fed by the ledger write paths.
 
 ## Decision Outcome
 
-Chosen options: **the React/ReactFlow app**, **the real system live**, **operator-side**, and **SSE with server-side polling**.
+Chosen options: **the React/ReactFlow app**, **the real system live**, **operator-side**, and **SSE with server-side polling**, because together they give a non-technical audience a polished browser story that shows what Vultron actually did, without changing the case being shown.
+The React/ReactFlow app is chosen because it is the most polished artifact for this audience and already exists.
+The real ledgers are the source of truth because a parallel model can diverge from the protocol unnoticed.
+The dashboard is operator-side because demonstrating a case must not change it.
+The stream is SSE because data flows one way only, and it is polled because polling needs no hook in the ledger write paths while still giving observability value without a UI.
 
 1. The stakeholder demo is the React/ReactFlow app from `feature/demo-ui`, living in `ui/`.
    This admits Node/npm, Vite, and React as a project-sanctioned toolchain **scoped to `ui/`**; no Python code depends on it.
 2. The headline mode is the branch's Log Replay mode grown into a live view of a running scenario.
    The TypeScript simulation remains as an offline mode labelled illustrative, and is frozen: it receives no new protocol logic.
 3. The dashboard is operator-side, with no case identity.
-   It reads each actor container's ledger stream and is never a participant.
+   It reads each actor's ledger stream and is never a participant.
    In ADR-0097's terms it is the watching half of a Sentinel (a call-in pattern), and it becomes a full Sentinel when branch-point choices call real trigger endpoints on the actor the presenter plays.
-4. Each actor container exposes `GET /actors/{actor_id}/demo/cases/{case_id}/log/stream`, a `text/event-stream` of that actor's case ledger entries.
+4. Each actor exposes `GET /api/v2/actors/{actor_id}/demo/cases/{case_id}/log/stream`, a `text/event-stream` of that actor's case ledger entries.
+   A container may host several actors (a self-hosted case-actor, for example), so the dashboard opens one stream per actor, not per container.
    It is mounted only in `RunMode.PROTOTYPE`, beside the existing ledger read endpoints (TRIG-09).
-   It replays from `?since=` or `Last-Event-ID`, learns of new entries by polling the DataLayer, and ends with a terminal `close` event.
+   It replays from `?since=` or `Last-Event-ID`, learns of new entries by polling the DataLayer, stops cleanly when the client disconnects, and emits a terminal `close` event when the server shuts down.
    It is justified on its own observability merits and does not depend on the UI.
 5. The browser reaches the containers through a reverse proxy in the UI's compose service rather than through CORS on the Vultron server.
 
@@ -76,6 +82,11 @@ Implementation guidance and the Task sequence live in `notes/demo-interactive-ui
 
 ## Pros and Cons of the Options
 
+### No UI for now
+
+- Good, because it adds no toolchain and no upkeep.
+- Bad, because the stakeholder audience keeps getting scrolling logs, which is the problem this record exists to solve.
+
 ### Self-contained HTML live page
 
 - Good, because it needs no JavaScript toolchain and reuses the report tool's timeline model.
@@ -90,6 +101,16 @@ Implementation guidance and the Task sequence live in `notes/demo-interactive-ui
 
 - Good, because it runs with no containers and is already interactive.
 - Bad, because it is a parallel implementation of the protocol, and the audience is not watching Vultron run.
+
+### Simulation and live system on equal footing
+
+- Good, because the demo works with or without containers.
+- Bad, because the two modes must be kept in step, and the protocol logic in the simulation grows as a second implementation.
+
+### WebSocket transport
+
+- Good, because it could also carry the presenter's choices back to the server.
+- Bad, because data flows one way only (choices already go out as ordinary trigger POSTs), so it adds a handshake and a bidirectional protocol for no gain over browser-native SSE.
 
 ### Observer participant
 

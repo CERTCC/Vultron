@@ -8,6 +8,7 @@ related_specs:
   - specs/case-management.yaml
   - specs/sync-ledger-replication.yaml
 related_notes:
+  - notes/demo-interactive-ui.md
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md
   - notes/case-state-model.md

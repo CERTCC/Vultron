@@ -70,7 +70,7 @@ exchange that tells a story.
    protocol logic — a second protocol implementation drifts silently, and an
    audience watching it is not watching Vultron.
 4. **The dashboard is operator-side, with no case identity.** It reads each
-   actor container's prototype-only ledger stream; it is never a case
+   actor's prototype-only ledger stream; it is never a case
    participant, never appears in a roster, and never changes the case being
    demonstrated. It is the watching half of a **Sentinel** (a call-in
    pattern, ADR-0097 — not a capability shape); it becomes a full Sentinel
@@ -122,9 +122,9 @@ As of 2026-09-08 (tip `4398ed7be`, forked from `main` at `ff4b39cbc`,
 ### Data path
 
 ```text
-actor container (finder, vendor, coordinator, case-actor, …)
-  └─ GET /actors/{id}/demo/cases/{case_id}/log/stream   (SSE, prototype-only)
-        ▲  one stream per container — each shows that actor's replica
+actor container (finder, vendor, coordinator, …; may host several actors)
+  └─ GET /api/v2/actors/{id}/demo/cases/{case_id}/log/stream   (SSE, prototype-only)
+        ▲  one stream per actor — each shows that actor's replica
         │
   ui compose service: serves built ui/ and reverse-proxies /<service>/…
         ▲
@@ -135,7 +135,14 @@ actor container (finder, vendor, coordinator, case-actor, …)
   and the server has no CORS middleware. The UI's compose service serves
   the built app and proxies each actor under one origin, so the Vultron
   server needs no change.
-- **Per-replica view.** Because the dashboard reads every container, it can
+- **One stream per actor, not per container.** A container can host several
+  actors, each with its own store: in `fvv` the case-actor is a sub-actor of
+  the vendor container, in `fcv` of the coordinator container, and in `fv` the
+  standalone `case-actor` container deliberately does not hold the case. Live
+  mode picks its streams the way the report tool picks its ledgers — the
+  `LedgerDumpTarget` list each scenario module builds — so it never misses
+  the case manager's authoritative ledger.
+- **Per-replica view.** Because the dashboard reads every actor, it can
   show replica convergence side by side — the same per-actor presence view
   `vultron/demo/report.py` builds after the fact (DRPT-02-005).
 
@@ -148,8 +155,13 @@ TRIG-09).
 
 - **Path**: `GET /actors/{actor_id}/demo/cases/{case_id}/log/stream`, beside
   the existing ledger endpoints — not the `/actors/{actor_id:path}/cases/…`
-  path first proposed in #665. It resolves the case id with the same
-  `_resolve_case_id` helper as its siblings.
+  path first proposed in #665. Like every route here it is mounted under
+  `/api/v2`, so the full path the reverse proxy forwards is
+  `/api/v2/actors/{actor_id}/demo/cases/{case_id}/log/stream`. It resolves
+  the case id with the same `_resolve_case_id` helper as its siblings.
+- **Route order**: the stream route MUST be declared before `…/log/{index}`.
+  Declared after it, `stream` is parsed as the integer `index` and the request
+  fails with 422. A test must prove the stream route is reachable.
 - **Mounted only in `RunMode.PROTOTYPE`** (TRIG-09-002/003); returns 404
   otherwise because the route is absent.
 - **Response**: `text/event-stream`. Each event's `id:` is the entry's
@@ -169,7 +181,7 @@ TRIG-09).
   terminal `event: close` when the server shuts down (and, if cheaply
   detectable, when the case closes).
 - **Not a replication channel.** Like its siblings, it is demo tooling;
-  participants replicate through the ActivityStreams inbox (SYNC-07).
+  participants replicate through the ActivityStreams inbox (SYNC-02-001).
 
 ---
 
@@ -177,7 +189,8 @@ TRIG-09).
 
 All presentation scenarios share one UI; only the number of actor lanes
 differs. They map onto registered demo scenarios (`vultron-demo` sub-commands,
-ADR-0098); the Case Actor runs in its own container in every scenario.
+ADR-0098). Where the Case Actor runs differs by scenario (see *One stream
+per actor* above), so the UI must not assume a fixed container layout.
 
 | Presentation | Narrative | Closest registered scenario |
 |---|---|---|
@@ -259,7 +272,7 @@ any branch point is interactive.
    and 4.
 2. **Live case log SSE endpoint** (#3641) — independent; can start now.
 3. **Live mode** (#3642) — compose service with reverse proxy; Log Replay
-   subscribes to each container's stream; scenario selector, branding,
+   subscribes to each actor's stream; scenario selector, branding,
    disclaimer. Blocked by 1 and 2.
 4. **Branch-point choices via real triggers** (#3643) — report validation
    on scenario A first. Blocked by 3.
