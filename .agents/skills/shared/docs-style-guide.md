@@ -46,8 +46,8 @@ language, or registered as a new glossary term. "Avoid jargon" and "use domain
 language" are the same rule: the glossary decides which is which.
 
 **SG-05 — Register new terms.** A page that introduces a durable domain term
-adds it to `glossary.md` in the same change. Do not coin a term that nothing
-checks. For a term that needs discussion rather than a definition, invoke
+adds it to `glossary.md` in the same change, and the page lists it under
+`introduces:` (SG-11). Do not coin a term that nothing checks. For a term that needs discussion rather than a definition, invoke
 `ubiquitous-language`.
 
 **SG-06 — One name per concept.** Within a page, and across pages covering the
@@ -101,7 +101,8 @@ glossary and the taxonomy are the concept registry; there is no separate
 dependency file to maintain. The page that is a glossary term's canonical
 introduction names the term in its `introduces:` frontmatter, and
 `docs-level-order` fails an unlinked first use of it on a lower-level page
-(DF-11-002).
+(DF-11-002). To find a term's introducer, run `grep -rn "introduces:" docs/`.
+If no page introduces the term, link to its glossary entry.
 
 **SG-12 — Prerequisites are stated, not assumed.** A page that requires prior
 reading says so in its opening paragraph and links to it. Tutorials and how-to
@@ -270,9 +271,15 @@ applies.
 in sentence case. Sections separated by `---` where the page has more than
 three of them, following the corpus.
 
-**SG-40 — No frontmatter requirement.** YAML frontmatter is optional on `docs/`
-pages. Where present, keep `title` and `description` accurate. Do not add
-frontmatter to a page that lacks it just to carry metadata nothing reads.
+**SG-40 — Frontmatter declares audience, level, and introductions.** Every
+reader-facing page declares `stakeholder_type` and a `level` from 100–500
+(DF-11-001). A working-record page declares `stakeholder_type:
+[project-contributor]` and no `level` (DF-11-012). An include fragment declares
+neither, because it takes its hosts' declarations (DF-11-010). A page that is
+the canonical introduction of a glossary term lists it under `introduces:`
+(SG-11). `docs-frontmatter` and `docs-level-order` enforce these. Where `title`
+and `description` are present, keep them accurate, but do not add other keys
+that nothing reads.
 
 **SG-41 — Page furniture.** H1, then a two-to-four sentence orientation
 paragraph saying what the page covers and who it is for, then the body. Where a
@@ -318,7 +325,7 @@ a recommendation.
 | SG-34, SG-35 | Mermaid title, `graph` → `flowchart` | yes |
 | SG-36 | ASCII art grandfathered | |
 | SG-37 | American spelling | yes |
-| SG-38, SG-39, SG-40, SG-41, SG-42 | Line breaks, headings, furniture | |
+| SG-38, SG-39, SG-40, SG-41, SG-42 | Line breaks, headings, frontmatter, furniture | |
 | SG-43 | Shared content included, not copied | |
 
 ---

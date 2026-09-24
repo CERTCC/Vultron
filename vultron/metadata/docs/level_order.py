@@ -311,7 +311,9 @@ def check_level_order(
         collector.failures.append(
             MetadataLoadError(
                 f"baselines docs/{page} | {term}, which is no longer a "
-                f"violation; run `uv run docs-level-order --prune-baseline`",
+                f"violation; run `uv run docs-level-order --prune-baseline` "
+                f"and drop the key from _BASELINED in "
+                f"test/metadata/docs/test_level_order.py",
                 path=BASELINE_PATH.name,
                 line=entries[(page, term)].line if entries else None,
             )

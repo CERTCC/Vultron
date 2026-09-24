@@ -519,6 +519,7 @@ class TestBaseline:
 
         assert "no longer a violation" in failure.detail
         assert "--prune-baseline" in failure.detail
+        assert "_BASELINED" in failure.detail
 
     @pytest.mark.parametrize(
         "line",
