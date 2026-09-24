@@ -75,22 +75,19 @@ class ValidateRMTransitionNode(DataLayerConditionWithPorts):
         self.participant_id = participant_id
         self.status_id = status_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["append_status_participant"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "append_status_participant": PortInformation(
             data_type=object, required=True
-        )
-        ports["append_status_status_obj"] = PortInformation(
+        ),
+        "append_status_status_obj": PortInformation(
             data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            BB_RM_ANOMALY: PortInformation(data_type=object, required=False)
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        BB_RM_ANOMALY: PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

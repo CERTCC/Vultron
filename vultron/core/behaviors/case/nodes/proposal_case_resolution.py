@@ -76,9 +76,9 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"case_id": PortInformation(data_type=str, required=True)}
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

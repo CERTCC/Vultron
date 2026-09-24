@@ -1,3 +1,9 @@
+---
+description: >
+  The message-level protocol interactions of the Finder + Vendor (FV) demo,
+  for developers building interoperable actors.
+---
+
 # FV Demo — Protocol Reference
 
 This document is a **technical reference** for the FV

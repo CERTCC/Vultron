@@ -1,3 +1,9 @@
+---
+description: >
+  Moved: the case object is now documented as The Case Model in the
+  Explanation section.
+---
+
 # A Case Object
 
 !!! note "This page has moved"

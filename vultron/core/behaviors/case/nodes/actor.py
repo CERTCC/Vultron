@@ -112,13 +112,10 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         self._injected_roles = roles
         self._suggested_roles_bb = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["suggested_roles"] = PortInformation(
-            data_type=list, required=False
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_EmitSingleActivityBase.INPUT_PORTS,
+        "suggested_roles": PortInformation(data_type=list, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -236,12 +233,11 @@ class ProposeCaseToActorNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        ports["case_actor_id"] = PortInformation(data_type=str, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+        "case_actor_id": PortInformation(data_type=str, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -379,7 +375,7 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
     ``FAILURE`` (AC-1).
 
     The physical blackboard key is execution-scoped (BTND-03-013): the stable
-    logical port name ``suggested_roles`` is declared in ``output_ports()`` and
+    logical port name ``suggested_roles`` is declared in ``OUTPUT_PORTS`` and
     wired to the physical key ``suggested_roles_{id_segment}`` in ``setup()``
     using an instance-computed remapping.
     """
@@ -442,15 +438,11 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
             return None
         return coerced
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {}
+    INPUT_PORTS: dict[str, PortInformation] = {}
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "suggested_roles": PortInformation(data_type=list, required=True),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "suggested_roles": PortInformation(data_type=list, required=True),
+    }
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(

@@ -62,21 +62,16 @@ class CollectNonClosedLogEntryRecipientsNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["log_entry"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "log_entry": PortInformation(
             data_type=VultronCaseLedgerEntry, required=True
-        )
-        return ports
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "fanout_recipients": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "fanout_recipients": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -144,17 +139,14 @@ class _SendLogEntryToEachNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["log_entry"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "log_entry": PortInformation(
             data_type=VultronCaseLedgerEntry, required=True
-        )
-        ports["fanout_recipients"] = PortInformation(
-            data_type=object, required=True
-        )
-        ports["sync_port"] = PortInformation(data_type=object, required=False)
-        return ports
+        ),
+        "fanout_recipients": PortInformation(data_type=object, required=True),
+        "sync_port": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -243,21 +235,16 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["log_entry"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "log_entry": PortInformation(
             data_type=VultronCaseLedgerEntry, required=True
-        )
-        return ports
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "fanout_recipients": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "fanout_recipients": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -295,17 +282,14 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["log_entry"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "log_entry": PortInformation(
             data_type=VultronCaseLedgerEntry, required=True
-        )
-        ports["fanout_recipients"] = PortInformation(
-            data_type=object, required=True
-        )
-        ports["sync_port"] = PortInformation(data_type=object, required=False)
-        return ports
+        ),
+        "fanout_recipients": PortInformation(data_type=object, required=True),
+        "sync_port": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

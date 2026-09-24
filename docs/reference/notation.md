@@ -1,3 +1,8 @@
+---
+description: >
+  Notation conventions used throughout the documentation.
+---
+
 # Notation
 
 {% include-markdown "../includes/not_normative.md" %}

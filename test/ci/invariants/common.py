@@ -676,6 +676,14 @@ def check_log_starts_at_genesis(
     return []
 
 
+def missing_log_indices(entries: list[dict], start: int) -> list[int]:
+    """Return the logIndex values absent from ``start`` through the highest present."""
+    present = {log_index(e) for e in entries}
+    if not present:
+        return []
+    return sorted(set(range(start, max(present) + 1)) - present)
+
+
 def check_no_gaps_in_log_indices(
     actor_name: str,
     entries: list[dict],
@@ -685,8 +693,7 @@ def check_no_gaps_in_log_indices(
         return [f"Actor {actor_name!r}: no entries found"]
     indices = sorted(log_index(e) for e in entries)
     min_idx, max_idx = indices[0], indices[-1]
-    expected = list(range(min_idx, max_idx + 1))
-    gaps = sorted(set(expected) - set(indices))
+    gaps = missing_log_indices(entries, start=min_idx)
     if gaps:
         return [
             f"Actor {actor_name!r}: {len(gaps)} gap(s) in logIndex sequence "
@@ -1045,6 +1052,17 @@ def _clp14_005_unique_indices(sorted_entries: list[dict]) -> list[str]:
     return violations
 
 
+def _clp14_010_gapless(sorted_entries: list[dict]) -> list[str]:
+    missing = missing_log_indices(sorted_entries, start=0)
+    if not missing:
+        return []
+    return [
+        f"CLP-14-010: logIndex sequence is not gapless from genesis; "
+        f"missing {missing[:10]}"
+        + (" (truncated)" if len(missing) > 10 else "")
+    ]
+
+
 def _clp14_002_build_ts_entries(
     sorted_entries: list[dict],
 ) -> tuple[list[str], list[tuple[int, datetime]]]:
@@ -1113,7 +1131,7 @@ def _clp14_006_no_predate_case(
 def check_clp14_timestamp_invariants(
     replicas: dict[str, list[dict]],
 ) -> list[str]:
-    """Check CLP-14-001–CLP-14-006 timestamp invariants against ledger entries.
+    """Check CLP-14 ordering and timestamp invariants against ledger entries.
 
     CLP-14-002: every entry must have a non-null ``published`` timestamp.
     CLP-14-003: ``published`` values must be monotonically non-decreasing by
@@ -1121,6 +1139,7 @@ def check_clp14_timestamp_invariants(
     CLP-14-005: ``logIndex`` values must be unique within the ledger.
     CLP-14-006: no entry may predate the case-creation entry
                 (``eventType == "create_case"``).
+    CLP-14-010: ``logIndex`` values must run gaplessly from 0 (genesis).
 
     Entries without a ``published`` field are flagged for CLP-14-002 and
     skipped for ordering checks so the violation list stays focused.
@@ -1139,6 +1158,7 @@ def check_clp14_timestamp_invariants(
     v002, ts_entries = _clp14_002_build_ts_entries(sorted_entries)
     return (
         _clp14_005_unique_indices(sorted_entries)
+        + _clp14_010_gapless(sorted_entries)
         + v002
         + _clp14_003_monotone(ts_entries)
         + _clp14_006_no_predate_case(sorted_entries, ts_entries)

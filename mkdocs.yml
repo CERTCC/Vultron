@@ -131,7 +131,6 @@ nav:
       - Open Questions: 'topics/future_work/open_questions.md'
   - How-to Guides:
       - 'howto/index.md'
-      - A Case Object: 'howto/case_object.md'
       - Process Implementation: 'howto/process_implementation.md'
       - Vultron ActivityPub:
           - 'howto/activitypub/index.md'
@@ -385,6 +384,9 @@ not_in_nav: |
   ns/index.md
   # Withdrawn from the site: a tombstone that answers a live URL. See #3551.
   reference/ontology/index.md
+  # A redirect stub: the case object moved to topics/case_lifecycle/case_model.md,
+  # but older pages still link here.
+  howto/case_object.md
   adr/archived/*.md
   _*/**/*.md
   includes/*

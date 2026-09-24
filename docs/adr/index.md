@@ -1,3 +1,8 @@
+---
+description: >
+  Decision records for the Vultron project.
+---
+
 # Decisions
 
 This section contains decision records for the Vultron project.

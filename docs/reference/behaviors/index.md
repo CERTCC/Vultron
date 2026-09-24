@@ -1,3 +1,9 @@
+---
+description: >
+  The behavior trees in `vultron/core/behaviors/`, rendered from their factory
+  functions.
+---
+
 # Behaviors Reference
 
 This section provides auto-generated reference documentation for the behavior trees

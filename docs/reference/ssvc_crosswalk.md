@@ -1,3 +1,9 @@
+---
+description: >
+  A crosswalk of the Vultron Protocol against Stakeholder-Specific
+  Vulnerability Categorization (SSVC).
+---
+
 # Interactions Between the Vultron Protocol and SSVC
 
 {% include-markdown "../includes/not_normative.md" %}

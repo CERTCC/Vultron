@@ -15,3 +15,4 @@ Other topics that may be of interest include:
 - [Vulnerability Response Situation Awareness](situation_awareness.md)
 - Notes regarding the [Vulnerability Equities Process](vep.md) in relation to this model
 - A set of [Recommended Action Rules for CVD](action_rules.md) based on case states
+- A [CVD Directory](cvd_directory.md) for identifying which participants are relevant to a case, an open problem Vultron does not yet implement

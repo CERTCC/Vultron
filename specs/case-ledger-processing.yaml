@@ -7,7 +7,7 @@ description: Requirements for participant assertions, CASE_MANAGER canonicalizat
   the process log, the CASE_MANAGER inbox routing path that enables ledger entry authorship,
   and the causal-ordering model that makes log_index order the authoritative causal
   sequence.
-version: 1.3.0
+version: 1.4.0
 scope:
 - prototype
 - production
@@ -1397,6 +1397,30 @@ groups:
       `VULTRON_LEDGER__*` override actually binds and changes the outcome.'
     adr:
     - ADR-0079
+  - id: CLP-14-010
+    priority: MUST
+    kind: protocol
+    statement: The log_index values of a case ledger MUST form a gapless sequence
+      starting at 0. The genesis entry MUST carry log_index 0, and every later entry
+      MUST carry the log_index of its immediate predecessor plus one. The CASE_MANAGER
+      MUST NOT skip an index when it assigns one.
+    rationale: Receivers detect a missing entry by index arithmetic. An entry whose
+      log_index is greater than tail_index + 1 is a forward gap (SYNC-14-001), and a
+      replica that lags is valid only while its local prefix has no gaps. Both tests
+      are meaningful only if the CASE_MANAGER never leaves a gap by design. CLP-14-001
+      requires only that indices increase, and CLP-14-005 requires only that they are
+      unique. Neither excludes a sparse ledger, and ADR-0079 once said that sparse
+      numbering was allowed (ISSUE-2752).
+    verification: '`check_clp14_timestamp_invariants` in `test/ci/invariants/common.py`
+      reports a CLP-14-010 violation for any index missing between 0 and the highest
+      recorded index. Every scenario runs this check through `universal_harness.py`.'
+    adr:
+    - ADR-0079
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-01-002
+    lint_suppress:
+    - missing_story_reference
 - id: CLP-15
   title: Participant Assertion Timestamp Obligations
   description: Normative requirements on what well-behaved participants MUST do when

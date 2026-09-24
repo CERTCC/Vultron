@@ -108,6 +108,13 @@ def print_readme(model_dir="../../docs/case_states"):
 
     fpath = os.path.join(model_dir, "index.md")
     with open(fpath, "w") as fp:
+        # The Reference landing page lists this page by its description:
+        # (DF-11-005), so regenerating must not drop it.
+        fp.write(
+            "---\ndescription: >\n"
+            "  An annotated listing of every state in the case state model.\n"
+            "---\n\n"
+        )
         fp.write(f"{_comment(_DISCLAIMER)}\n")
 
         fp.write("# Case States\n")
