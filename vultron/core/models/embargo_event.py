@@ -43,7 +43,10 @@ class EmbargoEvent(CoreObject):
         validation_alias="type",
         serialization_alias="type",
     )
-    start_time: datetime = Field(default_factory=now_utc)
+    # Optional: a received embargo carries the sender's start, which may be
+    # absent (ISSUE-3257).  Nothing decides on it — ``end_time`` is the time
+    # embargo decisions read, and it stays required.
+    start_time: datetime | None = Field(default_factory=now_utc)
     end_time: datetime = Field(default_factory=_45_days_hence)
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
 

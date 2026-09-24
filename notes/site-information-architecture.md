@@ -136,7 +136,7 @@ One authority, one chain, so it is clear which copy is which:
 | Where | What it is |
 |---|---|
 | **DF-11-001** | The normative enumeration. Every other form derives from it. |
-| Frontmatter schema (#3525) | Implements DF-11-001 in code and exposes the members importably |
+| Frontmatter schema, `vultron/metadata/docs/page_schema.py` (#3525) | Implements DF-11-001 in code and exposes the members importably (`StakeholderType`, `LEVELS`); `docs-frontmatter` validates every page against it |
 | `docs/includes/stakeholder_types.md` | Generated from that schema and `--check` gated (DF-11-011); the only form any `docs/` page includes |
 | ADR-0102 | A dated literal copy, on purpose — see below |
 

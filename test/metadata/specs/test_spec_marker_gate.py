@@ -47,9 +47,9 @@ import contextlib
 import warnings
 
 import pytest
-from yaml.scanner import ScannerError
 
 from test import conftest as root_conftest
+from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.specs import (
     SpecRegistryUnavailableWarning,
     UnknownSpecIdWarning,
@@ -150,8 +150,11 @@ class TestUnloadableCorpusIsVisible:
     @pytest.mark.parametrize(
         "exc",
         [
-            ScannerError(
-                None, None, "mapping values are not allowed here", None
+            MetadataLoadError(
+                "YAML parse error: mapping values are not allowed here",
+                path="specs/broken.yaml",
+                line=3,
+                column=5,
             ),
             ValueError("Duplicate spec ID: DUR-01-001"),
             OSError("unreadable"),
@@ -165,6 +168,26 @@ class TestUnloadableCorpusIsVisible:
 
         with pytest.warns(SpecRegistryUnavailableWarning):
             _run_gate()
+
+    def test_real_yaml_syntax_fault_emits_the_warning(
+        self, monkeypatch, tmp_path
+    ):
+        """End to end: the real loader on a corrupt corpus, no stand-in.
+
+        A syntax fault used to escape ``load_registry`` as a bare
+        ``ScannerError``, so the hook's tuple had to name ``yaml.YAMLError``.
+        The loader now attributes it as a ``ValueError`` (MS-17-002), and this
+        is what proves the narrower tuple still catches it.
+        """
+        spec_dir = _redirect_spec_dir(
+            monkeypatch, tmp_path, corpus_exists=True
+        )
+        (spec_dir / "broken.yaml").write_text("id: X\ntitle: a: b\n")
+
+        with pytest.warns(SpecRegistryUnavailableWarning) as record:
+            _run_gate()
+
+        assert "specs/broken.yaml:2:" in str(record[0].message)
 
     def test_warning_names_the_cause_and_the_requirement(self, monkeypatch):
         """A reader must be able to act on it without instrumenting anything."""
@@ -240,8 +263,9 @@ class TestUnexpectedFailureStillSurfaces:
 
         Deliberately not an exact-set assertion: which concrete types belong in
         the tuple is settled behaviourally by the parametrized test above, and
-        the set shrinks by design once #3324 lands. Asserting the whole set
-        would only be a change-detector on the constant.
+        the set has already shrunk once (#3324 made a YAML fault a
+        ``ValueError``). Asserting the whole set would only be a
+        change-detector on the constant.
         """
         caught = root_conftest._REGISTRY_LOAD_ERRORS
 

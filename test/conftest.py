@@ -37,7 +37,6 @@ from pathlib import Path
 os.environ.setdefault("VULTRON_DATABASE__DB_URL", "sqlite:///:memory:")
 
 import pytest  # noqa: E402
-import yaml  # noqa: E402
 from vultron.adapters.driven.datalayer_sqlite import (  # noqa: E402
     reset_datalayer,
 )
@@ -109,14 +108,14 @@ def apply_integration_timeout(items):
 #: Failure modes ``load_registry`` can raise for a corpus that exists but does
 #: not load.  ``pydantic.ValidationError`` is a ``ValueError`` subclass, and a
 #: duplicate spec ID raises ``ValueError`` directly; ``OSError`` covers an
-#: unreadable file.  ``yaml.YAMLError`` is listed because a syntax error is
-#: *not* a ``ValueError`` and so escapes the loader's documented contract — it
-#: becomes redundant once #3324 routes the parse through the attributing helper.
+#: unreadable file.  A YAML syntax error arrives as a ``ValueError`` too: the
+#: loader routes its parse through ``vultron.metadata.file_loading``, which
+#: re-raises it attributed to its file (MS-17-002).
 #:
 #: Deliberately not ``Exception``: an unexpected type means a bug in the loader
 #: rather than a bad spec file, and that must surface rather than degrade to a
 #: warning (#3331).
-_REGISTRY_LOAD_ERRORS = (ValueError, OSError, yaml.YAMLError)
+_REGISTRY_LOAD_ERRORS = (ValueError, OSError)
 
 
 def pytest_collection_modifyitems(session, config, items):

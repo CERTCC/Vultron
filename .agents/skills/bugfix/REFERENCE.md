@@ -48,9 +48,18 @@ file each as a new Bug-type GitHub issue. Do not pursue them in the current run.
 
 ```bash
 BUG_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Bug)
-# Inherit parent from the issue being fixed so the escalated bug is
-# visible in the epic tree (no:parent-issue orphans break prioritisation).
-PARENT_ARG="--parent ${ISSUE_NUMBER}"
+# Inherit the parent epic and milestone of the bug being fixed
+# (ISSUE_NUMBER) so the escalated bug is its sibling in the epic tree
+# (no:parent-issue orphans break prioritisation). manage_github_issue.sh
+# requires --parent and --milestone on create (#3591).
+IFS="|" read -r EPIC_NUMBER MILESTONE_NUMBER < <(gh api graphql -f query='{
+  repository(owner:"CERTCC", name:"Vultron") {
+    issue(number: '"${ISSUE_NUMBER}"') { parent { number } milestone { number } }
+  }
+}' --jq '.data.repository.issue | "\(.parent.number // "")|\(.milestone.number // "")"')
+# If either is empty, resolve it as in bugfix/SKILL.md Phase 1 ("Create a
+# new bug") before running the create. Pass both unconditionally: a
+# conditional ${VAR:+--parent "${VAR}"} is one word under zsh (#2771).
 .agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "<short bug title>" \
   --body "$(cat <<'EOF'
@@ -72,7 +81,8 @@ Discovered during analysis of #N.
 EOF
 )" \
   --issue-type-id "${BUG_TYPE_ID}" \
-  ${PARENT_ARG}
+  --parent "${EPIC_NUMBER}" \
+  --milestone "${MILESTONE_NUMBER}"
 ```
 
 Reference newly filed issues in the PR description:

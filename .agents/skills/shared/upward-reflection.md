@@ -81,6 +81,8 @@ A `theme-candidate` is a claim awaiting a second witness. Two consequences:
 ## File format
 
 For the two rows that do write a file: `plan/incoming/learnings/YYYYMMDD-SLUG.md`,
+where `SLUG` is a descriptive kebab slug (conventionally `<issue>-<phrase>`),
+never the `source` value — one source may produce several files (BW-01-003);
 frontmatter `title`, `type: learning`, `timestamp` (tz-aware ISO 8601 UTC),
 `source`, and `signal:` (one of `theme-candidate`, `spec-gap`, `spec-ambiguity`,
 `spec-contradiction`). No completion summaries (BW-01-001).
