@@ -28,7 +28,13 @@ from typing import Any
 
 import pytest
 
-from vultron.core.models.actor import VultronOrganization
+from vultron.core.models.actor import (
+    VultronApplication,
+    VultronGroup,
+    VultronOrganization,
+    VultronPerson,
+    VultronService,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Service
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
@@ -36,6 +42,13 @@ from vultron.wire.as2.vocab.base.objects.collections import (
 
 ACTOR_ID = "https://example.org/actors/alice"
 _ACTOR_CLASSES = [as_Actor, as_Service]
+_CORE_ACTOR_CLASSES = [
+    VultronPerson,
+    VultronOrganization,
+    VultronService,
+    VultronApplication,
+    VultronGroup,
+]
 _ENDPOINTS = ["inbox", "outbox"]
 
 
@@ -75,24 +88,53 @@ def test_every_arrival_shape_resolves_to_the_actor_endpoint_url(
     assert collection.id_ == f"{ACTOR_ID}/{field_name}"
 
 
+@pytest.mark.parametrize("actor_cls", _CORE_ACTOR_CLASSES)
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
 @pytest.mark.parametrize(
     "shape", ["collection-dict", "bare-uri", "none", "absent"]
 )
-def test_core_actor_reduces_every_arrival_shape_to_the_url(field_name, shape):
-    """``CoreActor`` keeps the URL of a collection dict, and ``None`` otherwise.
+def test_core_actor_reduces_every_arrival_shape_to_the_url(
+    actor_cls, field_name, shape
+):
+    """``CoreActor`` holds every arrival shape as the ``{actor_id}/{field}`` URL.
 
-    Core models an endpoint as an address, not a list, so an absent or
-    ``None`` endpoint stays ``None`` in core; the AS2 actor derives it.
+    Core models an endpoint as an address, not a list: a collection dict
+    reduces to its ``id``, and an absent or ``None`` endpoint is derived from
+    the actor's ``id_``.  The Vultron actor types are the wire form too
+    (ADR-0099), so without the derivation they would publish ``null`` where
+    ActivityPub requires an inbox and outbox (ISSUE-3616).
     """
     data = {"id": ACTOR_ID, **_arrival_shapes(field_name)[shape]}
 
-    actor = VultronOrganization.model_validate(data)
+    actor = actor_cls.model_validate(data)
 
-    expected = (
-        None if shape in ("none", "absent") else f"{ACTOR_ID}/{field_name}"
+    assert getattr(actor, field_name) == f"{ACTOR_ID}/{field_name}"
+
+
+@pytest.mark.parametrize("field_name", _ENDPOINTS)
+def test_core_actor_serializes_derived_endpoints(field_name):
+    """A constructed actor with no endpoints publishes the derived URLs.
+
+    Checked under ``exclude_unset`` too: the derived value is recorded as set,
+    so a dump that drops defaults still carries the address (ISSUE-3616).
+    """
+    actor = VultronOrganization(id_=ACTOR_ID, name="Alice")
+
+    expected = f"{ACTOR_ID}/{field_name}"
+    assert json.loads(actor.model_dump_json(by_alias=True))[field_name] == (
+        expected
     )
-    assert getattr(actor, field_name) == expected
+    assert actor.model_dump(exclude_unset=True)[field_name] == expected
+
+
+@pytest.mark.parametrize("field_name", _ENDPOINTS)
+def test_core_actor_rederives_an_endpoint_reassigned_to_none(field_name):
+    """Assigning ``None`` cannot leave an actor without an endpoint."""
+    actor = VultronOrganization(id_=ACTOR_ID, name="Alice")
+
+    setattr(actor, field_name, None)
+
+    assert getattr(actor, field_name) == f"{ACTOR_ID}/{field_name}"
 
 
 @pytest.mark.spec("ARCH-23-003")

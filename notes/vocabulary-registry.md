@@ -222,7 +222,9 @@ never claimed**, and both halves of that sentence are load-bearing.
 
 **The core half.** `CoreActor.inbox` and `.outbox` are `str | None` — a plain
 URL, with a `mode="before"` validator that accepts a full collection dict and
-keeps only its `id`. Core does not model an actor's inbox as a list. But a
+keeps only its `id`, and an absent or `None` endpoint is derived as
+`{id_}/inbox` (#3616), because the Vultron actor types are the wire form too
+(ADR-0099). Core does not model an actor's inbox as a list. But a
 `CoreActorCollection` class was left behind when that reduction happened, and
 because it declared `type_: Literal["OrderedCollection"]` it registered itself in
 `CORE_TYPE_MAP` under that name. Nothing read it; its sole live effect was to

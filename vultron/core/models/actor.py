@@ -17,9 +17,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from vultron.core.models.base import CoreObject
 from vultron.core.models.enums import VultronActorType
@@ -35,7 +35,10 @@ class CoreActor(CoreObject):
 
     Note: inbox and outbox are now simple string URIs representing the
     actor's ActivityStreams collection endpoints. Queue persistence is
-    delegated to the DataLayer, accessed via DataLayer.
+    delegated to the DataLayer, accessed via DataLayer.  An endpoint that
+    arrives absent or ``None`` is derived from ``id_`` (``{id_}/inbox``),
+    because these classes are also the wire form (ADR-0099) and ActivityPub
+    requires every actor to publish both (ISSUE-3616).
     """
 
     model_config = ConfigDict(
@@ -60,6 +63,24 @@ class CoreActor(CoreObject):
         if isinstance(v, dict):
             return v.get("id_") or v.get("id") or None
         return getattr(v, "id_", None) or getattr(v, "id", None) or None
+
+    @model_validator(mode="after")
+    def _derive_endpoints_from_id(self) -> Self:
+        """Fill an absent or ``None`` ``inbox``/``outbox`` from ``id_``.
+
+        Mirrors ``as_Actor.set_collections`` so a Vultron actor publishes the
+        same addresses whichever branch built it.  Written with
+        ``object.__setattr__`` so ``validate_assignment`` does not re-enter
+        this validator, and recorded in ``model_fields_set`` so an
+        ``exclude_unset`` dump still carries the derived address.
+        """
+        for field_name in ("inbox", "outbox"):
+            if getattr(self, field_name) is None:
+                object.__setattr__(
+                    self, field_name, f"{self.id_}/{field_name}"
+                )
+                self.model_fields_set.add(field_name)
+        return self
 
     preferred_username: str | None = None
     endpoints: Any | None = None
