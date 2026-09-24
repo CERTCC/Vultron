@@ -409,9 +409,9 @@ class TestLedgerPortRosterDiscovery:
 
 @pytest.mark.spec("BTND-03-009")
 class TestLedgerPortDeclarations:
-    """Every tracked declaration names the ledger-entry class.
+    """Every tracked ledger port declares ``CaseLedgerEntry`` as its type.
 
-    What the tightening excludes is a value that is not a ``CaseLedgerEntry``.
+    A port typed this way refuses any value that is not a ``CaseLedgerEntry``.
     """
 
     @pytest.mark.parametrize("decl", LEDGER_READERS, ids=decl_id)

@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import cast
 
 import py_trees
 from py_trees.common import Status
@@ -28,23 +28,12 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
-
-
-def _require_log_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
-    entry = getattr(activity, "log_entry", None)
-    if entry is None:
-        entry = getattr(activity, "object_", None)
-    if isinstance(entry, CaseLedgerEntry):
-        return entry
-    raise VultronError(
-        f"{node_name}: activity did not carry a CaseLedgerEntry"
-    )
 
 
 class LogDeliveryConfirmationNode(DataLayerActionWithPorts):

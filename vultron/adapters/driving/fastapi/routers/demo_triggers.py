@@ -386,13 +386,6 @@ def demo_sync_log_entry(
             content={"detail": "Log entry commit did not persist."},
         )
 
-    from vultron.core.models.case_ledger_entry import (
-        CaseLedgerEntry as DomainEntry,
-    )
-
-    if not isinstance(entry, DomainEntry):
-        entry = DomainEntry.model_validate(entry.model_dump(mode="json"))
-
     return JSONResponse(
         status_code=status.HTTP_202_ACCEPTED,
         content={

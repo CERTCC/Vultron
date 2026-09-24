@@ -53,17 +53,6 @@ from vultron.errors import VultronError
 logger = logging.getLogger(__name__)
 
 
-def _require_log_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
-    entry = getattr(activity, "log_entry", None)
-    if entry is None:
-        entry = getattr(activity, "object_", None)
-    if isinstance(entry, CaseLedgerEntry):
-        return entry
-    raise VultronError(
-        f"{node_name}: activity did not carry a CaseLedgerEntry"
-    )
-
-
 def _require_rejected_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
     entry = getattr(activity, "rejected_entry", None)
     if entry is None:
