@@ -31,10 +31,9 @@ The flow of a change is always the same:
 
 1. A participant sends the CASE_MANAGER an assertion — *I accept the embargo*,
    *my report is now validated*, *here is a note*.
-2. The CASE_MANAGER judges the assertion and appends one entry recording the
-   outcome. An entry's `disposition` says whether the assertion was
-   `recorded` (accepted) or `rejected`, so a refusal leaves a trace rather
-   than a silence.
+2. The CASE_MANAGER judges the assertion. If it accepts the assertion, it
+   appends one entry recording it. If it refuses the assertion, it appends
+   nothing and records the refusal in its structured logs instead.
 3. The CASE_MANAGER sends the new entry to every participant as
    `Announce(CaseLedgerEntry)`.
 4. Each participant records the entry, and applies its effects to its own
@@ -51,27 +50,21 @@ from the CASE_MANAGER for that case, and rejects an update from any other sender
 to a replica, and the replica's owner does not edit it directly either — even
 when that owner is the organization that opened the case.
 
-### Two views of the ledger
+### Only accepted entries
 
-The ledger can be read two ways, and most of this page is about the second one.
+The ledger holds only the assertions the CASE_MANAGER accepted. It is the
+authoritative history of the case
+([CLP-04-001](../../reference/specs/protocol.md#clp-04)). A refused assertion
+never becomes an entry. The CASE_MANAGER reports the refusal through its
+structured logs instead
+([CLP-04-007](../../reference/specs/protocol.md#clp-04)).
 
-- The **audit log** is every entry the CASE_MANAGER appended, in the order it
-  appended them — rejections included.
-- The **recorded projection** is the subset whose `disposition` is `recorded`.
-  That projection is the authoritative history of the case
-  ([CLP-04-001](../../reference/specs/protocol.md#clp-04)).
-
-Case state is reconstructed from the recorded projection alone; a replica
-ignores rejected entries when working out what is true of the case
+Because nothing in the ledger needs filtering out, a replica reconstructs case
+state from every entry it holds
 ([CLP-04-002](../../reference/specs/protocol.md#clp-04)). The hash chain is
-computed over that projection too
-([CLP-04-003](../../reference/specs/protocol.md#clp-04)), so a rejection does not
-advance the chain: the next recorded entry names the previous *recorded* entry
-as its predecessor, not a rejection appended in between.
-
-A rejection is therefore evidence — *the CASE_MANAGER saw this assertion and
-refused it* — rather than a fact about the case. Where the rest of this page
-says "the chain" or "the history", it means the recorded projection.
+computed over the same entries
+([CLP-04-003](../../reference/specs/protocol.md#clp-04)). Each entry names the
+entry before it as its predecessor, with nothing in between.
 
 ---
 
@@ -85,12 +78,12 @@ ordering and integrity guarantees this page is about.
 | `case_id` | The case this entry belongs to |
 | `log_index` | Position in the case history; starts at 0 and counts up |
 | `published` | When the CASE_MANAGER stamped the entry, by its own clock |
-| `prevLogHash` | Hash of the previous `recorded` entry |
+| `prevLogHash` | Hash of the previous entry |
 | `entryHash` | Hash of this entry's own content |
 | `payloadSnapshot` | A copy of the assertion the entry records |
 
 `prevLogHash` and `entryHash` link the entries into a chain, like the teeth of
-a zipper. Each entry names its predecessor in the recorded projection, so a
+a zipper. Each entry names its predecessor, so a
 receiver can tell whether an entry belongs at the end of the history it already
 holds. The first entry in a
 case names the **genesis hash**, a value derived from the case object itself,
@@ -145,10 +138,11 @@ knows first-hand.
 | No entry predates the case it belongs to | [CLP-14-006](../../reference/specs/protocol.md#clp-14) |
 | Index numbers have no holes: the genesis entry is 0 and each later entry is one more than the entry before it | [CLP-14-010](../../reference/specs/protocol.md#clp-14) |
 
-Because the index run has no holes, a hole means an entry is missing. A
-receiver that sees an entry whose `log_index` is greater than its tail index
-plus one keeps that entry aside and asks the CASE_MANAGER to replay what it
-missed ([SYNC-14-001, SYNC-14-002](../../reference/specs/protocol.md#sync-14)). A replica
+Because the index run has no holes, a hole means an entry is missing. Suppose
+a receiver gets an entry that does not extend its chain, and whose `log_index`
+is greater than its tail index plus one. The receiver asks the CASE_MANAGER to
+replay what it missed, and it may hold the early entry aside until the missing
+ones arrive ([SYNC-14-001, SYNC-14-002](../../reference/specs/protocol.md#sync-14)). A replica
 must hold every entry from genesis through the position it has acknowledged
 before it takes new protocol-significant actions on the case
 ([SYNC-10-004](../../reference/specs/protocol.md#sync-10)). Rejected assertions

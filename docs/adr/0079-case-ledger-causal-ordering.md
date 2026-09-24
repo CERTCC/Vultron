@@ -105,8 +105,9 @@ The CaseActor MUST ensure:
   then `log_index(B) > log_index(A)`.
 - The `log_index` sequence is gapless. The genesis entry carries index 0 and
   each later entry carries its predecessor's index plus one (CLP-14-010,
-  SYNC-01-002). A receiver that sees an index greater than `tail_index + 1`
-  concludes an entry is missing (SYNC-14-001). That conclusion holds only
+  SYNC-01-002). A receiver that gets an entry that does not extend its chain
+  and has an index greater than `tail_index + 1` concludes an entry is missing
+  (SYNC-14-001). That conclusion holds only
   because the CaseActor never skips an index.
 - The `published` timestamps on consecutive ledger entries MUST be
   monotonically non-decreasing in `log_index` order. An entry stamped later

@@ -162,8 +162,8 @@ Core domain classes (transport-agnostic):
 
 `CaseLedgerEntry` fields for AppendOnlyLedger:
 
-- `log_index` — monotonically increasing integer scoped to the case (MUST;
-  see SYNC-01-002). Added in AppendOnlyLedger so downstream code and wire format are
+- `log_index` — gapless, monotonically increasing integer scoped to the case,
+  starting at 0 for the genesis entry (MUST; see SYNC-01-002, CLP-14-010). Added in AppendOnlyLedger so downstream code and wire format are
   index-aware from the start.
 - `term` — Raft term number (OPTIONAL in AppendOnlyLedger; defaults to `null` or `0`
   in single-node deployments; becomes required when multi-node CaseActor
