@@ -10,10 +10,11 @@ being imposed as a predetermined list of structured questions.
 
 **General pattern:**
 
-1. **Open with a synthesis brief** — Before asking anything, present what you
-   already know or can infer: what the plan says, what the codebase or context
-   shows about the landscape, and 2–3 plausible directions. Ask whether this
-   reading is accurate before proceeding.
+1. **Open with a short brief** — Before asking anything, give a few bullets on
+   what you already know or can infer: what the plan says, what the codebase
+   or context shows, and 2–3 plausible directions, each described in a line.
+   End with **one specific question** — never "is this accurate?" about the
+   whole block.
 
 2. **Conversation** — Walk through the problem bottom-up. Ask clarifying
    questions as understanding builds. If a question can be answered by
@@ -24,11 +25,14 @@ being imposed as a predetermined list of structured questions.
    "I think we're almost there — here's what I have so far. Got more?"
    Do not declare done unilaterally.
 
-4. **Confirm conclusions** — After the user closes the conversation, propose
-   the full plan as a confirmation block: what to implement, what docs to
-   update, whether an ADR is warranted, recommended option and reasoning.
-   These are proposals to confirm, not a new round of questions.
+4. **Confirm conclusions** — After the user closes the conversation, list the
+   plan as a short numbered list, one plain-language line per decision: what
+   to implement, what docs to update, whether an ADR is warranted, the
+   recommended option and why. Write every item out in full — never refer
+   back by number or bare ID. The user says which lines are wrong; this is not
+   a new round of questions.
 
-Use `ask_user` for structured choices when a decision has clear, discrete
-options — it is a tool, not a mandate. Plain conversational replies are
-fine for open-ended clarification.
+Follow [`../shared/asking-the-user.md`](../shared/asking-the-user.md) for every
+question: one at a time, problem before decision, plain language, no bare IDs.
+Use `ask_user` for short, discrete choices; ask in plain text when the user is
+likely to want to write a longer answer.

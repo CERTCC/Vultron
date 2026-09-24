@@ -262,7 +262,8 @@ If there are any QUESTION findings, offer to work through them interactively:
 "There are N elicitation questions from the QUESTION findings. Want to work
 through them now? I'll ask them one at a time and record your answers."
 
-If the user agrees, use `ask_user` to ask each elicitation prompt, one at a
+If the user agrees, use `ask_user` (per `.agents/skills/shared/asking-the-user.md`)
+to ask each elicitation prompt, one at a
 time. After all answers are collected:
 
 1. Propose YAML edits that incorporate the answers (same before/after format
