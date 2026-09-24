@@ -159,7 +159,7 @@ The page is 211 lines titled "Vultron Contextualized". Section by section:
 | Prerequisites admonition | — (copy of `topics/index.md`'s) | Stays on the index |
 | "New to Vultron?" tip | — | Stays on the index |
 | Untitled CVD Guide quote ("who else needs to know what, and when") | none | Moves to the new page, as its opening |
-| H2 "CVD Is MPCVD, and MPCVD Is CVD" (two diagrams, supply-chain argument, usage convention) | none; the glossary defines MPCVD as 3+ organizations, contradicting it | Moves to the new page; the glossary definition is reconciled with it (R6) |
+| H2 "CVD Is MPCVD, and MPCVD Is CVD" (two diagrams, supply-chain argument, usage convention) | none; the glossary defines MPCVD as 3+ organizations, contradicting it | Moves to the new page; the glossary definition is reconciled with it (#3624) |
 | H2 "Context of Our Recent Work" (four SEI source documents) | none | Moves to the new page |
 | H2 "What We Mean by Protocol", part (a): dictionary definitions and protocol senses | `what-is-vultron.md` "Four Senses" | Folds into `what-is-vultron.md` (#3524's page) |
 | H2 "What We Mean by Protocol", part (b): the narrative / prescriptive / normative triad | none | Moves to the new page, after the lineage it cites |
@@ -186,7 +186,7 @@ would get it wrong.
   the old rule in later sections. `reference/formal_protocol/transitions.md`
   (the EMB-01 note), `model_interactions/rm_em_cs.md` (Vendor Notification),
   and `em/defaults.md` still state it. These four pages are fixed together, by
-  one task (R2).
+  one task (#3620).
 - **Case State transition grammar.** `cs/transitions.md` and
   `cs/model_definition.md` both give `VFdPxA → X VFDPXA`, which changes two
   letters in one step. The code allows one event per step
@@ -231,7 +231,7 @@ would get it wrong.
   differently. Division: a tutorial page carries the run-it-yourself steps for
   a scenario; `fv-demo-protocol.md` carries the message trace as Reference;
   `topics/scenarios/` carries per-scenario explanation behind its generated
-  index. One task (R4) owns all five, and resolves the contradiction against
+  index. One task (#3622) owns all five, and resolves the contradiction against
   the running demo, not against either page (DF-10-001).
 - **Future Work is not research.** `future_work/federation.md` and
   `open_questions.md` are addressed to `platform-developer` at 400. #3528's
@@ -322,27 +322,27 @@ point shown:
    owner can apply.
 8. **EM rules mapped to their wire activities** (`platform-developer`): no
    300-level EM page links `establish_embargo.md` or `manage_embargo.md`.
-   This is links, not a page, and belongs to R2.
+   This is links, not a page, and belongs to #3620.
 
 ## Remediation partition
 
 Remediation is cut by page, and each task owns its files exclusively. Nav
 edits are never done in parallel: `mkdocs.yml` is held by #3528 and then by the
-nav task, one after the other. A `relocate` verdict is a nav change, so it
+nav task (#3627), one after the other. A `relocate` verdict is a nav change, so it
 belongs to the nav task. No page is moved on disk.
 
 | Task | Owns |
 |---|---|
-| R1 — Background | `topics/background/index.md`, `cvd_success.md`, the new `cvd-coordination-problem.md`, and the two repointed links in `vultron-spec/_introduction.md` and `_protocol-overview.md` |
-| R2 — Process models and formal protocol | `topics/process_models/**`, `reference/formal_protocol/**` |
-| R3 — Case lifecycle and protocol explanation | `topics/case_lifecycle/**`, `topics/behavior_logic/index.md` and `use-cases/**`, `protocol_flow.md`, `message_semantics.md`, `activity_vocabulary_design.md`, `actor-knowledge-model.md`, `reference_architecture.md`, missing page 3 |
-| R4 — Demos, tutorials, and scenarios | `tutorials/*` except the landing page, `howto/demos/**`, `reference/fv-demo-protocol.md`, `topics/scenarios/**` |
-| R5 — How-to guides, About, namespace | `howto/activitypub/**`, `howto/case_object.md`, `howto/process_implementation.md`, `howto/wire_capability.md`, `about/*`, `ns/index.md` |
-| R6 — Concept registries | `reference/glossary.md`, `terms.md`, `vultron-taxonomy.md`, `notation.md`, `quick_reference.md` |
-| R7 — Wire and protocol reference | the rest of `reference/` that is reader-facing, missing pages 4 and 5 |
-| R8 — Research | `topics/measuring_cvd/**`, `topics/other_uses/**`, `topics/future_work/**`, missing page 7 |
-| Nav | `mkdocs.yml`: level order within each group, the 12 reader-facing pages that should sit behind a routing page, and every `relocate` verdict. Blocked by #3528. |
-| Practitioner pages | missing pages 1 and 2. Blocked by #3524, whose entry pages route to them. |
+| #3619 (R1) — Background | `topics/background/index.md`, `cvd_success.md`, the new `cvd-coordination-problem.md`, and the two repointed links in `vultron-spec/_introduction.md` and `_protocol-overview.md` |
+| #3620 (R2) — Process models and formal protocol | `topics/process_models/**`, `reference/formal_protocol/**` |
+| #3621 (R3) — Case lifecycle and protocol explanation | `topics/case_lifecycle/**`, `topics/behavior_logic/index.md` and `use-cases/**`, `protocol_flow.md`, `message_semantics.md`, `activity_vocabulary_design.md`, `actor-knowledge-model.md`, `reference_architecture.md`, missing page 3 |
+| #3622 (R4) — Demos, tutorials, and scenarios | `tutorials/*` except the landing page, `howto/demos/**`, `reference/fv-demo-protocol.md`, `topics/scenarios/**` |
+| #3623 (R5) — How-to guides, About, namespace | `howto/activitypub/**`, `howto/case_object.md`, `howto/process_implementation.md`, `howto/wire_capability.md`, `about/*`, `ns/index.md` |
+| #3624 (R6) — Concept registries | `reference/glossary.md`, `terms.md`, `vultron-taxonomy.md`, `notation.md`, `quick_reference.md` |
+| #3625 (R7) — Wire and protocol reference | the rest of `reference/` that is reader-facing, missing pages 4 and 5 |
+| #3626 (R8) — Research | `topics/measuring_cvd/**`, `topics/other_uses/**`, `topics/future_work/**`, missing page 7 |
+| #3627 (Nav) | `mkdocs.yml`: level order within each group, the 12 reader-facing pages that should sit behind a routing page, and every `relocate` verdict. Blocked by #3528. |
+| #3628 (Practitioner pages) | missing pages 1 and 2. Blocked by #3524, whose entry pages route to them. |
 
 The four section landing pages (`topics/`, `reference/`, `tutorials/`,
 `howto/index.md`) belong to #3527's generator and are in no remediation task.
@@ -355,14 +355,14 @@ transition or back-reference, where one was found. Neither is a prescription.
 Level and addressed-to were true on 2026-09-24; the page's frontmatter is the
 current value.
 
-### R1 — Background
+### #3619 (R1) — Background
 
 | Page | Level | Addressed to | Verdict | Inbound | Evidence | Continuity |
 |---|---|---|---|---|---|---|
 | `topics/background/cvd_success.md` | 200 | cvd-practitioner, process-researcher | revise | 4 | Twelve D/F/V/P/X/A ordering preferences in ≺ notation drawn from the 2021 report; never says how a coordinator would use them in a case. | Opens with 'some notation is necessary to proceed here' as if read after background/index.md; no transition to the case-lifecycle pages that act on these goals. |
 | `topics/background/index.md` | 200 | cvd-practitioner, process-researcher | extract | 5 | 211-line essay titled 'Vultron Contextualized' on an index: CVD Guide quote, two mermaid role diagrams, CVD⇔MPCVD convention, SEI report lineage, OED protocol definitions. | Lineage and OED sections read as a report preface ('we offer this documentation as a proposal') and hand off to nothing; no link to cvd_success.md or interoperability.md. |
 
-### R2 — Process models and formal protocol
+### #3620 (R2) — Process models and formal protocol
 
 | Page | Level | Addressed to | Verdict | Inbound | Evidence | Continuity |
 |---|---|---|---|---|---|---|
@@ -392,7 +392,7 @@ current value.
 | `topics/process_models/rm/index.md` | 400 | cvd-practitioner, platform-developer, process-researcher | extract | 79 | 692-line index.md carrying the whole RM model: practitioner state guidance mixed with DFA sigma/delta grammar, 15 shortest trace strings and state-subset algebra; routes to its one child only in passing; CERT Guide prioritization URL is malformed (certcc.github.io/topics/...). | — |
 | `topics/process_models/rm/rm_interactions.md` | 300 | cvd-practitioner, process-researcher | revise | 12 | Recognizable CERT/CC scenarios (finder-vendor, coordinator, supply chain) but four near-identical 30-line full-DFA mermaid blocks carry them; seven links to 'participants interact from the accepted state' point at bare index.md, not the anchor. | Ends after the supply-chain diagram with no transition to EM or to model_interactions/rm_em.md, the next nav group that uses these multi-participant patterns. |
 
-### R3 — Case lifecycle and protocol explanation
+### #3621 (R3) — Case lifecycle and protocol explanation
 
 | Page | Level | Addressed to | Verdict | Inbound | Evidence | Continuity |
 |---|---|---|---|---|---|---|
@@ -413,7 +413,7 @@ current value.
 | `topics/protocol_flow.md` | 300 | platform-developer | ok | 12 | Inbox/outbox worker model, primary event vs cascade, ask-and-stop with deadlines, fault replies; written in short plain sentences for implementers. | — |
 | `topics/reference_architecture.md` | 400 | platform-developer, project-contributor | revise | 4 | Says it is for CVD practitioners evaluating adoption, but the body is Python package paths, ratchet tests and ADR citations; conformance L1-L4 conflicts with what-is-vultron's three levels. | — |
 
-### R4 — Demos, tutorials, and scenarios
+### #3622 (R4) — Demos, tutorials, and scenarios
 
 | Page | Level | Addressed to | Verdict | Inbound | Evidence | Continuity |
 |---|---|---|---|---|---|---|
@@ -436,7 +436,7 @@ current value.
 | `tutorials/submit-a-report.md` | 200 | platform-developer | ok | 1 | Genuine first tutorial: six concrete steps, rendered from a tested module, links glossary terms, confirms the result, and says what it does not cover. | Submits via Create(VulnerabilityReport) while the next tutorial and the How-to use Offer as submission; Next steps flags this but only in passing. |
 | `tutorials/worked_example.md` | 400 | cvd-practitioner, platform-developer | relocate | 6 | Not a tutorial: a narrated set of sequence diagrams in formal two-letter message codes (RS, EP, RK, EK, CV...) with no steps for the reader; its sections are also include-sourced into reference/vultron-spec/_annexes.md. | — |
 
-### R5 — How-to guides, About, namespace
+### #3623 (R5) — How-to guides, About, namespace
 
 | Page | Level | Addressed to | Verdict | Inbound | Evidence | Continuity |
 |---|---|---|---|---|---|---|
@@ -464,7 +464,7 @@ current value.
 | `howto/wire_capability.md` | 400 | platform-developer, project-contributor | ok | 2 | Concrete three-step recipe (identify fuzzer node, implement factory, wire bundle) with a full worked example; links Capability Model and architecture pages. | — |
 | `ns/index.md` | 300 | platform-developer | ok | 0 | Namespace landing: declared wire types, context usage and stability note; withheld from the build on purpose (draft_docs) until the term set settles. | — |
 
-### R6 — Concept registries
+### #3624 (R6) — Concept registries
 
 | Page | Level | Addressed to | Verdict | Inbound | Evidence | Continuity |
 |---|---|---|---|---|---|---|
@@ -474,7 +474,7 @@ current value.
 | `reference/terms.md` | 200 | cvd-practitioner | merge | 2 | 89-line page of seven CVD Guide roles plus Case/Participant/Report. It defers to the Glossary as canonical and calls Vendor synonymous with Supplier, which the Glossary lists as an alias to avoid. | — |
 | `reference/vultron-taxonomy.md` | 300 | platform-developer, project-contributor | revise | 3 | Lists 'The five capability shapes' including Sentinel, while spec Annex G, the Glossary and ADR-0097 say four and exclude Sentinel. Calls Case Manager an 'AS actor', the actor-identity framing ADR-0088 retires. Its 'Audience' note enumerates a competing four-audience list (sponsors, collaborators, implementers, contributors). | — |
 
-### R7 — Wire and protocol reference
+### #3625 (R7) — Wire and protocol reference
 
 | Page | Level | Addressed to | Verdict | Inbound | Evidence | Continuity |
 |---|---|---|---|---|---|---|
@@ -502,7 +502,7 @@ current value.
 | `reference/versioning.md` | 200 | cvd-practitioner, platform-developer | ok | 1 | Short CalVer definition with examples; self-contained. | — |
 | `reference/vultron-spec/index.md` | 400 | platform-developer | ok | 220 | ~2,840-line include-assembled normative spec (220 inbound) written for implementers and conformance reviewers. It states its audience and N/I markers. | — |
 
-### R8 — Research: measuring, other uses, future work
+### #3626 (R8) — Research: measuring, other uses, future work
 
 | Page | Level | Addressed to | Verdict | Inbound | Evidence | Continuity |
 |---|---|---|---|---|---|---|
