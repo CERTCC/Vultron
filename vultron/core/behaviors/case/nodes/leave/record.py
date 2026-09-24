@@ -98,13 +98,10 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
         self._case_id = case_id
         self.wire_render_port: "WireRenderPort | None" = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["wire_render_port"] = PortInformation(
-            data_type=object, required=False
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "wire_render_port": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

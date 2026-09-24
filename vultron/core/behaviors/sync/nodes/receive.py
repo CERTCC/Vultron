@@ -55,11 +55,10 @@ def _require_log_entry(
 
 
 class LogDeliveryConfirmationNode(DataLayerActionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -80,11 +79,10 @@ class LogDeliveryConfirmationNode(DataLayerActionWithPorts):
 
 
 class PersistReceivedLogEntryNode(DataLayerActionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -110,12 +108,11 @@ class PersistReceivedLogEntryNode(DataLayerActionWithPorts):
 
 
 class CheckHashMatchesNode(DataLayerConditionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        ports["tail_hash"] = PortInformation(data_type=str, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+        "tail_hash": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -160,13 +157,12 @@ class BufferOutOfOrderEntryNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._gap_buffer: LedgerGapBuffer | None = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        ports["tail_index"] = PortInformation(data_type=int, required=False)
-        ports["gap_buffer"] = PortInformation(data_type=object, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+        "tail_index": PortInformation(data_type=int, required=False),
+        "gap_buffer": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -256,12 +252,11 @@ class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._gap_buffer: LedgerGapBuffer | None = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        ports["gap_buffer"] = PortInformation(data_type=object, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+        "gap_buffer": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -300,13 +295,12 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        ports["tail_hash"] = PortInformation(data_type=str, required=True)
-        ports["sync_port"] = PortInformation(data_type=object, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+        "tail_hash": PortInformation(data_type=str, required=True),
+        "sync_port": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

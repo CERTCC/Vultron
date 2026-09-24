@@ -67,16 +67,15 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
         self.case_id = case_id
         self.invitee_id = invitee_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["new_invite_participant"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_EmitSingleActivityBase.INPUT_PORTS,
+        "new_invite_participant": PortInformation(
             data_type=object, required=False
-        )
-        ports["invitee_already_participant"] = PortInformation(
+        ),
+        "invitee_already_participant": PortInformation(
             data_type=bool, required=False
-        )
-        return ports
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

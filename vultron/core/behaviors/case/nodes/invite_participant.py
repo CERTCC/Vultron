@@ -75,14 +75,12 @@ class CheckInviteeNotAlreadyParticipantNode(
         self.case_id = case_id
         self.invitee_id = invitee_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "invitee_case": PortInformation(data_type=object, required=True),
-            "invitee_already_participant": PortInformation(
-                data_type=object, required=True
-            ),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "invitee_case": PortInformation(data_type=object, required=True),
+        "invitee_already_participant": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -193,25 +191,20 @@ class CreateInviteeParticipantNode(DataLayerActionWithPorts):
         self.case_id = case_id
         self.invitee_id = invitee_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["invitee_already_participant"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "invitee_already_participant": PortInformation(
             data_type=object, required=True
-        )
-        ports["invitee_case"] = PortInformation(
-            data_type=object, required=True
-        )
-        ports["activity"] = PortInformation(data_type=object, required=False)
-        return ports
+        ),
+        "invitee_case": PortInformation(data_type=object, required=True),
+        "activity": PortInformation(data_type=object, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "new_invite_participant": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "new_invite_participant": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

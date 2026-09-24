@@ -254,13 +254,12 @@ class CheckNoNewDeploymentInfoNode(DataLayerConditionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports[NEW_DEPLOYMENT_INFO_KEY] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        NEW_DEPLOYMENT_INFO_KEY: PortInformation(
             data_type=object, required=False
-        )
-        return ports
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

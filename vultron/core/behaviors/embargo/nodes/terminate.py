@@ -36,14 +36,11 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(case_id=case_id, name=name)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["embargo_id"] = PortInformation(data_type=str, required=True)
-        ports["case_manager_id"] = PortInformation(
-            data_type=str, required=True
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_SendEmbargoActivityBase.INPUT_PORTS,
+        "embargo_id": PortInformation(data_type=str, required=True),
+        "case_manager_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
