@@ -173,6 +173,12 @@ independence (or overlap), and may accelerate the embargo timeline.
 
 **Vultron issue**: Tracked as a Task under epic #1160.
 
+**Prerequisite (found in #2844)**: a report added to an existing case is
+stored only on the receiving replica and never written to the canonical case
+ledger, so later joiners and ledger resyncs do not see it. The Task is blocked
+by the core fix. The same fix blocks the two-reporter consolidation scenario
+(#1231).
+
 ---
 
 ### x18 — Incompatible disclosure policies across vendors
@@ -197,20 +203,38 @@ embargo to match the fast-mover's policy.
 
 ## Tier B — Needs Protocol Work or New Demo Infrastructure
 
-These recipes are interesting but require features or actor configurations not
-yet available. Each has a corresponding Idea issue for future planning.
+These recipes were originally filed as needing features or actor configurations
+not yet available. Each has a corresponding Idea issue.
+
+### Re-triage (G16, #2844, 2026-09-24)
+
+The Tier B gap statements were written in July 2026 (#2051) and several had
+gone stale by the time they were sorted. The re-triage checked each against the
+code and specs of the day and reached a different verdict for three of the six.
+
+| Recipe | Verdict | Why |
+|---|---|---|
+| x03 | Blocked — party discovery | Unchanged. Ejected from G08 (#2836) to G13 (#2841), which is deferred. |
+| x05 | Blocked — pseudonymity | No pseudonym or redacted-view mechanism exists (#2562, G13, deferred). |
+| x12 | Authorable, sequenced | Needs a case created already public, which EP-04-008 specifies but is not built. |
+| x16 | Authorable now | The multi-vendor invite and suggest flows already exist. The gap statement was stale. |
+| x17 | Blocked — admission | An outsider has no protocol act for asking to join a case. |
+| x21 | Authorable now | A mid-case coordinator invite plus ownership transfer is exactly `fvcv-handoff`. The gap statement was stale. |
+
+**Do not re-derive these gaps from the entries below.** The *Gap* lines record
+what the re-triage found, not what the original filing said.
 
 ### x03 — Unable to engage vendor contact
 
 **Protocol mapping**: Reporter cannot find a contact → escalates to a
 Coordinator acting as a routing intermediary before the case is even created.
-This is a pre-case "find me a contact" flow not yet modelled in Vultron.
 
-**Gap**: No protocol primitives for the "I can't find the vendor, help me reach
-them" phase. Would require a coordinator discovery service or a new pre-case
-message type.
+**Gap**: How a Reporter addresses a party it cannot identify. This is party
+discovery, not a pre-case phase: ADR-0096 decided Vultron has no pre-case
+phase, and that verdict does not unblock x03. It needs the actor identity model
+that G13 (#2841) owns.
 
-**Idea issue**: #2060
+**Idea issue**: #2060 — open, blocked by G13.
 
 ---
 
@@ -220,68 +244,101 @@ message type.
 proxy. Coordinator forwards the report to Vendor without revealing the
 Reporter's identity.
 
-**Gap**: Vultron's RM lifecycle assumes Reporter identity is known to Vendor.
-Anonymous/proxy reporting requires a new actor identity model or explicit
-privacy-preserving routing primitives.
+**Gap**: Pseudonymity (#2562, owned by G13, deferred). Two facts make it a real
+gap rather than an authoring task. No redacted case view is implemented
+(CM-09-001 is a SHOULD that CM-09-004 lets the prototype defer). An invitee
+also receives the full case snapshot on acceptance (CM-17-004), so every
+participant sees every other participant.
 
-**Idea issue**: #2061
+**Rejected approximation**: the Coordinator files the report as Reporter while
+the Finder stays out of the case. It runs, but it shows only that the Finder
+is not a participant. That says nothing about protocol privacy, so it is not
+worth building.
+
+**Idea issue**: #2061 — open, blocked by #2562.
 
 ---
 
 ### x12 — Vulnerability public before vendor awareness
 
-**Protocol mapping**: CS.P flips before the Vendor has received *any* report
-(no RM state exists on Vendor side). Vendor discovers the vuln through external
-monitoring rather than a Reporter inbox.
+**Protocol mapping**: CS.P flips before the Vendor has received *any* report.
+The Vendor learns of the vulnerability from public sources rather than a
+Reporter inbox.
 
-**Gap**: Current demo scenarios all start with a Finder submitting a report.
-Modelling vendor-discovers-from-public requires a new entry point (Vendor
-learns from CS.P transition without a prior RM.RECEIVED).
+**Inject design**: A vendor-only variant. The Vendor self-reports a
+vulnerability it learned of publicly and the case is created with P already
+set. EP-04-008 then requires the case to stay at `EM.NONE`, with no embargo
+ever created.
 
-**Idea issue**: #2062
+**Why sequenced, not approximated**: today every case is created at the
+default CS and receives a default embargo (`InitializeDefaultEmbargoNode` has
+no eligibility guard). Self-reporting and then publishing immediately would
+record the history as vendor-aware-then-public and create an embargo only to
+tear it down, which inverts the point of the recipe. The scenario waits for
+case creation to honour P at creation (#3392) and for the vendor-only scenario
+it builds on.
 
 ---
 
 ### x16 — Known downstream vendors in supply chain
 
-**Protocol mapping**: Originating vendor knows which downstream vendors are
-affected and must invite them as MPCVD participants. Requires
-supply-chain-structured multi-vendor invite flows with coordinated embargo
-pacing.
+**Protocol mapping**: The originating vendor knows which downstream vendors are
+affected and brings them in as MPCVD participants.
 
-**Gap**: Existing MPCVD demos don't model an explicit "upstream vendor discovers
-downstream dependents and invites them" pattern with policy synchronisation.
+**Gap (none — stale)**: The original statement said existing demos don't model
+an upstream-invites-downstream pattern with policy synchronisation. Both halves
+exist:
 
-**Idea issue**: #2063
+- **Multi-vendor invites**: `fvv` has the owning vendor invite a second vendor.
+  `fcvcv` and `fvcv-extension` have a non-owner participant suggest one.
+- **Policy synchronisation**: shortest-wins at case creation (EP-04-003).
+  Late invitees receive the active embargo in the Invite (CM-17-002), and
+  revision cycles are what x18 already exercises.
+
+**Inject design**: the new step is a *Vendor* participant (not the Case
+Owner) suggesting the downstream vendors. CM-16-001 permits any participant to
+suggest.
 
 ---
 
 ### x17 — Unknown downstream vendors
 
-**Protocol mapping**: Similar to x16 but originating vendor cannot enumerate
-affected downstream parties. Short embargo + public disclosure triggers
-downstream self-identification.
+**Protocol mapping**: The originating vendor cannot enumerate affected
+downstream parties. A short embargo is followed by public disclosure, after
+which downstream vendors identify themselves.
 
-**Gap**: Same as x16 plus requires a mechanism for downstream vendors to
-self-register as affected after public disclosure.
+**Gap**: Two gaps, and this recipe needs both:
 
-**Idea issue**: #2064
+- **Admission**: an outsider has no protocol act for asking to join a case.
+  The only `as:Join` in the vocabulary is an existing participant engaging.
+- **Discovery**: how an outsider learns which case, or which CaseActor, to
+  address. That is G13's (#2841, deferred), alongside x03.
+
+**Rejected approximation**: the downstream vendor contacts an existing
+participant off-protocol and is invited after publication. That demonstrates
+a late invite, which other scenarios already cover, not self-identification.
+
+**Idea issue**: #2064 — open, blocked by the admission Concern.
 
 ---
 
 ### x21 — Failing CVD case — escalate to coordinator
 
-**Protocol mapping**: Parties in a failing case engage a Coordinator mid-case
-to mediate. Requires an actor joining an already-in-progress case in a Coordinator
-role, not just as a participant.
+**Protocol mapping**: The parties in a failing case bring in a Coordinator
+mid-case to mediate.
 
-**Gap**: Existing demos either start with a Coordinator or have no
-Coordinator. Mid-case coordinator escalation requires case ownership transfer or
-a new "invite coordinator mid-case" flow.
+**Gap (none for the owner-initiated form — stale)**: `fvcv-handoff` already
+invites a Coordinator into an active case and transfers ownership to it
+(CM-21). The recipe adds only a failure precursor, such as an x06-style stall
+or an x08/x19 extension deadlock.
 
-**Idea issue**: #2065
+**Blocked variant**: when the Case Owner *is* the failing party, a Reporter
+can only suggest a Coordinator (CM-16), and the suggestion waits on the
+owner's acceptance with no deadline and no consequence when it goes
+unanswered. That is a protocol-asks question, not a scenario.
 
----
+**Not modelled**: how a mediator behaves. `CVDRole.COORDINATOR` exists, and
+differentiated actor behaviour belongs to #1646 (deferred).
 
 ## Tier C — Out of Scope
 
@@ -314,12 +371,12 @@ worth modelling as demo injects.
 | x09 | Too many vendors | C | — |
 | x10 | Reporter stops responding | A | #2056 |
 | x11 | Premature public disclosure | A | #2057 |
-| x12 | Vuln public before vendor aware | B | #2062 |
+| x12 | Vuln public before vendor aware | B → A (sequenced) | #2062 |
 | x13 | Out-of-scope report | C | — |
 | x14 | Policy violation in discovery | C | — |
 | x15 | Second independent report | A | #2058 |
-| x16 | Known downstream vendors | B | #2063 |
+| x16 | Known downstream vendors | B → A | #2063 |
 | x17 | Unknown downstream vendors | B | #2064 |
 | x18 | Incompatible disclosure policies | A | #2059 |
 | x20 | Unanticipated media attention | C | — |
-| x21 | Failing case — escalate to coordinator | B | #2065 |
+| x21 | Failing case — escalate to coordinator | B → A | #2065 |
