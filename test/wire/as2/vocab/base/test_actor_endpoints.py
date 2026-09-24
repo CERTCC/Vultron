@@ -133,3 +133,26 @@ def test_serialized_endpoints_carry_only_address_type_and_items():
             "type": "OrderedCollection",
             "items": [],
         }
+
+
+@pytest.mark.parametrize("actor_cls", _ACTOR_CLASSES)
+def test_unmodelled_actor_collections_are_tolerated_and_not_echoed(actor_cls):
+    """A remote actor's ``followers``/``following`` URIs parse and are dropped.
+
+    Vultron no longer models these collections (ISSUE-3563), so a remote
+    actor publishing them must still validate, and must not have them
+    re-emitted as if Vultron owned them.
+    """
+    actor = actor_cls.model_validate(
+        {
+            "id": ACTOR_ID,
+            "followers": f"{ACTOR_ID}/followers",
+            "following": f"{ACTOR_ID}/following",
+            "liked": f"{ACTOR_ID}/liked",
+        }
+    )
+
+    dumped = json.loads(actor.to_json())
+
+    assert dumped["inbox"]["id"] == f"{ACTOR_ID}/inbox"
+    assert {"followers", "following", "liked"}.isdisjoint(dumped)

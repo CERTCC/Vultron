@@ -24,6 +24,11 @@ Verifies:
 
 import pytest
 
+from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.base.objects.collections import (
+    as_Collection,
+    as_OrderedCollection,
+)
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
     WIRE_TYPE_MAP,
@@ -462,7 +467,7 @@ class TestWireTypeValues:
             f"{getattr(WIRE_TYPE_MAP.get(value), '__name__', None)}"
             for cls, value in _classes_presenting_own_type()
             if WIRE_TYPE_MAP.get(value) is not cls
-            and cls.__name__ not in _UNREGISTERED_WIRE_TYPES
+            and _qualified_name(cls) not in _UNREGISTERED_WIRE_TYPES
         )
         assert unreachable == [], (
             "VM-01-007: these classes present their own class-name-derived "
@@ -477,11 +482,12 @@ class TestWireTypeValues:
         """VM-01-007: an exemption names a class that still needs one.
 
         An entry for a class that no longer exists, no longer presents its own
-        ``type``, or has since become reachable is a stale licence: it would
-        silently cover a *new* class that reused the name.
+        ``type``, or has since become reachable is a stale licence.  Keys are
+        qualified names, so a new class reusing a bare name elsewhere is not
+        covered by accident.
         """
         needing = {
-            cls.__name__
+            _qualified_name(cls)
             for cls, value in _classes_presenting_own_type()
             if WIRE_TYPE_MAP.get(value) is not cls
         }
@@ -492,9 +498,9 @@ class TestWireTypeValues:
     @pytest.mark.parametrize(
         "type_value,expected",
         [
-            ("Collection", "as_Collection"),
-            ("OrderedCollection", "as_OrderedCollection"),
-            ("Link", "as_Link"),
+            ("Collection", as_Collection),
+            ("OrderedCollection", as_OrderedCollection),
+            ("Link", as_Link),
         ],
     )
     def test_collection_and_link_types_resolve_to_the_wire_class(
@@ -506,34 +512,42 @@ class TestWireTypeValues:
         (ISSUE-3217, ISSUE-3242).  Asserting identity, not merely that the
         lookup succeeds, is what distinguishes the two.
         """
-        from vultron.wire.as2.vocab.base.base import as_Base
-
         cls = find_in_vocabulary(type_value)
-        assert cls.__name__ == expected
-        assert issubclass(cls, as_Base)
+        assert cls is expected
         assert WIRE_TYPE_MAP[type_value] is cls
 
+
+_VOCAB = "vultron.wire.as2.vocab"
+_BASE = f"{_VOCAB}.base.objects"
 
 #: Classes that present their own class-name-derived ``type`` but are
 #: deliberately not what that value deserializes to, each with the reason
 #: (VM-01-007).  ``test_every_exemption_is_live`` keeps this set from outliving
 #: its members.
 _UNREGISTERED_WIRE_TYPES: dict[str, str] = {
-    "as_Object": "abstract root of the AS2 object branch; the class an "
-    "unresolved inline object is left to, not a type Vultron emits",
-    "as_VultronObject": "abstract root of the Vultron wire object branch; "
-    "every concrete subclass declares its own `type_` (VM-05-001)",
-    "as_VultronActorMixin": "mixin carrying Vultron actor extension fields; "
-    "never instantiated on its own",
-    "as_Person": "VM-01-008 sanctioned shadow: as_VultronPerson owns `Person`",
-    "as_Organization": "VM-01-008 sanctioned shadow: as_VultronOrganization "
-    "owns `Organization`",
-    "as_Service": "VM-01-008 sanctioned shadow: as_VultronService owns "
-    "`Service`",
-    "as_Application": "VM-01-008 sanctioned shadow: as_VultronApplication "
-    "owns `Application`",
-    "as_Group": "VM-01-008 sanctioned shadow: as_VultronGroup owns `Group`",
+    f"{_BASE}.base.as_Object": "abstract root of the AS2 object branch; the "
+    "class an unresolved inline object is left to, not a type Vultron emits",
+    f"{_VOCAB}.objects.base.as_VultronObject": "abstract root of the Vultron "
+    "wire object branch; every concrete subclass declares its own `type_` "
+    "(VM-05-001)",
+    f"{_VOCAB}.objects.vultron_actor.as_VultronActorMixin": "mixin carrying "
+    "Vultron actor extension fields; never instantiated on its own",
+    f"{_BASE}.actors.as_Person": "VM-01-008 sanctioned shadow: "
+    "as_VultronPerson owns `Person`",
+    f"{_BASE}.actors.as_Organization": "VM-01-008 sanctioned shadow: "
+    "as_VultronOrganization owns `Organization`",
+    f"{_BASE}.actors.as_Service": "VM-01-008 sanctioned shadow: "
+    "as_VultronService owns `Service`",
+    f"{_BASE}.actors.as_Application": "VM-01-008 sanctioned shadow: "
+    "as_VultronApplication owns `Application`",
+    f"{_BASE}.actors.as_Group": "VM-01-008 sanctioned shadow: "
+    "as_VultronGroup owns `Group`",
 }
+
+
+def _qualified_name(cls: type) -> str:
+    """Return the ``module.ClassName`` key ``_UNREGISTERED_WIRE_TYPES`` uses."""
+    return f"{cls.__module__}.{cls.__name__}"
 
 
 def _classes_presenting_own_type() -> list[tuple[type, str]]:
@@ -543,8 +557,8 @@ def _classes_presenting_own_type() -> list[tuple[type, str]]:
     package, keeping classes defined under ``vultron.`` so throwaway subclasses
     other tests declare are not mistaken for production vocabulary.
     """
-    import vultron.wire.as2.vocab.activities  # noqa: F401
-    import vultron.wire.as2.vocab.objects  # noqa: F401
+    import vultron.wire.as2.vocab.activities  # noqa: F401 — defines subclasses
+    import vultron.wire.as2.vocab.objects  # noqa: F401 — defines subclasses
     from vultron.wire.as2.vocab.base.base import as_Base
     from vultron.wire.as2.vocab.base.registry import wire_type_value
 

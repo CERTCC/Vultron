@@ -82,11 +82,12 @@ def _slot_requires_object(annotation: Any) -> bool:
     ``as_Collection`` slots are excluded.  An AS2 actor's ``inbox`` and
     ``outbox`` are declared as collections but are *endpoints* — ActivityPub
     publishes them as URIs, they usually belong to a remote actor, and they
-    are not rows in anybody's data layer.  ``as_Actor`` already declares how a URI becomes the object there: a
-    ``mode="before"`` validator constructs the collection around it, and
-    ``set_collections`` derives it from ``id_`` when absent.  Materialising
-    would pre-empt a coercion the class has already specified, and would send a
-    ``dl.read()`` after a remote URL that can only come back empty.
+    are not rows in anybody's data layer.  ``as_Actor`` already declares how a
+    URI becomes the object there: a ``mode="before"`` validator constructs the
+    collection around it, and ``set_collections`` derives it from ``id_`` when
+    absent.  Materialising would pre-empt a coercion the class has already
+    specified, and would send a ``dl.read()`` after a remote URL that can only
+    come back empty.
 
     Slots that are **not** on the wire branch are excluded too, and that
     exclusion is load-bearing rather than defensive.  A core dimension field is
