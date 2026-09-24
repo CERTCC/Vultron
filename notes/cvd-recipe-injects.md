@@ -37,6 +37,11 @@ classification answers: *is this inject implementable today?*
 | B | Needs protocol/infra work | Requires new demo actors, new protocol flows, or features not yet built |
 | C | Out of scope | Not Vultron-protocol-visible; vendor-internal policy; no new state transitions |
 
+A "B → A" tier means the recipe was re-triaged from B to A in G16
+(#2844); its per-recipe entry stays under the Tier B heading with the
+re-triage rationale. "(sequenced)" means authorable once the named
+prerequisite Tasks land.
+
 ---
 
 ## Tier A — Implementable Now
@@ -275,11 +280,12 @@ default CS and receives a default embargo (`InitializeDefaultEmbargoNode` has
 no eligibility guard). Self-reporting and then publishing immediately would
 record the history as vendor-aware-then-public and create an embargo only to
 tear it down, which inverts the point of the recipe. The scenario waits for
-case creation to honour P at creation (#3392) and for the vendor-only scenario
-it builds on.
+case creation to honour P at creation (#3390, which skips the protocol default
+embargo when P/X/A is already set) and for the vendor-only scenario it builds
+on.
 
 **Vultron issue**: Task #3673 under epic #1160, blocked by the vendor-only
-scenario (#3667) and #3392.
+scenario (#3667) and #3390.
 
 ---
 
@@ -379,12 +385,12 @@ worth modelling as demo injects.
 | x09 | Too many vendors | C | — |
 | x10 | Reporter stops responding | A | #2056 |
 | x11 | Premature public disclosure | A | #2057 |
-| x12 | Vuln public before vendor aware | B → A (sequenced) | #2062 |
+| x12 | Vuln public before vendor aware | B → A (sequenced) | #3673 |
 | x13 | Out-of-scope report | C | — |
 | x14 | Policy violation in discovery | C | — |
 | x15 | Second independent report | A | #2058 |
-| x16 | Known downstream vendors | B → A | #2063 |
+| x16 | Known downstream vendors | B → A | #3674 |
 | x17 | Unknown downstream vendors | B | #2064 |
 | x18 | Incompatible disclosure policies | A | #2059 |
 | x20 | Unanticipated media attention | C | — |
-| x21 | Failing case — escalate to coordinator | B → A | #2065 |
+| x21 | Failing case — escalate to coordinator | B → A | #3675 |
