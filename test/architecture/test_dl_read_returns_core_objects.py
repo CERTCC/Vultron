@@ -48,7 +48,6 @@ Related: issue #1503 (read-path implementation), issue #1506 (activity
 read-back migration)
 """
 
-from datetime import timedelta
 from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -57,6 +56,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from pydantic.alias_generators import to_camel
 
+from test.support.core_vocab import minimal_kwargs
 from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.registry import CORE_VOCABULARY
@@ -128,20 +128,6 @@ ACTIVITY_TYPE_EXEMPTIONS: frozenset[str] = frozenset(
 KNOWN_WIRE_ESCAPES: frozenset[str] = frozenset()
 
 
-def _minimal_kwargs(cls: type[CoreObject]) -> dict:
-    """Return the minimum kwargs to construct *cls* without validation errors."""
-    kwargs: dict = {}
-    for field_name, field_info in cls.model_fields.items():
-        if not field_info.is_required():
-            continue
-        ann = str(field_info.annotation)
-        if "timedelta" in ann:
-            kwargs[field_name] = timedelta(days=90)
-        else:
-            kwargs[field_name] = f"urn:test:{field_name}:1"
-    return kwargs
-
-
 def _collect_wire_escapes() -> frozenset[str]:
     """Return CORE_VOCABULARY keys whose ``dl.read()`` result is a wire type."""
     reset_datalayer()
@@ -154,7 +140,7 @@ def _collect_wire_escapes() -> frozenset[str]:
         if not issubclass(base_cls, CoreObject):
             continue
         cls: type[CoreObject] = base_cls  # type: ignore[assignment]
-        kwargs = _minimal_kwargs(cls)
+        kwargs = minimal_kwargs(cls)
         kwargs["id_"] = f"urn:test:{vocab_key.lower()}:ratchet"
         try:
             obj: CoreObject = cls(**kwargs)
@@ -214,7 +200,7 @@ def _collect_wire_shaped_row_escapes() -> tuple[frozenset[str], int]:
             continue
         cls: type[CoreObject] = base_cls  # type: ignore[assignment]
         row_id = f"urn:test:{vocab_key.lower()}:wire-row-ratchet"
-        kwargs = _minimal_kwargs(cls)
+        kwargs = minimal_kwargs(cls)
         kwargs["id_"] = row_id
         try:
             core_obj: CoreObject = cls(**kwargs)
