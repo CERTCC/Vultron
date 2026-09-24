@@ -3,11 +3,12 @@ title: Testing Pitfalls and Patterns
 status: active
 description: >
   Full write-ups for pytest pitfalls in this repo: reading a killed run, the
-  two-tier timeout guardrail, `filterwarnings` precedence, fixture and blackboard
-  isolation, py_trees test patterns, assertion-quality traps (vacuous asserts,
-  "falls back to" tests, bare MagicMock), and test layout rules for module
-  splits. `test/AGENTS.md` keeps the short index and the rules you need on every
-  run.
+  two-tier timeout guardrail and why the timeout *method* matters more than the
+  ceiling, measuring effective markers rather than declarations,
+  `filterwarnings` precedence, fixture and blackboard isolation, py_trees test
+  patterns, assertion-quality traps (vacuous asserts, "falls back to" tests,
+  bare MagicMock), and test layout rules for module splits. `test/AGENTS.md`
+  keeps the short index and the rules you need on every run.
 related_specs:
   - specs/testability.yaml
   - specs/behavior-tree-integration.yaml
@@ -16,6 +17,7 @@ related_notes:
   - notes/flaky-tests.md
   - notes/configuration.md
   - notes/bt-pitfalls.md
+  - notes/bt-integration.md
   - notes/datalayer-design.md
   - notes/triggers-test-coverage.md
   - notes/demo-ci-invariants.md
@@ -96,11 +98,11 @@ that honest work tripped it under load:
 - integration tests doing 3.5-4.3s of real HTTP work, and
 - AST-walking architecture ratchets at ~3.4s in isolation.
 
-Four separate sessions re-diagnosed the result as flakiness (ISSUE-1925,
-ISSUE-1988, ISSUE-2086, ISSUE-2237) before the ceiling itself was fixed. Raising
-it costs nothing on a genuine hang — that test was never going to finish — and
-the suite stays fast because total runtime is bounded by the tests, not by this
-ceiling.
+Session after session re-diagnosed the result as flakiness before the ceiling
+itself was fixed; the write-ups are under `plan/history/*/learning/` (grep
+`timeout_method`). Raising it costs nothing on a genuine hang — that test was
+never going to finish — and the suite stays fast because total runtime is
+bounded by the tests, not by this ceiling.
 
 Both tiers are sized from measurement: the slowest unit test is ~3.1s idle and
 the slowest integration test ~4.3s. The headroom is deliberately large because
@@ -118,6 +120,100 @@ is firing on honest work rather than catching hangs, change the tier rather
 than contorting the tests around it. Do not add a row to
 [notes/flaky-tests.md](flaky-tests.md) for a test that is merely near its
 ceiling.
+
+#### Raising the Ceiling Lowers the Frequency of Signal Loss, Never the Severity
+
+`timeout_method = "thread"` arrived in #528 alongside the ceiling itself, with
+no stated reason for the method — and the tier table above, like most write-ups
+since, tunes *ceilings* around it. That is the wrong dial. A ceiling governs how
+often a trip happens; the method governs what a trip costs, and under `"thread"`
+a trip costs the whole session: the process dies where it stands, so the tests
+after the hang never run and the failures already recorded are never named.
+
+The cost is not theoretical — #3576 lost the names of four unrelated failures
+that way. **And the method has been named before without being acted on, which
+is the sharper lesson.** `plan/history/2608/learning/ISSUE-2086-thread-timeout.md`
+and `ISSUE-2235-pytest-5s.md` both proposed `timeout_method = "signal"` so a slow
+test "fails alone instead of voiding the suite", and `ISSUE-2270.md` already
+recorded the GIL limitation noted below. Every time, the ceiling moved instead.
+So the trap is not that nobody spotted the dial; it is that a ceiling change is
+always the smaller diff, and the diagnosis got re-filed as flakiness (ISSUE-1925,
+ISSUE-1988, ISSUE-2237, and the timeout observed during ISSUE-2762 that put #3041
+on this trail). A two-line probe settles which dial matters, because the
+difference is visible in the summary rather than in argument:
+
+| `--timeout-method` | Hanging test | Rest of session | Summary line |
+|---|---|---|---|
+| `thread` | kills the process | never runs | none |
+| `signal` | fails, named, alone | runs to completion | names every failure |
+
+`signal` (POSIX-only, `SIGALRM` in the main thread) is what restores the
+signal. It is not free: the alarm raises at an arbitrary point, so an interrupt
+landing while a test holds the module-level blackboard `RLock` is a deadlock
+mode `"thread"` does not have, and a hang inside a C call that never releases
+the GIL is unreachable by a signal. Both are bounded by a job-level
+`timeout-minutes` on the pytest job, which the `thread` method's self-kill has
+been quietly standing in for. Tracked in #3603.
+
+Source: #528, #2270, #3041, #3576
+
+#### A Marker Sweep That Counts Declarations Misses a Directory Hook
+
+Tests under `test/demo/` are marked `integration` by a path-based
+`pytest_collection_modifyitems` hook in `test/demo/conftest.py`, not by a
+`pytestmark` line in each module. A sweep that greps for the declaration
+therefore reports near-total non-compliance for a directory that is in fact
+100% compliant — which is how #3041 came to assert that 59 of 63 demo modules
+inherit the unit tier, three weeks after both the hook and the 60s tier had
+landed. It also proposed adding the marker to all 59, which would have been a
+no-op duplicating the hook's job per module.
+
+The mechanism itself is documented in
+[`test/AGENTS.md`](../test/AGENTS.md) § "`test/demo/` Tests Are Auto-Marked
+`integration` by a Directory Hook" — it was already written down when #3041
+asserted the opposite, so the miss was in the measurement, not the docs.
+
+**Ask what the collected items actually carry, not what the files declare.** A
+`trylast` plugin reading `item.get_closest_marker(...)` answers it in one run
+and leaves no repo change behind:
+
+```bash
+cat > probe_plugin.py <<'PY'
+import pytest
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(items):
+    for item in items:
+        integration = item.get_closest_marker("integration") is not None
+        timeout = item.get_closest_marker("timeout")
+        print(
+            f"{item.nodeid}\tintegration={integration}\t"
+            f"timeout={timeout.args[0] if timeout else None}"
+        )
+PY
+uv run pytest test/demo -m "" --collect-only -q -s -p probe_plugin
+rm probe_plugin.py
+```
+
+`trylast` is the load-bearing part: it puts the probe after both the root and
+the directory hook, so it reports the resolved marker rather than an intermediate
+state. On 2026-09-24 it reported 1276 collected items, every one
+`integration=True` — 1274 at the 60s tier plus two deliberate per-test overrides
+(180s, 10s) — and none at the 30s unit ceiling.
+
+The same distinction applies to the assertion that guards the tier, though less
+starkly than it first appears. `test/test_integration_timeout_tier.py` does
+reach past stubs: `TestResolvedTimeoutsUnderRealPytest` runs a `pytester`
+sub-session and asks `pytest-timeout` what it actually resolved per item, which
+is what catches a root-hook-vs-`pytest-timeout` ordering regression. But that
+sub-session builds its own conftest and three synthetic tests, and the rest of
+the file asserts against hand-built `FakeItem`s — so nothing in it exercises the
+`test/demo/` directory hook. If the root and demo
+`pytest_collection_modifyitems` hooks ever reorder relative to each other, demo
+tests can drop to the unit tier with no test failing. Tracked in #3604.
+
+Source: #3041, #3576
 
 ### A `filterwarnings` Exemption Placed Before `"error"` Is a No-Op
 
