@@ -13,7 +13,8 @@ not from any decision.
 
 Resolution: MUST_NOT is the same tier as MUST.
 
-- MS-02-003 requires one shared `RFC2119Priority` tier definition.
+- MS-02-003 makes the negative keyword the same tier, and MS-02-004 requires one
+  shared `RFC2119Priority` tier definition.
   `backstop/_model.py` already hand-codes it.
 - MS-10-003 now covers MUST_NOT.
 - The same principle extends SR-11-004 to SHOULD_NOT.

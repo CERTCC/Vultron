@@ -54,28 +54,50 @@ groups:
     kind: process
     statement: >-
       Any spec requirement, lint check, ratchet, or tool that selects requirements by
-      priority MUST treat a negative keyword as the same tier as its positive — `MUST_NOT`
-      with `MUST`, and `SHOULD_NOT` with `SHOULD` — and MUST obtain that tiering from a
-      single shared definition on `RFC2119Priority` rather than comparing against
-      individual enum members.
+      priority MUST treat a negative keyword as the same tier as its positive: `MUST_NOT`
+      with `MUST`, and `SHOULD_NOT` with `SHOULD`.
     rationale: >-
       RFC 2119 makes MUST NOT the same absolute strength as MUST, and SHOULD NOT the same
-      strength as SHOULD; a prohibition is no less binding than an obligation. Selecting
-      with `== RFC2119Priority.MUST` silently drops every prohibition, and each new gate
-      re-decides which members count. See `notes/spec-authoring-rules.md` for the gaps
-      this left in the corpus.
-    verification: A unit test in `test/metadata/specs/` asserts the shared tier
-      definition maps each of the five priorities to its tier, and a static check fails
-      if a priority-selecting check in `vultron/metadata/specs/` compares against a
-      single `RFC2119Priority` member instead of the shared definition.
+      strength as SHOULD; a prohibition is no less binding than an obligation. A gate that
+      names only the positive keyword silently drops every prohibition. See
+      `notes/spec-authoring-rules.md` for the gaps this left in the corpus.
+    verification: >-
+      Review: a spec requirement that selects by priority names the tier, or explicitly
+      excludes the negative form and says why. Code gates are checked mechanically under
+      MS-02-004.
     exceptions:
     - SR-11-003 stays MUST-only until every protocol MUST_NOT it would newly flag has
       been adjudicated (#3601) and given a user story (#2717); flipping it earlier needs
       new suppressions, which MS-12-007 forbids.
-    tracking_issue: '#3522'
     relationships:
     - rel_type: refines
       spec_id: MS-02-002
+    tags:
+    - documentation
+    - tooling
+  - id: MS-02-004
+    priority: MUST
+    kind: process
+    statement: >-
+      Code that selects spec requirements by priority MUST obtain the MS-02-003 tiering
+      from a single shared definition on `RFC2119Priority`, not by comparing against
+      individual enum members.
+    rationale: >-
+      Selecting with `== RFC2119Priority.MUST` is easy to write and fails silently, and
+      each hand-written member list (`backstop/_model.py` has one) re-decides which
+      members count. One shared definition means the tiering is decided once. Display
+      code that maps each member to a label is not a selection and is out of scope.
+    verification: >-
+      A unit test in `test/metadata/specs/` asserts the shared tier definition maps each
+      of the five priorities to its tier. A static check fails if a priority-selecting
+      comparison in `vultron/metadata/specs/` or `scripts/` tests equality or membership
+      against individual `RFC2119Priority` members or priority strings instead of the
+      shared definition. The SR-11-003 selector is allowlisted while the MS-02-003
+      exception stands.
+    tracking_issue: '#3522'
+    relationships:
+    - rel_type: refines
+      spec_id: MS-02-003
     tags:
     - documentation
     - tooling
@@ -317,23 +339,22 @@ groups:
     kind: process
     statement: >-
       A ratchet test MUST pin, per kind, the number of `priority: MUST` or
-      `priority: MUST_NOT` requirements with no `verification:` field to a ceiling equal to
-      the live count. Each non-zero ceiling MUST name
-      the open issue that owns driving it to zero, and the test MUST fail if any non-zero
-      ceiling names no owner. A change that moves an unverified requirement from one kind
-      to another MUST add its `verification:` field in the same change, so that no
-      destination ceiling rises.
+      `priority: MUST_NOT` requirements with no `verification:` field, counting those that
+      carry `lint_suppress: [must_without_verification]`, to a ceiling equal to the live
+      count. The ceilings live in one table under `vultron/metadata/specs/` that spec-lint
+      (MS-10-005) also reads. Each non-zero ceiling MUST name the issue that owns driving it
+      to zero, and the test MUST fail if any non-zero ceiling names no owner.
     rationale: >-
       A ceiling that is merely not raised can stay at its seed value indefinitely. Pinning
       it to the live count forces every backfill to lower it, and a new unverified MUST
-      fails at once. Requiring a named owner means no tier's backlog exists without a
-      tracked path to zero. Without the relabel rule, a kind reclassification (MS-12)
-      would force an upward edit to the destination ceiling, which is exactly the edit
-      the ratchet exists to forbid.
+      fails at once. Counting suppressed items means a kind cannot reach zero by
+      suppression. A named owner gives every backlog a tracked path to zero; a closed
+      owner on a live ceiling is a defect for review. One shared table keeps lint's
+      printed number and the test's pinned number in step.
     verification: '`test/metadata/specs/test_must_verification_ratchet.py` fails when a
-      kind''s live count differs from its ceiling in either direction, and when a non-zero
-      ceiling entry carries no owning issue reference; a fixture-based test proves both
-      failure modes fire.'
+      kind''s live count, suppressed items included, differs from its ceiling in either
+      direction, and when a non-zero ceiling entry carries no owning issue reference; a
+      fixture-based test proves both failure modes fire.'
     tracking_issue: '#3522'
     lint_suppress:
     - phantom_path_ref
@@ -351,24 +372,46 @@ groups:
     statement: >-
       When a kind's MS-10-006 ceiling reaches zero, spec-lint MUST treat any
       `priority: MUST` or `priority: MUST_NOT` requirement of that kind with no
-      `verification:` field as a hard error, suppressible per spec via
-      `lint_suppress: [must_without_verification]`, and that kind's ceiling entry MUST be
-      removed in the same change.
+      `verification:` field as a hard error that `lint_suppress` cannot silence, and that
+      kind's ceiling entry MUST be removed in the same change.
     rationale: >-
       Zero is the only state a ratchet cannot drift from, and only if nothing can raise it
-      back. A hard error makes the end state permanent and retires the ceiling, so the
+      back. Because MS-10-006 counts suppressed items, a kind at zero has no suppressions
+      left to honour, and a suppression added afterwards would be an unratcheted way back
+      up. A hard error makes the end state permanent and retires the ceiling, so the
       ceiling table shrinks to empty as each tier is finished. The `protocol` tier flips
       first (#3612); the other kinds flip when their backfill Tasks finish.
     verification: >-
       Unit tests in `test/metadata/specs/test_lint.py` assert that, for a kind
       with no ceiling entry, an unverified MUST and an unverified MUST_NOT each make lint
-      exit 1, and that `lint_suppress: [must_without_verification]` silences each one.
+      exit 1, including when the spec carries `lint_suppress: [must_without_verification]`.
     tracking_issue: '#3612'
     relationships:
     - rel_type: depends_on
       spec_id: MS-10-006
     - rel_type: implements
       spec_id: MS-10-003
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-008
+    priority: MUST
+    kind: process
+    statement: >-
+      A change that moves a `priority: MUST` or `priority: MUST_NOT` requirement with no
+      `verification:` field from one kind to another MUST add its `verification:` field in
+      the same change.
+    rationale: >-
+      Without this rule, a kind reclassification (MS-12) would force an upward edit to the
+      destination kind's MS-10-006 ceiling, which is exactly the edit the ratchet exists to
+      forbid.
+    verification: >-
+      The MS-10-006 ratchet test fails on the destination kind when a relabel moves an
+      unverified requirement without backfilling it, because that kind's live count
+      rises above its ceiling.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-006
     tags:
     - documentation
     - tooling
