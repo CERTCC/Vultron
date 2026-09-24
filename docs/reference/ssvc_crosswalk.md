@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner]
+level: 400
+---
+
 # Interactions Between the Vultron Protocol and SSVC
 
 {% include-markdown "../includes/not_normative.md" %}

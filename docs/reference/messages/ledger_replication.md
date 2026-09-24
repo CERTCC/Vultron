@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Ledger Replication Messages
 
 The Vultron SYNC substrate replicates the case event log to all active

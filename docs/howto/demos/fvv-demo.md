@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 300
+---
+
 # How to Run the FVV Demo
 
 The **FVV demo** exercises the three-actor CVD workflow:

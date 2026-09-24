@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 200
+---
+
 # How-to Guides
 
 {% include-markdown "../includes/not_normative.md" %}

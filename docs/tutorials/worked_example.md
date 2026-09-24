@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 400
+---
+
 # Worked Example
 
 {% include-markdown "../includes/not_normative.md" %}

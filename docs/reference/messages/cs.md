@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Case State (CS) Messages
 
 The CS shorthands announce case-state events. Their wire vocabulary splits along

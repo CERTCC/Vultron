@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+---
+
 # On the Desirability of Possible Histories
 
 {% include-markdown "../../includes/not_normative.md" %}

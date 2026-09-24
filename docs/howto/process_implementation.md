@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Process Implementation Notes
 
 {% include-markdown "../includes/not_normative.md" %}

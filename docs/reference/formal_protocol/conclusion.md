@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, process-researcher]
+level: 400
+---
+
 # Formal Vultron Protocol Redux
 
 {% include-markdown "../../includes/normative.md" %}

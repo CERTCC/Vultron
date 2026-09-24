@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # How to Post a Status Update or a Case Note
 
 Use this guide to tell the other participants something: that your fix is ready, that the vulnerability is now public, or anything that needs narrative rather than a state change.

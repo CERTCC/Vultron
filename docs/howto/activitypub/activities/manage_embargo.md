@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # How to Revise or Terminate an Embargo
 
 Use this guide once a case already has an active embargo.

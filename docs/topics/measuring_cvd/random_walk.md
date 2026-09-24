@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+---
+
 # A Random Walk through CVD States
 
 {% include-markdown "../../includes/not_normative.md" %}

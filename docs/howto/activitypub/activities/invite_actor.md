@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # How to Invite an Actor to a Case
 
 Use this guide to bring an actor into a case it was not present for.

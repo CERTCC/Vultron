@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Wiring a Capability into the Reference Implementation
 
 {% include-markdown "../includes/not_normative.md" %}

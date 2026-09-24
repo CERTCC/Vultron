@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Transition Functions
 
 {% include-markdown "../../includes/normative.md" %}

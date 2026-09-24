@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 400
+---
+
 # Interactions Between the RM and EM Models
 
 {% include-markdown "../../../includes/normative.md" %}

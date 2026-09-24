@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Modeling an MPCVD AI Using Behavior Trees
 
 These pages document the original Vultron Protocol behavior tree design for Multi-Party Coordinated Vulnerability Disclosure (MPCVD).

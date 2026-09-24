@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # A Case Object
 
 !!! note "This page has moved"

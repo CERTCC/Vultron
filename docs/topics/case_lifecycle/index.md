@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 300
+---
+
 # Case Lifecycle
 
 This section explains how a Vultron coordination case starts and how its

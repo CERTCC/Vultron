@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # How to Manage a Case Roster
 
 Use this guide to run the full participant lifecycle on a case: invite an actor, seat it when it accepts, record its status, and remove it when its involvement ends.

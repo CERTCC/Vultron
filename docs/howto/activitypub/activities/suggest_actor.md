@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # How to Suggest an Actor for a Case
 
 Use this guide when you believe an actor belongs on a case and you are not the one who decides.

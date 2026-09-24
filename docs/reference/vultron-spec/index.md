@@ -1,5 +1,7 @@
 ---
 title: Vultron Protocol Specification
+stakeholder_type: [platform-developer]
+level: 400
 ---
 
 # Vultron Protocol Specification

@@ -41,6 +41,8 @@ causal_edges:
     note: >
       The Finder's report submission to the Coordinator is an out-of-band API
       call that precedes the case.
+stakeholder_type: [platform-developer, project-contributor]
+level: 300
 ---
 
 # FCV Scenario: Finder + Coordinator + Vendor

@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 200
+---
+
 # Other Uses of the Vultron Case State Model
 
 In this section, we discuss some potential uses of the Vultron case state model

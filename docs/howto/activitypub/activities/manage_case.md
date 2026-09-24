@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # How to Advance a Case Through Report Management
 
 Use this guide to move your own Report Management (RM) state through the case lifecycle: engage a case, defer it, re-engage it, and close it.

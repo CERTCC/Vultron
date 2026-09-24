@@ -274,7 +274,11 @@ record has **no level**. Giving it one is a category error: it is not harder
 Vultron, it is how this particular implementation came to be.
 
 The working record is decision records, generated code documentation,
-exhaustively enumerated state pages, and retained design history. It stays
+exhaustively enumerated state pages, retained design history, and the
+individual user-story pages with the traceability matrix that routes them —
+each story records a requirement the implementation was traced against and is
+read when a question about it arises, while `user_stories/index.md` stays
+reader-facing (#3526). It stays
 published, linkable, and unbroken — and it stays out of the reader-facing
 navigation, behind one labeled door.
 

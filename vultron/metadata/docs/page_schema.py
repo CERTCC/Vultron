@@ -160,15 +160,25 @@ WORKING_RECORD_PATTERNS: tuple[str, ...] = (
     # Agent- and contributor-facing material.
     "agents/**",
     "developer/**",
+    "about/contributing.md",
     "reference/codebase/**",
     "reference/inbox_handler.md",
-    # Generated code documentation.
+    "reference/specs/process.md",
+    "reference/specs/project.md",
+    # Generated code documentation, including the rendered behavior trees.
+    "reference/behaviors/**",
     "reference/code/**",
     # Exhaustively enumerated state pages.
     "reference/case_states/**",
     # Retained design history: the "Original Design" behavior-tree pages
     # (#3281 decided to keep them, not to retire them).
     "topics/behavior_logic/*_bt.md",
+    "reference/ontology/index.md",
+    # Requirements-traceability records: the individual user stories and the
+    # contributor-facing matrix that routes them. The stories' index.md is
+    # addressed to readers and stays leveled (#3526).
+    "reference/user_stories/story_*.md",
+    "reference/user_stories/traceability.md",
 )
 
 

@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # Vultron and ActivityPub
 
 {% include-markdown "../../includes/not_normative.md" %}

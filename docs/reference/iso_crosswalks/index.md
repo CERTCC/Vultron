@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner]
+level: 200
+---
+
 # ISO Crosswalk
 
 {% include-markdown "../../includes/not_normative.md" %}

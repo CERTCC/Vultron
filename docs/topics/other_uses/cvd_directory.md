@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, process-researcher]
+level: 300
+---
+
 # CVD Directory
 
 {% include-markdown "../../includes/not_normative.md" %}

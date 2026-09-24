@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Participant Embargo Consent
 
 {% include-markdown "../../../includes/normative.md" %}

@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 300
+---
+
 # Tutorial: Running the Multi-Actor Container Demos
 
 In this tutorial, we will run the multi-actor container demo scenarios

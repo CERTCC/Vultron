@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner]
+level: 300
+---
+
 # Negotiating Embargoes
 
 {% include-markdown "../../../includes/normative.md" %}

@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, process-researcher]
+level: 400
+---
+
 # A Formal Protocol Definition for MPCVD
 
 {% include-markdown "../../includes/normative.md" %}

@@ -1,3 +1,8 @@
+---
+stakeholder_type: ALL
+level: 300
+---
+
 # Notation
 
 {% include-markdown "../includes/not_normative.md" %}

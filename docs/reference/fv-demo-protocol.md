@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # FV Demo — Protocol Reference
 
 This document is a **technical reference** for the FV

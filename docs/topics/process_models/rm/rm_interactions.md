@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, process-researcher]
+level: 300
+---
+
 # Report Management Interactions Between CVD Participants
 
 Each Participant in a case has their own instance of the RM state model.

@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 300
+---
+
 # Tutorial: Run the Receive-Report Demo
 
 In this tutorial, we will run the Vultron `receive-report` demo end-to-end

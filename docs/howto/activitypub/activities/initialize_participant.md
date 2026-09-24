@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # How to Seat a Participant on an Existing Case
 
 Use this guide when an actor has already agreed to join a case and you need to seat it.

@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # How to Acknowledge a Report
 
 Use this guide when you have received a report and want to tell the sender it arrived, without yet declaring it valid or invalid.

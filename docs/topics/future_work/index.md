@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 300
+---
+
 # Future Work
 
 This section gives the design areas that Vultron plans but does not supply.

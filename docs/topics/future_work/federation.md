@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Federation
 
 Vultron has a design for a world in which each organization operates its own coordination service.

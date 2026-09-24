@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 200
+---
+
 # Tutorial: Submit a report to a Vultron actor
 
 In this tutorial, we will submit a vulnerability report to a running Vultron

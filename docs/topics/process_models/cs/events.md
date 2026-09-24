@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+---
+
 # Events in a Vulnerability Lifecycle
 
 {% include-markdown "../../../includes/not_normative.md" %}

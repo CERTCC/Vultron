@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 200
+---
+
 # Measuring CVD
 
 !!! abstract "Measuring CVD"

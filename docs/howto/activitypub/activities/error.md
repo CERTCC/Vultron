@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # How to Report a Protocol Fault
 
 Use this guide when a message you received cannot be processed as sent.

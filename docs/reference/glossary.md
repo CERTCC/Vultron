@@ -1,3 +1,8 @@
+---
+stakeholder_type: [project-contributor]
+level: 300
+---
+
 # Glossary — Vultron
 
 Domain terminology for Vultron's Coordinated Vulnerability Disclosure (CVD)

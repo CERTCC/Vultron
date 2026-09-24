@@ -1,3 +1,8 @@
+---
+stakeholder_type: ALL
+level: 200
+---
+
 # Vultron Protocol Reference
 
 !!! tip inline end "Prerequisites"

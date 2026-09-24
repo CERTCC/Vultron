@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 400
+---
+
 # CVD Case State Interactions with the RM and EM Process Models
 
 {% include-markdown "../../../includes/normative.md" %}

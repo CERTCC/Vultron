@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 200
+---
+
 # Vultron Protocol Version Numbering Scheme
 
 !!! note inline end "Implementations may have their own versioning scheme"

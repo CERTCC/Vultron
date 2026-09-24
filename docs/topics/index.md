@@ -1,3 +1,8 @@
+---
+stakeholder_type: ALL
+level: 200
+---
+
 # Explanation
 
 !!! tip inline end "Prerequisites"

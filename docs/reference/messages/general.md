@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # General (GI) Messages
 
 The General shorthands cover messages not tied to a specific state change. `GI`

@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Case Management Messages
 
 These messages drive the lifecycle of a `VulnerabilityCase` and its roster of

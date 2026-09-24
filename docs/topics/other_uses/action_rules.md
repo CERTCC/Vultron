@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 400
+---
+
 # Recommended Action Rules for CVD
 
 {% include-markdown "../../includes/not_normative.md" %}

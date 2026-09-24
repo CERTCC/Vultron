@@ -36,6 +36,8 @@ causal_edges:
       itself recorded as a case-ledger entry; it is an out-of-band event that
       precedes the case's existence.  The first observable ledger entry for
       this causal chain is validate_report.
+stakeholder_type: [platform-developer, project-contributor]
+level: 300
 ---
 
 # FV Scenario: Finder + Vendor

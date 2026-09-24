@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Message Types
 
 {% include-markdown "../../includes/normative.md" %}

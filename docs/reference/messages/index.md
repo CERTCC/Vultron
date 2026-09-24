@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Message Types
 
 Vultron describes its protocol messages in two vocabularies, and they do not

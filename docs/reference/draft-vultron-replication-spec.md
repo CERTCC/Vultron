@@ -8,6 +8,8 @@ description: >
   recovery, ordering guarantees, and the single-hub / single-writer +
   fan-out model. Normative requirements are grounded in
   specs/sync-ledger-replication.yaml (SYNC-01 through SYNC-15).
+stakeholder_type: [platform-developer]
+level: 400
 ---
 
 # Draft: Vultron Ledger Replication Specification

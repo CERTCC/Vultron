@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Specifications
 
 Structured requirements for the Vultron protocol and its implementation,

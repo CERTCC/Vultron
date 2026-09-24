@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Protocol Specifications
 
 Required for Vultron compliance in any implementation and any language. Covers

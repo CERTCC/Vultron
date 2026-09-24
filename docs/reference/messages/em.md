@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Embargo Management (EM) Messages
 
 The EM process is global to the case. A Participant emits an EM message when the

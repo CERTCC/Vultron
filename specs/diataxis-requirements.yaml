@@ -546,7 +546,9 @@ groups:
       - ADR-0102
     statement: >-
       Project working-record pages — decision records, generated code documentation,
-      exhaustively enumerated state pages, retained design-history pages, and agent- and
+      exhaustively enumerated state pages, retained design-history pages, individual
+      requirements-traceability records (the `docs/reference/user_stories/` story pages and the
+      traceability matrix that routes them, but not the stories' reader-facing index), and agent- and
       contributor-facing material such as `docs/agents/`, `docs/developer/` and
       `docs/reference/codebase/` — MUST be excluded from the reader-facing navigation while
       remaining published and reachable.
@@ -556,7 +558,10 @@ groups:
       accretion; for the measured proportions see the dated baseline in
       `notes/site-information-architecture.md`. Research pages are *not* working record — they
       are reader-facing material for `process-researcher` and do carry a level (ADR-0102) — so
-      they are outside this requirement. Exclusion is demotion, not retirement (#3281).
+      they are outside this requirement. User stories are working record because each one
+      records a requirement the implementation was traced against, read when a question
+      about that requirement arises rather than in sequence; the reader-facing index that
+      introduces them stays leveled (#3526). Exclusion is demotion, not retirement (#3281).
     verification: >-
       Inspection of `mkdocs.yml` confirms no working-record page appears in the
       reader-facing navigation, and that each remains reachable through a routing page or a

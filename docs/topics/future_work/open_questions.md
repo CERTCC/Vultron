@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Open questions
 
 This page collects each unresolved design question in the Future Work section.

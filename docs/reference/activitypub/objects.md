@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # Vultron ActivityStreams Objects
 
 {% include-markdown "../../includes/not_normative.md" %}

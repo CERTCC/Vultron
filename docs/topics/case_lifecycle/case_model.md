@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # The Case Model
 
 This page explains the core domain objects that make up a Vultron

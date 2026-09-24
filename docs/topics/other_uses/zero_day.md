@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 400
+---
+
 # Improving Definitions of Common Terms
 
 {% include-markdown "../../includes/not_normative.md" %}

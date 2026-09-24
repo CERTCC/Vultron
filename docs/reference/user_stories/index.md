@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, process-researcher]
+level: 200
+---
+
 # User Stories
 
 {% include-markdown "../../includes/not_normative.md" %}

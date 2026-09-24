@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+---
+
 # Modeling and Simulation
 
 {% include-markdown "../../includes/not_normative.md" %}

@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # Use-Case Behavior
 
 Each page in this section takes one coordination use case and explains the structure of the behavior behind it.

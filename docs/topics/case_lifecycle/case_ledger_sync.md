@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Case Ledger Synchronization
 
 A vulnerability case is coordinated by organizations that do not share a

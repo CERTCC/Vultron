@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # How to Delegate a Role to Another Participant
 
 Use this guide to offer a `CVDRole` on a case to another actor.
