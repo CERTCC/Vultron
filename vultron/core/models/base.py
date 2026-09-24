@@ -185,8 +185,10 @@ class CoreObject(CoreRecord):
     # (test_core_object_projection_keys), not the declaration site.
     #
     # This is the mechanism behind the rendering port, not a licence for core
-    # code to dump its own objects: the port remains the only caller that
-    # passes `by_alias=True` on a core object (ARCH-12-003, ARCH-20-001).
+    # code to dump its own objects: core logic hands rendering to the port, and
+    # the `by_alias=True` sites that remain under `vultron/core/` are an exact,
+    # shrink-only baseline in test/architecture/test_core_by_alias_dumps.py
+    # (ARCH-12-003, ARCH-20-001).
     #
     # No unknown key may enter a core object: a wire-shaped payload handed to a
     # core type is rejected loudly rather than silently dropping every

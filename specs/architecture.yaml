@@ -2,7 +2,7 @@ id: ARCH
 title: Architecture
 description: 'Defines the architectural constraints for the Vultron codebase. The system follows hexagonal architecture (Ports
   and Adapters): the core domain is isolated from all external systems, which interact through defined ports via thin adapters.
-  Covers layer separation rules, the shared-base object hierarchy, domain model richness, and the fail-fast validation boundary.'
+  Covers layer separation rules, the core object hierarchy, domain model richness, and the fail-fast validation boundary.'
 version: 1.1.0
 scope:
 - prototype
@@ -322,7 +322,7 @@ groups:
     - rel_type: depends_on
       spec_id: ARCH-23-005
       note: ARCH-23-005 supplies the round-trip cleanups (computed-field stripping, wire-name keys) without which `extra="forbid"`
-        rejects the project''s own serialised output.
+        rejects the project's own serialised output.
     adr:
     - ADR-0063
     - ADR-0082
@@ -433,7 +433,7 @@ groups:
   - id: ARCH-12-006
     priority: MUST
     kind: project
-    statement: Actor `inbox` and `outbox` fields MUST be typed `str | None` in the shared base and core branch, carrying only
+    statement: Actor `inbox` and `outbox` fields MUST be typed `str | None` on the core actor types, carrying only
       the URI of the inbox or outbox endpoint. AS2 `OrderedCollection` wrapping is a wire-only serialization concern and MUST
       NOT appear in core-branch actor types.
     rationale: Domain logic only ever needs to route to the inbox URI; the full collection shape is an AS2 protocol concern,
@@ -446,8 +446,8 @@ groups:
       log entries, embargo policies, etc.) MUST inherit from `CoreObject` (or `CoreRecord` when the object has no AS2 shape
       and CORE_VOCABULARY registration is not needed). Objects that exist solely as local configuration, transient dispatch envelopes, or internal processing
       records that are never shared across the wire MAY remain plain `BaseModel` subclasses; such classes MUST include a docstring
-      explaining the rationale for not inheriting from the shared-base hierarchy.
-    rationale: Consistent use of the shared-base hierarchy ensures that all protocol-significant domain objects share aligned
+      explaining the rationale for not inheriting from the core object hierarchy.
+    rationale: Consistent use of the core object hierarchy ensures that all protocol-significant domain objects share aligned
       field names, can be translated by the adapter-side translator without per-type projection code (ARCH-12-005), and are
       discoverable via CORE_VOCABULARY.
       Intentional BaseModel classes are the exception, not the default; requiring a documented rationale prevents accidental
@@ -483,8 +483,8 @@ groups:
       spec_id: ARCH-09-001
     - rel_type: depends_on
       spec_id: ARCH-12-001
-      note: ARCH-12 establishes the shared-base hierarchy; wire actor types must inherit from that shared base, not re-export
-        core types.
+      note: ARCH-12-001 forbids a wire class from inheriting core; the `as_Vultron*` actor names are aliases of the core
+        classes, not subclasses of them.
 - id: ARCH-10
   title: Fail-Fast Domain Objects
   specs:

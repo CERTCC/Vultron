@@ -13,10 +13,24 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.core.models.base import CoreRecord
+from typing import Protocol
 
 
-def friendly_name(obj: CoreRecord | str | None) -> str:
+class Displayable(Protocol):
+    """Anything carrying an optional display ``name`` and an ``id_`` URI.
+
+    Structural rather than ``CoreRecord``: wire ``as_*`` objects no longer
+    share a root with core (ADR-0099 detail 4), yet carry the same two fields.
+    """
+
+    @property
+    def name(self) -> str | None: ...
+
+    @property
+    def id_(self) -> str | None: ...
+
+
+def friendly_name(obj: Displayable | str | None) -> str:
     """Return a short, friendly display name for a domain object or URI.
 
     Resolution order:
@@ -29,7 +43,8 @@ def friendly_name(obj: CoreRecord | str | None) -> str:
     3. ``"—"`` — returned when *obj* is ``None`` or no usable segment exists.
 
     Args:
-        obj: A ``CoreRecord`` domain object, a plain URI string, or ``None``.
+        obj: An object with ``name`` and ``id_`` (core or wire), a plain URI
+            string, or ``None``.
 
     Returns:
         A short, human-readable label.
@@ -37,12 +52,12 @@ def friendly_name(obj: CoreRecord | str | None) -> str:
     if obj is None:
         return "—"
 
-    if isinstance(obj, CoreRecord):
+    if isinstance(obj, str):
+        uri: str | None = obj or None
+    else:
         if obj.name:
             return obj.name
-        uri: str | None = getattr(obj, "id_", None)
-    else:
-        uri = str(obj) if obj else None
+        uri = obj.id_
 
     if not uri:
         return "—"

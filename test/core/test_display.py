@@ -15,6 +15,7 @@
 
 from vultron.core.display import friendly_name
 from vultron.core.models.base import CoreRecord
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 
 class _NamedObj(CoreRecord):
@@ -87,3 +88,22 @@ def test_friendly_name_object_without_name_uses_id_segment():
         {"id": "http://vendor:7999/api/v2/actors/coordinator"}
     )
     assert friendly_name(obj) == "Coordinator"
+
+
+# ---------------------------------------------------------------------------
+# Wire objects — no longer CoreRecord since ADR-0099 detail 4
+# ---------------------------------------------------------------------------
+
+
+def test_friendly_name_wire_object_returns_name():
+    obj = as_Note.model_validate(
+        {"name": "Vendor Note", "id": "https://example.org/notes/n1"}
+    )
+    assert friendly_name(obj) == "Vendor Note"
+
+
+def test_friendly_name_wire_object_without_name_uses_id_segment():
+    obj = as_Note.model_validate(
+        {"id": "https://example.org/notes/vendor-note"}
+    )
+    assert friendly_name(obj) == "Vendor Note"
