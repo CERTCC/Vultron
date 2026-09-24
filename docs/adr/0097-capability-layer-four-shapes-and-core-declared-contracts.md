@@ -121,7 +121,7 @@ The blast radius is currently latent: `create_publication_tree` and
 ### The mechanism for a machine-readable contract already exists
 
 ADR-0044 adopted py_trees typed ports as *"the standard base for all nodes in
-`vultron/core/behaviors/`"*, with `input_ports()` / `output_ports()` as the
+`vultron/core/behaviors/`"*, with `INPUT_PORTS` / `OUTPUT_PORTS` as the
 single source of truth for a node's blackboard contract and runtime type checks
 on both read and write. **51 core files declare typed ports. No call-out backend
 does.** #2452 was not asking for a new artifact; it was asking why call-out
@@ -177,7 +177,7 @@ themselves when to act on it.
 ### For the capability declaration (#2452)
 
 1. **Typed ports in core** — the capability declares its contract via ADR-0044
-   `input_ports()` / `output_ports()` on a core-owned declaration.
+   `INPUT_PORTS` / `OUTPUT_PORTS` on a core-owned declaration.
 2. **A new declarative capability registry** — one `Capability` record per
    capability with a stable ID, shape, domain, and input/output schema, which
    bundle fields reference.

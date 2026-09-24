@@ -25,8 +25,9 @@ Per specs/behavior-tree-integration.yaml:
 - BT-07-003: State transitions logged via DataLayer integration helpers
 
 Per specs/behavior-tree-node-design.yaml BTND-03-009 through BTND-03-011:
-- BTND-03-009: Typed-Ports nodes declare blackboard contracts via input_ports()
-  and output_ports() rather than imperative register_key() calls.
+- BTND-03-009: Typed-Ports nodes declare blackboard contracts via the
+  INPUT_PORTS / OUTPUT_PORTS class attributes rather than imperative
+  register_key() calls.
 - BTND-03-010: Typed-Ports nodes call setup_ports() in setup() with remappings
   {"datalayer": "/datalayer", "actor_id": "/actor_id"} to wire the BTBridge
   flat keys.
@@ -480,7 +481,8 @@ class DataLayerConditionWithPorts(BehaviourWithPorts):
 
     Declares ``datalayer`` and ``actor_id`` as required input ports, remapped
     to the flat BTBridge blackboard keys ``/datalayer`` and ``/actor_id``.
-    Subclasses must implement ``input_ports()``, ``output_ports()``, and
+    Subclasses extend ``INPUT_PORTS`` / ``OUTPUT_PORTS`` (e.g.
+    ``{**DataLayerConditionWithPorts.INPUT_PORTS, ...}``) and implement
     ``update()``.  They read injected values via ``get_input()`` in
     ``initialise()``.
 
@@ -499,23 +501,19 @@ class DataLayerConditionWithPorts(BehaviourWithPorts):
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "datalayer": PortInformation(data_type=object, required=True),
-            "actor_id": PortInformation(data_type=str, required=True),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        "datalayer": PortInformation(data_type=object, required=True),
+        "actor_id": PortInformation(data_type=str, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {}
+    OUTPUT_PORTS: dict[str, PortInformation] = {}
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         """Subclasses override to map domain input-port names to absolute blackboard paths.
 
         Merged into the ``port_remappings`` dict passed to ``setup_ports()`` so
-        that domain keys declared in ``input_ports()`` resolve to the same global
+        that domain keys declared in ``INPUT_PORTS`` resolve to the same global
         paths written by preceding ``DataLayerAction`` writer nodes.
         """
         return {}
@@ -585,8 +583,9 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
 
     Declares ``datalayer``, ``actor_id``, and optionally
     ``trigger_activity_factory`` as input ports, remapped to BTBridge flat
-    keys.  Subclasses must implement ``input_ports()``, ``output_ports()``,
-    and ``update()``.
+    keys.  Subclasses extend ``INPUT_PORTS`` / ``OUTPUT_PORTS`` (e.g.
+    ``{**DataLayerActionWithPorts.INPUT_PORTS, ...}``) and implement
+    ``update()``.
 
     Per BTND-03-009 through BTND-03-011.
     """
@@ -602,26 +601,22 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         self.actor_id: str | None = None
         self.trigger_activity_factory: "TriggerActivityPort | None" = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "datalayer": PortInformation(data_type=object, required=True),
-            "actor_id": PortInformation(data_type=str, required=True),
-            "trigger_activity_factory": PortInformation(
-                data_type=object, required=False
-            ),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        "datalayer": PortInformation(data_type=object, required=True),
+        "actor_id": PortInformation(data_type=str, required=True),
+        "trigger_activity_factory": PortInformation(
+            data_type=object, required=False
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {}
+    OUTPUT_PORTS: dict[str, PortInformation] = {}
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         """Subclasses override to map domain input-port names to absolute blackboard paths.
 
         Merged into the ``port_remappings`` dict passed to ``setup_ports()`` so
-        that domain keys declared in ``input_ports()`` resolve to the same global
+        that domain keys declared in ``INPUT_PORTS`` resolve to the same global
         paths written by preceding ``DataLayerAction`` writer nodes.
         """
         return {}
@@ -801,11 +796,9 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
         self.target_actor_id = target_actor_id
         self.participant_key = participant_key
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "participant": PortInformation(data_type=object, required=True)
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "participant": PortInformation(data_type=object, required=True),
+    }
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
@@ -960,11 +953,9 @@ class ReadObject(DataLayerConditionWithPorts):
         self.table = table
         self.object_id = object_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "object_data": PortInformation(data_type=object, required=True)
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "object_data": PortInformation(data_type=object, required=True),
+    }
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
@@ -1038,11 +1029,10 @@ class UpdateObject(DataLayerActionWithPorts):
         self.object_id = object_id
         self.updates = updates
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["object_data"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "object_data": PortInformation(data_type=object, required=True),
+    }
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
@@ -1223,12 +1213,11 @@ class UpdateActorOutbox(DataLayerActionWithPorts):
         """
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity_id"] = PortInformation(data_type=str, required=True)
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity_id": PortInformation(data_type=str, required=True),
+        "case_id": PortInformation(data_type=str, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

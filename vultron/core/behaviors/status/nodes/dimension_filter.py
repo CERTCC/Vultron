@@ -214,26 +214,18 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
         self.status_obj_fallback = status_obj_fallback
         self.wire_render_port: "WireRenderPort | None" = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            **super().input_ports(),
-            "wire_render_port": PortInformation(
-                data_type=object, required=False
-            ),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "wire_render_port": PortInformation(data_type=object, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            BB_DIMENSION_FILTER: PortInformation(
-                data_type=object, required=False
-            ),
-            BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: PortInformation(
-                data_type=object, required=False
-            ),
-            BB_RM_ANOMALY: PortInformation(data_type=object, required=False),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        BB_DIMENSION_FILTER: PortInformation(data_type=object, required=False),
+        BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: PortInformation(
+            data_type=object, required=False
+        ),
+        BB_RM_ANOMALY: PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

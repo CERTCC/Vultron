@@ -72,11 +72,10 @@ class IsOfferOwnershipTransferEventNode(DataLayerConditionWithPorts):
     Per BTND-08-001, BTND-08-002, CM-21-005, SYNC-02-002, SYNC-12-001.
     """
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -132,11 +131,10 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
     CM-21-005, ISSUE-2195.
     """
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

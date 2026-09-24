@@ -45,21 +45,14 @@ class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["invitee_case"] = PortInformation(
-            data_type=object, required=False
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "invitee_case": PortInformation(data_type=object, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "active_embargo_id": PortInformation(
-                data_type=object, required=False
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "active_embargo_id": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -102,16 +95,13 @@ class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.invitee_id = invitee_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["new_invite_participant"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "new_invite_participant": PortInformation(
             data_type=object, required=True
-        )
-        ports["active_embargo_id"] = PortInformation(
-            data_type=str, required=True
-        )
-        return ports
+        ),
+        "active_embargo_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

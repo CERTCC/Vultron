@@ -42,9 +42,9 @@ class _BuildAddObjectActivityNode(DataLayerActionWithPorts):
         self._activity_builder = activity_builder
         self._result_out = result_out
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"activity_id": PortInformation(data_type=str, required=True)}
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "activity_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

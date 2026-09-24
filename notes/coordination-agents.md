@@ -15,6 +15,7 @@ related_notes:
   - notes/call-out-configuration.md
   - notes/protocol-asks.md
 related_specs:
+  - specs/behavior-tree-node-design.yaml
   - specs/behavior-tree-integration.yaml
 relevant_packages:
   - vultron/core/behaviors/call_out
@@ -119,7 +120,7 @@ come from a peer, you want `notes/protocol-asks.md`, not this file.
 > #3421 implements it; #3423 implements the latency budget below.
 
 A capability declares its blackboard contract as **py_trees typed ports**
-(`input_ports()` / `output_ports()`, ADR-0044) on a declaration owned by the core
+(`INPUT_PORTS` / `OUTPUT_PORTS`, ADR-0044) on a declaration owned by the core
 layer — **not** as a docstring, and **not** as an `output_keys` dict in
 `vultron/demo/fuzzer/` (BT-18-012).
 

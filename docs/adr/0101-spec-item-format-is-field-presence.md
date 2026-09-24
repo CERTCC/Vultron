@@ -244,9 +244,11 @@ the schema that made all four unenforceable.
 
 The drowned `must_without_verification` advisory is tracked separately as part of
 this decision's implementation: its per-item output collapses to a summary plus
-an opt-in listing, and an unverified-MUST ceiling follows the never-raise pattern
-of `MAX_UNCOVERED_PROTOCOL_SPECS` in
-`test/architecture/test_spec_coverage_ratchet.py`.
+an opt-in listing (MS-10-005). The per-kind MUST and MUST_NOT ceilings are pinned
+to the live count, each names an owning issue, and each turns into a hard error at
+zero (MS-10-006 through MS-10-008, amended by #2840). The earlier plan here was a
+never-raise ceiling in the style of `MAX_UNCOVERED_PROTOCOL_SPECS`, which could
+stay at its seed value indefinitely.
 
 Generated spec requirements: `specs/meta-specifications.yaml` MS-13-001 and
 MS-13-002 are re-derived by this decision; MS-13-003 and MS-13-004 are unchanged.

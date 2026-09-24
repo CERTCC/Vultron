@@ -146,14 +146,12 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            **super().input_ports(),
-            BB_CASE_STATUS_DIM_FILTER: PortInformation(
-                data_type=object, required=False
-            ),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        BB_CASE_STATUS_DIM_FILTER: PortInformation(
+            data_type=object, required=False
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

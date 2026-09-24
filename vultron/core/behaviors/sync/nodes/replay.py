@@ -123,19 +123,16 @@ class FindCaseActorNode(DataLayerActionWithPorts):
     fielding a ``Reject`` about a log it owns.
     """
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "case_actor_id": PortInformation(data_type=str, required=True),
-            # See the class docstring: the role gate downstream needs this.
-            "case_id": PortInformation(data_type=str, required=True),
-        }
+    # See the class docstring: the role gate downstream needs this.
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_actor_id": PortInformation(data_type=str, required=True),
+        "case_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -176,23 +173,20 @@ class FindCaseActorNode(DataLayerActionWithPorts):
 
 
 class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "replay_entry": PortInformation(
-                data_type=VultronCaseLedgerEntry, required=True
-            ),
-            "replay_peer_id": PortInformation(data_type=str, required=True),
-            "replay_case_ledger_entries": PortInformation(
-                data_type=object, required=True
-            ),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "replay_entry": PortInformation(
+            data_type=VultronCaseLedgerEntry, required=True
+        ),
+        "replay_peer_id": PortInformation(data_type=str, required=True),
+        "replay_case_ledger_entries": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -234,20 +228,17 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
 
 
 class FindDivergenceIndexNode(DataLayerActionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        ports["replay_case_ledger_entries"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+        "replay_case_ledger_entries": PortInformation(
             data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "replay_from_index": PortInformation(data_type=int, required=True)
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "replay_from_index": PortInformation(data_type=int, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -282,22 +273,19 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_actor_id"] = PortInformation(data_type=str, required=True)
-        ports["replay_entry"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_actor_id": PortInformation(data_type=str, required=True),
+        "replay_entry": PortInformation(
             data_type=VultronCaseLedgerEntry, required=True
-        )
-        ports["replay_peer_id"] = PortInformation(data_type=str, required=True)
-        ports["replay_case_ledger_entries"] = PortInformation(
+        ),
+        "replay_peer_id": PortInformation(data_type=str, required=True),
+        "replay_case_ledger_entries": PortInformation(
             data_type=object, required=True
-        )
-        ports["replay_from_index"] = PortInformation(
-            data_type=int, required=True
-        )
-        ports["sync_port"] = PortInformation(data_type=object, required=False)
-        return ports
+        ),
+        "replay_from_index": PortInformation(data_type=int, required=True),
+        "sync_port": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -401,12 +389,11 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
     Authored as the executing actor, gated on CASE_MANAGER (ADR-0073).
     """
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        ports["case_actor_id"] = PortInformation(data_type=str, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+        "case_actor_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
