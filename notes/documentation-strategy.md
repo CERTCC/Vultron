@@ -361,8 +361,24 @@ extension list, which does not carry that treeprocessor. A link printed from an
 exec block is therefore never rewritten and never validated — strict did not
 check it and pass it, strict never knew it was a link. Anything rendered at
 build time is in this position, and the project has several such generators:
-`whats_new.py`, `metadata/demo_scenarios/render.py`,
-`metadata/specs/docs_render.py`, `metadata/adr/index_gen.py`.
+`metadata/docs/whats_new.py`, `metadata/demo_scenarios/render.py`,
+`metadata/specs/docs_render.py`, and `docs/_scripts/render_trigger_api.py`.
+Note the last one is not under `vultron/`, so an audit scoped to
+`vultron/metadata/` misses a whole directory. `metadata/adr/index_gen.py` is the
+instructive exception and not a member: it writes a *committed* source file,
+`docs/adr/index.md`, whose ordinary relative `.md` links MkDocs does parse and
+rewrite — so `--strict` covers it, and `adr-index --check` covers staleness.
+
+Exec-block rendering is how *this* link hid, but it is not the only way a
+reference to a withheld page clears `--strict`, and reading it as the whole
+story under-scopes the gate. A hand-written `.md` link whose target is excluded
+is downgraded on purpose: MkDocs' relative-path treeprocessor logs "contains a
+link to … which is excluded from the built site" at `min(logging.INFO,
+validation.links.not_found)`, and `not_found` defaults to `warn`, so the level
+resolves to INFO — below anything `--strict` fails on — while the href is still
+rewritten to the unbuilt URL. Both paths end at the same artifact: a
+well-formed reference with no target. Which is why the gate is over built
+output, not over any category of source.
 
 Three design choices in the reference-axis check (DOCBW-03-007) are consequences
 of how this one hid, not preferences:
@@ -375,15 +391,25 @@ of how this one hid, not preferences:
   is wrong. Ask whether the reference resolves and both cases collapse into one
   assertion.
 - **Every built page, not a crawl.** `linkchecker site/index.html` follows links
-  from one entry point, so the pages nothing links to — every `not_in_nav` page,
-  the `includes/` fragments, `404.html` — are never inspected. Worse, the crawl
-  reports success over what it did reach, so the omission is invisible. A tree
-  walk over `site/**/*.html` has no reachability precondition.
+  from one entry point, so the pages nothing links to are never inspected: the
+  `includes/` fragments, `reference/codebase/`, `agents/`, `404.html`,
+  `print_page/`. That is not the same set as `not_in_nav` — most `not_in_nav`
+  pages are linked from a page that *is* in the nav, so nav absence and crawl
+  reachability are different properties and only the second one bounds the
+  crawl. Worse, the crawl reports success over what it did reach, so the
+  omission is invisible. A tree walk over `site/**/*.html` has no reachability
+  precondition.
 - **Unconditional, because the two declarations are in different files.** The
   withholding lives in `mkdocs.yml`; the generator that advertises the page
-  lives in `vultron/`. A `docs/**` path filter is the wrong predicate for a
-  defect that neither file has to touch — which is why the one gate that *could*
-  have caught this (`linkchecker`, conditioned on `docs_changed`) did not.
+  lives in `vultron/` or `docs/_scripts/`. A `docs/**` path filter is the wrong
+  predicate for a defect that neither file has to touch — which is why the one
+  gate that *could* have caught this (`linkchecker`, conditioned on
+  `docs_changed`) did not. Be precise about what DOCBW-03-007 therefore reaches:
+  dropping the step-level `docs_changed` condition (DOCBW-04-003) is one of the
+  two docs-scoped filters on this workflow. The other is the workflow's own
+  `paths:` trigger (DOCBW-02-001), which still omits `vultron/**` — so a PR that
+  edits only a generator never runs `docs-build-check.yml`, and the gate first
+  sees it in `deploy_site.yml` after merge. Closing that half is #3070.
 
 Deriving rather than mirroring is the complementary half, and it is cheaper
 where it applies. `whats_new.py::_unpublished_spec` reads `draft_docs` and

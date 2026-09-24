@@ -83,18 +83,26 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The Check Links step that resolves **external** URLs MUST carry a
-          step-level `if:` condition that skips it unless the `docs_changed`
-          filter output is `'true'`. This requirement governs that step only;
-          the internal-reference check is unconditional (DOCBW-03-007).
+          The Check Links step that **crawls** the built site from an entry page
+          MUST carry a step-level `if:` condition that skips it unless the
+          `docs_changed` filter output is `'true'`. This requirement governs
+          that step only, and it is not the project's position on internal
+          references as such: those are checked unconditionally and over the
+          whole tree by DOCBW-03-007, which subsumes this step's internal
+          coverage.
         rationale: >-
-          Resolving external URLs requires network requests for every outbound
-          link and is significantly slower than the build step alone. Running it
-          on every trigger (e.g., `pyproject.toml` bumps) wastes CI time without
-          providing additional safety. The scope limit matters because this
-          clause reads as the project's whole position on link checking and is
-          not: internal references are checked offline against the built tree on
-          every trigger, and the two axes have opposite cost profiles.
+          Crawling the entire built site is significantly slower than the build
+          step alone, so running it on every trigger (e.g., `pyproject.toml`
+          bumps) wastes CI time. The scope limit matters because this clause
+          otherwise reads as licensing a `docs_changed` skip on internal
+          reference checking generally — which would contradict DOCBW-03-007.
+          It does not: it governs the crawl, whose coverage is bounded by
+          reachability from its entry page and is therefore strictly narrower
+          than the whole-tree resolution check. Note that `linkchecker` does not
+          resolve external URLs unless `--check-extern` is passed, which the
+          project does not pass; if an external check is ever added, its cost is
+          a network request per outbound link and this condition applies to it
+          for that separate reason.
       - id: DOCBW-03-004
         priority: SHOULD
         kind: project
@@ -167,10 +175,17 @@ groups:
           produced no files. The reference axis went unchecked: `docs/ns/` moving
           to `draft_docs` (#3549) left the What's New list advertising
           `../../ns/`, a well-formed path with no target (#3574). `--strict` is
-          blind to it: markdown-exec renders on a child `Markdown` instance with
-          no relative-link treeprocessor. Checking *resolution* subsumes form
-          signatures like a `.md` suffix. Other clauses:
-          `notes/documentation-strategy.md`.
+          blind to it twice over: markdown-exec renders on a child `Markdown`
+          instance with no relative-link treeprocessor, and a hand-written link
+          to an excluded page is logged at INFO while its href is still
+          rewritten. Checking *resolution* subsumes form signatures like a `.md`
+          suffix. Unconditional here means no step-level `docs_changed`
+          condition, which is one of two docs-scoped filters on this workflow;
+          the `paths:` trigger of DOCBW-02-001 is the other and still omits
+          `vultron/**`, so a PR editing only a page-enumerating generator does
+          not reach this step in `docs-build-check.yml` and is first caught by
+          `deploy_site.yml` after merge. Closing that half is #3070. Other
+          clauses: `notes/documentation-strategy.md`.
         verification: >-
           `uv run docs-links` (`vultron/metadata/docs/links.py`) exits non-zero,
           invoked unconditionally after the build in

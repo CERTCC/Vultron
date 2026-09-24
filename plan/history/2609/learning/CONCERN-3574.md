@@ -36,6 +36,14 @@ parent's extensions, which does not carry that treeprocessor. So a link printed
 from an exec block is never rewritten *and never validated*. `--strict` passing
 is a claim about the pages MkDocs parsed, not the bytes it emitted.
 
+That is how this one hid, but it is not the only path. A *hand-written* `.md`
+link to an excluded page is downgraded deliberately: the treeprocessor logs
+"contains a link to … which is excluded from the built site" at
+`min(logging.INFO, validation.links.not_found)`, and `not_found` defaults to
+`warn`, so the level is INFO — invisible to `--strict` — while the href is still
+rewritten to the unbuilt URL. Both paths end at the same artifact, which is why
+the gate is over built output rather than any category of source.
+
 **Three properties of the gate are load-bearing, and each was derived rather
 than assumed:**
 
@@ -44,14 +52,21 @@ than assumed:**
    from a live one, so #3051 AC-6's `.md`-suffix assertion could not have caught
    this incident. Checking resolution subsumes the `.md` case.
 2. *Every built HTML file, not a crawl.* Measured on this tree: 87 of 534 built
-   pages have no inbound link from `site/index.html` — every `not_in_nav` page,
-   the `includes/` fragments, `404.html`. `linkchecker site/index.html` never
-   inspects their links and reports success over only what it reached. Widening
-   *when* linkchecker runs (#3051 AC-5) cannot widen *what* it covers.
+   pages have no inbound link from `site/index.html` — the `includes/`
+   fragments, `reference/codebase/`, `agents/`, `404.html`, `print_page/`. Not
+   the `not_in_nav` set, which is 213 pages: most of those are linked from a
+   page that is in the nav, so nav absence and crawl reachability are different
+   properties. `linkchecker site/index.html` never inspects the unreachable
+   pages' links and reports success over only what it reached. Widening *when*
+   linkchecker runs (#3051 AC-5) cannot widen *what* it covers.
 3. *Unconditional.* The withholding declaration (`mkdocs.yml`) and the page that
-   advertises the path (a generator under `vultron/metadata/`) are different
-   files, so a `docs/`-scoped trigger filter can miss the breaking change
-   entirely. That is how #3574 shipped.
+   advertises the path (a generator under `vultron/metadata/` or
+   `docs/_scripts/`) are different files, so a `docs/`-scoped trigger filter can
+   miss the breaking change entirely. That is how #3574 shipped. Unconditional
+   removes one of two such filters — the step-level `docs_changed` condition.
+   The workflow's `paths:` trigger (DOCBW-02-001) still omits `vultron/**`, so a
+   generator-only PR does not reach the gate in `docs-build-check.yml` at all;
+   closing that half is #3070.
 
 **Cost was measured, not asserted**, against the user's constraint of no
 massive CI or local slowdown: 65,828 internal references across the built tree
@@ -67,11 +82,22 @@ because the check is a CLI invoked after the build rather than a pytest over
 **Also fixed as a side effect**: DOCBW-03-003's MUST-skip clause read as the
 project's whole position on link checking. It did not forbid a new unconditional
 step, but a reader would infer one was forbidden. It is now scoped to the
-external-URL step, where the network-per-link cost that motivates it actually
-applies.
+`linkchecker` crawl, whose cost is what motivates the skip and whose coverage is
+bounded by reachability from its entry page. Worth recording that the first draft
+of the amendment scoped it to "the external-URL step" instead — an error, because
+`linkchecker` resolves external URLs only under `--check-extern`, which the
+project does not pass and no `linkcheckerrc` supplies. That step is an
+*internal*-reference crawl, so the draft would have left the project's only
+internal-reference check licensed to skip on `docs_changed` beside a new MUST
+requiring internal checking be unconditional. The error had already propagated
+into #3051 AC-5 and #3634 AC-4 before it was caught; all three were corrected.
+The general lesson: a claim about what a CI step checks is a claim about its
+flags, and it is cheap to verify against `--help`.
 
 **Resolved**: 2026-09-24 — implementation tracked in #3634.
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3633>.
 Spec: `specs/docs-build-workflow.yaml` (DOCBW-03-007 added, DOCBW-03-003 amended).
-Notes: `notes/documentation-strategy.md` § "Withholding Has Two Axes, and Only One Was Checked".
-Also updated #3051: AC-6 superseded by #3634, AC-5 narrowed to external-URL checking.
+Notes: `notes/documentation-strategy.md`
+§ "Withholding Has Two Axes, and Only One Was Checked".
+Also updated #3051: AC-6 superseded by #3634, AC-5 narrowed to the
+`linkchecker` crawl's scheduling.
