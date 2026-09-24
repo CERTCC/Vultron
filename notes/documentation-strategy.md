@@ -364,10 +364,23 @@ build time is in this position, and the project has several such generators:
 `metadata/docs/whats_new.py`, `metadata/demo_scenarios/render.py`,
 `metadata/specs/docs_render.py`, and `docs/_scripts/render_trigger_api.py`.
 Note the last one is not under `vultron/`, so an audit scoped to
-`vultron/metadata/` misses a whole directory. `metadata/adr/index_gen.py` is the
-instructive exception and not a member: it writes a *committed* source file,
-`docs/adr/index.md`, whose ordinary relative `.md` links MkDocs does parse and
-rewrite — so `--strict` covers it, and `adr-index --check` covers staleness.
+`vultron/metadata/` misses a whole directory.
+
+A second class writes a *committed* source file rather than rendering at build
+time: `metadata/adr/index_gen.py` (`docs/adr/index.md`) and
+`metadata/docs/landing_pages.py` (the generated block on each section landing
+page). Their links are ordinary relative `.md` in a file MkDocs parses, so
+`--strict` does see them and a staleness check (`adr-index --check`,
+`docs-site --check`) covers drift. That is a weaker exemption than it sounds:
+seeing a link is not resolving its target, so a withheld target still exits
+through the INFO downgrade below. Nor do these generators know what is withheld
+— `landing_pages.py` derives its entries from the `mkdocs.yml` nav and filters
+on nothing else, where `whats_new.py` reads `draft_docs`/`exclude_docs`.
+
+Take the membership of both lists as provisional. `landing_pages.py` did not
+exist when this gate was planned; it landed on `main` days later, already a
+page enumerator. Any check built by enumerating generators decays as the next
+one is written, which is the practical case for gating built output instead.
 
 Exec-block rendering is how *this* link hid, but it is not the only way a
 reference to a withheld page clears `--strict`, and reading it as the whole
