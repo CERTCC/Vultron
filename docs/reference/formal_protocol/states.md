@@ -113,6 +113,7 @@ path.
 
 When a case state is written for a particular role, the fix-path letters that do not apply to it are left out rather than written as $\varnothing$.
 So $dpxa$ is the case state of a Deployer, who tracks deployment but not the Vendor's awareness or fix, and $pxa$ is the case state of a Participant with no place on the fix path at all.
+For a Deployer the fix path narrows to $\{d, D\}$, a role-specific restriction of the set above rather than one of its elements.
 [Starting States](#starting-states) uses this notation.
 
 ## Unreachable States

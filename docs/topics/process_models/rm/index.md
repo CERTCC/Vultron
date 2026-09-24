@@ -197,8 +197,7 @@ contradict that conclusion.
 Reports in the *Valid* state are ready to be prioritized for possible
 future work. The result of this prioritization process will be to either
 accept the report for follow-up or defer further effort.
-The *Valid* state is equivalent to the [Prioritization (Triage)](https://certcc.github.io/CERT-Guide-to-CVD/topics/phases/prioritization){:target="_blank"} phase
-of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
+The *Valid* state is equivalent to the [Prioritization (Triage)](https://certcc.github.io/CERT-Guide-to-CVD/topics/phases/prioritization){:target="_blank"} phase of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 As an example, a Vendor might later choose to *defer* further response on a *Valid* report due to other priorities.
 
 ```mermaid

@@ -64,7 +64,7 @@ The transitions themselves are small and fixed:
 | Embargo Acceptance (EA) | `EM.PROPOSED` | `EM.ACTIVE`, acknowledge (EMB-02-001) |
 | Embargo Rejection (ER) | `EM.PROPOSED` | back to `EM.NONE`, acknowledge (EMB-06-001) |
 | Embargo Revision (EV) | `EM.ACTIVE` | `EM.REVISE`; the active embargo stays in force (EMB-03-001) |
-| Embargo Termination (ET) | any | `EM.EXITED`, immediately |
+| Embargo Termination (ET) | `EM.ACTIVE` or `EM.REVISE` | `EM.EXITED`, immediately |
 
 `EM.REVISE` is worth a second look.
 A revision under negotiation does not suspend the embargo — the existing terms remain binding until the revision is accepted.
@@ -84,11 +84,11 @@ Every Participant Embargo Consent transition is a side effect of an EM activity,
 | Embargo Rejection (ER), `Reject(Invite(Event))` | from the case owner: `PROPOSED` to `NONE` | the rejecting Participant moves to `DECLINED` (MSM-07-004) |
 | Embargo Revision Rejection (EJ), `Reject(Invite(Event))` | from the case owner: `REVISE` back to `ACTIVE`; the prior terms stand | the rejecting Participant moves to `DECLINED` (MSM-07-004) |
 | Embargo Revision (EV) | `ACTIVE` to `REVISE` | every `SIGNATORY` moves to `LAPSED`, with no further message (MSM-07-005) |
-| Embargo Termination (ET) | to `EXITED` | every Participant returns to `UNBOUND`, with no further message (MSM-07-006) |
+| Embargo Termination (ET) | `ACTIVE` or `REVISE` to `EXITED` | every Participant returns to `UNBOUND`, with no further message (MSM-07-006) |
 | Invitation deadline passes | none | `INVITED` or `LAPSED` moves to `DECLINED`, recorded in the case ledger (MSM-07-007) |
 
 One activity can therefore move both scopes at once: an Accept from the case owner activates the embargo *and* makes the owner a signatory.
-A `SIGNATORY` that rejects is withdrawing its own consent: its record moves to `DECLINED` and the case's embargo is unchanged ([§9.2](../../../reference/vultron-spec/index.md#92-transitions-and-guards)).
+A `SIGNATORY` that rejects is withdrawing its own consent: its record moves to `DECLINED` ([§9.2](../../../reference/vultron-spec/index.md#92-transitions-and-guards)), and the case's embargo does not change, because only the case owner's reject moves EM (MSM-07-004).
 The full consent transition table is in [§9.2 of the specification](../../../reference/vultron-spec/index.md#92-transitions-and-guards).
 
 ---

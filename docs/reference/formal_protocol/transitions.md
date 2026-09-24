@@ -211,10 +211,10 @@ the corresponding sender state transition.
 | $\lnot \{S,C\},P,*$ | $-,\xrightarrow{r} N,-$ |                      $ER$                       |
 | $\lnot \{S,C\},A,*$ | $-,\xrightarrow{t} X,-$ |                      $ET$                       |
 | $\lnot \{S,C\},R,*$ | $-,\xrightarrow{t} X,-$ |                      $ET$                       |
-| $\lnot \{S,C\},*,*$ | $-,-,-$ |                      $EK$                       |
+| $\lnot C,*,*$ | $-,-,-$ |                      $EK$                       |
 | $\lnot C,*,*$ | $-,-,-$ |                      $EE$                       |
 
-A Participant still in RM *Start* has no case to negotiate, so it sends no EM message except $EE$, the error it returns when an EM message reaches it before the report does.
+A Participant still in RM *Start* has no case to negotiate, so the only EM messages it sends are $EE$, the error it returns when an EM message reaches it before the report does, and $EK$, its acknowledgement of an $EE$.
 
 !!! note inline end "EM Messages Received and State Transitions"
 

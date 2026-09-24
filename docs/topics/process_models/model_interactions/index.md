@@ -17,7 +17,7 @@ The models differ in whose state they describe:
 - The RM process is specific to each Participant, and each Participant has its own RM state.
 - The EM process is global to the case, and all Participants share one EM state.
 - The CS model is a hybrid.
-  Its Vendor fix path (Vendor aware, fix ready, fix deployed) is tracked per Vendor, while public awareness, exploit publication, and attacks observed are facts about the case as a whole.
+  Its Vendor fix path (Vendor aware, fix ready, fix deployed) is tracked per Vendor (and, for deployment, per Deployer), while public awareness, exploit publication, and attacks observed are facts about the case as a whole.
 
 The diagram below groups the models by that distinction.
 The arrows show that the Participant-specific and the Participant-agnostic parts influence each other.
@@ -30,7 +30,7 @@ title: Participant-Agnostic and Participant-Specific Parts of the Process Models
 stateDiagram-v2
     direction LR
     PA: Participant-Agnostic
-    CS_pxa: CS public awareness, exploit public, attacks (pxa)
+    CS_pxa: CS public awareness, exploit public, attacks observed (pxa)
     CS_vf: CS Vendor aware, fix ready (vf)
     CS_d: CS fix deployed (d)
     state PA {

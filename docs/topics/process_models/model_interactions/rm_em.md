@@ -71,10 +71,11 @@ The *propose* and *accept* transitions above are applied atomically at case crea
 
 ## Negotiate Embargoes for Active Reports
 
-Because an embargo-eligible case already starts with an *Active* embargo, most later proposals are revisions ($q^{em} \in A \xrightarrow{p} R$).
-A proposal from EM *None* ($q^{em} \in N \xrightarrow{p} P$) remains possible, for example after an earlier proposal was rejected.
-The constraints below apply to either kind of proposal, and the diagrams show the initial-proposal case.
-Every rule on this page that mentions EM *Proposed* governs those later proposals only: the case-creation traversal never rests in *Proposed*, so no Participant can observe it there or act on it ([ADR-0096](../../../adr/0096-protocol-default-embargo.md)).
+Because an embargo-eligible case already starts with an *Active* embargo, later proposals are revisions ($q^{em} \in A \xrightarrow{p} R$).
+A case still at EM *None* after creation is one that was not embargo-eligible, and no embargo may be proposed for it while it stays that way (VP-06-001).
+A proposal from *None* ($q^{em} \in N \xrightarrow{p} P$) is therefore possible only for a case that leaves *None* after creation, and nothing produces such a case today ([ADR-0096](../../../adr/0096-protocol-default-embargo.md)).
+The constraints below apply to either kind of proposal, and the diagrams show the *None* to *Proposed* step.
+Every rule on this page that mentions EM *Proposed* governs only that later step: the case-creation traversal never rests in *Proposed*, so no Participant can observe it there or act on it (EP-04-002).
 
 !!! note ""
 
@@ -187,7 +188,7 @@ stateDiagram-v2
 
     Outstanding embargo negotiations ($q^{em} \in P \xrightarrow{\{r,p\}} \{N,P\}$) MAY continue in RM _Invalid_ ($q^{rm} \in I$), for example if additional information is expected that may promote the report from _Invalid_ to _Valid_ ($q^{rm} \in I \xrightarrow{v} V$).
 
-Such an outstanding proposal exists only when an eligible case returned to EM *None* after creation, for example because an earlier proposal was rejected.
+As noted [above](#negotiate-embargoes-for-active-reports), an outstanding proposal in *Proposed* has no producer at present, so this rule governs only a case that leaves *None* after creation.
 The diagram below shows an outstanding proposal that can still be superseded or rejected while the report waits in *Invalid*.
 
 ```mermaid
