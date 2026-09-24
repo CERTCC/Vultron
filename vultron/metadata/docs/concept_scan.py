@@ -26,16 +26,24 @@ from vultron.metadata.markdown_tables import fenced_lines
 #: ``X (Y)`` and ``X (or Y)``: a glossary term with its abbreviation or its
 #: alternative name, each matched on its own.
 _PAREN_TERM_RE = re.compile(r"^(?P<head>.+?)\s*\((?:or\s+)?(?P<alt>[^()]+)\)$")
-_BLOCK_RES = (
-    re.compile(r"<!--.*?-->", re.DOTALL),
-    re.compile(r"\{%.*?%\}", re.DOTALL),
-    re.compile(r"\{\{.*?\}\}", re.DOTALL),
-    re.compile(r"<(code|pre|kbd|samp)\b[^>]*>.*?</\1\s*>", re.DOTALL),
-    re.compile(r"(`+)[^\n]*?\1"),
+#: Spans that are not prose, found in one left-to-right pass so that whichever
+#: opens first wins, as in CommonMark: a ``<!--`` inside a code span is code,
+#: and a backtick inside a comment is comment. A code span may wrap onto the
+#: next line but never crosses a blank line, which ends its paragraph.
+_BLOCK_RE = re.compile(
+    r"<!--.*?-->"
+    r"|\{%.*?%\}"
+    r"|\{\{.*?\}\}"
+    r"|<(?P<tag>code|pre|kbd|samp)\b[^>]*>.*?</(?P=tag)\s*>"
+    r"|(?P<ticks>`+)(?:[^\n]|\n(?![ \t]*\n))*?(?P=ticks)",
+    re.DOTALL,
 )
 _TARGET = r"<?(?P<target>[^)\s>]+)>?(?:\s+(?:\"[^\"]*\"|'[^']*'))?"
+#: Link text may hold one level of brackets, so an image inside a link
+#: (``[![alt](img.png)](page.md)``) is read as the outer link.
 _INLINE_LINK_RE = re.compile(
-    rf"\[(?P<text>[^\[\]]*)\](?P<rest>\(\s*{_TARGET}\s*\))"
+    r"\[(?P<text>(?:[^\[\]]|\[[^\[\]]*\])*)\]"
+    rf"(?P<rest>\(\s*{_TARGET}\s*\))"
 )
 _REFERENCE_DEF_RE = re.compile(
     r"^[ \t]{0,3}\[(?P<label>[^\]\n]+)\]:[ \t]*<?(?P<target>[^\s>]+)>?.*$",
@@ -167,7 +175,7 @@ def _mask_structure(text: str) -> list[str]:
     chars = list(text)
     fenced = fenced_lines(text, nested=True)
     offset = 0
-    in_frontmatter = text.startswith("---\n")
+    in_frontmatter = text.startswith(("---\n", "---\r\n"))
     for number, line in enumerate(text.splitlines(keepends=True), start=1):
         end = offset + len(line)
         if in_frontmatter:
@@ -182,7 +190,8 @@ def _mask_structure(text: str) -> list[str]:
 
 def _resolve(target: str, source_dir: PurePosixPath) -> str | None:
     """The ``docs/``-relative ``.md`` page a link *target* names, if any."""
-    if target.startswith("#") or _SCHEME_RE.match(target):
+    # A root-relative target names a site URL, not a docs/ source file.
+    if target.startswith(("#", "/")) or _SCHEME_RE.match(target):
         return None
     path = target.split("#", 1)[0].split("?", 1)[0]
     if not path:
@@ -202,6 +211,11 @@ def _resolve(target: str, source_dir: PurePosixPath) -> str | None:
     return "/".join(parts)
 
 
+def _label_key(label: str) -> str:
+    """A reference label as CommonMark matches it: case- and space-folded."""
+    return " ".join(label.split()).casefold()
+
+
 def _position(text: str, offset: int) -> Position:
     line_start = text.rfind("\n", 0, offset) + 1
     return Position(text.count("\n", 0, offset) + 1, offset - line_start + 1)
@@ -217,9 +231,8 @@ def scan_page(text: str, docs_path: str) -> ScannedPage:
             relative to the fragment, so a fragment passes its own path).
     """
     chars = _mask_structure(text)
-    for pattern in _BLOCK_RES:
-        for match in pattern.finditer("".join(chars)):
-            _blank(chars, match.start(), match.end())
+    for match in _BLOCK_RE.finditer("".join(chars)):
+        _blank(chars, match.start(), match.end())
 
     source_dir = PurePosixPath(docs_path).parent
     links: list[Link] = []
@@ -233,16 +246,19 @@ def scan_page(text: str, docs_path: str) -> ScannedPage:
     masked = "".join(chars)
     definitions: dict[str, str] = {}
     for match in _REFERENCE_DEF_RE.finditer(masked):
-        definitions.setdefault(match["label"].strip().lower(), match["target"])
+        definitions.setdefault(_label_key(match["label"]), match["target"])
         _blank(chars, match.start(), match.end())
-    for match in _INLINE_LINK_RE.finditer(masked):
-        record(match["target"], match)
-        _blank(chars, match.start(), match.start() + 1)
-        _blank(chars, *match.span("rest"))
-        _blank(chars, match.end("text"), match.end("text") + 1)
-    masked = "".join(chars)
+    # A second pass finds the image or link nested in an outer link's text,
+    # once the outer link's brackets and target are blanked.
+    while matches := list(_INLINE_LINK_RE.finditer(masked)):
+        for match in matches:
+            record(match["target"], match)
+            _blank(chars, match.start(), match.start() + 1)
+            _blank(chars, *match.span("rest"))
+            _blank(chars, match.end("text"), match.end("text") + 1)
+        masked = "".join(chars)
     for match in _REFERENCE_USE_RE.finditer(masked):
-        label = (match["label"] or match["text"]).strip().lower()
+        label = _label_key(match["label"] or match["text"])
         if label in definitions:
             record(definitions[label], match)
             _blank(chars, match.start(), match.start() + 1)

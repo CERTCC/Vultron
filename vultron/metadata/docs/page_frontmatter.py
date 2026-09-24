@@ -43,7 +43,7 @@ import argparse
 import re
 import sys
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -117,46 +117,48 @@ class CheckResult:
     undeclared: list[str] = field(default_factory=list)
 
 
-def _include_targets(docs_dir: Path) -> dict[str, dict[str, bool]]:
-    """Map each included ``.md`` file to ``{host: included_whole}``.
+def include_directives(
+    host_path: Path, docs_dir: Path
+) -> Iterator[tuple[int, str, bool]]:
+    """Yield ``(offset, target, whole)`` for each ``.md`` file *host_path* includes.
 
     A target opening ``./`` or ``../`` resolves against the including file;
     any other resolves against ``docs/``, matching the include-markdown
     plugin. Globs expand. Targets outside ``docs/`` and non-Markdown targets
-    are not pages and are ignored.
+    are not pages and are skipped. *offset* is where the directive starts in
+    the host's source, and *target* is ``docs/``-relative.
     """
     docs_resolved = docs_dir.resolve()
+    text = host_path.read_text(encoding="utf-8", errors="replace")
+    for match in _INCLUDE_RE.finditer(text):
+        spec = match.group("dq") or match.group("sq")
+        if "://" in spec:
+            continue
+        base = host_path.parent if spec.startswith(("./", "../")) else docs_dir
+        candidates = (
+            sorted(base.glob(spec))
+            if any(c in spec for c in "*?[")
+            else [base / spec]
+        )
+        whole = not _START_OPTION_RE.search(match.group("opts"))
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if (
+                resolved.suffix == ".md"
+                and resolved.is_file()
+                and resolved.is_relative_to(docs_resolved)
+            ):
+                target = resolved.relative_to(docs_resolved).as_posix()
+                yield match.start(), target, whole
+
+
+def _include_targets(docs_dir: Path) -> dict[str, dict[str, bool]]:
+    """Map each included ``.md`` file to ``{host: included_whole}``."""
     targets: dict[str, dict[str, bool]] = defaultdict(dict)
     for host_path in sorted(docs_dir.rglob("*.md")):
         host = host_path.relative_to(docs_dir).as_posix()
-        text = host_path.read_text(encoding="utf-8", errors="replace")
-        for match in _INCLUDE_RE.finditer(text):
-            spec = match.group("dq") or match.group("sq")
-            if "://" in spec:
-                continue
-            base = (
-                host_path.parent
-                if spec.startswith(("./", "../"))
-                else docs_dir
-            )
-            candidates = (
-                sorted(base.glob(spec))
-                if any(c in spec for c in "*?[")
-                else [base / spec]
-            )
-            whole = not _START_OPTION_RE.search(match.group("opts"))
-            for candidate in candidates:
-                resolved = candidate.resolve()
-                if (
-                    resolved.suffix != ".md"
-                    or not resolved.is_file()
-                    or not resolved.is_relative_to(docs_resolved)
-                ):
-                    continue
-                target = resolved.relative_to(docs_resolved).as_posix()
-                targets[target][host] = targets[target].get(host, False) or (
-                    whole
-                )
+        for _, target, whole in include_directives(host_path, docs_dir):
+            targets[target][host] = targets[target].get(host, False) or whole
     return targets
 
 

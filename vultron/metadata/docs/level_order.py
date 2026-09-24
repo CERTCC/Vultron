@@ -18,18 +18,20 @@ Each term has at most one introducer. For every leveled page, and every
 include fragment at its lowest host's level, the check finds the first prose
 use of each term whose introducer sits at a higher level — code, link targets,
 comments and directives are not prose (:mod:`.concept_scan`). The use is
-compliant when the page links to the introducer on that line or earlier, or
-when the use is itself the text of a link to the glossary: linking out to a
-canonical introduction satisfies the rule (SG-11). Otherwise it is a finding at
-the use's
-``path:line:col``. The comparison is site-wide: one ladder, never one per
+compliant when the page links to the introducer before or at the use — a link
+in a fragment the page includes counts from the include directive — or when
+the use is itself the text of a link to the glossary: linking out to a
+canonical introduction satisfies the rule (SG-11). A link later on the same
+line does not count: SG-11 asks for the link at first use. Otherwise it is a
+finding at the use's ``path:line:col``. The comparison is site-wide: one ladder, never one per
 ``stakeholder_type``. Pages with no ``level`` — the working record, and pages
 not yet declared — are skipped rather than read as level 0.
 
 Violations that predate this check are listed with a reason in
 :data:`BASELINE_PATH`. The list may only shrink: an entry that no longer
 matches a violation fails until ``--prune-baseline`` removes it, and a test
-pins the entry count to a ceiling that may only be lowered.
+pins the exact set of baselined keys, so an entry can be removed but never
+added or swapped for another.
 
 Usage::
 
@@ -51,14 +53,23 @@ from vultron.metadata.docs.concept_registry import (
     glossary_terms,
     introductions,
 )
-from vultron.metadata.docs.concept_scan import Position, first_use, read_page
+from vultron.metadata.docs.concept_scan import (
+    Position,
+    ScannedPage,
+    first_use,
+    read_page,
+)
 from vultron.metadata.docs.level_baseline import (
     BASELINE_PATH,
     read_baseline,
     read_baseline_entries,
     write_baseline,
 )
-from vultron.metadata.docs.page_frontmatter import DocsTree, classify_docs_tree
+from vultron.metadata.docs.page_frontmatter import (
+    DocsTree,
+    classify_docs_tree,
+    include_directives,
+)
 from vultron.metadata.docs.page_schema import LEVELS, is_working_record
 from vultron.metadata.file_loading import (
     FailureCollector,
@@ -182,18 +193,73 @@ def _collect(
     return analysis
 
 
+def _fragment_hosts(
+    rel: str, tree: DocsTree, levels: dict[str, int], seen: frozenset[str]
+) -> list[tuple[int, str]]:
+    """``(level, page)`` for each leveled page that renders fragment *rel*.
+
+    A fragment included by another fragment takes that fragment's hosts.
+    """
+    found: list[tuple[int, str]] = []
+    for host in tree.fragments.get(rel, ()):
+        if host in levels:
+            found.append((levels[host], host))
+        elif host in tree.fragments and host not in seen:
+            found += _fragment_hosts(host, tree, levels, seen | {host})
+    return found
+
+
+class _Pages:
+    """Scans each page once, and knows which links a page renders."""
+
+    def __init__(self, docs_dir: Path, tree: DocsTree) -> None:
+        self._docs_dir = docs_dir
+        self._tree = tree
+        self._scanned: dict[str, ScannedPage] = {}
+        self._links: dict[str, dict[str, int]] = {}
+
+    def scan(self, rel: str) -> ScannedPage:
+        if rel not in self._scanned:
+            self._scanned[rel] = read_page(self._docs_dir, rel)
+        return self._scanned[rel]
+
+    def earliest_links(self, rel: str) -> dict[str, int]:
+        """The offset in *rel* at which the rendered page first links each page.
+
+        A link inside a wholly included fragment renders where the include
+        directive stands, so it counts from the directive's offset.
+        """
+        if rel in self._links:
+            return self._links[rel]
+        # Stored before recursing, so an include cycle terminates.
+        earliest: dict[str, int] = {}
+        self._links[rel] = earliest
+        for link in self.scan(rel).links:
+            earliest.setdefault(link.target, link.start)
+        directives = include_directives(self._docs_dir / rel, self._docs_dir)
+        for offset, target, whole in directives:
+            if not whole or target not in self._tree.fragments:
+                continue
+            for page in self.earliest_links(target):
+                if offset < earliest.get(page, offset + 1):
+                    earliest[page] = offset
+        return earliest
+
+
 def _scan(root: Path, tree: DocsTree, analysis: Analysis) -> None:
     """Append every unlinked first use of a higher-level concept."""
-    docs_dir = root / "docs"
+    pages = _Pages(root / "docs", tree)
     subjects: list[tuple[str, int, tuple[str, ...]]] = [
         (rel, level, ())
         for rel, level in analysis.levels.items()
         if rel != REGISTRY
     ]
-    for rel, hosts in sorted(tree.fragments.items()):
+    for rel in sorted(tree.fragments):
         leveled = sorted(
-            (analysis.levels[h], h) for h in hosts if h in analysis.levels
+            set(_fragment_hosts(rel, tree, analysis.levels, frozenset({rel})))
         )
+        # No leveled page renders it: the snippets auto_append file, whose
+        # abbreviation definitions become tooltips rather than prose.
         if leveled:
             lowest = leveled[0][0]
             subjects.append(
@@ -201,7 +267,7 @@ def _scan(root: Path, tree: DocsTree, analysis: Analysis) -> None:
             )
 
     for rel, level, hosts in subjects:
-        scanned = read_page(docs_dir, rel)
+        scanned = pages.scan(rel)
         for term, introducer in sorted(analysis.introducers.items()):
             introducer_level = analysis.levels[introducer]
             if introducer == rel or introducer_level <= level:
@@ -209,10 +275,10 @@ def _scan(root: Path, tree: DocsTree, analysis: Analysis) -> None:
             use = first_use(scanned, analysis.terms[term])
             if use is None:
                 continue
-            # Linked out earlier, or at the use to either canonical
+            # Linked out before or at the use, to either canonical
             # introduction SG-11 names: the introducing page or the glossary.
-            link = scanned.first_link(introducer)
-            if link is not None and link.line <= use.position.line:
+            linked = pages.earliest_links(rel).get(introducer)
+            if linked is not None and linked <= use.offset:
                 continue
             if scanned.link_around(use.offset) in (introducer, REGISTRY):
                 continue
@@ -313,7 +379,7 @@ def check_level_order(
                 f"baselines docs/{page} | {term}, which is no longer a "
                 f"violation; run `uv run docs-level-order --prune-baseline` "
                 f"and drop the key from _BASELINED in "
-                f"test/metadata/docs/test_level_order.py",
+                f"test/metadata/docs/test_level_baseline.py",
                 path=BASELINE_PATH.name,
                 line=entries[(page, term)].line if entries else None,
             )

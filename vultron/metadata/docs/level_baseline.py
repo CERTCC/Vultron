@@ -26,7 +26,7 @@ _BASELINE_HEADER = """\
 # This list may only shrink. Fix an entry by linking the term's first use to
 # the page that introduces it (SG-11) or by moving the page, then run
 # `uv run docs-level-order --prune-baseline`. Do not add entries by hand;
-# test_level_order.py pins a ceiling on the entry count.
+# test_level_baseline.py pins the exact set of entries.
 """
 
 

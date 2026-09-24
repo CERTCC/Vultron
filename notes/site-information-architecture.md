@@ -284,8 +284,9 @@ introduces: [CASE_MANAGER, Case Ledger Entry]
 A term has one introducer, and it must be a glossary term. For each leveled
 page, the check finds the first prose use of each term introduced above that
 page's level. Code, link targets, comments and directives are not prose. The use
-passes when the page links to the introducer on that line or earlier, or when
-the use is itself the text of a glossary link. Both are canonical introductions
+passes when the page links to the introducer before or at the use, or when the
+use is itself the text of a glossary link. A link later on the same line does
+not count, because SG-11 asks for the link at first use. Both are canonical introductions
 (SG-11), and linking out satisfies the rule. Otherwise it is a finding at
 `path:line:col`. Inline, reference-style and `<a href>` links all count. A
 reference definition counts only where a link uses it.
@@ -298,7 +299,13 @@ Some consequences of that design:
   are skipped, not read as level 0. Neither may declare `introduces:`, because
   no page could be ordered against them.
 - **Fragments.** An include fragment is checked at its lowest host's level
-  (DF-11-010).
+  (DF-11-010). A fragment included by another fragment takes the outer
+  fragment's hosts. A link inside a fragment counts for its host from the
+  include directive, because that is where the rendered page shows it. The
+  reverse is not credited: a fragment is checked on its own, so a host's link
+  above the include does not excuse a use inside the fragment. The snippets
+  `auto_append` abbreviations file has no leveled host and is not scanned: its
+  entries render as tooltips, not prose.
 - **The glossary is exempt.** It defines every term it lists, so it is the
   registry the scan reads, never a page the scan reads.
 - **Defining in place is not detected.** DF-11-002 also excuses a page that
