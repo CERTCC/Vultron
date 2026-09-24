@@ -1152,14 +1152,14 @@ wheels = [
 
 [[package]]
 name = "py-trees"
-version = "2.5.0"
+version = "2.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydot" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ec/03/92cd36f7a6f1ca774b91083924f5c260b1b2064a5644b7a61f8e2eae3262/py_trees-2.5.0.tar.gz", hash = "sha256:5637c25560851bfc96d22ce133f6a7ef654605cab428ed0ae842717c9e498d5d", size = 8511950, upload-time = "2026-07-14T00:40:35.792Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/cd/592ecf58fce9b87743aab2d05dd94b57669e436d77facd4c9f1e8d4b6be7/py_trees-2.6.0.tar.gz", hash = "sha256:60a5d81e1e348b0aca2c1c65a94713a2a3d87c749058bf1edfa721c53b07bde5", size = 8520798, upload-time = "2026-09-10T21:24:16.343Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/61/99/afa1e1b93e953a878ba877243b8ab296e83e9d93b8259ca30d90bda9fc02/py_trees-2.5.0-py2.py3-none-any.whl", hash = "sha256:dfba364075cbf4706623454daace2961162fa98c3f3d062bd5af5098aac17127", size = 145771, upload-time = "2026-07-14T00:40:32.348Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/10/3b618ece6a776e7b7fac3dcfd0f4e2e52006c0e49d0f63fc35c5bfef3566/py_trees-2.6.0-py2.py3-none-any.whl", hash = "sha256:78155ffaf02f49de0c4bfb458488a1f766ded5b35bf1254980d8f49e6fb89837", size = 148692, upload-time = "2026-09-10T21:24:10.788Z" },
 ]
 
 [[package]]
