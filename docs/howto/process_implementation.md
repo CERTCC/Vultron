@@ -122,7 +122,7 @@ A capability set says what your software provides; a layer says what a test chec
 
 **L1 — Syntax**
 : Messages are well formed against the wire format.
-  The [wire format specifications](../reference/specs/protocol.md) define it.
+  The wire format is defined in [§5 of the specification](../reference/vultron-spec/index.md#5-syntactic-layer-wire-format-n).
 
 **L2 — Semantics**
 : Each received message or local event drives the correct state transition.

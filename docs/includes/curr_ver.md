@@ -14,4 +14,6 @@
     print(describe_build(__version__))
     ```
 
-    Version numbers follow the [versioning scheme](../reference/versioning.md).
+    <!-- versioning-link -->
+    This is a build version, not a protocol version.
+    Protocol versions are numbered by the [protocol versioning scheme](../reference/versioning.md).

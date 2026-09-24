@@ -26,11 +26,11 @@ The protocol coordinates the case; the judgment, the data, and the side effects 
 | prioritize cases | [EvaluateCasePriority](#report-prioritization), the natural home for a Stakeholder-Specific Vulnerability Categorization (SSVC) decision | Evaluator |
 | decide which cases to host for others | [EvaluateCaseProposal](#case-admission) | Evaluator |
 | set or accept embargo terms | [SelectEmbargoOfferTerms, EvaluateEmbargoProposal](#embargo-management) | Evaluator |
-| assign Common Vulnerabilities and Exposures (CVE) IDs | [IdAssigned, EvaluateCveEligibility, AssignId](#cve-vulnerability-id-assignment) | Retriever, Evaluator, Composer |
+| assign Common Vulnerabilities and Exposures (CVE) IDs | [IdAssigned, InScope, AssignId](#cve-vulnerability-id-assignment) | Retriever, Evaluator, Composer |
 | develop or deploy fixes | [CreateFix, DeployFix](#fix-development) | Composer, Evaluator |
 | know whether an exploit exists | [HaveExploit, FindExploit](#exploit-management) | Retriever |
 | write or publish advisories | [DraftAdvisoryArtifact, ReviewAdvisoryDraft, SubmitAdvisoryArtifact](#publication) | Composer, Evaluator, Actuator |
-| know who else belongs in the case | [IdentifyVendors, ResolveActor, InjectParticipant](#participant-and-actor-discovery) | Retriever, Actuator |
+| know who else belongs in the case | [IdentifyVendors, ResolveActorDetails, InjectParticipant](#participant-and-actor-discovery) | Retriever, Actuator |
 | watch threat feeds | [MonitorAttacks, MonitorExploits, MonitorPublicReports](#threat-monitoring), or a [Sentinel](#the-sentinel-call-in-pattern) that reports what it sees | Retriever |
 | update your ticketing system | [OnAccept, OnDefer](#report-prioritization) and [PreCloseAction](#close-report) | Actuator |
 
@@ -93,7 +93,7 @@ Every call-out point fits a three-level hierarchy:
 Think of the shape as a job description, the capability as the open role, and your implementation as the service hired into that role.
 
 Some capabilities are sub-steps of a larger workflow.
-For example, `EvaluateCveEligibility` is a step within the broader `AssignCveId` workflow.
+For example, the proposed `EvaluateCveEligibility` is a step within the broader `AssignCveId` workflow.
 Most capabilities are not nested.
 
 !!! note "Design decisions"
@@ -240,7 +240,7 @@ This domain has one extra level because the ID assignment workflow has distinct 
   - **IdAssigned** (Retriever) — does a CVE ID already exist for this vulnerability?
   - **InScope** (Evaluator) — is this vulnerability in scope for ID assignment?
   - **ProductInCNAScope** / **IsMostAppropriateCNA** (Evaluators) — CNA scoping checks
-  - **EvaluateCveEligibility** (Evaluator) — does this vulnerability meet the CNA criteria for CVE assignment?
+  - **EvaluateCveEligibility** (Evaluator, proposed) — does this vulnerability meet the CNA criteria for CVE assignment?
     This is a single judgment call that consolidates multiple CNA Operational Rules criteria.
     See [#2518](https://github.com/CERTCC/Vultron/issues/2518).
   - **AssignId** (Composer) — generate and record the CVE ID
@@ -294,7 +294,7 @@ This domain has one extra level because the ID assignment workflow has distinct 
 
 *See also: [#1142](https://github.com/CERTCC/Vultron/issues/1142)*
 
-- **ResolveActor** / **IdentifyVendors** / **IdentifyCoordinators** (Retrievers) — look up parties who should be involved in this case
+- **ResolveActorDetails** / **IdentifyVendors** / **IdentifyCoordinators** (Retrievers) — look up parties who should be involved in this case
 - **AllPartiesKnown** (Evaluator) — have all relevant parties been identified?
 - **InjectParticipant** (Actuator) — add a discovered party to the case
 
@@ -374,6 +374,7 @@ A decision that takes days is not a call-out point: it is a request to another a
 **What the shape classes are called in code.**
 The shape base classes are being renamed to `EvaluatorCapability`, `RetrieverCapability`, `ComposerCapability`, and `ActuatorCapability` ([ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md), [#3421](https://github.com/CERTCC/Vultron/issues/3421)).
 Until that lands, the code uses names such as `EvaluatorCallOutPoint`.
+The fuzzer's leftover Sentinel call-out classes are being removed under [#3424](https://github.com/CERTCC/Vultron/issues/3424).
 
 ### Still open
 

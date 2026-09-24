@@ -1,8 +1,10 @@
 """Label for the version box on ``docs/includes/curr_ver.md``.
 
-The box states which build of the Vultron project the site was generated from.
-The site and the ``vultron`` package share one version (ADR-0006), derived by
-``setuptools_scm`` from the most recent release tag. Only a build made exactly
+The box states which build of the Vultron repository the site was generated
+from. The site and the ``vultron`` package are built from the same commit, so
+the box reports the package version ``setuptools_scm`` derives from the most
+recent release tag. That is a build version, not a protocol version: the
+protocol's CalVer scheme (ADR-0006) numbers the protocol alone. Only a build made exactly
 at a tag is a release: any commit after the tag, and any uncommitted change,
 yields a development or local version, and a checkout with no tag history falls
 back to ``0.0.0+dev``. Printing such a string bare, as if it were the current
@@ -28,10 +30,9 @@ def is_release(version: str) -> bool:
     """Return True when *version* names a tagged release build.
 
     Development (``.devN``) and local (``+...``) versions are not releases,
-    and neither is the no-tag fallback or an unparseable string.
+    and neither is the no-tag fallback (itself a local version) or an
+    unparseable string. A release candidate is a release build.
     """
-    if version == FALLBACK_VERSION:
-        return False
     try:
         parsed = Version(version)
     except InvalidVersion:
@@ -42,9 +43,10 @@ def is_release(version: str) -> bool:
 def describe_build(version: str) -> str:
     """Return a Markdown sentence naming the build *version* describes."""
     if is_release(version):
+        kind = "pre-release" if Version(version).is_prerelease else "release"
         return (
             "This site and the `vultron` package were built from "
-            f"release **{version}**."
+            f"{kind} **{version}**."
         )
     if version == FALLBACK_VERSION:
         return (
