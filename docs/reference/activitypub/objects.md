@@ -51,7 +51,6 @@ ActivityStreams also includes a number of native object types, including:
 
 - `as:Article`
 - `as:Collection`, including `as:OrderedCollection`
-- `as:CollectionPage`, including `as:OrderedCollectionPage`
 - `as:Document`, including `as:Audio`, `as:Image`, and `as:Video`
 - `as:Event`
 - `as:Note`

@@ -4,21 +4,19 @@
   "name": "Coordinator LLC",
   "@context": "https://www.w3.org/ns/activitystreams",
   "inbox": {
-    "id": "urn:uuid:490ba486-0899-4fcf-b132-b6403ed08b24",
+    "id": "https://vultron.example/organizations/coordinator/inbox",
     "type": "OrderedCollection",
-    "published": "2026-09-23T16:41:56+00:00",
-    "updated": "2026-09-23T16:41:56+00:00",
+    "published": "2026-09-24T14:21:06+00:00",
+    "updated": "2026-09-24T14:21:06+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
-    "items": [],
-    "current": 0
+    "items": []
   },
   "outbox": {
-    "id": "urn:uuid:25388126-8760-4d8e-80bb-59a1989fa4b3",
+    "id": "https://vultron.example/organizations/coordinator/outbox",
     "type": "OrderedCollection",
-    "published": "2026-09-23T16:41:56+00:00",
-    "updated": "2026-09-23T16:41:56+00:00",
+    "published": "2026-09-24T14:21:06+00:00",
+    "updated": "2026-09-24T14:21:06+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
-    "items": [],
-    "current": 0
+    "items": []
   }
 }

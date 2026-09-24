@@ -16,7 +16,9 @@ Provides classes representing ActivityStreams Vocabulary Link objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import TypeVar, TypeAlias
+from typing import Literal, TypeVar, TypeAlias
+
+from pydantic import Field
 
 from vultron.wire.as2.vocab.base.base import as_Base
 
@@ -31,15 +33,18 @@ class as_Link(as_Base):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-link>
     """
 
+    #: Narrowed so the class registers under the ``type`` it presents
+    #: (VM-03-002).
+    type_: Literal["Link"] = Field(
+        default="Link",
+        validation_alias="type",
+        serialization_alias="type",
+    )
     width: int | None = None
     height: int | None = None
     rel: str | None = None
     href: str | None = None
     hreflang: str | None = None
-
-
-class as_Mention(as_Link):
-    """A Link that represents an @mention."""
 
 
 T = TypeVar("T", covariant=True)

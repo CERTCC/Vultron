@@ -1,17 +1,17 @@
 {
-  "id": "urn:uuid:1beaf017-38f4-42c4-ac79-2682e882400f",
+  "id": "urn:uuid:c8cfd5d9-9ed6-41f8-9894-1980a03de008",
   "type": "Create",
-  "name": "https://vultron.example/organizations/vendorco Create urn:uuid:ea54151d-cc57-4950-89a8-9850fa147d83",
+  "name": "https://vultron.example/organizations/vendorco Create urn:uuid:bbb934d2-3b58-4936-8ceb-2322f5c45b62",
   "to": [
     "https://example.org/case-actors/alpha"
   ],
   "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "id": "urn:uuid:ea54151d-cc57-4950-89a8-9850fa147d83",
+    "id": "urn:uuid:bbb934d2-3b58-4936-8ceb-2322f5c45b62",
     "type": "CaseProposal",
-    "published": "2026-09-23T16:41:57+00:00",
-    "updated": "2026-09-23T16:41:57+00:00",
+    "published": "2026-09-24T14:21:06+00:00",
+    "updated": "2026-09-24T14:21:06+00:00",
     "summary": "Request case initialization for a new vulnerability.",
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
