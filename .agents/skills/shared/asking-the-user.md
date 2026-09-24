@@ -58,8 +58,9 @@ Explain *how a thing applies here*, not what the thing is.
 
 IDs are fine; bare IDs are not. Always add a few words saying what the ID is.
 
-- Not OK: "Fix #3512." / "This violates PCR-08-001." / "Per ADR-0042…"
-- OK: "Fix #3512 (the embargo timer bug)." / "This breaks PCR-08-001 (updates
+- Not OK: "Start with #3512." / "This violates PCR-08-001." / "Per ADR-0042…"
+- OK: "Start with #3512 (the docs navigation reorganization)." / "This breaks
+  PCR-08-001 (updates
   must go to the case manager, not every participant)."
 
 The same goes for file names, function names, and internal terms: say what
@@ -91,8 +92,8 @@ found, ending in one specific question.
 
 - **`ask_user` / `AskUserQuestion`** — for short, discrete choices. Each option
   label and description must make sense by itself. Always recommend one. The
-  user comments through the built-in "type something" option; don't depend on
-  the notes field, since long text there doesn't wrap in the terminal and the
+  user comments through the built-in "type something" option (where the tool
+  has one); don't depend on the notes field, since long text there doesn't wrap in the terminal and the
   user loses what they're typing.
 - **Plain text** — for open-ended questions, or when the user is likely to push
   back, reframe, or write a paragraph. They can reply in the normal prompt,

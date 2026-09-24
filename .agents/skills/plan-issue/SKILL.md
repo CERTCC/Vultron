@@ -66,7 +66,7 @@ selection before continuing.
 
 #### Creating a new Idea (if selected)
 
-Ask the user to describe the idea (`ask_user`, freeform). Synthesize a
+Ask the user to describe the idea (plain text, open-ended). Synthesize a
 short title. Then select a parent epic (query open Epics and ask the user to
 confirm — see `new-item` Phase 4 for the pattern) and a milestone (see
 `shared/issue-creation-requirements.md`). Then create:
@@ -161,7 +161,7 @@ from the discussion rather than being asked as structured questions.
 
 **General pattern (all types):**
 
-1. **Prior-art search (before the synthesis brief):** Load
+1. **Prior-art search (before the short brief):** Load
    `.agents/skills/shared/compose-before-create.md` and search for existing
    helpers, use cases, or base classes that match the domain nouns in the
    issue title and body. This surfaces reuse opportunities before acceptance

@@ -236,7 +236,7 @@ into the Phase 3 grill-me interview as a combined agenda.
 ### Phase 3 — Interview with Grill-Me
 
 Invoke the `grill-me` skill, following `.agents/skills/shared/asking-the-user.md`.
-Resolve one question at a time (using `ask_user`)
+Resolve one question at a time (`ask_user` for discrete choices)
 with a recommended answer before writing anything:
 
 - Which insights from `plan/incoming/learnings/` are most important to promote?

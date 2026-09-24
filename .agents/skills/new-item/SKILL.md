@@ -16,7 +16,7 @@ Capture one freeform item as a structured GitHub `type:Idea` or
 
 ### Phase 0 — Describe
 
-Ask for freeform input via `ask_user`: "Describe the idea or concern you want
+Ask in plain text (an open-ended question): "Describe the idea or concern you want
 to capture."
 
 ### Phase 1 — Infer + Confirm Type
@@ -127,7 +127,8 @@ Print one line:
 
 ## Constraints
 
-- Use `ask_user` for all user-facing questions.
+- Ask questions per `.agents/skills/shared/asking-the-user.md`: `ask_user` for
+  discrete choices, plain text for open-ended ones.
 - Use `manage-github-issue` for issue create/update + parent wiring.
 - Do not write to `specs/`, `notes/`, `AGENTS.md`, or open a PR.
 - Do not assign `size:` labels here.

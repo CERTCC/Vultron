@@ -120,7 +120,7 @@ BODY    = issue #<N> — <title>
 |----------|----------|-----------|
 | Should the agent investigate before or after asking the user? | Investigate first | The reporter is not omniscient; treating them as an oracle wastes interaction rounds and produces worse root-cause analysis than independent investigation |
 | When should the sibling scan run? | Phase 2d, before presenting findings | The agent has just articulated the root cause and can search for the pattern most effectively at this point; findings feed directly into the Phase 3 briefing |
-| Should Phase 2 questions be removed entirely? | Yes | One `ask_user` after investigation replaces four before; the user gets better information and fewer interruptions |
+| Should Phase 2 questions be removed entirely? | Yes | One plain-text briefing after investigation replaces four questions before; the user gets better information and fewer interruptions |
 | How is the Phase 3 briefing presented? | As a plain-text message ending in one question, not `ask_user` | The user often redirects here and needs room to write; the `ask_user` notes field doesn't wrap, and text printed just before a question box can be hidden by it |
 | When a deeper issue surfaces during investigation, what happens? | File new Bug issues; confirm narrowed scope at Phase 3 | Keeps the current run focused while ensuring discovered issues are not lost |
 | What if the bug is already fixed on main? | Close with reference comment; do not proceed | Prior PRs may have fixed the bug without a `Closes #N` footer; always check before writing code |

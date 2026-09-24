@@ -32,7 +32,6 @@ being imposed as a predetermined list of structured questions.
    back by number or bare ID. The user says which lines are wrong; this is not
    a new round of questions.
 
-Follow [`../shared/asking-the-user.md`](../shared/asking-the-user.md) for every
-question: one at a time, problem before decision, plain language, no bare IDs.
+Follow `.agents/skills/shared/asking-the-user.md` for every question: one at a time, problem before decision, plain language, no bare IDs.
 Use `ask_user` for short, discrete choices; ask in plain text when the user is
 likely to want to write a longer answer.

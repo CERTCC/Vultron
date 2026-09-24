@@ -350,13 +350,14 @@ Applies in every session and transitively when skills compose
 - **Plain technical and domain language.** Assume general technical knowledge,
   not your context: explain how a thing applies here, not what it is. No
   metaphor jargon ("gate," "seam") or terms you coined this session.
-- **No bare IDs.** "Fix #3512 (the embargo timer bug)," not "Fix #3512." Same
+- **No bare IDs.** "Start with #3512 (the docs navigation reorganization)," not "Start
+  with #3512." Same
   for spec IDs, ADRs, and internal names.
 - **Restate, don't point.** Never "do 1, skip 3" — say what each item is.
 - **Short.** No walls of text ending in "do you agree?"
 - **Right tool.** `ask_user` for short, discrete choices, always with a
-  recommended answer; the user comments via "type something," not the notes
-  field. Ask in plain text when the user will likely want to write a longer
+  recommended answer; the user comments via "type something" (where
+  available), not the notes field. Ask in plain text when the user will likely want to write a longer
   reply.
 
 ---
