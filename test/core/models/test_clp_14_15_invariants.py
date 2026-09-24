@@ -26,7 +26,9 @@ The three layers:
 * **Model** — a single entry's own fields (CLP-14-002).
 * **Ledger** — ``CaseLedger.append()``, which owns index assignment and so
   guarantees the by-construction properties (CLP-14-001, CLP-14-004,
-  CLP-14-005, CLP-15-005).
+  CLP-14-005, CLP-14-010, CLP-15-005).  CLP-14-010 (gapless from 0) is
+  checked over a whole ledger by ``check_clp14_timestamp_invariants`` in
+  ``test/ci/invariants/common.py``.
 * **Commit boundary** — ``_validate_canonical_entry``, which owns everything
   about the *claimed* ``payloadSnapshot.published`` of an assertion the
   CaseActor did not author (CLP-14-006 through CLP-14-009, CLP-15-003,

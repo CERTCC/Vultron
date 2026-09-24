@@ -489,7 +489,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-00-005 | §3.2 | Each entry MUST be immutable once committed |
 | SYNC-00-006 | §3.1 | Each entry MUST be cryptographically linked to its predecessor |
 | SYNC-01-001 | §3.1, §3.2 | Canonical ledger MUST be append-only; entries MUST be immutable |
-| SYNC-01-002 | §3.1 | Each entry MUST carry a monotonically increasing index |
+| SYNC-01-002 | §3.1 | Each entry MUST carry a monotonically increasing, gapless index |
 | SYNC-01-003 | §3.1 | Each entry MUST include content hash and predecessor hash |
 | SYNC-01-004 | §2.1 | Entries MUST be written through the CASE_MANAGER's write path |
 | SYNC-01-005 | §3.3 | Hash-chain format MUST be forward-compatible with Merkle Tree |
