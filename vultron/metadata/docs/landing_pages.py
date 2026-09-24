@@ -30,6 +30,7 @@ import posixpath
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from vultron.metadata.base import mkdocs_config
 from vultron.metadata.docs.page_schema import LEVELS
@@ -51,7 +52,9 @@ BEGIN_MARKER = (
 END_MARKER = "<!-- END GENERATED SECTION CONTENTS -->"
 
 _INDEX_NAME = "index.md"
-_H1_RE = re.compile(r"^#\s+(.*?)\s*#*\s*$", re.MULTILINE)
+_H1_RE = re.compile(r"^#\s+(.*?)\s*#*\s*$")
+_FENCE_RE = re.compile(r"^\s*(```|~~~)")
+_ATTR_LIST_RE = re.compile(r"\s*\{[^}]*\}\s*$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,7 +62,8 @@ class Entry:
     """One item in a landing page's contents listing.
 
     Attributes:
-        label: The nav label, or the page's H1 for an unlabelled nav path.
+        label: The nav label; for an unlabelled nav path, the page's
+            ``title:`` frontmatter, else its H1, as mkdocs would show it.
         target: ``docs/``-relative path, an external URL, or ``None`` for a
             group that has no landing page of its own.
         description: The target page's ``description:``, whitespace-folded.
@@ -84,16 +88,34 @@ class LandingPage:
 
 @dataclass(frozen=True, slots=True)
 class _PageFacts:
+    title: str
     description: str | None
     level: int | None
 
 
 def _is_url(target: str) -> bool:
-    return "://" in target
+    """True for any target with a URI scheme (``https:``, ``mailto:``...)."""
+    return bool(urlsplit(target).scheme)
+
+
+def _body_h1(body: str) -> str | None:
+    """The first H1 of a page body, outside fenced code, without attr lists."""
+    fenced = False
+    for line in body.splitlines():
+        if _FENCE_RE.match(line):
+            fenced = not fenced
+            continue
+        match = None if fenced else _H1_RE.match(line)
+        if match:
+            return _ATTR_LIST_RE.sub("", match.group(1)).strip() or None
+    return None
 
 
 def _page_facts(docs_dir: Path, rel: str, root: Path) -> _PageFacts:
-    """Read the ``description`` and ``level`` a page's frontmatter declares.
+    """Read a page's title and the ``description`` and ``level`` it declares.
+
+    The title follows mkdocs: frontmatter ``title:``, else the body's first
+    H1, else the file stem.
 
     A level off the ladder is treated as undeclared: ``docs-frontmatter``
     already reports it against the page, and failing here too would name one
@@ -109,7 +131,11 @@ def _page_facts(docs_dir: Path, rel: str, root: Path) -> _PageFacts:
             "is listed in the mkdocs.yml nav but does not exist",
             path=f"docs/{rel}",
         )
-    metadata = load_frontmatter(path, root=root).metadata
+    post = load_frontmatter(path, root=root)
+    metadata = post.metadata
+    title = metadata.get("title")
+    if not isinstance(title, str) or not title.strip():
+        title = _body_h1(post.content) or Path(rel).stem
     raw = metadata.get("description")
     description: str | None = None
     if raw is not None:
@@ -121,15 +147,10 @@ def _page_facts(docs_dir: Path, rel: str, root: Path) -> _PageFacts:
         description = " ".join(raw.split())
     level = metadata.get("level")
     return _PageFacts(
+        title=" ".join(title.split()),
         description=description,
         level=level if type(level) is int and level in LEVELS else None,
     )
-
-
-def _page_h1(docs_dir: Path, rel: str) -> str:
-    text = (docs_dir / rel).read_text(encoding="utf-8")
-    match = _H1_RE.search(text)
-    return match.group(1).strip() if match else Path(rel).stem
 
 
 def _split_item(item: object) -> tuple[str | None, object]:
@@ -177,7 +198,7 @@ def _entry(item: object, docs_dir: Path, root: Path) -> Entry:
             return Entry(label=label or value, target=value)
         facts = _page_facts(docs_dir, value, root)
         return Entry(
-            label=label or _page_h1(docs_dir, value),
+            label=label or facts.title,
             target=value,
             description=facts.description,
             level=facts.level,

@@ -155,6 +155,33 @@ class TestLandingPageGeneration:
         (page,) = discover_landing_pages(_repo(tmp_path, files, nav))
         assert render_listing(page) == "- [Short](a.md)"
 
+    def test_unlabelled_page_uses_its_frontmatter_title(self, tmp_path):
+        files = {
+            "docs/guides/index.md": _LANDING,
+            "docs/guides/a.md": "---\ntitle: Nice Title\n---\n\n# Heading\n",
+        }
+        nav: list[object] = [{"Guides": ["guides/index.md", "guides/a.md"]}]
+        (page,) = discover_landing_pages(_repo(tmp_path, files, nav))
+        assert render_listing(page) == "- [Nice Title](a.md)"
+
+    def test_unlabelled_page_h1_skips_comments_and_attr_lists(self, tmp_path):
+        text = (
+            "---\n# reviewed 2026\ndescription: D.\n---\n\n"
+            "```bash\n# install\n```\n\n# Real Heading {#real}\n"
+        )
+        files = {"docs/guides/index.md": _LANDING, "docs/guides/a.md": text}
+        nav: list[object] = [{"Guides": ["guides/index.md", "guides/a.md"]}]
+        (page,) = discover_landing_pages(_repo(tmp_path, files, nav))
+        assert render_listing(page) == "- [Real Heading](a.md) — D."
+
+    def test_non_http_scheme_is_an_external_link(self, tmp_path):
+        files = {"docs/guides/index.md": _LANDING}
+        nav: list[object] = [
+            {"Guides": ["guides/index.md", {"Mail": "mailto:x@example.org"}]}
+        ]
+        (page,) = discover_landing_pages(_repo(tmp_path, files, nav))
+        assert render_listing(page) == "- [Mail](mailto:x@example.org)"
+
     def test_group_with_an_index_links_to_it(self, tmp_path):
         files = {
             "docs/guides/index.md": _LANDING,
