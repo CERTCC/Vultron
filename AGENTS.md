@@ -338,27 +338,9 @@ linked file before touching that area. New pitfalls MUST be routed per
 
 ## Skill Interaction Rules
 
-How to ask the user anything (full guide with examples:
-[`.agents/skills/shared/asking-the-user.md`](.agents/skills/shared/asking-the-user.md)).
-Applies in every session and transitively when skills compose
-(`learn` → `grill-me`, etc.):
-
-- **One question at a time.** Ask the most important one and wait.
-- **Problem before decision.** Cover the problem, why it matters, each option
-  spelled out (never "A or B?" without showing A and B), and your
-  recommendation with its reason. A checklist, not a template.
-- **Plain technical and domain language.** Assume general technical knowledge,
-  not your context: explain how a thing applies here, not what it is. No
-  metaphor jargon ("gate," "seam") or terms you coined this session.
-- **No bare IDs.** "Start with #3512 (the docs navigation reorganization)," not "Start
-  with #3512." Same
-  for spec IDs, ADRs, and internal names.
-- **Restate, don't point.** Never "do 1, skip 3" — say what each item is.
-- **Short.** No walls of text ending in "do you agree?"
-- **Right tool.** `ask_user` for short, discrete choices, always with a
-  recommended answer; the user comments via "type something" (where
-  available), not the notes field. Ask in plain text when the user will likely want to write a longer
-  reply.
+Ask the user anything per [`.agents/skills/shared/asking-the-user.md`](.agents/skills/shared/asking-the-user.md), in every session and when skills compose (`learn` → `grill-me`):
+**one question at a time**; **problem before decision** (the problem, why it matters, each option spelled out, your recommendation and why); **plain language**, no metaphor jargon or coined terms;
+**no bare IDs** ("#3512 (the docs navigation reorganization)," not "#3512"); **restate, don't point** by number; **short**, no walls of text ending in "do you agree?" Use `ask_user` for short, discrete choices, with a recommended answer; use plain text when a longer reply is likely.
 
 ---
 
