@@ -341,6 +341,97 @@ than the `mkdocs.yml` mechanism, so a mis-anchored pattern or a plugin-emitted
 file fails the gate instead of shipping. Its declaration of what is withheld is
 the interim home for the publication axis; #3555's maturity manifest replaces it.
 
+## Withholding Has Two Axes, and Only One Was Checked
+
+`docs-withheld` answers "did a withheld artifact produce files in `site/`". The
+opposite question — "does anything *link to* a path the build did not produce" —
+is a separate axis, and it stayed unchecked for one release cycle longer.
+
+`docs/ns/` moving into `draft_docs` (#3549) withheld the page, and the What's
+New list went on advertising it as `href="../../ns/"` (#3574). The publication
+axis was satisfied: nothing under `site/ns/` was built. The reference axis was
+violated by the same change, in a different file, and no gate looked.
+
+The reason the link survived every gate is worth keeping separate from the
+reason it was wrong. **`mkdocs build --strict` is a claim about the pages MkDocs
+parsed, not about the bytes it emitted.** MkDocs rewrites relative `.md` links
+with a treeprocessor registered on its *own* `Markdown` instance; `markdown-exec`
+converts a block's output on a **child** instance built from the parent's
+extension list, which does not carry that treeprocessor. A link printed from an
+exec block is therefore never rewritten and never validated — strict did not
+check it and pass it, strict never knew it was a link. Anything rendered at
+build time is in this position, and the project has several such generators:
+`metadata/docs/whats_new.py`, `metadata/demo_scenarios/render.py`,
+`metadata/specs/docs_render.py`, and `docs/_scripts/render_trigger_api.py`.
+Note the last one is not under `vultron/`, so an audit scoped to
+`vultron/metadata/` misses a whole directory.
+
+A second class writes a *committed* source file rather than rendering at build
+time: `metadata/adr/index_gen.py` (`docs/adr/index.md`) and
+`metadata/docs/landing_pages.py` (the generated block on each section landing
+page). Their links are ordinary relative `.md` in a file MkDocs parses, so
+`--strict` does see them and a staleness check (`adr-index --check`,
+`docs-site --check`) covers drift. That is a weaker exemption than it sounds:
+seeing a link is not resolving its target, so a withheld target still exits
+through the INFO downgrade below. Nor do these generators know what is withheld
+— `landing_pages.py` derives its entries from the `mkdocs.yml` nav and filters
+on nothing else, where `whats_new.py` reads `draft_docs`/`exclude_docs`.
+
+Take the membership of both lists as provisional. `landing_pages.py` did not
+exist when this gate was planned; it landed on `main` days later, already a
+page enumerator. Any check built by enumerating generators decays as the next
+one is written, which is the practical case for gating built output instead.
+
+Exec-block rendering is how *this* link hid, but it is not the only way a
+reference to a withheld page clears `--strict`, and reading it as the whole
+story under-scopes the gate. A hand-written `.md` link whose target is excluded
+is downgraded on purpose: MkDocs' relative-path treeprocessor logs "contains a
+link to … which is excluded from the built site" at `min(logging.INFO,
+validation.links.not_found)`, and `not_found` defaults to `warn`, so the level
+resolves to INFO — below anything `--strict` fails on — while the href is still
+rewritten to the unbuilt URL. Both paths end at the same artifact: a
+well-formed reference with no target. Which is why the gate is over built
+output, not over any category of source.
+
+Three design choices in the reference-axis check (DOCBW-03-007) are consequences
+of how this one hid, not preferences:
+
+- **Resolution, not link form.** The first instance of exec-rendered breakage
+  (#3450) emitted `href="fv.md"`, so the obvious assertion was "no internal
+  `href` ends in `.md`". That is a signature check, and this defect does not
+  carry the signature: `../../ns/` is exactly what a *correctly* rewritten link
+  looks like. It is dead because the target is not built, not because the form
+  is wrong. Ask whether the reference resolves and both cases collapse into one
+  assertion.
+- **Every built page, not a crawl.** `linkchecker site/index.html` follows links
+  from one entry point, so the pages nothing links to are never inspected: the
+  `includes/` fragments, `reference/codebase/`, `agents/`, `404.html`,
+  `print_page/`. That is not the same set as `not_in_nav` — most `not_in_nav`
+  pages are linked from a page that *is* in the nav, so nav absence and crawl
+  reachability are different properties and only the second one bounds the
+  crawl. Worse, the crawl reports success over what it did reach, so the
+  omission is invisible. A tree walk over `site/**/*.html` has no reachability
+  precondition.
+- **Unconditional, because the two declarations are in different files.** The
+  withholding lives in `mkdocs.yml`; the generator that advertises the page
+  lives in `vultron/` or `docs/_scripts/`. A `docs/**` path filter is the wrong
+  predicate for a defect that neither file has to touch — which is why the one
+  gate that *could* have caught this (`linkchecker`, conditioned on
+  `docs_changed`) did not. Be precise about what DOCBW-03-007 therefore reaches:
+  dropping the step-level `docs_changed` condition (DOCBW-04-003) is one of the
+  two docs-scoped filters on this workflow. The other is the workflow's own
+  `paths:` trigger (DOCBW-02-001), which still omits `vultron/**` — so a PR that
+  edits only a generator never runs `docs-build-check.yml`, and the gate first
+  sees it in `deploy_site.yml` after merge. Closing that half is #3070.
+
+Deriving rather than mirroring is the complementary half, and it is cheaper
+where it applies. `whats_new.py::_unpublished_spec` reads `draft_docs` and
+`exclude_docs` out of `mkdocs.yml` through the same `GitIgnoreSpec` matcher
+MkDocs uses in `set_exclusions`, so its notion of "published" cannot drift from
+the build's. That replaced a hand-maintained tuple under a "keep this in sync
+with mkdocs.yml" comment — and #3574 is what that invitation cost. Prefer
+deriving in any new generator; the gate is what covers the ones that do not.
+
 ## Nav Visibility Is Not a Content Class: Fragments vs. Assembly Units
 
 `not_in_nav` answers "does this file get a nav entry". It does not answer "is
