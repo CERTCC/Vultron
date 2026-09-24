@@ -6,7 +6,7 @@
 
     - specific questions about or a desire for a detailed understanding of the Vultron Protocol
     - familiarity with the [Explanation](../topics/index.md) section
-    - familiarity with the CVD process in general
+    - familiarity with the Coordinated Vulnerability Disclosure (CVD) process in general
      
     If you are unfamiliar with the Vultron Protocol, start with [Explanation](../topics/index.md).
     If you are familiar enough with the Vultron Protocol that you're interested in implementing it, see [How-to Guides](../howto/index.md).

@@ -32,9 +32,7 @@ types is counted in both of their rows.
 | `project-contributor` | 0 | 0 | 0 | 0 | 0 |
 | `ALL` | 0 | 0 | 0 | 0 | 0 |
 
-## Not in the table
-
-- Reader-facing pages counted above: 0
-- Reader-facing pages that declare neither key yet (baselined in
-  `vultron/metadata/docs/page_frontmatter_baseline.txt`): 263
-- Working-record pages, which carry no level (DF-11-012): 207
+Reader-facing pages that declare both keys: 0.
+Pages that declare neither yet are listed in
+`vultron/metadata/docs/page_frontmatter_baseline.txt`, not here;
+working-record pages carry no level (DF-11-012) and are not counted.

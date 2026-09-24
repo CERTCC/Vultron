@@ -43,6 +43,12 @@ class StakeholderType(StrEnum):
 #: never ``[ALL]`` and never a list naming every member (DF-11-001).
 ALL_STAKEHOLDERS = "ALL"
 
+#: Every ``stakeholder_type`` key in display order: each member, then ``ALL``.
+AUDIENCE_KEYS: tuple[str, ...] = (
+    *(member.value for member in StakeholderType),
+    ALL_STAKEHOLDERS,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class AudienceDescription:

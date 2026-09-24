@@ -5,7 +5,7 @@
     The [Explanation](index.md) section assumes that you have:
     
     - an interest in learning about the Vultron Protocol
-    - familiarity with the CVD process in general
+    - familiarity with the Coordinated Vulnerability Disclosure (CVD) process in general
 
     If you are already familiar with the Vultron Protocol, and are looking for implementation advice, 
     see [How-to Guides](../howto/index.md).

@@ -28,11 +28,11 @@ from vultron.metadata.docs.page_frontmatter import (
     DECLARATION_KEYS,
     classify_docs_tree,
 )
+from vultron.metadata.docs.landing_pages import WRITE_COMMAND
 from vultron.metadata.docs.page_schema import (
-    ALL_STAKEHOLDERS,
+    AUDIENCE_KEYS,
     LEVELS,
     PageFrontmatter,
-    StakeholderType,
     is_working_record,
 )
 from vultron.metadata.file_loading import (
@@ -45,27 +45,25 @@ from vultron.metadata.file_loading import (
 MATRIX_PATH = "notes/site-coverage-matrix.md"
 
 #: Row keys in display order: every member, then ``ALL`` as its own row.
-ROWS: tuple[str, ...] = (
-    *(member.value for member in StakeholderType),
-    ALL_STAKEHOLDERS,
-)
+ROWS: tuple[str, ...] = AUDIENCE_KEYS
 
 
 @dataclass
 class Coverage:
     """Counts behind the matrix.
 
+    Only declarations are counted. Pages that declare nothing yet, and
+    working-record pages, which carry no level (DF-11-012), are left out, so
+    adding such a page does not make the committed matrix stale; the
+    shrink-only baseline already records the undeclared ones.
+
     Attributes:
         cells: ``(row, level) -> pages``, for rows in :data:`ROWS`.
         declared: Reader-facing pages that declare both keys.
-        undeclared: Reader-facing pages that declare neither yet.
-        working_record: Working-record pages, which carry no level.
     """
 
     cells: Counter[tuple[str, int]] = field(default_factory=Counter)
     declared: int = 0
-    undeclared: int = 0
-    working_record: int = 0
 
 
 def measure_coverage(root: Path) -> Coverage:
@@ -86,19 +84,17 @@ def measure_coverage(root: Path) -> Coverage:
     coverage = Coverage()
     for rel in tree.pages:
         if is_working_record(rel):
-            coverage.working_record += 1
             continue
         path = root / "docs" / rel
         metadata = load_frontmatter(path, root=root).metadata
         declared = {k: metadata[k] for k in DECLARATION_KEYS if k in metadata}
         if not declared:
-            coverage.undeclared += 1
             continue
         fm = validate(PageFrontmatter, declared, path=path, root=root)
         types = (
             [member.value for member in fm.stakeholder_type]
             if isinstance(fm.stakeholder_type, list)
-            else [ALL_STAKEHOLDERS]
+            else [fm.stakeholder_type]
         )
         for row in types:
             coverage.cells[(row, fm.level)] += 1
@@ -134,7 +130,7 @@ def render_matrix(coverage: Coverage) -> str:
     return (
         f"{_FRONTMATTER}\n"
         "<!-- GENERATED from docs/ page frontmatter by "
-        "`uv run docs-site --write` — do not edit (DF-11-008) -->\n\n"
+        f"`{WRITE_COMMAND}` — do not edit (DF-11-008) -->\n\n"
         "# Site Coverage Matrix — Stakeholder Type × Level\n\n"
         "How many reader-facing `docs/` pages declare each `stakeholder_type`\n"
         "at each `level`. Read it against the expected shape described in\n"
@@ -145,11 +141,8 @@ def render_matrix(coverage: Coverage) -> str:
         "`ALL` is its own row, not spread across the others. A page listing "
         "two\ntypes is counted in both of their rows.\n\n"
         f"{header}\n{delimiter}\n" + "\n".join(rows) + "\n\n"
-        "## Not in the table\n\n"
-        f"- Reader-facing pages counted above: {coverage.declared}\n"
-        "- Reader-facing pages that declare neither key yet (baselined in\n"
-        "  `vultron/metadata/docs/page_frontmatter_baseline.txt`): "
-        f"{coverage.undeclared}\n"
-        "- Working-record pages, which carry no level (DF-11-012): "
-        f"{coverage.working_record}\n"
+        f"Reader-facing pages that declare both keys: {coverage.declared}.\n"
+        "Pages that declare neither yet are listed in\n"
+        "`vultron/metadata/docs/page_frontmatter_baseline.txt`, not here;\n"
+        "working-record pages carry no level (DF-11-012) and are not counted.\n"
     )

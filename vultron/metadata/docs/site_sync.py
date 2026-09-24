@@ -45,14 +45,20 @@ from vultron.metadata.docs.stakeholder_fragment import (
 from vultron.metadata.file_loading import MetadataLoadError
 
 
+def _read(target: Path) -> str:
+    return target.read_text(encoding="utf-8") if target.is_file() else ""
+
+
 def desired_contents(root: Path) -> dict[str, str]:
     """Return ``{repo-relative path: desired full contents}`` for every artifact.
 
     Raises:
         FileNotFoundError: If a landing page is missing or empty; its
             hand-written prose cannot be regenerated.
-        ValueError: If a landing page's markers are missing or malformed, a
-            listed page is unreadable, or a target set is empty (DF-09-009).
+        MetadataLoadError: If a listed page is missing or unreadable, a
+            page's declarations do not validate, or a target set is empty
+            (DF-09-009).
+        ValueError: If a landing page's markers are missing or malformed.
     """
     contents = {
         FRAGMENT_PATH: render_fragment(),
@@ -60,10 +66,7 @@ def desired_contents(root: Path) -> dict[str, str]:
     }
     for page in discover_landing_pages(root):
         path = f"docs/{page.path}"
-        target = root / path
-        current = (
-            target.read_text(encoding="utf-8") if target.is_file() else ""
-        )
+        current = _read(root / path)
         if not current:
             raise FileNotFoundError(
                 f"{path} is missing or empty; its generated listing is spliced "
@@ -79,10 +82,7 @@ def _out_of_date(root: Path) -> list[tuple[Path, str, str]]:
     stale: list[tuple[Path, str, str]] = []
     for path, desired in desired_contents(root).items():
         target = root / path
-        current = (
-            target.read_text(encoding="utf-8") if target.is_file() else ""
-        )
-        if current != desired:
+        if _read(target) != desired:
             stale.append((target, path, desired))
     return stale
 
@@ -92,37 +92,19 @@ def stale_artifacts(root: Path | None = None) -> list[str]:
     return [path for _t, path, _d in _out_of_date(root or repo_root())]
 
 
-#: Passes :func:`write_artifacts` makes before declaring the artifacts cyclic.
-_MAX_WRITE_PASSES = 3
-
-
 def write_artifacts(root: Path | None = None) -> list[str]:
     """Rewrite every stale artifact in place; return the paths written.
 
-    The artifacts are inputs to one another — writing the fragment adds a
-    ``docs/`` file the matrix may count — so this repeats until a pass finds
-    nothing stale. Otherwise ``--write`` could leave a tree that ``--check``
-    rejects, and the remedy the hook names would not work.
-
-    Raises:
-        RuntimeError: If the artifacts have not settled after
-            :data:`_MAX_WRITE_PASSES` passes.
+    One pass is enough: no artifact declares a ``level`` or
+    ``stakeholder_type``, so writing one never changes what the coverage
+    matrix counts.
     """
-    base = root or repo_root()
     written: list[str] = []
-    for _ in range(_MAX_WRITE_PASSES):
-        stale = _out_of_date(base)
-        if not stale:
-            return written
-        for target, path, desired in stale:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(desired, encoding="utf-8")
-            if path not in written:
-                written.append(path)
-    raise RuntimeError(
-        f"docs-site artifacts still stale after {_MAX_WRITE_PASSES} write "
-        f"passes: {', '.join(p for _t, p, _d in _out_of_date(base))}"
-    )
+    for target, path, desired in _out_of_date(root or repo_root()):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(desired, encoding="utf-8")
+        written.append(path)
+    return written
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -150,7 +132,7 @@ def main(argv: list[str] | None = None) -> None:
                 print("Docs-site artifacts already in sync.")
             return
         stale = stale_artifacts(root)
-    except (MetadataLoadError, OSError, RuntimeError, ValueError) as exc:
+    except (MetadataLoadError, OSError, ValueError) as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         sys.exit(1)
     if stale:

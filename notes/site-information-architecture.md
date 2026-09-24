@@ -321,9 +321,13 @@ its link, and a declared `level` reorders the listing. Only the text between the
 generated-contents markers is replaced, so a landing page's framing,
 prerequisites, and cross-section pointers stay hand-written.
 
-The generator owns the four top-level landing pages only. Sub-section index
-pages are still hand-written: several carry a themed structure a flat generated
-list would lose, and which of them to generate is open.
+The generator owns each top-level section landing page and nothing below it.
+Sub-section index pages are still hand-written: several carry a themed structure
+a flat generated list would lose, and which of them to generate is open (#3617).
+
+It walks the nav itself rather than reusing `vultron.metadata.base.nav_paths`,
+because that helper flattens the nav to a path list, and a listing needs the
+groups, their labels, and which group opens with its own `index.md`.
 
 ### An `index.md` is a routing surface, not a content page
 

@@ -328,7 +328,7 @@ class TestCoverageMatrix:
         assert cov.cells[("project-contributor", 300)] == 1
         assert cov.declared == 1
 
-    def test_undeclared_and_working_record_pages_are_counted_apart(
+    def test_undeclared_and_working_record_pages_are_not_counted(
         self, tmp_path
     ):
         cov = self._counted(
@@ -340,9 +340,16 @@ class TestCoverageMatrix:
                 ),
             },
         )
-        assert cov.undeclared == 1
-        assert cov.working_record == 1
+        assert cov.declared == 0
         assert sum(cov.cells.values()) == 0
+
+    def test_adding_an_undeclared_page_does_not_stale_the_matrix(
+        self, tmp_path
+    ):
+        root = _guides_repo(tmp_path, a=_page("A"))
+        site_sync.write_artifacts(root)
+        (root / "docs/guides/new.md").write_text(_page("New"))
+        assert MATRIX_PATH not in site_sync.stale_artifacts(root)
 
     def test_malformed_declaration_fails(self, tmp_path):
         with pytest.raises(MetadataLoadError):
@@ -418,6 +425,12 @@ class TestStakeholderFragment:
             *(m.value for m in page_schema.StakeholderType),
             ALL_STAKEHOLDERS,
         }
+
+    def test_keys_are_every_member_then_all(self):
+        assert page_schema.AUDIENCE_KEYS == (
+            *(m.value for m in page_schema.StakeholderType),
+            ALL_STAKEHOLDERS,
+        )
 
 
 # ---------------------------------------------------------------------------
