@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
-level: 400
+level: 300
 ---
 
 # Interactions Between the RM and EM Models
@@ -10,6 +10,7 @@ level: 400
 This page lists the constraints on how the [Report Management (RM)](../rm/index.md) and [Embargo Management (EM)](../em/index.md) processes interact.
 The RM process is specific to each Participant, while the EM process is global to the case, so most constraints describe which RM states a Participant should be in when it takes part in an EM transition.
 Formulas on this page use $q^{rm}$ for a Participant's RM state and $q^{em}$ for the case's EM state, with the single-letter state abbreviations from each model.
+The [RM process model](../rm/index.md#rm-states) introduces the RM abbreviations, and the [EM formal model](../em/formal_model.md#em-states) defines the EM ones; you do not need the rest of the EM formal model to read this page.
 For how an embargo runs from start to finish, see the [Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explanation.
 
 ## Start Embargo Negotiations As Early as Possible

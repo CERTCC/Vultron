@@ -24,17 +24,17 @@ This section provides an overview of the Vultron Protocol, including:
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
 - [Background](background/index.md) — What Vultron is, the coordination problem it addresses, and the outcomes a Coordinated Vulnerability Disclosure case is trying to reach.
+- [Process Models](process_models/index.md)
 - [Case Lifecycle](case_lifecycle/index.md)
 - [Protocol Event Flow](protocol_flow.md)
 - [Message Semantics](message_semantics.md)
 - [Actor Knowledge Model](actor-knowledge-model.md)
-- [Process Models](process_models/index.md)
+- [Behavior Logic](behavior_logic/index.md)
 - [Capability Model](capability_model/index.md) — The answer to "Vultron doesn't do X": every decision the protocol leaves to your organization is a call-out point where your own system plugs in.
 - [Demo Scenarios](scenarios/index.md)
 - [Future Work](future_work/index.md)
 - [Activity Vocabulary Design](activity_vocabulary_design.md)
 - [Reference Implementation Architecture](reference_architecture.md)
-- [Behavior Logic](behavior_logic/index.md)
 
 <!-- END GENERATED SECTION CONTENTS -->
 

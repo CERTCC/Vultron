@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
-level: 300
+level: 200
 ---
 
 # Report Management Process Model
@@ -151,7 +151,7 @@ as *Invalid* by default.
 !!! info "The case exists from the *Received* state"
 
     Reaching *Received* is when a case begins.
-    The receiver stores the report and proposes a case to the case manager; the case manager creates the case and its participant records, with the receiver as case owner in RM *Received* ([ADR-0041: CASE_MANAGER-Authoritative Case Initialization](../../../adr/0041-caseactor-authoritative-case-initialization.md)).
+    The receiver stores the report and proposes a case to the [CASE_MANAGER](../../case_lifecycle/case_manager_and_ledger.md); the CASE_MANAGER creates the case and its participant records, with the receiver as case owner in RM *Received* ([ADR-0041: CASE_MANAGER-Authoritative Case Initialization](../../../adr/0041-caseactor-authoritative-case-initialization.md)).
     Validation happens later and never creates a case.
     The [Validate Report use case](../../behavior_logic/use-cases/validate-report.md) explains the split.
 

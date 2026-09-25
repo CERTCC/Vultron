@@ -50,6 +50,13 @@ The remaining steps need judgment that depends on your organization's policy, da
 A protocol that made those decisions would impose one organization's policy on every participant.
 So the BT reaches a call-out point, asks, and continues with the answer.
 
+The line falls between two kinds of decision.
+A **mechanical** decision reads recorded state and applies a rule: is this participant already in the Valid state, does this case exist in this actor's store, does the state machine permit this transition.
+Two conformant implementations reach the same answer, because the rule and the inputs are both fixed.
+A **delegated** decision has no answer in the record: whether a report is credible, whether embargo terms are acceptable, whether a vulnerability merits a CVE identifier.
+The protocol marks where the decision is made and defines what an answer looks like, but it does not supply the answer.
+Two conformant implementations may legitimately differ here; every call-out point is a delegated decision.
+
 !!! note "A call-out point is answerable now; asking another actor is not"
 
     A call-out point asks a service *you* run, so it is answered while the BT is still running (BT-18-011).
@@ -115,6 +122,7 @@ The normative contracts are in [Annex G of the protocol specification](../../ref
 
 If you return "needs revision," the BT routes to the revision branch.
 If you return FAILURE, the pipeline stops.
+FAILURE is the only way to stop it: an Evaluator that returns SUCCESS with a "rejected" value in its output does not block the next step (BT-18-007).
 The BT does not care whether the judgment came from a human reviewer, a rules engine, or a large language model (LLM); it needs a structured answer it can act on.
 
 Evaluators carry human-level judgment.
@@ -370,6 +378,13 @@ Moving the existing declarations into the core layer is in progress under [#3421
 **How a capability implementation is invoked.**
 A backend answers synchronously, within the tick that asks, and never returns RUNNING (BT-18-011, [ADR-0080](../../adr/0080-protocol-asks-not-suspended-behaviors.md)).
 A decision that takes days is not a call-out point: it is a request to another actor, or a Sentinel.
+
+**What a deployment that supplies nothing gets.**
+Every call-out point is built through a backend factory, and the default backend is a deterministic one, so a deployment that plugs in nothing still runs (BT-18-004, BT-23-001, [ADR-0025](../../adr/0025-call-out-point-abstraction-layer.md)).
+The default is usually the permissive answer, on the reasoning that a stub should not silently hold up progress.
+One class of gate inverts that.
+Where a permissive default would let a party other than the case owner force the adoption of a case state or the teardown of an embargo, the default is the conservative answer instead (BT-23-012, [ADR-0076](../../adr/0076-security-significant-gates-default-require-case-owner-approval.md)).
+So when a page says a call-out point "defaults to accept", that describes the stub, not a protocol requirement to accept.
 
 **What the shape classes are called in code.**
 The shape base classes are being renamed to `EvaluatorCapability`, `RetrieverCapability`, `ComposerCapability`, and `ActuatorCapability` ([ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md), [#3421](https://github.com/CERTCC/Vultron/issues/3421)).

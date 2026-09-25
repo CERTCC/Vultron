@@ -40,6 +40,7 @@ protocol with other related standards and protocols, including:
 - [Trigger API](trigger-api.md) — The `POST /actors/{actor_id}/trigger/{behavior}` endpoints, each of which starts a protocol behavior on an actor's behalf.
 - [Protocol Quick Reference](quick_reference.md) — A single-page summary of the protocol's state machines, message types, and how they interact.
 - [Formal Protocol](formal_protocol/index.md) — The Multi-Party Coordinated Vulnerability Disclosure (MPCVD) process defined as a communicating hierarchical state machine.
+- [Case Model Fields](case_model_fields.md) — Every field of the case, participant, and status objects, as the reference implementation defines them.
 - [Messages](messages/index.md) — How the formal message set relates to the ActivityStreams 2.0 (AS2) wire vocabulary the prototype sends and receives.
 - [Specifications](specs/index.md) — Structured requirements organized by portability tier: Protocol, Architecture, Project, and Process.
 - [SSVC Crosswalk](ssvc_crosswalk.md) — A crosswalk of the Vultron Protocol against Stakeholder-Specific Vulnerability Categorization (SSVC).
