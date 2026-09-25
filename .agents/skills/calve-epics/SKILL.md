@@ -117,7 +117,9 @@ parent is wrong). Goal: land each on the epic that matches it.
    tier rather than defaulting to Someday, so routing a Next-tier correctness
    gap onto a Next-tier epic does not silently bury it. Set the issue's
    Schedule to match its new parent (see *Reading the board*). A true orphan
-   left at root stays Someday.
+   left at root stays Someday. To catch up children that drifted in without
+   routing, run `bash .agents/skills/shared/sync-epic-schedules.sh` (dry run,
+   then `--apply`).
 
 ## Mode 2 — Calve a new iceberg (human-gated)
 

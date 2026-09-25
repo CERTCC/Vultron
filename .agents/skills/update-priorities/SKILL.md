@@ -25,6 +25,8 @@ The skill will:
    - **Move item(s) to a different tier** (Now / Next / Later / Someday)
    - **Promote Triage items** (Someday items to a schedule tier)
    - **Add an issue to the board** (assign Schedule=Someday)
+   - **Sync Epic children to their Epic's tier** (raise Someday/off-board
+     descendants of scheduled Epics)
    - **Archive a completed Epic** (close issue + history entry)
 3. For each action, apply the change live via GitHub API
 4. Commit if any notes/history files changed (board changes need no commit)
@@ -97,6 +99,28 @@ To **re-tier an item already on the board**, resolve its existing project item
 ID and set the Schedule field directly (resolve every ID by name via
 `board-id.sh` — see the "Move Item to a Different Tier" workflow above and
 `.agents/skills/shared/README.md`).
+
+### Sync Epic Children to Their Epic's Tier
+
+New issues default to Someday even when filed under a scheduled Epic, so a
+Now-tier Epic's children drift into Triage. Raise every open descendant
+(recursively) that sits below its Epic's tier:
+
+```bash
+# Dry run first: prints RAISE / SKIP-* lines, changes nothing
+bash .agents/skills/shared/sync-epic-schedules.sh
+# Then apply (defaults to Epics in Focus, Now, Next; or name Epics explicitly)
+bash .agents/skills/shared/sync-epic-schedules.sh --apply [<EPIC>...]
+# Include Later Epics (--tiers is ignored when Epics are named)
+bash .agents/skills/shared/sync-epic-schedules.sh --tiers "Focus Now Next Later"
+```
+
+The script only raises, never lowers, and only raises the un-prioritized
+states: Someday, on-board with no Schedule, and off-board. It reports but does
+not touch the rest, which need a human call: a child ranked **above** its Epic
+(deliberate prioritization), a child at **Later** (deliberate deferral, unlike
+the Someday default), and any non-tier value such as `Completed`
+(`SKIP-OTHER`). Present those to the user rather than changing them.
 
 ### Archive a Completed Epic
 
