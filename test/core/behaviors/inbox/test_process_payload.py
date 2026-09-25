@@ -18,15 +18,19 @@ BT node helpers (IO-04-002).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from enum import StrEnum
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.core.behaviors.inbox import (
     InboxOutcome,
+    InboxOutcomeStatus,
     process_payload,
 )
 from vultron.core.models.events import VultronEvent
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     announce_vulnerability_case_activity,
@@ -74,16 +78,26 @@ class _StubIngressAdapter:
 
 
 class _StubDispatchAdapter:
-    """DispatchAdapter stub that records dispatched events."""
+    """DispatchAdapter stub that records dispatched events.
 
-    def __init__(self, should_fail: bool = False) -> None:
+    Returns *result* from every dispatch; ``APPLIED`` unless a test says
+    otherwise.
+    """
+
+    def __init__(
+        self,
+        should_fail: bool = False,
+        result: HandlerResult | None = None,
+    ) -> None:
         self.dispatched: list[VultronEvent] = []
         self._should_fail = should_fail
+        self._result = result or HandlerResult.applied()
 
-    def dispatch(self, event: VultronEvent) -> None:
+    def dispatch(self, event: VultronEvent) -> HandlerResult:
         if self._should_fail:
             raise RuntimeError("Dispatch error (stub)")
         self.dispatched.append(event)
+        return self._result
 
 
 class _StubQueuePort:
@@ -161,14 +175,14 @@ def note_activity_unknown_case():
 
 class TestInboxOutcomeModel:
     def test_processed_status(self):
-        o = InboxOutcome(status="processed")
+        o = InboxOutcome(status=InboxOutcomeStatus.PROCESSED)
         assert o.status == "processed"
         assert o.context_id is None
         assert o.failure_reason is None
 
     def test_deferred_status_with_fields(self):
         o = InboxOutcome(
-            status="deferred",
+            status=InboxOutcomeStatus.DEFERRED,
             context_id=CASE_ID,
             failure_reason="case not yet known",
         )
@@ -177,9 +191,28 @@ class TestInboxOutcomeModel:
         assert o.failure_reason == "case not yet known"
 
     def test_rejected_status_with_reason(self):
-        o = InboxOutcome(status="rejected", failure_reason="parse failed")
+        o = InboxOutcome(
+            status=InboxOutcomeStatus.REJECTED, failure_reason="parse failed"
+        )
         assert o.status == "rejected"
         assert o.failure_reason == "parse failed"
+
+    def test_status_is_a_str_enum_member(self):
+        """UCORG-05-011: the status vocabulary is a StrEnum, not a Literal."""
+        assert issubclass(InboxOutcomeStatus, StrEnum)
+        o = InboxOutcome.model_validate({"status": "processed"})
+        assert o.status is InboxOutcomeStatus.PROCESSED
+
+    def test_status_members_are_exactly_the_three(self):
+        assert {m.value for m in InboxOutcomeStatus} == {
+            "processed",
+            "deferred",
+            "rejected",
+        }
+
+    def test_unknown_status_is_rejected(self):
+        with pytest.raises(ValidationError):
+            InboxOutcome.model_validate({"status": "applied"})
 
 
 # ---------------------------------------------------------------------------
@@ -199,6 +232,7 @@ class TestProcessPayloadRejectsInvalidInput:
         assert isinstance(outcome, InboxOutcome)
         assert outcome.status == "rejected"
         assert outcome.failure_reason is not None
+        assert outcome.activity_id is None  # no event was extracted
 
     @pytest.mark.spec("MV-01-007")
     def test_dispatch_failure_returns_rejected(self, report_activity):
@@ -229,6 +263,17 @@ class TestProcessPayloadHappyPath:
         assert outcome.status == "processed"
         assert outcome.failure_reason is None
         assert len(dispatch.dispatched) == 1
+
+    @pytest.mark.spec("SL-02-001")
+    def test_outcome_names_the_dispatched_activity(self, report_activity):
+        """The outcome carries the activity id so a rejection log can cite it."""
+        outcome = process_payload(
+            {},
+            _StubIngressAdapter(activity=report_activity),
+            _StubDispatchAdapter(result=HandlerResult.refused("no")),
+        )
+
+        assert outcome.activity_id == report_activity.id_
 
     def test_context_id_none_for_non_case_scoped(self, report_activity):
         ingress = _StubIngressAdapter(activity=report_activity)
@@ -407,3 +452,102 @@ class TestProcessPayloadLogLevels:
             process_payload({}, ingress, dispatch)
 
         assert not self._outcome_records(caplog)
+
+
+# ---------------------------------------------------------------------------
+# Handler disposition → outcome status (UCORG-05-011, HP-01-004)
+# ---------------------------------------------------------------------------
+
+
+class _NoVerdictDispatchAdapter:
+    """DispatchAdapter that breaks the contract by returning ``None``."""
+
+    def dispatch(self, event: VultronEvent) -> Any:
+        return None
+
+
+class TestProcessPayloadHandlerDisposition:
+    @pytest.mark.spec("UCORG-05-011")
+    @pytest.mark.parametrize(
+        ("result", "status"),
+        [
+            (HandlerResult.applied(), InboxOutcomeStatus.PROCESSED),
+            (HandlerResult.skipped("duplicate"), InboxOutcomeStatus.PROCESSED),
+            (HandlerResult.skipped(), InboxOutcomeStatus.PROCESSED),
+            (
+                HandlerResult.deferred("awaiting 3"),
+                InboxOutcomeStatus.DEFERRED,
+            ),
+            (HandlerResult.refused("not a peer"), InboxOutcomeStatus.REJECTED),
+        ],
+    )
+    def test_status_follows_disposition(self, report_activity, result, status):
+        ingress = _StubIngressAdapter(activity=report_activity)
+        dispatch = _StubDispatchAdapter(result=result)
+
+        outcome = process_payload({}, ingress, dispatch)
+
+        assert outcome.status is status
+
+    @pytest.mark.spec("UCORG-05-011")
+    def test_refusal_reason_becomes_failure_reason(self, report_activity):
+        ingress = _StubIngressAdapter(activity=report_activity)
+        dispatch = _StubDispatchAdapter(
+            result=HandlerResult.refused("sender is not a participant")
+        )
+
+        outcome = process_payload({}, ingress, dispatch)
+
+        assert outcome.failure_reason == "sender is not a participant"
+
+    @pytest.mark.spec("UCORG-05-011")
+    def test_handler_deferral_keeps_its_reason(self, report_activity):
+        ingress = _StubIngressAdapter(activity=report_activity)
+        dispatch = _StubDispatchAdapter(
+            result=HandlerResult.deferred("awaiting entry 3")
+        )
+
+        outcome = process_payload({}, ingress, dispatch)
+
+        assert outcome.failure_reason == "awaiting entry 3"
+
+    def test_handler_deferral_without_reason_still_explains(
+        self, report_activity
+    ):
+        ingress = _StubIngressAdapter(activity=report_activity)
+        dispatch = _StubDispatchAdapter(result=HandlerResult.deferred())
+
+        outcome = process_payload({}, ingress, dispatch)
+
+        assert outcome.status is InboxOutcomeStatus.DEFERRED
+        assert outcome.failure_reason
+
+    @pytest.mark.spec("UCORG-05-012")
+    def test_dispatch_without_a_verdict_is_rejected(self, report_activity):
+        """No verdict is not success: the old "did not raise" inference."""
+        ingress = _StubIngressAdapter(activity=report_activity)
+
+        outcome = process_payload({}, ingress, _NoVerdictDispatchAdapter())
+
+        assert outcome.status is InboxOutcomeStatus.REJECTED
+        assert "HandlerResult" in (outcome.failure_reason or "")
+
+    @pytest.mark.parametrize(
+        ("result", "replays"),
+        [
+            (HandlerResult.skipped("case already present"), True),
+            (HandlerResult.refused("not the case owner"), False),
+            (HandlerResult.deferred("awaiting predecessor"), False),
+        ],
+    )
+    def test_bootstrap_replays_only_when_processed(
+        self, case_activity, result, replays
+    ):
+        ingress = _StubIngressAdapter(activity=case_activity)
+        queue = _StubQueuePort(case_known=True)
+
+        process_payload(
+            {}, ingress, _StubDispatchAdapter(result=result), queue
+        )
+
+        assert (CASE_ID in queue.replayed) is replays

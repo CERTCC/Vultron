@@ -23,7 +23,7 @@ documentation structure guidance.
 - Use-Case Protocol: `__init__(dl, request)` + `execute() -> HandlerResult`
   (received; `core/models/use_case_result.py`, ADR-0095) or `-> dict` (trigger,
   slated for a `UseCaseResult` subtype in #3354); routing via `use_case_map()`
-  key lookup. The dispatcher does not consume the verdict yet (#3373).
+  key lookup. `DispatchNode` maps the verdict onto `InboxOutcome.status`.
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
 - Tests: `uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`
   — run once; read `exit:` first. Never end a gate command with a pipe: a pipeline exits with its last stage's status, so a killed run reads as success. See `.agents/skills/run-tests/SKILL.md`.

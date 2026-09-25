@@ -213,7 +213,7 @@ state. The boundary is not valuable enough to protect at that price.
 
 ## Validation
 
-Partly implemented: the received-side half has landed and the dispatcher half has not.
+Implemented for the received side and the dispatcher boundary; the trigger side is #3354.
 
 Realized:
 
@@ -221,14 +221,9 @@ Realized:
   It excludes `triggers/` until #3354 migrates them, names that issue, and fails once the exclusion is no longer needed.
 - The `UseCase` Protocol declares `execute() -> UseCaseResult`.
   No call site is yet typed against the Protocol, so mypy does not report a non-conforming class by itself; the ratchet does.
-
-Planned:
-
-- Behavioural tests for the two paths a ratchet cannot see: a `REFUSED`
-  disposition reaching `InboxOutcome.status == "rejected"` with a populated
-  `failure_reason`, and an unroutable or unrecognised-semantics activity **not**
-  reporting `processed` (UCORG-05-012). The return annotations can all be correct
-  while both of these still fail.
+- `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` covers the two paths a ratchet cannot see, driving the real FastAPI dispatch adapters, dispatcher, and inbox BT with only the use case stubbed (#3373).
+  A `REFUSED` disposition reaches `InboxOutcome.status == "rejected"` with the handler's reason as `failure_reason`, and an unroutable or unrecognised-semantics activity does **not** report `processed` (UCORG-05-012).
+  The same file checks that `run_inbox_pipeline` logs a rejection at WARNING (UCORG-05-013).
 
 Per this ADR's own subject matter: no Validation entry here asserts that a test
 exists until it does. ADR-0040's Validation section claimed the ratchet as

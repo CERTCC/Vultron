@@ -40,6 +40,7 @@ from vultron.core.behaviors.inbox.inbox_tree import create_inbox_bt
 from vultron.core.behaviors.inbox.models import (
     DispatchAdapter,
     InboxOutcome,
+    InboxOutcomeStatus,
     IngressPayloadAdapter,
     PendingCaseQueuePort,
 )
@@ -47,6 +48,7 @@ from vultron.core.behaviors.inbox.nodes import (
     ALL_INBOX_KEYS,
     KEY_CONTEXT_ID,
     KEY_DISPATCH,
+    KEY_EVENT,
     KEY_FAILURE_REASON,
     KEY_INGRESS,
     KEY_OUTCOME_STATUS,
@@ -133,11 +135,14 @@ def _read_inbox_outcome() -> InboxOutcome:
     result_bb.register_key(
         KEY_FAILURE_REASON, access=py_trees.common.Access.READ
     )
+    result_bb.register_key(KEY_EVENT, access=py_trees.common.Access.READ)
 
+    # No node wrote a status: the BT failed somewhere that records nothing,
+    # so the payload was not processed (fail closed).
     try:
-        status_str: str = result_bb.inbox_outcome_status
+        status = InboxOutcomeStatus(result_bb.inbox_outcome_status)
     except KeyError:
-        status_str = "rejected"
+        status = InboxOutcomeStatus.REJECTED
 
     try:
         context_id: str | None = result_bb.inbox_context_id
@@ -149,9 +154,16 @@ def _read_inbox_outcome() -> InboxOutcome:
     except KeyError:
         failure_reason = None
 
+    try:
+        activity_id: str | None = result_bb.inbox_event.activity_id
+    except KeyError:
+        # Rejected before extraction: there is no event to name.
+        activity_id = None
+
     return InboxOutcome(
-        status=status_str,  # type: ignore[arg-type]
+        status=status,
         context_id=context_id,
+        activity_id=activity_id,
         failure_reason=failure_reason,
     )
 
@@ -190,8 +202,9 @@ def process_payload(
             (IO-03-002).
 
     Returns:
-        :class:`InboxOutcome` with ``status`` set to one of
-        ``"processed"``, ``"deferred"``, or ``"rejected"``.
+        :class:`InboxOutcome` whose ``status`` is an
+        :class:`InboxOutcomeStatus` member, derived from the handler's
+        ``HandlerResult`` when dispatch ran (UCORG-05-011).
     """
     # Import the shared BT global lock to serialise BT blackboard access
     # across concurrent FastAPI BackgroundTasks.  The RLock supports

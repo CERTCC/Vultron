@@ -36,8 +36,8 @@ def _filter_node_wholly_refused(tree: object) -> bool:
 
     Used by AddParticipantStatusToParticipantReceivedUseCase to distinguish a
     wholly-refused dimension-filter from other BT failure causes (ISSUE-3199,
-    AC-2).  Only the filter's total-refusal path warrants a ``rejected``
-    InboxOutcome; sender-not-a-participant or authorization failures are
+    AC-2).  Only the filter's total-refusal path warrants a refusal;
+    sender-not-a-participant or authorization failures are
     different failure modes that do not indicate the assertion was wholly refused.
     """
     from vultron.core.behaviors.status.nodes.dimension_filter import (

@@ -94,8 +94,8 @@ mirroring the canonical CVD protocol BT structure.
 > verdict.** The class names are illustrative. Every received-side `execute()`
 > returns `HandlerResult` (spelled `HandlerResult.applied()` in code)
 > from `vultron/core/models/use_case_result.py`, but always `APPLIED` until
-> #2255 assigns the correct disposition per site, and the dispatcher does not
-> yet carry it to `InboxOutcome` (#3373). See
+> #2255 assigns the correct disposition per site; the dispatcher carries it to
+> `InboxOutcome` (#3373). See
 > [notes/use-case-protocol.md](use-case-protocol.md) and ADR-0095 for the design,
 > and #1769 for why this note previously read as though the migration had
 > happened. The in-tree-cascade rule the samples illustrate is in force

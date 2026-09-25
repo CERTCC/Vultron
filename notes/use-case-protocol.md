@@ -39,10 +39,10 @@ and `docs/adr/0095-received-side-handler-result.md` for the received-side half.
 > `execute()` declares `-> HandlerResult`, and the `UseCase` Protocol declares
 > `-> UseCaseResult` (#3372); the query use case returns `ActionRulesResult`.
 > `test/architecture/test_use_case_execute_returns_result.py` enforces
-> UCORG-05-004 outside `triggers/`. Two parts are still open. Every handler
-> returns `APPLIED` unconditionally — assigning the correct disposition per
-> site is #2255 — and the dispatcher discards the value, so it does not yet
-> reach `InboxOutcome` (#3373). On the trigger side, a standalone
+> UCORG-05-004 outside `triggers/`. The dispatcher returns the value and
+> `DispatchNode` maps its disposition onto `InboxOutcome.status` (#3373). Every
+> handler still returns `APPLIED` unconditionally — assigning the correct
+> disposition per site is #2255. On the trigger side, a standalone
 > `TriggerResult` envelope lives in `vultron/core/use_cases/triggers/results.py`
 > (#3398), plus a demo-layer `ActivityResult` subtype, introduced only so
 > `ActorSession` can type demo trigger responses at the HTTP boundary; it does
