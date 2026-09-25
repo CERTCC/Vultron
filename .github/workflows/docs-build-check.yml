@@ -15,6 +15,11 @@ on:
       # action that runs both gates.
       - 'vultron/metadata/docs/legacy_urls.py'
       - 'vultron/metadata/docs/legacy_urls_baseline.txt'
+      # What both gates import: the site reader, the baseline reader, and the
+      # mkdocs.yml parsing that decides what a snapshot counts as built.
+      - 'vultron/metadata/docs/built_site.py'
+      - 'vultron/metadata/docs/baseline_file.py'
+      - 'vultron/metadata/base.py'
       - '.github/actions/check-site-publication/**'
       - 'CONTRIBUTING.md'
       - 'ContributionInstructions.md'

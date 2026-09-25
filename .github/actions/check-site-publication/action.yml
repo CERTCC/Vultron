@@ -25,7 +25,9 @@ runs:
     # DOCBW-03-008: every URL an earlier publish served still resolves, as a
     # page or a redirect, unless a withheld declaration withdraws it. Once
     # `publish` advances, a dropped URL is a 404 for everyone who cited it.
+    # Runs even when the withheld check failed, so one run reports both.
     - name: Check published URLs still resolve
+      if: ${{ !cancelled() }}
       shell: bash
       run: |
         PYTHONPATH='' uv run docs-legacy-urls

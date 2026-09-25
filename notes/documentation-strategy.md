@@ -438,9 +438,9 @@ deriving in any new generator; the gate is what covers the ones that do not.
 The publication and reference axes compare one build with itself. Neither can
 see a URL that an *earlier* build served and this one dropped. Between the
 `publish` branch and `main`, well over a hundred pages had moved, been
-renamed, or been withdrawn, and a publish would have turned every one of those URLs into a 404
-(#3556). `--strict` saw no problem because nothing in the new build linked to
-the old paths. The only readers still using them were outside the site.
+renamed, or been withdrawn, and a publish would have turned every one of those
+URLs into a 404 (#3556). `--strict` saw no problem because nothing in the new
+build linked to the old paths. The only readers still using them were outside the site.
 
 `uv run docs-legacy-urls` (`vultron/metadata/docs/legacy_urls.py`,
 DOCBW-03-008) is the comparison. Three things about it are easy to get wrong:
@@ -451,7 +451,11 @@ DOCBW-03-008) is the comparison. Three things about it are easy to get wrong:
   pass. `legacy_urls_baseline.txt` holds every `docs/` page any publish has
   built. It only grows (`--snapshot <ref>` adds a ref's pages and drops none),
   because a URL that was cited once can be cited forever.
-- **The baseline lists source pages, not nav entries.** On `publish` nothing
+- **A snapshot records what the ref built, not what it held.** It applies the
+  ref's own `draft_docs` and `exclude_docs`, read from that ref's `mkdocs.yml`.
+  Listing every source file would record `developer/` pages that no publish
+  served, and the next check would fail on URLs nobody could have cited.
+- **The baseline lists built pages, not nav entries.** On `publish` nothing
   was in `exclude_docs`, so every `_*.md` fragment and `includes/*` file was
   built as a page of its own and answered with a 200. The issue's first count
   left these out as not reader-facing, but they were live URLs all the same.
@@ -462,7 +466,9 @@ DOCBW-03-008) is the comparison. Three things about it are easy to get wrong:
   because a redirect to an unrelated page tells a reader the content moved when
   it did not. `docs-withheld` checks that the withdrawn URL really is absent. A
   page whose content was *folded into* another (`topics/future_work/ontology`
-  into the ontology tombstone) is a move, and it redirects.
+  into the ontology tombstone), or whose own text named its successor
+  (`howto/em_icalendar`, whose ideas grew into the EM process it linked), is a
+  move, and it redirects.
 
 Confirm a rename by content, not by filename. `howto/general_implementation`
 looked like it had become `howto/process_implementation`. In fact it covered

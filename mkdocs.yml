@@ -514,7 +514,9 @@ plugins:
         howto/activitypub/activities/_validate_report.md: reference/messages/rm.md
         howto/activitypub/activities/transfer_ownership.md: topics/case_lifecycle/ownership_transfer.md
         howto/activitypub/objects.md: reference/activitypub/objects.md
-        howto/em_icalendar.md: howto/process_implementation.md
+        # The iCalendar mapping was retired with no successor (5a64f702f). The old
+        # page named the EM process as what its ideas grew into, and linked it.
+        howto/em_icalendar.md: topics/process_models/em/index.md
         howto/general_implementation.md: howto/activitypub/index.md
         topics/background/notation.md: reference/notation.md
         topics/background/overview.md: topics/background/what-is-vultron.md

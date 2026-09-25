@@ -34,6 +34,7 @@ WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 GATE_COMMANDS = ("docs-withheld", "docs-legacy-urls")
 MKDOCS_BUILD = "mkdocs build"
 UPLOAD_PAGES_ACTION = "actions/upload-pages-artifact"
+PUBLICATION_ACTION = "./.github/actions/check-site-publication"
 
 
 @dataclass(frozen=True)
@@ -87,11 +88,16 @@ def _steps(wf_data: dict[str, Any]) -> list[Step]:
     return flat
 
 
+# An ``if:`` that still runs the step after an earlier step failed. It widens
+# when the step runs rather than narrowing it, so it cannot skip a gate.
+RUN_EVEN_AFTER_FAILURE = frozenset({"${{ !cancelled() }}", "!cancelled()"})
+
+
 def _neutering(step: Step) -> list[str]:
     """Return every way *step*, or the step that called it, cannot fail the run."""
     problems: list[str] = []
     for part in (step.body, step.caller):
-        if "if" in part:
+        if "if" in part and part["if"] not in RUN_EVEN_AFTER_FAILURE:
             problems.append(f"it is conditional (if: {part['if']!r})")
         if part.get("continue-on-error", False):
             problems.append("it sets continue-on-error")
@@ -208,7 +214,7 @@ def test_a_conditional_action_step_neuters_the_checks_it_runs():
                 "steps": [
                     {
                         "if": "false",
-                        "uses": "./.github/actions/check-site-publication",
+                        "uses": PUBLICATION_ACTION,
                     }
                 ]
             }
@@ -217,5 +223,33 @@ def test_a_conditional_action_step_neuters_the_checks_it_runs():
     steps = _steps(wf)
     gate = _index_of(steps, "docs-legacy-urls", "run")
     assert gate is not None
-    assert "if" not in steps[gate].body
+    assert steps[gate].body.get("if") in RUN_EVEN_AFTER_FAILURE
     assert _neutering(steps[gate]) == ["it is conditional (if: 'false')"]
+
+
+def test_every_publication_check_runs_even_if_an_earlier_one_failed():
+    """A failing ``docs-withheld`` must not hide what ``docs-legacy-urls`` finds.
+
+    Composite-action steps stop at the first failure, so without a
+    run-after-failure condition a PR sees only the first check's errors and
+    learns of the second only after fixing them (EH-07-001).
+    """
+    steps = _local_action_steps(PUBLICATION_ACTION)
+    later = [
+        step
+        for step in steps
+        if any(
+            command in str(step.get("run", "")) for command in GATE_COMMANDS
+        )
+    ][1:]
+    assert later, "the action runs fewer than two publication checks"
+    for step in later:
+        assert step.get("if") in RUN_EVEN_AFTER_FAILURE, (
+            f"'{step.get('name')}' is skipped when an earlier check fails; "
+            "give it 'if: ${{ !cancelled() }}'."
+        )
+
+
+def test_a_run_after_failure_condition_does_not_neuter_a_gate():
+    step = {"if": "${{ !cancelled() }}", "run": "uv run docs-legacy-urls"}
+    assert _neutering(Step(step, step)) == []

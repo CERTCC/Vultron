@@ -1,8 +1,8 @@
 """Tests for vultron.metadata.docs.legacy_urls (issue #3556).
 
 Between the ``publish`` branch and ``main``, well over a hundred pages moved,
-were renamed, or were withdrawn, and a publish would have turned every one of their URLs into a
-404. These tests pin the comparison that catches that: every page in the
+were renamed, or were withdrawn, and a publish would have turned every one of
+their URLs into a 404. These tests pin the comparison that catches that: every page in the
 committed baseline resolves in the built ``site/`` as a page, or as a redirect
 chain ending at one, unless a withheld declaration withdraws it.
 
@@ -226,8 +226,11 @@ def test_the_committed_baseline_is_seeded():
 # --- snapshot -------------------------------------------------------------
 
 
-def _git_repo(root: Path, files: list[str]) -> None:
+def _git_repo(
+    root: Path, files: list[str], mkdocs_yml: str = "site_name: t\n"
+) -> None:
     subprocess.run(["git", "init", "-q", str(root)], check=True)
+    (root / "mkdocs.yml").write_text(mkdocs_yml, encoding="utf-8")
     for rel in files:
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -260,6 +263,32 @@ def test_snapshot_extends_the_baseline_and_never_drops(tmp_path):
 
     assert added == 2
     assert load_baseline(baseline) == ["new.md", "old/gone.md", "sub/index.md"]
+
+
+def test_snapshot_skips_pages_the_ref_does_not_build(tmp_path):
+    """A draft or excluded source was never served, so it is not a legacy URL.
+
+    Recording ``developer/`` pages from a ref whose ``mkdocs.yml`` drafts them
+    would fail the check on URLs no publish ever answered.
+    """
+    repo = tmp_path / "repo"
+    _git_repo(
+        repo,
+        ["docs/page.md", "docs/developer/index.md", "docs/old/x.md"],
+        mkdocs_yml=(
+            "site_name: t\n"
+            "draft_docs: |\n  developer/\n"
+            "exclude_docs: |\n  old/\n"
+            "markdown_extensions:\n"
+            "  - pymdownx.emoji:\n"
+            "      emoji_index: !!python/name:material.extensions.emoji.twemoji\n"
+        ),
+    )
+    baseline = tmp_path / "baseline.txt"
+    baseline.write_text("# header\n", encoding="utf-8")
+
+    assert snapshot("HEAD", repo, baseline) == 1
+    assert load_baseline(baseline) == ["page.md"]
 
 
 # --- CLI ------------------------------------------------------------------
@@ -323,3 +352,23 @@ def test_cli_snapshot_extends_the_named_baseline(tmp_path, capsys):
         "Added 1 page(s) from HEAD to baseline.txt" in capsys.readouterr().out
     )
     assert load_baseline(baseline) == ["new.md", "old/gone.md"]
+
+
+def test_cli_snapshot_reports_an_unreadable_ref(tmp_path, capsys):
+    repo = tmp_path / "repo"
+    _git_repo(repo, ["docs/new.md"])
+    baseline = _baseline(tmp_path, ["old/gone.md"])
+    with pytest.raises(SystemExit) as exc:
+        main(
+            [
+                "--root",
+                str(repo),
+                "--baseline",
+                str(baseline),
+                "--snapshot",
+                "nosuchref",
+            ]
+        )
+    assert exc.value.code == 1
+    assert "[ERROR] git cannot read 'nosuchref'" in capsys.readouterr().err
+    assert load_baseline(baseline) == ["old/gone.md"]

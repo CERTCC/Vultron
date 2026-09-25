@@ -15,13 +15,14 @@
 A page that moves between two publishes takes its old URL with it, and whoever
 cited that URL — in a paper, a standards comment, a partner's tracker — gets a
 404 on publish day. #3556 found well over a hundred such URLs between the
-``publish`` branch and ``main``. Every one had moved, been renamed, or been withdrawn, and nothing
-in the build said so.
+``publish`` branch and ``main``. Every one had moved, been renamed, or been
+withdrawn, and nothing in the build said so.
 
 The evidence of what was live lives on the ``publish`` branch, and it is gone
 the moment ``publish`` advances. So the evidence is committed:
 :data:`BASELINE` lists every ``docs/`` page any publish has built, and it only
-grows. ``--snapshot <ref>`` adds a ref's pages before that ref is replaced.
+grows. ``--snapshot <ref>`` adds the pages a ref builds before that ref is
+replaced.
 
 :func:`unmapped_pages` checks a built ``site/`` against that list. A published
 page is accounted for when one of these holds:
@@ -32,7 +33,8 @@ page is accounted for when one of these holds:
 * a :data:`~vultron.metadata.docs.withheld.WITHHELD_ARTIFACTS` declaration
   covers the URL — the project decided to withdraw it. This check trusts the
   declaration; ``docs-withheld`` verifies the URL really is absent, which is
-  why the ``check-site-publication`` action always runs the two together.
+  why the ``check-site-publication`` action runs the two together, the second
+  even when the first fails.
 
 Everything else is a 404 the publish would introduce, and fails.
 
@@ -57,7 +59,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from vultron.metadata.base import repo_root
+from vultron.metadata.base import (
+    parse_mkdocs_config,
+    repo_root,
+    unbuilt_docs_spec,
+)
 from vultron.metadata.docs.baseline_file import entry_lines, write_entries
 from vultron.metadata.docs.built_site import require_built_site, site_dir
 from vultron.metadata.docs.withheld import WITHHELD_ARTIFACTS, WithheldArtifact
@@ -227,8 +233,43 @@ def unmapped_pages(
     return unmapped
 
 
+def _git(root: Path | None, *args: str) -> str:
+    """Return the stdout of ``git *args`` run in *root*."""
+    return subprocess.run(
+        ["git", *args],
+        cwd=root or repo_root(),
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+
+def built_pages(ref: str, root: Path | None = None) -> set[str]:
+    """Return every ``docs/`` page, relative to ``docs/``, that *ref* builds.
+
+    A source file is not a published page: the ref's own ``mkdocs.yml`` withholds
+    whatever its ``draft_docs`` and ``exclude_docs`` match (``developer/``, for
+    one), and recording those would fail the check on URLs no publish served.
+    The ref's config is read rather than this checkout's, because the question
+    is what *that* build published.
+
+    Raises:
+        subprocess.CalledProcessError: If git cannot read *ref*.
+    """
+    listing = _git(root, "ls-tree", "-r", "--name-only", ref, "--", "docs/")
+    unbuilt = unbuilt_docs_spec(
+        parse_mkdocs_config(_git(root, "show", f"{ref}:mkdocs.yml"))
+    )
+    pages = (
+        name.removeprefix("docs/")
+        for name in listing.splitlines()
+        if name.endswith(".md")
+    )
+    return {page for page in pages if not unbuilt.match_file(page)}
+
+
 def snapshot(ref: str, root: Path | None = None, path: Path = BASELINE) -> int:
-    """Add every ``docs/`` page on git *ref* to the baseline at *path*.
+    """Add every ``docs/`` page git *ref* builds to the baseline at *path*.
 
     The baseline is extended, never replaced: a page that was published once
     keeps its URL accounted for after later publishes drop it.
@@ -237,18 +278,9 @@ def snapshot(ref: str, root: Path | None = None, path: Path = BASELINE) -> int:
         The number of pages the snapshot added.
 
     Raises:
-        subprocess.CalledProcessError: If git cannot list *ref*.
+        subprocess.CalledProcessError: If git cannot read *ref*.
     """
-    listing = subprocess.run(
-        ["git", "ls-tree", "-r", "--name-only", ref, "--", "docs/"],
-        cwd=root or repo_root(),
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.splitlines()
-    pages = {
-        name.removeprefix("docs/") for name in listing if name.endswith(".md")
-    }
+    pages = built_pages(ref, root)
     existing = set(load_baseline(path))
     write_entries(path, _HEADER, existing | pages)
     return len(pages - existing)
@@ -276,12 +308,20 @@ def main(argv: list[str] | None = None) -> None:
         "--snapshot",
         metavar="REF",
         default=None,
-        help="Add every docs/ page on git REF to the baseline instead of checking.",
+        help="Add every docs/ page git REF builds to the baseline instead of checking.",
     )
     args = parser.parse_args(argv)
 
     if args.snapshot is not None:
-        added = snapshot(args.snapshot, args.root, args.baseline)
+        try:
+            added = snapshot(args.snapshot, args.root, args.baseline)
+        except subprocess.CalledProcessError as exc:
+            print(
+                f"[ERROR] git cannot read {args.snapshot!r}: "
+                f"{exc.stderr.strip()}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         print(
             f"✓ Added {added} page(s) from {args.snapshot} to "
             f"{args.baseline.name}."
