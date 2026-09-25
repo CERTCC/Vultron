@@ -164,9 +164,9 @@ All outbound activities MUST use factory functions in
 
 ### GitHub Issue Labels
 
-Priority tracking via **GitHub Project #24** `Schedule` field: `Now`, `Next`,
-`Later`, `Someday`. New issues default to `Someday`. Do not use `group:` labels.
-See `notes/parallel-development.md`.
+**GitHub Project #24** `Schedule` (Focus/Now/Next/Later/Someday) is on **Epics only**;
+other issues take their nearest Epic's tier and carry a mirrored `Status`. No `group:`
+labels. See `notes/parallel-development.md` § "Project #24: Two Paths".
 
 ## Change Protocol
 

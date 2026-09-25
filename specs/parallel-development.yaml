@@ -4,8 +4,10 @@ description: >-
   Requirements for coordinating multiple parallel AI agents and human developers via
   GitHub Issues. Defines the issue hierarchy, label taxonomy, task claiming protocol,
   size labeling, orphan recovery, bundle selection and execution, and revised workflows
-  for the build, ingest-idea, review-priorities, and update-plan skills.
-version: 1.3.0
+  for the build, ingest-idea, review-priorities, and update-plan skills, and the
+  two paths through GitHub Project #24: Schedule on Epics, and a Status path for
+  every other Issue and a ship stage for PRs, both mirrored from facts.
+version: 1.4.0
 scope:
   - prototype
   - production
@@ -34,7 +36,7 @@ groups:
         kind: process
         statement: >-
           Epic Issues MUST be wired on GitHub Project #24 with a `Schedule`
-          field value (Now/Next/Later/Someday) that reflects the current
+          field value (Focus/Now/Next/Later/Someday) that reflects the current
           priority tier of the thematic group they represent.
       - id: PAD-01-005
         priority: MUST
@@ -58,6 +60,38 @@ groups:
         statement: >-
           The minimum depth that produces right-sized leaf issues SHOULD be
           used. Not every Epic requires Task or Subtask children.
+      - id: PAD-01-007
+        priority: MUST
+        kind: process
+        statement: >-
+          Every open non-Epic Issue (Task, Bug, Idea, Concern) MUST have an
+          Epic ancestor. A non-Epic Issue with no Epic ancestor is untriaged,
+          and triage consists of routing it to an Epic.
+        rationale: >-
+          A non-Epic Issue carries no `Schedule` value of its own (PAD-02-001),
+          so its only priority signal is its Epic's tier. Without an Epic
+          ancestor it is invisible to every tier-ordered selector. Small work
+          that belongs to no thematic group goes under a long-lived catch-all
+          Epic, whose tier is set like any other Epic's.
+        verification: >-
+          A query for open non-Epic Issues with no Epic ancestor returns none.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-01-005
+      - id: PAD-01-008
+        priority: MUST
+        kind: process
+        statement: >-
+          When the last open sub-issue of an Epic is closed, the Epic MUST be
+          closed. An Epic that has never had a sub-issue MUST NOT be closed by
+          this rule.
+        rationale: >-
+          An Epic reaches "all children closed" only once its tasks are done
+          and no further planning is open. Work that arrives later belongs to a
+          new Epic, so closing needs no human confirmation and the `Schedule`
+          field needs no end-of-life value.
+        verification: >-
+          No open Epic has sub-issues that are all closed.
 
   - id: PAD-02
     title: Label Taxonomy
@@ -66,13 +100,19 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          Every Issue added to GitHub Project #24 MUST have a `Schedule`
-          field value (Now/Next/Later/Someday). Issues not yet prioritised
-          default to `Schedule=Someday`.
+          A non-Epic Issue on GitHub Project #24 MUST NOT carry a `Schedule`
+          value. Its priority tier is the `Schedule` value of its nearest Epic
+          ancestor.
         rationale: >-
-          `group:<name>` labels and `PRIORITIES.md` were retired in June 2026
-          in favour of the Project #24 `Schedule` field. Do not create new
-          `group:` labels.
+          A child's own `Schedule` value could only restate its Epic's or
+          silently differ from it, and skills could not tell deliberate from
+          drifted. Holding back one member of an active Epic is done by moving
+          it to a separate Epic, or with the `needs-info` hold (PAD-16-004), not
+          with a per-issue tier. Priority grouping is by Epic sub-issue
+          relationships, not by `group:` labels.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-03-001
       - id: PAD-02-004
         priority: MUST
         kind: process
@@ -116,7 +156,7 @@ groups:
           Epic Issues MUST be created using the GitHub `Epic` issue type (via
           GraphQL `createIssue` with the Epic issue type's `issueTypeId`, discovered
           via the GraphQL `issueTypes` query) and MUST be added to GitHub Project #24
-          with a `Schedule` value (Now/Next/Later/Someday) matching the work's priority.
+          with a `Schedule` value (Focus/Now/Next/Later/Someday) matching the work's priority.
       - id: PAD-02-013
         priority: MUST
         kind: process
@@ -135,13 +175,14 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          The `Schedule` field (Now/Next/Later/Someday) on GitHub Project #24
-          MUST be the authoritative source for work priority ordering.
-          Priority changes MUST be made by updating the `Schedule` field on
-          the relevant Epic or Issue — not by maintaining any external file.
+          The `Schedule` field (Focus/Now/Next/Later/Someday) on Epic Issues on
+          GitHub Project #24 MUST be the authoritative source for work
+          priority ordering. Priority changes MUST be made by updating the
+          `Schedule` field on the relevant Epic — not by maintaining any
+          external file.
         rationale: >-
-          `plan/PRIORITIES.md` was archived in June 2026 (PR #693). The
-          Project #24 board is the single source of truth for scheduling.
+          The Project #24 board is the single source of truth for scheduling,
+          and scheduling is decided per body of work, not per issue.
       - id: PAD-03-002
         priority: MUST_NOT
         kind: process
@@ -164,17 +205,24 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          An agent MUST claim a task by creating a branch named
-          `task/<issue-number>-<slug>` before beginning any implementation
-          work. Branch existence is the authoritative distributed lock: if the
-          branch already exists, the task is already claimed.
+          An agent MUST claim an Issue before beginning work on it by having
+          GitHub create a branch named `<prefix>/<issue-number>-<slug>` linked
+          to the Issue, then checking that branch out. The branch's existence
+          on GitHub is the authoritative distributed lock: if it already
+          exists, the Issue is already claimed.
+        rationale: >-
+          A branch created only in a local clone locks nothing across machines
+          or cloud agents, and it is invisible to the stale-claim sweeper until
+          a PR is pushed. A GitHub-created linked branch also appears in the
+          Issue's Development sidebar.
       - id: PAD-04-002
         priority: MUST
         kind: process
         statement: >-
           After creating the claim branch, the agent MUST assign the Issue to
-          the triggering user and MUST post a comment on the Issue identifying
-          the agent session and branch name.
+          the triggering user, MUST set its Project #24 `Status` to
+          `In Progress` (PAD-16-008), and MUST post a comment on the Issue
+          identifying the agent session and branch name.
       - id: PAD-04-003
         priority: MUST_NOT
         kind: process
@@ -182,6 +230,17 @@ groups:
           Agents MUST NOT begin implementation work on an Issue whose claim
           branch already exists, whose `stale-claim` label is set, or that
           is already assigned to another user.
+      - id: PAD-04-004
+        priority: SHOULD
+        kind: process
+        statement: >-
+          An agent working on a claimed Issue SHOULD push the claim branch at
+          each checkpoint of its workflow, so that the branch's last commit on
+          GitHub reflects current activity.
+        rationale: >-
+          The stale-claim sweeper (PAD-10-001) judges activity by the claim
+          branch's last commit on GitHub, so work kept only in a local clone
+          reads as abandoned.
 
   - id: PAD-05
     title: Size Labeling
@@ -473,15 +532,16 @@ groups:
           GitHub Issue with: a title and description derived from the spec,
           the `size:` label derived from the AC count per PAD-05-001, and a
           link to the spec file in the body. The Issue MUST be added to
-          GitHub Project #24 (defaulting to `Schedule=Someday`).
+          GitHub Project #24 as a sub-issue of an Epic (PAD-01-007), with no
+          `Schedule` value (PAD-02-001).
       - id: PAD-09-003
         priority: MUST_NOT
         kind: process
         statement: >-
           `ingest-idea` MUST NOT begin implementation work. It MUST stop after
-          creating the Issue. Implementation work begins only when a human (or
-          the `review-priorities` skill) promotes the Issue to an active
-          `Schedule` tier on GitHub Project #24.
+          creating the Issue. Implementation work begins only when the Issue
+          is Ready (PAD-16-004) and is selected under its Epic's `Schedule`
+          tier on GitHub Project #24.
 
   - id: PAD-10
     title: Orphan Recovery — Stale Claim Sweeper
@@ -492,8 +552,9 @@ groups:
         statement: >-
           A scheduled GitHub Actions workflow (weekly cadence, also
           triggerable on `workflow_dispatch`) MUST scan for Issues that are
-          assigned, have a `task/<N>-slug` branch, have no open PR, and have
-          not received a branch commit within 3 days.
+          assigned, have a claim branch on GitHub under any claim prefix
+          (PAD-04-001), have no open PR, and have not received a branch commit
+          within 3 days.
       - id: PAD-10-002
         priority: MUST
         kind: process
@@ -552,24 +613,26 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          The `review-priorities` skill MUST query GitHub Project #24 for
-          Issues with `Schedule=Someday` and surface them as a triage list
-          for the current review session.
+          The `review-priorities` skill MUST surface as a triage list for the
+          current review session every open Epic with `Schedule=Someday` or no
+          `Schedule` value, and every open non-Epic Issue with no Epic ancestor
+          (PAD-01-007).
       - id: PAD-12-002
         priority: MUST
         kind: process
         statement: >-
-          For each `Schedule=Someday` Issue surfaced in triage, the
-          `review-priorities` skill MUST use `ask_user` to determine which
-          Schedule tier (Now/Next/Later) to promote it to, or whether to
-          close or defer it.
+          For each Epic surfaced in triage, the `review-priorities` skill MUST
+          use `ask_user` to determine which `Schedule` tier to place it in, or
+          whether to close or defer it. For each unparented non-Epic Issue, it
+          MUST ask which Epic the Issue belongs under.
       - id: PAD-12-003
         priority: MUST
         kind: process
         statement: >-
           After the user confirms a placement, the `review-priorities` skill
-          MUST update the Issue's `Schedule` field on GitHub Project #24 to
-          the chosen tier via the GitHub API.
+          MUST apply it via the GitHub API: the Epic's `Schedule` field on
+          GitHub Project #24, or the Issue's sub-issue relationship to the
+          chosen Epic.
 
   - id: PAD-13
     title: Update-Plan — Issue Creation
@@ -586,8 +649,9 @@ groups:
         kind: process
         statement: >-
           Issues created by `update-plan` MUST be added to GitHub Project #24
-          with `Schedule=Someday` and the initial `size:` label derived from
-          the AC count per PAD-05-001.
+          as sub-issues of an Epic (PAD-01-007), with no `Schedule` value
+          (PAD-02-001) and the initial `size:` label derived from the AC count
+          per PAD-05-001.
 
   - id: PAD-14
     title: GitHub Actions Requirements
@@ -641,19 +705,20 @@ groups:
         kind: process
         statement: >-
           Bundle candidates MUST be ordered by their governing Project #24
-          `Schedule` tier per PAD-03-001, where a leaf with no tier of its own
-          inherits its parent Epic's tier and an explicit leaf tier always
-          wins. Sub-issue list order MUST be used only to break ties.
+          `Schedule` tier per PAD-03-001, which is the tier of the candidate's
+          nearest Epic ancestor (PAD-02-001). A leaf's own `Schedule` value
+          MUST NOT be read. Sub-issue list order MUST be used only to break
+          ties.
         rationale: >-
           Sub-issue list order is manual drag-order and carries no priority
           meaning, so treating it as the priority signal silently overrode the
-          authoritative field.
+          authoritative field. A leaf's own value is drift by definition once
+          only Epics carry `Schedule`.
         verification: >-
           `test/metadata/test_bundle_fit.py::TestScheduleTier` asserts tier
-          ordering (including that `Focus` outranks `Now`), that inheritance
-          reaches the sort inside `select_bundle` and not only
-          `effective_schedule`, that an explicit leaf tier beats the Epic's, and
-          that ties fall back to list order.
+          ordering (including that `Focus` outranks `Now`), that the Epic's
+          tier reaches the sort inside `select_bundle` and not only
+          `effective_schedule`, and that ties fall back to list order.
           `test_every_board_tier_is_ranked_or_excluded` ratchets the tier list
           against the Schedule options documented in
           `.agents/skills/shared/board-id.sh`, because a tier in neither set
@@ -764,3 +829,210 @@ groups:
           validates every member number before mutating anything, rejects a
           repeated member, and on a mid-bundle failure names the members already
           claimed and deletes the branch so the claim can be retried.
+
+  - id: PAD-16
+    title: Project Board Status Path
+    specs:
+      - id: PAD-16-001
+        priority: MUST
+        kind: process
+        statement: >-
+          Every non-Epic Issue on GitHub Project #24 MUST carry exactly one
+          `Status` value: `Backlog`, `Ready`, `In Progress`, `In Review`, or
+          `Done`, determined by the first of PAD-16-010, PAD-16-009,
+          PAD-16-008, PAD-16-004/PAD-16-005, and PAD-16-011 whose condition
+          holds.
+        rationale: >-
+          `Schedule` answers "which body of work matters now" and lives on
+          Epics. `Status` answers "where does this piece of work stand" and
+          lives on everything else, so the two paths never describe the same
+          item.
+        verification: >-
+          Inspection: every open non-Epic item on Project #24 has a `Status`
+          value, and it is the one the listed conditions select.
+      - id: PAD-16-002
+        priority: MUST
+        kind: process
+        statement: >-
+          An Issue's `Status` MUST be reproducible from facts recorded
+          elsewhere alone: its open or closed state, issue type, sub-issues,
+          acceptance-criteria lines, `blockedBy` relationships, labels, Epic
+          ancestor, assignee and claim branch, and linked Pull Requests. A
+          value that those facts do not produce is drift and MUST be corrected
+          to the reproduced value.
+        rationale: >-
+          A second, hand-maintained copy of claim or review state drifts from
+          the branch and PR it describes, which is why a `claimed` label was
+          rejected. A mirror can drift too, but recomputing it repairs it
+          without a human.
+        verification: >-
+          Recomputing `Status` from the listed facts for every item on
+          Project #24 reproduces every recorded value.
+      - id: PAD-16-003
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          An agent MUST NOT decide whether an Issue is claimable or selectable
+          from its `Status` value. Claimability and selection are decided from
+          the facts `Status` mirrors (PAD-04-003, PAD-08-001, PAD-15-001).
+        rationale: >-
+          `Status` is a display of situation for humans. If a stale mirror
+          could cause two agents to claim one Issue, drift would stop being
+          cosmetic.
+        verification: >-
+          No skill or script under `.agents/skills/` reads the `Status` field
+          to filter claim or selection candidates.
+        relationships:
+        - rel_type: constrains
+          spec_id: PAD-08-001
+      - id: PAD-16-004
+        priority: MUST
+        kind: process
+        statement: >-
+          A Task, Feature, or Bug MUST be `Ready` ("ready to build") when it is
+          open, unassigned, a leaf, has an Epic ancestor, carries at least one
+          `- [ ] AC-N:` line, has every `blockedBy` Issue closed, and does not
+          carry the `needs-info` label.
+        rationale: >-
+          These are the conditions `build` already applies privately when it
+          auto-selects work, made visible so that a wrong or missing condition
+          shows on the board instead of in a surprising pick. `needs-info`
+          ("waiting on a person or decision") is the only hold.
+        verification: >-
+          Inspection: every Task, Feature, or Bug item at `Ready` meets each
+          listed condition, and every open item that meets them all and is not
+          claimed is at `Ready`.
+      - id: PAD-16-005
+        priority: MUST
+        kind: process
+        statement: >-
+          An Idea or Concern MUST be `Ready` ("ready to plan") when it is
+          open, unassigned, has an Epic ancestor, and does not carry the
+          `needs-info` label.
+        rationale: >-
+          An Idea or Concern is input to `plan-issue`, which consumes it, so it
+          can be planned from the moment it is triaged. The board separates
+          ready-to-plan from ready-to-build by issue type, not by a second
+          column.
+        verification: >-
+          Inspection: every Idea or Concern item at `Ready` meets each listed
+          condition.
+      - id: PAD-16-006
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          The `Schedule` tier of an Issue's Epic ancestor MUST NOT affect the
+          Issue's `Status`. The tier orders selection among `Ready` Issues
+          only.
+        rationale: >-
+          "Could this be started?" and "should it be started now?" are
+          different questions. Keeping the tier out of `Status` means
+          reprioritising an Epic changes no child's `Status`, and planning a
+          `Next`-tier Idea early or fixing a Bug under a `Later` Epic is an
+          ordinary choice among `Ready` Issues, not an exception.
+        verification: >-
+          Changing an Epic's `Schedule` value leaves the `Status` of every
+          descendant unchanged.
+      - id: PAD-16-007
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          An agent MUST NOT auto-select or claim an Issue carrying the
+          `ready-for-human` label. The label does not affect the Issue's
+          `Status`.
+        verification: >-
+          Agent selection (`build`, `bugfix`, `bundle-fit`, `propose-bundle`)
+          excludes Issues carrying `ready-for-human`.
+      - id: PAD-16-008
+        priority: MUST
+        kind: process
+        statement: >-
+          An open Issue that is claimed (PAD-04-001, PAD-04-002) and has no
+          open, non-draft Pull Request that closes it MUST be `In Progress`.
+          A draft Pull Request keeps the Issue `In Progress`.
+        rationale: >-
+          A draft PR says its author is not finished. Marking it ready for
+          review is the author's "done" signal.
+        verification: >-
+          Inspection: every claimed open Issue with no open non-draft closing
+          PR is at `In Progress`, including one carrying `stale-claim`.
+      - id: PAD-16-009
+        priority: MUST
+        kind: process
+        statement: >-
+          An open Issue with an open, non-draft Pull Request that closes it
+          MUST be `In Review`. `In Review` means `pr-ship` may be run on that
+          Pull Request.
+        rationale: >-
+          Review here is agent-driven, so `In Review` marks work handed to the
+          ship pipeline. Progress through that pipeline is tracked on the PR
+          (PAD-17), not on the Issue, because one bundle PR closes several
+          Issues.
+        verification: >-
+          Inspection: every open Issue closed by an open non-draft PR is at
+          `In Review`.
+      - id: PAD-16-010
+        priority: MUST
+        kind: process
+        statement: >-
+          A closed Issue MUST be `Done`, whatever its close reason. An Issue
+          that will not be actioned MUST be closed with GitHub's "not planned"
+          (or "duplicate") close reason, not marked with a label.
+        verification: >-
+          Inspection: every closed non-Epic item on Project #24 is at `Done`,
+          and no `wontfix` label exists.
+      - id: PAD-16-011
+        priority: MUST
+        kind: process
+        statement: >-
+          An open, unclaimed Issue that does not meet the `Ready` conditions
+          (PAD-16-004, PAD-16-005) MUST be `Backlog`.
+        verification: >-
+          Inspection: every open unclaimed item not meeting the `Ready`
+          conditions is at `Backlog`.
+      - id: PAD-16-012
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          An Epic Issue MUST NOT carry a `Status` value.
+        rationale: >-
+          An Epic is a container, not work that is claimed, reviewed, and
+          merged. Its progress is the sub-issue progress GitHub already shows,
+          and a decomposition-needed Epic is identified by its
+          `needs-decomposition` label.
+        verification: >-
+          Inspection: no Epic item on Project #24 has a `Status` value.
+
+  - id: PAD-17
+    title: Pull Request Ship Stage
+    specs:
+      - id: PAD-17-001
+        priority: MUST
+        kind: process
+        statement: >-
+          Every open, non-draft Pull Request MUST be an item on GitHub Project
+          #24 carrying a `Ship stage` value: `Awaiting ship`, `Triage`,
+          `Execute`, `Verify`, `Needs you`, or `Ready to merge`.
+        rationale: >-
+          `pr-ship` records its progress in gitignored local files, so no
+          other machine or session can see whether a PR's triage has run,
+          whether it is paused at a gate, or whether it is ready to merge. With
+          several agents working in parallel, "which PRs need me?" is the
+          question the board most needs to answer.
+        verification: >-
+          Inspection: every open non-draft PR is on Project #24 with a
+          `Ship stage` value.
+      - id: PAD-17-002
+        priority: MUST
+        kind: process
+        statement: >-
+          `pr-ship` MUST set a Pull Request's `Ship stage` to `Triage`,
+          `Execute`, or `Verify` on entering that phase, including when it
+          resumes into it; to `Needs you` while paused at a gate awaiting a
+          human; and to `Ready to merge` when verification completes.
+        rationale: >-
+          The one skill that knows its own phase writes the value, so the
+          field is a mirror of pipeline progress that needs no manual upkeep.
+        verification: >-
+          A `pr-ship` run leaves its PR at `Ready to merge`, and a run paused
+          at `defer-ask` or `inversion-halt` leaves it at `Needs you`.
