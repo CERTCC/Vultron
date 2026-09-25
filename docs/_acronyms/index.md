@@ -90,6 +90,7 @@ sense the docs actually use.
 *[EOL]: End of Life
 *[EoL]: End of Life
 *[EP]: Embargo Proposal (EM message)
+*[EPSS]: Exploit Prediction Scoring System
 *[ER]: Embargo Proposal Rejection (EM message)
 *[ET]: Embargo Termination (EM message)
 *[EU]: European Union

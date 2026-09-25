@@ -26,7 +26,7 @@ The following sections describe two additional reward functions.
 
 ## A Reward Function for Minimizing RM Strings
 
-In [RM State Transitions](../process_models/rm/index.md#rm-state-transitions), we described a grammar that generates
+In [RM Formal Model](../process_models/rm/formal_model.md#rm-transition-function), we described a grammar that generates
 RM histories.
 The state machine can generate arbitrarily long histories because of the cycles in the state machine graph;
 however, we observed that human Participants in any real CVD case would likely check the amount of churn.
