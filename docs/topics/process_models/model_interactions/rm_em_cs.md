@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
-level: 400
+level: 300
 ---
 
 # CVD Case State Interactions with the RM and EM Process Models
@@ -11,6 +11,8 @@ The [Report Management (RM)](../rm/index.md) and [Embargo Management (EM)](../em
 This page reviews the constraints that arise when each CS transition event occurs.
 It is organized by CS event, and each section covers how that event interacts with the RM and EM models.
 Formulas use $q^{rm}$ for a Participant's RM state, $q^{em}$ for the case's EM state, and $q^{cs}$ for the case state.
+The [RM process model](../rm/index.md#rm-states) introduces the RM state abbreviations, and the [EM formal model](../em/formal_model.md#em-states) defines the EM ones.
+[CS States](../cs/cs_model.md#cs-model-states) defines the case-state strings such as $VFdpxa$, and the dot ($\cdot$) that stands for any value of one substate, as in $VF\cdot pxa$.
 
 ???+ note inline end "CS Transition Symbols Defined"
 
@@ -81,7 +83,7 @@ An embargo-eligible case begins with an *Active* embargo at case creation, from 
 When a Vendor is notified, the embargo's state therefore depends on who created the case:
 
 - If the Vendor is the first recipient of the report, the case and its embargo begin with this notification.
-- If a Coordinator or other Vendors created the case earlier, the embargo is already *Active* or being revised, and the newly notified Vendor is invited to consent to its terms ([§9, Participant Embargo Consent](../../../reference/vultron-spec/index.md#9-participant-embargo-consent-pec-state-machine-n)).
+- If a Coordinator or other Vendors created the case earlier, the embargo is already *Active* or being revised, and the newly notified Vendor is invited to consent to its terms through [Participant Embargo Consent](../../behavior_logic/use-cases/embargo-lifecycle.md) ([Vultron Protocol Specification §9](../../../reference/vultron-spec/index.md#9-participant-embargo-consent-pec-state-machine-n)).
 
 For example, a Reporter and Coordinator might have already agreed to a disclosure timeline.
 Or, in a multi-party CVD case, other Vendors may have already been coordinating the case under an embargo and only recently realized the need to engage with a new Vendor.

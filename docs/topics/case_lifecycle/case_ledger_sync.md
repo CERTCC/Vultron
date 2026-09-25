@@ -1,7 +1,7 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
-introduces: [CASE_MANAGER, Case Ledger Entry, Participant Case Replica, Canonical Recorded Log, Single-Writer Regime, Ledger Fanout, LedgerGapBuffer]
+introduces: [LedgerGapBuffer]
 ---
 
 # Case Ledger Synchronization
@@ -18,59 +18,11 @@ by holding an early message until the message it depends on arrives.
 
 ---
 
-## One writer, many copies
+## Before you read this page
 
-Every participant in a case keeps a local copy of the case, called a
-**replica**. No participant can read or write another participant's replica.
-Knowledge travels only in messages — see the
-[Actor Knowledge Model](../actor-knowledge-model.md).
-
-One peer is different. Whichever participant holds the `CASE_MANAGER` role is
-the case's **single-writer authority** — the **CASE_MANAGER**. It keeps the
-**case ledger**: the append-only history that is authoritative for the case,
-and it is the only peer that appends to that history
-([CLP-01-003](../../reference/specs/protocol.md#clp-01)). In the prototype this
-authority is enacted by a dedicated service actor (the **Case Actor**), but the
-authority derives from the role, never from that actor's name or URL (ADR-0088).
-
-The flow of a change is always the same:
-
-1. A participant sends the CASE_MANAGER an assertion — *I accept the embargo*,
-   *my report is now validated*, *here is a note*.
-2. The CASE_MANAGER judges the assertion. If it accepts the assertion, it
-   appends one entry recording it. If it refuses the assertion, it appends
-   nothing and records the refusal in its structured logs instead.
-3. The CASE_MANAGER sends the new entry to every participant as
-   `Announce(CaseLedgerEntry)`.
-4. Each participant records the entry, and applies its effects to its own
-   replica if the entry was `recorded`.
-
-Because there is exactly one writer, no participant ever has to reconcile two
-competing versions of the case history. There is only one version. A
-participant's replica is a projection of that history, not an independent
-record.
-
-The same rule applies in reverse: a participant accepts a case update only
-from the CASE_MANAGER for that case, and rejects an update from any other sender
-([PCR-03-001](../../reference/specs/protocol.md#pcr-03)). Nobody else can write
-to a replica, and the replica's owner does not edit it directly either — even
-when that owner is the organization that opened the case.
-
-### Only accepted entries
-
-The ledger holds only the assertions the CASE_MANAGER accepted. It is the
-authoritative history of the case
-([CLP-04-001](../../reference/specs/protocol.md#clp-04)). A refused assertion
-never becomes an entry. The CASE_MANAGER reports the refusal through its
-structured logs instead
-([CLP-04-007](../../reference/specs/protocol.md#clp-04)).
-
-Because nothing in the ledger needs filtering out, a replica reconstructs case
-state from every entry it holds
-([CLP-04-002](../../reference/specs/protocol.md#clp-04)). The hash chain is
-computed over the same entries
-([CLP-04-003](../../reference/specs/protocol.md#clp-04)). Each entry names the
-entry before it as its predecessor, with nothing in between.
+This page builds on [The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md).
+That page explains why the CASE_MANAGER is the case's only writer, why the ledger holds only accepted entries, and how each new entry is sent to every participant.
+This page takes those as given and explains ordering and recovery.
 
 ---
 
@@ -423,20 +375,14 @@ reject names.
 
 ## Further reading
 
-- [The Case Model](case_model.md) — the case, its participants, and the
-  CASE_MANAGER role
-- [Actor Knowledge Model](../actor-knowledge-model.md) — why nothing can be
-  learned except by receiving a message
-- [CS Process Model](../process_models/cs/index.md) — the case-state rules the
-  drain-time checks enforce
-- [Protocol specifications](../../reference/specs/protocol.md) — the normative
-  requirements behind this page, including CLP-01, CLP-04, CLP-14, CLP-15,
-  CSB-19, PCR-03, SYNC-10, and SYNC-12 through SYNC-15
-- [Glossary](../../reference/glossary.md) — definitions for case ledger, replica,
-  genesis hash, and the replication phases
-- [ADR-0079](../../adr/0079-case-ledger-causal-ordering.md) — CASE_MANAGER
-  observation order is the canonical causal order
-- [ADR-0037](../../adr/0037-buffer-out-of-order-ledger-entries.md) — hold
-  out-of-order entries instead of discarding them
-- [ADR-0059](../../adr/0059-buffer-pre-genesis-ledger-entries.md) — hold entries
-  that arrive before the case
+- [The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md) — the single writer, accepted entries, and fan-out
+- [The Case Model](case_model.md) — the case, its participants, and the CASE_MANAGER role
+- [Actor Knowledge Model](../actor-knowledge-model.md) — why nothing can be learned except by receiving a message
+- [CS Process Model](../process_models/cs/index.md) — the case-state rules the drain-time checks enforce
+- [Protocol specifications](../../reference/specs/protocol.md) — the normative requirements behind this page, including CLP-01, CLP-04, CLP-14, CLP-15, CSB-19, PCR-03, SYNC-10, and SYNC-12 through SYNC-15
+- [Glossary](../../reference/glossary.md) — definitions for case ledger, replica, genesis hash, and the replication phases
+- [ADR-0079](../../adr/0079-case-ledger-causal-ordering.md) — CASE_MANAGER observation order is the canonical causal order
+- [ADR-0037](../../adr/0037-buffer-out-of-order-ledger-entries.md) — hold out-of-order entries instead of discarding them
+- [ADR-0059](../../adr/0059-buffer-pre-genesis-ledger-entries.md) — hold entries that arrive before the case
+- [Federation](../future_work/federation.md#the-case-ledger-and-the-delivery-log) and [Convergence of the replicas](../future_work/federation.md#convergence-of-the-replicas) — future work on the ledger when each organization runs its own service
+- [Open questions: history and delivery](../future_work/open_questions.md#history-and-delivery) — unresolved questions about a distributed ledger and fan-out ordering

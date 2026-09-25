@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
-level: 300
+level: 200
 ---
 
 # CVD Case State Model Introduction
