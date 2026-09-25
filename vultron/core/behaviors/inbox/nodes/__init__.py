@@ -35,12 +35,14 @@ from vultron.core.behaviors.inbox.nodes.pipeline import (  # noqa: F401
     KEY_OUTCOME_STATUS,
     KEY_PAYLOAD,
     KEY_QUEUE,
-    BuildOutcomeNode,
     DeferCheckNode,
-    DispatchNode,
     ExtractSemanticsNode,
     ParsePayloadNode,
     RehydrateActivityNode,
+)
+from vultron.core.behaviors.inbox.nodes.dispatch import (  # noqa: F401
+    BuildOutcomeNode,
+    DispatchNode,
 )
 from vultron.core.behaviors.inbox.nodes.dead_letter import (  # noqa: F401
     StoreDeadLetterRecordNode,

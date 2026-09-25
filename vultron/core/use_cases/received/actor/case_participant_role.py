@@ -18,6 +18,7 @@ from vultron.core.models.events.actor import (
     OfferCaseParticipantRoleReceivedEvent,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
@@ -52,7 +53,7 @@ class OfferCaseParticipantRoleReceivedUseCase:
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -95,3 +96,4 @@ class OfferCaseParticipantRoleReceivedUseCase:
                 offer_id,
                 BTBridge.get_failure_reason(tree) or result.feedback_message,
             )
+        return HandlerResult.applied()

@@ -24,10 +24,12 @@ import pytest
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.inbox.nodes.pipeline import (
+from vultron.core.behaviors.inbox.nodes.dispatch import (
     BuildOutcomeNode,
-    DeferCheckNode,
     DispatchNode,
+)
+from vultron.core.behaviors.inbox.nodes.pipeline import (
+    DeferCheckNode,
     ExtractSemanticsNode,
     KEY_ACTIVITY,
     KEY_DISPATCH,

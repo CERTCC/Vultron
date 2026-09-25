@@ -17,6 +17,7 @@ from vultron.core.models.ledger_gap_buffer import (
     get_ledger_gap_buffer,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -105,7 +106,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         self._sync_port = sync_port
         self._gap_buffer = gap_buffer
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         activity = request.activity
         if activity is None:
@@ -113,7 +114,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 "AnnounceVulnerabilityCase: no activity on event '%s' — skipping",
                 request.activity_id,
             )
-            return
+            return HandlerResult.applied()
 
         # The case object is the object_ field of the announce activity.
         case_obj = getattr(activity, "object_", None)
@@ -123,7 +124,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 " — skipping",
                 request.activity_id,
             )
-            return
+            return HandlerResult.applied()
 
         if getattr(case_obj, "type_", None) != "VulnerabilityCase":
             logger.warning(
@@ -132,7 +133,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 request.activity_id,
                 type(case_obj).__name__,
             )
-            return
+            return HandlerResult.applied()
 
         case_id = _as_id(case_obj)
         if case_id is None:
@@ -141,7 +142,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 " activity '%s' — skipping",
                 request.activity_id,
             )
-            return
+            return HandlerResult.applied()
 
         if not _sender_is_trusted(self._dl, case_id, request.actor_id):
             logger.warning(
@@ -151,7 +152,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 request.actor_id,
                 case_id,
             )
-            return
+            return HandlerResult.applied()
 
         tree = create_announce_vulnerability_case_received_tree(
             case_id=case_id,
@@ -176,7 +177,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 case_id,
                 BTBridge.get_failure_reason(tree),
             )
-            return
+            return HandlerResult.applied()
 
         # The case (and therefore its deterministic per-case genesis hash) is
         # now seeded locally.  Any Announce(CaseLedgerEntry) that arrived during
@@ -196,3 +197,4 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 gap_buffer,
                 self._sync_port,
             )
+        return HandlerResult.applied()

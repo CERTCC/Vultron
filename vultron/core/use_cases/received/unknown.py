@@ -6,6 +6,7 @@ from vultron.core.models.events.unknown import (
     UnknownReceivedEvent,
     UnresolvableObjectReceivedEvent,
 )
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
@@ -25,9 +26,10 @@ class UnknownUseCase:
         self._dl = dl
         self._request: UnknownReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         logger.warning("unknown use case called for event: %s", request)
+        return HandlerResult.applied()
 
 
 class UnresolvableObjectUseCase:
@@ -43,7 +45,7 @@ class UnresolvableObjectUseCase:
         self._dl = dl
         self._request = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         from py_trees.common import Status
 
         from vultron.core.behaviors.bridge import BTBridge
@@ -78,3 +80,4 @@ class UnresolvableObjectUseCase:
                 request.activity_id,
                 BTBridge.get_failure_reason(tree),
             )
+        return HandlerResult.applied()

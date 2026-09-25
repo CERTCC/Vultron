@@ -562,7 +562,7 @@ class TestAnnounceStoresEmbeddedParticipants:
     ):
         """Participants are stored even when the case already exists locally.
 
-        Regression: the inbox router's ``_store_nested_inbox_object`` can seed
+        Regression: the inbox ingress helper ``_store_nested_inbox_object`` can seed
         the case before dispatch, so the Announce use-case may enter the
         idempotent early-return path.  Embedded participants must still be
         persisted on that path (#566).

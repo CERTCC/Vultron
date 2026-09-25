@@ -2,9 +2,10 @@
 
 `TriggerResult` is the typed return value of a trigger-side action: the minimum
 of the `UseCaseResult` hierarchy designed in ADR-0040 (see
-`notes/use-case-protocol.md`).  The full hierarchy — a shared `UseCaseResult`
-base and a received-side `HandlerResult` sibling — is not built yet (#1769,
-#3354); this module deliberately introduces only the trigger half that
+`notes/use-case-protocol.md`).  The shared `UseCaseResult` base and its
+received-side `HandlerResult` sibling live in
+`vultron/core/models/use_case_result.py`; re-parenting this class onto that
+base is #3354.  Until then it stays the standalone trigger half that
 `ActorSession` (`vultron/demo/actor_session.py`) needs today.
 
 All fields are optional so a `TriggerResult` can be built by

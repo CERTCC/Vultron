@@ -3,6 +3,7 @@
 import logging
 
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
 logger = logging.getLogger(__name__)
@@ -15,13 +16,13 @@ class UpdateCaseReceivedUseCase:
         self._dl = dl
         self._request: UpdateCaseReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         actor_id = request.actor_id
         case_id = request.case_id
         if case_id is None:
             logger.warning("update_case: missing case_id on request")
-            return
+            return HandlerResult.applied()
 
         from py_trees.common import Status
 
@@ -55,3 +56,4 @@ class UpdateCaseReceivedUseCase:
                 case_id,
                 BTBridge.get_failure_reason(tree),
             )
+        return HandlerResult.applied()
