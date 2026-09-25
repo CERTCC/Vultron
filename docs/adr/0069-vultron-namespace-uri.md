@@ -4,6 +4,7 @@ date: 2026-08-21
 deciders: Allen D. Householder
 consulted: Vultron maintainers
 informed: Vultron implementers
+stakeholder_type: [project-contributor]
 ---
 
 # Adopt certcc.github.io/Vultron as the Initial Vultron Vocabulary Namespace Host

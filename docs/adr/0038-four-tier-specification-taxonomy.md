@@ -3,6 +3,7 @@ status: accepted
 date: 2026-07-21
 deciders: Vultron maintainers
 consulted: Audio review of the Vultron specification corpus, July 2026
+stakeholder_type: [project-contributor]
 ---
 
 # Replace Six-Kind Spec Taxonomy with Four-Tier Portability Hierarchy

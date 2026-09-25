@@ -3,6 +3,7 @@
 status: accepted
 date: 2023-10-24
 deciders: adh
+stakeholder_type: [project-contributor]
 ---
 # Use factory methods for common BT node types
 

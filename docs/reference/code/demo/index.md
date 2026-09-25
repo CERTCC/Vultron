@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Demo Package
 
 The `vultron.demo` package contains the unified demo CLI and all individual

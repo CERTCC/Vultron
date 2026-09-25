@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Process Specifications
 
 How we run this project. Covers CI configuration, GitHub workflow, agent

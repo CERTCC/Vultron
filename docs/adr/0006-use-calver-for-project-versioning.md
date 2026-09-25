@@ -3,6 +3,7 @@
 status: accepted
 date: 2024-04-22
 deciders: Allen
+stakeholder_type: [project-contributor]
 ---
 
 # Vultron Project Versioning

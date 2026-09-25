@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # CVE ID Assignment Behavior
 
 Many CVD practitioners want to assign identifiers to the vulnerabilities they coordinate.

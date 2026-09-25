@@ -4,6 +4,7 @@ date: 2026-09-21
 deciders: [adh, Claude Opus 5]
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0100: There Is No Multi-Candidate Embargo Poll; Open Proposals Resolve in Earliest-Expiration Order

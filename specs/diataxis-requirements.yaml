@@ -567,9 +567,11 @@ groups:
       about that requirement arises rather than in sequence; the reader-facing index that
       introduces them stays leveled (#3526). Exclusion is demotion, not retirement (#3281).
     verification: >-
-      Inspection of `mkdocs.yml` confirms no working-record page appears in the
-      reader-facing navigation, and that each remains reachable through a routing page or a
-      `not_in_nav` entry rather than being unreferenced.
+      `uv run docs-frontmatter` fails when a page matched by `WORKING_RECORD_PATTERNS`
+      (`vultron/metadata/docs/page_schema.py`) is listed in the `mkdocs.yml` nav or matched
+      by no `not_in_nav` pattern, and
+      `test/metadata/docs/test_working_record_routing.py` fails when a working-record page
+      is not reached by following links from `docs/about/project_record.md`.
   - id: DF-11-012
     priority: MUST
     kind: process

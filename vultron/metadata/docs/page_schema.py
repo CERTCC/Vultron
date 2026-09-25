@@ -15,14 +15,19 @@ matrix (DF-11-008) — imports :class:`StakeholderType`, :data:`LEVELS` and
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Annotated, Literal, get_args
 
-from pydantic import BaseModel, BeforeValidator, field_validator
+from pathspec.gitignore import GitIgnoreSpec
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    field_validator,
+)
 
 
 class StakeholderType(StrEnum):
@@ -191,6 +196,25 @@ class PageFrontmatter(BaseModel):
     level: Annotated[Level, BeforeValidator(_check_level)]
 
 
+def _check_addressed_to_contributors(value: object) -> object:
+    """Require exactly ``[project-contributor]`` (DF-11-012)."""
+    if value != [StakeholderType.PROJECT_CONTRIBUTOR]:
+        raise ValueError(
+            f"a working-record page must declare "
+            f"[{StakeholderType.PROJECT_CONTRIBUTOR.value}]"
+        )
+    return value
+
+
+#: The ``stakeholder_type`` a working-record page declares: well-formed as any
+#: page's (:data:`StakeholderTypes`), and then exactly ``[project-contributor]``.
+#: :class:`~vultron.metadata.adr.schema.AdrFrontmatter` reuses it, so a decision
+#: record's declaration is checked by the same rule wherever it is loaded.
+WorkingRecordStakeholderTypes = Annotated[
+    StakeholderTypes, AfterValidator(_check_addressed_to_contributors)
+]
+
+
 class WorkingRecordFrontmatter(BaseModel):
     """The declarations a project working-record page makes (DF-11-012).
 
@@ -199,19 +223,8 @@ class WorkingRecordFrontmatter(BaseModel):
     decision record is a category error, not a harmless extra.
     """
 
-    stakeholder_type: StakeholderTypes
+    stakeholder_type: WorkingRecordStakeholderTypes
     level: None = None
-
-    @field_validator("stakeholder_type")
-    @classmethod
-    def addressed_to_contributors(cls, value: object) -> object:
-        """Require exactly ``[project-contributor]``."""
-        if value != [StakeholderType.PROJECT_CONTRIBUTOR]:
-            raise ValueError(
-                f"a working-record page must declare "
-                f"[{StakeholderType.PROJECT_CONTRIBUTOR.value}]"
-            )
-        return value
 
     @field_validator("level", mode="before")
     @classmethod
@@ -225,8 +238,11 @@ class WorkingRecordFrontmatter(BaseModel):
 #: ``docs/``-relative glob patterns naming the project working record
 #: (DF-11-003): decision records, generated code documentation, exhaustively
 #: enumerated state pages, retained design history, and agent- and
-#: contributor-facing material. ``**`` spans directories; ``*`` does not.
-#: #3528 maintains this set as the working record moves behind its door.
+#: contributor-facing material. Matched as gitignore lines, exactly as MkDocs
+#: matches ``not_in_nav``, so the two lists cannot read one pattern two ways.
+#: A page matched here must stay out of the ``mkdocs.yml`` nav, which
+#: :mod:`~vultron.metadata.docs.page_frontmatter` checks; ``not_in_nav`` lists it
+#: so the build does not warn about the omission.
 WORKING_RECORD_PATTERNS: tuple[str, ...] = (
     # Decision records, archived ones included.
     "adr/**",
@@ -245,6 +261,7 @@ WORKING_RECORD_PATTERNS: tuple[str, ...] = (
     # Retained design history: the "Original Design" behavior-tree pages
     # (#3281 decided to keep them, not to retire them).
     "topics/behavior_logic/*_bt.md",
+    "topics/behavior_logic/original_design.md",
     # The tombstone page for the unmaintained OWL ontology files (#3526).
     "reference/ontology/index.md",
     # Requirements-traceability records: the individual user stories and the
@@ -255,23 +272,9 @@ WORKING_RECORD_PATTERNS: tuple[str, ...] = (
 )
 
 
-_GLOB_TOKENS = {"**/": "(?:.*/)?", "**": ".*", "*": "[^/]*"}
-
-
-def _glob_regex(pattern: str) -> re.Pattern[str]:
-    """Compile a ``docs/``-relative glob; ``**`` spans directories.
-
-    Hand-rolled because ``PurePath.full_match`` needs Python 3.13 and
-    ``fnmatch`` lets ``*`` cross ``/``.
-    """
-    parts = re.split(r"(\*\*/?|\*)", pattern)
-    body = "".join(_GLOB_TOKENS.get(part, re.escape(part)) for part in parts)
-    return re.compile(f"{body}\\Z")
-
-
-_WORKING_RECORD_RES = tuple(_glob_regex(p) for p in WORKING_RECORD_PATTERNS)
+_WORKING_RECORD_SPEC = GitIgnoreSpec.from_lines(WORKING_RECORD_PATTERNS)
 
 
 def is_working_record(docs_path: str) -> bool:
     """Whether a ``docs/``-relative POSIX path is project working record."""
-    return any(rx.match(docs_path) for rx in _WORKING_RECORD_RES)
+    return _WORKING_RECORD_SPEC.match_file(docs_path)

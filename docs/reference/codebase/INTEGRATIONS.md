@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # External Integrations
 
 ## Core Sections (Required)

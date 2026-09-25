@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.adr.schema import AdrFrontmatter
+from vultron.metadata.docs.page_schema import StakeholderType
 from vultron.metadata.specs.schema import AdrStatus
 
 
@@ -121,6 +122,47 @@ class TestAdrFrontmatterSchema:
             AdrFrontmatter.model_validate(
                 {"status": "accepted", "lint_suppress": []}
             )
+
+
+@pytest.mark.spec("DF-11-012")
+class TestAdrStakeholderType:
+    """An ADR is working record, so it declares ``[project-contributor]``.
+
+    The field must be declared on the model: an undeclared key is dropped
+    silently, so a wrong value would validate (#3528 AC-6a).
+    """
+
+    def test_project_contributor_is_kept(self):
+        fm = AdrFrontmatter.model_validate(
+            {"status": "accepted", "stakeholder_type": ["project-contributor"]}
+        )
+        assert fm.stakeholder_type == [StakeholderType.PROJECT_CONTRIBUTOR]
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            ["cvd-practitioner"],
+            ["project-contributor", "platform-developer"],
+            "ALL",
+            "project-contributor",
+            [],
+        ],
+        ids=["other-type", "extra-type", "all", "bare-scalar", "empty"],
+    )
+    def test_any_other_value_is_rejected(self, value):
+        with pytest.raises(ValidationError, match="stakeholder_type"):
+            AdrFrontmatter.model_validate(
+                {"status": "accepted", "stakeholder_type": value}
+            )
+
+    def test_every_committed_adr_declares_it(self):
+        registry = load_adr_registry()
+        undeclared = sorted(
+            name
+            for name, fm in registry.items()
+            if fm.stakeholder_type is None
+        )
+        assert undeclared == []
 
 
 def test_all_adr_files_have_valid_frontmatter():

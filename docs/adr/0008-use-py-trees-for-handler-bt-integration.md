@@ -7,6 +7,7 @@ consulted:
   - project stakeholders
 informed:
   - contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Use py_trees for Behavior Tree Execution in Handler Integration

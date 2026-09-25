@@ -3,6 +3,7 @@ status: accepted
 date: 2026-07-28
 deciders: [adh, Claude Sonnet 4.6]
 supersedes: 0015-create-case-at-report-receipt.md
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0041: CASE_MANAGER-Authoritative Case Initialization

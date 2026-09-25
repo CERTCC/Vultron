@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Project Specifications
 
 Specific to this Python codebase. Covers Python paths, Behavior Tree nodes,

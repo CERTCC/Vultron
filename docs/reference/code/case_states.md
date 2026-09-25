@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Vultron Case States Module
 
 ::: vultron.core.case_states

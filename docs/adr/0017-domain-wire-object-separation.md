@@ -7,6 +7,7 @@ amended: >-
   2026-06-05 — Changed decision from Option B to Option D
   (shared-base, two-branch hierarchy); see concern #796.
 partially_superseded_by: 0099-one-object-model-as2-is-a-serialization.md
+stakeholder_type: [project-contributor]
 ---
 
 > **Partially superseded by

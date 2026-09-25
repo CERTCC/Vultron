@@ -3,6 +3,7 @@ status: accepted
 date: 2026-07-07
 deciders: [adh]
 partially_superseded_by: docs/adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md
+stakeholder_type: [project-contributor]
 ---
 
 # Capability Shape Taxonomy

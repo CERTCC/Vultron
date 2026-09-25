@@ -3,6 +3,7 @@ status: accepted
 date: 2026-07-21
 deciders: Allen D. Householder
 consulted: Claude Code (design session)
+stakeholder_type: [project-contributor]
 ---
 
 # Per-Machine Dimension Objects for CaseStatus and ParticipantStatus

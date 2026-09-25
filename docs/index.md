@@ -123,11 +123,14 @@ The documentation follows the [Diátaxis Framework](https://diataxis.fr/){:targe
 
     ---
 
-    The protocol specification, message types, case state listings, code documentation, and International Organization for Standardization (ISO) crosswalks.
+    The protocol specification, message types, the formal protocol, and International Organization for Standardization (ISO) crosswalks.
 
     [:octicons-arrow-right-24: Reference](reference/index.md)
 
 </div>
+
+Research material sits outside those four, in its own [Research](research/index.md) section: measuring CVD across many cases, and other uses of the case state model.
+The project's decision records, requirements, and generated code references are reached from [Working on This Implementation](about/project_record.md).
 
 ## Background
 

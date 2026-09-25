@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Demo Utilities
 
 `vultron.demo.utils` provides the shared context managers, HTTP client, and

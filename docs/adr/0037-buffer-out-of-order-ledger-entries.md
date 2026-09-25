@@ -4,6 +4,7 @@ date: 2026-07-21
 deciders: Allen D. Householder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Buffer Out-of-Order `Announce(CaseLedgerEntry)` Instead of Dropping

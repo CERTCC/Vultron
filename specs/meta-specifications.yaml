@@ -2,7 +2,7 @@ id: MS
 title: Meta-Specification Style Guide
 description: Normative rules for authoring specification files in this project. Covers file structure, requirement format,
   IDs, writing rules, cross-references, lifecycle, quality criteria, and the delineation between spec files and ADRs.
-version: 1.5.0
+version: 1.6.0
 scope:
 - prototype
 - production
@@ -779,13 +779,19 @@ groups:
     kind: project
     statement: >-
       docs/adr/index.md MUST be generated from ADR frontmatter (uv run
-      adr-index --write) and every non-archived ADR MUST be referenced in the
-      mkdocs nav; CI (uv run adr-index --check) fails on drift.
+      adr-index --write), and no ADR, archived or not, may be referenced in the
+      mkdocs nav: each MUST instead be matched by the not_in_nav patterns in
+      mkdocs.yml and reached through the index. CI (uv run adr-index --check)
+      fails on drift.
     rationale: >-
-      Both the index and the nav are hand-maintained lists that rot: ADR-0027
-      was filed under the wrong index section and several ADRs were missing
-      from nav, breaking mkdocs --strict. Generating the index and checking nav
-      completeness makes the drift mechanically impossible to merge. See
+      The index was a hand-maintained list that rotted: ADR-0027 was filed
+      under the wrong index section. Generating it makes that drift
+      mechanically impossible to merge. The nav rule was once the opposite,
+      requiring every non-archived ADR in the nav, but decision records are
+      project working record, which stays out of the reader-facing nav
+      (DF-11-003), and the generated index is their routing page (DF-11-006).
+      An ADR in neither the nav nor not_in_nav breaks mkdocs --strict on an
+      omitted-file warning, so the check requires the pattern match too. See
       ADR-0043 and MS-14-003.
     adr:
     - ADR-0043

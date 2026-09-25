@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # User Story Traceability Matrix
 
 This document maps user stories from `docs/reference/user_stories/` to formal

@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # How to run formatters and linters
 
 Use this guide to run the same formatting and linting flow maintainers expect

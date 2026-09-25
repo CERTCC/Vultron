@@ -5,6 +5,7 @@ updated: 2026-08-11
 deciders: Allen D. Householder
 consulted: Claude Sonnet 4.6
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Two-Gate Authorization Model for Received-Side CaseStatus Canonicalization

@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # How to fix your first bug
 
 Use this guide when you've encountered a bug in Vultron and want to fix it

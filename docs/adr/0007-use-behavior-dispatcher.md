@@ -7,6 +7,7 @@ consulted:
   - project stakeholders
 informed:
   - contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Introduce a Behavior Dispatcher Between Inbox Handling and Behavior Execution

@@ -5,6 +5,7 @@ deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
 superseded_by: 0082-wire-core-boundary-pairing-registry.md
+stakeholder_type: [project-contributor]
 ---
 
 > **Superseded (#2940).** The persistence-boundary normalisation this ADR

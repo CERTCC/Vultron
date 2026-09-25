@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-07-28
 deciders: Allen D. Householder
+stakeholder_type: [project-contributor]
 ---
 
 # Introduce UseCaseResult Envelope; Do Not Introduce UseCaseRequest

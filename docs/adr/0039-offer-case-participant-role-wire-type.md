@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-07-27
+stakeholder_type: [project-contributor]
 ---
 
 # Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type

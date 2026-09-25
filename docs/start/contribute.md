@@ -26,4 +26,5 @@ Each step builds on the one before it.
 ## Start contributing
 
 - [Contributing](../about/contributing.md) — how to propose a change and get it merged.
+- [Working on This Implementation](../about/project_record.md) — the decision records, project requirements, and generated references, each reached from one page.
 - [Vultron Developer Docs](https://github.com/CERTCC/Vultron/blob/main/docs/developer/index.md) — setup, testing and day-to-day development tasks.

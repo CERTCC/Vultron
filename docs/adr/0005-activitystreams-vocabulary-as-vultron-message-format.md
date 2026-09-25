@@ -3,6 +3,7 @@ status: accepted
 date: 2023-12-01
 deciders: adh
 informed: CERT/CC (CERT Coordination Center) Vulnerability Analysis Team
+stakeholder_type: [project-contributor]
 ---
 
 # Use ActivityStreams Vocabulary as the basis for Vultron Message Formats

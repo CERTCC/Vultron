@@ -5,6 +5,7 @@ deciders: Allen Householder
 consulted: Claude Code (planning agent for CONCERN-2260)
 informed: Vultron contributors
 partially_superseded_by: docs/adr/0082-wire-core-boundary-pairing-registry.md
+stakeholder_type: [project-contributor]
 ---
 
 # Render Core Objects to Wire JSON Through a Driven Port; Remove `alias_generator` From All Core-Branch Types

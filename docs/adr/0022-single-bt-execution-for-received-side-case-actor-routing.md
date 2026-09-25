@@ -7,6 +7,7 @@ consulted: >-
   notes/case-ledger-authority.md, specs/case-ledger-processing.yaml,
   docs/adr/0021-caseactor-inbox-routing-canonical-ledger.md,
   issue #1047
+stakeholder_type: [project-contributor]
 ---
 
 # Single BT Execution Per Inbox Delivery for Received-Side CaseActor Routing

@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # CVD Behavior Tree
 
 ## Related Requirements

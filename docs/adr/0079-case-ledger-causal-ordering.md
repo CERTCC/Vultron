@@ -11,6 +11,7 @@ consulted: >-
 informed: >-
   specs/case-ledger-processing.yaml CLP-14, CLP-15,
   specs/multi-actor-demo.yaml DEMOMA-22-005
+stakeholder_type: [project-contributor]
 ---
 
 # CaseLedger Causal Ordering: CaseActor Observation Order Is the Canonical Causal Order

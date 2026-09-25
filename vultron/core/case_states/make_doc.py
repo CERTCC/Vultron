@@ -24,6 +24,10 @@ from vultron.core.states.cs import CS_d, CS_vf
 
 _DISCLAIMER = "This file is auto-generated. Do not edit."
 
+# Every generated page is project working record (DF-11-003): it is addressed
+# to contributors and carries no level (DF-11-012).
+_WORKING_RECORD_DECLARATION = "stakeholder_type: [project-contributor]\n"
+
 # CS_vf/CS_d StrEnum names are terse protocol symbols, not prose. Map them to
 # the same human-readable labels the old VfdState namedtuple produced so that
 # regenerated docs stay consistent with the committed pages (ADR-0075).
@@ -108,12 +112,10 @@ def print_readme(model_dir="../../docs/case_states"):
 
     fpath = os.path.join(model_dir, "index.md")
     with open(fpath, "w") as fp:
-        # The Reference landing page lists this page by its description:
-        # (DF-11-005), so regenerating must not drop it.
         fp.write(
             "---\ndescription: >\n"
             "  An annotated listing of every state in the case state model.\n"
-            "---\n\n"
+            f"{_WORKING_RECORD_DECLARATION}---\n\n"
         )
         fp.write(f"{_comment(_DISCLAIMER)}\n")
 
@@ -147,6 +149,7 @@ def print_model(model_dir="../../docs/reference/case_states"):
         print(filepath)
 
         with open(filepath, "w") as fp:
+            fp.write(f"---\n{_WORKING_RECORD_DECLARATION}---\n\n")
             fp.write(f"{_comment(_DISCLAIMER)}\n")
 
             fp.write(f"# {state}\n")

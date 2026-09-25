@@ -4,6 +4,7 @@ date: 2026-03-20
 deciders: ahouseholder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Unify RM State Tracking into Persisted VultronParticipantStatus Records

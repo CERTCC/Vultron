@@ -7,6 +7,7 @@ consulted:
   - project stakeholders
 informed:
   - contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Move Inbox Orchestration into a Core BT Module with a Typed `process_payload` Seam

@@ -24,8 +24,6 @@ This section provides an overview of the Vultron Protocol, including:
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
 - [Background](background/index.md) — What Vultron is, the coordination problem it addresses, and the outcomes a Coordinated Vulnerability Disclosure case is trying to reach.
-- [Other Uses of Vultron](other_uses/index.md)
-- [Measuring CVD](measuring_cvd/index.md)
 - [Case Lifecycle](case_lifecycle/index.md)
 - [Protocol Event Flow](protocol_flow.md)
 - [Message Semantics](message_semantics.md)

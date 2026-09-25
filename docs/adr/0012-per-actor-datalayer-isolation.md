@@ -5,6 +5,7 @@ deciders: ahouseholder
 consulted: notes/domain-model-separation.md, notes/architecture-adapters.md, vultron/core/ports/AGENTS.md
 informed: plan/IMPLEMENTATION_PLAN.md
 partially_superseded_by: docs/adr/0073-per-actor-storage-isolation.md
+stakeholder_type: [project-contributor]
 ---
 
 # Per-Actor DataLayer Isolation

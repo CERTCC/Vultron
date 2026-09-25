@@ -7,6 +7,7 @@ consulted:
   - project stakeholders
 informed:
   - contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Adopt Hexagonal Architecture (Ports and Adapters) for Vultron

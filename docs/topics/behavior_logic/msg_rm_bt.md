@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Process RM Messages Behavior
 
 ## Requirements

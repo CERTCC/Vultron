@@ -5,6 +5,7 @@ deciders: Vultron maintainers
 consulted: >-
   notes/case-communication-model.md, notes/case-ledger-authority.md,
   specs/case-ledger-processing.yaml, specs/participant-case-replica.yaml
+stakeholder_type: [project-contributor]
 ---
 
 # CaseActor Inbox Routing as the Sole Path to Canonical Ledger Entries

@@ -5,6 +5,7 @@ deciders: Allen D. Householder
 consulted: CERTCC/Vultron contributors
 informed: Vultron protocol working group
 lint_suppress: [status_prose_contradiction]
+stakeholder_type: [project-contributor]
 ---
 
 # Retire `CVDRole.FINDER` — Reporter Is the Protocol-Salient Role

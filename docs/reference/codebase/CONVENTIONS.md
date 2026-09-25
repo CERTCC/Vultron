@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Coding Conventions
 
 ## Core Sections (Required)

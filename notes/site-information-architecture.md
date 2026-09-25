@@ -14,6 +14,7 @@ related_notes:
   - notes/reader-facing-docs-audit.md
 related_specs:
   - specs/diataxis-requirements.yaml
+  - specs/meta-specifications.yaml
 ---
 
 # Site Information Architecture — Stakeholder Types, Levels, and Routing
@@ -343,6 +344,17 @@ reader-facing (#3526). It stays
 published, linkable, and unbroken — and it stays out of the reader-facing
 navigation, behind one labeled door.
 
+The door is `docs/about/project_record.md` ("Working on This Implementation"),
+the working record's one nav entry. It is itself reader-facing — a
+`project-contributor` page at 400 — and it links one routing page per group:
+the ADR index, the case-state index, the behavior-tree index, the code
+documentation index, `topics/behavior_logic/original_design.md` for the design
+history, and the traceability matrix for the user stories. Every
+working-record page is absent from the nav and matched by `not_in_nav`, and
+`uv run docs-frontmatter` fails a page that is navved or unmatched, because an
+unmatched page is an omitted-file warning that breaks `mkdocs build --strict`
+(#3528).
+
 It does declare `stakeholder_type: [project-contributor]`, because it is addressed
 to somebody. That makes the missing level an ordinary property of one audience's
 material rather than a special exemption carved out for a category of page: this
@@ -364,10 +376,18 @@ the group, not the members.
 The pattern is already proven in this repository and simply is not applied
 consistently: `docs/reference/user_stories/` holds 111 story pages that are
 excluded from the nav entirely and reached through `traceability.md`, which
-links all of them. Two nav entries carry 111 pages. Meanwhile the nav
-enumerates every decision record, every generated code page, and every
-enumerated case state inline. Same shape of content, opposite treatment. The
-`traceability.md` treatment is the correct one.
+links all of them. Two nav entries carry 111 pages. Until #3528 the nav
+enumerated every decision record, every generated code page, and every
+enumerated case state inline — same shape of content, opposite treatment. The
+`traceability.md` treatment is the correct one, and #3528 applied it to all of
+them.
+
+Research is the one reader-facing group that moved section rather than
+leaving the nav. Measuring CVD and Other Uses sit in their own top-level
+Research section, opened by `docs/research/index.md` at 500 and addressed to
+`process-researcher`, so they are off the adoption path without being hidden.
+Future Work stays in Explanation: its pages are `platform-developer` at 400
+(see the audit ruling in `notes/reader-facing-docs-audit.md`).
 
 ### Landing pages are generated, never hand-maintained
 

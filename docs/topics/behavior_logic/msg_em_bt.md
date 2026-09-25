@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Process EM Messages Behavior
 
 ## Requirements

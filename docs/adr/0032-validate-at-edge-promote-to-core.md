@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-07-13
 deciders: Allen D. Householder
+stakeholder_type: [project-contributor]
 ---
 
 # Validate at the Edge, Promote to Strict Core Types

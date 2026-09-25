@@ -4,6 +4,7 @@ date: 2026-09-18
 deciders: Allen D. Householder
 consulted: Claude Opus 5
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # The Capability Layer: Four Call-Out Shapes, Core-Declared Typed-Port Contracts, and Sentinel as a Call-In Pattern

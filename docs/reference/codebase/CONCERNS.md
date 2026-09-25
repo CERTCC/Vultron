@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Codebase Concerns
 
 ## Core Sections (Required)

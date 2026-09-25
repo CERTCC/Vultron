@@ -1,4 +1,4 @@
-"""Tests for vultron.metadata.adr.index_gen (MS-14-003, ADR-0043)."""
+"""Tests for vultron.metadata.adr.index_gen (MS-14-003, MS-14-006, ADR-0043)."""
 
 import pytest
 
@@ -6,7 +6,7 @@ from vultron.metadata.adr.index_gen import (
     duplicate_numbers,
     generate_index,
     main,
-    missing_nav_entries,
+    nav_placement_faults,
 )
 
 
@@ -113,18 +113,47 @@ class TestGenerateIndex:
         assert generate_index(tmp_path) == first
 
 
-class TestMissingNavEntries:
-    def test_detects_missing(self, tmp_path):
+_UNNAVVED = "not_in_nav: |\n  adr/*.md\n  adr/archived/*.md\n"
+
+
+@pytest.mark.spec("MS-14-006")
+@pytest.mark.spec("DF-11-003")
+class TestNavPlacementFaults:
+    """ADRs are working record: out of the nav, matched by ``not_in_nav``."""
+
+    def test_unnavved_and_matched_is_clean(self, tmp_path):
+        adr_dir = _scaffold(tmp_path)
+        _write_adr(adr_dir, "0001", "accepted", "First")
+        (tmp_path / "mkdocs.yml").write_text(
+            "nav:\n  - Home: 'index.md'\n" + _UNNAVVED
+        )
+        assert nav_placement_faults(tmp_path) == []
+
+    def test_adr_in_nav_is_reported(self, tmp_path):
         adr_dir = _scaffold(tmp_path)
         _write_adr(adr_dir, "0001", "accepted", "First")
         _write_adr(adr_dir, "0002", "accepted", "Second")
         (tmp_path / "mkdocs.yml").write_text(
-            "nav:\n  - x: 'adr/0001-stub.md'\n"
+            "nav:\n  - x: 'adr/0001-stub.md'\n" + _UNNAVVED
         )
-        missing = missing_nav_entries(tmp_path)
-        assert missing == ["adr/0002-stub.md"]
+        faults = nav_placement_faults(tmp_path)
+        assert len(faults) == 1
+        assert faults[0].startswith("docs/adr/0001-stub.md is listed")
+        assert "MS-14-006" in faults[0]
 
-    def test_archived_excluded_from_nav_check(self, tmp_path):
+    def test_adr_matched_by_no_pattern_is_reported(self, tmp_path):
+        """Absent from the nav is not enough: the build warns on the omission."""
+        adr_dir = _scaffold(tmp_path)
+        _write_adr(adr_dir, "0001", "accepted", "First")
+        (tmp_path / "mkdocs.yml").write_text(
+            "nav:\n  - Home: 'index.md'\n"
+            "not_in_nav: |\n  adr/archived/*.md\n"
+        )
+        faults = nav_placement_faults(tmp_path)
+        assert len(faults) == 1
+        assert "not matched by not_in_nav" in faults[0]
+
+    def test_archived_adrs_are_checked_too(self, tmp_path):
         adr_dir = _scaffold(tmp_path)
         archived = adr_dir / "archived"
         archived.mkdir()
@@ -133,26 +162,22 @@ class TestMissingNavEntries:
         )
         _write_adr(adr_dir, "0002", "accepted", "New")
         (tmp_path / "mkdocs.yml").write_text(
-            "nav:\n  - x: 'adr/0002-stub.md'\n"
+            "nav:\n  - x: 'adr/archived/0001-stub.md'\n" + _UNNAVVED
         )
-        # 0001 is archived → not required in nav
-        assert missing_nav_entries(tmp_path) == []
+        faults = nav_placement_faults(tmp_path)
+        assert len(faults) == 1
+        assert faults[0].startswith("docs/adr/archived/0001-stub.md is listed")
 
-    def test_substring_in_comment_does_not_false_pass(self, tmp_path):
-        """A path present only in a comment is NOT a real nav entry.
-
-        Guards the structural (YAML-tree) nav walk against the old raw
-        substring match, which would false-pass here and then break
-        ``mkdocs build --strict`` (MS-14-006).
-        """
+    def test_path_in_a_comment_is_not_a_nav_entry(self, tmp_path):
+        """The nav is walked structurally, not substring-matched."""
         adr_dir = _scaffold(tmp_path)
         _write_adr(adr_dir, "0001", "accepted", "First")
         (tmp_path / "mkdocs.yml").write_text(
             "nav:\n"
             "  - Home: 'index.md'\n"
-            "# see also adr/0001-stub.md for context\n"
+            "# see also adr/0001-stub.md for context\n" + _UNNAVVED
         )
-        assert missing_nav_entries(tmp_path) == ["adr/0001-stub.md"]
+        assert nav_placement_faults(tmp_path) == []
 
     def test_tolerates_mkdocs_custom_tags(self, tmp_path):
         """`!ENV` / `!!python/name:` tags must not crash the nav parse."""
@@ -168,9 +193,12 @@ class TestMissingNavEntries:
             "      emoji_generator: !!python/name:material.extensions"
             ".emoji.to_svg\n"
             "nav:\n"
-            "  - First: 'adr/0001-stub.md'\n"
+            "  - Home: 'index.md'\n" + _UNNAVVED
         )
-        assert missing_nav_entries(tmp_path) == []
+        assert nav_placement_faults(tmp_path) == []
+
+    def test_committed_tree_has_no_faults(self):
+        assert nav_placement_faults() == []
 
 
 class TestMainCLI:
@@ -178,7 +206,7 @@ class TestMainCLI:
         adr_dir = _scaffold(tmp_path)
         _write_adr(adr_dir, "0001", "accepted", "First")
         (tmp_path / "mkdocs.yml").write_text(
-            "nav:\n  - First: 'adr/0001-stub.md'\n"
+            "nav:\n  - Home: 'index.md'\n" + _UNNAVVED
         )
         return adr_dir
 
@@ -210,11 +238,13 @@ class TestMainCLI:
             main()
         assert exc.value.code == 1
 
-    def test_check_exits_1_when_nav_missing(self, tmp_path, monkeypatch):
+    def test_check_exits_1_when_an_adr_is_navved(self, tmp_path, monkeypatch):
         adr_dir = _scaffold(tmp_path)
         _write_adr(adr_dir, "0001", "accepted", "First")
-        # sync index but leave the ADR out of nav
-        (tmp_path / "mkdocs.yml").write_text("nav:\n  - Home: 'index.md'\n")
+        # sync index but put the ADR in the nav
+        (tmp_path / "mkdocs.yml").write_text(
+            "nav:\n  - First: 'adr/0001-stub.md'\n" + _UNNAVVED
+        )
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr("sys.argv", ["adr-index", "--write"])
         main()

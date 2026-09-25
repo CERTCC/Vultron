@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Developer How-to Guides
 
 These guides are task-focused directions for maintainers working in this repo.

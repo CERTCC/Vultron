@@ -4,6 +4,7 @@ date: 2026-08-11
 deciders: Allen D. Householder
 consulted: CERTCC/Vultron contributors
 informed: Vultron protocol working group
+stakeholder_type: [project-contributor]
 ---
 
 # Rename `CVDRole.OTHER` to `CVDRole.OBSERVER` and Define Observer Participant Semantics

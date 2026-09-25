@@ -4,6 +4,7 @@ date: 2026-09-02
 deciders: Allen D. Householder
 consulted: Claude Opus 4.8
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Owner-Close Is a Hard Write Boundary; RM.CLOSED Is Terminal and Rejoin Is Unsupported

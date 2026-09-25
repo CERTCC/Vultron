@@ -4,6 +4,7 @@ date: 2026-08-05
 deciders: Allen D. Householder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Demo CI Job Structure: Accept Barrier + Concurrency Group Over Job Consolidation

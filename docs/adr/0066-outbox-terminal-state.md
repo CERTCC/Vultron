@@ -4,6 +4,7 @@ date: 2026-08-14
 deciders: Vultron maintainers
 consulted: CERT/CC CVD research team
 informed: Vultron contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Outbox Terminal State: Per-Activity Attempt Counter, 4xx Classification, and Dead-Letter Store

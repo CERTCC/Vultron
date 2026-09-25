@@ -2,6 +2,7 @@
 status: accepted
 date: 2023-10-18
 deciders: adh
+stakeholder_type: [project-contributor]
 ---
 # Use Markdown Any Decision Records
 

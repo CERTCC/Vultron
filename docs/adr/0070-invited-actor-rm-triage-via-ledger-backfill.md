@@ -4,6 +4,7 @@ date: 2026-08-24
 deciders: Allen D. Householder
 consulted: CONCERN-2320
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Reuse `validate-report` for Invited Actors; Derive `VultronOfferRecord` from Ledger Backfill

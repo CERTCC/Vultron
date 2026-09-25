@@ -4,6 +4,7 @@ date: 2026-07-28
 deciders: Vultron maintainers
 consulted: CERT/CC CVD research team
 informed: Vultron contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Deliver All Inter-Actor Communication over HTTP; Retire the In-Process ASGI Delivery Shortcut

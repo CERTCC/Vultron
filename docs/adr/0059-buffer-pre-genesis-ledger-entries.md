@@ -4,6 +4,7 @@ date: 2026-08-11
 deciders: Allen D. Householder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Buffer Pre-Genesis `Announce(CaseLedgerEntry)` and Drain on Case Seed

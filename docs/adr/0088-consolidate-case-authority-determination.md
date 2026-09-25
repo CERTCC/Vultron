@@ -4,6 +4,7 @@ date: 2026-09-14
 deciders: Allen D. Householder
 consulted:
 informed:
+stakeholder_type: [project-contributor]
 ---
 
 # Authority Is the CASE_MANAGER Role; "Case Actor" Names the Prototype Actor That Enacts It, Not the Authority

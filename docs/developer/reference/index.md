@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Developer reference links
 
 This page is a curated maintainer jump-off into existing shared Reference and

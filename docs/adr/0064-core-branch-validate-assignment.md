@@ -4,6 +4,7 @@ date: 2026-08-13
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Enforce Post-Construction Type Safety on the Core Branch Only, in Three Ratcheted Steps

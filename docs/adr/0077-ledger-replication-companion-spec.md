@@ -4,6 +4,7 @@ date: 2026-08-26
 deciders: ahouseholder
 consulted: notes/sync-ledger-replication.md, docs/reference/draft-vultron-spec.md
 informed: Vultron implementers, external reviewers
+stakeholder_type: [project-contributor]
 ---
 
 # Scope Ledger Replication Mechanics to a Companion Spec; Single-Hub Fan-Out Is Normative

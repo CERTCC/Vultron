@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Ontology
 
 The Vultron repository carries a set of [Web Ontology Language (OWL)](https://www.w3.org/TR/owl2-overview/){:target="_blank"} files under `ontology/`.

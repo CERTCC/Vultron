@@ -1196,10 +1196,10 @@ def test_partition_reports_a_scenario_listed_twice_in_the_register(
 def test_nav_paths_flattens_every_nesting_level(tmp_path: Path) -> None:
     """``nav_paths`` returns every document path the nav reaches.
 
-    Tested directly rather than only through its two callers, because it is a
+    Tested directly rather than only through its callers, because it is a
     shared helper extracted from ``adr/index_gen`` in #3451: a change that broke
-    the recursion would surface as "some ADR is missing from the nav", which
-    reads like a docs problem rather than a parser one.
+    the recursion would surface as "an ADR is listed in the nav" going
+    unreported, which reads like a docs problem rather than a parser one.
     """
     (tmp_path / "mkdocs.yml").write_text(
         "nav:\n"

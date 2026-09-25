@@ -3,6 +3,7 @@ status: accepted
 date: 2026-06-12
 deciders: Vultron maintainers
 consulted: notes/case-ledger-authority.md, notes/sync-ledger-replication.md, specs/case-ledger-processing.yaml
+stakeholder_type: [project-contributor]
 ---
 
 # Separate the Case Ledger from the Per-Actor Process Log

@@ -18,9 +18,6 @@ from vultron.metadata.docs.page_frontmatter import (
     check_docs_frontmatter,
     classify_docs_tree,
     main,
-    prune_baseline,
-    read_baseline,
-    write_baseline,
 )
 from vultron.metadata.docs.page_schema import (
     ALL_STAKEHOLDERS,
@@ -207,9 +204,20 @@ def test_working_record_patterns(path, expected):
 # ---------------------------------------------------------------------------
 
 
-def _repo(tmp_path: Path, files: dict[str, str], nav=None, auto_append=None):
-    """Build a minimal checkout: ``mkdocs.yml`` plus ``docs/`` files."""
-    config: dict[str, object] = {"nav": nav or []}
+def _repo(
+    tmp_path: Path,
+    files: dict[str, str],
+    nav=None,
+    auto_append=None,
+    not_in_nav="adr/**\n",
+):
+    """Build a minimal checkout: ``mkdocs.yml`` plus ``docs/`` files.
+
+    ``not_in_nav`` defaults to covering ``adr/``, where these tests put their
+    working-record pages, so only a test about nav placement has to think
+    about it.
+    """
+    config: dict[str, object] = {"nav": nav or [], "not_in_nav": not_in_nav}
     if auto_append:
         config["markdown_extensions"] = [
             {"pymdownx.snippets": {"auto_append": auto_append}}
@@ -222,10 +230,6 @@ def _repo(tmp_path: Path, files: dict[str, str], nav=None, auto_append=None):
     return tmp_path
 
 
-#: The committed baseline's entry count may only fall. Lower this when
-#: ``--prune-baseline`` shrinks the file; raising it defeats AC-3a of #3525.
-_BASELINE_CEILING = 330
-
 _READER = _page("[cvd-practitioner]", "100")
 _RECORD = _page("[project-contributor]")
 
@@ -236,12 +240,75 @@ class TestCheck:
         root = _repo(
             tmp_path,
             {"index.md": _READER, "adr/0001-x.md": _RECORD},
+            nav=["index.md"],
+        )
+
+        result = check_docs_frontmatter(root)
+
+        assert (result.reader_pages, result.working_record_pages) == (1, 1)
+
+    @pytest.mark.spec("DF-11-003")
+    def test_working_record_page_in_the_nav_fails(self, tmp_path):
+        root = _repo(
+            tmp_path,
+            {"index.md": _READER, "adr/0001-x.md": _RECORD},
             nav=["index.md", "adr/0001-x.md"],
         )
 
-        result = check_docs_frontmatter(root, baseline=set())
+        with pytest.raises(MetadataLoadErrors) as info:
+            check_docs_frontmatter(root)
 
-        assert (result.reader_pages, result.working_record_pages) == (1, 1)
+        (failure,) = info.value.failures
+        assert failure.path == "docs/adr/0001-x.md"
+        assert "listed in the mkdocs.yml nav" in str(failure)
+        assert "DF-11-003" in str(failure)
+
+    @pytest.mark.spec("DF-11-003")
+    def test_working_record_page_matched_by_no_pattern_fails(self, tmp_path):
+        """Absent from the nav alone makes ``--strict`` warn on the omission."""
+        root = _repo(
+            tmp_path,
+            {"index.md": _READER, "adr/0001-x.md": _RECORD},
+            nav=["index.md"],
+            not_in_nav="",
+        )
+
+        with pytest.raises(MetadataLoadErrors, match="not matched by"):
+            check_docs_frontmatter(root)
+
+    @pytest.mark.spec("DF-11-003")
+    def test_not_in_nav_is_matched_as_mkdocs_matches_it(self, tmp_path):
+        """A pattern with no slash matches at any depth, as in gitignore."""
+        root = _repo(
+            tmp_path,
+            {"index.md": _READER, "adr/sub/0001-x.md": _RECORD},
+            nav=["index.md"],
+            not_in_nav="0001-*.md\n",
+        )
+
+        check_docs_frontmatter(root)
+
+    @pytest.mark.spec("DF-11-003")
+    def test_reader_facing_page_needs_no_pattern(self, tmp_path):
+        root = _repo(tmp_path, {"index.md": _READER}, not_in_nav="")
+
+        assert check_docs_frontmatter(root).reader_pages == 1
+
+    @pytest.mark.spec("DF-11-012")
+    def test_nav_and_declaration_faults_are_both_reported(self, tmp_path):
+        root = _repo(
+            tmp_path,
+            {"adr/0001-x.md": _page("[project-contributor]", "100")},
+            nav=["adr/0001-x.md"],
+        )
+
+        with pytest.raises(MetadataLoadErrors) as info:
+            check_docs_frontmatter(root)
+
+        messages = [str(f) for f in info.value.failures]
+        assert len(messages) == 2
+        assert "listed in the mkdocs.yml nav" in messages[0]
+        assert "must not declare a level" in messages[1]
 
     @pytest.mark.spec("MS-17-001")
     def test_yaml_fault_names_path_line_and_column(self, tmp_path):
@@ -250,7 +317,7 @@ class TestCheck:
         )
 
         with pytest.raises(MetadataLoadErrors) as info:
-            check_docs_frontmatter(root, baseline=set())
+            check_docs_frontmatter(root)
 
         (failure,) = info.value.failures
         assert failure.location == "docs/index.md:2:9"
@@ -264,7 +331,7 @@ class TestCheck:
         )
 
         with pytest.raises(MetadataLoadErrors) as info:
-            check_docs_frontmatter(root, baseline=set())
+            check_docs_frontmatter(root)
 
         assert str(info.value.failures[0]).startswith(
             "docs/index.md:4 — level"
@@ -280,7 +347,7 @@ class TestCheck:
         )
 
         with pytest.raises(MetadataLoadErrors) as info:
-            check_docs_frontmatter(root, baseline=set())
+            check_docs_frontmatter(root)
 
         assert [f.path for f in info.value.failures] == [
             "docs/a.md",
@@ -296,7 +363,7 @@ class TestCheck:
         with pytest.raises(
             MetadataLoadErrors, match="must not declare a level"
         ):
-            check_docs_frontmatter(root, baseline=set())
+            check_docs_frontmatter(root)
 
     @pytest.mark.spec("DF-09-009")
     @pytest.mark.parametrize("docs", [True, False], ids=["empty", "absent"])
@@ -306,75 +373,32 @@ class TestCheck:
             (tmp_path / "docs").mkdir()
 
         with pytest.raises(MetadataLoadError, match="empty target set"):
-            check_docs_frontmatter(tmp_path, baseline=set())
+            check_docs_frontmatter(tmp_path)
 
 
-@pytest.mark.spec("DF-11-001")
-class TestBaseline:
-    def test_undeclared_page_outside_the_baseline_fails(self, tmp_path):
+class TestUndeclared:
+    """An undeclared page always fails; no baseline tolerates one (#3528)."""
+
+    @pytest.mark.spec("DF-11-001")
+    def test_undeclared_reader_facing_page_fails(self, tmp_path):
         root = _repo(tmp_path, {"index.md": "# no frontmatter\n"})
 
-        with pytest.raises(MetadataLoadErrors, match="declares neither key"):
-            check_docs_frontmatter(root, baseline=set())
+        with pytest.raises(
+            MetadataLoadErrors, match=r"add stakeholder_type and level"
+        ):
+            check_docs_frontmatter(root)
 
-    def test_baselined_undeclared_page_is_tolerated(self, tmp_path):
-        root = _repo(
-            tmp_path, {"index.md": "# none\n", "adr/0001-x.md": "# none\n"}
-        )
+    @pytest.mark.spec("DF-11-012")
+    def test_undeclared_working_record_page_names_its_declaration(
+        self, tmp_path
+    ):
+        root = _repo(tmp_path, {"adr/0001-x.md": "# no frontmatter\n"})
 
-        result = check_docs_frontmatter(
-            root, baseline={"index.md", "adr/0001-x.md"}
-        )
-
-        assert sorted(result.undeclared) == ["adr/0001-x.md", "index.md"]
-
-    def test_entry_for_a_page_that_now_declares_is_stale(self, tmp_path):
-        """The baseline cannot keep an entry once its page is done."""
-        root = _repo(tmp_path, {"index.md": _READER})
-
-        with pytest.raises(MetadataLoadErrors, match="--prune-baseline"):
-            check_docs_frontmatter(root, baseline={"index.md"})
-
-    def test_entry_for_a_missing_page_is_stale(self, tmp_path):
-        root = _repo(tmp_path, {"index.md": _READER})
-
-        with pytest.raises(MetadataLoadErrors, match="no longer a page"):
-            check_docs_frontmatter(root, baseline={"gone.md"})
-
-    def test_prune_only_removes(self, tmp_path):
-        root = _repo(tmp_path, {"done.md": _READER, "todo.md": "# none\n"})
-        baseline = tmp_path / "baseline.txt"
-        write_baseline({"done.md", "todo.md", "gone.md"}, baseline)
-
-        removed = prune_baseline(root, baseline)
-
-        assert removed == 2
-        assert read_baseline(baseline) == {"todo.md"}
-
-    def test_committed_baseline_never_grows(self):
-        """AC-3a: the baseline only shrinks.
-
-        Nothing else stops a new undeclared page from being tolerated by
-        adding its path to the file. When pages gain declarations and the
-        baseline is pruned, lower the ceiling to the new count; never raise it.
-        """
-        count = len(read_baseline())
-
-        assert count <= _BASELINE_CEILING, (
-            f"{page_frontmatter.BASELINE_PATH.name} has {count} entries, above "
-            f"its ceiling of {_BASELINE_CEILING}. Declare stakeholder_type and "
-            f"level on the new page instead of baselining it (DF-11-001)."
-        )
-
-    def test_committed_baseline_is_sorted_and_has_its_header(self):
-        text = page_frontmatter.BASELINE_PATH.read_text(encoding="utf-8")
-        entries = [
-            line
-            for line in text.splitlines()
-            if line and not line.startswith("#")
-        ]
-        assert entries == sorted(entries)
-        assert "may only shrink" in text
+        with pytest.raises(
+            MetadataLoadErrors,
+            match=r"add stakeholder_type: \[project-contributor\]",
+        ):
+            check_docs_frontmatter(root)
 
 
 @pytest.mark.spec("DF-11-010")
@@ -396,7 +420,7 @@ class TestFragments:
 
         assert tree.fragments == {"includes/note.md": ("a/index.md", "b.md")}
         assert "includes/note.md" not in tree.pages
-        check_docs_frontmatter(root, baseline=set())
+        check_docs_frontmatter(root)
 
     def test_unprefixed_target_resolves_against_docs(self, tmp_path):
         """From a nested host, a target without ``./`` is still docs-relative."""
@@ -441,7 +465,7 @@ class TestFragments:
         )
 
         with pytest.raises(MetadataLoadErrors) as info:
-            check_docs_frontmatter(root, baseline=set())
+            check_docs_frontmatter(root)
 
         (failure,) = info.value.failures
         assert failure.location == "docs/_f.md:3"
@@ -496,7 +520,7 @@ class TestFragments:
         )
 
         with pytest.raises(MetadataLoadErrors, match="included whole by host"):
-            check_docs_frontmatter(root, baseline=set())
+            check_docs_frontmatter(root)
 
 
 # ---------------------------------------------------------------------------
@@ -509,9 +533,6 @@ def test_cli_reports_failures_without_a_traceback(
 ):
     root = _repo(tmp_path, {"index.md": "---\ntitle: a: b\n---\n"})
     monkeypatch.setattr(page_frontmatter, "_find_repo_root", lambda: root)
-    monkeypatch.setattr(
-        page_frontmatter, "BASELINE_PATH", tmp_path / "baseline.txt"
-    )
 
     with pytest.raises(SystemExit) as info:
         main([])
@@ -522,13 +543,32 @@ def test_cli_reports_failures_without_a_traceback(
     assert "docs/index.md:2:9" in err
 
 
+def test_cli_summarizes_a_passing_tree(tmp_path, monkeypatch, capsys):
+    root = _repo(
+        tmp_path,
+        {"index.md": _READER, "adr/0001-x.md": _RECORD},
+        nav=["index.md"],
+    )
+    monkeypatch.setattr(page_frontmatter, "_find_repo_root", lambda: root)
+
+    main([])
+
+    assert capsys.readouterr().out == (
+        "Checked 1 reader-facing and 1 working-record page(s); "
+        "0 include fragment(s) excluded.\n"
+    )
+
+
+def test_committed_tree_passes():
+    """Every committed page declares; nothing is tolerated undeclared."""
+    check_docs_frontmatter()
+
+
 @pytest.mark.parametrize(
     "changed",
     [
         "docs/tutorials/deep/page.md",
         "mkdocs.yml",
-        "vultron/metadata/docs/page_frontmatter_baseline.txt",
-        "vultron/metadata/docs/baseline_file.py",
         "vultron/metadata/docs/page_schema.py",
         "vultron/metadata/base.py",
         "vultron/metadata/file_loading.py",

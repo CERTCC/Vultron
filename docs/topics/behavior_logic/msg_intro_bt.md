@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Receiving and Processing Messages Behavior
 
 ## Requirements

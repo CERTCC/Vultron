@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-07-22
 deciders: [adh]
+stakeholder_type: [project-contributor]
 ---
 
 # Publish Leaf Expansion: Single Actuator → Draft-Review-Submit Pipeline
