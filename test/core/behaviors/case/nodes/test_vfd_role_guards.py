@@ -35,7 +35,10 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
 )
 from vultron.core.models.dimensions import VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.vultron_types import VultronCase, VultronParticipant
+from vultron.core.models.vultron_types import (
+    VulnerabilityCase,
+    VultronParticipant,
+)
 from vultron.core.states.cs import CS_vf
 from vultron.enums.roles import CVDRole
 
@@ -83,8 +86,8 @@ def case_with_vendor_and_deployer(
     vendor_participant: VultronParticipant,
     deployer_participant: VultronParticipant,
     coordinator_participant: VultronParticipant,
-) -> VultronCase:
-    case = VultronCase(
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -111,7 +114,7 @@ def case_with_vendor_and_deployer(
 
 def test_vendor_guard_success_for_vendor_actor(
     bt_scenario: BTTestScenario,
-    case_with_vendor_and_deployer: VultronCase,
+    case_with_vendor_and_deployer: VulnerabilityCase,
 ) -> None:
     """SUCCESS when actor holds CVDRole.VENDOR (f→F allowed)."""
     result = bt_scenario.run(
@@ -127,7 +130,7 @@ def test_vendor_guard_success_for_vendor_actor(
 @pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_vendor_guard_failure_for_deployer_only_actor(
     bt_scenario: BTTestScenario,
-    case_with_vendor_and_deployer: VultronCase,
+    case_with_vendor_and_deployer: VulnerabilityCase,
 ) -> None:
     """FAILURE when actor holds CVDRole.DEPLOYER but not CVDRole.VENDOR."""
     result = bt_scenario.run(
@@ -143,7 +146,7 @@ def test_vendor_guard_failure_for_deployer_only_actor(
 @pytest.mark.executes_as(COORDINATOR_ACTOR_ID)
 def test_vendor_guard_failure_for_coordinator_actor(
     bt_scenario: BTTestScenario,
-    case_with_vendor_and_deployer: VultronCase,
+    case_with_vendor_and_deployer: VulnerabilityCase,
 ) -> None:
     """FAILURE when actor holds CVDRole.COORDINATOR (no VENDOR)."""
     result = bt_scenario.run(
@@ -172,7 +175,7 @@ def test_vendor_guard_failure_when_actor_not_in_case(
     vendor_participant: VultronParticipant,
 ) -> None:
     """FAILURE when actor_id is not present in actor_participant_index."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[vendor_participant.id_],
@@ -196,7 +199,7 @@ def test_vendor_guard_failure_when_actor_not_in_case(
 @pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_deployer_guard_success_for_deployer_actor(
     bt_scenario: BTTestScenario,
-    case_with_vendor_and_deployer: VultronCase,
+    case_with_vendor_and_deployer: VulnerabilityCase,
 ) -> None:
     """SUCCESS when actor holds CVDRole.DEPLOYER (d→D allowed)."""
     result = bt_scenario.run(
@@ -211,7 +214,7 @@ def test_deployer_guard_success_for_deployer_actor(
 
 def test_deployer_guard_failure_for_vendor_only_actor(
     bt_scenario: BTTestScenario,
-    case_with_vendor_and_deployer: VultronCase,
+    case_with_vendor_and_deployer: VulnerabilityCase,
 ) -> None:
     """FAILURE when actor holds CVDRole.VENDOR but not CVDRole.DEPLOYER (CSB-15-002)."""
     result = bt_scenario.run(
@@ -227,7 +230,7 @@ def test_deployer_guard_failure_for_vendor_only_actor(
 @pytest.mark.executes_as(COORDINATOR_ACTOR_ID)
 def test_deployer_guard_failure_for_coordinator_actor(
     bt_scenario: BTTestScenario,
-    case_with_vendor_and_deployer: VultronCase,
+    case_with_vendor_and_deployer: VulnerabilityCase,
 ) -> None:
     """FAILURE when actor holds CVDRole.COORDINATOR (no DEPLOYER)."""
     result = bt_scenario.run(
@@ -257,7 +260,7 @@ def test_deployer_guard_failure_when_actor_not_in_case(
     deployer_participant: VultronParticipant,
 ) -> None:
     """FAILURE when actor_id is not present in actor_participant_index."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[deployer_participant.id_],
@@ -305,8 +308,8 @@ def case_with_observer_actors(
     observer_vendor_participant: VultronParticipant,
     vendor_participant: VultronParticipant,
     coordinator_participant: VultronParticipant,
-) -> VultronCase:
-    case = VultronCase(
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -335,7 +338,7 @@ def case_with_observer_actors(
 @pytest.mark.spec("CM-25-005")
 def test_not_sole_observer_failure_for_sole_observer_actor(
     bt_scenario: BTTestScenario,
-    case_with_observer_actors: VultronCase,
+    case_with_observer_actors: VulnerabilityCase,
 ) -> None:
     """FAILURE when actor holds only CVDRole.OBSERVER — v→V blocked (CM-25-005)."""
     result = bt_scenario.run(
@@ -352,7 +355,7 @@ def test_not_sole_observer_failure_for_sole_observer_actor(
 @pytest.mark.executes_as(OBSERVER_VENDOR_ACTOR_ID)
 def test_not_sole_observer_success_for_observer_plus_vendor(
     bt_scenario: BTTestScenario,
-    case_with_observer_actors: VultronCase,
+    case_with_observer_actors: VulnerabilityCase,
 ) -> None:
     """SUCCESS when actor holds OBSERVER + VENDOR — CM-26-001 union rule applies."""
     result = bt_scenario.run(
@@ -367,7 +370,7 @@ def test_not_sole_observer_success_for_observer_plus_vendor(
 
 def test_not_sole_observer_success_for_vendor_only_actor(
     bt_scenario: BTTestScenario,
-    case_with_observer_actors: VultronCase,
+    case_with_observer_actors: VulnerabilityCase,
 ) -> None:
     """SUCCESS when actor holds CVDRole.VENDOR (no OBSERVER)."""
     result = bt_scenario.run(
@@ -383,7 +386,7 @@ def test_not_sole_observer_success_for_vendor_only_actor(
 @pytest.mark.executes_as(COORDINATOR_ACTOR_ID)
 def test_not_sole_observer_success_for_coordinator_actor(
     bt_scenario: BTTestScenario,
-    case_with_observer_actors: VultronCase,
+    case_with_observer_actors: VulnerabilityCase,
 ) -> None:
     """SUCCESS when actor holds CVDRole.COORDINATOR (no OBSERVER)."""
     result = bt_scenario.run(
@@ -418,7 +421,7 @@ def test_not_sole_observer_failure_when_case_missing(
 @pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_deployer_only_blocked_when_no_vendor_at_vfd(
     bt_scenario: BTTestScenario,
-    case_with_vendor_and_deployer: VultronCase,
+    case_with_vendor_and_deployer: VulnerabilityCase,
 ) -> None:
     """FAILURE when no VENDOR participant has vf.state=VF (CSB-15-004).
 
@@ -463,8 +466,8 @@ def case_with_vendor_at_vf_and_deployer(
     vendor_at_vf_participant: VultronParticipant,
     deployer_participant: VultronParticipant,
     coordinator_participant: VultronParticipant,
-) -> VultronCase:
-    case = VultronCase(
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -491,7 +494,7 @@ def case_with_vendor_at_vf_and_deployer(
 @pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_deployer_allowed_when_some_vendor_at_vf(
     bt_scenario: BTTestScenario,
-    case_with_vendor_at_vf_and_deployer: VultronCase,
+    case_with_vendor_at_vf_and_deployer: VulnerabilityCase,
 ) -> None:
     """SUCCESS when at least one VENDOR participant has vf.state=VF (CSB-15-004).
 
@@ -514,14 +517,14 @@ def case_with_vendor_at_vf_in_fallback(
     bt_scenario: BTTestScenario,
     vendor_at_vf_participant: VultronParticipant,
     deployer_participant: VultronParticipant,
-) -> VultronCase:
+) -> VulnerabilityCase:
     """Vendor at VF is in case_participants but NOT in actor_participant_index.
 
     Exercises the _collect_all_participants fallback path: the VENDOR entry is
     a bare string ID in case_participants with no corresponding entry in
     actor_participant_index, forcing the fallback DataLayer read.
     """
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -540,7 +543,7 @@ def case_with_vendor_at_vf_in_fallback(
 @pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_deployer_allowed_when_vendor_at_vf_via_fallback(
     bt_scenario: BTTestScenario,
-    case_with_vendor_at_vf_in_fallback: VultronCase,
+    case_with_vendor_at_vf_in_fallback: VulnerabilityCase,
 ) -> None:
     """SUCCESS when vendor-at-VF is found via the case_participants fallback path.
 
@@ -564,7 +567,7 @@ def test_not_sole_observer_failure_when_actor_not_in_case(
     observer_participant: VultronParticipant,
 ) -> None:
     """FAILURE when actor_id is not present in actor_participant_index."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[observer_participant.id_],

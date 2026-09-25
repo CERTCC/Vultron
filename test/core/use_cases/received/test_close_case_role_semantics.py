@@ -44,7 +44,7 @@ from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
@@ -549,7 +549,7 @@ class TestNonOwnerLeaveReceivePath:
 def _make_close_case_ledger_entry(
     dl: SqliteDataLayer,
     departing_actor_id: str,
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     """Build a close_case CaseLedgerEntry with the correct genesis hash.
 
     Uses the case's ``genesis_hash`` as ``prev_log_hash`` so that
@@ -570,7 +570,7 @@ def _make_close_case_ledger_entry(
 
 
 def _make_announce_event(
-    entry: VultronCaseLedgerEntry,
+    entry: CaseLedgerEntry,
     sender_actor_id: str,
 ) -> AnnounceLogEntryReceivedEvent:
     from typing import cast

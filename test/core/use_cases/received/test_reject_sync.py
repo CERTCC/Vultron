@@ -23,7 +23,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -48,9 +48,9 @@ CASE_URI = "https://example.org/cases/case1"
 
 def _to_persistable_entry(
     chain_entry: HashChainLedgerRecord,
-) -> VultronCaseLedgerEntry:
-    """Test helper: convert a HashChainLedgerRecord to a VultronCaseLedgerEntry."""
-    return VultronCaseLedgerEntry(
+) -> CaseLedgerEntry:
+    """Test helper: convert a HashChainLedgerRecord to a CaseLedgerEntry."""
+    return CaseLedgerEntry(
         case_id=chain_entry.case_id,
         log_index=chain_entry.log_index,
         term=chain_entry.term,
@@ -64,7 +64,7 @@ def _to_persistable_entry(
 
 def _make_entry(
     case_id: str, log_index: int, prev_hash: str
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     chain = HashChainLedgerRecord(
         case_id=case_id,
         log_index=log_index,
@@ -85,18 +85,18 @@ def dl() -> SqliteDataLayer:
 
 
 @pytest.fixture
-def entry0() -> VultronCaseLedgerEntry:
+def entry0() -> CaseLedgerEntry:
     _ZERO_HASH: str = "0" * 64
     return _make_entry(CASE_URI, 0, _ZERO_HASH)
 
 
 @pytest.fixture
-def entry1(entry0) -> VultronCaseLedgerEntry:
+def entry1(entry0) -> CaseLedgerEntry:
     return _make_entry(CASE_URI, 1, entry0.entry_hash)
 
 
 def _make_reject_event(
-    entry: VultronCaseLedgerEntry, last_accepted_hash: str, actor: str
+    entry: CaseLedgerEntry, last_accepted_hash: str, actor: str
 ) -> RejectLogEntryReceivedEvent:
     """Build a RejectLogEntryReceivedEvent via the extractor."""
     wire_entry = WireCaseLedgerEntry.model_validate(
@@ -298,7 +298,7 @@ class TestRejectLedgerEntryReceivedUseCase:
     """RejectLedgerEntryReceivedUseCase updates state and triggers replay."""
 
     def _make_event(
-        self, entry: VultronCaseLedgerEntry, last_accepted_hash: str
+        self, entry: CaseLedgerEntry, last_accepted_hash: str
     ) -> RejectLogEntryReceivedEvent:
         return _make_reject_event(entry, last_accepted_hash, PARTICIPANT_URI)
 

@@ -77,7 +77,7 @@ Send your reply to the CASE_MANAGER, never to the Case Owner.
 - If you are joining the case, send `Accept(Invite(Actor))` with the `Invite` activity as its `object`.
 - If you are not joining, send `Reject(Invite(Actor))` with the `Invite` as its `object`.
 
-On acceptance, the CASE_MANAGER commits the reply to the ledger, seats you at Report Management (RM) state `RM.RECEIVED`, signs your embargo consent if an embargo is active, sends `Announce(VulnerabilityCase)` to seed your replica, and backfills the earlier ledger entries (CM-17-004).
+On acceptance, the CASE_MANAGER commits the reply to the ledger, seats you at Report Management (RM) state `RM.RECEIVED`, signs your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) if an embargo is active, sends `Announce(VulnerabilityCase)` to seed your replica, and backfills the earlier ledger entries (CM-17-004).
 
 Expect `RM.RECEIVED`, not `RM.ACCEPTED`.
 Accepting an invitation says you are willing to join the case; it does not say you have validated the report, which you have not yet seen in full (CM-11-001).

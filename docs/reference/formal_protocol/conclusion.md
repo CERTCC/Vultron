@@ -7,14 +7,14 @@ level: 400
 
 {% include-markdown "../../includes/normative.md" %}
 
-The preceding sections [formally defined](../../reference/formal_protocol/index.md) an [MPCVD protocol](../../index.md).
+The preceding sections [formally defined](protocol_definition.md) an [MPCVD protocol](../../index.md).
 This page summarizes the result.
 See the linked sections for more details.
 
 <br/>
 <br/>
 
-Recapping the definitions given in the [introduction](index.md):
+Recapping the definitions given in the [Protocol Definition](protocol_definition.md):
 
 !!! note "Formal Protocol Definition"
 
@@ -32,7 +32,7 @@ where
 
 | Symbol                                                                                                                                                                                                                                                   | Description                                                                                                                                                                                                                                  | Defined In               |
 |:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-------------------------|
-| $N$                                                                                                                                                                                                                                                      | Number of MPCVD Participants                                                                                                                                                                                                                 | [Introduction](index.md) |
+| $N$                                                                                                                                                                                                                                                      | Number of MPCVD Participants                                                                                                                                                                                                                 | [Protocol Definition](protocol_definition.md#number-of-processes) |
 | $\langle S_i \rangle_{i=1}^N$                                                                                                                                                                                                                            | $N$ disjoint finite sets in which each $S_i$ represents the set of states of a given Participant $i$                                                                                                                                         | [States](states.md) |
 | ${ \langle o_i \rangle }^N_{i=1}$                                                                                                                                                                                                                        | the set of starting states across all Participants in which each $o_i$ is an element of $S_i$ representing the initial state of each Participant $i$                                                                                         | [States](states.md) |
 | $\langle M_{ij} \rangle_{i,j=1}^N$                                                                                                                                                                                                                       | $N^2$ disjoint finite sets with $M_{ii}$ empty for all $i$. $M_{ij}$ represents the messages that can be sent from process $i$ to process $j$.                                                                                               | [Messages](messages.md) |
@@ -173,3 +173,7 @@ diagrams above.
 !!! tip "Worked Example"
 
     A [worked example](../../tutorials/worked_example.md) of the protocol in action is available.
+
+## Further reading
+
+- [Message Types](../messages/index.md) — how each formal message type maps to the ActivityStreams Vocabulary 2.0 (AS2) activities the prototype sends and receives.

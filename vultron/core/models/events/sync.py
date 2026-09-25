@@ -15,7 +15,7 @@
 
 from typing import Literal, cast
 
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 
@@ -30,11 +30,11 @@ class AnnounceLogEntryReceivedEvent(VultronEvent):
     )
 
     @property
-    def log_entry(self) -> VultronCaseLedgerEntry | None:
-        """Return the received :class:`VultronCaseLedgerEntry`, or ``None``."""
+    def log_entry(self) -> CaseLedgerEntry | None:
+        """Return the received :class:`CaseLedgerEntry`, or ``None``."""
         if self.object_ is None:
             return None
-        return cast(VultronCaseLedgerEntry, self.object_)
+        return cast(CaseLedgerEntry, self.object_)
 
     @property
     def log_entry_id(self) -> str | None:
@@ -57,11 +57,11 @@ class RejectLogEntryReceivedEvent(VultronEvent):
     )
 
     @property
-    def rejected_entry(self) -> VultronCaseLedgerEntry | None:
-        """Return the rejected :class:`VultronCaseLedgerEntry`, or ``None``."""
+    def rejected_entry(self) -> CaseLedgerEntry | None:
+        """Return the rejected :class:`CaseLedgerEntry`, or ``None``."""
         if self.object_ is None:
             return None
-        return cast(VultronCaseLedgerEntry, self.object_)
+        return cast(CaseLedgerEntry, self.object_)
 
     @property
     def last_accepted_hash(self) -> str:

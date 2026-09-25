@@ -11,7 +11,7 @@ import pytest
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import VultronObject
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import VultronEmbargoEvent
 from vultron.core.models.events.actor import (
@@ -75,7 +75,7 @@ _CASE_URI = "https://example.org/cases/c1"
 _ACTOR_URI = "https://example.org/actors/alice"
 
 _report = VultronReport(id_="https://example.org/reports/r1")
-_case = VultronCase(id_=_CASE_URI)
+_case = VulnerabilityCase(id_=_CASE_URI)
 _note = VultronNote(
     id_="https://example.org/notes/n1",
     content="test note",

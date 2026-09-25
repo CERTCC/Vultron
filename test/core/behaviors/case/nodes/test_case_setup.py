@@ -44,7 +44,7 @@ from vultron.core.behaviors.report.nodes import (
     UpdateActorOutbox as UpdateActorOutboxReport,
 )
 from vultron.core.models.vultron_types import (
-    VultronCase,
+    VulnerabilityCase,
     VultronCaseActor,
     VultronReport,
 )
@@ -98,8 +98,8 @@ def report(bt_scenario: BTTestScenario) -> VultronReport:
 @pytest.fixture
 def case_obj(
     bt_scenario: BTTestScenario, report: VultronReport
-) -> VultronCase:
-    case = VultronCase(
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-001",
         name="Test Case",
         vulnerability_reports=[report.id_],
@@ -141,7 +141,7 @@ class TestRecordCaseCreationEvents:
 
     def test_tree_is_sequence_with_named_leaf_nodes(self) -> None:
         tree = RecordCaseCreationEvents(
-            case_obj=VultronCase(
+            case_obj=VulnerabilityCase(
                 id_="https://example.org/cases/tmp",
                 name="Tmp Case",
                 vulnerability_reports=[],
@@ -156,7 +156,7 @@ class TestRecordCaseCreationEvents:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         result = bt_scenario.run(
@@ -174,7 +174,7 @@ class TestRecordCaseCreationEvents:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         """RecordCaseCreatedEventNode returns SUCCESS when staged case exists.
@@ -214,7 +214,7 @@ class TestRecordCaseCreationEvents:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         result = bt_scenario.run(
@@ -236,7 +236,7 @@ class TestRecordCaseCreationEvents:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         """Node runs successfully with no 'activity' on the blackboard.
@@ -257,7 +257,7 @@ class TestRecordCaseCreationEvents:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         """RecordCaseCreationEvents succeeds even without activity on blackboard.
@@ -277,7 +277,7 @@ class TestRecordCaseCreationEvents:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         report: VultronReport,
         actor_id: str,
     ) -> None:
@@ -304,7 +304,7 @@ class TestRecordCaseCreationEvents:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         """RecordCaseCreationEvents succeeds when activity.in_reply_to is None.
@@ -393,7 +393,7 @@ class TestProposeCaseToActorNode:
         actor: VultronCaseActor,
         actor_id: str,
         report: VultronReport,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
     ) -> None:
         """Happy path: node returns SUCCESS and enqueues a Create activity."""
         from vultron.core.behaviors.case.nodes.actor import (
@@ -420,7 +420,7 @@ class TestProposeCaseToActorNode:
         actor: VultronCaseActor,
         actor_id: str,
         report: VultronReport,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
     ) -> None:
         """Create(as_CaseProposal) activity is persisted to the DataLayer."""
         from vultron.core.behaviors.case.nodes.actor import (
@@ -464,7 +464,7 @@ class TestProposeCaseToActorNode:
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
     ) -> None:
         """Node returns FAILURE when case_actor_id is missing from the blackboard."""
         from vultron.core.behaviors.case.nodes.actor import (
@@ -490,7 +490,7 @@ class TestProposeCaseToActorNode:
             ProposeCaseToActorNode,
         )
 
-        empty_case = VultronCase(
+        empty_case = VulnerabilityCase(
             id_="https://example.org/cases/empty-case",
             name="Empty Case",
             vulnerability_reports=[],
@@ -516,7 +516,7 @@ class TestProposeCaseToActorNode:
             ProposeCaseToActorNode,
         )
 
-        dangling_case = VultronCase(
+        dangling_case = VulnerabilityCase(
             id_="https://example.org/cases/dangling",
             name="Dangling Case",
             vulnerability_reports=["https://example.org/reports/ghost"],
@@ -555,7 +555,7 @@ class TestProposeCaseToActorNode:
         actor: VultronCaseActor,
         actor_id: str,
         report: VultronReport,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
     ) -> None:
         """Node returns FAILURE when trigger_activity_factory is absent."""
         import py_trees

@@ -32,7 +32,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.vultron_types import (
-    VultronCase,
+    VulnerabilityCase,
     VultronCaseActor,
     VultronReport,
 )
@@ -98,7 +98,7 @@ def report(datalayer):
 
 @pytest.fixture
 def case_obj(report):
-    return VultronCase(
+    return VulnerabilityCase(
         id_="https://example.org/cases/case-001",
         name="Test Case",
         vulnerability_reports=[report.id_],

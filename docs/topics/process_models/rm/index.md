@@ -1,13 +1,13 @@
 ---
-stakeholder_type: [cvd-practitioner, platform-developer, process-researcher]
-level: 400
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 300
 ---
 
 # Report Management Process Model
 
 {% include-markdown "../../../includes/normative.md" %}
 
-Here we describe a high-level workflow for the CVD Report Management (RM) process.
+This page describes a high-level workflow for the Coordinated Vulnerability Disclosure (CVD) Report Management (RM) process.
 <!-- start_excerpt -->
 The RM process should be reasonably familiar to anyone familiar with [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management){:target="_blank"} (ITSM) workflows such as problem, change,
 incident or service request management.
@@ -26,50 +26,37 @@ completed, should map onto the RM process outlined here.
 
 ## RM State Machine
 
-{% include-markdown "../_dfa_notation_definition.md" %}
+The RM process is a state machine with seven states and eleven transitions between them.
+This page covers the states first and then the transitions.
+Each Participant in a case has its own RM state, which only that Participant changes.
 
-In this section, we first cover the states themselves before proceeding
-to a discussion of the transitions between them.
-[Elsewhere](rm_interactions.md) , we provide a
-discussion of the Participant-specific semantics of the state
-transitions. We use Deterministic Finite Automata (DFA) notation to describe our
-RM model (see inset).
+Three other pages cover the rest of the RM model:
+
+- [RM Interactions Between CVD Participants](rm_interactions.md) shows how one Participant's RM actions move another Participant's RM state, with common coordination scenarios.
+- [RM Formal Model](formal_model.md) defines the RM process as a [deterministic finite automaton (DFA)](../../../reference/formal_protocol/index.md), a state machine with a fixed set of states and exactly one next state for each state and action, with its grammar, its shortest possible histories, and the named state subsets that other pages use.
+- The [Vultron Protocol Specification, §6](../../../reference/vultron-spec/index.md#6-report-management-rm-state-machine-n), is the normative source for the [RM states](../../../reference/vultron-spec/index.md#61-states) and [transitions](../../../reference/vultron-spec/index.md#62-transitions-and-guards).
 
 ### RM States
 
-Our proposed RM DFA models a report lifecycle containing seven states, defined below.
+The RM model describes a report lifecycle of seven states: *Start*, *Received*, *Invalid*, *Valid*, *Accepted*, *Deferred*, and *Closed*.
+The diagram below shows all seven states and the transitions between them.
 
 {% include-markdown "./rm_state_machine_diagram.md" %}
 
-???+ note inline end "RM States $\mathcal{Q}^{rm}$ Defined"
-
-    $\begin{split}
-        \mathcal{Q}^{rm} = \{ & \underline{S}tart, \\
-                              & \underline{R}eceived,\\
-                              & \underline{I}nvalid, \\
-                              & \underline{V}alid, \\
-                              & \underline{A}ccepted, \\
-                              & \underline{D}eferred, \\
-                              & \underline{C}losed \}
-        \end{split}$
-
-By convention, we will use the underlined capital letters in the box at right as a shorthand for
-the state names. Each Participant in a CVD case will have their own RM state.
+The capital letter in each state name, such as *R* for *Received*, is its shorthand on this and other pages.
 
 !!! info "RM States vs. CVD Case States"
 
-    RM states are not the same as CVD case states. Case states follow the Householder-Spring model summarized
-    in [Case State Model](../cs/index.md). Further discussion of the interactions of the RM and CS models is found
-    in [Model Interactions](../model_interactions/index.md).
+    RM states are not the same as CVD case states.
+    Case states follow the Householder-Spring model summarized in [Case State Model](../cs/index.md).
+    [Model Interactions](../model_interactions/index.md) discusses how the RM and Case State (CS) models interact.
 
 #### The *Start* (*S*) State
 
-The *Start* state is a simple placeholder state for reports that have
-yet to be received. It is, in effect, a null state that no
-CVD Participant would be expected to reflect in their report tracking system. We include
-it here because it is useful when modeling coordination
-that spans multiple Participants in the [formal protocol](../../../reference/formal_protocol/index.md).
-Otherwise, the discussion until then will mostly ignore it.
+The *Start* state is a placeholder for reports that have yet to be received.
+It is, in effect, a null state that no CVD Participant would be expected to reflect in their report tracking system.
+It is included because it is useful when modeling coordination that spans multiple Participants in the [formal protocol](../../../reference/formal_protocol/index.md).
+The rest of this page mostly ignores it.
 
 ```mermaid
 stateDiagram-v2
@@ -161,9 +148,12 @@ as *Invalid* by default.
     their product(s) or service(s), the Vendor SHOULD designate the
     report as _Valid_.
 
-!!! note ""
+!!! info "The case exists from the *Received* state"
 
-    Participants MAY create a case object to track any report in the _Received_ state.
+    Reaching *Received* is when a case begins.
+    The receiver stores the report and proposes a case to the case manager; the case manager creates the case and its participant records, with the receiver as case owner in RM *Received* ([ADR-0041: CASE_MANAGER-Authoritative Case Initialization](../../../adr/0041-caseactor-authoritative-case-initialization.md)).
+    Validation happens later and never creates a case.
+    The [Validate Report use case](../../behavior_logic/use-cases/validate-report.md) explains the split.
 
 #### The *Invalid* (*I*) State
 
@@ -207,9 +197,7 @@ contradict that conclusion.
 Reports in the *Valid* state are ready to be prioritized for possible
 future work. The result of this prioritization process will be to either
 accept the report for follow-up or defer further effort.
-The *Valid* state is equivalent to the [Prioritization
-(Triage)](https://certcc.github.io/topics/phases/prioritization) phase
-of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
+The *Valid* state is equivalent to the [Prioritization (Triage)](https://certcc.github.io/CERT-Guide-to-CVD/topics/phases/prioritization){:target="_blank"} phase of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 As an example, a Vendor might later choose to *defer* further response on a *Valid* report due to other priorities.
 
 ```mermaid
@@ -227,11 +215,6 @@ stateDiagram-v2
     For _Valid_ reports, the Participant SHOULD perform a prioritization
     evaluation to decide whether to _accept_ or _defer_ the report for
     further work.
-
-!!! note ""
-
-    If one does not already exist, Participants SHOULD create a case from
-    reports entering the _Valid_ state to track the report's subsequent progress through the CVD process.
 
 !!! note ""
 
@@ -292,7 +275,7 @@ stateDiagram-v2
     them, and possibly negotiate embargoes.
 
 We provide additional elaboration on the sorts of activities that might
-happen in the *Accept* state in [Do Work Behavior](../../behavior_logic/do_work_bt.md).
+happen in the *Accepted* state in [Do Work Behavior](../../behavior_logic/do_work_bt.md).
 
 !!! note ""
 
@@ -378,44 +361,19 @@ stateDiagram-v2
     - reports or cases that have been in _Invalid_ or _Deferred_ for some length of time,
     - cases in _Accepted_ where all necessary tasks are complete.
 
-???+ note "RM Start and End States ($q^{rm}_0, \mathcal{F}^{rm}$) Defined"
-
-    The RM process
-    starts in the _Start_ state.
-    
-    $$q^{rm}_0 = Start$$
-    
-    The RM process ends
-    in the _Closed_ state.
-    
-    $$\mathcal{F}^{rm} = \{Closed\}$$
+The RM process starts in *Start* and ends in *Closed*.
 
 ### RM State Transitions
 
 A Participant's RM process begins when the Participant receives a report.
-The actions performed in the RM process represent the allowed state
-transitions in the corresponding DFA.
-
-???+ note inline end "RM Symbols ($\Sigma^{rm}$) Defined"
-    These actions constitute the set of symbols for the
-    RM DFA.
-
-    $\begin{align*}
-      \Sigma^{rm} = \{ & \underline{r}eceive, \\
-                       & \underline{v}alidate, \\
-                       & \underline{i}nvalidate, \\
-                       & \underline{a}ccept, \\
-                       & \underline{d}efer, \\
-                       & \underline{c}lose \}
-    \end{align*}$
+Six actions move a report between states: *receive*, *validate*, *invalidate*, *accept*, *defer*, and *close*.
 
 #### RM Transitions Defined
 
-In this section, we define the allowable transitions between states in
-the RM process model. The RM process, including its states and transitions, is depicted in the following diagram.
-State transitions represent messaging opportunities to communicate CVD
-case status among Participants. This point is the lynchpin that makes the RM model point toward a technical
-protocol. Every state transition implies a different message type.
+This section defines the allowed transitions between states in the RM process model.
+The following diagram shows the RM process with its states and transitions.
+Each state transition is an opportunity to tell the other Participants about the case's status.
+That is what turns the RM model into a technical protocol: every state transition implies a different message type.
 
 {% include-markdown "./rm_state_machine_diagram.md" %}
 
@@ -449,14 +407,7 @@ additional information from the reporter, but they may also be reports
 that are not in scope for the Participant. Some Participants may choose
 to close *Invalid* reports immediately, while others may choose to
 periodically revalidate them to see if they have become *Valid*.
-
-!!! note ""
-
-    Participants SHOULD create a case for all _Valid_ reports. 
-
-!!! note ""
-
-    Paricipants MAY create a case for _Invalid_ reports.
+Validation does not create a case, because the case already exists from the moment the report was [received](#the-received-r-state).
 
 !!! note ""
 
@@ -482,17 +433,14 @@ stateDiagram-v2
         await --> revalidate
         revalidate --> await: no change
     }
-    validate --> Valid: validate (create case)
+    validate --> Valid: validate
     validate --> Invalid: invalidate
-    revalidate --> Valid: validate (create case)
+    revalidate --> Valid: validate
 ```
 
 ##### Prioritize Report
 
-Once a report has been validated (i.e., it is in the
-RM *Valid* state,
-$q^{rm} \in V$), the Participant must prioritize it to determine what
-further effort, if any, is necessary.
+Once a report has been validated (it is in the RM *Valid* state), the Participant must prioritize it to determine what further effort, if any, is necessary.
 
 !!! note ""
 
@@ -615,83 +563,8 @@ to *Deferred* to *Closed* in rapid (even immediate) succession.
 
     Participants MUST NOT close cases or reports from the _Valid_ state.
 
-#### Possible Report Management Histories
+## Where to go next
 
-???+ note inline end "RM Transition Function ($\delta^{rm}$) Defined"
-
-    Following the state machine diagram above, we represent the RM process model as a right-linear grammar:
-    
-    $$\delta^{rm} = 
-    \begin{cases}
-    S & \to rR \\
-    R & \to vV~|~iI \\
-    I & \to vV~|~cC \\
-    V & \to aA~|~dD \\
-    A & \to dD~|~cC \\
-    D & \to aA~|~cC \\
-    C & \to \epsilon \\
-    \end{cases}$$
-
-The strings generated in the language defined by this grammar can be
-useful for exploring the possible sequences of states each report might
-encounter for each Participant. The 15 shortest paths are *ric*, *rvac*,
-*rvdc*, *rivac*, *rivdc*, *rvadc*, *rvdac*, *rivadc*, *rvadac*,
-*rvdadc*, *rivdac*, *rivdadc*, *rvdadac*, *rivadac*, and *rvadadc*. Due
-to the structure of the RM DFA, longer strings just add more
-*defer*-*accept* (*da*) or *accept*-*defer* (*ad*) cycles prior to
-closure (*c*). The usually limited duration of the
-RM process coupled
-with the tendency for CVD Participants to prefer to avoid frequent
-starts and stops means that we expect the vast majority of reports to
-follow one of the above paths, with the remainder falling into marginal
-extensions.
-
-<!-- HR for vertical spacing -->
-----
-
-!!! tip "See also"
-
-    Further discussion of a [reward function](../../measuring_cvd/reward_functions.md) to evaluate RM DFA strings is discussed as future work in
-    [Reward Functions](../../measuring_cvd/reward_functions.md).
-
-## RM DFA Fully Defined
-
-The full definition of the RM DFA is given below.
-
-!!! note "RM DFA Fully Defined"
-
-    Taken in combination, the full definition of the RM DFA is as follows:
-    
-    $$  RM = 
-        \begin{pmatrix}
-                \begin{aligned}
-                    \mathcal{Q}^{rm} = & \{ S,R,I,V,A,D,C \} \\
-                    q^{rm}_0 = & S  \\
-                    \mathcal{F}^{rm} = & \{ C \} \\
-                    \Sigma^{rm} = & \{ r,i,v,a,d,c \} \\
-                    \delta^{rm} = &
-                        \begin{cases}
-                            S \to & rR \\
-                            R \to & vV~|~iI \\
-                            I \to & vV~|~cC \\
-                            V \to & aA~|~dD \\
-                            A \to & dD~|~cC \\
-                            D \to & aA~|~cC \\
-                            C \to & \epsilon \\
-                        \end{cases}
-                \end{aligned}
-        \end{pmatrix}$$
-
-???+ note "RM State Subsets Defined"
-
-    Before proceeding, we pause to define a few useful subsets of
-    RM states
-    ($\dots \subset \mathcal{Q}^{rm}$) for future use:
-    
-    $$  \begin{align}
-            Open &= \{ R,I,V,D,A \} \\
-            Valid~Yet~Unclosed &= \{ V,D,A \} \\
-            Potentially~Valid~Yet~Unclosed &= \{ R,V,D,A\} \\
-            Active &= \{ R,V,A \} \\
-            Inactive &= \{ I,D,C \} 
-        \end{align}$$
+- [RM Interactions Between CVD Participants](rm_interactions.md) applies this model to common coordination scenarios, from a single Finder and Vendor to multi-party cases.
+- [RM Formal Model](formal_model.md) gives the formal definition of the model, including the state subsets used on the [Model Interactions](../model_interactions/index.md) pages.
+- [Embargo Management Process Model](../em/index.md) describes the process that runs alongside RM when a case is under embargo.

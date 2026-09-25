@@ -5,11 +5,10 @@ level: 300
 
 # Report Management Interactions Between CVD Participants
 
-Each Participant in a case has their own instance of the RM state model.
+Each Participant in a Coordinated Vulnerability Disclosure (CVD) case has their own instance of the [Report Management (RM) state model](index.md).
 Participants can change their local state independent of the state of other Participants.
 Events within a CVD case may trigger a state transition in one Participant while no transition occurs in another.
-For example, in [participants interact from the accepted state](index.md) we showed
-that even though the *sender* is the one taking the action, it is the *recipient*'s state that changes.
+For example, [participants interact from the accepted state](index.md#participants-interact-from-the-accepted-state) shows that even though the *sender* is the one taking the action, it is the *recipient*'s state that changes.
 The table below lists role-based actions.
 
 | Finder/Reporter  |      Vendor      |   Coordinator    | Action                                  |                                         RM Transition                                          |
@@ -17,8 +16,8 @@ The table below lists role-based actions.
 | :material-check: |                  |                  | Discover Vulnerability (hidden)         |                           [Receive Report](index.md#receive-report)                            |
 | :material-check: |                  |                  | Analyze Discovery (hidden)              |                          [Validate Report](index.md#validate-report)                           |
 | :material-check: |                  |                  | Decide whether to initiate CVD (hidden) |                        [Prioritize Report](index.md#prioritize-report)                         |
-| :material-check: | :material-check: | :material-check: | Notify Vendor                           | [Participants Interact from Accepted](index.md) |
-| :material-check: | :material-check: | :material-check: | Notify Coordinator                      | [Participants Interact from Accepted](index.md) |
+| :material-check: | :material-check: | :material-check: | Notify Vendor                           | [Participants Interact from Accepted](index.md#participants-interact-from-the-accepted-state) |
+| :material-check: | :material-check: | :material-check: | Notify Coordinator                      | [Participants Interact from Accepted](index.md#participants-interact-from-the-accepted-state) |
 |                  | :material-check: | :material-check: | Receive Report                          |                           [Receive Report](index.md#receive-report)                            |
 |                  | :material-check: | :material-check: | Validate Report                         |                          [Validate Report](index.md#validate-report)                           |
 | :material-check: | :material-check: | :material-check: | Prioritize Report                       |                        [Prioritize Report](index.md#prioritize-report)                         |
@@ -26,23 +25,18 @@ The table below lists role-based actions.
 | :material-check: | :material-check: | :material-check: | Resume Work                             |                        [Prioritize Report](index.md#prioritize-report)                         |
 | :material-check: | :material-check: | :material-check: | Close Report                            |                             [Case Closure](index.md#case-closure)                             |
 
-A few examples of this model applied to common CVD and MPCVD case scenarios follow.
+A few examples of this model applied to common CVD and multi-party CVD case scenarios follow.
 
 ## The Secret Lives of Finders
 
-While the Finder's *Received*, *Valid*, and *Invalid* states are useful
-for modeling and simulation purposes, they are less useful to us as part
-of a potential CVD protocol. Why? Because for anyone else to know about the vulnerability
-(and as a prerequisite to CVD happening at all), the Finder must have
-already validated the report and prioritized it as worthy of further
-effort to have any reason to attempt to coordinate its disclosure. In
-other words, CVD only starts *after* the Finder has already reached the
-*Accepted* state for any given vulnerability to be reported.
-Correspondingly, this also represents their transition from *Finder* to
-*Reporter*. Nevertheless, for now, we retain these states for
-completeness.
-We revisit this topic in our [formal derivation](../../../reference/formal_protocol/states.md#finder-reporters)
-of a protocol state model for Reporters.
+The Finder's *Received*, *Valid*, and *Invalid* states are useful for modeling and simulation, but they are less useful as part of a CVD protocol.
+For anyone else to know about the vulnerability, and for CVD to happen at all, the Finder must already have validated the report and prioritized it as worth the effort of coordinating its disclosure.
+In other words, CVD only starts *after* the Finder has reached the *Accepted* state for the vulnerability being reported.
+That is also the point at which a *Finder* becomes a *Reporter*.
+The model keeps these states for completeness.
+The formal protocol's [starting states](../../../reference/formal_protocol/states.md#starting-states) build on this: a Finder/Reporter is presumed to enter a case already in *Accepted*.
+
+The diagram below separates the Finder's hidden states from the ones other Participants can observe.
 
 ```mermaid
 ---
@@ -84,9 +78,9 @@ stateDiagram-v2
 ## Finder-Vendor CVD
 
 A simple Finder-Vendor CVD scenario is shown below.
-As explained [above](#the-secret-lives-of-finders), many of the Finder's states would be
-hidden from view until they reach the *Accepted* ($A_f$) state. The
-*receive* action bridging $A_f \xrightarrow{r} R_v$ corresponds to [participants interact from the accepted state](index.md) scenario above.
+As explained [above](#the-secret-lives-of-finders), most of the Finder's states are hidden from view until they reach the *Accepted* ($A_f$) state.
+The *receive* action $A_f \xrightarrow{r} R_v$ that bridges the two Participants is an instance of [participants interacting from the accepted state](index.md#participants-interact-from-the-accepted-state).
+Each Participant then continues through their own copy of the [RM state machine](index.md#rm-states), shown here as "…".
 
 ```mermaid
 ---
@@ -96,63 +90,31 @@ stateDiagram-v2
     direction LR
     state Finder {
         direction LR
-        R: R<sub>f</sub>
-        I: I<sub>f</sub>
-        V: V<sub>f</sub>
-        A: A<sub>f</sub>
-        D: D<sub>f</sub>
-        [*] --> R
-        R --> I
-        R --> V
-        I --> V
-        V --> A
-        V --> D
-        A --> D
-        D --> A
-        D --> [*]
-        A --> [*]
-        I --> [*]
+        Af: A<sub>f</sub>
+        fprior: …
+        fprior --> Af
     }
     state Vendor {
         direction LR
-        RV:R<sub>v</sub>
-        IV:I<sub>v</sub>
-        VV:V<sub>v</sub>
-        AV:A<sub>v</sub>
-        DV:D<sub>v</sub>
-        [*] --> RV
-        RV --> IV
-        RV --> VV
-        IV --> VV
-        VV --> AV
-        VV --> DV
-        AV --> DV
-        DV --> AV
-        DV --> [*]
-        AV --> [*]
-        IV --> [*]
+        Rv: R<sub>v</sub>
+        vafter: …
+        Rv --> vafter
     }
-    A --> RV: r
+    Af --> Rv: r
 ```
 
 ## Finder-Coordinator-Vendor CVD
 
-A slightly more complicated scenario in which a Finder engages a
-Coordinator after failing to engage a Vendor is shown in the next diagram.
-This scenario is very common in our
-experience at the CERT/CC, which should come as no surprise
-considering our role as a Coordinator means that we do not participate
-in cases following the previous example. Here we see three notification
-actions corresponding to [participants interacting from the accepted state](index.md):
+A slightly more complicated scenario in which a Finder engages a Coordinator after failing to engage a Vendor is shown in the next diagram.
+This scenario is very common in the experience of the CERT Coordination Center (CERT/CC).
+That is no surprise, because as a Coordinator the CERT/CC does not take part in cases like the previous example.
+Here there are three notification actions, each an instance of [participants interacting from the accepted state](index.md#participants-interact-from-the-accepted-state):
 
-- First, $A_f \xrightarrow{r_0} R_v$ represents the Finder's initial
-    attempt to reach the Vendor.
+- First, $A_f \xrightarrow{r_0} R_v$ represents the Finder's initial attempt to reach the Vendor.
+- Next, $A_f \xrightarrow{r_1} R_c$ is the Finder's subsequent attempt to engage with the Coordinator.
+- Finally, the Coordinator contacts the Vendor in $A_c \xrightarrow{r_2} R_v$.
 
-- Next, $A_f \xrightarrow{r_1} R_c$ is the Finder's subsequent attempt
-    to engage with the Coordinator.
-
-- Finally, the Coordinator contacts the Vendor in
-    $A_c \xrightarrow{r_2} R_v$.
+The diagram shows only the states each notification connects.
 
 ```mermaid
 ---
@@ -162,82 +124,38 @@ stateDiagram-v2
     direction LR
     state Finder {
         direction LR
-        R: R<sub>f</sub>
-        I: I<sub>f</sub>
-        V: V<sub>f</sub>
-        A: A<sub>f</sub>
-        D: D<sub>f</sub>
-
-        [*] --> R
-        R --> I
-        R --> V
-        I --> V
-        V --> A
-        V --> D
-        A --> D
-        D --> A
-        D --> [*]
-        A --> [*]
-        I --> [*]
+        Af: A<sub>f</sub>
     }
     state Coordinator {
         direction LR
-        RC:R<sub>c</sub>
-        IC:I<sub>c</sub>
-        VC:V<sub>c</sub>
-        AC:A<sub>c</sub>
-        DC:D<sub>c</sub>
-        [*] --> RC
-        RC --> IC
-        RC --> VC
-        IC --> VC
-        VC --> AC
-        VC --> DC
-        AC --> DC
-        DC --> AC
-        DC --> [*]
-        AC --> [*]
-        IC --> [*]
+        Rc: R<sub>c</sub>
+        Ac: A<sub>c</sub>
+        cmid: …
+        Rc --> cmid
+        cmid --> Ac
     }
     state Vendor {
         direction LR
-        RV:R<sub>v</sub>
-        IV:I<sub>v</sub>
-        VV:V<sub>v</sub>
-        AV:A<sub>v</sub>
-        DV:D<sub>v</sub>
-        [*] --> RV
-        RV --> IV
-        RV --> VV
-        IV --> VV
-        VV --> AV
-        VV --> DV
-        AV --> DV
-        DV --> AV
-        DV --> [*]
-        AV --> [*]
-        IV --> [*]
+        Rv: R<sub>v</sub>
+        vafter: …
+        Rv --> vafter
     }
-    A --> RV: r0
-    A --> RC: r1
-    AC --> RV: r2
+    Af --> Rv: r0
+    Af --> Rc: r1
+    Ac --> Rv: r2
 ```
 
 ## MPCVD with a Coordinator and Multiple Vendors
 
-A small MPCVD scenario is shown below. As with the other examples, each
-notification shown is an instance of [participants interacting from the accepted state](index.md).
-Contrary to the previous example, this scenario starts with the Finder contacting a Coordinator, perhaps
-because they recognize the increased complexity of coordinating multiple Vendors' responses.
+A small Multi-Party Coordinated Vulnerability Disclosure (MPCVD) scenario is shown below.
+As with the other examples, each notification shown is an instance of [participants interacting from the accepted state](index.md#participants-interact-from-the-accepted-state).
+Unlike the previous example, this scenario starts with the Finder contacting a Coordinator, perhaps because they recognize the increased complexity of coordinating multiple Vendors' responses.
 
-- First, $A_f \xrightarrow{r_0} R_c$ represents the Finder's initial
-    report to the Coordinator.
+- First, $A_f \xrightarrow{r_0} R_c$ represents the Finder's initial report to the Coordinator.
+- Next, $A_c \xrightarrow{r_1} R_{v_1}$ shows the Coordinator contacting the first Vendor.
+- Finally, the Coordinator contacts a second Vendor in $A_c \xrightarrow{r_2} R_{v_2}$.
 
-- Next, $A_c \xrightarrow{r_1} R_{v_1}$ shows the Coordinator
-    contacting the first Vendor.
-
-- Finally, the Coordinator contacts a second Vendor in
-    $A_c \xrightarrow{r_2} R_{v_2}$.
+The diagram shows only the states each notification connects.
 
 ```mermaid
 ---
@@ -247,92 +165,39 @@ stateDiagram-v2
     direction LR
     state Finder {
         direction LR
-        R: R<sub>f</sub>
-        I: I<sub>f</sub>
-        V: V<sub>f</sub>
-        A: A<sub>f</sub>
-        D: D<sub>f</sub>
-        [*] --> R
-        R --> I
-        R --> V
-        I --> V
-        V --> A
-        V --> D
-        A --> D
-        D --> A
-        D --> [*]
-        A --> [*]
-        I --> [*]
+        Af: A<sub>f</sub>
     }
     state Coordinator {
         direction LR
-        RC:R<sub>c</sub>
-        IC:I<sub>c</sub>
-        VC:V<sub>c</sub>
-        AC:A<sub>c</sub>
-        DC:D<sub>c</sub>
-        [*] --> RC
-        RC --> IC
-        RC --> VC
-        IC --> VC
-        VC --> AC
-        VC --> DC
-        AC --> DC
-        DC --> AC
-        DC --> [*]
-        AC --> [*]
-        IC --> [*]
+        Rc: R<sub>c</sub>
+        Ac: A<sub>c</sub>
+        cmid: …
+        Rc --> cmid
+        cmid --> Ac
     }
-    state Vendor {
+    state Vendor1 {
         direction LR
-        RV:R<sub>v<sub>1</sub></sub>
-        IV:I<sub>v<sub>1</sub></sub>
-        VV:V<sub>v<sub>1</sub></sub>
-        AV:A<sub>v<sub>1</sub></sub>
-        DV:D<sub>v<sub>1</sub></sub>
-        [*] --> RV
-        RV --> IV
-        RV --> VV
-        IV --> VV
-        VV --> AV
-        VV --> DV
-        AV --> DV
-        DV --> AV
-        DV --> [*]
-        AV --> [*]
-        IV --> [*]
+        Rv1: R<sub>v<sub>1</sub></sub>
+        v1after: …
+        Rv1 --> v1after
     }
     state Vendor2 {
         direction LR
-        RV2:R<sub>v<sub>2</sub></sub>
-        IV2:I<sub>v<sub>2</sub></sub>
-        VV2:V<sub>v<sub>2</sub></sub>
-        AV2:A<sub>v<sub>2</sub></sub>
-        DV2:D<sub>v<sub>2</sub></sub>
-        [*] --> RV2
-        RV2 --> IV2
-        RV2 --> VV2
-        IV2 --> VV2
-        VV2 --> AV2
-        VV2 --> DV2
-        AV2 --> DV2
-        DV2 --> AV2
-        DV2 --> [*]
-        AV2 --> [*]
-        IV2 --> [*]
+        Rv2: R<sub>v<sub>2</sub></sub>
+        v2after: …
+        Rv2 --> v2after
     }
-    A --> RC: r0
-    AC --> RV: r1
-    AC --> RV2: r2
+    Af --> Rc: r0
+    Ac --> Rv1: r1
+    Ac --> Rv2: r2
 ```
 
 ## A Menagerie of MPCVD Scenarios
 
-Other MPCVD RM interaction configurations are possible. We demonstrate a few such
-scenarios in the following figures.
-This time each node represents a Participant's entire RM model. We have observed all of the
-following interactions at the CERT/CC.
-We intend the RM model to be sufficiently composable to accommodate all such permutations.
+Other MPCVD RM interaction configurations are possible, and the following figures show a few of them.
+This time each node represents a Participant's entire RM model, and each edge is a notification from one Participant's *Accepted* state to another's *Received* state.
+The CERT/CC has observed all of the following interactions.
+The RM model is meant to be composable enough to accommodate all such permutations.
 
 ### Finder coordinates MPCVD with Multiple Vendors
 
@@ -384,9 +249,7 @@ stateDiagram-v2
 
 ### Supply-chain oriented MPCVD
 
-Supply-chain oriented MPCVD often has two or more tiers of
-Vendors being notified by their upstream component suppliers, with
-or without one or more Coordinators' involvement.
+Supply-chain oriented MPCVD often has two or more tiers of Vendors, each notified by the upstream Vendors whose components they use, with or without one or more Coordinators' involvement.
 
 ```mermaid
 ---
@@ -405,3 +268,8 @@ stateDiagram-v2
     Vendor7 --> Vendor8: r8
     Vendor7 --> Vendor9: r9
 ```
+
+## Where to go next
+
+Once a case exists, the RM process runs alongside the [Embargo Management (EM) process](../em/index.md).
+[Interactions Between the RM and EM Models](../model_interactions/rm_em.md) describes the constraints each places on the other.

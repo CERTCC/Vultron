@@ -18,7 +18,7 @@
 import pytest
 
 from vultron.core.models.vultron_types import (
-    VultronCase,
+    VulnerabilityCase,
     VultronCaseActor,
     VultronReport,
 )
@@ -47,8 +47,8 @@ def report(bt_scenario: BTTestScenario) -> VultronReport:
 @pytest.fixture
 def case_obj(
     bt_scenario: BTTestScenario, report: VultronReport
-) -> VultronCase:
-    case = VultronCase(
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-001",
         name="Test Case",
         vulnerability_reports=[report.id_],

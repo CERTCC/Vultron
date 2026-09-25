@@ -41,13 +41,13 @@ from vultron.core.behaviors.case.nodes.case_setup import (
     RecordCaseCreatedEventNode,
     RecordOfferReceivedEventNode,
 )
-from vultron.core.models.vultron_types import VultronCase
+from vultron.core.models.vultron_types import VulnerabilityCase
 
 
 class RecordCaseCreationEvents(py_trees.composites.Sequence):
     """Composed subtree that records offer_received (optional) and case_created."""
 
-    def __init__(self, case_obj: VultronCase, name: str | None = None):
+    def __init__(self, case_obj: VulnerabilityCase, name: str | None = None):
         self.case_obj = case_obj
         super().__init__(
             name=name or self.__class__.__name__,

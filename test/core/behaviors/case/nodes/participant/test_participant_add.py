@@ -36,7 +36,7 @@ from vultron.core.behaviors.case.nodes.participant import (
 )
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.vultron_types import (
-    VultronCase,
+    VulnerabilityCase,
     VultronCaseActor,
 )
 from vultron.core.states.participant_embargo_consent import PEC
@@ -58,7 +58,7 @@ class TestCreateCaseParticipantNode:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
         finder_actor_id: str,
     ) -> None:
@@ -78,7 +78,7 @@ class TestCreateCaseParticipantNode:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
         finder_actor_id: str,
     ) -> None:
@@ -130,7 +130,7 @@ class TestCreateCaseParticipantNode:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
         finder_actor_id: str,
     ) -> None:
@@ -162,7 +162,7 @@ class TestCreateCaseParticipantNode:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
         finder_actor_id: str,
     ) -> None:

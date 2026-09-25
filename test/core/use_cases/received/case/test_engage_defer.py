@@ -19,7 +19,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import VultronObject
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.case import (
@@ -160,13 +160,13 @@ class TestEngageCaseStoresEmbeddedParticipants:
 
     @pytest.fixture
     def case_with_inline_participant(self):
-        """VultronCase carrying a fully inline VultronParticipant."""
+        """VulnerabilityCase carrying a fully inline VultronParticipant."""
         participant = VultronParticipant(
             id_=self._PARTICIPANT_ID,
             attributed_to=self._ACTOR_ID,
             context=self._CASE_ID,
         )
-        case = VultronCase(id_=self._CASE_ID)
+        case = VulnerabilityCase(id_=self._CASE_ID)
         object.__setattr__(case, "case_participants", [participant])
         return case
 
@@ -203,7 +203,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
         _store_embedded_participants is idempotent on strings; no error and
         no false record is created (#573 does not regress bare-string path).
         """
-        case_str_participants = VultronCase(id_=self._CASE_ID)
+        case_str_participants = VulnerabilityCase(id_=self._CASE_ID)
         object.__setattr__(
             case_str_participants, "case_participants", [self._PARTICIPANT_ID]
         )  # bare string
@@ -284,7 +284,7 @@ class TestEngageCaseLedgerCommit:
         dl.create(cm_p)
 
         # attributed_to triggers genesis_hash computation (CLP-08-001/002).
-        case = VultronCase(
+        case = VulnerabilityCase(
             id_=self._CASE_ID,
             name="Ledger Commit Regression Case #2300",
             attributed_to=self._CASE_MANAGER_ID,
@@ -313,7 +313,7 @@ class TestEngageCaseLedgerCommit:
             activity=VultronActivity(
                 type_="Join",
                 actor=self._SENDER_ID,
-                object_=VultronCase(id_=self._CASE_ID),
+                object_=VulnerabilityCase(id_=self._CASE_ID),
                 context=self._CASE_ID,
             ),
         )
@@ -328,7 +328,7 @@ class TestEngageCaseLedgerCommit:
         it via the "not a case manager" guard.  Regression for #2300.
         """
         from vultron.core.models.case_ledger_entry import (
-            VultronCaseLedgerEntry,
+            CaseLedgerEntry,
         )
 
         EngageCaseReceivedUseCase(seeded_dl, self._engage_event()).execute()
@@ -337,8 +337,7 @@ class TestEngageCaseLedgerCommit:
         engage_entries = [
             e
             for e in entries
-            if isinstance(e, VultronCaseLedgerEntry)
-            and e.event_type == "engage_case"
+            if isinstance(e, CaseLedgerEntry) and e.event_type == "engage_case"
         ]
         assert len(engage_entries) == 1, (
             "Expected exactly one 'engage_case' ledger entry when "
@@ -411,7 +410,7 @@ class TestDeferCaseLedgerCommit:
             case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
         )
         dl.create(cm_p)
-        case = VultronCase(
+        case = VulnerabilityCase(
             id_=self._CASE_ID,
             name="Defer Ledger Commit Regression #2300",
             attributed_to=self._CASE_MANAGER_ID,
@@ -437,7 +436,7 @@ class TestDeferCaseLedgerCommit:
             activity=VultronActivity(
                 type_="Ignore",
                 actor=self._SENDER_ID,
-                object_=VultronCase(id_=self._CASE_ID),
+                object_=VulnerabilityCase(id_=self._CASE_ID),
                 context=self._CASE_ID,
             ),
         )
@@ -451,7 +450,7 @@ class TestDeferCaseLedgerCommit:
         defer path. Regression for #2300.
         """
         from vultron.core.models.case_ledger_entry import (
-            VultronCaseLedgerEntry,
+            CaseLedgerEntry,
         )
 
         DeferCaseReceivedUseCase(seeded_dl, self._defer_event()).execute()
@@ -460,8 +459,7 @@ class TestDeferCaseLedgerCommit:
         defer_entries = [
             e
             for e in entries
-            if isinstance(e, VultronCaseLedgerEntry)
-            and e.event_type == "defer_case"
+            if isinstance(e, CaseLedgerEntry) and e.event_type == "defer_case"
         ]
         assert len(defer_entries) == 1, (
             "Expected exactly one 'defer_case' ledger entry when "

@@ -22,7 +22,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
     _CheckParticipantRMStateBase,
     CheckRMStateAccepted,
 )
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant import VultronParticipant
@@ -66,7 +66,7 @@ def case_with_accepted_participant(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
     report: VultronReport,
-) -> tuple[VultronCase, VultronParticipant]:
+) -> tuple[VulnerabilityCase, VultronParticipant]:
     """Case whose participant is in RM.ACCEPTED."""
     case_id = "https://example.org/cases/case-accepted-001"
     participant = VultronParticipant(
@@ -91,7 +91,7 @@ def case_with_accepted_participant(
             ),
         ],
     )
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=case_id,
         name="Accepted Participant Case",
         vulnerability_reports=[report.id_],
@@ -108,7 +108,7 @@ def case_with_deferred_participant(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
     report: VultronReport,
-) -> tuple[VultronCase, VultronParticipant]:
+) -> tuple[VulnerabilityCase, VultronParticipant]:
     """Case whose participant is in RM.DEFERRED."""
     case_id = "https://example.org/cases/case-deferred-001"
     participant = VultronParticipant(
@@ -133,7 +133,7 @@ def case_with_deferred_participant(
             ),
         ],
     )
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=case_id,
         name="Deferred Participant Case",
         vulnerability_reports=[report.id_],
@@ -148,7 +148,9 @@ def case_with_deferred_participant(
 def test_check_rm_state_accepted_succeeds_when_accepted(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
-    case_with_accepted_participant: tuple[VultronCase, VultronParticipant],
+    case_with_accepted_participant: tuple[
+        VulnerabilityCase, VultronParticipant
+    ],
 ) -> None:
     """CheckRMStateAccepted returns SUCCESS when actor RM is ACCEPTED."""
     case, _ = case_with_accepted_participant
@@ -162,7 +164,9 @@ def test_check_rm_state_accepted_succeeds_when_accepted(
 def test_check_rm_state_accepted_fails_when_deferred(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
-    case_with_deferred_participant: tuple[VultronCase, VultronParticipant],
+    case_with_deferred_participant: tuple[
+        VulnerabilityCase, VultronParticipant
+    ],
 ) -> None:
     """CheckRMStateAccepted returns FAILURE when actor RM is DEFERRED."""
     case, _ = case_with_deferred_participant
@@ -176,7 +180,9 @@ def test_check_rm_state_accepted_fails_when_deferred(
 def test_rm_in_state_deferred_succeeds_when_deferred(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
-    case_with_deferred_participant: tuple[VultronCase, VultronParticipant],
+    case_with_deferred_participant: tuple[
+        VulnerabilityCase, VultronParticipant
+    ],
 ) -> None:
     """RMinStateDeferred returns SUCCESS when actor RM is DEFERRED."""
     case, _ = case_with_deferred_participant
@@ -190,7 +196,9 @@ def test_rm_in_state_deferred_succeeds_when_deferred(
 def test_rm_in_state_deferred_fails_when_accepted(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
-    case_with_accepted_participant: tuple[VultronCase, VultronParticipant],
+    case_with_accepted_participant: tuple[
+        VulnerabilityCase, VultronParticipant
+    ],
 ) -> None:
     """RMinStateDeferred returns FAILURE when actor RM is ACCEPTED."""
     case, _ = case_with_accepted_participant
@@ -222,7 +230,7 @@ def test_check_rm_state_accepted_fails_without_participant(
     report: VultronReport,
 ) -> None:
     """CheckRMStateAccepted returns FAILURE when actor has no participant."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/no-participant",
         name="No Participant Case",
         vulnerability_reports=[report.id_],

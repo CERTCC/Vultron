@@ -24,7 +24,10 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
-from vultron.core.models.vultron_types import VultronCase, VultronParticipant
+from vultron.core.models.vultron_types import (
+    VulnerabilityCase,
+    VultronParticipant,
+)
 from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
@@ -58,8 +61,8 @@ def case_with_manager(
     bt_scenario: BTTestScenario,
     case_manager_participant: VultronParticipant,
     vendor_participant: VultronParticipant,
-) -> VultronCase:
-    case = VultronCase(
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -77,7 +80,7 @@ def case_with_manager(
 
 @pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_returns_success_when_actor_is_case_manager(
-    bt_scenario: BTTestScenario, case_with_manager: VultronCase
+    bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
 ) -> None:
     result = bt_scenario.run(
         CheckIsCaseManagerNode(case_id=case_with_manager.id_),
@@ -87,7 +90,7 @@ def test_returns_success_when_actor_is_case_manager(
 
 
 def test_returns_failure_when_actor_is_not_case_manager(
-    bt_scenario: BTTestScenario, case_with_manager: VultronCase
+    bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
 ) -> None:
     result = bt_scenario.run(
         CheckIsCaseManagerNode(case_id=case_with_manager.id_),
@@ -111,7 +114,7 @@ def test_returns_failure_when_case_is_missing(
 def test_returns_failure_when_case_has_no_case_manager(
     bt_scenario: BTTestScenario, vendor_participant: VultronParticipant
 ) -> None:
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[vendor_participant.id_],
@@ -130,7 +133,7 @@ def test_returns_failure_when_case_has_no_case_manager(
 
 @pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_sets_case_actor_id_output_on_success(
-    bt_scenario: BTTestScenario, case_with_manager: VultronCase
+    bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
 ) -> None:
     bt_scenario.run(
         CheckIsCaseManagerNode(case_id=case_with_manager.id_),
@@ -142,7 +145,7 @@ def test_sets_case_actor_id_output_on_success(
 
 @pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_resolves_case_id_from_activity_log_entry(
-    bt_scenario: BTTestScenario, case_with_manager: VultronCase
+    bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
 ) -> None:
     activity = SimpleNamespace(
         log_entry=SimpleNamespace(case_id=case_with_manager.id_)

@@ -51,7 +51,7 @@ from __future__ import annotations
 
 import logging
 
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
 logger = logging.getLogger(__name__)
 
@@ -84,13 +84,13 @@ class LedgerGapBuffer:
     ) -> None:
         self.max_entries = max_entries
         # case_id -> {prev_log_hash -> entry}
-        self._by_case: dict[str, dict[str, VultronCaseLedgerEntry]] = {}
+        self._by_case: dict[str, dict[str, CaseLedgerEntry]] = {}
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def buffer(self, entry: VultronCaseLedgerEntry) -> bool:
+    def buffer(self, entry: CaseLedgerEntry) -> bool:
         """Hold *entry* until its hash-chain predecessor arrives.
 
         Keyed by ``entry.prev_log_hash``.  If an entry is already buffered
@@ -104,7 +104,7 @@ class LedgerGapBuffer:
         case it is dropped.
 
         Args:
-            entry: The forward-gap :class:`VultronCaseLedgerEntry` to hold.
+            entry: The forward-gap :class:`CaseLedgerEntry` to hold.
 
         Returns:
             ``True`` if the entry is now buffered; ``False`` if buffering is
@@ -148,7 +148,7 @@ class LedgerGapBuffer:
 
     def take_next(
         self, case_id: str, tail_hash: str
-    ) -> VultronCaseLedgerEntry | None:
+    ) -> CaseLedgerEntry | None:
         """Pop and return the buffered successor of *tail_hash*, if any.
 
         The successor is the entry whose ``prev_log_hash == tail_hash`` — an
@@ -182,8 +182,8 @@ class LedgerGapBuffer:
 
     @staticmethod
     def _evict_farthest(
-        case_map: dict[str, VultronCaseLedgerEntry],
-        incoming: VultronCaseLedgerEntry,
+        case_map: dict[str, CaseLedgerEntry],
+        incoming: CaseLedgerEntry,
     ) -> bool:
         """Evict the buffered entry with the highest ``log_index``.
 

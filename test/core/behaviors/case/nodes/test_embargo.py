@@ -41,7 +41,7 @@ from vultron.core.behaviors.case.nodes.participant import (
     CreateCaseOwnerParticipant,
 )
 from vultron.core.models.vultron_types import (
-    VultronCase,
+    VulnerabilityCase,
     VultronCaseActor,
     VultronReport,
 )
@@ -76,8 +76,8 @@ def report(bt_scenario: BTTestScenario) -> VultronReport:
 @pytest.fixture
 def case_obj(
     bt_scenario: BTTestScenario, actor_id: str, report: VultronReport
-) -> VultronCase:
-    case = VultronCase(
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-001",
         name="Test Case",
         attributed_to=actor_id,
@@ -101,7 +101,7 @@ class TestInitializeDefaultEmbargoNode:
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
     ) -> None:
         result = bt_scenario.run(
             InitializeDefaultEmbargoNode(),
@@ -118,7 +118,7 @@ class TestInitializeDefaultEmbargoNode:
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
     ) -> None:
         """After initialization, case EM state should be ACTIVE (propose+accept)."""
         bt_scenario.run(
@@ -148,7 +148,7 @@ class TestInitializeDefaultEmbargoNode:
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
     ) -> None:
         """Running twice does not replace an already-active embargo."""
         bt_scenario.run(
@@ -181,7 +181,7 @@ class TestInitializeDefaultEmbargoNode:
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
     ) -> None:
         """Owner participant is seeded as PEC.SIGNATORY (CM-14-003)."""
         # First create an owner participant
@@ -221,7 +221,7 @@ class TestInitializeDefaultEmbargoNode:
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         calls: list[tuple[str, str, str, str]] = []
@@ -299,7 +299,7 @@ class TestAttachEmbargoToCaseNodeAC1:
         self,
         bt_scenario: BTTestScenario,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
     ) -> None:
         """AC-1 (issue #2712): EM write routes through EmbargoLifecycle.activate_embargo.
 
@@ -347,7 +347,7 @@ class TestSeedOwnerAsSignatoryNode:
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
     ) -> None:
         """AC-5: SIGNATORY participant stays SIGNATORY without raising.
 

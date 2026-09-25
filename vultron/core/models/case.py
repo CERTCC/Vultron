@@ -472,11 +472,6 @@ class VulnerabilityCase(CoreObject):
         return self.current_status
 
 
-#: Backward-compatibility alias.  New code should import
-#: :class:`VulnerabilityCase` directly.
-VultronCase = VulnerabilityCase
-
-
 def case_addressees(
     case: VulnerabilityCase, excluding_actor_id: str
 ) -> list[str]:

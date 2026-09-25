@@ -454,10 +454,11 @@ consulted when implementing state-related handlers or BT nodes:
 - `docs/topics/behavior_logic/msg_cs_bt.md` — behavior tree logic for CS
   message handling
 - `docs/topics/process_models/cs/index.md` — CS model overview
-- `docs/topics/process_models/cs/model_definition.md` — formal CS model
-  definition
-- `docs/reference/formal_protocol/states.md` — formal state space for each
-  participant role (Vendor, Deployer, Finder/Reporter, Coordinator, Other)
+- `docs/topics/process_models/cs/transitions.md` — CS transitions, diagrams, and
+  grammar
+- `docs/reference/formal_protocol/states.md` — formal participant state space;
+  per-role state-space counts are in
+  `docs/topics/measuring_cvd/state_space_size.md`
 - `docs/reference/formal_protocol/conclusion.md` — protocol design conclusions
 
 ---

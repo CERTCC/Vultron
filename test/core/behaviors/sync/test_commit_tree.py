@@ -19,7 +19,7 @@ from vultron.core.behaviors.sync.nodes import (
     CreateLogEntryNode,
     DeclineForeignLedgerCommitNode,
 )
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
@@ -68,7 +68,7 @@ def bridge(datalayer):
 
 @pytest.fixture
 def case_obj(datalayer):
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=CASE_ID,
         attributed_to=OWNER_ACTOR_ID,
         actor_participant_index={

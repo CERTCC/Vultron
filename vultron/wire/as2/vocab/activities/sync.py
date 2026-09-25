@@ -38,7 +38,7 @@ class _AnnounceLogEntryActivity(as_Announce):
     Sent to each participant actor after a new log entry has been committed
     to the case event log (SYNC-09-002).
 
-    object_: :class:`~vultron.core.models.case_ledger_entry.VultronCaseLedgerEntry`
+    object_: :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry`
         being replicated.
     """
 

@@ -350,8 +350,8 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 | Sentinel condition | How it acts |
 |---|---|
 | Embargo end date passes | Calls `terminate-embargo` |
-| Active attack observed in a threat feed | As a case Participant, sends `Add(ParticipantStatus)` recording the attack (the [*A* event](../process_models/cs/events.md#exploit-public-and-attacks-observed)); no trigger endpoint covers this yet ([#1845](https://github.com/CERTCC/Vultron/issues/1845)) |
-| Fix confirmed deployed | As a case Participant, sends `Add(ParticipantStatus)` recording deployment (the [*D* event](../process_models/cs/events.md#fix-readiness-and-deployment)) |
+| Active attack observed in a threat feed | As a case Participant, sends `Add(ParticipantStatus)` recording the attack (the [*A* event](../process_models/cs/cs_model.md#the-attacks-observed-substate-a-a)); no trigger endpoint covers this yet ([#1845](https://github.com/CERTCC/Vultron/issues/1845)) |
+| Fix confirmed deployed | As a case Participant, sends `Add(ParticipantStatus)` recording deployment (the [*D* event](../process_models/cs/cs_model.md#the-fix-deployed-substate-d-d)) |
 | New party identified by a discovery service | Calls `suggest-actor-to-case` or `invite-actor-to-case` |
 
 ---

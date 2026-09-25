@@ -26,7 +26,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
 _CASE_ACTOR = "https://example.org/actors/case-actor"
 _PARTICIPANT = "https://example.org/actors/vendor"
@@ -43,7 +43,7 @@ def dl():
 
 
 @pytest.fixture()
-def entry() -> VultronCaseLedgerEntry:
+def entry() -> CaseLedgerEntry:
     chain = HashChainLedgerRecord(
         case_id=_CASE_URI,
         log_index=0,
@@ -52,7 +52,7 @@ def entry() -> VultronCaseLedgerEntry:
         payload_snapshot={"key": "value"},
         prev_log_hash=_ZERO_HASH,
     )
-    return VultronCaseLedgerEntry(
+    return CaseLedgerEntry(
         case_id=chain.case_id,
         log_index=chain.log_index,
         term=chain.term,

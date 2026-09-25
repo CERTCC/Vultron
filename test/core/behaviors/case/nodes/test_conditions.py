@@ -19,7 +19,7 @@ Unit tests for case condition nodes.
 Covers CheckCaseAlreadyExists and CheckCaseExistsForReport.
 Per specs/idempotency.yaml ID-04-004.
 
-Also covers the construction-time guarantee that VultronCase rejects
+Also covers the construction-time guarantee that VulnerabilityCase rejects
 invalid id_ values (ARCH-10-001), which made the former ValidateCaseObject
 BT node redundant (removed in issue #716).
 """
@@ -35,7 +35,7 @@ from vultron.core.behaviors.case.nodes.conditions import (
 )
 from vultron.config.actor import ActorConfig
 from vultron.core.models.vultron_types import (
-    VultronCase,
+    VulnerabilityCase,
     VultronCaseActor,
     VultronParticipant,
     VultronReport,
@@ -70,8 +70,8 @@ def report(bt_scenario: BTTestScenario) -> VultronReport:
 @pytest.fixture
 def case_obj(
     bt_scenario: BTTestScenario, report: VultronReport
-) -> VultronCase:
-    case = VultronCase(
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-001",
         name="Test Case",
         vulnerability_reports=[report.id_],
@@ -83,7 +83,7 @@ def case_obj(
 @pytest.fixture
 def participant(
     bt_scenario: BTTestScenario,
-    case_obj: VultronCase,
+    case_obj: VulnerabilityCase,
     actor_id: str,
 ) -> VultronParticipant:
     p = VultronParticipant(
@@ -124,7 +124,7 @@ class TestCheckCaseAlreadyExists:
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
     ) -> None:
         """Case exists but has no participants → still FAILURE (needs init)."""
         result = bt_scenario.run(
@@ -138,7 +138,7 @@ class TestCheckCaseAlreadyExists:
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         participant: VultronParticipant,
     ) -> None:
         """Case with participants → SUCCESS (already initialized)."""
@@ -175,7 +175,7 @@ class TestCheckCaseExistsForReport:
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         report: VultronReport,
     ) -> None:
         """Case linked to report exists but has no participants → FAILURE."""
@@ -190,7 +190,7 @@ class TestCheckCaseExistsForReport:
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         report: VultronReport,
         participant: VultronParticipant,
     ) -> None:
@@ -203,28 +203,28 @@ class TestCheckCaseExistsForReport:
 
 
 # ---------------------------------------------------------------------------
-# VultronCase construction-time id_ contract (ARCH-10-001)
+# VulnerabilityCase construction-time id_ contract (ARCH-10-001)
 # ---------------------------------------------------------------------------
 
 
 class TestVultronCaseIdContract:
-    """VultronCase rejects invalid id_ at construction time (ARCH-10-001).
+    """VulnerabilityCase rejects invalid id_ at construction time (ARCH-10-001).
 
-    This guarantees that any VultronCase object that exists at runtime already
+    This guarantees that any VulnerabilityCase object that exists at runtime already
     has a valid non-empty id_, making a runtime BT validation node redundant
     (see issue #716).
     """
 
     def test_empty_id_raises_validation_error(self) -> None:
         with pytest.raises(ValidationError):
-            VultronCase(id_="")
+            VulnerabilityCase(id_="")
 
     def test_whitespace_only_id_raises_validation_error(self) -> None:
         with pytest.raises(ValidationError):
-            VultronCase(id_="   ")
+            VulnerabilityCase(id_="   ")
 
     def test_auto_generated_id_is_nonempty(self) -> None:
-        case = VultronCase()
+        case = VulnerabilityCase()
         assert case.id_ and case.id_.strip()
 
 

@@ -97,3 +97,8 @@ Note that it may not always be possible for the split cases to have
 different embargo dates without the earlier case revealing the existence
 of a vulnerability in the products allocated to the later case. For this
 reason, it is often preferable to avoid case splits entirely.
+
+## Doing It on the Wire
+
+- [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) — propose and activate the embargo for a child or merged case.
+- [How to Revise or Terminate an Embargo](../../../howto/activitypub/activities/manage_embargo.md) — change inherited embargo terms, or end an embargo.

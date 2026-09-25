@@ -17,7 +17,7 @@ from typing import cast
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
     CreateNoteReceivedUseCase,
@@ -358,7 +358,7 @@ class TestNoteUseCases:
         """AddNoteToCaseReceivedUseCase commits a CaseLedgerEntry (PCR-08-003).
 
         When a sync_port is injected and receiving_actor_id is set, the use
-        case MUST commit one VultronCaseLedgerEntry after accepting a note
+        case MUST commit one CaseLedgerEntry after accepting a note
         addition.
         """
         dl = SqliteDataLayer(
@@ -427,11 +427,11 @@ class TestNoteUseCases:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        entry = cast(VultronCaseLedgerEntry, entries[0])
+        entry = cast(CaseLedgerEntry, entries[0])
         assert entry.event_type == "add_note_to_case"
         assert entry.log_object_id == activity.id_
 
@@ -507,8 +507,8 @@ class TestNoteUseCases:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
 

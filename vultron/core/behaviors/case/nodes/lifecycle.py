@@ -169,7 +169,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     """
     Commit a hash-chained CaseLedgerEntry and fan it out to all case participants.
 
-    Creates a :class:`~vultron.core.models.case_ledger_entry.VultronCaseLedgerEntry`,
+    Creates a :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry`,
     persists it, and queues one ``Announce(CaseLedgerEntry)`` activity per
     participant to the actor's outbox.  The :class:`OutboxMonitor` delivers
     queued activities reactively — this node only writes to the outbox.
