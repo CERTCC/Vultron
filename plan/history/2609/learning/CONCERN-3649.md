@@ -36,6 +36,9 @@ Decision: one fence rule, tracked at any indentation, rather than a per-caller
 `nested` switch. The strict CommonMark reading also misses fences in nested list
 items. The only case it gets right, an indented code block whose content starts
 with three backticks, does not occur in the repository. Measured on `origin/main`:
-only `docs/` files have fences indented four or more spaces, and the nested reading
-changes no table or heading any current caller sees. So the defect is latent, not
-live.
+fences indented four or more spaces occur in `docs/` and in a few skill and
+issue-template files, and across all tracked `.md` files the nested reading changes
+no table or heading that `iter_tables` or `iter_sections` returns. So the defect is
+latent, not live.
+
+Docs PR: <https://github.com/CERTCC/Vultron/pull/3687>.
