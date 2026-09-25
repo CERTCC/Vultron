@@ -182,6 +182,61 @@ def test_inbox_handler_rehydrate_transient_error_requeues_item(monkeypatch):
     )
 
 
+def _process_item_raising(
+    monkeypatch, item_id: str, exc: Exception, queue_dl: MagicMock
+) -> bool:
+    """Run ``_process_inbox_item`` with dispatch raising *exc*."""
+
+    def _raise(**_kwargs: Any) -> None:
+        raise exc
+
+    monkeypatch.setattr(ih, "_dispatch_or_defer_inbox_item", _raise)
+    return ih._process_inbox_item(
+        actor_id="actor-xyz",
+        canonical_actor_id="https://example.org/actors/actor-xyz",
+        item_id=item_id,
+        item=as_Activity(
+            id_=item_id,
+            type_="irrelevant",
+            actor="https://example.org/actors/test",
+        ),
+        dl=MagicMock(),
+        queue_dl=queue_dl,
+    )
+
+
+def test_process_inbox_item_protocol_violation_does_not_requeue(monkeypatch):
+    """#2865: VultronProtocolViolationError raised during dispatch is a
+    permanent failure — ``_process_inbox_item`` must not re-queue the item,
+    or every later ``inbox_handler()`` call retries it forever.
+    """
+    item_id = "https://example.org/activities/perm-dispatch-001"
+    queue_dl = MagicMock()
+    ok = _process_item_raising(
+        monkeypatch,
+        item_id,
+        VultronProtocolViolationError("perm dispatch failure"),
+        queue_dl,
+    )
+
+    assert ok is False
+    queue_dl.inbox_append.assert_not_called()
+
+
+def test_process_inbox_item_transient_error_requeues(monkeypatch):
+    """#2865: a non-protocol exception raised during dispatch is transient —
+    ``_process_inbox_item`` must still re-queue the item for retry.
+    """
+    item_id = "https://example.org/activities/transient-dispatch-001"
+    queue_dl = MagicMock()
+    ok = _process_item_raising(
+        monkeypatch, item_id, RuntimeError("transient failure"), queue_dl
+    )
+
+    assert ok is False
+    queue_dl.inbox_append.assert_called_once_with(item_id)
+
+
 def test_dispatch_uses_explicit_dispatcher(monkeypatch):
     """dispatch() should use the provided dispatcher, not the global."""
     monkeypatch.setattr(ih, "_DISPATCHER", None)

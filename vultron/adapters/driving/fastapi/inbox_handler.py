@@ -373,7 +373,11 @@ def _process_inbox_item(
     queue_dl: DataLayer,
     dispatcher: ActivityDispatcher | None = None,
 ) -> bool:
-    """Dispatch one inbox activity and return ``True`` on success."""
+    """Dispatch one inbox activity and return ``True`` on success.
+
+    On a permanent failure (``VultronProtocolViolationError``) the item is not
+    re-queued; on any other exception it is re-queued for retry (#2865).
+    """
     _log_rehydrated_item(item)
 
     try:
@@ -391,6 +395,15 @@ def _process_inbox_item(
                     case_id, dl, queue_dl, actor_id=canonical_actor_id
                 )
         return True
+    except VultronProtocolViolationError:
+        logger.error(
+            "Protocol violation processing inbox item %s for actor %s"
+            " — skipping (permanent failure)",
+            item_id,
+            actor_id,
+            exc_info=True,
+        )
+        return False
     except Exception as e:
         logger.error(
             "Error processing inbox item for actor %s: %s", actor_id, e
