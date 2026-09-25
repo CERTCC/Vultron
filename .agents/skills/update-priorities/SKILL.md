@@ -107,18 +107,20 @@ Now-tier Epic's children drift into Triage. Raise every open descendant
 (recursively) that sits below its Epic's tier:
 
 ```bash
-# Dry run first: prints RAISE / SKIP-ABOVE / SKIP-LATER lines, changes nothing
+# Dry run first: prints RAISE / SKIP-* lines, changes nothing
 bash .agents/skills/shared/sync-epic-schedules.sh
 # Then apply (defaults to Epics in Focus, Now, Next; or name Epics explicitly)
 bash .agents/skills/shared/sync-epic-schedules.sh --apply [<EPIC>...]
-# Include Later Epics
+# Include Later Epics (--tiers is ignored when Epics are named)
 bash .agents/skills/shared/sync-epic-schedules.sh --tiers "Focus Now Next Later"
 ```
 
-The script only raises, never lowers. It reports but does not touch two
-cases, which need a human call: a child ranked **above** its Epic (deliberate
-prioritization) and a child at **Later** (deliberate deferral, unlike the
-Someday default). Present those to the user rather than changing them.
+The script only raises, never lowers, and only raises the un-prioritized
+states: Someday, on-board with no Schedule, and off-board. It reports but does
+not touch the rest, which need a human call: a child ranked **above** its Epic
+(deliberate prioritization), a child at **Later** (deliberate deferral, unlike
+the Someday default), and any non-tier value such as `Completed`
+(`SKIP-OTHER`). Present those to the user rather than changing them.
 
 ### Archive a Completed Epic
 
