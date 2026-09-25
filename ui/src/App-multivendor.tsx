@@ -458,11 +458,17 @@ function App() {
       {/* Header with buttons in upper right */}
       <div style={{ padding: '1rem', background: '#f5f5f5', borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#666' }}>
+          <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#666', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             Vultron Interactive Demo (Multi-Vendor)
+            <span
+              title="This mode is a client-side simulation that re-implements the protocol rules in TypeScript. It illustrates the CVD workflow; it is not driven by a running Vultron system. For real protocol output, use Log Replay."
+              style={{ fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#8a6d00', background: '#fff3cd', border: '1px solid #ffe08a', borderRadius: '4px', padding: '0.15rem 0.4rem' }}
+            >
+              Illustrative
+            </span>
           </h1>
           <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: '#666' }}>
-            CERT/CC — Research Prototype | Click actions on actors to progress through the demo
+            CERT/CC — Research Prototype · Illustrative simulation (not a live system) | Click actions on actors to progress through the demo
           </p>
         </div>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>

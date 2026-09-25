@@ -5,13 +5,13 @@
 When running the container-based demos, log files are generated in **separate subfolders**:
 
 ```
-devlogs/two-actor/
+devlogs/fv/
 ├── finder/
-│   └── urn_uuid_...-case-log.jsonl
+│   └── urn_uuid_...-case-ledger.jsonl
 ├── vendor/
-│   └── urn_uuid_...-case-log.jsonl
+│   └── urn_uuid_...-case-ledger.jsonl
 └── case-actor/
-    └── urn_uuid_...-case-log.jsonl
+    └── urn_uuid_...-case-ledger.jsonl
 ```
 
 Browser file pickers **only let you select files from one folder at a time**, so you can't Ctrl+click files across different folders.
@@ -23,19 +23,19 @@ The Log Replay demo now supports **adding files from multiple uploads**:
 ### Step-by-Step Process
 
 1. **First Upload**: Click "📁 Select Log Files"
-   - Navigate to `devlogs/two-actor/finder/`
+   - Navigate to `devlogs/fv/finder/`
    - Select the JSONL file
    - Click "Open"
    - ✅ Status shows: "Loaded X log entries from 1 upload(s)"
 
 2. **Second Upload**: Click "📁 Add More Log Files"
-   - Navigate to `devlogs/two-actor/vendor/`
+   - Navigate to `devlogs/fv/vendor/`
    - Select the JSONL file
    - Click "Open"
    - ✅ Status shows: "Loaded X log entries from 2 upload(s)"
 
 3. **Third Upload**: Click "📁 Add More Log Files"
-   - Navigate to `devlogs/two-actor/case-actor/`
+   - Navigate to `devlogs/fv/case-actor/`
    - Select the JSONL file
    - Click "Open"
    - ✅ Status shows: "Loaded X log entries from 3 upload(s) • Y events visualized"
@@ -53,36 +53,39 @@ The Log Replay demo now supports **adding files from multiple uploads**:
 
 ```typescript
 // State tracks accumulated entries
-const [accumulatedEntries, setAccumulatedEntries] = useState<CaseLogEntry[]>([])
+const [accumulatedEntries, setAccumulatedEntries] = useState<CaseLedgerEntry[]>([])
 const [uploadCount, setUploadCount] = useState(0)
 
 // handleFileUpload accumulates entries
-const allEntries = shouldAccumulate 
+const allEntries = shouldAccumulate
   ? [...accumulatedEntries, ...newEntries]  // Add to existing
   : newEntries                               // Replace (not used for now)
 
-// Merge and sort by timestamp
-const mergedEntries = mergeLogEntries(allEntries)
-
-// Build timeline
-const state = buildTimelineFromLogs(mergedEntries)
+// Dedup + order, then build the timeline
+const ordered = normalizeLedger(allEntries)
+const state = buildTimelineFromCaseLedger(ordered)
 ```
 
 ### Merge and Sort Logic
 
-The `mergeLogEntries()` function in [jsonlParser.ts](src/utils/jsonlParser.ts) sorts all entries by their `receivedAt` timestamp, ensuring chronological order regardless of upload sequence.
+`normalizeLedger()` in [caseLedgerParser.ts](src/utils/caseLedgerParser.ts)
+**dedups by `entryHash`** (so uploading overlapping per-actor copies is safe) and
+**sorts by `logIndex`** — the authoritative order.
 
 ```typescript
-export function mergeLogEntries(entries: CaseLogEntry[]): CaseLogEntry[] {
-  return entries.sort((a, b) => {
-    const timeA = new Date(a.receivedAt).getTime()
-    const timeB = new Date(b.receivedAt).getTime()
-    return timeA - timeB
-  })
+export function normalizeLedger(entries: CaseLedgerEntry[]): CaseLedgerEntry[] {
+  const byHash = new Map<string, CaseLedgerEntry>()
+  for (const e of entries) byHash.set(e.entryHash, e)
+  return [...byHash.values()].sort((a, b) => a.logIndex - b.logIndex)
 }
 ```
 
-This means you can upload files in **any order** and the timeline will still be correct!
+> **Do not sort by `receivedAt`.** Several entries share a wall-clock second, so a
+> timestamp sort would scramble their order — `logIndex` is the source of truth.
+
+Because ordering comes from `logIndex` and duplicates are dropped by `entryHash`,
+you can upload files (and per-actor copies) in **any order** and the timeline is
+still correct.
 
 ## Alternative Workarounds
 
@@ -95,9 +98,9 @@ If you want to avoid multiple uploads:
 mkdir -p /tmp/vultron-logs
 
 # Copy all JSONL files to one place
-cp devlogs/two-actor/finder/*.jsonl /tmp/vultron-logs/
-cp devlogs/two-actor/vendor/*.jsonl /tmp/vultron-logs/
-cp devlogs/two-actor/case-actor/*.jsonl /tmp/vultron-logs/
+cp devlogs/fv/finder/*.jsonl /tmp/vultron-logs/
+cp devlogs/fv/vendor/*.jsonl /tmp/vultron-logs/
+cp devlogs/fv/case-actor/*.jsonl /tmp/vultron-logs/
 
 # Now you can select all three files in one upload from /tmp/vultron-logs/
 ```
@@ -107,9 +110,9 @@ cp devlogs/two-actor/case-actor/*.jsonl /tmp/vultron-logs/
 ```bash
 # Create a folder with symlinks
 mkdir -p /tmp/vultron-logs-symlinked
-ln -s $(pwd)/devlogs/two-actor/finder/*.jsonl /tmp/vultron-logs-symlinked/
-ln -s $(pwd)/devlogs/two-actor/vendor/*.jsonl /tmp/vultron-logs-symlinked/
-ln -s $(pwd)/devlogs/two-actor/case-actor/*.jsonl /tmp/vultron-logs-symlinked/
+ln -s $(pwd)/devlogs/fv/finder/*.jsonl /tmp/vultron-logs-symlinked/
+ln -s $(pwd)/devlogs/fv/vendor/*.jsonl /tmp/vultron-logs-symlinked/
+ln -s $(pwd)/devlogs/fv/case-actor/*.jsonl /tmp/vultron-logs-symlinked/
 
 # Upload all from the symlinked folder
 ```
@@ -125,9 +128,9 @@ We could add a "Load Two-Actor Demo" button that:
 // Future feature (not yet implemented)
 const handleLoadDemoLogs = async () => {
   const paths = [
-    '/devlogs/two-actor/finder/urn_uuid_...',
-    '/devlogs/two-actor/vendor/urn_uuid_...',
-    '/devlogs/two-actor/case-actor/urn_uuid_...',
+    '/devlogs/fv/finder/urn_uuid_...',
+    '/devlogs/fv/vendor/urn_uuid_...',
+    '/devlogs/fv/case-actor/urn_uuid_...',
   ]
   // Fetch and load automatically
 }
@@ -173,7 +176,7 @@ This would require:
 ## Implementation Files
 
 - [App-logreplay.tsx](src/App-logreplay.tsx) - Main component with accumulation logic
-- [jsonlParser.ts](src/utils/jsonlParser.ts) - `mergeLogEntries()` function
-- [logEventMapper.ts](src/utils/logEventMapper.ts) - Timeline builder
+- [caseLedgerParser.ts](src/utils/caseLedgerParser.ts) - `parseCaseLedger()` / `normalizeLedger()`
+- [caseLedgerMapper.ts](src/utils/caseLedgerMapper.ts) - `buildTimelineFromCaseLedger()` timeline builder
 
 All changes are non-breaking and the sequential upload pattern is now the primary UX.

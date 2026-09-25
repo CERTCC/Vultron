@@ -36,8 +36,9 @@ export function DemoSelector() {
             transition: 'all 0.2s ease',
             boxShadow: demoType === 'multi' ? '0 2px 4px rgba(0,0,0,0.2)' : 'none',
           }}
+          title="Client-side simulation of the CVD workflow (illustrative — not driven by a running Vultron system)"
         >
-          Multi-Vendor
+          Multi-Vendor (illustrative)
         </button>
         <button
           onClick={() => setDemoType('logreplay')}

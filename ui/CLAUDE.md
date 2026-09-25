@@ -643,8 +643,13 @@ view) rather than relying on `entryHash` dedup across differing copies.
 **Goal:** stop hardcoding the protocol's states/transitions in the demo. The
 authoritative definitions live in Python at
 [`vultron/core/states/`](../vultron/core/states/) — `rm.py` (RM), `em.py` (EM),
-`cs.py` (`CS_vfd` = the `vfd→Vfd→VFd→VFD` ladder, and `CS_pxa`). Each has a
-clean `create_*_machine()` factory exposing states + transitions uniformly.
+`cs.py` (`CS_pxa`, plus the `CS_vf` + `CS_d` sub-machines). RM/EM/PXA each expose
+a clean `create_*_machine()` factory. **VFD note (2026-09):** `main` removed the
+combined `create_vfd_machine`/`CS_vfd` — VFD was split into the orthogonal
+`CS_vf` (`vf→Vf→VF`) and `CS_d` (`d→D`) sub-machines. The exporter reconstructs
+the demo's single `vfd→Vfd→VFd→VFD` ladder by projecting those two onto the
+canonical "vf advances, then d" path (see `create_vfd_machine` in the exporter),
+so the UI's `vfd` machine is unchanged.
 
 **Approach chosen (committed-JSON + CI drift check):** a Python exporter dumps
 those four machines to a committed JSON artifact; the demo imports it. The JSON
@@ -658,10 +663,10 @@ maintainer). Living outside `ui/` matters because `ui/` does not exist on
 `main` — keeping the artifact + test in `vultron/`/`test/`/`data/` lets the
 drift test run on `main` independently of the demo.
 
-**Exporter side (done in an earlier session):**
-- [`vultron/scripts/export_states.py`](../vultron/scripts/export_states.py) —
+**Exporter side (relocated 2026-09 when `main` dismantled `vultron/scripts/`):**
+- [`vultron/metadata/demo_scenarios/export_states.py`](../vultron/metadata/demo_scenarios/export_states.py) —
   the exporter (`build_payload()` is importable; `main()` writes the file).
-- [`test/test_demo_states_export.py`](../test/test_demo_states_export.py) —
+- [`test/metadata/demo_scenarios/test_export_states.py`](../test/metadata/demo_scenarios/test_export_states.py) —
   drift detector + payload-shape guard.
 - [`pyproject.toml`](../pyproject.toml) — registers `export-demo-states`
   entry point.
