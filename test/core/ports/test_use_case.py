@@ -20,6 +20,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from vultron.core.models.events.unknown import UnknownReceivedEvent
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.use_case import UseCase
 from vultron.core.use_cases.received.unknown import UnknownUseCase
 
@@ -66,7 +67,9 @@ class TestUnknownUseCase:
     def test_execute_does_not_raise(self, mock_dl, unknown_event):
         use_case = UnknownUseCase(mock_dl, unknown_event)
         result = use_case.execute()
-        assert result is None
+        # Unknown semantics: APPLIED only until #2255 assigns per-site
+        # dispositions (it may then become SKIPPED or REFUSED).
+        assert result == HandlerResult.applied()
 
     def test_dl_injected_via_constructor(self, mock_dl, unknown_event):
         use_case = UnknownUseCase(mock_dl, unknown_event)

@@ -11,6 +11,7 @@ from vultron.core.models.events.status import (
     CreateCaseStatusReceivedEvent,
     CreateParticipantStatusReceivedEvent,
 )
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -35,8 +36,8 @@ def _filter_node_wholly_refused(tree: object) -> bool:
 
     Used by AddParticipantStatusToParticipantReceivedUseCase to distinguish a
     wholly-refused dimension-filter from other BT failure causes (ISSUE-3199,
-    AC-2).  Only the filter's total-refusal path warrants a ``rejected``
-    InboxOutcome; sender-not-a-participant or authorization failures are
+    AC-2).  Only the filter's total-refusal path warrants a refusal;
+    sender-not-a-participant or authorization failures are
     different failure modes that do not indicate the assertion was wholly refused.
     """
     from vultron.core.behaviors.status.nodes.dimension_filter import (
@@ -60,7 +61,7 @@ class CreateCaseStatusReceivedUseCase:
         self._dl = dl
         self._request: CreateCaseStatusReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         _idempotent_create(
             self._dl,
@@ -70,6 +71,7 @@ class CreateCaseStatusReceivedUseCase:
             "CaseStatus",
             request.activity_id,
         )
+        return HandlerResult.applied()
 
 
 class AddCaseStatusToCaseReceivedUseCase:
@@ -85,7 +87,7 @@ class AddCaseStatusToCaseReceivedUseCase:
         self._trigger_activity = trigger_activity
         self._call_out = call_out
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         status_id = request.status_id
         case_id = request.case_id
@@ -93,7 +95,7 @@ class AddCaseStatusToCaseReceivedUseCase:
             logger.warning(
                 "add_case_status_to_case: missing status_id or case_id"
             )
-            return
+            return HandlerResult.applied()
 
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.status.add_case_status_tree import (
@@ -153,6 +155,7 @@ class AddCaseStatusToCaseReceivedUseCase:
                         to=[request.actor_id],
                         case_id=case_id,
                     )
+        return HandlerResult.applied()
 
 
 class CreateParticipantStatusReceivedUseCase:
@@ -164,7 +167,7 @@ class CreateParticipantStatusReceivedUseCase:
         self._dl = dl
         self._request: CreateParticipantStatusReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         _idempotent_create(
             self._dl,
@@ -174,6 +177,7 @@ class CreateParticipantStatusReceivedUseCase:
             "ParticipantStatus",
             request.activity_id,
         )
+        return HandlerResult.applied()
 
 
 class AddParticipantStatusToParticipantReceivedUseCase:
@@ -211,14 +215,14 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         self._sync_port = sync_port
         self._call_out = call_out
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         if not request.status_id or not request.participant_id:
             logger.warning(
                 "add_participant_status_to_participant: missing status_id"
                 " or participant_id"
             )
-            return
+            return HandlerResult.applied()
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -278,6 +282,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                     f"ParticipantStatus assertion wholly refused for activity"
                     f" '{request.activity_id}': {reason_str}"
                 )
+        return HandlerResult.applied()
 
     def _resolve_case_id_for_log_cascade(self) -> str | None:
         request = self._request

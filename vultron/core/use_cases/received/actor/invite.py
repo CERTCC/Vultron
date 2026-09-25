@@ -20,6 +20,7 @@ from vultron.core.models.events.actor import (
     RejectInviteActorToCaseReceivedEvent,
 )
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -118,7 +119,7 @@ class InviteActorToCaseReceivedUseCase:
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         receiving_actor_id = request.receiving_actor_id
 
@@ -164,7 +165,7 @@ class InviteActorToCaseReceivedUseCase:
                     _record_invite_trust_anchor(
                         self._dl, case_stub_id, request.actor_id
                     )
-            return
+            return HandlerResult.applied()
 
         # CaseActor self-delivery path (CLP-10-001): the BT handles idempotent
         # storage via StoreActivityNode and commits the canonical CaseLedgerEntry
@@ -191,6 +192,7 @@ class InviteActorToCaseReceivedUseCase:
                 request.activity_id,
                 BTBridge.get_failure_reason(tree) or result.feedback_message,
             )
+        return HandlerResult.applied()
 
 
 class AcceptInviteActorToCaseReceivedUseCase:
@@ -217,7 +219,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.case_id
         invitee_id = request.invitee_id
@@ -225,7 +227,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
             logger.warning(
                 "accept_invite_actor_to_case: missing case_id or invitee_id"
             )
-            return
+            return HandlerResult.applied()
 
         # Resolve the CaseActor ID to use as the BT actor.
         # receiving_actor_id is set by the inbox adapter to the CaseActor's ID.
@@ -268,6 +270,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
                 case_id,
                 result.feedback_message,
             )
+        return HandlerResult.applied()
 
 
 class RejectInviteActorToCaseReceivedUseCase:
@@ -290,7 +293,7 @@ class RejectInviteActorToCaseReceivedUseCase:
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         logger.info(
             "Actor '%s' rejected invitation '%s'",
@@ -304,7 +307,7 @@ class RejectInviteActorToCaseReceivedUseCase:
                 " — skipping ledger commit",
                 request.invite_id,
             )
-            return
+            return HandlerResult.applied()
 
         # The store we hold *is* the receiving actor's, so this resolves
         # without scanning for an actor object (ADR-0073).
@@ -331,3 +334,4 @@ class RejectInviteActorToCaseReceivedUseCase:
                 request.invite_id,
                 BTBridge.get_failure_reason(tree) or result.feedback_message,
             )
+        return HandlerResult.applied()

@@ -618,17 +618,17 @@ def test_post_inbox_does_not_persist_core_class_for_core_only_type(
     registered only in ``CORE_TYPE_MAP``, and the inbox re-parse used to
     reconstruct it as that core class before persisting it.
     """
-    from vultron.adapters.driving.fastapi.routers.actors import _inbox
+    from vultron.adapters.driving.fastapi import inbox_storage
     from vultron.core.models.base import CoreObject
 
     persisted: list[object] = []
-    real_object_to_record = _inbox.object_to_record
+    real_object_to_record = inbox_storage.object_to_record
 
     def _spy(obj):
         persisted.append(obj)
         return real_object_to_record(obj)
 
-    monkeypatch.setattr(_inbox, "object_to_record", _spy)
+    monkeypatch.setattr(inbox_storage, "object_to_record", _spy)
 
     actor = created_actors[0]
     payload = {

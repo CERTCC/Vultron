@@ -8,8 +8,9 @@ types are exported; intermediate BT nodes are not public API):
                     queue_port=None) -> InboxOutcome
 
     InboxOutcome          — typed pipeline result
+    InboxOutcomeStatus    — StrEnum: processed / deferred / rejected
     IngressPayloadAdapter — Protocol: raw input → as_Activity
-    DispatchAdapter       — Protocol: VultronEvent → dispatch
+    DispatchAdapter       — Protocol: VultronEvent → HandlerResult
     PendingCaseQueuePort  — Protocol: pending-case queue operations
 """
 
@@ -32,6 +33,7 @@ from vultron.core.behaviors.inbox._process_payload import (  # noqa: F401
 from vultron.core.behaviors.inbox.models import (  # noqa: F401
     DispatchAdapter,
     InboxOutcome,
+    InboxOutcomeStatus,
     IngressPayloadAdapter,
     PendingCaseQueuePort,
 )

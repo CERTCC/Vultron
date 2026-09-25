@@ -33,12 +33,13 @@ class CreateReportReceivedUseCase:
         self._dl = dl
         self._request = request
 
-    def execute(self) -> Any:  # use None for fire-and-forget
+    def execute(self) -> HandlerResult:
         ...
 ```
 
-- Accept `(dl, request)` in `__init__`; implement `execute() -> Any`
-  (use `None` for fire-and-forget cases; see `vultron/core/ports/use_case.py`)
+- Accept `(dl, request)` in `__init__`. `execute()` returns a `UseCaseResult`
+  subtype — `HandlerResult` on the received side — never `None` (UCORG-05-001,
+  ADR-0095); ratchet `test/architecture/test_use_case_execute_returns_result.py`
 - Register in `SEMANTIC_REGISTRY` (`vultron/semantic_registry/`)
 - Dispatcher raises `VultronApiHandlerNotFoundError` for unrecognised
   semantic types; do **not** add per-handler type validation decorators
@@ -55,8 +56,7 @@ class CreateReportReceivedUseCase:
    **Do NOT add it directly to `__init__.py`** — see pitfall below.
    (**Order matters within the sub-module** — specific before general.)
 4. Implement a use-case class in `vultron/core/use_cases/`:
-   - Follow `UseCase[Req, Res]` Protocol; accept `(dl, request)` in
-     `__init__`; implement `execute() -> Any`
+   - Follow the `UseCase` Protocol (received: `execute() -> HandlerResult`)
 5. Add tests:
    - Pattern matching in `test/test_semantic_activity_patterns.py`
    - Routing coverage in `test/test_semantic_registry.py`

@@ -84,6 +84,37 @@ def _simple_two_entry_chain(actor: str = "case-actor") -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize(
+    "entry",
+    [
+        {"eventType": "noop"},
+        {"logIndex": -1, "eventType": "noop"},
+        {"logIndex": True, "eventType": "noop"},
+        {"logIndex": 1.9, "eventType": "noop"},
+        {"logIndex": "3", "eventType": "noop"},
+        {"logIndex": [1], "eventType": "noop"},
+    ],
+    ids=["missing", "negative", "bool", "float", "string", "list"],
+)
+def test_log_index_rejects_missing_and_negative(entry):
+    """No sentinel index: an unknown position raises (ISSUE-2764).
+
+    A committed entry always carries ``logIndex >= 0`` (CLP-14-010), so a
+    ``-1`` default would sort and compare as a real — earliest — position.
+    """
+    with pytest.raises(ValueError, match="logIndex"):
+        common.log_index(entry)
+
+
+def test_log_index_message_names_event_type_for_non_integer():
+    with pytest.raises(ValueError, match="'noop'.*non-integer"):
+        common.log_index({"logIndex": "x", "eventType": "noop"})
+
+
+def test_log_index_falls_back_to_camel_case_when_snake_case_is_null():
+    assert common.log_index({"log_index": None, "logIndex": 3}) == 3
+
+
 def test_check_hash_chain_detects_broken_link():
     broken = _simple_two_entry_chain()
     broken[1]["prevLogHash"] = "a" * 64  # wrong hash
@@ -752,6 +783,39 @@ class TestLoadDevlogsManifestHandling:
             range(len(entries))
         )
 
+    def test_fails_when_ledger_entry_lacks_log_index(
+        self, tmp_path, monkeypatch, single_actor_replicas
+    ):
+        """An entry with no valid ``logIndex`` fails the load (ISSUE-2764).
+
+        Every such entry is named, across every actor (EH-07-001), rather
+        than being sorted to the front of the log as index ``-1``.
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        (tmp_path / "fvv").mkdir()
+        (tmp_path / "fvv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps({"demoName": "fvv", "ledgerFileCount": 2}),
+            encoding="utf-8",
+        )
+        good = single_actor_replicas["case-actor"]
+        for actor, bad in (
+            ("case-actor", {"eventType": "missing_index"}),
+            ("vendor", {"logIndex": -1, "eventType": "negative_index"}),
+        ):
+            actor_dir = tmp_path / "fvv" / actor
+            actor_dir.mkdir()
+            (actor_dir / "test-case-case-ledger.jsonl").write_text(
+                "".join(json.dumps(e) + "\n" for e in [*good, bad]),
+                encoding="utf-8",
+            )
+
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("fvv")
+
+        msg = excinfo.value.msg or ""
+        assert "'case-actor'" in msg and "missing_index" in msg
+        assert "'vendor'" in msg and "negative_index" in msg
+
     def test_skip_survives_when_no_demo_name_and_no_manifest(
         self, tmp_path, monkeypatch
     ):
@@ -824,6 +888,50 @@ class TestLoadDevlogsManifestHandling:
             "load_devlogs must filter by manifest caseId to prevent "
             "hash-chain corruption from cross-run accumulation (issue #2273)."
         )
+
+    def test_invalid_log_index_in_filtered_out_case_does_not_fail(
+        self, tmp_path, monkeypatch
+    ):
+        """The logIndex check runs after the manifest ``caseId`` filter.
+
+        A leftover entry from an older local run is dropped before it is
+        judged, so its missing index does not fail the load (ISSUE-2764).
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        actor_dir = tmp_path / "fv" / "case-actor"
+        actor_dir.mkdir(parents=True)
+
+        CASE_A = "https://example.org/cases/case-a"
+        CASE_B = "https://example.org/cases/case-b"
+        stale = {"event_type": "old_event", "caseId": CASE_A}
+        current = {
+            "logIndex": 0,
+            "entryHash": "hb",
+            "prevLogHash": "0",
+            "event_type": "new_event",
+            "caseId": CASE_B,
+        }
+        (actor_dir / "case-a-case-ledger.jsonl").write_text(
+            json.dumps(stale) + "\n", encoding="utf-8"
+        )
+        (actor_dir / "case-b-case-ledger.jsonl").write_text(
+            json.dumps(current) + "\n", encoding="utf-8"
+        )
+        (tmp_path / "fv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "fv",
+                    "caseId": CASE_B,
+                    "ledgerFileCount": 1,
+                    "targetCount": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        replicas = common.load_devlogs("fv")
+
+        assert replicas["case-actor"] == [current]
 
     def test_fails_when_any_scenario_manifest_reports_no_ledgers(
         self, tmp_path, monkeypatch

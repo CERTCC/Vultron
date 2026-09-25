@@ -15,6 +15,7 @@ from vultron.core.models.events.report import (
     ValidateReportReceivedEvent,
 )
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import (
     VultronAlreadyExistsError,
@@ -199,7 +200,7 @@ class CreateReportReceivedUseCase:
         self._dl = dl
         self._request: CreateReportReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         from py_trees.common import Status
 
         from vultron.core.behaviors.bridge import BTBridge
@@ -227,6 +228,7 @@ class CreateReportReceivedUseCase:
                 request.activity_id,
                 reason or result.feedback_message or "",
             )
+        return HandlerResult.applied()
 
 
 class SubmitReportReceivedUseCase:
@@ -244,7 +246,7 @@ class SubmitReportReceivedUseCase:
         self._sync_port = sync_port
         self._actor_config = actor_config
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         # The report and Offer(Report) activity are stored unconditionally so
         # that a receiver with auto_create_case=False still retains the data
@@ -252,7 +254,7 @@ class SubmitReportReceivedUseCase:
         # explicit accept/reject decision (CM-15-001).
         _store_submit_report_dependencies(self._dl, request)
         if not request.report_id:
-            return
+            return HandlerResult.applied()
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -261,7 +263,7 @@ class SubmitReportReceivedUseCase:
         if not _is_primary_submit_report_recipient(
             request, receiving_actor_id
         ):
-            return
+            return HandlerResult.applied()
 
         # Routing-level policy short-circuit: when the receiver opts out of
         # automatic case creation, do not even invoke the case-creation BT.
@@ -281,7 +283,7 @@ class SubmitReportReceivedUseCase:
                 receiving_actor_id,
                 request.report_id,
             )
-            return
+            return HandlerResult.applied()
 
         _run_submit_report_case_creation(
             self._dl,
@@ -292,6 +294,7 @@ class SubmitReportReceivedUseCase:
             sync_port=self._sync_port,
             actor_config=self._actor_config,
         )
+        return HandlerResult.applied()
 
 
 class ValidateReportReceivedUseCase:
@@ -307,7 +310,7 @@ class ValidateReportReceivedUseCase:
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         sender_actor_id = request.actor_id
         report_id = request.report_id
@@ -367,6 +370,7 @@ class ValidateReportReceivedUseCase:
                 report_id,
                 reason or result.feedback_message or "",
             )
+        return HandlerResult.applied()
 
 
 class InvalidateReportReceivedUseCase:
@@ -376,7 +380,7 @@ class InvalidateReportReceivedUseCase:
         self._dl = dl
         self._request: InvalidateReportReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         from py_trees.common import Status
 
         from vultron.core.behaviors.bridge import BTBridge
@@ -410,6 +414,7 @@ class InvalidateReportReceivedUseCase:
                 request.activity_id,
                 reason or result.feedback_message or "",
             )
+        return HandlerResult.applied()
 
 
 class AckReportReceivedUseCase:
@@ -425,7 +430,7 @@ class AckReportReceivedUseCase:
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
 
         receiving_actor_id = resolve_receiving_actor_id(
@@ -461,6 +466,7 @@ class AckReportReceivedUseCase:
                 request.activity_id,
                 reason or result.feedback_message or "",
             )
+        return HandlerResult.applied()
 
 
 class CloseReportReceivedUseCase:
@@ -470,7 +476,7 @@ class CloseReportReceivedUseCase:
         self._dl = dl
         self._request: CloseReportReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         from py_trees.common import Status
 
         from vultron.core.behaviors.bridge import BTBridge
@@ -503,3 +509,4 @@ class CloseReportReceivedUseCase:
                 request.activity_id,
                 reason or result.feedback_message or "",
             )
+        return HandlerResult.applied()

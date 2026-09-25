@@ -34,6 +34,7 @@ from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
@@ -196,8 +197,8 @@ def dispatch(
     event: VultronEvent,
     dl: DataLayer,
     dispatcher: ActivityDispatcher | None = None,
-) -> None:
-    """Dispatch the given domain event.
+) -> HandlerResult:
+    """Dispatch the given domain event and return the handler's verdict.
 
     Uses *dispatcher* when provided; otherwise falls back to the module-level
     ``_DISPATCHER`` (set by :func:`init_dispatcher`).  Passing an explicit
@@ -209,6 +210,10 @@ def dispatch(
         dl: The DataLayer instance scoped to the current actor.
         dispatcher: Optional per-app dispatcher.  When ``None`` the
             module-level ``_DISPATCHER`` is used (backward-compatible).
+
+    Returns:
+        The ``HandlerResult`` of the routed use case (UCORG-05-010).
+
     Raises:
         RuntimeError: If no dispatcher is available (neither *dispatcher*
             nor the module-level ``_DISPATCHER`` has been initialised).
@@ -224,7 +229,7 @@ def dispatch(
         event.activity_id,
         event.semantic_type,
     )
-    _d.dispatch(event, dl)
+    return _d.dispatch(event, dl)
 
 
 def handle_inbox_item(
@@ -260,6 +265,12 @@ def _dispatch_or_defer_inbox_item(
     dispatcher: ActivityDispatcher | None = None,
 ) -> VultronEvent | None:
     """Dispatch an inbox item or defer it until its case replica exists.
+
+    Returns the dispatched event only when the handler's verdict took effect
+    (``HandlerResult.took_effect``). An item queued or dropped before
+    dispatch, or one the handler refused or deferred, returns ``None``, so
+    the caller does not replay pending activities after a bootstrap that did
+    not make the case available.
 
     When deferring, first checks whether the existing pending queue for
     this case has expired.  If the queue has expired, the existing items
@@ -304,8 +315,8 @@ def _dispatch_or_defer_inbox_item(
         )
         return None
 
-    dispatch(event=event, dl=dl, dispatcher=dispatcher)
-    return event
+    result = dispatch(event=event, dl=dl, dispatcher=dispatcher)
+    return event if result.took_effect else None
 
 
 def _log_rehydrated_item(item: as_Activity) -> None:
