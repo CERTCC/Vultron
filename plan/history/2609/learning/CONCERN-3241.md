@@ -48,6 +48,12 @@ documented structure, and repointing eight paths plus reassessing a section is a
 docs task in its own right. Routed per the upward-reflection checklist (BW-07-009).
 
 **Resolved**: 2026-09-25 — fixed in the planning PR itself; no implementation issue created.
-The page had already been bannered "Historical design document" on 2026-09-02 (893e5bfa6), with its module paths deliberately left as written, and it sits outside the published nav as working record (DF-11-003), so the issue's premises ("nothing in the page signals that", "the primary reference page for the inbox pipeline") did not hold at filing. The current pipeline account lives in `docs/topics/reference_architecture.md` § "From HTTP delivery to behavior tree: the inbox pipeline". What remained was fixed: the all-checked "Development Goals" checklist was deleted, the banner now links to the current section, and four `receive_report_demo.py` docstrings that cited the historical page as "the Vultron prototype design" were repointed.
+The page had already been bannered "Historical design document" on 2026-09-02 (893e5bfa6) and sat outside the published nav as working record (DF-11-003), so the issue's premises ("nothing in the page signals that", "the primary reference page for the inbox pipeline") did not hold at filing.
+Reviewing whether the page earned its place at all, it did not: its design reasoning is the decision recorded in ADR-0007 (which predates the page by a week), the current pipeline is described in `docs/topics/reference_architecture.md` § "From HTTP delivery to behavior tree: the inbox pipeline", and everything else on it (a 200-OK acknowledgement, a mapping `dict`, `DispatchEvent`, handler functions) was superseded implementation detail that git history already keeps.
+Rewriting it with current detail would only have duplicated the reference-architecture section and re-created the drift.
+The page was deleted.
+So was `docs/reference/code/api/actor_inbox_handler.md`, which was in the published nav and described the layered activity-type → object-type → handler-registry routing that ADR-0007 rejected.
+No redirects were added: neither page has been on a published site, so no external link can break.
+Four `receive_report_demo.py` docstrings that cited the deleted page as "the Vultron prototype design" now point to the reference-architecture section.
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3703>.

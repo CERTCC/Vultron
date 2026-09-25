@@ -232,8 +232,6 @@ nav:
     - Code:
       - vultron: 'reference/code/index.md'
       - case_states: 'reference/code/case_states.md'
-      - API:
-          - Actor Inbox Handler: 'reference/code/api/actor_inbox_handler.md'
       - Behavior Trees:
           - BT: 'reference/code/bt/behavior_trees.md'
           - Base: 'reference/code/bt//bt_base.md'
@@ -404,7 +402,6 @@ not_in_nav: |
   # Maintainer/agent-facing pages intentionally excluded from the published nav
   agents/*.md
   developer/**/*.md
-  reference/inbox_handler.md
   reference/code/hexagonal_architecture.md
 validation:
   nav:
