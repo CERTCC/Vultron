@@ -58,6 +58,9 @@ from vultron.core.behaviors.case.engage_defer_trigger_tree import (
 from vultron.core.behaviors.case.nodes import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+)
 from vultron.core.behaviors.case.nodes.update import (
     BroadcastCaseUpdateNode,
     CaptureCaseUpdateBroadcastExclusionsNode,
@@ -94,7 +97,8 @@ def create_engage_case_tree(
     Handles receipt of RmEngageCaseActivity (Join(VulnerabilityCase)): the sending
     actor has decided to engage the case, so we record their RM state
     transition to ACCEPTED in their CaseParticipant.participant_status.
-    After committing the log entry, broadcasts an Announce(VulnerabilityCase)
+    After committing the log entry, the CASE_MANAGER — and only the
+    CASE_MANAGER — broadcasts an Announce(VulnerabilityCase)
     to all eligible participants so they receive the updated case state
     (including embedded CaseParticipant objects for #572/#573 coverage).
 
@@ -127,8 +131,16 @@ def create_engage_case_tree(
                     ),
                 ],
             ),
-            CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
-            BroadcastCaseUpdateNode(case_id=case_id),
+            # Only the CASE_MANAGER announces canonical case state: the
+            # broadcast is authored as the executing actor (CM-06-001).
+            create_case_manager_gated_tree(
+                name="GuardedBroadcastEngageCaseBT",
+                case_id=case_id,
+                children=[
+                    CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
+                    BroadcastCaseUpdateNode(case_id=case_id),
+                ],
+            ),
         ],
     )
 

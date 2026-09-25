@@ -8,6 +8,9 @@ in isolation, causing TinyDB's record_to_object() to fall back to returning a
 raw Document instead of a deserialized domain object.
 """
 
+from collections.abc import Callable
+from typing import cast
+
 import pytest
 
 # noqa: F401 — imported for vocabulary registration side-effect
@@ -31,3 +34,31 @@ def _close_sqlite_datalayers(monkeypatch):
     yield
     while created:
         created.pop().close()
+
+
+class _AnonymousStore:
+    """A store that cannot say whose it is, wrapping a real one for inspection.
+
+    ``resolve_receiving_actor_id`` falls back to the store's ``actor_id``; this
+    double reports none, so a request without ``receiving_actor_id`` has no
+    receiver at all.  Every other attribute is the wrapped store's, so a test
+    can assert on what the use case did (or did not) write.
+    """
+
+    actor_id = None
+
+    def __init__(self, inner: SqliteDataLayer) -> None:
+        self._inner = inner
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._inner, name)
+
+
+@pytest.fixture
+def anonymous_store() -> Callable[[SqliteDataLayer], SqliteDataLayer]:
+    """Wrap a store so it reports no ``actor_id`` (receiver unresolvable)."""
+
+    def _wrap(inner: SqliteDataLayer) -> SqliteDataLayer:
+        return cast(SqliteDataLayer, _AnonymousStore(inner))
+
+    return _wrap

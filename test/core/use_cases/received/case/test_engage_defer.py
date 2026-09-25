@@ -34,6 +34,9 @@ from vultron.core.use_cases.received.case.engage_defer import (
     EngageCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Announce,
+)
 
 
 class TestEngageDeferCaseBTFailureReason:
@@ -248,23 +251,28 @@ class TestEngageCaseLedgerCommit:
 
     @pytest.fixture
     def seeded_dl(self, dl):
+        return self._seed(dl)
+
+    @classmethod
+    def _seed(cls, dl: SqliteDataLayer) -> SqliteDataLayer:
+        """*dl*'s replica of the case: vendor participant plus the CM."""
         from vultron.core.models.vultron_types import VultronCaseActor
 
-        dl.create(VultronCaseActor(id_=self._SENDER_ID, name="Vendor"))
+        dl.create(VultronCaseActor(id_=cls._SENDER_ID, name="Vendor"))
 
         vendor_p = VultronParticipant(
-            id_=self._VENDOR_PARTICIPANT_ID,
-            attributed_to=self._SENDER_ID,
-            context=self._CASE_ID,
+            id_=cls._VENDOR_PARTICIPANT_ID,
+            attributed_to=cls._SENDER_ID,
+            context=cls._CASE_ID,
             participant_statuses=[
                 ParticipantStatus(
-                    attributed_to=self._SENDER_ID,
-                    context=self._CASE_ID,
+                    attributed_to=cls._SENDER_ID,
+                    context=cls._CASE_ID,
                     rm=RmDimension(state=RM.RECEIVED),
                 ),
                 ParticipantStatus(
-                    attributed_to=self._SENDER_ID,
-                    context=self._CASE_ID,
+                    attributed_to=cls._SENDER_ID,
+                    context=cls._CASE_ID,
                     rm=RmDimension(state=RM.VALID),
                 ),
             ],
@@ -272,29 +280,29 @@ class TestEngageCaseLedgerCommit:
         dl.create(vendor_p)
 
         dl.create(
-            VultronCaseActor(id_=self._CASE_MANAGER_ID, name="Coordinator")
+            VultronCaseActor(id_=cls._CASE_MANAGER_ID, name="Coordinator")
         )
 
         cm_p = VultronParticipant(
-            id_=self._CM_PARTICIPANT_ID,
-            attributed_to=self._CASE_MANAGER_ID,
-            context=self._CASE_ID,
+            id_=cls._CM_PARTICIPANT_ID,
+            attributed_to=cls._CASE_MANAGER_ID,
+            context=cls._CASE_ID,
             case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
         )
         dl.create(cm_p)
 
         # attributed_to triggers genesis_hash computation (CLP-08-001/002).
         case = VulnerabilityCase(
-            id_=self._CASE_ID,
+            id_=cls._CASE_ID,
             name="Ledger Commit Regression Case #2300",
-            attributed_to=self._CASE_MANAGER_ID,
+            attributed_to=cls._CASE_MANAGER_ID,
             case_participants=[
-                self._VENDOR_PARTICIPANT_ID,
-                self._CM_PARTICIPANT_ID,
+                cls._VENDOR_PARTICIPANT_ID,
+                cls._CM_PARTICIPANT_ID,
             ],
             actor_participant_index={
-                self._SENDER_ID: self._VENDOR_PARTICIPANT_ID,
-                self._CASE_MANAGER_ID: self._CM_PARTICIPANT_ID,
+                cls._SENDER_ID: cls._VENDOR_PARTICIPANT_ID,
+                cls._CASE_MANAGER_ID: cls._CM_PARTICIPANT_ID,
             },
         )
         dl.create(case)
@@ -343,6 +351,56 @@ class TestEngageCaseLedgerCommit:
             "Expected exactly one 'engage_case' ledger entry when "
             "receiving_actor_id is the CaseManager — regression for #2300"
         )
+
+    @staticmethod
+    def _queued_announces(dl: SqliteDataLayer) -> list[as_Announce]:
+        queued = [dl.read(activity_id) for activity_id in dl.outbox_list()]
+        return [a for a in queued if isinstance(a, as_Announce)]
+
+    def test_engage_received_by_case_manager_broadcasts(self, seeded_dl):
+        """Control: the CASE_MANAGER announces the updated case (CM-06-001)."""
+        EngageCaseReceivedUseCase(seeded_dl, self._engage_event()).execute()
+
+        announces = self._queued_announces(seeded_dl)
+        assert len(announces) == 1
+        assert announces[0].actor == self._CASE_MANAGER_ID
+
+    def test_engage_received_by_non_case_manager_does_not_broadcast(self):
+        """A participant that is not the CASE_MANAGER announces nothing.
+
+        ``BroadcastCaseUpdateNode`` authors the ``Announce`` as the executing
+        actor, so without a role gate every replica that received the Join
+        re-broadcast canonical case state under its own name.
+        """
+        finder_id = "https://example.org/actors/finder-2300"
+        dl = self._seed(
+            SqliteDataLayer("sqlite:///:memory:", actor_id=finder_id)
+        )
+        event = self._engage_event().model_copy(
+            update={"receiving_actor_id": finder_id}
+        )
+
+        EngageCaseReceivedUseCase(dl, event).execute()
+
+        assert self._queued_announces(dl) == []
+
+    def test_engage_without_receiving_actor_executes_as_store_owner(
+        self, seeded_dl
+    ):
+        """No ``receiving_actor_id`` → the store's owner, never the sender.
+
+        The fallback used to be ``request.actor_id``, so the CASE_MANAGER's own
+        replica ran the tree as the vendor and skipped its commit (BT-17-006).
+        """
+        event = self._engage_event().model_copy(
+            update={"receiving_actor_id": None}
+        )
+
+        EngageCaseReceivedUseCase(seeded_dl, event).execute()
+
+        assert [
+            e.event_type for e in seeded_dl.list_objects("CaseLedgerEntry")
+        ] == ["engage_case"]
 
     def test_engage_case_transitions_vendor_rm_to_accepted(self, seeded_dl):
         """EngageCaseReceivedUseCase still transitions the engaging actor's RM to ACCEPTED.
@@ -440,6 +498,20 @@ class TestDeferCaseLedgerCommit:
                 context=self._CASE_ID,
             ),
         )
+
+    def test_defer_without_receiving_actor_executes_as_store_owner(
+        self, seeded_dl
+    ):
+        """No ``receiving_actor_id`` → the store's owner, never the sender."""
+        event = self._defer_event().model_copy(
+            update={"receiving_actor_id": None}
+        )
+
+        DeferCaseReceivedUseCase(seeded_dl, event).execute()
+
+        assert [
+            e.event_type for e in seeded_dl.list_objects("CaseLedgerEntry")
+        ] == ["defer_case"]
 
     def test_defer_case_commits_ledger_entry_when_receiving_actor_is_case_manager(
         self, seeded_dl

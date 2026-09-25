@@ -21,6 +21,7 @@ existing import paths (``from vultron.core.behaviors.report.nodes import ...``)
 continue to work without modification.
 
 Submodules:
+- ``ack_conditions``: Received-side AckReport condition nodes
 - ``conditions``: Validation and prioritization condition nodes
 - ``rm_transitions``: Report-management transition action nodes
 - ``case_creation``: Case creation and Create(Case) activity nodes
@@ -33,6 +34,9 @@ Submodules:
 """
 
 from vultron.core.behaviors.helpers import UpdateActorOutbox  # noqa: F401
+from vultron.core.behaviors.report.nodes.ack_conditions import (
+    CheckSenderIsExecutingActorNode,
+)
 from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseActivity,
     CreateCaseNode,
@@ -84,6 +88,8 @@ from vultron.core.behaviors.report.nodes.storage import (
 )
 
 __all__ = [
+    # ack_conditions
+    "CheckSenderIsExecutingActorNode",
     # conditions
     "_CheckParticipantRMStateBase",
     "_CheckReportPhaseRMStateBase",

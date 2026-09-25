@@ -16,6 +16,8 @@ import logging
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+import pytest
+
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
@@ -58,6 +60,39 @@ class TestOwnershipTransferUseCases:
 
         stored = dl.get(activity.type_.value, activity.id_)
         assert stored is not None
+
+    def test_offer_ownership_unresolvable_receiver_writes_nothing(
+        self, make_payload, anonymous_store
+    ):
+        """No receiver → the Offer is not persisted (#2667).
+
+        The Offer used to be stored before ``resolve_receiving_actor_id`` ran,
+        so a refusal left it behind in a store no actor owned (CM-01-001).
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.errors import VultronValidationError
+
+        inner = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ot_anon",
+            name="OT Case anon",
+        )
+        activity = offer_case_ownership_transfer_activity(
+            case,
+            target="https://example.org/users/coordinator",
+            actor="https://example.org/users/vendor",
+        )
+        event = make_payload(activity, receiving_actor_id=None)
+
+        with pytest.raises(VultronValidationError):
+            OfferCaseOwnershipTransferReceivedUseCase(
+                anonymous_store(inner), event
+            ).execute()
+
+        assert inner.get(activity.type_.value, activity.id_) is None
 
     def test_accept_case_ownership_transfer_updates_attributed_to(
         self, make_payload
