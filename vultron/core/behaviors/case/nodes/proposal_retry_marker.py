@@ -263,13 +263,13 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             to=[self._vendor_uri] + reporter_uris,
         )
         # ARCH-20-001, honestly: ``create_activity`` is a *core-branch* object, so
-        # this is the one remaining call site whose subject is not already
-        # wire-shaped.  It stands because the marker's payload is not a core
-        # representation at all — it is the AS2 document the retry runner will
-        # re-send over HTTP (#1139), and AS2 is the HTTP transmission format
-        # (ADR-0099 detail 1).  It should move behind ``WireRenderPort`` with the
-        # rest of the rendering collapse; the port is not injected into this node
-        # today.
+        # this dump is core producing the wire shape itself.  It stands because
+        # the marker's payload is not a core representation at all — it is the
+        # AS2 document the retry runner will re-send over HTTP (#1139), and AS2
+        # is the HTTP transmission format (ADR-0099 detail 1).  Since detail 4 it
+        # is the same dump ``WireRenderPort`` performs (camelCase, ``@context``);
+        # it stays inline only because the port is not injected into this node.
+        # Counted by ``test/architecture/test_core_by_alias_dumps.py``.
         payload = create_activity.model_dump(by_alias=True)
 
         marker = PendingCreateCaseActivity(

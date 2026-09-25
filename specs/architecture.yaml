@@ -2,7 +2,7 @@ id: ARCH
 title: Architecture
 description: 'Defines the architectural constraints for the Vultron codebase. The system follows hexagonal architecture (Ports
   and Adapters): the core domain is isolated from all external systems, which interact through defined ports via thin adapters.
-  Covers layer separation rules, the shared-base object hierarchy, domain model richness, and the fail-fast validation boundary.'
+  Covers layer separation rules, the core object hierarchy, domain model richness, and the fail-fast validation boundary.'
 version: 1.1.0
 scope:
 - prototype
@@ -223,102 +223,110 @@ groups:
     - rel_type: implements
       spec_id: CS-10-001
 - id: ARCH-12
-  title: Shared-Base Object Hierarchy
-  rationale: 'Per-class from_core()/to_core() methods on wire types (the original ARCH-12 design) were a workaround for
-    independent parallel hierarchies. A shared-base approach eliminates the need for per-type translation stubs: both core
-    and wire branches inherit from the same lenient root and field names align, so translation becomes a declarative
-    operation over the core↔wire pairing registry rather than hand-written code on each wire class. ARCH-12-005 places that
-    operation on the adapter side and forbids the per-class methods outright. See ADR-0017 Option D, ADR-0082, and concern
-    #796.'
+  title: Core Object Hierarchy
+  rationale: >-
+    Per-class from_core()/to_core() methods on wire types (the original ARCH-12 design) were a
+    workaround for independent parallel hierarchies, and the shared lenient root that replaced
+    them (#799) was a second workaround for the same duplication. ADR-0099 removes the
+    duplication itself: the core classes are the object model and AS2 is a serialization of
+    them, so core owns its own roots and the wire base owns its own. See ADR-0017, ADR-0082,
+    ADR-0099, and concern #796.
   specs:
   - id: ARCH-12-001
-    note: >-
-      ADR-0099 supersedes the direction of this requirement. There is no shared
-      root under one object model: the core classes *are* the model and AS2 is a
-      serialization of them, so `as_Base` inherits nothing from core and there is
-      nothing to relocate to a branch-neutral module. The statement below still
-      describes the current code and stays normative until the migration lands;
-      do NOT implement it as a target state, and do not revive issue #2933.
-    priority: MUST
+    priority: MUST_NOT
     kind: project
-    statement: '`as_Base` MUST inherit from `VultronBase`; `as_Object` MUST inherit from `VultronObject`. `VultronBase` and
-      `VultronObject` are the shared root for both the core and wire object hierarchies, and MUST live in a branch-neutral
-      module that is neither core-branch nor wire-branch — not in `vultron/core/models/`.'
-    rationale: A shared root ensures field names and semantics align across both branches, enabling model_validate() round-trips
-      without per-type translation stubs. Hosting that shared root inside `vultron/core/models/` made every wire class a
-      definitional ARCH-22 violation — the wire branch is *required* to inherit it, so the import can never be removed while
-      it lives there. A branch-neutral home follows the ADR-0031 precedent that introduced `vultron/enums/` as a bottom-of-stack
-      layer for cross-cutting definitions.
+    statement: >-
+      A wire-branch class MUST NOT inherit from a core class. `as_Base` stands on
+      `pydantic.BaseModel` directly, so the wire branch inherits no core field, configuration,
+      or registration hook. A domain type's `as_*` name is an alias of its core class
+      (ADR-0099 detail 3), not a subclass of it.
+    rationale: >-
+      The shared root made every wire class inherit core configuration, which forced the
+      `_is_core_branch` sentinel (#2416) so wire types would not self-register in the core
+      registries, and forced the core root to stay lenient so the wire branch could parse loose
+      inbound data (ARCH-12-002 as formerly written). Under one object model there is nothing
+      for the two roots to share: the wire base describes AS2 vocabulary the core does not model,
+      and everything the core does model is the core class itself.
     adr:
-    - ADR-0031
-    - ADR-0082
-    verification: '`issubclass(as_Base, VultronBase)` and `issubclass(as_Object, VultronObject)` are both True.'
+    - ADR-0099
+    verification: >-
+      `test_wire_vocabulary_inherits_nothing_from_core` in
+      `test/architecture/test_hierarchy_invariants.py` asserts no `VOCABULARY` class has a
+      `vultron.core` class in its MRO, and `test_as_base_stands_directly_on_base_model` in
+      `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` pins `as_Base.__bases__`.
   - id: ARCH-12-002
-    note: >-
-      ADR-0099 supersedes the direction of this requirement. The leniency rule
-      exists only because one shared ancestor had to serve both a strict core
-      branch and a lenient wire branch. With one model there is no shared
-      ancestor to keep loose, and strictness is set once on the core class.
     priority: MUST
     kind: project
-    statement: The shared base (`VultronBase` / `VultronObject`) MUST define all shared fields with the most lenient types
-      (`str | None`, `Any | None`, `datetime | None`). Neither branch may introduce a field type in a way that is Pydantic-incompatible
-      with the shared base.
-    rationale: Lenient shared-base types allow both branches to narrow independently without MRO conflicts; Pydantic AfterValidator
-      narrowing is valid in subclasses.
+    statement: >-
+      Core MUST have exactly two root classes. `CoreRecord` carries identity only (`id_`,
+      `type_`, `name`) and is the base for internal records that are never serialised as AS2
+      (dead-letter entries, offer and replication bookkeeping). `CoreObject(CoreRecord)` is the
+      one AS2 object root: it declares every AS2 Object field, including those no Vultron type
+      uses yet, which stay declared (ADR-0099 detail 8). Every core model MUST descend from one
+      of the two.
+    rationale: >-
+      The middle level (`VultronBase` beneath `VultronObject`) existed so that one ancestor could
+      serve a strict core branch and a lenient wire branch. With the wire base on its own root,
+      the only distinction left is whether a type has an AS2 shape at all, and the two roots
+      state exactly that: the rendering port accepts a `CoreObject` and refuses a bare
+      `CoreRecord` (ARCH-20-003).
+    adr:
+    - ADR-0099
+    verification: >-
+      `TestCoreRoots` in `test/architecture/test_hierarchy_invariants.py` asserts
+      `CoreObject.__bases__ == (CoreRecord,)`, that `CoreRecord` declares only the identity
+      fields, that the retired middle-level names are absent, and that both dead-letter records
+      are `CoreRecord`s without `@context` or timestamps.
   - id: ARCH-12-003
-    note: >-
-      ADR-0099 inverts the `alias_generator` clause. Under one object model the
-      core object's own `by_alias` dump *is* the AS2 wire form (detail 2), so
-      there is no second class left to hold the spelling and the generator on the
-      core type is the intended design rather than a violation. Detail 5 also
-      dissolves the "insufficient for its purpose" half of the rationale: a
-      dimension now serializes to a bare state value, which is exactly what lets
-      the core dump produce the wire shape, so the hand-patched
-      `consent`->`emConsentState` rewrite this cites is gone.
-
-      The multi-spelling *reading* hazard is real and is now deliberately
-      embraced: `ParticipantStatus.rm` declares
-      `AliasChoices("rmState", "rm_state", "rm")`. What makes that safe is that
-      all three spellings resolve to the *same* field on the *same* class, so no
-      reader "decides what the data means" — the #2232 defect was a key matching
-      *no* field and being silently discarded, which multi-spelling acceptance
-      prevents rather than causes. Detail 7 ("reading is strict, with unknown
-      fields set aside") is where the argument attaches.
-
-      The `extra="forbid"` clause is untouched by ADR-0099 and remains unmet: an
-      unrecognised key is still silently dropped. #3578 owns the full rewrite of
-      this requirement and the disposition of #2288/#2289; this note records the
-      inversion so the requirement is not left contradicting merged code.
     priority: MUST
     kind: project
-    statement: 'The core branch MAY narrow inherited fields via Pydantic validators (e.g., `NonEmptyString | None`, required
-      `datetime`). Core-branch types MUST NOT carry wire-specific concerns: `alias_generator=to_camel`, hardcoded AS2 `@context`
-      namespace, or VOCABULARY registration are forbidden in core-branch types. Core-branch types MUST additionally resolve
-      `extra="forbid"` through their `model_config`, so that an unrecognised key raises rather than being silently discarded.'
-    verification: 'No `CoreObject` subclass declares `alias_generator` in its `model_config`, references `to_camel`, or assigns
-      to `VOCABULARY`. Confirmed by `test_no_core_object_has_to_camel_alias_generator` and `test_all_vocabulary_are_as_base_subclasses`
-      in `test/architecture/test_hierarchy_invariants.py`, both of which MUST NOT be marked `xfail`. A companion test asserts
-      every `CoreObject` subclass resolves `extra="forbid"`, with no exemption list.'
-    rationale: 'An `alias_generator` on a core type gives one `type_` two accepted key spellings, so whichever class reads a
-      row decides what the data means (issue #2232). It is also insufficient for its intended purpose: a core `model_dump(by_alias=True)`
-      cannot produce the wire shape for a type whose branches differ structurally, which is why a hand-patched `consent`→`emConsentState`
-      rewrite accumulated in core. Core→wire rendering belongs behind the ARCH-20 driven port. `extra="forbid"` is required
-      because Pydantic v2 defaults to `extra="ignore"`: handing a wire-shaped payload to a core type silently discards every
-      key whose only spelling is snake_case, which is how a participant''s RM ladder was reset without a trace (issue #2232).
-      Forbidding unknown keys is strictly stronger than rejecting camelCase spellings specifically — it also catches typos,
-      renamed fields, and stale keys from an older schema.'
+    statement: >-
+      Core AS2 types (`CoreObject` subclasses) MUST carry the AS2 field spelling as their own
+      serialization form, through the `alias_generator=to_camel` they inherit from `CoreObject`
+      (ADR-0099 detail 2); a `by_alias` dump of a core object is its AS2 form. Core types MUST
+      resolve `extra="forbid"` through their `model_config`, so that an unrecognised key raises
+      rather than being silently discarded. Core types MUST NOT register in the wire
+      `VOCABULARY`, and MUST NOT store `@context` as a serialised field: `CoreObject.context_`
+      stays `exclude=True`, and `@context` is supplied once by `CoreObject`'s `by_alias`
+      serializer (VM-10-001).
+    verification: >-
+      `test_every_core_vocabulary_entry_spells_the_as2_envelope_in_camel_case` in
+      `test/core/models/test_core_object.py` asserts the AS2 spelling of the shared envelope
+      fields (`mediaType`, `startTime`, `endTime`, `attributedTo`, `inReplyTo`) for every
+      `CORE_VOCABULARY` entry; `test_all_vocabulary_are_as_base_subclasses` in
+      `test/architecture/test_hierarchy_invariants.py` keeps core types out of `VOCABULARY`;
+      `test/architecture/test_core_extra_forbid.py` asserts every `CoreObject` subclass
+      resolves `extra="forbid"`, with no exemption list; and
+      `test_context_is_supplied_once_and_not_as_a_core_field` in
+      `test/adapters/driven/test_wire_render_adapter.py` pins the `@context` rule. None of
+      these may be marked `xfail`.
+    rationale: >-
+      One spelling on one class is what makes a core dump the wire form, which is what lets the
+      rendering port be a plain dump (ARCH-20-002) instead of a second translation path that
+      drifts. The #2232 hazard this requirement once cited against the generator was a key
+      matching *no* field and being silently discarded, not a key having two spellings: a
+      reader that accepts several spellings for the *same* field on the *same* class, as
+      `ParticipantStatus.rm` does with `AliasChoices("rmState", "rm_state", "rm")`, never
+      decides what the data means. ADR-0099 detail 7 ("reading is strict, with unknown fields
+      set aside") is where that argument attaches, and `extra="forbid"` is its enforcement:
+      Pydantic v2 defaults to `extra="ignore"`, so without it a wire-shaped payload handed to a
+      core type silently loses every key it does not recognise, which is how a participant's RM
+      ladder was reset without a trace. Forbidding unknown keys is strictly stronger than
+      rejecting particular spellings; it also catches typos, renamed fields, and stale keys from
+      an older schema.
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-20-001
-      note: ARCH-20 supplies the driven port that replaces the core-side aliasing this requirement forbids.
+      note: ARCH-20 keeps the port as the only renderer, so core code does not dump its own objects
+        with `by_alias=True` even though that dump is now the wire form.
     - rel_type: depends_on
       spec_id: ARCH-23-005
       note: ARCH-23-005 supplies the round-trip cleanups (computed-field stripping, wire-name keys) without which `extra="forbid"`
-        rejects the project''s own serialised output.
+        rejects the project's own serialised output.
     adr:
     - ADR-0063
     - ADR-0082
+    - ADR-0099
   - id: ARCH-12-004
     priority: MUST_NOT
     kind: project
@@ -329,13 +337,15 @@ groups:
       `CORE_VOCABULARY` is the DataLayer primary reconstruction path (used by `_from_row()` in `SqliteDataLayer`);
       every entry must be a `CoreObject` subclass. `CORE_TYPE_MAP` is the fallback for `find_in_vocabulary()` in the
       wire registry layer, catching core types that are not `CoreObject` subclasses (e.g. `VultronOfferRecord`,
-      `VultronPendingCaseInbox`). These types extend `VultronObject` directly and carry Vultron-specific domain state
-      not representable via `CoreObject`. Contaminating `CORE_TYPE_MAP` with wire types (issue #2416) would silently
+      `VultronPendingCaseInbox`). These types extend `CoreRecord` directly and carry Vultron-specific domain state
+      that has no AS2 shape. Contaminating `CORE_TYPE_MAP` with wire types (issue #2416) would silently
       allow wire-shaped objects to be reconstructed via `find_in_vocabulary()`, bypassing the `CORE_VOCABULARY` primary
       path and contradicting ARCH-12-003.
     verification: 'Confirmed by `test_no_wire_types_in_core_type_map` (imports wire vocab and asserts no `vultron.wire`
-      module class appears in `CORE_TYPE_MAP`) and `test_vultron_object_direct_types_in_core_type_map` (asserts the five
-      `VultronObject`-direct core types are reachable by class name and Literal value) in
+      module class appears in `CORE_TYPE_MAP`) and `test_core_record_types_in_core_type_map` (discovers
+      every `CoreRecord` that is not a `CoreObject`, including the dead-letter records
+      `DeadLetterRecord` and the adapter''s `OutboxDeadLetterEntry`, and asserts each is reachable
+      by class name and Literal value; the subject set is discovered, not listed) in
       `test/architecture/test_hierarchy_invariants.py`. Both MUST NOT be marked `xfail`.'
   - id: ARCH-12-008
     priority: MUST
@@ -360,26 +370,19 @@ groups:
     - rel_type: refines
       spec_id: ARCH-12-004
   - id: ARCH-12-010
-    note: >-
-      ADR-0099 removes the class this requirement is scoped to. `VultronObject`
-      is deleted with the shared root, so "`VultronObject`-direct subclasses that
-      do not extend `CoreObject`" names nothing. The underlying need survives:
-      core types that carry domain state and are not `CoreObject` subclasses must
-      still be discoverable by type string. Re-scope to the surviving core object
-      root when the migration lands.
     priority: MUST
     kind: project
     statement: >-
-      `VultronObject`-direct subclasses that do not extend `CoreObject` MUST register in
+      Core types that extend `CoreRecord` but not `CoreObject` MUST register in
       `CORE_TYPE_MAP` so that core types remain discoverable by type string.  Registration
       in `CORE_TYPE_MAP` MUST NOT be relied on as the resolution path for a wire-branch
       caller (VM-06-008).
     rationale: >-
-      `CORE_TYPE_MAP` catches core types (e.g. `VultronOfferRecord`,
-      `VultronPendingCaseInbox`) that extend `VultronObject` directly and carry domain state
-      not representable via `CoreObject`.  Those types need a name-keyed lookup for
-      core-layer and persistence callers.  They do not need to answer a wire-branch caller's
-      `type` lookup: a hit there is a coincidence of naming, not a wire counterpart.
+      `CORE_TYPE_MAP` catches core records (e.g. `VultronOfferRecord`,
+      `VultronPendingCaseInbox`) that carry domain state with no AS2 shape and so are not
+      `CoreObject`s.  Those types need a name-keyed lookup for core-layer and persistence
+      callers.  They do not need to answer a wire-branch caller's `type` lookup: a hit there
+      is a coincidence of naming, not a wire counterpart.
     relationships:
     - rel_type: refines
       spec_id: ARCH-12-004
@@ -430,7 +433,7 @@ groups:
   - id: ARCH-12-006
     priority: MUST
     kind: project
-    statement: Actor `inbox` and `outbox` fields MUST be typed `str | None` in the shared base and core branch, carrying only
+    statement: Actor `inbox` and `outbox` fields MUST be typed `str | None` on the core actor types, carrying only
       the URI of the inbox or outbox endpoint. AS2 `OrderedCollection` wrapping is a wire-only serialization concern and MUST
       NOT appear in core-branch actor types.
     rationale: Domain logic only ever needs to route to the inbox URI; the full collection shape is an AS2 protocol concern,
@@ -440,17 +443,17 @@ groups:
     priority: MUST
     kind: project
     statement: All core domain objects that represent protocol-significant entities (cases, reports, participants, actors,
-      log entries, embargo policies, etc.) MUST inherit from `CoreObject` (or `VultronObject` when CORE_VOCABULARY registration
-      is not needed). Objects that exist solely as local configuration, transient dispatch envelopes, or internal processing
+      log entries, embargo policies, etc.) MUST inherit from `CoreObject` (or `CoreRecord` when the object has no AS2 shape
+      and CORE_VOCABULARY registration is not needed). Objects that exist solely as local configuration, transient dispatch envelopes, or internal processing
       records that are never shared across the wire MAY remain plain `BaseModel` subclasses; such classes MUST include a docstring
-      explaining the rationale for not inheriting from the shared-base hierarchy.
-    rationale: Consistent use of the shared-base hierarchy ensures that all protocol-significant domain objects share aligned
+      explaining the rationale for not inheriting from the core object hierarchy.
+    rationale: Consistent use of the core object hierarchy ensures that all protocol-significant domain objects share aligned
       field names, can be translated by the adapter-side translator without per-type projection code (ARCH-12-005), and are
       discoverable via CORE_VOCABULARY.
       Intentional BaseModel classes are the exception, not the default; requiring a documented rationale prevents accidental
       hierarchy bypass as the codebase evolves.
     verification: Static analysis or a test asserts that all classes in `vultron/core/models/` that contain protocol-significant
-      fields (`id_`, `type_`, `published`, `attributed_to`) inherit from `CoreObject` or `VultronObject`. Intentional `BaseModel`
+      fields (`id_`, `type_`, `published`, `attributed_to`) inherit from `CoreObject` or `CoreRecord`. Intentional `BaseModel`
       subclasses are listed in a registry or identified by a marker mixin/comment pattern.
 - id: ARCH-09
   title: Domain Model Richness Constraint
@@ -466,22 +469,22 @@ groups:
     kind: project
     statement: Actor domain models (`CoreActor` and its concrete subclasses `VultronPerson`, `VultronOrganization`, `VultronService`,
       `VultronApplication`, `VultronGroup`) MUST be defined in `vultron/core/models/`. The wire layer (`vultron/wire/as2/`)
-      MUST provide corresponding wire-branch actor types inheriting from the shared base (`VultronObject`) rather than re-exporting
-      core types directly.
+      MUST NOT define a second actor class for them; its `as_Vultron*` actor names alias the core classes (ADR-0099 detail
+      3).
     rationale: 'Defining actor domain models in core enforces the hexagonal boundary. The re-export pattern (where wire re-exported
       core actors directly) was a transitional workaround introduced when field-type conflicts blocked diamond inheritance.
-      The shared-base approach (ARCH-12) resolves those conflicts; wire actor types should become proper wire-branch types
-      once the implementation epic following concern #796 is complete.'
+      Under one object model (ADR-0099) the re-export is the design rather than a workaround: an actor has one class, and
+      its AS2 form is that class''s own serialization.'
     verification: Confirm that `VultronPerson`, `VultronOrganization`, `VultronService`, `VultronApplication`, and `VultronGroup`
       are defined in `vultron/core/models/actor.py`. Confirm that wire actor types in `vultron/wire/as2/vocab/objects/vultron_actor.py`
-      inherit from `VultronObject` (or a subclass thereof) rather than re-exporting the core classes unchanged.
+      are those same core classes, not wire subclasses of them.
     relationships:
     - rel_type: refines
       spec_id: ARCH-09-001
     - rel_type: depends_on
       spec_id: ARCH-12-001
-      note: ARCH-12 establishes the shared-base hierarchy; wire actor types must inherit from that shared base, not re-export
-        core types.
+      note: ARCH-12-001 forbids a wire class from inheriting core; the `as_Vultron*` actor names are aliases of the core
+        classes, not subclasses of them.
 - id: ARCH-10
   title: Fail-Fast Domain Objects
   specs:
@@ -814,96 +817,100 @@ groups:
     - ADR-0019
 - id: ARCH-20
   title: Core-to-Wire Rendering Port
-  description: Governs how core domain objects are rendered into wire-shaped (AS2 camelCase) JSON. Core legitimately needs
-    a wire representation in one place — the `CaseLedgerEntry.payloadSnapshot`, which CLP-07-001 requires to be receiver-reconstitutable
-    AS2 — but producing it by setting `alias_generator=to_camel` on the core type violated ARCH-12-003 and could not express
-    structural differences between the two branches. This group establishes a driven port as the single rendering seam.
-    ADR-0099 reverses the parenthetical — detail 5's bare dimension serialization removes the structural difference, and
-    detail 2 puts the spelling on the core class, so the generator is now the sanctioned mechanism *behind* the port
-    rather than an alternative to it. The port is still the single seam. See the note on ARCH-12-003 and #3578.
-  rationale: 'Eight `CoreObject` subclasses carried `alias_generator=to_camel` (issue #1991) solely so that core code could
-    call `model_dump(by_alias=True)` when building ledger payload snapshots. The mechanism was both a layer violation and
-    inadequate: `ParticipantStatus` nests `consent: PecDimension` where the wire shape carries a flat `emConsentState`, so
-    core had to hand-patch the dumped dict — a partial, drifting reimplementation of `as_ParticipantStatus.from_core()`. ARCH-01-004
-    prescribes driven ports as the remediation for core→wire needs. See ADR-0063.'
+  description: >-
+    Governs how core domain objects are rendered into wire-shaped (AS2 camelCase) JSON. Core
+    legitimately needs a wire representation in one place — the `CaseLedgerEntry.payloadSnapshot`,
+    which CLP-07-001 requires to be receiver-reconstitutable AS2 — and this group makes a driven
+    port the single seam that produces it. Under one object model (ADR-0099) the spelling lives
+    on the core class (detail 2) and a dimension serializes to a bare state value (detail 5), so
+    the port's adapter is a plain `by_alias` dump of the core object; what the group still
+    guards is that core code reaches that dump only through the port.
+  rationale: >-
+    Eight `CoreObject` subclasses once carried `alias_generator=to_camel` (issue #1991) solely so
+    that core code could call `model_dump(by_alias=True)` when building ledger payload snapshots,
+    and `ParticipantStatus` had to hand-patch the dumped dict into a flat `emConsentState`. The
+    defect was not the generator but core rendering for itself, with a second, drifting
+    translation beside the wire class's. ARCH-01-004 prescribes driven ports as the remediation
+    for core→wire needs. See ADR-0063 and ADR-0099.
   specs:
   - id: ARCH-20-001
-    note: >-
-      The "single rendering seam" this requires still holds; the mechanism named
-      in its rationale does not. That rationale reads "keeps every fact about
-      wire spelling ... behind the adapter-side translator that owns projection
-      (ARCH-12-005)", and ADR-0099 removes that translator along with the paired
-      classes. Detail 2 puts the AS2 spelling on the core class, so forbidding
-      `alias_generator` there forbids the only place it can now live, and
-      ARCH-20-002's own ADR-0099 note already sanctions the port dumping the core
-      object with `by_alias=True` — the second means this statement forbids.
-
-      What survives intact: the port remains the only caller that renders, so
-      there is still exactly one seam. Core code must still not produce the wire
-      shape itself.
     priority: MUST
     kind: architecture
-    statement: Core code that requires a wire-shaped representation of a **core-branch** object MUST obtain it through a driven
-      port declared in `vultron/core/ports/`. Core MUST NOT produce that shape itself, whether by declaring an `alias_generator`
-      on the core class, by calling `model_dump(by_alias=True)` on a core-branch instance, or by rewriting dumped keys into
-      wire spellings. Dumping an already-wire-shaped object that core holds (e.g. a received activity being captured verbatim
-      per CLP-07-001) is unaffected by this requirement.
-    rationale: A single rendering seam keeps every fact about wire spelling (camelCase, flat `emConsentState`, the AS2 `@context`)
-      out of core and behind the adapter-side translator that owns projection (ARCH-12-005). The requirement is scoped to core-branch
-      objects because core legitimately handles wire objects on the verbatim-capture path; conflating the two would make this
-      requirement unverifiable.
-    verification: No `CoreObject` subclass declares an `alias_generator` (enforced by `test_no_core_object_has_to_camel_alias_generator`),
-      so a `by_alias=True` dump of a core-branch instance can no longer yield wire spelling. Each remaining `by_alias=True`
-      call site under `vultron/core/` is additionally reviewed to confirm its subject is a wire object, and annotated as such.
+    statement: >-
+      Core code that requires a wire-shaped representation of a **core-branch** object MUST obtain
+      it through a driven port declared in `vultron/core/ports/`. Core MUST NOT produce that shape
+      itself, whether by calling `model_dump(by_alias=True)` on a core-branch instance or by
+      rewriting dumped keys into wire spellings. The `alias_generator` a core object inherits
+      from `CoreObject` (ARCH-12-003) is the mechanism behind the port, not a licence for core to
+      dump directly. Dumping an already-wire-shaped object that core holds (e.g. a received
+      activity being captured verbatim per CLP-07-001) is unaffected by this requirement.
+    rationale: >-
+      A single rendering seam keeps the decision of what goes on the wire (which object, with
+      which `@context`, failing closed on anything without an AS2 shape) in one adapter instead
+      of at every call site that happens to need camelCase. The requirement is scoped to
+      core-branch objects because core legitimately handles wire objects on the verbatim-capture
+      path; conflating the two would make this requirement unverifiable.
+    verification: >-
+      Each `by_alias=True` call site under `vultron/core/` is reviewed to confirm its subject is a
+      wire object, and annotated as such. `test/architecture/test_core_by_alias_dumps.py` counts
+      those call sites per file against an exact baseline, so a new site fails and a removed one
+      must be ticked off.
     relationships:
     - rel_type: refines
       spec_id: ARCH-01-004
     adr:
     - ADR-0063
+    - ADR-0099
   - id: ARCH-20-002
-    note: >-
-      ADR-0099 supersedes the mechanism named here. With no wire counterpart to
-      resolve, the rendering port returns the core object's own
-      `model_dump(by_alias=True, exclude_none=True, mode="json")` plus the
-      delivery-supplied `@context`. Measured byte-identical for
-      `ParticipantStatus`. ADR-0063's decision — that rendering happens behind
-      the port — still stands.
     priority: MUST
     kind: project
-    statement: The rendering port's adapter MUST produce its output by resolving the core object's wire counterpart through
-      the declarative pairing registry (ARCH-23-001) and delegating the projection to the adapter-side translator for that
-      pairing, then serialising with `by_alias=True`. The adapter MUST NOT reimplement field-name translation, and MUST NOT
-      invoke a projection method on the wire class — those methods are forbidden by ARCH-12-005.
-    rationale: 'The adapter-side translator is the authoritative projection and handles structural differences (nested `PecDimension`
-      → flat `emConsentState`). Any second translation path will drift from it, which is the defect ADR-0063 removes. ADR-0063''s
-      decision — that rendering happens behind this port — stands unchanged; only the mechanism moves, because a `from_core()`
-      method on the wire class is what forced every wire module to import the core domain model (ARCH-22-001).'
+    statement: >-
+      The rendering port's adapter MUST produce its output as the core object's own
+      `model_dump(by_alias=True, exclude_none=True, mode="json")`. It MUST NOT resolve a wire
+      counterpart (through `WIRE_TYPE_MAP`, a pairing registry, or a `from_core()` projection) and
+      MUST NOT reimplement field-name translation.
+    rationale: >-
+      Under one object model the core object is its own wire form (ADR-0099 detail 1), so a
+      counterpart lookup has nothing to find and any second translation path could only drift
+      from the class's own spelling, which is the defect ADR-0063 removes. ADR-0063's decision
+      that rendering happens behind this port stands; only the mechanism collapses. The switch
+      was measured as behaviour-preserving by capturing the render of every `CORE_VOCABULARY`
+      entry before the change.
+    verification: >-
+      `test_render_is_the_core_objects_own_alias_dump` and
+      `test_render_adapter_does_not_resolve_a_wire_counterpart` in
+      `test/adapters/driven/test_wire_render_adapter.py`, and the per-entry goldens in
+      `test/adapters/driven/test_wire_render_goldens.py`.
     relationships:
     - rel_type: refines
       spec_id: ARCH-20-001
-    - rel_type: depends_on
-      spec_id: ARCH-23-001
-      note: The pairing registry is how the adapter resolves the wire counterpart now that name coincidence is forbidden.
     adr:
     - ADR-0063
-    - ADR-0082
+    - ADR-0099
   - id: ARCH-20-003
-    note: >-
-      Amended by ADR-0099 (#3487). Under one object model a core object is its
-      own wire form, so a missing wire counterpart is no longer the failure
-      case; the port instead fails closed on anything that is not a
-      CoreObject, which has no AS2 serialization.
     priority: MUST
     kind: project
-    statement: When the supplied object is not a `CoreObject`, the rendering port MUST raise `VultronValidationError`.
-      It MUST NOT fall back to a core-shaped `model_dump`, return `None`, or emit a partially-rendered object.
-    rationale: A silently core-shaped payload snapshot is unreconstitutable by receivers (CLP-07-001) and is indistinguishable
-      from a correct one at the call site. Failing loudly is required by ARCH-15-002.
+    statement: >-
+      When the supplied object has no AS2 shape, that is, when it is not a `CoreObject` (a bare
+      `CoreRecord` such as an offer or dead-letter record, or any other model), the rendering port
+      MUST raise `VultronValidationError`. It MUST NOT fall back to a core-shaped `model_dump`,
+      return `None`, or emit a partially-rendered object. The absence of a separate wire class is
+      not a failure.
+    rationale: >-
+      A silently core-shaped payload snapshot is unreconstitutable by receivers (CLP-07-001) and
+      is indistinguishable from a correct one at the call site. Failing loudly is required by
+      ARCH-15-002. The `CoreObject` gate is what stops a bookkeeping record such as
+      `VultronOfferRecord` from leaking into a delivered payload now that a missing counterpart
+      no longer refuses it.
+    verification: >-
+      `test/adapters/driven/test_wire_render_adapter.py` asserts the port raises for a
+      `CoreRecord` and renders every `CORE_VOCABULARY` entry.
     relationships:
     - rel_type: refines
       spec_id: ARCH-15-002
     adr:
     - ADR-0063
+    - ADR-0099
   - id: ARCH-20-004
     priority: MUST
     kind: project
@@ -965,11 +972,11 @@ groups:
     statement: >-
       Core code MUST NOT normalise a wire object into its core counterpart by dumping it with
       `by_alias=True` and revalidating through the core class ("dump-and-revalidate").
-    rationale: 'Dump-and-revalidate only works while the core class tolerates wire spellings — precisely the ARCH-12-003 violation
-      being removed. `FilterParticipantStatusDimensionsNode._to_core_status` documents this dependency explicitly ("The core
-      model''s `_migrate_flat_fields` validator accepts that shape, so a dump-and-revalidate normalises both"), so the shim
-      and this idiom must be retired together. It is also lossy in the general case: a core class that ignores an unknown key
-      silently discards it.'
+    rationale: 'Dump-and-revalidate normalises only as far as the core class happens to accept every key a wire dump
+      emits. ARCH-12-003 has a core class read its own AS2 spelling, not an arbitrary wire object''s: under `extra="forbid"`
+      a wire key with no core field raises, and without it the key is silently discarded. `_to_core_status` in
+      `FilterParticipantStatusDimensionsNode` once relied on the since-retired `_migrate_flat_fields` shim (SDO-03-003); it
+      now projects with `to_core()`.'
     verification: No module under `vultron/core/` constructs a core model via `CoreClass.model_validate(wire_obj.model_dump(by_alias=True, ...))`.
     relationships:
     - rel_type: depends_on
@@ -1052,29 +1059,28 @@ groups:
     adr:
     - ADR-0064
   - id: ARCH-21-002
-    note: >-
-      ADR-0099 removes the subject of this requirement. `VultronBase` is deleted
-      along with the shared root, and core gets two roots: a minimal record base
-      and one AS2-object root. The underlying rule survives the rename — the
-      wire branch must stay lenient for inbound data, and enforcement belongs on
-      the core class.
     priority: MUST_NOT
     kind: architecture
     statement: >-
-      `VultronBase` MUST NOT set `validate_assignment`. It is the shared base of
-      both branches (ARCH-12-001) and `as_Base` inherits it, so the wire branch
-      MUST remain lenient (ARCH-12-002). Enforcement belongs on the core branch
-      only, applied below `VultronBase`.
+      The wire branch MUST NOT inherit `validate_assignment` from core. The flag is set on the
+      core record root `CoreRecord` (through `ValidatedAssignmentMixin`), so `as_Base` MUST NOT
+      subclass `CoreRecord` or `CoreObject` (ARCH-12-001), and inbound wire data stays lenient.
     rationale: >-
-      Setting the flag on the shared base is the one-line fix that looks correct
-      and is not: it contradicts ARCH-12-002 and produced the largest measured
-      blast radius (747 failed, 423 errors) because inbound wire data is
-      legitimately loose.
+      While the shared root existed, setting the flag on it was the one-line fix that looked
+      correct and was not: it reached the wire branch and produced the largest measured blast
+      radius (747 failed, 423 errors) because inbound wire data is legitimately loose. With the
+      wire base on its own root (ADR-0099 detail 4) the flag belongs on the core root, and this
+      requirement keeps the two roots from being rejoined.
+    verification: >-
+      `test_core_roots_are_not_shared_with_the_wire_branch` and
+      `test_wire_branch_does_not_enable_validate_assignment` in
+      `test/architecture/test_validate_assignment_ratchet.py`.
     relationships:
     - rel_type: refines
-      spec_id: ARCH-12-002
+      spec_id: ARCH-12-001
     adr:
     - ADR-0064
+    - ADR-0099
   - id: ARCH-21-003
     priority: MUST_NOT
     kind: architecture
@@ -1085,10 +1091,10 @@ groups:
     rationale: >-
       Inbound wire data is loose by contract. Enforcing strictness on the wire
       types would reject legitimate inbound payloads instead of projecting them
-      (ADR-0062, ARCH-12-002).
+      (ADR-0062, ARCH-12-001).
     relationships:
     - rel_type: refines
-      spec_id: ARCH-12-002
+      spec_id: ARCH-21-002
     adr:
     - ADR-0064
   - id: ARCH-21-004

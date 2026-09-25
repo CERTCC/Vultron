@@ -1,0 +1,239 @@
+{
+  "CaseActor": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "id": "urn:test:caseactor:golden",
+    "inbox": "urn:test:caseactor:golden/inbox",
+    "outbox": "urn:test:caseactor:golden/outbox",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "Service",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "CaseLedgerEntry": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "caseId": "urn:test:case_id:1",
+    "entryHash": "",
+    "eventType": "urn:test:event_type:1",
+    "id": "urn:test:case_id:1/log/-1",
+    "logIndex": -1,
+    "logObjectId": "urn:test:log_object_id:1",
+    "payloadSnapshot": {},
+    "prevLogHash": "",
+    "published": "2026-01-02T03:04:05+00:00",
+    "receivedAt": "<clock>",
+    "type": "CaseLedgerEntry",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "CaseParticipant": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "acceptedEmbargoIds": [],
+    "caseRoles": [],
+    "embargoConsentState": "UNBOUND",
+    "id": "urn:test:caseparticipant:golden",
+    "participantStatuses": [
+      {
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+        "caseEngagement": true,
+        "context": "urn:test:caseparticipant:golden",
+        "cvdRole": [
+          "OBSERVER"
+        ],
+        "emConsentState": "UNBOUND",
+        "embargoAdherence": false,
+        "id": "urn:uuid:<minted>",
+        "name": "START",
+        "published": "<clock>",
+        "rmState": "START",
+        "type": "ParticipantStatus",
+        "updated": "<clock>"
+      }
+    ],
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "CaseParticipant",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "CaseReference": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "id": "urn:test:casereference:golden",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "CaseReference",
+    "updated": "2026-01-02T03:04:05+00:00",
+    "url": "urn:test:url:1"
+  },
+  "CaseStatus": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "context": "urn:test:context:1",
+    "emState": "NONE",
+    "id": "urn:test:casestatus:golden",
+    "name": "NONE pxa",
+    "published": "2026-01-02T03:04:05+00:00",
+    "pxaState": "pxa",
+    "type": "CaseStatus",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "EmbargoEvent": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "context": "urn:test:context:1",
+    "endTime": "<clock>",
+    "id": "urn:test:embargoevent:golden",
+    "name": "Embargo for urn:test:context:1 start: <clock> end: <clock>",
+    "published": "2026-01-02T03:04:05+00:00",
+    "startTime": "<clock>",
+    "type": "EmbargoEvent",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "EmbargoPolicy": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "actorId": "urn:test:actor_id:1",
+    "id": "urn:test:embargopolicy:golden",
+    "inbox": "urn:test:inbox:1",
+    "preferredDuration": "P90D",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "EmbargoPolicy",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "ParticipantStatus": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "caseEngagement": true,
+    "context": "urn:test:context:1",
+    "cvdRole": [
+      "OBSERVER"
+    ],
+    "embargoAdherence": false,
+    "id": "urn:test:participantstatus:golden",
+    "name": "START",
+    "published": "2026-01-02T03:04:05+00:00",
+    "rmState": "START",
+    "type": "ParticipantStatus",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "VulnerabilityCase": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "actorParticipantIndex": {},
+    "caseActivity": [],
+    "caseParticipants": [],
+    "caseStatuses": [],
+    "childCases": [],
+    "genesisHash": "",
+    "id": "urn:test:vulnerabilitycase:golden",
+    "notes": [],
+    "parentCases": [],
+    "pendingEmbargoProposalIndex": {},
+    "proposedEmbargoes": [],
+    "published": "2026-01-02T03:04:05+00:00",
+    "recommendationRecommenderIndex": {},
+    "siblingCases": [],
+    "type": "VulnerabilityCase",
+    "updated": "2026-01-02T03:04:05+00:00",
+    "vulnerabilityReports": []
+  },
+  "VulnerabilityRecord": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "aliases": [],
+    "id": "urn:test:vulnerabilityrecord:golden",
+    "name": "urn:test:name:1",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "VulnerabilityRecord",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "VulnerabilityReport": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "id": "urn:test:vulnerabilityreport:golden",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "VulnerabilityReport",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "VultronAccept": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "actor": "urn:test:actor:1",
+    "id": "urn:test:vultronaccept:golden",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "Accept",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "VultronActivity": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "actor": "urn:test:actor:1",
+    "id": "urn:test:vultronactivity:golden",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "urn:test:type_:1",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "VultronApplication": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "id": "urn:test:vultronapplication:golden",
+    "inbox": "urn:test:vultronapplication:golden/inbox",
+    "outbox": "urn:test:vultronapplication:golden/outbox",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "Application",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "VultronCreateCaseActivity": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "actor": "urn:test:actor:1",
+    "id": "urn:test:vultroncreatecaseactivity:golden",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "Create",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "VultronGroup": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "id": "urn:test:vultrongroup:golden",
+    "inbox": "urn:test:vultrongroup:golden/inbox",
+    "outbox": "urn:test:vultrongroup:golden/outbox",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "Group",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "VultronNote": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "content": "urn:test:content:1",
+    "id": "urn:test:vultronnote:golden",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "Note",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "VultronOffer": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "actor": "urn:test:actor:1",
+    "id": "urn:test:vultronoffer:golden",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "Offer",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "VultronOrganization": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "id": "urn:test:vultronorganization:golden",
+    "inbox": "urn:test:vultronorganization:golden/inbox",
+    "outbox": "urn:test:vultronorganization:golden/outbox",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "Organization",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "VultronOwnershipTransferOfferRecord": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "caseId": "urn:test:case_id:1",
+    "id": "urn:test:offer_id:1",
+    "offerId": "urn:test:offer_id:1",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "VultronOwnershipTransferOfferRecord",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "VultronPerson": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "id": "urn:test:vultronperson:golden",
+    "inbox": "urn:test:vultronperson:golden/inbox",
+    "outbox": "urn:test:vultronperson:golden/outbox",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "Person",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
+  "VultronService": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "id": "urn:test:vultronservice:golden",
+    "inbox": "urn:test:vultronservice:golden/inbox",
+    "outbox": "urn:test:vultronservice:golden/outbox",
+    "published": "2026-01-02T03:04:05+00:00",
+    "type": "Service",
+    "updated": "2026-01-02T03:04:05+00:00"
+  }
+}

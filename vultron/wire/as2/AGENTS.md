@@ -191,5 +191,8 @@ ActivityStreams namespace (`https://www.w3.org/ns/activitystreams`). The AS2
 namespace does not declare Vultron-specific types (`VulnerabilityCase`,
 `EmbargoEvent`, etc.); using it alone means receivers cannot resolve those type
 names. The Vultron context document imports AS2 internally, so citing only the
-Vultron URI is both correct and sufficient. See VM-10-001, ADR-0069.
+Vultron URI is both correct and sufficient. Domain types are core
+`CoreObject`s (ADR-0099 detail 3), not `as_VultronObject` subclasses: they get
+the same context from `CoreObject`'s `by_alias` serializer, not from delivery
+(#3490). See VM-10-001, ADR-0069.
 *Source: CONCERN-2105*

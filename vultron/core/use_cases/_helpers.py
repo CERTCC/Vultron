@@ -160,7 +160,7 @@ def _idempotent_create(
     An object carrying an id but **no ``type_``** is a *reference*, not something
     that can be stored: ``type_`` is what selects the storage table, so
     ``Record.from_obj`` refuses it outright.  The extractor produces exactly such
-    a stub — ``VultronObject(id_=…, type_=None)`` — when an inbound activity names
+    a stub — ``CoreObject(id_=…, type_=None)`` — when an inbound activity names
     its object by bare URI, or by an object with no type.  That stub is load
     bearing: ``event.object_id`` is *derived* from ``object_``, so it is how the id
     survives at all; it simply is not a storable record.

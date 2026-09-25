@@ -16,8 +16,9 @@
 """Tests for :class:`~vultron.adapters.driven.wire_render.As2WireRenderAdapter`.
 
 Covers:
-- AC-2: round-trip test for every core type with a wire counterpart
-- AC-3: VultronValidationError raised for core types with no wire counterpart
+- rendering of the core types, each as its own ``by_alias`` dump (ADR-0099)
+- VultronValidationError raised for anything that is not a ``CoreObject``
+  (ARCH-20-003)
 - AC-6: test file does NOT import from vultron.core (adapter import only)
 
 Per ``specs/architecture.yaml`` ARCH-20-001 through ARCH-20-004.
@@ -208,8 +209,63 @@ def test_render_same_object_twice_across_clock_tick_is_equal(
 
 
 # ---------------------------------------------------------------------------
-# AC-3: VultronValidationError for core types with no wire counterpart
+# #3490: a core object renders itself; a non-CoreObject is the failure case
 # ---------------------------------------------------------------------------
+
+
+def test_render_is_the_core_objects_own_alias_dump(adapter):
+    """AC-1/AC-4: no wire counterpart is resolved, and none is needed.
+
+    Every ``CORE_VOCABULARY`` entry renders as exactly its own
+    ``model_dump(by_alias=True, exclude_none=True, mode="json")`` — including
+    the ones ``WIRE_TYPE_MAP`` has no entry for, which the old port refused.
+    """
+    from test.support.core_vocab import build_core_vocab
+
+    built, unconstructible = build_core_vocab("render-self")
+    assert not unconstructible
+    for name, obj in built:
+        assert adapter.render(obj) == obj.model_dump(
+            by_alias=True, exclude_none=True, mode="json"
+        ), name
+
+
+def test_render_adapter_does_not_resolve_a_wire_counterpart():
+    """AC-1: the adapter names neither ``WIRE_TYPE_MAP`` nor ``from_core``."""
+    import ast
+    import inspect
+
+    import vultron.adapters.driven.wire_render.as2 as module
+
+    names = {
+        node.id if isinstance(node, ast.Name) else node.attr
+        for node in ast.walk(ast.parse(inspect.getsource(module)))
+        if isinstance(node, (ast.Name, ast.Attribute))
+    }
+    assert not names & {"WIRE_TYPE_MAP", "from_core", "as_VultronObject"}
+
+
+def test_context_is_supplied_once_and_not_as_a_core_field(adapter):
+    """AC-5: ``@context`` appears exactly once, from the AS2 serialization.
+
+    ``CoreObject.context_`` stays ``exclude=True``, so the key cannot also be
+    emitted under the field's own alias, and the adapter adds nothing on top
+    of the object's by-alias dump.
+    """
+    from vultron.core.models.base import CoreObject
+
+    assert CoreObject.model_fields["context_"].exclude is True
+    obj = CaseParticipant(
+        attributed_to="urn:uuid:actor", context="urn:uuid:case"
+    )
+    result = adapter.render(obj)
+    assert result["@context"] == VULTRON_CONTEXT_URI
+    assert "context_" not in result
+    # Nested promoted objects carry their own, as VM-10-001 requires.
+    statuses = result["participantStatuses"]
+    assert statuses, "fixture must exercise a nested object"
+    assert all(s["@context"] == VULTRON_CONTEXT_URI for s in statuses)
+    assert obj.model_dump(mode="json").get("@context") is None
 
 
 def test_render_succeeds_for_case_actor(adapter):
@@ -250,7 +306,7 @@ def test_render_raises_for_a_core_model_that_is_not_a_core_object(adapter):
     this a Pydantic model" rather than "does this serialize to valid AS2" — and
     every core class passes it.
 
-    ``VultronOfferRecord`` extends ``VultronObject`` directly, not ``CoreObject``,
+    ``VultronOfferRecord`` extends ``CoreRecord``, not ``CoreObject``,
     so it inherits neither the ``alias_generator`` nor the ``@context``
     serializer. Under the old predicate it rendered as
     ``offer_id``/``offer_actor_id``/``report_id`` with no ``@context``, where

@@ -19,30 +19,18 @@ ARCH-23-005), and that the mechanisms this contract subsumes cannot be
 reintroduced (AC-7).
 """
 
-import importlib
-import pkgutil
-from datetime import timedelta
-
 import pytest
 from pydantic import ValidationError
 
 from test.architecture import _corpus
+from test.support.core_vocab import build_core_vocab, import_all_core_models
 from vultron.core.models.base import CoreObject
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.metadata.base import repo_root
 
 
-def _import_all_core_models() -> None:
-    import vultron.core.models as models_pkg
-
-    for module in pkgutil.walk_packages(
-        models_pkg.__path__, models_pkg.__name__ + "."
-    ):
-        importlib.import_module(module.name)
-
-
 def _all_core_object_subclasses() -> set[type[CoreObject]]:
-    _import_all_core_models()
+    import_all_core_models()
 
     def descend(cls: type) -> set[type]:
         found: set[type] = set()
@@ -54,64 +42,29 @@ def _all_core_object_subclasses() -> set[type[CoreObject]]:
     return {c for c in descend(CoreObject)}
 
 
-#: Why a CORE_VOCABULARY entry could not be minimally constructed, per name.
-_UNCONSTRUCTIBLE: dict[str, str] = {}
-
-
-def _minimal_kwargs(cls: type[CoreObject]) -> dict:
-    """Minimum kwargs to construct *cls* without validation errors."""
-    kwargs: dict = {}
-    for field_name, field_info in cls.model_fields.items():
-        if not field_info.is_required():
-            continue
-        ann = str(field_info.annotation)
-        if "timedelta" in ann:
-            kwargs[field_name] = timedelta(days=90)
-        else:
-            kwargs[field_name] = f"urn:test:{field_name}:1"
-    return kwargs
-
-
 def _constructible_vocab() -> list[tuple[str, CoreObject]]:
     """(name, instance) for every CORE_VOCABULARY entry we can minimally build."""
-    _import_all_core_models()
-    out: list[tuple[str, CoreObject]] = []
-    for name, base_cls in sorted(CORE_VOCABULARY.items()):
-        if not issubclass(base_cls, CoreObject):
-            continue
-        cls: type[CoreObject] = base_cls  # type: ignore[assignment]
-        kwargs = _minimal_kwargs(cls)
-        kwargs["id_"] = f"urn:test:{name.lower()}:forbid"
-        try:
-            out.append((name, cls(**kwargs)))
-        except Exception as exc:  # noqa: PERF203
-            # Not minimally constructible from synthesised kwargs.  Recorded
-            # rather than swallowed: AC-3/AC-4 claim coverage of *every*
-            # CORE_VOCABULARY entry, so an entry dropping out silently would
-            # weaken both ratchets with no signal.
-            _UNCONSTRUCTIBLE[name] = f"{type(exc).__name__}: {exc}"
-            continue
-    return out
+    return build_core_vocab("forbid")[0]
 
 
 def test_every_core_vocabulary_entry_is_actually_exercised() -> None:
     """The AC-3/AC-4 ratchets must cover every CORE_VOCABULARY entry.
 
     Both iterate ``_constructible_vocab()``.  If a future core type gains a
-    required field ``_minimal_kwargs`` cannot synthesise, it would vanish from
+    required field ``minimal_kwargs`` cannot synthesise, it would vanish from
     those loops and they would keep passing while checking less.  This makes
-    that visible instead: extend ``_minimal_kwargs`` (or state the exemption
+    that visible instead: extend ``minimal_kwargs`` (or state the exemption
     here deliberately) rather than letting coverage erode.
     """
-    _UNCONSTRUCTIBLE.clear()
-    exercised = {name for name, _ in _constructible_vocab()}
+    built, unconstructible = build_core_vocab("forbid")
+    exercised = {name for name, _ in built}
     expected = {
         name
         for name, cls in CORE_VOCABULARY.items()
         if issubclass(cls, CoreObject)
     }
     missing = {
-        n: _UNCONSTRUCTIBLE.get(n, "?") for n in sorted(expected - exercised)
+        n: unconstructible.get(n, "?") for n in sorted(expected - exercised)
     }
     assert exercised == expected, (
         'these CORE_VOCABULARY entries are not exercised by the extra="forbid" '

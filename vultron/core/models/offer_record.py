@@ -37,11 +37,11 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import UriString, VultronObject
+from vultron.core.models.base import UriString, CoreRecord
 from vultron.core.models.wire_keys import wire_key
 
 
-class VultronOfferRecord(VultronObject):
+class VultronOfferRecord(CoreRecord):
     """Core state record for the domain facts carried in a report Offer.
 
     Stored by the adapter layer (``TriggerActivityAdapter.submit_report``)

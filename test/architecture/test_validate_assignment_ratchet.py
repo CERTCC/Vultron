@@ -14,10 +14,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Architecture ratchet: post-construction mutation safety for core models.
 
-Pydantic v2 validates a model at **construction** only.  Because
-``VultronBase.model_config`` does not set ``validate_assignment``, the same value
-that is correctly rejected by the constructor is silently accepted by both
-attribute assignment and in-place list mutation::
+Pydantic v2 validates a model at **construction** only.  Without
+``validate_assignment`` in a model's config, the same value that is correctly
+rejected by the constructor is silently accepted by both attribute assignment
+and in-place list mutation::
 
     case = VulnerabilityCase(case_participants=[wire_obj])  # ValidationError
     object.__setattr__(case, "case_participants", [wire_obj]                     # accepted)
@@ -90,17 +90,15 @@ _SELF_ASSIGNING_AFTER_VALIDATORS: frozenset[str] = frozenset()
 # ---------------------------------------------------------------------------
 # Backlog 2 — the classes that must carry ``validate_assignment`` directly
 # (issue #2294, step 2 of #2261).  Every other core model inherits it from one of these,
-# so the enumeration stays at ten entries rather than listing all 103 classes.
+# so the enumeration stays short rather than listing every class.
 #
-# ``VultronBase`` is **permanently excluded**, not a backlog item: it is the
-# shared base of both branches (ARCH-12-001) and ARCH-12-002 requires it to stay
-# lenient for the wire branch, since ``as_Base`` inherits it.  Setting the flag
-# there is the one-line fix that looks right and is not — it produced the worst
-# measured blast radius (747 failed + 423 errors) and breaks the wire contract.
+# There is no longer a shared base to exclude: ADR-0099 detail 4 gave
+# ``as_Base`` its own root, so the core record root ``CoreRecord`` carries the
+# flag through ``ValidatedAssignmentMixin`` without touching the wire branch.
 #
 # This set is a PLAN, verified against the live hierarchy by
 # ``test_mixin_targets_cover_every_core_model``: adding a core model outside all
-# ten subtrees fails that test rather than silently escaping coverage.
+# enumerated subtrees fails that test rather than silently escaping coverage.
 # ---------------------------------------------------------------------------
 _VALIDATE_ASSIGNMENT_TARGETS: frozenset[str] = frozenset(
     {
@@ -114,13 +112,11 @@ _VALIDATE_ASSIGNMENT_TARGETS: frozenset[str] = frozenset(
         "ValidatedAssignmentMixin",
         "VfDimension",
         "VultronEvent",
-        "VultronObject",
+        "CoreRecord",
         "VultronOutbox",
     }
 )
 
-# The ARCH-12-002 boundary: shared base, must stay lenient. Never a target.
-_LENIENT_SHARED_BASE = "VultronBase"
 
 # ---------------------------------------------------------------------------
 # Backlog 3 — modules that mutate a shape-dual collection in place (issue #2295,
@@ -300,18 +296,17 @@ def test_no_core_after_validator_assigns_to_self():
 # Backlog 2 — validate_assignment coverage on the core branch
 # ---------------------------------------------------------------------------
 def test_mixin_targets_cover_every_core_model():
-    """Every core model must inherit from one of the ten enumerated targets.
+    """Every core model must inherit from one of the enumerated targets.
 
     This is what keeps the plan honest as the hierarchy evolves: a new core
-    model added outside all ten subtrees fails here rather than silently
+    model added outside every enumerated subtree fails here rather than silently
     escaping ``validate_assignment`` coverage once step 2 lands.
     """
     classes = _core_model_classes()
     uncovered = sorted(
         name
         for name, cls in classes.items()
-        if name != _LENIENT_SHARED_BASE
-        and name not in _VALIDATE_ASSIGNMENT_TARGETS
+        if name not in _VALIDATE_ASSIGNMENT_TARGETS
         and not any(
             ancestor.__qualname__ in _VALIDATE_ASSIGNMENT_TARGETS
             for ancestor in cls.__mro__[1:]
@@ -324,17 +319,21 @@ def test_mixin_targets_cover_every_core_model():
     )
 
 
-def test_shared_base_is_never_a_target():
-    """ARCH-12-002: ``VultronBase`` must stay lenient for the wire branch."""
-    assert _LENIENT_SHARED_BASE not in _VALIDATE_ASSIGNMENT_TARGETS, (
-        f"{_LENIENT_SHARED_BASE} is the shared base of both branches"
-        " (ARCH-12-001); `as_Base` inherits it. Setting validate_assignment"
-        " there violates ARCH-12-002 and breaks inbound wire parsing."
-    )
+def test_core_roots_are_not_shared_with_the_wire_branch():
+    """ARCH-21-002: validate_assignment on the core root cannot reach the wire.
+
+    The flag lives on ``CoreRecord``; this holds only while no wire class
+    inherits it (ADR-0099 detail 4).
+    """
+    from vultron.core.models.base import CoreRecord
+    from vultron.wire.as2.vocab.base.base import as_Base
+
+    assert CoreRecord.model_config.get("validate_assignment") is True
+    assert not issubclass(as_Base, CoreRecord)
 
 
 def test_wire_branch_does_not_enable_validate_assignment():
-    """ARCH-12-002: the wire branch stays lenient. Must hold now and after step 2."""
+    """ARCH-21-003: the wire branch stays lenient. Must hold now and after step 2."""
     from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
     offenders = sorted(
@@ -356,7 +355,7 @@ def test_every_core_model_has_validate_assignment():
     lacking = sorted(
         name
         for name, cls in _core_model_classes().items()
-        if name != _LENIENT_SHARED_BASE and _lacks_validate_assignment(cls)
+        if _lacks_validate_assignment(cls)
     )
     assert not lacking, (
         f"{len(lacking)} core models accept unvalidated attribute assignment:"

@@ -18,7 +18,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
@@ -69,7 +69,7 @@ class TestEngageDeferCaseBTFailureReason:
         return EngageCaseReceivedEvent(
             activity_id="https://example.org/activities/engage-001",
             actor_id=actor_id,
-            object_=VultronObject(id_=case_id),
+            object_=CoreObject(id_=case_id),
             semantic_type=MessageSemantics.ENGAGE_CASE,
         )
 
@@ -79,7 +79,7 @@ class TestEngageDeferCaseBTFailureReason:
         return DeferCaseReceivedEvent(
             activity_id="https://example.org/activities/defer-001",
             actor_id=actor_id,
-            object_=VultronObject(id_=case_id),
+            object_=CoreObject(id_=case_id),
             semantic_type=MessageSemantics.DEFER_CASE,
         )
 
@@ -308,7 +308,7 @@ class TestEngageCaseLedgerCommit:
             activity_id=f"{self._CASE_ID}/activities/engage-2300",
             actor_id=self._SENDER_ID,
             receiving_actor_id=self._CASE_MANAGER_ID,
-            object_=VultronObject(id_=self._CASE_ID),
+            object_=CoreObject(id_=self._CASE_ID),
             semantic_type=MessageSemantics.ENGAGE_CASE,
             activity=VultronActivity(
                 type_="Join",
@@ -431,7 +431,7 @@ class TestDeferCaseLedgerCommit:
             activity_id=f"{self._CASE_ID}/activities/defer-2300",
             actor_id=self._SENDER_ID,
             receiving_actor_id=self._CASE_MANAGER_ID,
-            object_=VultronObject(id_=self._CASE_ID),
+            object_=CoreObject(id_=self._CASE_ID),
             semantic_type=MessageSemantics.DEFER_CASE,
             activity=VultronActivity(
                 type_="Ignore",

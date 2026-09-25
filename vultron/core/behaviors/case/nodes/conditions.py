@@ -19,7 +19,7 @@ Condition nodes for case management behavior trees.
 Provides idempotency guard conditions for the create_case workflow.
 Per specs/idempotency.yaml ID-04-004.
 
-Note: ``ValidateCaseObject`` was removed in issue #716.  ``VultronBase.id_``
+Note: ``ValidateCaseObject`` was removed in issue #716.  ``CoreRecord.id_``
 is typed ``NonEmptyString`` with a ``default_factory=_new_urn``, so Pydantic
 rejects invalid ``id_`` values at construction time (ARCH-10-001 fail-fast
 domain objects).  A factory function that calls ``case_obj.id_`` before

@@ -114,7 +114,7 @@ def extract_intent(
             activity_type=str(activity.type_) if activity.type_ else None,
             actor_id=actor_id,
             # object_ comes from extra_kwargs if a typed domain object was built;
-            # otherwise fall back to a minimal VultronObject wrapper.
+            # otherwise fall back to a minimal CoreObject wrapper.
             object_=extra_kwargs.pop("object_", None) or _to_domain_obj(obj),
             target=_to_domain_obj(target),
             context=_to_domain_obj(context),

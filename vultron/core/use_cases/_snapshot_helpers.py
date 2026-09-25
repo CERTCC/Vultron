@@ -135,11 +135,12 @@ def _inline_snapshot_reference_value(
             # it is injected.  This fallback runs only when no port was supplied
             # — CLI and replay paths — and the object being dumped is being
             # inlined into a payload snapshot, which CLP-07-001 defines as
-            # AS2-shaped.  It is the weakest of the seven remaining call sites:
-            # ``resolved`` comes from the DataLayer and may be a core-branch
-            # object, in which case this *is* core producing a wire shape for
-            # one.  It survives only because there is no port to ask; collapsing
-            # the rendering port (ADR-0099 Migration) removes the branch.
+            # AS2-shaped.  ``resolved`` comes from the DataLayer and may be a
+            # core-branch object, in which case this *is* core producing a wire
+            # shape for one.  Since ADR-0099 detail 4 the port's own render is
+            # this same by-alias dump, so the branch differs from it only in
+            # being reachable without a port.  Counted by
+            # ``test/architecture/test_core_by_alias_dumps.py``.
             dumped = resolved.model_dump(
                 mode="json",
                 by_alias=True,

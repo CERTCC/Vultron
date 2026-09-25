@@ -25,7 +25,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
@@ -235,7 +235,7 @@ class TestFullReportFlow:
             type_="Accept",
             actor=self.VENDOR_ID,
         )
-        offer = VultronObject(id_=self.OFFER_ID, type_="Offer")
+        offer = CoreObject(id_=self.OFFER_ID, type_="Offer")
         report = VultronReport(id_=self.REPORT_ID)
         return ValidateReportReceivedEvent(
             semantic_type=MessageSemantics.VALIDATE_REPORT,
@@ -440,7 +440,7 @@ class TestValidateReportReceivedGuardedCommit:
             type_="Accept",
             actor=self.VENDOR_ID,
         )
-        offer = VultronObject(id_=offer_id, type_="Offer")
+        offer = CoreObject(id_=offer_id, type_="Offer")
         report = VultronReport(id_=report_id)
         return ValidateReportReceivedEvent(
             semantic_type=MessageSemantics.VALIDATE_REPORT,

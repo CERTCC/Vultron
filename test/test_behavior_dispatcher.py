@@ -6,6 +6,7 @@ import pytest
 
 from vultron.core.dispatcher import DirectActivityDispatcher, get_dispatcher
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.base import CoreObject
 from vultron.core.models.events import (
     AddNoteToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
@@ -23,7 +24,6 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 
 
@@ -201,7 +201,7 @@ def test_dispatcher_allows_gated_semantic_when_backfill_complete():
             id_=f"{participant_id}/status/closed",
             context=case_id,
         ),
-        target=as_VulnerabilityCaseStub(id_=participant_id),
+        target=CoreObject(id_=participant_id, type_="CaseParticipant"),
         activity=VultronActivity(type_="Add", actor=actor_id),
     )
     mock_dl.list_objects.return_value = [
@@ -280,7 +280,7 @@ def test_dispatcher_uses_case_context_for_participant_status_gate():
             id_=f"{participant_id}/status/1",
             context=case_id,
         ),
-        target=as_VulnerabilityCaseStub(id_=participant_id),
+        target=CoreObject(id_=participant_id, type_="CaseParticipant"),
         activity=VultronActivity(type_="Add", actor=actor_id),
     )
     state_id = VultronReplicationState(
@@ -330,8 +330,10 @@ def test_dispatcher_resolves_case_for_reject_embargo_invite_gate():
     event = RejectInviteToEmbargoOnCaseReceivedEvent(
         activity_id="act-gate-4",
         actor_id=actor_id,
-        object_=invite,
-        inner_context=as_VulnerabilityCaseStub(id_=case_id),
+        # Event slots carry the extractor's minimal core references; the
+        # dispatcher reads the full invite back from the DataLayer.
+        object_=CoreObject(id_=invite.id_, type_=invite.type_),
+        inner_context=CoreObject(id_=case_id, type_="VulnerabilityCase"),
         activity=VultronActivity(type_="Reject", actor=actor_id),
     )
     state_id = VultronReplicationState(

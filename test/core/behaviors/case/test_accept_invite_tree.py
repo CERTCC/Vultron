@@ -34,7 +34,7 @@ from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _SignEmbargoConsentLeafNode,
 )
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
@@ -249,7 +249,7 @@ def test_create_invitee_participant_reads_roles_from_accept_activity_when_invite
     event = AcceptInviteActorToCaseReceivedEvent(
         activity_id="https://example.org/activities/accept-cm17",
         actor_id=_CM17_INVITEE_ID,
-        object_=VultronObject(id_=_CM17_INVITE_ID, type_="Invite"),
+        object_=CoreObject(id_=_CM17_INVITE_ID, type_="Invite"),
         activity=accept_activity,
     )
 
@@ -300,7 +300,7 @@ def test_read_invite_roles_warns_when_invite_object_missing(
     event = AcceptInviteActorToCaseReceivedEvent(
         activity_id="https://example.org/activities/accept-no-obj",
         actor_id=_CM17_INVITEE_ID,
-        object_=VultronObject(id_=_CM17_INVITE_ID, type_="Invite"),
+        object_=CoreObject(id_=_CM17_INVITE_ID, type_="Invite"),
         activity=accept_activity,
     )
     node = CreateInviteeParticipantNode(
@@ -350,7 +350,7 @@ def test_read_invite_roles_warns_when_roles_field_absent(
     event = AcceptInviteActorToCaseReceivedEvent(
         activity_id="https://example.org/activities/accept-no-roles",
         actor_id=_CM17_INVITEE_ID,
-        object_=VultronObject(id_=_CM17_INVITE_ID, type_="Invite"),
+        object_=CoreObject(id_=_CM17_INVITE_ID, type_="Invite"),
         activity=accept_activity,
     )
     node = CreateInviteeParticipantNode(
@@ -400,7 +400,7 @@ def test_read_invite_roles_warns_and_recovers_on_typeerror(
     event = AcceptInviteActorToCaseReceivedEvent(
         activity_id="https://example.org/activities/accept-typeerror",
         actor_id=_CM17_INVITEE_ID,
-        object_=VultronObject(id_=_CM17_INVITE_ID, type_="Invite"),
+        object_=CoreObject(id_=_CM17_INVITE_ID, type_="Invite"),
         activity=accept_activity,
     )
     node = CreateInviteeParticipantNode(
