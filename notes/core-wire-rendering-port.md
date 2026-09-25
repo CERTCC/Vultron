@@ -19,6 +19,7 @@ related_specs:
   - datalayer.yaml (DL-05-001)
 related_notes:
   - notes/wire-core-boundary.md
+  - notes/vocabulary-registry.md
 related_adrs:
   - ADR-0017
   - ADR-0036
