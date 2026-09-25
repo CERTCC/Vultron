@@ -392,8 +392,8 @@ Non-negotiables:
 
 ### Triage labels
 
-`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.
-See `docs/agents/triage-labels.md`.
+`needs-info` (the only hold), `ready-for-human` (agents skip it). The other
+labels in `docs/agents/triage-labels.md` are being retired (#3717).
 
 ### Domain docs
 

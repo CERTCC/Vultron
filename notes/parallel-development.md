@@ -10,6 +10,9 @@ description: >
 related_specs:
   - specs/parallel-development.yaml
 related_notes:
+  - notes/agentic-workflow.md
+  - notes/agents-md-structure.md
+  - notes/devcontainer-tooling.md
   - notes/git-workflow-pitfalls.md
 ---
 
@@ -21,8 +24,7 @@ The project has shifted from a single-developer, file-based task list
 to a GitHub Issue-based coordination model that
 supports multiple parallel AI agents and human developers.
 
-**Formal requirements**: `specs/parallel-development.yaml` PAD-01 through
-PAD-17.
+**Formal requirements**: `specs/parallel-development.yaml` (PAD groups).
 
 **Distinct from agentic readiness** (`specs/agentic-readiness.yaml`):
 `agentic-readiness.yaml` is about making the Vultron *protocol code itself*
@@ -270,7 +272,7 @@ field has one owner, and no item carries both.
 | Answers | Which body of work matters now | Where this piece of work stands |
 | Lives on | Epics only (PAD-02-001) | Every non-Epic issue (PAD-16-001, PAD-16-012) |
 | Values | Someday → Later → Next → Now → Focus | Backlog → Ready → In Progress → In Review → Done |
-| Set by | A human (or `review-priorities`), deliberately | Mirrored from facts; never set by hand (PAD-16-002) |
+| Set by | A human (or `review-priorities`), deliberately | Mirrored from facts; never set to a value the facts don't produce (PAD-16-002) |
 
 Open non-draft PRs are also board items, with a third field, `Ship stage` (PAD-17).
 
@@ -283,7 +285,7 @@ that matches wins:
 |---|---|---|
 | Done | The issue is closed, for any reason | PAD-16-010 |
 | In Review | An open, **non-draft** PR closes it: OK to run `pr-ship` | PAD-16-009 |
-| In Progress | Claimed (linked branch plus assignee), with no ready PR | PAD-16-008 |
+| In Progress | Claimed (assignee plus its own linked branch, or its bundle's), with no ready PR | PAD-16-008 |
 | Ready | The conditions below hold | PAD-16-004/005 |
 | Backlog | Anything else | PAD-16-011 |
 
@@ -291,11 +293,11 @@ that matches wins:
 meaning depends on the type, and a board view grouped by type keeps the two
 apart:
 
-- **Ready to build** (Task, Feature, Bug): open, unassigned, a leaf, has an
-  Epic ancestor, carries `- [ ] AC-N:` lines, every blocker closed, no
-  `needs-info`.
-- **Ready to plan** (Idea, Concern): open, unassigned, has an Epic ancestor,
-  no `needs-info`.
+- **Ready to build** (Task, Feature, Bug): open, unassigned, a leaf, no claim
+  branch, has an Epic ancestor, carries `- [ ] AC-N:` lines, every blocker
+  closed, no `needs-info`.
+- **Ready to plan** (Idea, Concern): open, unassigned, no claim branch, has an
+  Epic ancestor, no `needs-info`.
 
 The Epic's tier is deliberately absent. It decides the order in which skills
 pick among `Ready` issues and which tiers they consider, so planning a
@@ -316,8 +318,8 @@ that no other session can see. The `Ship stage` field (`Awaiting ship`,
 `Triage`, `Execute`, `Verify`, `Needs you`, `Ready to merge`) starts at
 `Awaiting ship` when a non-draft PR is opened or marked ready (PAD-17-003),
 then is set by `pr-ship` as it enters each phase or pauses at a gate
-(PAD-17-002). The issue
-stays `In Review` for the whole pipeline: pipeline detail belongs to the PR,
+(PAD-17-002). It is cleared when the PR returns to draft, closes, or merges
+(PAD-17-004). The issue stays `In Review` for the whole pipeline: pipeline detail belongs to the PR,
 because one bundle PR closes several issues.
 
 ### Epics
@@ -351,7 +353,9 @@ The process above was settled on 2026-09-25. Epic #3708 tracks its
 implementation, and until its children land, the board still differs from the
 target in these ways:
 
-- Non-Epic issues carry Schedule values.
+- Non-Epic issues carry Schedule values, and `bundle-fit` (with
+  `.agents/skills/shared/bundling.md`, which documents it) still lets an
+  explicit leaf tier beat its Epic's (#3710).
 - Nothing writes `Status`.
 - PRs are not board items.
 - Claims are created locally.
