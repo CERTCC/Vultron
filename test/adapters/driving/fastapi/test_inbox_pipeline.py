@@ -1,3 +1,4 @@
+import logging
 from typing import TypeAlias
 
 import pytest
@@ -480,7 +481,10 @@ def _drain_cycles(
     ids=["validation-error", "generic-exception"],
 )
 def test_requeue_stops_after_max_attempts(
-    test_pipeline: PipelineFixture, monkeypatch: MonkeyPatch, exc: Exception
+    test_pipeline: PipelineFixture,
+    monkeypatch: MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    exc: Exception,
 ) -> None:
     """An item that fails on every attempt is re-queued at most
     ``MAX_REQUEUE_ATTEMPTS`` times, then dropped — not looped forever (#2901).
@@ -498,10 +502,16 @@ def test_requeue_stops_after_max_attempts(
     monkeypatch.setattr(ip_module, "dispatch", _raise)
     queue_dl = dl.clone_for_actor(RECEIVER_ID)
 
-    assert _drain_cycles(pipeline, queue_dl, activity_id) == (
-        MAX_REQUEUE_ATTEMPTS + 1
-    )
+    with caplog.at_level(logging.ERROR, logger=ip_module.__name__):
+        assert _drain_cycles(pipeline, queue_dl, activity_id) == (
+            MAX_REQUEUE_ATTEMPTS + 1
+        )
     assert activity_id not in queue_dl.inbox_list()
+    drops = [r for r in caplog.records if "retry limit reached" in r.message]
+    assert len(drops) == 1
+    assert drops[0].levelno == logging.ERROR
+    assert activity_id in drops[0].message
+    assert RECEIVER_ID in drops[0].message
 
 
 def test_successful_dispatch_resets_requeue_budget(
@@ -530,6 +540,68 @@ def test_successful_dispatch_resets_requeue_budget(
     assert pipeline.process(queue_dl.inbox_pop() or activity_id) is not None
 
     fail = True
+    assert _drain_cycles(pipeline, queue_dl, activity_id) == (
+        MAX_REQUEUE_ATTEMPTS + 1
+    )
+
+
+def test_failure_after_dispatch_is_still_bounded(
+    test_pipeline: PipelineFixture, monkeypatch: MonkeyPatch
+) -> None:
+    """A failure raised after a successful dispatch — here, the pending-case
+    replay that follows a case bootstrap — still spends the retry budget, so
+    the item is not re-dispatched forever (#2901)."""
+    import vultron.adapters.driving.fastapi.inbox_pipeline as ip_module
+
+    pipeline, dl = test_pipeline
+    activity_id = _store_note_activity(
+        dl, "https://example.org/notes/n-ibp-requeue-replay"
+    )
+
+    def _replay_fails(**_kwargs: object) -> None:
+        raise RuntimeError("replay failure")
+
+    monkeypatch.setattr(ip_module, "dispatch", lambda **_kwargs: None)
+    monkeypatch.setattr(ip_module, "is_case_bootstrap", lambda _event: True)
+    monkeypatch.setattr(
+        ip_module, "_replay_pending_case_activities", _replay_fails
+    )
+    queue_dl = dl.clone_for_actor(RECEIVER_ID)
+
+    assert _drain_cycles(pipeline, queue_dl, activity_id) == (
+        MAX_REQUEUE_ATTEMPTS + 1
+    )
+    assert activity_id not in queue_dl.inbox_list()
+
+
+def test_deferral_resets_requeue_budget(
+    test_pipeline: PipelineFixture, monkeypatch: MonkeyPatch
+) -> None:
+    """An item deferred to the pending-case queue after earlier failures is
+    replayed with the full retry budget, not what was left of it (#2901)."""
+    import vultron.adapters.driving.fastapi.inbox_pipeline as ip_module
+
+    pipeline, dl = test_pipeline
+    activity_id = _store_note_activity(
+        dl, "https://example.org/notes/n-ibp-requeue-defer"
+    )
+    queue_dl = dl.clone_for_actor(RECEIVER_ID)
+
+    def _raise(**_kwargs: object) -> None:
+        raise VultronValidationError("transient validation failure")
+
+    monkeypatch.setattr(ip_module, "dispatch", _raise)
+    for _ in range(MAX_REQUEUE_ATTEMPTS):
+        pipeline.process(queue_dl.inbox_pop() or activity_id)
+
+    class _NoCaseYet:
+        """Stand-in that no stored case matches, forcing the deferral path."""
+
+    with monkeypatch.context() as m:
+        m.setattr(ip_module, "VulnerabilityCase", _NoCaseYet)
+        assert pipeline.process(queue_dl.inbox_pop() or activity_id) is None
+    assert activity_id not in queue_dl.inbox_list()
+
     assert _drain_cycles(pipeline, queue_dl, activity_id) == (
         MAX_REQUEUE_ATTEMPTS + 1
     )

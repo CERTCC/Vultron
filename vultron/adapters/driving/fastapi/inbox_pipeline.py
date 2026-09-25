@@ -77,7 +77,12 @@ class InboxPipeline:
         self._dl = dl
         self._requeue_counts: dict[str, int] = {}
 
-    def _requeue(self, activity_id: str, queue_dl: DataLayer | None) -> bool:
+    def _requeue(
+        self,
+        activity_id: str,
+        queue_dl: DataLayer | None,
+        actor_id: str | None,
+    ) -> bool:
         """Re-queue *activity_id* unless its retry budget is spent.
 
         Returns ``True`` when the item was re-queued, ``False`` when it had
@@ -86,11 +91,11 @@ class InboxPipeline:
         """
         attempts = self._requeue_counts.get(activity_id, 0) + 1
         if attempts > MAX_REQUEUE_ATTEMPTS:
-            self._requeue_counts.pop(activity_id, None)
             logger.error(
-                "Inbox item '%s' still failing after %d re-queues"
-                " — dropping (retry limit reached)",
+                "Inbox item '%s' for actor '%s' still failing after %d"
+                " re-queues — dropping (retry limit reached)",
                 activity_id,
+                actor_id,
                 MAX_REQUEUE_ATTEMPTS,
             )
             return False
@@ -99,8 +104,9 @@ class InboxPipeline:
             activity_id
         )
         logger.info(
-            "Re-queued inbox item '%s' for retry (%d of %d)",
+            "Re-queued inbox item '%s' for actor '%s' for retry (%d of %d)",
             activity_id,
+            actor_id,
             attempts,
             MAX_REQUEUE_ATTEMPTS,
         )
@@ -112,9 +118,13 @@ class InboxPipeline:
         Returns the dispatched ``VultronEvent`` or ``None`` when processing is
         deferred or an error prevents dispatch.  A protocol violation is
         dropped at once; any other error re-queues the item, up to
-        :data:`MAX_REQUEUE_ATTEMPTS` times per item.
+        :data:`MAX_REQUEUE_ATTEMPTS` times per item.  The item's count is
+        cleared on every exit that does not re-queue it, so a later failure
+        starts with the full budget.
         """
         queue_dl: DataLayer | None = None
+        receiving_actor_id: str | None = None
+        requeued = False
         try:
             obj = rehydrate(activity_id, dl=self._dl)
             if not isinstance(obj, as_Activity):
@@ -164,7 +174,6 @@ class InboxPipeline:
                 return None
 
             dispatch(event=event, dl=self._dl, dispatcher=self._dispatcher)
-            self._requeue_counts.pop(activity_id, None)
             if is_case_bootstrap(event) and case_id is not None:
                 _replay_pending_case_activities(
                     case_id=case_id,
@@ -187,7 +196,7 @@ class InboxPipeline:
                 activity_id,
                 exc_info=True,
             )
-            self._requeue(activity_id, queue_dl)
+            requeued = self._requeue(activity_id, queue_dl, receiving_actor_id)
             return None
         except Exception:
             logger.error(
@@ -195,8 +204,11 @@ class InboxPipeline:
                 activity_id,
                 exc_info=True,
             )
-            self._requeue(activity_id, queue_dl)
+            requeued = self._requeue(activity_id, queue_dl, receiving_actor_id)
             return None
+        finally:
+            if not requeued:
+                self._requeue_counts.pop(activity_id, None)
 
 
 def build_test_pipeline(dl: DataLayer) -> InboxPipeline:
