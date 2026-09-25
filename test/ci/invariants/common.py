@@ -74,31 +74,39 @@ def log_index(entry: dict) -> int:
     """Return the ``log_index`` from an entry dict.
 
     Raises:
-        ValueError: The entry has no ``logIndex``, or a negative one.  A
-            committed entry always carries an index ``>= 0`` (CLP-14-010), so
-            there is no sentinel: a ``-1`` default would sort and compare as a
-            real — earliest — position and let ordering checks pass on an
-            entry whose position is unknown (ISSUE-2764).
+        ValueError: The entry has no ``logIndex``, a non-integer one, or a
+            negative one.  A committed entry always carries an integer index
+            ``>= 0`` (CLP-14-010), so there is no sentinel: a ``-1`` default
+            would sort and compare as a real — earliest — position and let
+            ordering checks pass on an entry whose position is unknown
+            (ISSUE-2764).  ``bool``, ``float`` and numeric strings are not
+            coerced, since each would silently stand in for a real position.
     """
-    raw = entry.get("log_index", entry.get("logIndex"))
+    raw = entry.get("log_index")
+    if raw is None:
+        raw = entry.get("logIndex")
     if raw is None:
         raise ValueError(
             f"Ledger entry eventType={event_type(entry)!r} has no logIndex"
         )
-    idx = int(raw)
-    if idx < 0:
+    if not isinstance(raw, int) or isinstance(raw, bool):
+        raise ValueError(
+            f"Ledger entry eventType={event_type(entry)!r} has non-integer "
+            f"logIndex={raw!r}"
+        )
+    if raw < 0:
         raise ValueError(
             f"Ledger entry eventType={event_type(entry)!r} has negative "
-            f"logIndex={idx}"
+            f"logIndex={raw}"
         )
-    return idx
+    return raw
 
 
 def log_index_violation(entry: dict) -> str | None:
     """Return why *entry*'s ``logIndex`` is unusable, or ``None`` if it is valid."""
     try:
         log_index(entry)
-    except (TypeError, ValueError) as exc:
+    except ValueError as exc:
         return str(exc)
     return None
 
@@ -1023,6 +1031,11 @@ def check_causal_edges(
     Returns a list of violation strings (empty = all edges satisfied).
     Diagnostic output names the unsatisfied edge and the indices that were
     observed, so failures are self-explanatory (DEMOMA-22-006-AC-6).
+
+    Raises:
+        ValueError: An antecedent or consequent entry has no valid
+            ``logIndex`` (see ``log_index()``).  ``load_devlogs()`` rejects
+            such entries up front, so this only fires for hand-built replicas.
     """
     auth = auth_entries(replicas)
     if not auth:

@@ -86,8 +86,15 @@ def _simple_two_entry_chain(actor: str = "case-actor") -> list[dict]:
 
 @pytest.mark.parametrize(
     "entry",
-    [{"eventType": "noop"}, {"logIndex": -1, "eventType": "noop"}],
-    ids=["missing", "negative"],
+    [
+        {"eventType": "noop"},
+        {"logIndex": -1, "eventType": "noop"},
+        {"logIndex": True, "eventType": "noop"},
+        {"logIndex": 1.9, "eventType": "noop"},
+        {"logIndex": "3", "eventType": "noop"},
+        {"logIndex": [1], "eventType": "noop"},
+    ],
+    ids=["missing", "negative", "bool", "float", "string", "list"],
 )
 def test_log_index_rejects_missing_and_negative(entry):
     """No sentinel index: an unknown position raises (ISSUE-2764).
@@ -97,6 +104,15 @@ def test_log_index_rejects_missing_and_negative(entry):
     """
     with pytest.raises(ValueError, match="logIndex"):
         common.log_index(entry)
+
+
+def test_log_index_message_names_event_type_for_non_integer():
+    with pytest.raises(ValueError, match="'noop'.*non-integer"):
+        common.log_index({"logIndex": "x", "eventType": "noop"})
+
+
+def test_log_index_falls_back_to_camel_case_when_snake_case_is_null():
+    assert common.log_index({"log_index": None, "logIndex": 3}) == 3
 
 
 def test_check_hash_chain_detects_broken_link():
@@ -872,6 +888,50 @@ class TestLoadDevlogsManifestHandling:
             "load_devlogs must filter by manifest caseId to prevent "
             "hash-chain corruption from cross-run accumulation (issue #2273)."
         )
+
+    def test_invalid_log_index_in_filtered_out_case_does_not_fail(
+        self, tmp_path, monkeypatch
+    ):
+        """The logIndex check runs after the manifest ``caseId`` filter.
+
+        A leftover entry from an older local run is dropped before it is
+        judged, so its missing index does not fail the load (ISSUE-2764).
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        actor_dir = tmp_path / "fv" / "case-actor"
+        actor_dir.mkdir(parents=True)
+
+        CASE_A = "https://example.org/cases/case-a"
+        CASE_B = "https://example.org/cases/case-b"
+        stale = {"event_type": "old_event", "caseId": CASE_A}
+        current = {
+            "logIndex": 0,
+            "entryHash": "hb",
+            "prevLogHash": "0",
+            "event_type": "new_event",
+            "caseId": CASE_B,
+        }
+        (actor_dir / "case-a-case-ledger.jsonl").write_text(
+            json.dumps(stale) + "\n", encoding="utf-8"
+        )
+        (actor_dir / "case-b-case-ledger.jsonl").write_text(
+            json.dumps(current) + "\n", encoding="utf-8"
+        )
+        (tmp_path / "fv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "fv",
+                    "caseId": CASE_B,
+                    "ledgerFileCount": 1,
+                    "targetCount": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        replicas = common.load_devlogs("fv")
+
+        assert replicas["case-actor"] == [current]
 
     def test_fails_when_any_scenario_manifest_reports_no_ledgers(
         self, tmp_path, monkeypatch
