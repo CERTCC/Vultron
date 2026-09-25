@@ -418,8 +418,10 @@ validators on `CoreObject` (see `_drop_computed_field_inputs` and
   `@computed_field` (`embargo_adherence`, ADR-0056) appears in `model_dump()`
   output but is not settable, so a round-trip must drop it first. Dropping it
   *unconditionally* would silently erase a peer asserting adherence its own
-  consent state denies, so a supplied value that differs from the derived one
-  is refused instead (ARCH-23-005, #3547). This was tried and reverted during
+  consent state denies, so ARCH-23-005 now requires a supplied value that
+  differs from the derived one to be refused instead (#3547). **Not built yet:**
+  `_drop_computed_field_inputs` still strips unconditionally until #3695 lands.
+  This was tried and reverted during
   #2940 triage because `as_ParticipantStatus` then had an independent settable
   `embargo_adherence`, so a wire row could legitimately disagree with core. That
   objection died with the second hierarchy: ADR-0099 detail 3 aliases
