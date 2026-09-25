@@ -56,7 +56,8 @@ The decision has these parts.
 3. **On acceptance, Case2 freezes and redirects to Case1.**
    Case2's ledger accepts no further entries after the entry that records the merge.
    Case2 remains readable, and every request addressed to Case2 is redirected to Case1.
-   Case1 and Case2 record each other through the existing parent/child/sibling case references (ADR-0017), which today no code writes; the merge spec chooses which field each side uses.
+   Case1 and Case2 record each other through the existing `parent_cases`, `child_cases`, and `sibling_cases` fields on `VulnerabilityCase`, which today no code writes; the merge spec chooses which field each side uses.
+   These fields hold Case identifiers, not embedded Cases, because ADR-0017 makes parent and child Cases the exception to its full-object rule.
 4. **Case2's Participants join Case1 by invitation, not by transfer.**
    Case1's CASE_MANAGER invites each Case2 Participant through the normal invitation flow.
    Each Participant accepts or declines, and a Participant that accepts consents to Case1's embargo in the usual way.
@@ -108,6 +109,6 @@ Review confirms that no merge path writes to a frozen Case's ledger and that no 
 - Reporter-side behaviour: CBT-06 in `specs/case-bootstrap-trust.yaml`, implemented by [#3698](https://github.com/CERTCC/Vultron/issues/3698).
 - Merge requirements: [#3701](https://github.com/CERTCC/Vultron/issues/3701); merge implementation: [#3702](https://github.com/CERTCC/Vultron/issues/3702).
 - Offer-and-accept routing pattern reused here: [ADR-0053](0053-ownership-transfer-routed-via-caseactor.md).
-- Case cross-reference fields: [ADR-0017](0017-domain-wire-object-separation.md).
+- Case cross-reference fields: `parent_cases`, `child_cases`, and `sibling_cases` in `vultron/core/models/case.py`; [ADR-0017](0017-domain-wire-object-separation.md) (detail 8) is why they hold identifiers.
 - Open follow-up: what a Participant that declines to join Case1 still owes the embargo it accepted in Case2, and whether the answer depends on which Case's embargo is longer — Concern [#3699](https://github.com/CERTCC/Vultron/issues/3699).
 - Open follow-up: keeping both Cases open, with a software participant in both that relays between them, as an alternative to merging when two Cases have good reason to stay separate (for example, different coordinators serving different communities on different timelines) — Idea [#3700](https://github.com/CERTCC/Vultron/issues/3700).
