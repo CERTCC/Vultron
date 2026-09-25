@@ -12,10 +12,7 @@ from typing import Any, cast
 from pydantic import BaseModel
 
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.registry import (
-    WIRE_TYPE_MAP,
-    find_in_vocabulary,
-)
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
@@ -56,27 +53,10 @@ _INBOUND_CONTEXT = {as_Base.INBOUND_CONTEXT_KEY: True}
 def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
     """Return the most specific *wire* vocabulary class for an inline dict.
 
-    Returns ``None`` when the type is unregistered or resolves outside the wire
-    branch, which leaves the dict unexpanded for the parent field to validate.
-
-    The wire-branch restriction is load-bearing. ``find_in_vocabulary`` falls
-    back to ``CORE_TYPE_MAP`` (ARCH-12-003), and a core instance placed inside a
-    wire tree is rejected by the wire parent's field type: while
-    ``OrderedCollection`` was registered only in the core map, an inline
-    actor's ``inbox`` expanded to a core class that
-    ``as_VultronOrganization.inbox`` refused, degrading the whole actor to a
-    bare ``as_Link`` (ISSUE-3217).  The wire class now owns that name
-    (ISSUE-3564), but any other core-only ``type`` would fail the same way.
-
-    Scope of that claim: the fields this function feeds are declared
-    ``as_ObjectRef``/``as_ObjectRequiredRef``, whose unions *do* admit
-    ``CoreObject``, so "wire trees contain only wire objects" is not true in
-    general.  What is true, and is all this restriction needs, is that resolving
-    an inline ``type`` string through the core map is never the *right* way to
-    populate them: the core map is keyed for core-layer callers, so a hit there
-    is a coincidence of naming rather than a wire counterpart (ARCH-23-002).
-    Returning ``None`` leaves the dict for the parent field, which is the
-    declared authority on whether a core instance belongs in that position.
+    Returns ``None`` when the wire registry holds no class for the type, which
+    leaves the dict unexpanded for the parent field to validate (MV-04-003).
+    The wire-only restriction is ``find_in_vocabulary``'s default; its docstring
+    records why it is load-bearing (ISSUE-3217) and what it does not promise.
     """
     obj_type = value.get("type")
     if not isinstance(obj_type, str):
@@ -89,17 +69,9 @@ def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
         return as_VulnerabilityCaseStub
 
     try:
-        cls = find_in_vocabulary(obj_type)
+        return find_in_vocabulary(obj_type)
     except KeyError:
         return None
-
-    # Allow classes that are native wire types (as_Base subclasses) OR that are
-    # explicitly registered in WIRE_TYPE_MAP (covers core aliases per ADR-0099
-    # detail 3).  Classes found only via the core-map fallback are rejected to
-    # avoid ISSUE-3217 (e.g. OrderedCollection mis-inserted into a wire tree).
-    if issubclass(cls, as_Base) or obj_type in WIRE_TYPE_MAP:
-        return cls
-    return None
 
 
 def _expand_inline_value(value: object, path: str = "") -> object:
@@ -211,6 +183,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             f"Unrecognized activity type: {type_!r}."
         )
 
+    # Wire-only lookup (VM-06-008): a core-only name is an unknown type here,
+    # not a core class to validate a sender's activity against.
     try:
         cls = find_in_vocabulary(type_)
     except KeyError:

@@ -117,13 +117,11 @@ ACTIVITY_TYPE_EXEMPTIONS: frozenset[str] = frozenset(
 # currently round-trips back as a wire object rather than a core object.
 # Remove an entry from this set when the round-trip regression is fixed.
 #
-# ``VultronNote`` is pre-existing rather than new: ``from_row`` looks up the
-# stored ``type_`` ("Note"), which never matched its class-name key, so a
-# stored note has always read back as the unpaired wire ``as_Note``.  It
-# became visible here only when ADR-0099 detail 4 moved it onto
-# ``CoreObject`` and so into ``CORE_VOCABULARY``.  Tracked by #3647.
+# Empty since #3647: ``VultronNote`` stores as ``"Note"``, which never matched
+# its class-name key, until ``from_row`` gained a type-value fallback
+# (``hydration.core_class_for_row_type``).
 # ---------------------------------------------------------------------------
-KNOWN_WIRE_ESCAPES: frozenset[str] = frozenset({"VultronNote"})
+KNOWN_WIRE_ESCAPES: frozenset[str] = frozenset()
 
 
 def _collect_wire_escapes() -> frozenset[str]:

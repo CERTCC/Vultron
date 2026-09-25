@@ -251,7 +251,10 @@ def _retype_inline_ref(obj: "BaseModel", field_name: str, raw: object) -> Any:
     if not isinstance(type_str, str) or type_str.startswith("as_"):
         return None
     try:
-        specific_cls = find_in_vocabulary(type_str)
+        # Both-branch: a stored inline ref may be any persisted type, core
+        # records included, so this read path opts into the core fallback
+        # (VM-06-008).
+        specific_cls = find_in_vocabulary(type_str, include_core=True)
     except KeyError:
         return None
     if isinstance(getattr(obj, field_name, None), specific_cls):
@@ -360,7 +363,9 @@ class Record(StorableRecord):
             BaseModel: The converted object.
         """
         try:
-            cls = find_in_vocabulary(self.type_)
+            # Both-branch: a record holds whatever was stored, including core
+            # records keyed only in CORE_TYPE_MAP (VM-06-008).
+            cls = find_in_vocabulary(self.type_, include_core=True)
         except KeyError:
             raise ValueError(
                 f"Type '{self.type_}' not found in vocabulary for Record conversion"

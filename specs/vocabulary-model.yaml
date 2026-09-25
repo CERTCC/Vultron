@@ -412,24 +412,24 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A wire-branch caller resolving an AS2 `type` value MUST use a lookup that returns
-      `as_Base` subclasses only.  The core-type-map fallback (ARCH-12-010) MUST be reachable
+      A wire-branch caller resolving an AS2 `type` value MUST use a lookup that returns only
+      classes the wire registry holds: `as_Base` subclasses, or classes registered in
+      `WIRE_TYPE_MAP` as their own wire form (ADR-0099).  The core-type-map fallback (ARCH-12-010) MUST be reachable
       only from a caller that has asked for it explicitly; it MUST NOT be the default
       answer a wire-branch caller receives.  A caller that may legitimately receive either
       branch — the persistence read paths that reconstruct whatever was stored — MUST state
       that in its call rather than inherit it from the function's default.
     rationale: >-
-      The core map is keyed for core-layer callers, so a hit there from a wire-branch caller is
-      a coincidence of naming, not a wire counterpart (ARCH-23-002).  MV-04-003 already forbids
-      the substitution for inline objects, and #3232 implemented it as a local filter in one
-      caller.  A filter in one caller does not protect the others: the inbox re-parse path had
-      none, so an inbound `Add(object={"type": "OrderedCollection"})` was reconstructed as a
-      core class and persisted.  A permissive default hands the unsafe answer to every new
-      caller for free.
+      A core-map hit from a wire-branch caller is a coincidence of naming, not a wire
+      counterpart (ARCH-23-002).  A filter in one caller (#3232) did not protect the others:
+      the inbox re-parse path persisted a core class for an inbound `OrderedCollection`.  A
+      permissive default hands the unsafe answer to every new caller.  Registry membership,
+      not `as_Base` ancestry, is the test: the canonical `VulnerabilityCase` is a core class
+      registered as its own wire form (ADR-0099).
     verification: >-
       A test asserts that the wire-branch lookup raises for a name registered only in
       `CORE_TYPE_MAP`, that the inbox re-parse path does not produce a core class for an
-      inbound `OrderedCollection` object, and that every remaining call site either uses the
+      inbound object whose `type` is registered only there, and that every remaining call site either uses the
       wire-only lookup or names its need for the core fallback explicitly.
     relationships:
     - rel_type: refines

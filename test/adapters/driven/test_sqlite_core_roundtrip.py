@@ -43,7 +43,11 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.core.models.note import VultronNote
+from vultron.wire.as2.vocab.base.objects.object_types import (
+    as_Article,
+    as_Note,
+)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -191,12 +195,40 @@ def test_list_objects_returns_core_type_for_core_entity(dl):
 
 
 def test_read_wire_only_type_still_works(dl):
-    """Types not in CORE_VOCABULARY (e.g. as_Note) still reconstruct via wire path."""
-    note = as_Note(content="Hello from wire")
+    """A type with no core counterpart (``as_Article``) reconstructs via the wire path."""
+    article = as_Article(content="Hello from wire")
+    dl.save(article)
+    result = dl.read(article.id_)
+    assert result is not None
+    assert isinstance(result, as_Article)
+
+
+@pytest.mark.spec("DL-05-001", "DL-05-006")
+def test_saved_core_note_reads_back_as_core_note(dl):
+    """A saved ``VultronNote`` reads back as itself, not as the wire ``as_Note``.
+
+    It stores as ``type: "Note"``, which the class-name-keyed
+    ``CORE_VOCABULARY`` never matched (#3647).
+    """
+    note = VultronNote(content="Hello from core")
     dl.save(note)
     result = dl.read(note.id_)
-    assert result is not None
-    assert isinstance(result, as_Note)
+    assert type(result) is VultronNote
+    assert result == note
+
+
+@pytest.mark.spec("DL-05-001", "DL-05-006")
+def test_stored_wire_note_reads_back_as_core_note(dl):
+    """An inbound wire ``as_Note`` persisted verbatim also reads back as core.
+
+    The row cannot say which branch wrote it, so a ``"Note"`` row with a
+    registered core counterpart reconstructs as that counterpart (DL-05-001).
+    """
+    wire_note = as_Note(content="Hello from wire")
+    dl.save(wire_note)
+    result = dl.read(wire_note.id_)
+    assert type(result) is VultronNote
+    assert result.content == "Hello from wire"
 
 
 def test_core_entity_type_string_matches_class_name(dl):

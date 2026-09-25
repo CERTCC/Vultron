@@ -606,3 +606,44 @@ def test_specific_actor_routes_not_shadowed_by_catch_all(
     for actor in created_actors:
         resp = client_actors.get(f"/actors/{_route_key(actor.id_)}/profile")
         assert resp.status_code == status.HTTP_200_OK
+
+
+@pytest.mark.spec("VM-06-008")
+def test_post_inbox_does_not_persist_core_class_for_core_only_type(
+    client_actors, created_actors, monkeypatch
+):
+    """An inline object named by a core-only ``type`` is not persisted as core.
+
+    ISSUE-3565 regression, driven through the inbox route: ``CoreActor`` is
+    registered only in ``CORE_TYPE_MAP``, and the inbox re-parse used to
+    reconstruct it as that core class before persisting it.
+    """
+    from vultron.adapters.driving.fastapi.routers.actors import _inbox
+    from vultron.core.models.base import CoreObject
+
+    persisted: list[object] = []
+    real_object_to_record = _inbox.object_to_record
+
+    def _spy(obj):
+        persisted.append(obj)
+        return real_object_to_record(obj)
+
+    monkeypatch.setattr(_inbox, "object_to_record", _spy)
+
+    actor = created_actors[0]
+    payload = {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "id": "urn:uuid:add-core-only-type",
+        "type": "Add",
+        "actor": actor.id_,
+        "published": "2026-09-25T00:00:00Z",
+        "object": {"id": "urn:uuid:core-only-inline", "type": "CoreActor"},
+    }
+    resp = client_actors.post(
+        f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
+    )
+
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    stored = [o for o in persisted if getattr(o, "type_", None) == "CoreActor"]
+    assert len(stored) == 1, "the inline object was never pre-stored"
+    assert not isinstance(stored[0], CoreObject)

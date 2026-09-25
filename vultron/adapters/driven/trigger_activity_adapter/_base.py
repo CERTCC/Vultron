@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel
 
+from vultron.core.models.base import CoreObject
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -29,11 +30,7 @@ from vultron.errors import (
     VultronNotFoundError,
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.base.registry import (
-    declared_wire_type,
-    find_in_vocabulary,
-)
-from vultron.wire.as2.vocab.objects.base import as_VultronObject
+from vultron.wire.as2.vocab.base.registry import declared_wire_type
 
 if TYPE_CHECKING:  # pragma: no cover - deferred to avoid a wire import cycle
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -87,70 +84,45 @@ def _to_wire(core_obj: Any, wire_cls: type[_BM]) -> _BM:
 
 
 def _to_wire_object(core_obj: Any, object_id: str) -> Any:
-    """Convert a stored object of any type to the object an activity carries.
+    """Check that a stored object of any type can be carried, and return it.
 
-    The generic counterpart of :func:`_to_wire`, for callers that do not know
-    the object's type in advance (``add_object_to_case`` accepts any stored
-    object). The wire class is looked up by the object's class name and the
-    conversion itself is delegated to :func:`_to_wire`, so a wire class's
-    custom ``from_core`` still applies.
+    For callers that do not know the object's type in advance
+    (``add_object_to_case`` accepts any stored object). Under ADR-0099 detail 3
+    a ``CoreObject`` *is* its own wire form, so an ``as_Object`` or a
+    ``CoreObject`` is returned unchanged; nothing is converted.
 
-    An object that is already an ``as_Object``, or already an instance of the
-    class registered for its name, is returned unchanged. The second case is
-    what a core class looks like once it *is* its own wire class (ADR-0099
-    detail 3): there is nothing to convert.
+    No vocabulary lookup is made: resolving the object's class name would be a
+    name-coincidence lookup ARCH-23-002 forbids, and its answer is always the
+    object's own class (ISSUE-3565).
 
     Raises:
         VultronNotFoundError: when *core_obj* is ``None`` (dl.read returned
             no match for *object_id*) — not a vocabulary error about
             ``'NoneType'``.
-        VultronActivityConstructionError: when no wire class is registered for
-            the object's type, the object's class declares no wire ``type``
-            (an abstract core class), the registered class has no ``from_core``
-            projection, or the projection fails with a ``ValueError``
-            (including ``ValidationError``) or ``TypeError``. The original
-            error, if any, is the ``__cause__``.
+        VultronActivityConstructionError: when the object is not an AS2 object
+            (a ``CoreRecord`` bookkeeping type, or anything else), or its class
+            declares no wire ``type`` (an abstract core class).
     """
     if core_obj is None:
         raise VultronNotFoundError("AS2Object", object_id)
     if isinstance(core_obj, as_Object):
         return core_obj
     type_name = type(core_obj).__name__
-    try:
-        wire_cls = find_in_vocabulary(type_name)
-    except KeyError as exc:
+    if not isinstance(core_obj, CoreObject):
         raise VultronActivityConstructionError(
-            f"object '{object_id}': no wire class registered for"
-            f" {type_name!r}"
-        ) from exc
-    # Checked here rather than left to _to_wire: a class that is its own wire
-    # class need not be an as_VultronObject, so the gate below would refuse it.
-    if isinstance(core_obj, wire_cls):
-        # Under ADR-0099 an activity's object refs admit any CoreObject, so
-        # as_Add no longer refuses an abstract one (``CoreActor``) for us. An
-        # abstract class declares no ``type`` (its instances fill ``type_`` from
-        # the class name), so it has no wire form a receiver could dispatch.
-        if declared_wire_type(type(core_obj)) is None:
-            raise VultronActivityConstructionError(
-                f"object '{object_id}': {type_name!r} declares no wire type"
-                " and cannot be carried in an activity"
-            )
-        return core_obj
-    if not issubclass(wire_cls, as_VultronObject):
-        raise VultronActivityConstructionError(
-            f"object '{object_id}': {type_name!r} has no as_VultronObject"
-            " wire counterpart"
+            f"object '{object_id}': {type_name!r} is not an AS2 object and"
+            " cannot be carried in an activity"
         )
-    # Narrowed per CS-23-001: a from_core projection fails by raising
-    # ValidationError (a ValueError) or TypeError. Anything else — a
-    # VultronError, or a programming error such as AttributeError — surfaces
-    # as itself rather than being relabelled "from_core failed".
-    try:
-        return _to_wire(core_obj, wire_cls)
-    except (ValueError, TypeError) as exc:
+    # Under ADR-0099 an activity's object refs admit any CoreObject, so as_Add
+    # does not refuse an abstract one (``CoreActor``) for us. An abstract class
+    # declares no ``type`` (its instances fill ``type_`` from the class name),
+    # so it has no wire form a receiver could dispatch.
+    if declared_wire_type(type(core_obj)) is None:
         raise VultronActivityConstructionError(
-            f"object '{object_id}': from_core failed for {type_name!r}: {exc}"
-        ) from exc
+            f"object '{object_id}': {type_name!r} declares no wire type"
+            " and cannot be carried in an activity"
+        )
+    return core_obj
 
 
 def _case_for_wire(

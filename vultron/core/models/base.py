@@ -103,9 +103,9 @@ class CoreRecord(ValidatedAssignmentMixin):
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
         # Register every concrete core subclass in CORE_TYPE_MAP so that
-        # find_in_vocabulary() can locate it without placing it in the wire
-        # VOCABULARY dict. Only subclasses that declare their own concrete
-        # type_ annotation are registered; abstract bases that inherit or omit
+        # find_in_vocabulary(..., include_core=True) can locate it without
+        # placing it in the wire VOCABULARY dict. Only subclasses that declare
+        # their own concrete type_ annotation are registered; abstract bases that inherit or omit
         # type_ are skipped (same guard as CoreObject).
         own_annotations = cls.__dict__.get("__annotations__", {})
         if "type_" not in own_annotations:

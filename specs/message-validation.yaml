@@ -194,13 +194,12 @@ groups:
       wire-branch classes; an unresolved type leaves the object for its parent
       field to validate.
     rationale: >-
-      Substituting a weaker type is silent data loss: a nested object handed back
-      as a raw dict is accepted by its parent as a bare `as_Link`, so an
-      `Accept(Invite(...))` with one corrupt inner field parsed clean, extracted as
-      `UNKNOWN`, and drew a 202. Wire-only resolution makes refusal safe:
-      `find_in_vocabulary` falls back to `CORE_TYPE_MAP` (ARCH-12-003), where
-      `OrderedCollection` alone is registered, so an inline actor's `inbox` became
-      a core instance its wire parent rejects (ARCH-22-001).
+      Substituting a weaker type is silent data loss: an `Accept(Invite(...))` with
+      one corrupt inner field parsed clean as a bare `as_Link`, extracted as
+      `UNKNOWN`, and drew a 202. Wire-only resolution makes refusal safe: while the
+      `CORE_TYPE_MAP` fallback (ARCH-12-003) was the lookup's default, an inline
+      actor's `inbox` resolved to a core instance its wire parent rejects
+      (ARCH-22-001). The fallback is now opt-in (VM-06-008).
     verification: >-
       Unit tests in `test/wire/as2/test_parser.py` confirm that an
       `Accept(Invite(...))` whose inner object carries an unparseable timestamp is

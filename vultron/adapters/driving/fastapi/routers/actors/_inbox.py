@@ -210,6 +210,9 @@ def _reparse_as_specific_type(
     obj_type: str | None = nested.type_
     if obj_type is None:
         return base
+    # Wire-only lookup (VM-06-008): this re-parses a sender's payload, so a
+    # core-only ``type`` name must fall back to the base object rather than
+    # persist a core class the sender named by coincidence (ISSUE-3565).
     try:
         specific_cls = find_in_vocabulary(obj_type)
     except KeyError:

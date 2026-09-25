@@ -40,6 +40,8 @@ def obj_from_item(item: dict) -> as_Base:
             status_code=400, detail="Item must have a 'type' field."
         )
 
+    # Wire-only lookup (VM-06-008): the item is client input and the result is
+    # returned as ``as_Base``, so a core-only name is an unknown type.
     try:
         cls = find_in_vocabulary(item["type"])
     except KeyError:

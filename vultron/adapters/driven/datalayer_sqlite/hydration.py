@@ -40,14 +40,19 @@ from vultron.adapters.driven.db_record import (
     record_to_object,
 )
 from vultron.core.models import find_in_core_vocabulary
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.errors import VultronValidationError
 from vultron.semantic_registry import (
     find_matching_semantics,
     semantics_to_activity_class as _semantics_to_activity_class,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.registry import (
+    declared_wire_type,
+    find_in_vocabulary,
+)
 
 from .schema import VultronObjectRecord
 
@@ -104,6 +109,65 @@ def to_row(obj: PersistableModel) -> VultronObjectRecord:
     )
 
 
+def core_class_for_row_type(type_: str) -> type[BaseModel]:
+    """Return the core class a row stored under *type_* reconstructs as.
+
+    ``CORE_VOCABULARY`` is keyed by class name, but a row stores the object's
+    ``type`` value, and the two differ for a type such as ``VultronNote``
+    (stored as ``"Note"``). So after the class-name lookup this falls back to
+    the DataLayer's own match on declared ``type`` values over
+    ``CORE_VOCABULARY`` (DL-05-006) — without it a stored note read back as the
+    unpaired wire ``as_Note`` (ISSUE-3647).
+
+    The match leaves two kinds of class out, and both are deliberate:
+
+    - A core *activity* (``VultronOffer`` stores as ``"Offer"``). Persisted
+      activities stay on the wire path, which the DL-05-004 ratchet exempts;
+      moving them is the activity read-back migration (#1506), not this lookup.
+    - A class whose ``type`` value another core class also presents
+      (``VultronService`` and ``CaseActor`` both store as ``"Service"``). The
+      row cannot say which it was, so neither is guessed.
+
+    Raises:
+        KeyError: If no core class reconstructs rows of *type_*.
+    """
+    try:
+        return find_in_core_vocabulary(type_)
+    except KeyError:
+        pass
+    cls = _core_classes_by_type_value().get(type_)
+    if cls is None:
+        raise KeyError(f"No unique core class for stored type {type_!r}")
+    return cls
+
+
+#: ``(len(CORE_VOCABULARY), index)`` — rebuilt when a core class registers
+#: after the first read, since registration happens at class definition.
+_TYPE_VALUE_INDEX: tuple[int, dict[str, type[BaseModel] | None]] = (-1, {})
+
+
+def _core_classes_by_type_value() -> dict[str, type[BaseModel] | None]:
+    """Map each declared ``type`` value to its core class, ``None`` if shared.
+
+    Built once per registry size rather than per read: every activity row
+    misses the class-name lookup and would otherwise rescan the registry.
+    """
+    global _TYPE_VALUE_INDEX
+    size, index = _TYPE_VALUE_INDEX
+    if size == len(CORE_VOCABULARY):
+        return index
+    index = {}
+    for cls in CORE_VOCABULARY.values():
+        if issubclass(cls, VultronActivity):
+            continue
+        value = declared_wire_type(cls)
+        if value is None:
+            continue
+        index[value] = None if value in index else cls
+    _TYPE_VALUE_INDEX = (len(CORE_VOCABULARY), index)
+    return index
+
+
 def from_row(
     dl: "SqliteDataLayer", row: VultronObjectRecord
 ) -> PersistableModel | None:
@@ -112,10 +176,11 @@ def from_row(
     Reconstruction is a three-step pipeline:
 
     1. Core-vocabulary lookup — if the stored ``type_`` has a registered
-       core counterpart in ``CORE_VOCABULARY``, reconstruct via
-       ``find_in_core_vocabulary(type_).model_validate(data)`` (DL-05-001,
-       DL-05-002).  This ensures domain entities round-trip as core objects
-       rather than wire vocabulary types.  For persisted AS2 Activity types
+       core counterpart in ``CORE_VOCABULARY`` (by class name or by ``type``
+       value, :func:`core_class_for_row_type`), reconstruct via
+       ``core_cls.model_validate(data)`` (DL-05-001, DL-05-002, DL-05-006).
+       This ensures domain entities round-trip as core objects rather than
+       wire vocabulary types.  For persisted AS2 Activity types
        (no core counterpart), falls back to the wire vocabulary path below.
     2. ``record_to_object`` — wire-vocabulary base-type reconstruction
        (fallback for AS2 Activities and any type not in ``CORE_VOCABULARY``).
@@ -130,7 +195,7 @@ def from_row(
     """
     wire_obj: PersistableModel | None
     try:
-        core_cls = find_in_core_vocabulary(row.type_)
+        core_cls = core_class_for_row_type(row.type_)
     except KeyError:
         # No core counterpart (AS2 Activity types) → wire vocabulary path.
         wire_obj = wire_object_from_row(row)
@@ -444,10 +509,12 @@ def object_from_storage(
     except (ValidationError, VultronValidationError, ValueError):
         pass
 
+    # Both-branch lookups below: a stored record may hold any persisted type,
+    # core records included, so they opt into the core fallback (VM-06-008).
     raw_type = stored_record.get("type")
     if isinstance(raw_type, str):
         try:
-            vocab_cls = find_in_vocabulary(raw_type)
+            vocab_cls = find_in_vocabulary(raw_type, include_core=True)
             return cast(
                 PersistableModel, vocab_cls.model_validate(stored_record)
             )
@@ -458,7 +525,7 @@ def object_from_storage(
     raw_data = stored_record.get("data_")
     if isinstance(raw_type, str) and isinstance(raw_data, dict):
         try:
-            vocab_cls = find_in_vocabulary(raw_type)
+            vocab_cls = find_in_vocabulary(raw_type, include_core=True)
             return cast(PersistableModel, vocab_cls.model_validate(raw_data))
         except (KeyError, ValidationError, VultronValidationError):
             pass
