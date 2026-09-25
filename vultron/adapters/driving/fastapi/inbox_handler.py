@@ -406,7 +406,11 @@ def _process_inbox_item(
         return False
     except Exception as e:
         logger.error(
-            "Error processing inbox item for actor %s: %s", actor_id, e
+            "Error processing inbox item %s for actor %s: %s"
+            " — re-queuing for retry",
+            item_id,
+            actor_id,
+            e,
         )
         logger.debug(
             "Item causing error: %s",
