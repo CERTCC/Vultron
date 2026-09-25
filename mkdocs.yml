@@ -371,6 +371,7 @@ nav:
       - 'Organize Reader-Facing Docs by Stakeholder Type and Invisible Prerequisite Level': 'adr/0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md'
       - "An Object's Time Is Carried, Never Minted by the Receiver": 'adr/0103-object-time-is-carried-never-minted.md'
       - "The Interactive Demo UI Is a React/ReactFlow Operator-Side Ledger Watcher, Fed by a Prototype-Only SSE Stream": 'adr/0104-interactive-demo-ui-live-ledger-watcher.md'
+      - 'Two Cases for One Vulnerability Merge by Owner Consent': 'adr/0105-case-merge-freeze-and-redirect-by-owner-consent.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Contributing: 'about/contributing.md'
