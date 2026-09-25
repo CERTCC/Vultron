@@ -42,7 +42,7 @@ from pathlib import Path
 
 import pathspec
 
-from vultron.metadata.base import mkdocs_config
+from vultron.metadata.base import mkdocs_config, unbuilt_docs_spec
 
 # The source path of the page that hosts the generated list. Used as the base
 # for computing relative URLs to each listed page.
@@ -69,21 +69,8 @@ def _unpublished_spec() -> pathspec.gitignore.GitIgnoreSpec:
     validates, so the only gate that sees them is `linkchecker` over the built
     ``site/`` in CI. A declaration mirrored by hand and checkable only in CI is
     the combination to avoid — hence deriving it.
-
-    Uses the same ``GitIgnoreSpec`` matcher MkDocs applies in
-    ``mkdocs.structure.files.set_exclusions``, so the semantics cannot drift from
-    the build's.
-
-    Pages in ``not_in_nav`` are deliberately **not** excluded: they are built and
-    reachable by URL, just absent from the nav.
     """
-    config = mkdocs_config()
-    lines: list[str] = []
-    for key in ("draft_docs", "exclude_docs"):
-        value = config.get(key)
-        if isinstance(value, str):
-            lines.extend(value.splitlines())
-    return pathspec.gitignore.GitIgnoreSpec.from_lines(lines)
+    return unbuilt_docs_spec(mkdocs_config())
 
 
 def _is_published(path: str) -> bool:

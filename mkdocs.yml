@@ -479,13 +479,175 @@ plugins:
   # after print-site, which would trip print-site's must-be-last check.
   - autorefs
   # Retired pages keep their old URL alive by redirecting to the page that
-  # absorbed their content.
+  # absorbed their content. Every URL a publish has served must resolve here or
+  # be declared withdrawn in vultron/metadata/docs/withheld.py; the
+  # `docs-legacy-urls` check (DOCBW-03-008) fails the build on one that does not.
   - redirects:
       redirect_maps:
-        howto/em_icalendar.md: howto/process_implementation.md
+        howto/activitypub/activities/_accept_embargo.md: reference/messages/em.md
+        howto/activitypub/activities/_accept_invite_to_case.md: reference/messages/case_management.md
+        howto/activitypub/activities/_activate_embargo.md: reference/messages/em.md
+        howto/activitypub/activities/_add_coordinator_participant_to_case.md: reference/messages/case_management.md
+        howto/activitypub/activities/_add_embargo_to_case.md: reference/messages/em.md
+        howto/activitypub/activities/_add_note_to_case.md: reference/messages/general.md
+        howto/activitypub/activities/_add_participant_to_case.md: reference/messages/case_management.md
+        howto/activitypub/activities/_add_report_to_case.md: reference/messages/case_management.md
+        howto/activitypub/activities/_announce_embargo.md: reference/messages/em.md
+        howto/activitypub/activities/_choose_preferred_embargo.md: reference/messages/em.md
+        howto/activitypub/activities/_close_case.md: reference/messages/case_management.md
+        howto/activitypub/activities/_close_report.md: reference/messages/rm.md
+        howto/activitypub/activities/_create_case.md: reference/messages/case_management.md
+        howto/activitypub/activities/_create_participant.md: reference/messages/case_management.md
+        howto/activitypub/activities/_create_report.md: reference/messages/rm.md
+        howto/activitypub/activities/_defer_case.md: reference/messages/rm.md
+        howto/activitypub/activities/_em_blurb.md: reference/messages/em.md
+        howto/activitypub/activities/_engage_case.md: reference/messages/rm.md
+        howto/activitypub/activities/_invalidate_report.md: reference/messages/rm.md
+        howto/activitypub/activities/_invite_to_case.md: reference/messages/case_management.md
+        howto/activitypub/activities/_propose_embargo.md: reference/messages/em.md
+        howto/activitypub/activities/_read_report.md: reference/messages/rm.md
+        howto/activitypub/activities/_reengage_case.md: reference/messages/rm.md
+        howto/activitypub/activities/_reject_embargo.md: reference/messages/em.md
+        howto/activitypub/activities/_reject_invite_to_case.md: reference/messages/case_management.md
+        howto/activitypub/activities/_remove_embargo_from_case.md: reference/messages/em.md
+        howto/activitypub/activities/_submit_report.md: reference/messages/rm.md
+        howto/activitypub/activities/_validate_report.md: reference/messages/rm.md
+        howto/activitypub/activities/transfer_ownership.md: topics/case_lifecycle/ownership_transfer.md
+        howto/activitypub/objects.md: reference/activitypub/objects.md
+        # The iCalendar mapping was retired with no successor (5a64f702f). The old
+        # page named the EM process as what its ideas grew into, and linked it.
+        howto/em_icalendar.md: topics/process_models/em/index.md
+        howto/general_implementation.md: howto/activitypub/index.md
+        topics/background/notation.md: reference/notation.md
+        topics/background/overview.md: topics/background/what-is-vultron.md
+        topics/background/terms.md: reference/terms.md
+        topics/background/versioning.md: reference/versioning.md
+        topics/formal_protocol/index.md: reference/formal_protocol/index.md
+        topics/formal_protocol/worked_example.md: tutorials/worked_example.md
+        topics/future_work/cs_model_limitations.md: topics/process_models/cs/cs_model_limitations.md
+        topics/future_work/cvd_directory.md: topics/other_uses/cvd_directory.md
+        topics/future_work/mod_sim.md: topics/measuring_cvd/mod_sim.md
+        # The old page speculated about an OWL ontology; its target now records
+        # what became of that ontology (kept in the repo, not published), which
+        # is the answer a reader following the old URL is after.
+        topics/future_work/ontology.md: reference/ontology/index.md
+        topics/future_work/reward_functions.md: topics/measuring_cvd/reward_functions.md
         topics/process_models/cs/events.md: topics/process_models/cs/cs_model.md
         topics/process_models/cs/model_definition.md: topics/process_models/cs/transitions.md
         topics/process_models/em/participant-embargo-consent.md: topics/behavior_logic/use-cases/embargo-lifecycle.md
+        topics/user_stories/index.md: reference/user_stories/index.md
+        topics/user_stories/story_2022_001.md: reference/user_stories/story_2022_001.md
+        topics/user_stories/story_2022_002.md: reference/user_stories/story_2022_002.md
+        topics/user_stories/story_2022_003.md: reference/user_stories/story_2022_003.md
+        topics/user_stories/story_2022_004.md: reference/user_stories/story_2022_004.md
+        topics/user_stories/story_2022_005.md: reference/user_stories/story_2022_005.md
+        topics/user_stories/story_2022_006.md: reference/user_stories/story_2022_006.md
+        topics/user_stories/story_2022_007.md: reference/user_stories/story_2022_007.md
+        topics/user_stories/story_2022_008.md: reference/user_stories/story_2022_008.md
+        topics/user_stories/story_2022_009.md: reference/user_stories/story_2022_009.md
+        topics/user_stories/story_2022_010.md: reference/user_stories/story_2022_010.md
+        topics/user_stories/story_2022_011.md: reference/user_stories/story_2022_011.md
+        topics/user_stories/story_2022_012.md: reference/user_stories/story_2022_012.md
+        topics/user_stories/story_2022_013.md: reference/user_stories/story_2022_013.md
+        topics/user_stories/story_2022_014.md: reference/user_stories/story_2022_014.md
+        topics/user_stories/story_2022_015.md: reference/user_stories/story_2022_015.md
+        topics/user_stories/story_2022_016.md: reference/user_stories/story_2022_016.md
+        topics/user_stories/story_2022_017.md: reference/user_stories/story_2022_017.md
+        topics/user_stories/story_2022_018.md: reference/user_stories/story_2022_018.md
+        topics/user_stories/story_2022_019.md: reference/user_stories/story_2022_019.md
+        topics/user_stories/story_2022_020.md: reference/user_stories/story_2022_020.md
+        topics/user_stories/story_2022_021.md: reference/user_stories/story_2022_021.md
+        topics/user_stories/story_2022_022.md: reference/user_stories/story_2022_022.md
+        topics/user_stories/story_2022_023.md: reference/user_stories/story_2022_023.md
+        topics/user_stories/story_2022_024.md: reference/user_stories/story_2022_024.md
+        topics/user_stories/story_2022_025.md: reference/user_stories/story_2022_025.md
+        topics/user_stories/story_2022_026.md: reference/user_stories/story_2022_026.md
+        topics/user_stories/story_2022_027.md: reference/user_stories/story_2022_027.md
+        topics/user_stories/story_2022_028.md: reference/user_stories/story_2022_028.md
+        topics/user_stories/story_2022_029.md: reference/user_stories/story_2022_029.md
+        topics/user_stories/story_2022_030.md: reference/user_stories/story_2022_030.md
+        topics/user_stories/story_2022_031.md: reference/user_stories/story_2022_031.md
+        topics/user_stories/story_2022_032.md: reference/user_stories/story_2022_032.md
+        topics/user_stories/story_2022_033.md: reference/user_stories/story_2022_033.md
+        topics/user_stories/story_2022_034.md: reference/user_stories/story_2022_034.md
+        topics/user_stories/story_2022_035.md: reference/user_stories/story_2022_035.md
+        topics/user_stories/story_2022_036.md: reference/user_stories/story_2022_036.md
+        topics/user_stories/story_2022_037.md: reference/user_stories/story_2022_037.md
+        topics/user_stories/story_2022_038.md: reference/user_stories/story_2022_038.md
+        topics/user_stories/story_2022_039.md: reference/user_stories/story_2022_039.md
+        topics/user_stories/story_2022_040.md: reference/user_stories/story_2022_040.md
+        topics/user_stories/story_2022_041.md: reference/user_stories/story_2022_041.md
+        topics/user_stories/story_2022_042.md: reference/user_stories/story_2022_042.md
+        topics/user_stories/story_2022_043.md: reference/user_stories/story_2022_043.md
+        topics/user_stories/story_2022_044.md: reference/user_stories/story_2022_044.md
+        topics/user_stories/story_2022_045.md: reference/user_stories/story_2022_045.md
+        topics/user_stories/story_2022_046.md: reference/user_stories/story_2022_046.md
+        topics/user_stories/story_2022_047.md: reference/user_stories/story_2022_047.md
+        topics/user_stories/story_2022_048.md: reference/user_stories/story_2022_048.md
+        topics/user_stories/story_2022_049.md: reference/user_stories/story_2022_049.md
+        topics/user_stories/story_2022_050.md: reference/user_stories/story_2022_050.md
+        topics/user_stories/story_2022_051.md: reference/user_stories/story_2022_051.md
+        topics/user_stories/story_2022_052.md: reference/user_stories/story_2022_052.md
+        topics/user_stories/story_2022_053.md: reference/user_stories/story_2022_053.md
+        topics/user_stories/story_2022_054.md: reference/user_stories/story_2022_054.md
+        topics/user_stories/story_2022_055.md: reference/user_stories/story_2022_055.md
+        topics/user_stories/story_2022_056.md: reference/user_stories/story_2022_056.md
+        topics/user_stories/story_2022_057.md: reference/user_stories/story_2022_057.md
+        topics/user_stories/story_2022_058.md: reference/user_stories/story_2022_058.md
+        topics/user_stories/story_2022_059.md: reference/user_stories/story_2022_059.md
+        topics/user_stories/story_2022_060.md: reference/user_stories/story_2022_060.md
+        topics/user_stories/story_2022_061.md: reference/user_stories/story_2022_061.md
+        topics/user_stories/story_2022_062.md: reference/user_stories/story_2022_062.md
+        topics/user_stories/story_2022_063.md: reference/user_stories/story_2022_063.md
+        topics/user_stories/story_2022_064.md: reference/user_stories/story_2022_064.md
+        topics/user_stories/story_2022_065.md: reference/user_stories/story_2022_065.md
+        topics/user_stories/story_2022_066.md: reference/user_stories/story_2022_066.md
+        topics/user_stories/story_2022_067.md: reference/user_stories/story_2022_067.md
+        topics/user_stories/story_2022_068.md: reference/user_stories/story_2022_068.md
+        topics/user_stories/story_2022_069.md: reference/user_stories/story_2022_069.md
+        topics/user_stories/story_2022_070.md: reference/user_stories/story_2022_070.md
+        topics/user_stories/story_2022_071.md: reference/user_stories/story_2022_071.md
+        topics/user_stories/story_2022_072.md: reference/user_stories/story_2022_072.md
+        topics/user_stories/story_2022_073.md: reference/user_stories/story_2022_073.md
+        topics/user_stories/story_2022_074.md: reference/user_stories/story_2022_074.md
+        topics/user_stories/story_2022_075.md: reference/user_stories/story_2022_075.md
+        topics/user_stories/story_2022_076.md: reference/user_stories/story_2022_076.md
+        topics/user_stories/story_2022_077.md: reference/user_stories/story_2022_077.md
+        topics/user_stories/story_2022_078.md: reference/user_stories/story_2022_078.md
+        topics/user_stories/story_2022_079.md: reference/user_stories/story_2022_079.md
+        topics/user_stories/story_2022_080.md: reference/user_stories/story_2022_080.md
+        topics/user_stories/story_2022_081.md: reference/user_stories/story_2022_081.md
+        topics/user_stories/story_2022_082.md: reference/user_stories/story_2022_082.md
+        topics/user_stories/story_2022_083.md: reference/user_stories/story_2022_083.md
+        topics/user_stories/story_2022_084.md: reference/user_stories/story_2022_084.md
+        topics/user_stories/story_2022_085.md: reference/user_stories/story_2022_085.md
+        topics/user_stories/story_2022_086.md: reference/user_stories/story_2022_086.md
+        topics/user_stories/story_2022_087.md: reference/user_stories/story_2022_087.md
+        topics/user_stories/story_2022_088.md: reference/user_stories/story_2022_088.md
+        topics/user_stories/story_2022_089.md: reference/user_stories/story_2022_089.md
+        topics/user_stories/story_2022_090.md: reference/user_stories/story_2022_090.md
+        topics/user_stories/story_2022_091.md: reference/user_stories/story_2022_091.md
+        topics/user_stories/story_2022_092.md: reference/user_stories/story_2022_092.md
+        topics/user_stories/story_2022_093.md: reference/user_stories/story_2022_093.md
+        topics/user_stories/story_2022_094.md: reference/user_stories/story_2022_094.md
+        topics/user_stories/story_2022_095.md: reference/user_stories/story_2022_095.md
+        topics/user_stories/story_2022_096.md: reference/user_stories/story_2022_096.md
+        topics/user_stories/story_2022_097.md: reference/user_stories/story_2022_097.md
+        topics/user_stories/story_2022_098.md: reference/user_stories/story_2022_098.md
+        topics/user_stories/story_2022_099.md: reference/user_stories/story_2022_099.md
+        topics/user_stories/story_2022_100.md: reference/user_stories/story_2022_100.md
+        topics/user_stories/story_2022_101.md: reference/user_stories/story_2022_101.md
+        topics/user_stories/story_2022_102.md: reference/user_stories/story_2022_102.md
+        topics/user_stories/story_2022_103.md: reference/user_stories/story_2022_103.md
+        topics/user_stories/story_2022_104.md: reference/user_stories/story_2022_104.md
+        topics/user_stories/story_2022_105.md: reference/user_stories/story_2022_105.md
+        topics/user_stories/story_2022_106.md: reference/user_stories/story_2022_106.md
+        topics/user_stories/story_2022_107.md: reference/user_stories/story_2022_107.md
+        topics/user_stories/story_2022_108.md: reference/user_stories/story_2022_108.md
+        topics/user_stories/story_2022_109.md: reference/user_stories/story_2022_109.md
+        topics/user_stories/story_2022_110.md: reference/user_stories/story_2022_110.md
+        topics/user_stories/story_2022_111.md: reference/user_stories/story_2022_111.md
+        topics/user_stories/table.md: reference/user_stories/table.md
   # NOTE print-site MUST be the last plugin in the list (see its docs for why)
   - print-site
 repo_url: 'https://github.com/CERTCC/Vultron'

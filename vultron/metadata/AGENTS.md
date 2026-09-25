@@ -6,17 +6,18 @@ This package is the project's own tooling layer: it reads the repository's
 metadata files and validates them. It backs the `spec-dump`, `spec-lint`,
 `spec-coverage`, `adr-index`, `demo-scenarios`, `append-history`,
 `show-history`, `bundle-fit`, `pr-size`, `wire-context`, `docs-withheld`,
-`glossary-index`, `learnings-index`, and `spec-backstop` console entry points,
-plus several pre-commit hooks.
+`docs-legacy-urls`, `glossary-index`, `learnings-index`, and `spec-backstop`
+console entry points, plus several pre-commit hooks.
 
 Two exceptions to "reads the repository's metadata files". `planning/` reads a
 GitHub GraphQL payload piped in on **stdin** rather than files on disk, so its
 selection logic stays pure and testable without the network. The shell script
 that fetches the payload owns the query
-(`.agents/skills/shared/query-epic-subissues.sh`). And `docs/withheld.py` reads
-the **built** `site/` tree, so it only runs after `mkdocs build` — it is the one
-tool here whose input is a build product rather than a source file, and it fails
-rather than passing when that input is missing (DOCBW-03-005, DF-09-009).
+(`.agents/skills/shared/query-epic-subissues.sh`). And `docs/withheld.py` and
+`docs/legacy_urls.py` read the **built** `site/` tree, so they only run after
+`mkdocs build` — they are the tools here whose input is a build product rather
+than a source file, and both fail rather than passing when that input is missing
+(`docs/built_site.py`; DOCBW-03-005, DOCBW-03-008, DF-09-009).
 
 Nothing here is protocol code. The audience for its output is a human or an
 agent who just edited a metadata file and got it wrong, so **error messages
@@ -32,7 +33,7 @@ are the product**.
 | `history/` | `plan/history/**/*.md`, `plan/incoming/learnings/*.md` | `HistoryEntryFrontmatter` |
 | `msm/` | a constant mapping table + the wire `SEMANTIC_REGISTRY` | — |
 | `demo_scenarios/` | the `@scenario` registry in `vultron/demo/scenario/` | — |
-| `docs/` | `git log` over `docs/`, for the what's-new page; `docs/reference/glossary.md` (`glossary_index.py`); the built `site/` tree (`withheld.py`); every `docs/**/*.md` page's `stakeholder_type`/`level` (`page_frontmatter.py`, DF-11) | `PageFrontmatter`, `WorkingRecordFrontmatter` (`page_schema.py`); publication axis: DOCBW-03-005 |
+| `docs/` | `git log` over `docs/`, for the what's-new page; `docs/reference/glossary.md` (`glossary_index.py`); the built `site/` tree (`withheld.py`, `legacy_urls.py`, via `built_site.py`); every `docs/**/*.md` page's `stakeholder_type`/`level` (`page_frontmatter.py`, DF-11) | `PageFrontmatter`, `WorkingRecordFrontmatter` (`page_schema.py`); publication axis: DOCBW-03-005; continuity axis: DOCBW-03-008 |
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin | — (selection rules: PAD-15) |
 
 Shared helpers live in three places — `base.py`, `markdown_tables.py`, and

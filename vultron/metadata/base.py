@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Annotated
 
+import pathspec
 import yaml
 from pydantic import StringConstraints
 
@@ -60,9 +61,37 @@ def mkdocs_config(root: Path | None = None) -> dict[str, object]:
         root: Repository root. Defaults to the enclosing checkout.
     """
     base = root or repo_root()
-    with (base / "mkdocs.yml").open(encoding="utf-8") as fh:
-        config = yaml.load(fh, Loader=MkDocsYamlLoader)  # noqa: S506
+    return parse_mkdocs_config(
+        (base / "mkdocs.yml").read_text(encoding="utf-8")
+    )
+
+
+def parse_mkdocs_config(text: str) -> dict[str, object]:
+    """Return ``mkdocs.yml`` content *text* parsed with :class:`MkDocsYamlLoader`.
+
+    For a config that is not a file in this checkout, such as the
+    ``mkdocs.yml`` on another git ref.
+    """
+    config = yaml.load(text, Loader=MkDocsYamlLoader)  # noqa: S506
     return config if isinstance(config, dict) else {}
+
+
+def unbuilt_docs_spec(
+    config: dict[str, object],
+) -> pathspec.gitignore.GitIgnoreSpec:
+    """Return a matcher for the ``docs/``-relative paths *config* does not build.
+
+    Reads ``draft_docs`` and ``exclude_docs``, with the same ``GitIgnoreSpec``
+    matcher MkDocs applies in ``mkdocs.structure.files.set_exclusions``, so the
+    semantics cannot drift from the build's. Pages in ``not_in_nav`` are **not**
+    matched: they are built and reachable by URL, just absent from the nav.
+    """
+    lines: list[str] = []
+    for key in ("draft_docs", "exclude_docs"):
+        value = config.get(key)
+        if isinstance(value, str):
+            lines.extend(value.splitlines())
+    return pathspec.gitignore.GitIgnoreSpec.from_lines(lines)
 
 
 def _walk_nav(nav: object) -> list[str]:
