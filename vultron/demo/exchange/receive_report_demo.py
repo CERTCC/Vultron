@@ -21,9 +21,10 @@ This demo script showcases three different outcomes when processing vulnerabilit
 2. Invalidate Report: ``as_TentativeReject`` - holds for reconsideration
 3. Invalidate and Close Report: ``as_TentativeReject`` + ``as_Reject`` - rejects and closes
 
-This demo uses direct inbox-to-inbox communication between actors, per the Vultron prototype
-design (see docs/reference/inbox_handler.md). Actors post activities directly to each other's
-inboxes rather than relying on outbox processing.
+This demo uses direct inbox-to-inbox communication between actors: actors post activities
+directly to each other's inboxes rather than relying on outbox processing. For the inbox
+pipeline those posts enter, see the "From HTTP delivery to behavior tree: the inbox pipeline"
+section of docs/topics/reference_architecture.md.
 
 When run as a script, this module will:
 1. Check if the API server is available
@@ -156,7 +157,7 @@ def demo_validate_report(
 
     Note: This demo uses direct inbox-to-inbox communication. The vendor posts
     the VultronActivity activity directly to the finder's inbox rather than using outbox
-    processing, per the Vultron prototype design (see docs/reference/inbox_handler.md).
+    processing (see the inbox pipeline section of docs/topics/reference_architecture.md).
     """
     logger.info("=" * 80)
     logger.info("DEMO 1: Validate Report and Create Case")
@@ -242,8 +243,8 @@ def demo_invalidate_report(
     docs/howto/activitypub/activities/report_vulnerability.md.
 
     Note: This demo uses direct inbox-to-inbox communication. The vendor posts
-    the invalidation response directly to the finder's inbox, per the Vultron
-    prototype design (see docs/reference/inbox_handler.md).
+    the invalidation response directly to the finder's inbox (see the inbox
+    pipeline section of docs/topics/reference_architecture.md).
     """
     logger.info("=" * 80)
     logger.info("DEMO 2: Invalidate Report (Hold for Reconsideration)")
@@ -330,8 +331,8 @@ def demo_invalidate_and_close_report(
     docs/howto/activitypub/activities/report_vulnerability.md.
 
     Note: This demo uses direct inbox-to-inbox communication. The vendor posts
-    response activities directly to the finder's inbox, per the Vultron
-    prototype design (see docs/reference/inbox_handler.md).
+    response activities directly to the finder's inbox (see the inbox pipeline
+    section of docs/topics/reference_architecture.md).
     """
     logger.info("=" * 80)
     logger.info("DEMO 3: Invalidate and Close Report")
