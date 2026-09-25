@@ -35,7 +35,7 @@ from vultron.core.models.events.case import (
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import (
-    VultronCase,
+    VulnerabilityCase,
     VultronCaseActor,
     VultronParticipant,
     VultronReport,
@@ -79,7 +79,7 @@ def _make_participant_in_valid_state(
 
 
 def _make_engage_request(
-    case: VultronCase, actor_id: str
+    case: VulnerabilityCase, actor_id: str
 ) -> EngageCaseReceivedEvent:
     return EngageCaseReceivedEvent(
         activity_id=f"{case.id_}/activities/engage",
@@ -89,14 +89,14 @@ def _make_engage_request(
         activity=VultronActivity(
             type_="Announce",
             actor=actor_id,
-            object_=VultronCase(id_=case.id_),
+            object_=VulnerabilityCase(id_=case.id_),
             context=case.id_,
         ),
     )
 
 
 def _make_defer_request(
-    case: VultronCase, actor_id: str
+    case: VulnerabilityCase, actor_id: str
 ) -> DeferCaseReceivedEvent:
     return DeferCaseReceivedEvent(
         activity_id=f"{case.id_}/activities/defer",
@@ -106,7 +106,7 @@ def _make_defer_request(
         activity=VultronActivity(
             type_="Announce",
             actor=actor_id,
-            object_=VultronCase(id_=case.id_),
+            object_=VulnerabilityCase(id_=case.id_),
             context=case.id_,
         ),
     )
@@ -167,7 +167,7 @@ def case_with_participant(datalayer, actor_id, actor, report):
         context="https://example.org/cases/case-001",
     )
     datalayer.create(participant)
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-001",
         name="Test Case",
         vulnerability_reports=[report.id_],
@@ -181,7 +181,7 @@ def case_with_participant(datalayer, actor_id, actor, report):
 @pytest.fixture
 def case_without_participant(datalayer, report):
     """Case with no participants."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-002",
         name="Test Case No Participants",
         vulnerability_reports=[report.id_],
@@ -257,7 +257,7 @@ def case_with_manager(
 
     # attributed_to triggers genesis_hash computation (CLP-08-001/002), required
     # for CommitCaseLedgerEntryNode to succeed in tests that run as CaseManager.
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-manager-001",
         name="Test Case With Manager",
         attributed_to=case_manager_actor_id,
@@ -301,7 +301,7 @@ def case_with_manager_in_cm_store(
     )
     case_manager_datalayer.create(cm_participant)
 
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-manager-001",
         name="Test Case With Manager",
         attributed_to=case_manager_actor_id,
@@ -423,7 +423,7 @@ def test_engage_case_tree_fails_no_participant(
 @pytest.mark.spec("BT-03-001")
 def test_engage_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     """EngageCaseBT fails when the case does not exist in the datalayer."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/nonexistent",
         name="Missing Case",
         vulnerability_reports=[],
@@ -490,7 +490,7 @@ def test_defer_case_tree_fails_no_participant(
 @pytest.mark.spec("BT-03-001")
 def test_defer_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     """DeferCaseBT fails when the case does not exist in the datalayer."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/nonexistent",
         name="Missing Case",
         vulnerability_reports=[],
@@ -536,7 +536,7 @@ def test_engage_only_affects_target_actor(bridge, datalayer, actor_id, report):
     )
     datalayer.create(participant_a)
     datalayer.create(participant_b)
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-multi",
         name="Multi-participant case",
         vulnerability_reports=[report.id_],

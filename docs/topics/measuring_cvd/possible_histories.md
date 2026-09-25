@@ -8,12 +8,9 @@ level: 500
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-In [Case State Events](../process_models/cs/events.md), we
-began by identifying a set of events of interest in
-CVD cases. Then we
-constructed a state model describing how the occurrence of these events
-can interact with each other. In this section, we look at paths through
-the resulting state model.
+In [CS Input Symbols](../process_models/cs/transitions.md#cs-input-symbols), we began by identifying a set of events of interest in CVD cases.
+Then we constructed a state model describing how the occurrence of these events can interact with each other.
+In this section, we look at paths through the resulting state model.
 
 ## Sequences of Events
 
@@ -67,7 +64,7 @@ Awareness (**V**) must precede Fix Ready (**F**) and that Fix Ready
 must precede Fix Deployed (**D**).
 
 The DFA developed
-in [CS Process Model](../process_models/cs/model_definition.md) provides
+in [CS Process Model](../process_models/cs/transitions.md#the-full-cs-model-diagram) provides
 the mechanism to validate histories: a history $h$ is valid if the
 DFA accepts it as a valid input string. Once this constraint is applied,
 only 70 possible histories $h \in \mathcal{H}p$ remain viable.
@@ -77,7 +74,7 @@ set of possible histories $\mathcal{H}$ corresponds to the 70 allowable
 paths through $\mathcal{Q}^{CS}$ as can be derived from the CS transition
 function $\delta^{CS}$ in [CS Transitions](../process_models/cs/transitions.md).
 and the diagram in
-[Case State Model Definition](../process_models/cs/model_definition.md).
+[Case State Model Definition](../process_models/cs/transitions.md#cs-model-diagrams).
 
 !!! info "Other Definitions Used in the Table Below"
 

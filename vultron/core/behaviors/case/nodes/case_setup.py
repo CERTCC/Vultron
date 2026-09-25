@@ -35,7 +35,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models.vultron_types import VultronCase
+from vultron.core.models.vultron_types import VulnerabilityCase
 from vultron.errors import VultronAlreadyExistsError
 
 
@@ -49,7 +49,7 @@ class PersistCase(DataLayerActionWithPorts):
     Per specs/case-management.yaml CM-02-001.
     """
 
-    def __init__(self, case_obj: VultronCase, name: str | None = None):
+    def __init__(self, case_obj: VulnerabilityCase, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
         self.case_obj = case_obj
 
@@ -89,7 +89,7 @@ class SetCaseAttributedTo(DataLayerActionWithPorts):
     Per specs/case-management.yaml CM-02-008.
     """
 
-    def __init__(self, case_obj: VultronCase, name: str | None = None):
+    def __init__(self, case_obj: VulnerabilityCase, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
         self.case_obj = case_obj
 

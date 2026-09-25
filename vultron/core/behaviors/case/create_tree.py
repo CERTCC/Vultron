@@ -49,7 +49,7 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
-from vultron.core.models.vultron_types import VultronCase
+from vultron.core.models.vultron_types import VulnerabilityCase
 from vultron.core.behaviors.case.case_setup_tree import (
     RecordCaseCreationEvents,
 )
@@ -75,7 +75,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_create_case_tree(
-    case_obj: VultronCase,
+    case_obj: VulnerabilityCase,
     actor_id: str,
     actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:

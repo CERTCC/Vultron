@@ -99,10 +99,8 @@ Participants usually fall into one of three categories:
 
 ## Adding Participants to an Existing Embargo
 
-Adding new Participants to a case with an existing embargo might require
-the new Participant to accept the embargo prior to receiving the report.
-For the formal per-participant state machine that tracks acceptance,
-see [Participant Embargo Consent](participant-embargo-consent.md).
+Adding new Participants to a case with an existing embargo might require the new Participant to accept the embargo prior to receiving the report.
+[Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how each Participant's acceptance is tracked, and [§9 of the Vultron Protocol Specification](../../../reference/vultron-spec/index.md#9-participant-embargo-consent-pec-state-machine-n) specifies it.
 
 !!! note ""
 
@@ -308,3 +306,9 @@ non-cooperation will have downstream consequences.
 
     Participants MAY decline to participate in future
     CVD cases involving parties with a history of violating previous embargoes.
+
+## Doing It on the Wire
+
+- [How to Invite an Actor to a Case](../../../howto/activitypub/activities/invite_actor.md) — invite a new Participant, who is offered the existing embargo.
+- [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) — propose, accept and activate an embargo.
+- [How to Revise or Terminate an Embargo](../../../howto/activitypub/activities/manage_embargo.md) — propose the shorter terms a new Participant needs as a revision, or end the embargo.

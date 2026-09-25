@@ -43,12 +43,13 @@ import argparse
 import re
 import sys
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from vultron.metadata.base import mkdocs_config, nav_paths
 from vultron.metadata.base import repo_root as _find_repo_root
+from vultron.metadata.docs.baseline_file import entry_lines, write_entries
 from vultron.metadata.docs.page_schema import (
     PageFrontmatter,
     WorkingRecordFrontmatter,
@@ -116,46 +117,48 @@ class CheckResult:
     undeclared: list[str] = field(default_factory=list)
 
 
-def _include_targets(docs_dir: Path) -> dict[str, dict[str, bool]]:
-    """Map each included ``.md`` file to ``{host: included_whole}``.
+def include_directives(
+    host_path: Path, docs_dir: Path
+) -> Iterator[tuple[int, str, bool]]:
+    """Yield ``(offset, target, whole)`` for each ``.md`` file *host_path* includes.
 
     A target opening ``./`` or ``../`` resolves against the including file;
     any other resolves against ``docs/``, matching the include-markdown
     plugin. Globs expand. Targets outside ``docs/`` and non-Markdown targets
-    are not pages and are ignored.
+    are not pages and are skipped. *offset* is where the directive starts in
+    the host's source, and *target* is ``docs/``-relative.
     """
     docs_resolved = docs_dir.resolve()
+    text = host_path.read_text(encoding="utf-8", errors="replace")
+    for match in _INCLUDE_RE.finditer(text):
+        spec = match.group("dq") or match.group("sq")
+        if "://" in spec:
+            continue
+        base = host_path.parent if spec.startswith(("./", "../")) else docs_dir
+        candidates = (
+            sorted(base.glob(spec))
+            if any(c in spec for c in "*?[")
+            else [base / spec]
+        )
+        whole = not _START_OPTION_RE.search(match.group("opts"))
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if (
+                resolved.suffix == ".md"
+                and resolved.is_file()
+                and resolved.is_relative_to(docs_resolved)
+            ):
+                target = resolved.relative_to(docs_resolved).as_posix()
+                yield match.start(), target, whole
+
+
+def _include_targets(docs_dir: Path) -> dict[str, dict[str, bool]]:
+    """Map each included ``.md`` file to ``{host: included_whole}``."""
     targets: dict[str, dict[str, bool]] = defaultdict(dict)
     for host_path in sorted(docs_dir.rglob("*.md")):
         host = host_path.relative_to(docs_dir).as_posix()
-        text = host_path.read_text(encoding="utf-8", errors="replace")
-        for match in _INCLUDE_RE.finditer(text):
-            spec = match.group("dq") or match.group("sq")
-            if "://" in spec:
-                continue
-            base = (
-                host_path.parent
-                if spec.startswith(("./", "../"))
-                else docs_dir
-            )
-            candidates = (
-                sorted(base.glob(spec))
-                if any(c in spec for c in "*?[")
-                else [base / spec]
-            )
-            whole = not _START_OPTION_RE.search(match.group("opts"))
-            for candidate in candidates:
-                resolved = candidate.resolve()
-                if (
-                    resolved.suffix != ".md"
-                    or not resolved.is_file()
-                    or not resolved.is_relative_to(docs_resolved)
-                ):
-                    continue
-                target = resolved.relative_to(docs_resolved).as_posix()
-                targets[target][host] = targets[target].get(host, False) or (
-                    whole
-                )
+        for _, target, whole in include_directives(host_path, docs_dir):
+            targets[target][host] = targets[target].get(host, False) or whole
     return targets
 
 
@@ -205,7 +208,7 @@ def classify_docs_tree(root: Path) -> DocsTree:
     )
 
 
-def _key_lines(path: Path) -> dict[str, int]:
+def frontmatter_key_lines(path: Path) -> dict[str, int]:
     """1-based line of each top-level key in *path*'s frontmatter block."""
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     found: dict[str, int] = {}
@@ -222,22 +225,16 @@ def _key_lines(path: Path) -> dict[str, int]:
 
 def read_baseline(path: Path | None = None) -> set[str]:
     """Return the baselined page paths, ignoring comments and blank lines."""
-    path = path or BASELINE_PATH
-    if not path.exists():
-        return set()
-    entries = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
-        entry = line.split("#", 1)[0].strip()
-        if entry:
-            entries.add(entry)
-    return entries
+    return {
+        entry
+        for _, line in entry_lines(path or BASELINE_PATH)
+        if (entry := line.split("#", 1)[0].strip())
+    }
 
 
 def write_baseline(entries: set[str], path: Path | None = None) -> None:
     """Write *entries* sorted, under the explanatory header."""
-    path = path or BASELINE_PATH
-    body = "".join(f"{entry}\n" for entry in sorted(entries))
-    path.write_text(_BASELINE_HEADER + "\n" + body, encoding="utf-8")
+    write_entries(path or BASELINE_PATH, _BASELINE_HEADER, entries)
 
 
 def _declarations(metadata: Mapping[str, object]) -> dict[str, object]:
@@ -294,7 +291,7 @@ def check_docs_frontmatter(
                     f"both keys from the pages hosting it ({', '.join(hosts)})"
                     f" (DF-11-010)",
                     path=shown(rel),
-                    line=_key_lines(path).get(key),
+                    line=frontmatter_key_lines(path).get(key),
                 )
 
     for rel in tree.pages:
@@ -323,7 +320,7 @@ def check_docs_frontmatter(
                     f"declares neither key; add {wanted}", path=shown(rel)
                 )
 
-            key_lines = _key_lines(path)
+            key_lines = frontmatter_key_lines(path)
             if rel in allowed:
                 raise MetadataLoadError(
                     f"now declares its keys but is still listed in "

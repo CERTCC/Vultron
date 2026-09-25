@@ -57,7 +57,7 @@ parties to be available at the same moment.
     ([§1.3](index.md#13-relationship-to-existing-standards)).
 
 !!! info "See also"
-    - [CVD as a Coordination Problem](../../topics/background/index.md)
+    - [CVD as a Coordination Problem](../../topics/background/cvd-coordination-problem.md)
     - [What Does Success Mean in CVD?](../../topics/background/cvd_success.md)
     - [The Need for Interoperability](../../topics/background/interoperability.md)
     - [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD)

@@ -29,7 +29,10 @@ from vultron.core.behaviors.case.nodes.participant import (
     RecordOwnerJoinedEventNode,
 )
 from vultron.config.actor import ActorConfig
-from vultron.core.models.vultron_types import VultronCase, VultronCaseActor
+from vultron.core.models.vultron_types import (
+    VulnerabilityCase,
+    VultronCaseActor,
+)
 from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
@@ -43,7 +46,7 @@ class TestCreateCaseOwnerParticipant:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         result = bt_scenario.run(
@@ -58,7 +61,7 @@ class TestCreateCaseOwnerParticipant:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         """Running twice does not error."""
@@ -93,7 +96,7 @@ class TestCreateCaseOwnerParticipant:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         """Default (no actor_config) assigns only CASE_OWNER role."""
@@ -123,7 +126,7 @@ class TestCreateCaseOwnerParticipant:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         """config roles + CASE_OWNER appear in participant roles."""
@@ -166,7 +169,7 @@ class TestCreateCaseOwnerParticipant:
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         """CreateCaseOwnerParticipant registers owner as a case participant.

@@ -40,7 +40,6 @@ from vultron.core.behaviors.sync.nodes.replay_guard import (
 )
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry,
-    VultronCaseLedgerEntry,
 )
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
@@ -54,37 +53,14 @@ from vultron.errors import VultronError
 logger = logging.getLogger(__name__)
 
 
-def _require_log_entry(
-    activity: Any, node_name: str
-) -> VultronCaseLedgerEntry:
-    entry = getattr(activity, "log_entry", None)
-    if entry is None:
-        entry = getattr(activity, "object_", None)
-    if isinstance(entry, CaseLedgerEntry):
-        if isinstance(entry, VultronCaseLedgerEntry):
-            return entry
-        return VultronCaseLedgerEntry.model_validate(
-            entry.model_dump(mode="json")
-        )
-    raise VultronError(
-        f"{node_name}: activity did not carry a VultronCaseLedgerEntry"
-    )
-
-
-def _require_rejected_entry(
-    activity: Any, node_name: str
-) -> VultronCaseLedgerEntry:
+def _require_rejected_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
     entry = getattr(activity, "rejected_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
     if isinstance(entry, CaseLedgerEntry):
-        if isinstance(entry, VultronCaseLedgerEntry):
-            return entry
-        return VultronCaseLedgerEntry.model_validate(
-            entry.model_dump(mode="json")
-        )
+        return entry
     raise VultronError(
-        f"{node_name}: activity did not carry a rejected VultronCaseLedgerEntry"
+        f"{node_name}: activity did not carry a rejected CaseLedgerEntry"
     )
 
 
@@ -180,7 +156,7 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
         "replay_entry": PortInformation(
-            data_type=VultronCaseLedgerEntry, required=True
+            data_type=CaseLedgerEntry, required=True
         ),
         "replay_peer_id": PortInformation(data_type=str, required=True),
         "replay_case_ledger_entries": PortInformation(
@@ -277,7 +253,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         **DataLayerActionWithPorts.INPUT_PORTS,
         "case_actor_id": PortInformation(data_type=str, required=True),
         "replay_entry": PortInformation(
-            data_type=VultronCaseLedgerEntry, required=True
+            data_type=CaseLedgerEntry, required=True
         ),
         "replay_peer_id": PortInformation(data_type=str, required=True),
         "replay_case_ledger_entries": PortInformation(
@@ -323,7 +299,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
                 f"{self.name}: sync_port must be injected to replay entries"
             )
 
-        entry = cast(VultronCaseLedgerEntry, self.replay_entry)
+        entry = cast(CaseLedgerEntry, self.replay_entry)
         peer_id = cast(str, self.replay_peer_id)
         entries = cast(list[CaseLedgerEntry], self.replay_case_ledger_entries)
         from_index = cast(int, self.replay_from_index)

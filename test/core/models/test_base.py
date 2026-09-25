@@ -12,7 +12,7 @@ from vultron.core.models.activity import (
     VultronOffer,
 )
 from vultron.core.models.base import CoreObject
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import VultronEmbargoEvent
@@ -23,7 +23,7 @@ from vultron.core.models.report import VultronReport
 
 DOMAIN_OBJECT_CLASSES = [
     VultronReport,
-    VultronCase,
+    VulnerabilityCase,
     VultronNote,
     VultronParticipant,
     CaseStatus,
@@ -132,7 +132,7 @@ def test_domain_object_as_id_unique():
 
 def test_domain_object_expected_as_types():
     assert VultronReport().type_ == "VulnerabilityReport"
-    assert VultronCase().type_ == "VulnerabilityCase"
+    assert VulnerabilityCase().type_ == "VulnerabilityCase"
     assert VultronNote(content="test").type_ == "Note"
     assert (
         VultronParticipant(
@@ -208,10 +208,10 @@ def test_vultron_embargo_event_required_fields():
 
 
 def test_vultron_case_init_case_statuses():
-    case_no_actor = VultronCase()
+    case_no_actor = VulnerabilityCase()
     assert case_no_actor.case_statuses == []
 
-    case_with_actor = VultronCase(attributed_to="urn:uuid:actor-123")
+    case_with_actor = VulnerabilityCase(attributed_to="urn:uuid:actor-123")
     assert len(case_with_actor.case_statuses) == 1
     assert isinstance(case_with_actor.case_statuses[0], CaseStatus)
     assert case_with_actor.case_statuses[0].context == case_with_actor.id_
@@ -219,7 +219,7 @@ def test_vultron_case_init_case_statuses():
         case_with_actor.case_statuses[0].attributed_to == "urn:uuid:actor-123"
     )
 
-    case_existing_statuses = VultronCase(
+    case_existing_statuses = VulnerabilityCase(
         attributed_to="urn:uuid:actor-123",
         case_statuses=[
             CaseStatus(
@@ -238,7 +238,7 @@ def test_vultron_case_init_case_statuses():
 
 def test_vultron_case_rewrites_status_context_to_case_id():
     """An inline status belongs to the case holding it (``set_cs_context``)."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         case_statuses=[
             CaseStatus(context="urn:uuid:other", attributed_to="urn:uuid:a")
         ],

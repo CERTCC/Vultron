@@ -19,7 +19,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -346,9 +346,7 @@ class TestAnnounceFirstContactTrustGap:
 # ---------------------------------------------------------------------------
 
 
-def _genesis_entry_for(
-    case_id: str, genesis_hash: str
-) -> VultronCaseLedgerEntry:
+def _genesis_entry_for(case_id: str, genesis_hash: str) -> CaseLedgerEntry:
     """Build a genesis (log_index 0) entry anchored to *genesis_hash*."""
     chain = HashChainLedgerRecord(
         case_id=case_id,
@@ -358,7 +356,7 @@ def _genesis_entry_for(
         payload_snapshot={"key": "value"},
         prev_log_hash=genesis_hash,
     )
-    return VultronCaseLedgerEntry(
+    return CaseLedgerEntry(
         case_id=chain.case_id,
         log_index=chain.log_index,
         term=chain.term,

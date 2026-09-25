@@ -16,7 +16,7 @@
 import pytest
 
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import (
     LedgerGapBuffer,
     _reset_buffers,
@@ -36,7 +36,7 @@ def _clear_registry():
 
 def _entry(
     log_index: int, prev_hash: str, case_id: str = CASE_A
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     chain = HashChainLedgerRecord(
         case_id=case_id,
         log_index=log_index,
@@ -45,7 +45,7 @@ def _entry(
         payload_snapshot={"log_index": log_index},
         prev_log_hash=prev_hash,
     )
-    return VultronCaseLedgerEntry(
+    return CaseLedgerEntry(
         case_id=chain.case_id,
         log_index=chain.log_index,
         term=chain.term,
@@ -57,8 +57,8 @@ def _entry(
     )
 
 
-def _chain(length: int, case_id: str = CASE_A) -> list[VultronCaseLedgerEntry]:
-    entries: list[VultronCaseLedgerEntry] = []
+def _chain(length: int, case_id: str = CASE_A) -> list[CaseLedgerEntry]:
+    entries: list[CaseLedgerEntry] = []
     prev = "0" * 64
     for i in range(length):
         entry = _entry(i, prev, case_id)

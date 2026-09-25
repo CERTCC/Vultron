@@ -64,7 +64,19 @@ repos:
         # without touching a page: the nav, which decides what is an include
         # fragment; the schema, patterns and baseline; and the nav and
         # frontmatter readers they use.
-        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/page_.*|vultron/metadata/(base|file_loading)\.py)$
+        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/(page_.*|baseline_file\.py)|vultron/metadata/(base|file_loading)\.py)$
+        pass_filenames: false
+
+      - id: docs-level-order
+        name: Docs pages depend on no page above their own level
+        entry: uv run docs-level-order
+        language: system
+        # Every input that changes the verdict (DF-11-002): any docs page (its
+        # level, its introduces:, its prose and links), the nav, which decides
+        # what is an include fragment; the glossary is a docs page; and the
+        # checker, its scanner, baseline and the readers they use.
+        # test_the_committed_docs_tree_passes is the CI backstop.
+        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/(level_(order|baseline).*|concept_(scan|registry)\.py|baseline_file\.py|page_.*|glossary_index\.py)|vultron/metadata/(base|file_loading|markdown_tables)\.py)$
         pass_filenames: false
 
       - id: docs-site-sync

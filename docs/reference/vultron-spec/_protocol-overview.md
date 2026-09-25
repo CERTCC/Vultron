@@ -194,6 +194,6 @@ not acquire a case role by asserting that it holds one
 
 !!! info "See also"
     - [Formal Protocol Definition](../formal_protocol/index.md)
-    - [CVD as a Coordination Problem](../../topics/background/index.md)
+    - [CVD as a Coordination Problem](../../topics/background/cvd-coordination-problem.md)
 
 ---

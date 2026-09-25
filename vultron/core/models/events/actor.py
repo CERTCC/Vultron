@@ -10,10 +10,10 @@ from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 if TYPE_CHECKING:
     from vultron.core.models.base import CoreObject
-    from vultron.core.models.case import VulnerabilityCase as VultronCase
+    from vultron.core.models.case import VulnerabilityCase
 else:
     CoreObject = object
-    VultronCase = object
+    VulnerabilityCase = object
 
 
 class OfferActorToCaseReceivedEvent(VultronEvent):
@@ -106,8 +106,8 @@ class AcceptCaseOwnershipTransferReceivedEvent(VultronEvent):
         return self.inner_object_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.inner_object)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.inner_object)
 
 
 class RejectCaseOwnershipTransferReceivedEvent(VultronEvent):
@@ -147,8 +147,8 @@ class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
         return self.inner_target_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.inner_target)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.inner_target)
 
     @property
     def invitee_id(self) -> str | None:

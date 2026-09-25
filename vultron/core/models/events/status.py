@@ -5,12 +5,12 @@ from typing import TYPE_CHECKING, Literal, cast
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 if TYPE_CHECKING:
-    from vultron.core.models.case import VulnerabilityCase as VultronCase
+    from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.case_status import CaseStatus
     from vultron.core.models.participant import VultronParticipant
     from vultron.core.models.participant_status import ParticipantStatus
 else:
-    VultronCase = object
+    VulnerabilityCase = object
     CaseStatus = object
     VultronParticipant = object
     ParticipantStatus = object
@@ -52,8 +52,8 @@ class AddCaseStatusToCaseReceivedEvent(VultronEvent):
         return self.target_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.target)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.target)
 
 
 class CreateParticipantStatusReceivedEvent(VultronEvent):

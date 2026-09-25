@@ -15,7 +15,7 @@ from vultron.core.behaviors.sync.announce_tree import (
 )
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -86,7 +86,7 @@ def case_obj(datalayer):
 
 def _make_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -100,7 +100,7 @@ def _make_entry(
 
 
 def _make_event(
-    entry: VultronCaseLedgerEntry, actor_id: str
+    entry: CaseLedgerEntry, actor_id: str
 ) -> AnnounceLogEntryReceivedEvent:
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
@@ -305,7 +305,7 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
 
 def _make_remove_embargo_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -424,7 +424,7 @@ NOTE_ID = "https://example.org/notes/test-note-1"
 
 def _make_add_note_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     """Create a ledger entry with event_type='add_note_to_case'."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -519,7 +519,7 @@ PARTICIPANT_ID = "https://example.org/participants/reporter-participant"
 
 def _make_participant_status_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     """Create a ledger entry with event_type='add_participant_status_to_participant'."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -601,7 +601,7 @@ INVITEE_ACTOR_ID = "https://example.org/actors/vendor2"
 
 def _make_accept_invite_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     """Create a ledger entry with event_type='accept_invite_actor_to_case'."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -859,7 +859,7 @@ DEPARTING_PARTICIPANT_ID = "https://example.org/participants/departing"
 
 def _make_close_case_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     """Build a close_case ledger entry with payload_snapshot carrying actor."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -997,7 +997,7 @@ NEW_OWNER_ID = "https://example.org/actors/new-owner"
 
 def _make_ownership_transfer_entry(
     log_index: int, new_owner_id: str, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     """Create a ledger entry with event_type='accept_case_ownership_transfer'."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -1095,7 +1095,7 @@ def _make_participant_status_entry_with_states(
     participant_id: str,
     rm_state: str,
     vf_state: str,
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,

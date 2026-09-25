@@ -18,9 +18,9 @@
 import pytest
 from pydantic import ValidationError
 
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.models.participant import VultronParticipant
 from vultron.core.models.participant_status import (
@@ -188,7 +188,7 @@ def test_case_participant_round_trips_between_core_and_wire():
 
 def test_vulnerability_case_round_trips_between_core_and_wire():
     """ADR-0099 detail 3: as_VulnerabilityCase is VulnerabilityCase (identity)."""
-    assert as_VulnerabilityCase is VultronCase
+    assert as_VulnerabilityCase is VulnerabilityCase
 
     case_status = CoreCaseStatus(
         id_="https://example.org/cases/1/status/1",
@@ -201,7 +201,7 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
     )
-    core = VultronCase(
+    core = VulnerabilityCase(
         id_="https://example.org/cases/1",
         attributed_to="https://example.org/actors/vendor",
         case_participants=[participant],
@@ -250,7 +250,7 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
 
 def test_case_ledger_entry_to_core_returns_domain_model():
     """ADR-0099 detail 3: as_CaseLedgerEntry is CaseLedgerEntry (identity)."""
-    assert as_CaseLedgerEntry is VultronCaseLedgerEntry
+    assert as_CaseLedgerEntry is CaseLedgerEntry
 
     entry = as_CaseLedgerEntry(
         case_id="https://example.org/cases/1",
@@ -260,7 +260,7 @@ def test_case_ledger_entry_to_core_returns_domain_model():
         payload_snapshot={"id": "https://example.org/activities/1"},
     )
 
-    assert isinstance(entry, VultronCaseLedgerEntry)
+    assert isinstance(entry, CaseLedgerEntry)
     assert entry.case_id == "https://example.org/cases/1"
     assert entry.entry_hash is not None
 

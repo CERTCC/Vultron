@@ -17,7 +17,7 @@ from typing import cast
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
@@ -145,11 +145,11 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).event_type == (
             "add_embargo_event_to_case"
         )
 
@@ -184,11 +184,11 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).event_type == (
             "remove_embargo_event_from_case"
         )
 
@@ -229,8 +229,8 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         # Cascade must fire even on BT FAILURE.
         assert len(entries) == 1
@@ -276,8 +276,8 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 0, (
             "Invitee-side receipt must not commit a canonical ledger entry; "
@@ -329,11 +329,11 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).event_type == (
             "accept_invite_to_embargo_on_case"
         )
 
@@ -375,10 +375,10 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).event_type == (
             "reject_invite_to_embargo_on_case"
         )

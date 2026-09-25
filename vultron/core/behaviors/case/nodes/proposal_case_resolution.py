@@ -34,7 +34,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
 from vultron.core.models._helpers import project_wire_snapshot_to_core
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report import VulnerabilityReport
 from vultron.errors import VultronAlreadyExistsError
 
@@ -90,7 +90,7 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case = VultronCase(attributed_to=self.actor_id)
+        case = VulnerabilityCase(attributed_to=self.actor_id)
         if self._report_id is not None:
             case.vulnerability_reports.append(self._report_id)
 

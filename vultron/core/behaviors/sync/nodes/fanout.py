@@ -37,7 +37,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     ParticipantStatus,
@@ -64,9 +64,7 @@ class CollectNonClosedLogEntryRecipientsNode(DataLayerActionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        "log_entry": PortInformation(
-            data_type=VultronCaseLedgerEntry, required=True
-        ),
+        "log_entry": PortInformation(data_type=CaseLedgerEntry, required=True),
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
@@ -141,9 +139,7 @@ class _SendLogEntryToEachNode(DataLayerActionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        "log_entry": PortInformation(
-            data_type=VultronCaseLedgerEntry, required=True
-        ),
+        "log_entry": PortInformation(data_type=CaseLedgerEntry, required=True),
         "fanout_recipients": PortInformation(data_type=object, required=True),
         "sync_port": PortInformation(data_type=object, required=False),
     }
@@ -172,7 +168,7 @@ class _SendLogEntryToEachNode(DataLayerActionWithPorts):
             self.logger.error("%s: actor_id not available", self.name)
             return Status.FAILURE
 
-        entry = cast(VultronCaseLedgerEntry, self.log_entry)
+        entry = cast(CaseLedgerEntry, self.log_entry)
         recipients = self.fanout_recipients
         if self._sync_port is None:
             self.logger.debug(
@@ -237,9 +233,7 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        "log_entry": PortInformation(
-            data_type=VultronCaseLedgerEntry, required=True
-        ),
+        "log_entry": PortInformation(data_type=CaseLedgerEntry, required=True),
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
@@ -284,9 +278,7 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        "log_entry": PortInformation(
-            data_type=VultronCaseLedgerEntry, required=True
-        ),
+        "log_entry": PortInformation(data_type=CaseLedgerEntry, required=True),
         "fanout_recipients": PortInformation(data_type=object, required=True),
         "sync_port": PortInformation(data_type=object, required=False),
     }
@@ -315,7 +307,7 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
             self.logger.error("%s: actor_id not available", self.name)
             return Status.FAILURE
 
-        entry = cast(VultronCaseLedgerEntry, self.log_entry)
+        entry = cast(CaseLedgerEntry, self.log_entry)
         recipients = cast(list[str], self.fanout_recipients)
         if self._sync_port is None:
             self.logger.debug(

@@ -243,8 +243,8 @@ groups:
       only on days 31–60. Activating the shorter embargo immediately captures all mutual
       agreement; the longer duration becomes a pending revision so the proposer can negotiate
       the contested portion. This is strictly better than rejecting outright: both parties
-      secure the overlap they both wanted. See docs/topics/process_models/em/defaults.md
-      for the full vector-agreement derivation.
+      secure the overlap they both wanted. See docs/topics/process_models/em/formal_model.md
+      § "Why the shortest proposal wins" for the full vector-agreement derivation.
     verification: >-
       A unit test confirms that `InitializeDefaultEmbargoNode` sets `em_state` to
       `EM.ACTIVE` for the shorter duration and records the longer as `EM.REVISE`
@@ -410,7 +410,7 @@ groups:
     note: >-
       Do not confuse this field with `VultronEvent.context` in
       `vultron/core/models/events/base.py`, which is typed `CoreObject | None` and holds the
-      *inbound activity's* resolved context. The casts to `VultronCase` in
+      *inbound activity's* resolved context. The casts to `VulnerabilityCase` in
       `vultron/core/models/events/embargo.py` are on that field, for `Announce`/`Invite` events
       whose context genuinely is a case, and are unaffected by this widening.
     verification: >-
@@ -720,8 +720,9 @@ groups:
       Two parties proposing 30 and 60 days agree on days 1–30 and disagree only
       beyond that, so accepting the shorter proposal captures all mutual agreement
       immediately and leaves the contested remainder to negotiate as a revision. This
-      is the *Shortest Embargo Proposed Wins* heuristic derived in
-      `docs/topics/process_models/em/defaults.md` and applied to case growth in
+      is the *Shortest Embargo Proposed Wins* heuristic stated in
+      `docs/topics/process_models/em/defaults.md`, derived in
+      `docs/topics/process_models/em/formal_model.md`, and applied to case growth in
       `docs/topics/process_models/em/working_with_others.md`.
     note: >-
       This requirement restates guidance that was already normative in

@@ -11,7 +11,7 @@ from vultron.core.models import (
     find_in_core_vocabulary,
 )
 from vultron.core.models.base import VULTRON_CONTEXT_URI, CoreRecord
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry as CoreCaseLedgerEntry,
 )
@@ -257,18 +257,33 @@ def test_core_case_ledger_entry_inherits_core_object():
 
 def test_vulnerability_case_inherits_core_object():
     """VulnerabilityCase (migrated in #729) must be a CoreObject subclass."""
-    from vultron.core.models.case import VulnerabilityCase
-
     assert issubclass(VulnerabilityCase, CoreObject)
     assert "VulnerabilityCase" in CORE_VOCABULARY
     assert CORE_VOCABULARY["VulnerabilityCase"] is VulnerabilityCase
 
 
-def test_vultron_case_alias_is_vulnerability_case():
-    """VultronCase backward-compat alias must resolve to VulnerabilityCase."""
-    from vultron.core.models.case import VulnerabilityCase
+def test_retired_case_and_ledger_entry_aliases_are_gone():
+    """``VultronCase`` and ``VultronCaseLedgerEntry(Ref)`` are removed (#3431).
 
-    assert VultronCase is VulnerabilityCase
+    Each was an assignment alias of its canonical class, never a distinct type,
+    so an ``isinstance`` check against the alias could not fail and the
+    re-coercion branch it guarded was unreachable. CS-15-001 forbids keeping
+    them to spare call sites; this pins that no module re-exports them.
+    """
+    import vultron.core.models.case as case_module
+    import vultron.core.models.case_ledger_entry as ledger_module
+    import vultron.core.models.vultron_types as types_module
+    import vultron.wire.as2.vocab.objects.case_ledger_entry as wire_module
+
+    for module, name in (
+        (case_module, "VultronCase"),
+        (types_module, "VultronCase"),
+        (ledger_module, "VultronCaseLedgerEntry"),
+        (ledger_module, "VultronCaseLedgerEntryRef"),
+        (wire_module, "VultronCaseLedgerEntry"),
+        (wire_module, "VultronCaseLedgerEntryRef"),
+    ):
+        assert not hasattr(module, name), f"{module.__name__}.{name}"
 
 
 # ---------------------------------------------------------------------------

@@ -41,7 +41,10 @@ from vultron.core.models.events import (
     AddNoteToCaseReceivedEvent,
     MessageSemantics,
 )
-from vultron.core.models.vultron_types import VultronCaseActor, VultronCase
+from vultron.core.models.vultron_types import (
+    VultronCaseActor,
+    VulnerabilityCase,
+)
 from vultron.errors import UnroutableActivityError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase as as_VulnerabilityCase,
@@ -145,7 +148,7 @@ class TestCreateAndPersistCaseActivityNodeFailFast:
     def test_missing_case_obj_returns_failure(self, bridge):
         """create_case_obj absent from blackboard → FAILURE."""
         node = CreateAndPersistCaseActivityNode()
-        case_obj = VultronCase(id_=CASE_ID, name="Test Case")
+        case_obj = VulnerabilityCase(id_=CASE_ID, name="Test Case")
         bridge.datalayer.create(case_obj)
         result = bridge.execute_with_setup(
             tree=node,
@@ -159,7 +162,7 @@ class TestCreateAndPersistCaseActivityNodeFailFast:
     def test_missing_case_obj_sets_feedback_message(self, bridge, datalayer):
         """_read_case_obj KeyError sets feedback_message on the node."""
         node = CreateAndPersistCaseActivityNode()
-        case_obj = VultronCase(id_=CASE_ID, name="Test Case")
+        case_obj = VulnerabilityCase(id_=CASE_ID, name="Test Case")
         datalayer.create(case_obj)
 
         result = bridge.execute_with_setup(

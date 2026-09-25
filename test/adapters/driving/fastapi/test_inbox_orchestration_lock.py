@@ -44,7 +44,7 @@ from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
     compute_genesis_hash,
 )
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
@@ -157,7 +157,7 @@ def seeded_dl(dl):
     return dl, [entry0, entry1]
 
 
-def _make_announce_body(entry: VultronCaseLedgerEntry) -> dict[str, Any]:
+def _make_announce_body(entry: CaseLedgerEntry) -> dict[str, Any]:
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )

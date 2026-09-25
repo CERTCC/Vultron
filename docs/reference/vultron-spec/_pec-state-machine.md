@@ -33,7 +33,7 @@ embargo terms.
 {% include-markdown "../../topics/process_models/em/pec_state_machine_diagram.md" %}
 
 !!! info "See also"
-    - [Participant Embargo Consent](../../topics/process_models/em/participant-embargo-consent.md)
+    - [Embargo Lifecycle](../../topics/behavior_logic/use-cases/embargo-lifecycle.md)
 
 ### 9.2 Transitions and Guards
 

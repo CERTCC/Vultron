@@ -65,7 +65,7 @@ from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
 )
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
@@ -193,17 +193,17 @@ def _status_ids(dl: SqliteDataLayer, participant_id: str) -> list[str]:
     ]
 
 
-def _ledger_entries(dl: SqliteDataLayer) -> list[VultronCaseLedgerEntry]:
+def _ledger_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
     entries = [
-        cast(VultronCaseLedgerEntry, obj)
+        cast(CaseLedgerEntry, obj)
         for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, VultronCaseLedgerEntry)
-        and cast(VultronCaseLedgerEntry, obj).case_id == CASE_ID
+        if isinstance(obj, CaseLedgerEntry)
+        and cast(CaseLedgerEntry, obj).case_id == CASE_ID
     ]
     return sorted(entries, key=lambda e: e.log_index)
 
 
-def _receipt_entries(dl: SqliteDataLayer) -> list[VultronCaseLedgerEntry]:
+def _receipt_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
     """Return only the participant-status receipt entries (GuardedCommit), sorted."""
     return [
         e
@@ -771,9 +771,7 @@ class TestTerminalClosedParticipant:
 # ---------------------------------------------------------------------------
 
 
-def _status_snapshot_entry(
-    rm_state: str, vf_state: str
-) -> VultronCaseLedgerEntry:
+def _status_snapshot_entry(rm_state: str, vf_state: str) -> CaseLedgerEntry:
     """A canonical ``add_participant_status_to_participant`` entry."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -797,7 +795,7 @@ def _status_snapshot_entry(
 
 
 def _announce_event(
-    entry: VultronCaseLedgerEntry,
+    entry: CaseLedgerEntry,
 ) -> AnnounceLogEntryReceivedEvent:
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")

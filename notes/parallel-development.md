@@ -103,7 +103,11 @@ predicates ignores the authorities its own project already established.**
 
 Sub-issue list order is manual drag-order. It is a tie-breaker, never a
 priority signal — PAD-03-001 puts priority on the `Schedule` field, on the Epic
-**or** the leaf, so a leaf without a tier inherits its Epic's.
+**or** the leaf, so a leaf without a tier inherits its Epic's. `Someday` counts
+as "without a tier" here: it is the default a new issue lands on, not a
+decision, so a Someday leaf under a Now Epic is a Now leaf that has drifted.
+`sync-epic-schedules.sh` (raise-only) catches those up; `Later` is a deliberate
+deferral and is left alone.
 
 ## Task Claiming Protocol
 
