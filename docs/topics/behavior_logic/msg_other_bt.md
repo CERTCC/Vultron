@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Process Other Messages Behavior
 
 The Process Other Messages Behavior Tree is shown below.

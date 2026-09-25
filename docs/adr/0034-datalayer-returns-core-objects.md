@@ -4,6 +4,7 @@ date: 2026-07-17
 deciders: Vultron maintainers
 consulted: notes/datalayer-design.md, notes/domain-model-separation.md
 informed: CERT/CC Vultron contributors
+stakeholder_type: [project-contributor]
 ---
 
 # DataLayer Port Returns Core Domain Objects

@@ -4,6 +4,7 @@ date: 2026-08-11
 deciders: ahouseholder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # CI Failure Alerting via GitHub Issues on Main-Branch and Scheduled Workflows

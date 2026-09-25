@@ -4,6 +4,7 @@ date: 2026-08-20
 deciders: Allen D. Householder
 consulted: Vultron protocol maintainers
 informed: Vultron contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Accept Non-Adjacent Forward RM Jumps and Notify; Refuse Backward Regressions Non-Silently

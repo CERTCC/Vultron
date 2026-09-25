@@ -9,6 +9,7 @@ informed: Vultron contributors
 # (#3350, #3378) — which IMPLTS-07-019 requires them to say. Suppress the
 # MS-14-002 match on that vocabulary.
 lint_suppress: [status_prose_contradiction]
+stakeholder_type: [project-contributor]
 ---
 
 # Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them

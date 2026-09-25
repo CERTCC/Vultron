@@ -4,6 +4,7 @@ date: 2026-09-02
 deciders: Allen D. Householder
 consulted: Vultron protocol maintainers
 informed: Vultron contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Report Every Violation, Reject the Batch — and the Emit/Receive Dispositions Are Postel's Maxim

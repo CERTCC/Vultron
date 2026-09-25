@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Report Management Behavior Trees
 
 Auto-generated reference documentation for the Report Management (RM) behavior trees

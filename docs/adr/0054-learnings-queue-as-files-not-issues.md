@@ -4,6 +4,7 @@ date: 2026-08-06
 deciders: Allen D. Householder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0054: Retain plan/incoming/learnings/ as a File Queue; Do Not Migrate to GitHub Issues

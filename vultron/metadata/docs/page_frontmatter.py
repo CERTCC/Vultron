@@ -14,7 +14,9 @@ Every ``docs/**/*.md`` file is one of three things:
   (DF-11-010); its hosts' declarations govern it.
 * a **working-record page** — matched by
   :data:`~vultron.metadata.docs.page_schema.WORKING_RECORD_PATTERNS`. It
-  declares ``[project-contributor]`` and no ``level`` (DF-11-012).
+  declares ``[project-contributor]`` and no ``level`` (DF-11-012), and it is
+  absent from the ``mkdocs.yml`` nav and matched by ``not_in_nav``
+  (DF-11-003).
 * a **reader-facing page** — everything else. It declares both keys
   (DF-11-001).
 
@@ -24,17 +26,13 @@ still a page: it has a URL and readers of its own. A page included *whole* has
 its frontmatter copied into its host, which would render its declarations
 there (DF-11-004), so such a page that declares either key is reported too.
 
-Pages that declare nothing yet are listed in :data:`BASELINE_PATH`. A page in
-the baseline is tolerated; an undeclared page that is not is a failure, and so
-is a baseline entry that no longer names an undeclared page. ``--prune-baseline``
-only removes entries, and a test pins the entry count to a ceiling that may only
-be lowered, so the baseline shrinks and never grows. That lets this check land
-before the content audit (#3526) assigns values to the whole tree.
+Every page declares: an undeclared page is a failure. The shrink-only
+baseline that let this check land before the content audit (#3526) reached
+zero and was retired.
 
 Usage::
 
-    uv run docs-frontmatter                   # check (pre-commit, CI)
-    uv run docs-frontmatter --prune-baseline  # drop entries that now declare
+    uv run docs-frontmatter   # check (pre-commit, CI)
 """
 
 from __future__ import annotations
@@ -47,9 +45,15 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from vultron.metadata.base import mkdocs_config, nav_paths
+from pathspec.gitignore import GitIgnoreSpec
+
+from vultron.metadata.base import (
+    mkdocs_config,
+    nav_exclusion_fault,
+    nav_paths,
+    not_in_nav_spec,
+)
 from vultron.metadata.base import repo_root as _find_repo_root
-from vultron.metadata.docs.baseline_file import entry_lines, write_entries
 from vultron.metadata.docs.page_schema import (
     PageFrontmatter,
     WorkingRecordFrontmatter,
@@ -65,20 +69,6 @@ from vultron.metadata.file_loading import (
 #: The two keys this check owns. Any other frontmatter key belongs to another
 #: schema and is ignored here.
 DECLARATION_KEYS: tuple[str, ...] = ("stakeholder_type", "level")
-
-#: Pages that declare neither key yet. Kept outside ``docs/`` so it is never
-#: published; one ``docs/``-relative path per line, ``#`` starts a comment.
-BASELINE_PATH = Path(__file__).with_name("page_frontmatter_baseline.txt")
-
-_BASELINE_HEADER = """\
-# Pages under docs/ that declare neither stakeholder_type nor level yet.
-#
-# Maintained by vultron.metadata.docs.page_frontmatter (DF-11-001). This list
-# may only shrink: a page not listed here must declare both keys, and a listed
-# page that now declares them, or is deleted or renamed, must be removed — run
-# `uv run docs-frontmatter --prune-baseline`. Do not add entries by hand;
-# test_page_frontmatter.py pins a ceiling on the entry count.
-"""
 
 # ``{% include-markdown "path" ... %}`` and the plugin's plain ``include``.
 _INCLUDE_RE = re.compile(
@@ -100,11 +90,17 @@ class DocsTree:
         pages: ``docs/``-relative paths in the target set.
         fragments: Excluded fragments, each mapped to the pages hosting it.
         whole_includes: Every file included whole, mapped to its hosts.
+        navved: Every path the ``mkdocs.yml`` nav references.
+        not_in_nav: The ``mkdocs.yml`` ``not_in_nav`` patterns.
     """
 
     pages: tuple[str, ...]
     fragments: Mapping[str, tuple[str, ...]]
     whole_includes: Mapping[str, tuple[str, ...]]
+    navved: frozenset[str] = frozenset()
+    not_in_nav: GitIgnoreSpec = field(
+        default_factory=lambda: GitIgnoreSpec.from_lines([])
+    )
 
 
 @dataclass
@@ -114,7 +110,6 @@ class CheckResult:
     reader_pages: int = 0
     working_record_pages: int = 0
     fragments: int = 0
-    undeclared: list[str] = field(default_factory=list)
 
 
 def include_directives(
@@ -205,6 +200,8 @@ def classify_docs_tree(root: Path) -> DocsTree:
         pages=tuple(p for p in every if p not in fragments),
         fragments=fragments,
         whole_includes=whole_includes,
+        navved=navved,
+        not_in_nav=not_in_nav_spec(root),
     )
 
 
@@ -223,36 +220,18 @@ def frontmatter_key_lines(path: Path) -> dict[str, int]:
     return found
 
 
-def read_baseline(path: Path | None = None) -> set[str]:
-    """Return the baselined page paths, ignoring comments and blank lines."""
-    return {
-        entry
-        for _, line in entry_lines(path or BASELINE_PATH)
-        if (entry := line.split("#", 1)[0].strip())
-    }
-
-
-def write_baseline(entries: set[str], path: Path | None = None) -> None:
-    """Write *entries* sorted, under the explanatory header."""
-    write_entries(path or BASELINE_PATH, _BASELINE_HEADER, entries)
-
-
 def _declarations(metadata: Mapping[str, object]) -> dict[str, object]:
     return {k: metadata[k] for k in DECLARATION_KEYS if k in metadata}
 
 
-def check_docs_frontmatter(
-    repo_root: Path | None = None, baseline: set[str] | None = None
-) -> CheckResult:
+def check_docs_frontmatter(repo_root: Path | None = None) -> CheckResult:
     """Validate every page's declarations and every fragment's absence of them.
 
     Args:
         repo_root: Repository root. Defaults to the enclosing checkout.
-        baseline: Pages tolerated without declarations. Defaults to the
-            contents of :data:`BASELINE_PATH`.
 
     Returns:
-        Counts for a summary line, and the undeclared pages still baselined.
+        Counts for a summary line.
 
     Raises:
         MetadataLoadError: If no page resolves under ``docs/`` (DF-09-009).
@@ -271,7 +250,6 @@ def check_docs_frontmatter(
             path="docs",
         )
 
-    allowed = read_baseline() if baseline is None else baseline
     result = CheckResult(fragments=len(tree.fragments))
     collector = FailureCollector()
 
@@ -295,9 +273,20 @@ def check_docs_frontmatter(
                 )
 
     for rel in tree.pages:
+        working = is_working_record(rel)
+        misplaced = working and nav_exclusion_fault(
+            rel, tree.navved, tree.not_in_nav
+        )
+        if misplaced:
+            # Its own attempt, so a page that is also mis-declared reports both.
+            with collector.attempt():
+                raise MetadataLoadError(
+                    f"is project working record but {misplaced}, and link it "
+                    f"from the routing page for its group (DF-11-003)",
+                    path=shown(rel),
+                )
         with collector.attempt():
             path = docs_dir / rel
-            working = is_working_record(rel)
             if working:
                 result.working_record_pages += 1
             else:
@@ -307,9 +296,6 @@ def check_docs_frontmatter(
                 load_frontmatter(path, root=root).metadata
             )
             if not declared:
-                if rel in allowed:
-                    result.undeclared.append(rel)
-                    continue
                 wanted = (
                     "stakeholder_type: [project-contributor] (working record, "
                     "no level; DF-11-012)"
@@ -321,13 +307,6 @@ def check_docs_frontmatter(
                 )
 
             key_lines = frontmatter_key_lines(path)
-            if rel in allowed:
-                raise MetadataLoadError(
-                    f"now declares its keys but is still listed in "
-                    f"{BASELINE_PATH.name}; run `uv run docs-frontmatter "
-                    f"--prune-baseline`",
-                    path=shown(rel),
-                )
             including = tree.whole_includes.get(rel)
             if including:
                 key = next(iter(declared))
@@ -347,17 +326,6 @@ def check_docs_frontmatter(
                 key_lines=key_lines,
             )
 
-    page_set = set(tree.pages)
-    for rel in sorted(allowed - page_set):
-        with collector.attempt():
-            raise MetadataLoadError(
-                f"listed in {BASELINE_PATH.name} but is no longer a page "
-                f"under docs/; deleting or renaming a baselined page needs "
-                f"`uv run docs-frontmatter --prune-baseline` in the same "
-                f"commit",
-                path=shown(rel),
-            )
-
     collector.raise_if_any(
         summary=(
             f"{len(collector.failures)} docs frontmatter finding(s) "
@@ -367,55 +335,12 @@ def check_docs_frontmatter(
     return result
 
 
-def prune_baseline(
-    repo_root: Path | None = None, baseline_path: Path | None = None
-) -> int:
-    """Drop baseline entries that no longer name an undeclared page.
-
-    Never adds an entry, so it cannot be used to grow the baseline.
-
-    Args:
-        repo_root: Repository root. Defaults to the enclosing checkout.
-        baseline_path: Baseline file. Defaults to :data:`BASELINE_PATH`.
-
-    Returns:
-        How many entries were removed.
-    """
-    root = repo_root or _find_repo_root()
-    docs_dir = root / "docs"
-    tree = classify_docs_tree(root)
-    current = read_baseline(baseline_path)
-    keep = set()
-    for rel in current & set(tree.pages):
-        try:
-            metadata = load_frontmatter(docs_dir / rel, root=root).metadata
-        except MetadataLoadError:
-            # Unparseable: it is not declaring anything yet, so keep it; the
-            # check reports the parse fault on its own.
-            keep.add(rel)
-            continue
-        if not _declarations(metadata):
-            keep.add(rel)
-    write_baseline(keep, baseline_path)
-    return len(current) - len(keep)
-
-
 def main(argv: list[str] | None = None) -> None:
     """Entry point for the ``docs-frontmatter`` command."""
     parser = argparse.ArgumentParser(
         description="Validate stakeholder_type and level in docs/ frontmatter."
     )
-    parser.add_argument(
-        "--prune-baseline",
-        action="store_true",
-        help="Remove baseline entries for pages that now declare their keys.",
-    )
-    args = parser.parse_args(argv)
-
-    if args.prune_baseline:
-        removed = prune_baseline()
-        print(f"Removed {removed} entry(ies) from {BASELINE_PATH.name}.")
-        return
+    parser.parse_args(argv)
 
     try:
         result = check_docs_frontmatter()
@@ -425,8 +350,7 @@ def main(argv: list[str] | None = None) -> None:
     print(
         f"Checked {result.reader_pages} reader-facing and "
         f"{result.working_record_pages} working-record page(s); "
-        f"{result.fragments} include fragment(s) excluded; "
-        f"{len(result.undeclared)} baselined page(s) still undeclared."
+        f"{result.fragments} include fragment(s) excluded."
     )
 
 

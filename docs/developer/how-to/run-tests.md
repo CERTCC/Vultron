@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # How to run maintainer tests
 
 Use this guide when you need CI-aligned test execution from a maintainer

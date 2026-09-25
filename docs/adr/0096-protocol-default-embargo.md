@@ -4,6 +4,7 @@ date: 2026-09-18
 deciders: [adh, Claude Opus 5]
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0096: A Protocol Default Embargo Replaces the Pre-Case Phase

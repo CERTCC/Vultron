@@ -4,6 +4,7 @@ date: 2026-09-22
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Demo scenarios self-register at import time; every scenario table and the CI matrix become derived artifacts

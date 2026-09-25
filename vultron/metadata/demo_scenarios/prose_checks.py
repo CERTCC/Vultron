@@ -79,8 +79,7 @@ def missing_narrative_nav_entries(
 
     Completeness only: the nav's labels are hand-written short forms (``FV``,
     ``FCCV-handoff``) that the registry's ``label`` does not always match, so
-    the nav is checked for omission rather than regenerated — the same treatment
-    ``missing_nav_entries()`` gives the ADR pages (DEMOCI-11-007).
+    the nav is checked for omission rather than regenerated (DEMOCI-11-007).
     """
     base = root or repo_root()
     resolved = discover_scenarios() if specs is None else specs

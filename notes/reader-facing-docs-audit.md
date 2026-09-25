@@ -107,7 +107,8 @@ categories, project working record. `WORKING_RECORD_PATTERNS` in
   addressed to readers and stays leveled.
 
 Tagging these (`[project-contributor]`, no level) and moving them behind their
-routing door belong to #3528, together with the rest of the working record.
+routing door belong to #3528, together with the rest of the working record,
+and #3528 did both: the door is `about/project_record.md`.
 
 ## Cross-page rulings
 
@@ -238,6 +239,8 @@ would get it wrong.
   plan puts Future Work in the 500-level `process-researcher` section; it
   belongs on the adoption path instead, linked from the pages it extends
   (`case_ledger_sync.md`, `ownership_transfer.md`, `reference_architecture.md`).
+  Settled in #3528: Future Work stays in Explanation, and the Research section
+  carries only Measuring CVD and Other Uses.
 
 ## Inbound links: where a move is expensive
 

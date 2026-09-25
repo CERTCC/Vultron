@@ -4,6 +4,7 @@ date: 2026-08-28
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Carry the Embargo Invite RSVP Deadline on `Invite.end_time`

@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-03-17
 deciders: ahouseholder
+stakeholder_type: [project-contributor]
 ---
 
 # Remove API v1 and consolidate vocabulary examples into API v2

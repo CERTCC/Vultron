@@ -2,6 +2,7 @@
 status: accepted
 date: 2023-10-23
 deciders: adh
+stakeholder_type: [project-contributor]
 ---
 # Build our own Behavior Tree engine in Python
 

@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Case State Behavior Trees
 
 Auto-generated reference documentation for the Case State (CS) receive-side behavior trees

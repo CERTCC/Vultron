@@ -4,6 +4,7 @@ date: 2026-03-30
 deciders: ahouseholder
 consulted: specs/ci-security.yaml
 informed: plan/IMPLEMENTATION_PLAN.md
+stakeholder_type: [project-contributor]
 ---
 
 # Pin GitHub Actions to Full Commit SHAs with Version Comments

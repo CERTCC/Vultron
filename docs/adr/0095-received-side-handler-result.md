@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-09-17
 deciders: Allen D. Householder
+stakeholder_type: [project-contributor]
 ---
 
 # Received-Side `HandlerResult` Carries a Handler Disposition Across the Dispatcher Boundary

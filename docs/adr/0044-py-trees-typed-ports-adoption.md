@@ -7,6 +7,7 @@ consulted:
   - project stakeholders
 informed:
   - contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Adopt py_trees Typed Ports for BT Node Blackboard Contracts

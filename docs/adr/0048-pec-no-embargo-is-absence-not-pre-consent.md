@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-07-31
 deciders: [adh, Claude Opus 5]
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0048: PEC `NO_EMBARGO` Means Absence of Embargo, Not Pre-Consent

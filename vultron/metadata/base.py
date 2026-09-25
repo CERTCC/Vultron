@@ -5,6 +5,7 @@ from typing import Annotated
 
 import pathspec
 import yaml
+from pathspec.gitignore import GitIgnoreSpec
 from pydantic import StringConstraints
 
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
@@ -111,11 +112,50 @@ def nav_paths(root: Path | None = None) -> frozenset[str]:
     The nav is walked structurally rather than matched as a substring: a path
     that appears only in a comment or an unrelated key would otherwise satisfy
     a completeness check while leaving the page genuinely un-navved, which then
-    fails ``mkdocs build --strict`` instead (MS-14-006).
+    fails ``mkdocs build --strict`` instead (DEMOCI-11-007).
 
-    Shared by every consumer that checks nav completeness rather than
-    regenerating the nav — ADR pages (MS-14-006) and scenario narrative pages
-    (DEMOCI-11-007) — because the nav's labels are hand-written prose in both
-    cases and only the *set* of files is derivable.
+    Shared by every consumer that checks nav placement rather than
+    regenerating the nav: scenario narrative pages must be present
+    (DEMOCI-11-007), while ADR pages (MS-14-006) and other working-record pages
+    (DF-11-003, ``docs-frontmatter``) must be absent. The nav's labels are
+    hand-written prose, so only the *set* of files is derivable.
     """
     return frozenset(_walk_nav(mkdocs_config(root).get("nav")))
+
+
+def not_in_nav_spec(root: Path | None = None) -> GitIgnoreSpec:
+    """Return ``mkdocs.yml``'s ``not_in_nav`` patterns as MkDocs matches them.
+
+    MkDocs parses the value as gitignore-style lines, so this does too; a
+    hand-rolled glob would disagree with the build on ``**`` and on patterns
+    without a slash, which match at any depth.
+    """
+    value = mkdocs_config(root).get("not_in_nav")
+    lines = value.splitlines() if isinstance(value, str) else []
+    return GitIgnoreSpec.from_lines(lines)
+
+
+def nav_exclusion_fault(
+    docs_path: str, navved: frozenset[str], not_in_nav: GitIgnoreSpec
+) -> str | None:
+    """Say why a page that must stay out of the nav is misplaced, if it is.
+
+    A page kept out of the reader-facing nav (DF-11-003) must be absent from
+    the ``nav:`` tree *and* matched by ``not_in_nav``: absent alone makes
+    ``mkdocs build --strict`` fail on an omitted-file warning, which is slow to
+    find and names no rule.
+
+    Args:
+        docs_path: The page's ``docs/``-relative POSIX path.
+        navved: Every path the nav references (:func:`nav_paths`).
+        not_in_nav: The ``not_in_nav`` patterns (:func:`not_in_nav_spec`).
+
+    Returns:
+        The fault as a sentence fragment, or ``None`` when the page is placed
+        correctly.
+    """
+    if docs_path in navved:
+        return "is listed in the mkdocs.yml nav; remove it from the nav"
+    if not not_in_nav.match_file(docs_path):
+        return "is not matched by not_in_nav in mkdocs.yml; add a pattern"
+    return None

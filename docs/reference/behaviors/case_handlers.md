@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Case Behavior Trees
 
 Auto-generated reference documentation for case management and case state (CS) behavior trees

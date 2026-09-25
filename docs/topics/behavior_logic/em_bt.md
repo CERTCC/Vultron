@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Embargo Management Behavior Tree
 
 ## Requirements

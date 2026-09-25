@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # First day maintainer setup
 
 By the end of this tutorial, we will have a working local maintainer

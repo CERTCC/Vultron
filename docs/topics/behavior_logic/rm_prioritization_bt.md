@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Report Prioritization Behavior
 
 ## Requirements

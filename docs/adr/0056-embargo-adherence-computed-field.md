@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-08-11
 deciders: [adh, Claude Sonnet 4.6]
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0056: `embargo_adherence` Is a Computed Property Derived from PEC State

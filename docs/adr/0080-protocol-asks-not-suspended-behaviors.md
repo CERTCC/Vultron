@@ -4,6 +4,7 @@ date: 2026-08-31
 deciders: Allen D. Householder
 consulted: Claude Opus 5
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Asking Permission Is a Protocol Message, Not a Suspended Behavior

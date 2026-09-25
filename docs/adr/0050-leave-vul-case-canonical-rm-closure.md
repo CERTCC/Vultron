@@ -4,6 +4,7 @@ date: 2026-08-03
 deciders: Allen D. Householder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Leave(VulnerabilityCase) Is the Canonical RM Case Closure Mechanism

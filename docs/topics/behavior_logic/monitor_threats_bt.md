@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Monitor Threats Behavior Tree
 
 ## Requirements

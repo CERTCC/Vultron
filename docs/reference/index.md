@@ -42,11 +42,7 @@ protocol with other related standards and protocols, including:
 - [Formal Protocol](formal_protocol/index.md) — The Multi-Party Coordinated Vulnerability Disclosure (MPCVD) process defined as a communicating hierarchical state machine.
 - [Messages](messages/index.md) — How the formal message set relates to the ActivityStreams 2.0 (AS2) wire vocabulary the prototype sends and receives.
 - [Specifications](specs/index.md) — Structured requirements organized by portability tier: Protocol, Architecture, Project, and Process.
-- [Behaviors](behaviors/index.md) — The behavior trees in `vultron/core/behaviors/`, rendered from their factory functions.
-- [Case States](case_states/index.md) — An annotated listing of every state in the case state model.
-- [Code](code/index.md) — Documentation of the Python modules in the Vultron prototype.
 - [SSVC Crosswalk](ssvc_crosswalk.md) — A crosswalk of the Vultron Protocol against Stakeholder-Specific Vulnerability Categorization (SSVC).
-- [Decision Records](../adr/index.md) — Decision records for the Vultron project.
 <!-- markdownlint-enable MD007 -->
 
 <!-- END GENERATED SECTION CONTENTS -->

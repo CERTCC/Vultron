@@ -4,6 +4,7 @@ date: 2026-09-17
 deciders: Allen D. Householder
 consulted: —
 informed: —
+stakeholder_type: [project-contributor]
 ---
 
 # Lint Fragments as Source, and Evaluate Page-Scoped Style Rules on the Rendered Page

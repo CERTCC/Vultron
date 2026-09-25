@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-08-20
 deciders: sei-ahouseholder
+stakeholder_type: [project-contributor]
 ---
 
 # Refuse Misaddressed Activities at the Inbox with a Synchronous 4xx

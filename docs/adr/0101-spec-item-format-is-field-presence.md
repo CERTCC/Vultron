@@ -4,6 +4,7 @@ date: 2026-09-22
 deciders: [adh, Claude Opus 5]
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0101: Spec Item Format Is Field Presence, Not a Class Choice; a Bare Item Cannot Be a `BehavioralSpec`

@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Vultrabot Behavior Tree Demo
 
 This demo implements a far more complex behavior tree than the simple

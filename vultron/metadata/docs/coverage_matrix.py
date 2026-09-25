@@ -54,8 +54,7 @@ class Coverage:
 
     Only declarations are counted. Pages that declare nothing yet, and
     working-record pages, which carry no level (DF-11-012), are left out, so
-    adding such a page does not make the committed matrix stale; the
-    shrink-only baseline already records the undeclared ones.
+    adding such a page does not make the committed matrix stale.
 
     Attributes:
         cells: ``(row, level) -> pages``, for rows in :data:`ROWS`.
@@ -142,7 +141,6 @@ def render_matrix(coverage: Coverage) -> str:
         "two\ntypes is counted in both of their rows.\n\n"
         f"{header}\n{delimiter}\n" + "\n".join(rows) + "\n\n"
         f"Reader-facing pages that declare both keys: {coverage.declared}.\n"
-        "Pages that declare neither yet are listed in\n"
-        "`vultron/metadata/docs/page_frontmatter_baseline.txt`, not here;\n"
-        "working-record pages carry no level (DF-11-012) and are not counted.\n"
+        "Working-record pages carry no level (DF-11-012) and are not "
+        "counted.\n"
     )

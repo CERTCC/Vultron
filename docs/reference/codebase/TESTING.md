@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Testing Patterns
 
 ## Core Sections (Required)

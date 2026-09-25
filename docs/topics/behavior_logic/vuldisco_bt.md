@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Vulnerability Discovery Behavior
 
 ## Requirements

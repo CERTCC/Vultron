@@ -4,6 +4,7 @@ date: 2026-08-26
 deciders: Allen D. Householder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Split Per-Participant VFD Tracking into Separate Vendor-Path and Deployer-Path Sub-Machines

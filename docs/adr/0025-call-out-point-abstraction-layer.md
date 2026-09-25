@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-06-25
 deciders: [adh]
+stakeholder_type: [project-contributor]
 ---
 
 # Call-Out Point Abstraction Layer: Factory-Based Injection with Typed Backends

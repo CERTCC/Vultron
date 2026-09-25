@@ -167,7 +167,9 @@ recurring mistake, because all three describe "what an actor does".
 | `docs/reference/behaviors/` | What trees the prototype builds today | Reference | `vultron/core/behaviors/`, rendered at build time |
 
 The `*_bt.md` pages are **historical**: they are the original design and the
-formal behavioral specification, and `index.md` frames them that way. Do not
+formal behavioral specification, and `index.md` frames them that way. They are
+working record, out of the nav and reached through
+`topics/behavior_logic/original_design.md` (#3528). Do not
 update them to track implementation drift — that is what the other two views are
 for. They change only when the *design* changes.
 

@@ -3,6 +3,7 @@ status: accepted
 date: 2026-07-15
 deciders: Allen D. Householder
 consulted: Claude Code (design session)
+stakeholder_type: [project-contributor]
 ---
 
 # Lifecycle-Staged Domain Types Anchored on Guaranteed-Field Changes

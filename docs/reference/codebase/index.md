@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Codebase Reference
 
 This section contains structured reference documentation about the Vultron

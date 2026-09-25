@@ -4,6 +4,7 @@ date: 2026-08-12
 deciders: Allen D. Householder
 consulted: Vultron protocol maintainers
 informed: Vultron contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Adjudicate Received `ParticipantStatus` Per Dimension, Not as a Unit

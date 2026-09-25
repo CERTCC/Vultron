@@ -2,11 +2,11 @@
 
 A baseline is a text file under an explanatory ``#`` header, one entry per
 line. Each check owns what an entry means, how it parses, and which way the
-list may move: the ``docs-frontmatter`` baseline lists page paths and the
-``docs-level-order`` baseline lists ``page | term | reason``, both shrink-only;
-the ``docs-legacy-urls`` baseline lists published page paths and only grows.
-This module owns only the file shape, so every check reads and rewrites it the
-same way.
+list may move: the ``docs-level-order`` baseline lists ``page | term | reason``
+and is shrink-only; the ``docs-legacy-urls`` baseline lists published page paths
+and only grows. This module owns only the file shape, so every check reads and
+rewrites it the same way. The ``docs-frontmatter`` baseline, which listed page
+paths, reached zero and was retired (#3528).
 """
 
 from __future__ import annotations

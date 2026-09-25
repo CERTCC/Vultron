@@ -1,6 +1,7 @@
 """Pydantic schema for docs/adr/*.md YAML frontmatter.
 
-Schema requirements: specs/meta-specifications.yaml MS-14 (ADR-0043).
+Schema requirements: specs/meta-specifications.yaml MS-14 (ADR-0043);
+``stakeholder_type`` per specs/diataxis-requirements.yaml DF-11-012.
 
 Mirrors the notes frontmatter package (``vultron.metadata.notes``): a validated
 model plus a loader, enforced by pytest and pre-commit. The ADR ``status`` field
@@ -16,6 +17,7 @@ from enum import StrEnum
 from pydantic import BaseModel, field_validator, model_validator
 
 from vultron.metadata.base import NonEmptyStr
+from vultron.metadata.docs.page_schema import WorkingRecordStakeholderTypes
 from vultron.metadata.specs.schema import AdrStatus
 
 # A frontmatter person field (deciders/consulted/informed) may be a bare string
@@ -49,6 +51,15 @@ class AdrFrontmatter(BaseModel):
     left as an extra key because pydantic drops unknown fields silently, which
     made the marker inert: no index annotation and no check that its target
     resolves.
+
+    ``stakeholder_type`` is declared for the same reason. A decision record is
+    project working record, so it declares ``[project-contributor]`` and no
+    ``level`` (DF-11-012), and the value is checked by the same rule
+    ``docs-frontmatter`` applies. The field is optional here because
+    ``docs-frontmatter`` (:mod:`vultron.metadata.docs.page_frontmatter`) is
+    what requires every page to declare it: a misspelt ``stakeholder_types:``
+    is still dropped by this model, and the ADR then declares nothing, which
+    that check refuses.
     """
 
     status: AdrStatus
@@ -61,6 +72,7 @@ class AdrFrontmatter(BaseModel):
     supersedes: NonEmptyStr | None = None
     amended: NonEmptyStr | None = None
     lint_suppress: list[AdrLintSuppressCode] | None = None
+    stakeholder_type: WorkingRecordStakeholderTypes | None = None
 
     @model_validator(mode="before")
     @classmethod

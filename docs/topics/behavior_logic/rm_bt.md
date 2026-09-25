@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Report Management Behavior Tree
 
 ## Requirements

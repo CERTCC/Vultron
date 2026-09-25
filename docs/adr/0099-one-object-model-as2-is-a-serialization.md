@@ -3,6 +3,7 @@ status: accepted-provisional
 date: 2026-09-21
 deciders: Allen D. Householder
 consulted: notes/wire-core-boundary.md, notes/domain-model-separation.md
+stakeholder_type: [project-contributor]
 ---
 
 # One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy

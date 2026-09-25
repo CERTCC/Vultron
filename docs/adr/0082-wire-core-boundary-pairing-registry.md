@@ -6,6 +6,7 @@ consulted: Claude Code (planning agent for G02 / CONCERN-2830)
 informed: Vultron contributors
 supersedes: 0062-normalise-wire-to-core-at-both-ingress-and-persistence.md
 partially_superseded_by: 0099-one-object-model-as2-is-a-serialization.md
+stakeholder_type: [project-contributor]
 ---
 
 > **Partially superseded by

@@ -1,6 +1,7 @@
 ---
 description: >
   Decision records for the Vultron project.
+stakeholder_type: [project-contributor]
 ---
 
 # Decisions
@@ -191,7 +192,7 @@ General information about architectural decision records is available at <https:
 ## Superseded / Archived ADRs
 
 Retired ADRs (`status: deprecated` or `superseded`) are moved to
-`docs/adr/archived/` so they stay out of the default `docs/adr/` context sweep.
+[`docs/adr/archived/`](archived/README.md) so they stay out of the default `docs/adr/` context sweep.
 Each is listed here with a forward link to its replacement.
 
 - [ADR-0015 Create VulnerabilityCase at Report Receipt (RM.RECEIVED)](archived/0015-create-case-at-report-receipt.md) — superseded by 0041-caseactor-authoritative-case-initialization.md

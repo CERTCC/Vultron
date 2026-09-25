@@ -4,6 +4,7 @@ date: 2026-09-14
 deciders: Allen D. Householder
 consulted: —
 informed: —
+stakeholder_type: [project-contributor]
 ---
 
 # A Blank Required Field Is Absence, and a Recognised Inline Object That Fails Validation Is Refused

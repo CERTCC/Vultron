@@ -4,6 +4,7 @@ date: 2026-08-26
 deciders: ahouseholder
 consulted: notes/wire-artifact-immutability.md, notes/datalayer-design.md, notes/activity-factories.md, notes/core-wire-rendering-port.md, docs/adr/0017-domain-wire-object-separation.md, docs/adr/0064-core-branch-validate-assignment.md, docs/adr/0073-per-actor-storage-isolation.md
 informed: specs/vocabulary-model.yaml
+stakeholder_type: [project-contributor]
 ---
 
 # Treat Wire Activities as Immutable Artifacts; Freeze at Receipt and at Factory Seal

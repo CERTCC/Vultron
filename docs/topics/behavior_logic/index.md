@@ -16,7 +16,7 @@ We document behavior from three directions, and each direction answers a differe
 
 | View | Question it answers | Where |
 |---|---|---|
-| Original design | What behavior does the protocol call for, and why is it shaped this way? | The behavior tree pages in this section |
+| Original design | What behavior does the protocol call for, and why is it shaped this way? | [Original Behavior Tree Design](original_design.md) |
 | Use-case behavior structure | For one coordination use case, what is decided mechanically, what is delegated outside the protocol, and what messages result? | [Use-Case Behavior](use-cases/index.md) |
 | Current implementation | What trees does the reference implementation build today? | [Behaviors Reference](../../reference/behaviors/index.md) |
 

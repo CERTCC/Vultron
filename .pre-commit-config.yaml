@@ -62,9 +62,9 @@ repos:
         language: system
         # Every docs page (DF-11-001), plus the inputs that change the verdict
         # without touching a page: the nav, which decides what is an include
-        # fragment; the schema, patterns and baseline; and the nav and
-        # frontmatter readers they use.
-        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/(page_.*|baseline_file\.py)|vultron/metadata/(base|file_loading)\.py)$
+        # fragment, and not_in_nav, which working record must match; the
+        # schema and patterns; and the nav and frontmatter readers they use.
+        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/page_.*|vultron/metadata/(base|file_loading)\.py)$
         pass_filenames: false
 
       - id: docs-level-order
@@ -92,10 +92,10 @@ repos:
         pass_filenames: false
 
       - id: adr-index-sync
-        name: ADR index and nav in sync
+        name: ADR index in sync, and no ADR in the nav
         entry: uv run python -m vultron.metadata.adr.index_gen --check
         language: system
-        files: ^(docs/adr/.*\.md|mkdocs\.yml)$
+        files: ^(docs/adr/.*\.md|mkdocs\.yml|vultron/metadata/base\.py|vultron/metadata/adr/index_gen\.py)$
         pass_filenames: false
 
       - id: demo-scenarios-sync

@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Behavior Tree Base
 
 The Vultron behavior tree base module defines the basic building blocks of any behavior tree.

@@ -48,7 +48,9 @@ that costs.
 | `repo_root()` | every loader needs it and none may assume the caller's cwd |
 | `MkDocsYamlLoader` | a `SafeLoader` tolerating `mkdocs.yml`'s `!ENV` and `!!python/name:` tags |
 | `mkdocs_config()` | the parsed `mkdocs.yml` |
-| `nav_paths()` | every document path reachable from the nav, flattened. Both the ADR nav check and the scenario-narrative nav check read it; it was `adr/index_gen._iter_nav_paths` until #3451 |
+| `nav_paths()` | every document path reachable from the nav, flattened. The ADR nav check, the docs-frontmatter check and the scenario-narrative nav check read it; it was `adr/index_gen._iter_nav_paths` until #3451 |
+| `not_in_nav_spec()` | the `not_in_nav` patterns, matched as MkDocs matches them (gitignore lines via `pathspec`); a hand-rolled glob here would disagree with the build |
+| `nav_exclusion_fault()` | why a page that must stay out of the nav is misplaced (navved, or matched by no `not_in_nav` pattern), or `None`. The ADR check and the docs-frontmatter check share it (#3528) |
 
 `markdown_tables.py` — the structural reader for every ratchet over
 hand-written markdown: `iter_sections()` (heading-scoped, so a rule can exempt a

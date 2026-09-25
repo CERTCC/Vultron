@@ -4,6 +4,7 @@ date: 2026-09-14
 deciders: [adh, Claude Opus 5]
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0089: One `ParticipantStatus` Writer, and Pre-Case RM State Belongs to `ReportCaseLink`

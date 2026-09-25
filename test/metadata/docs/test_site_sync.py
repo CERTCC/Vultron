@@ -527,11 +527,12 @@ class TestSiteSync:
             site_sync.stale_artifacts(repo_root()) == []
         ), "run 'uv run docs-site --write' and commit the result"
 
-    def test_committed_landing_pages_are_the_four_top_level_sections(self):
+    def test_committed_landing_pages_are_the_top_level_sections(self):
         paths = {p.path for p in discover_landing_pages(repo_root())}
         assert paths == {
             "tutorials/index.md",
             "topics/index.md",
             "howto/index.md",
             "reference/index.md",
+            "research/index.md",
         }

@@ -4,6 +4,7 @@ date: 2026-08-25
 deciders: Allen D. Householder
 consulted: Claude Sonnet 4.6
 informed: CERTCC Vultron team
+stakeholder_type: [project-contributor]
 ---
 
 # Use a Dedicated `stories:` Field for Spec-to-Story Traceability (Not `relationships:`)

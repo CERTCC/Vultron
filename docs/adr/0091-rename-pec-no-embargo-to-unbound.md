@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-09-17
 deciders: [adh, Claude Sonnet 4.6]
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0091: Rename PEC `NO_EMBARGO` to `UNBOUND`; Drop `EM.NO_EMBARGO` Alias

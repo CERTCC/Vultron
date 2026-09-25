@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-07-30
 deciders: [adh]
+stakeholder_type: [project-contributor]
 ---
 
 # Report-to-Others Party Discovery: Sentinel Over Inline BT Loop

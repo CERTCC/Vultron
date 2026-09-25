@@ -1,20 +1,22 @@
-"""Generate docs/adr/index.md and check mkdocs ADR nav completeness.
+"""Generate docs/adr/index.md and check that ADRs stay out of the mkdocs nav.
 
-Requirements: specs/meta-specifications.yaml MS-14-003 (ADR-0043).
+Requirements: specs/meta-specifications.yaml MS-14-003, MS-14-006 (ADR-0043);
+specs/diataxis-requirements.yaml DF-11-003.
 
-The ADR index and the mkdocs nav both drifted from the ADR corpus (ADR-0027
-was filed under the wrong index section; several ADRs were missing from nav,
-breaking ``mkdocs build --strict``). This module makes both mechanical:
+The ADR index drifted from the ADR corpus (ADR-0027 was filed under the wrong
+index section). This module makes it mechanical:
 
 - ``generate_index()`` rebuilds the status-organised section list in
   ``docs/adr/index.md`` from each ADR's validated frontmatter + H1 title,
-  preserving the hand-written prose preamble.
-- ``missing_nav_entries()`` returns ADR files absent from the mkdocs nav. The
-  nav uses hand-crafted short labels, so it is *checked for completeness* (no
-  ADR left out) rather than regenerated.
+  preserving the hand-written prose preamble. The index links every ADR, so it
+  is the routing page readers reach them through.
+- ``nav_placement_faults()`` reports each ADR that is listed in the mkdocs nav
+  or not matched by ``not_in_nav``. ADRs are project working record, which
+  stays out of the reader-facing nav (DF-11-003); an ADR in neither place
+  fails ``mkdocs build --strict`` on an omitted-file warning.
 
 CLI (``uv run adr-index``):
-    --check   exit 1 if index.md is stale or the nav is missing any ADR
+    --check   exit 1 if index.md is stale or any ADR is placed in the nav
     --write   rewrite docs/adr/index.md in place
 """
 
@@ -32,7 +34,11 @@ from vultron.metadata.adr.loader import (
     load_adr_post,
 )
 from vultron.metadata.adr.schema import AdrFrontmatter
-from vultron.metadata.base import nav_paths
+from vultron.metadata.base import (
+    nav_exclusion_fault,
+    nav_paths,
+    not_in_nav_spec,
+)
 from vultron.metadata.file_loading import validate
 from vultron.metadata.specs.schema import AdrStatus
 
@@ -135,9 +141,9 @@ def generate_index(repo_root: Path | None = None) -> str:
 
     retired_preface = (
         "Retired ADRs (`status: deprecated` or `superseded`) are moved to\n"
-        "`docs/adr/archived/` so they stay out of the default `docs/adr/` "
-        "context sweep.\nEach is listed here with a forward link to its "
-        "replacement.\n\n"
+        "[`docs/adr/archived/`](archived/README.md) so they stay out of the "
+        "default `docs/adr/` context sweep.\nEach is listed here with a "
+        "forward link to its replacement.\n\n"
     )
 
     sections = "\n".join(
@@ -153,29 +159,30 @@ def generate_index(repo_root: Path | None = None) -> str:
     return preamble + sections
 
 
-def missing_nav_entries(repo_root: Path | None = None) -> list[str]:
-    """Return ADR file paths (relative to docs/) absent from the mkdocs nav.
+def nav_placement_faults(repo_root: Path | None = None) -> list[str]:
+    """Return one message per ADR placed wrongly with respect to the nav.
 
-    The nav uses hand-crafted labels, so completeness is checked rather than
-    the nav regenerated: every ADR must appear as a file entry in the
-    ``nav:`` tree. The nav tree is parsed as YAML and walked structurally — a
-    raw substring match would false-pass on a path that appears only in a
-    comment or unrelated key, letting a genuinely un-navved ADR slip through
-    and then break ``mkdocs build --strict`` (MS-14-006).
+    Every ADR, archived ones included, must be absent from the ``nav:`` tree
+    and matched by ``not_in_nav`` (MS-14-006, DF-11-003); ``docs/adr/index.md``
+    routes to it instead. The nav tree is parsed as YAML and walked
+    structurally, so a path that appears only in a comment or an unrelated key
+    is not mistaken for a nav entry.
     """
     root = repo_root or _find_repo_root()
-    adr_dir = root / "docs" / "adr"
+    docs_dir = root / "docs"
     navved = nav_paths(root)
+    not_in_nav = not_in_nav_spec(root)
 
-    missing: list[str] = []
-    for path in _iter_adr_paths(adr_dir):
-        rel_to_docs = str(path.relative_to(root / "docs"))
-        # archived ADRs are intentionally excluded from nav.
-        if rel_to_docs.startswith("adr/archived/"):
-            continue
-        if rel_to_docs not in navved:
-            missing.append(rel_to_docs)
-    return missing
+    faults: list[str] = []
+    for path in _iter_adr_paths(docs_dir / "adr"):
+        rel_to_docs = path.relative_to(docs_dir).as_posix()
+        fault = nav_exclusion_fault(rel_to_docs, navved, not_in_nav)
+        if fault:
+            faults.append(
+                f"docs/{rel_to_docs} {fault}; an ADR is reached through "
+                f"docs/adr/index.md, not the nav (MS-14-006)."
+            )
+    return faults
 
 
 def duplicate_numbers(repo_root: Path | None = None) -> dict[str, list[str]]:
@@ -216,7 +223,7 @@ def main() -> None:
     mode.add_argument(
         "--check",
         action="store_true",
-        help="Exit 1 if index.md is stale or nav is missing any ADR.",
+        help="Exit 1 if index.md is stale or any ADR is placed in the nav.",
     )
     mode.add_argument(
         "--write", action="store_true", help="Rewrite docs/adr/index.md."
@@ -260,14 +267,13 @@ def main() -> None:
             "docs/adr/index.md is stale — run 'uv run adr-index --write' "
             "(MS-14-003)."
         )
-    for rel in missing_nav_entries(root):
-        problems.append(f"mkdocs nav is missing ADR: docs/{rel} (MS-14-003).")
+    problems.extend(nav_placement_faults(root))
 
     if problems:
         for p in problems:
             print(f"[ERROR] {p}", file=sys.stderr)
         sys.exit(1)
-    print("ADR index and nav are in sync.")
+    print("ADR index is in sync, and no ADR is in the nav.")
 
 
 if __name__ == "__main__":
@@ -278,7 +284,7 @@ if __name__ == "__main__":
 __all__ = [
     "duplicate_numbers",
     "generate_index",
-    "missing_nav_entries",
+    "nav_placement_faults",
     "main",
     "SKIP_FILES",
 ]

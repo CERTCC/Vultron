@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Demo Scripts
 
 Individual protocol-fragment exchange demo scripts in `vultron.demo.exchange`.
