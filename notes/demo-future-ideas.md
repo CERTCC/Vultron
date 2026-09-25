@@ -81,7 +81,7 @@ the design decisions reached in the #1178 planning session.
 
 | Scenario | Issue | Description | Status |
 |----------|-------|-------------|--------|
-| Case split/merge | #1229 | Parent/child/sibling case relationships | blocked — #3366 (no split/merge act; one `ReportCaseLink` per report; per-case genesis hash) |
+| Case split/merge | #1229 | Parent/child/sibling case relationships | blocked — merge spec #3701 and merge build #3702 (ADR-0105); per-recipient `ReportCaseLink` #3698; split still unplanned |
 | Multi-reporter | #1231 | Two Finders, one C consolidates into one case — no merge: C adds the second report to the existing case and invites F2 | planned — #3671, blocked by the added-report ledger fix #3665 |
 | Concurrent cases | #1875 | Two independent cases through shared actors; one CaseActor manages both; no cross-case bleed | planned — #3672, blocked by the case-lookup helper fix #3666 |
 

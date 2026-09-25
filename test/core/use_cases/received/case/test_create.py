@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for Case Bootstrap Trust (CBT-05-001 through CBT-05-004).
+"""Tests for Case Bootstrap Trust (CBT-05-001 through CBT-05-004, CBT-06-002).
 
 Covers:
   CBT-05-001  Reporter accepts CaseActor Announce after bootstrap Create.
@@ -21,6 +21,8 @@ Covers:
               no-op (receiver is not the original reporter).
   CBT-05-004  trusted_case_actor_id is extracted from the CASE_MANAGER participant
               in the bootstrap snapshot and recorded in the ReportCaseLink.
+  CBT-06-002  One report offered to two recipients: each recipient's bootstrap
+              is accepted and seeds its own case (strict xfail until #3698).
 
 See also:
   test_bootstrap_participants.py  CBT-05-005/006 embedded participant storage.
@@ -28,11 +30,13 @@ See also:
                                   and RM.ACCEPTED upgrade (#589, #624).
 """
 
+from collections.abc import Callable
+
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.enums.roles import CVDRole
+from vultron.core.models.events import CreateCaseReceivedEvent, VultronEvent
 from vultron.core.use_cases.received.actor import _find_case_actor_id
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
@@ -40,6 +44,9 @@ from vultron.core.use_cases.received.actor.announce import (
 from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronAlreadyExistsError
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     create_case_activity,
@@ -321,3 +328,95 @@ class TestAnnounceValidatedByTrustedCaseActorId:
 
         result = _find_case_actor_id(dl, _CASE_ID)
         assert result == _CASE_ACTOR_ID
+
+
+# ---------------------------------------------------------------------------
+# CBT-06-002: one report offered to two recipients — both bootstraps accepted
+# ---------------------------------------------------------------------------
+
+_COORDINATOR_ID = "https://example.org/actors/coordinator"
+_SECOND_CASE_ID = "https://example.org/cases/cbt-test-002"
+_SECOND_CASE_ACTOR_ID = "https://example.org/actors/case-actor-002"
+
+
+def _offer_report_to(dl: SqliteDataLayer, recipient_id: str) -> None:
+    """Record what the reporter trusts after offering the report to *recipient_id*.
+
+    Mirrors the recording step of ``SvcSubmitReportUseCase._prepare``, which
+    cannot yet re-offer an existing report (it always mints a new one).  When
+    #3698 adds that path, drive this through the trigger instead.
+    """
+    try:
+        dl.create(
+            VultronReportCaseLink(
+                report_id=_REPORT_ID, trusted_case_creator_id=recipient_id
+            )
+        )
+    except VultronAlreadyExistsError:
+        pass
+
+
+def _bootstrap_event(
+    make_payload: Callable[[as_Activity], VultronEvent],
+    case_id: str,
+    creator_id: str,
+    case_actor_id: str,
+) -> CreateCaseReceivedEvent:
+    participant = as_CaseParticipant(
+        case_roles=[CVDRole.CASE_MANAGER],
+        id_=f"{case_id}/participants/case-actor",
+        attributed_to=case_actor_id,
+        context=case_id,
+        name="CaseActor",
+    )
+    case = as_VulnerabilityCase.model_construct(
+        id_=case_id, name="CBT-06 case", case_participants=[participant]
+    )
+    event = make_payload(create_case_activity(case, actor=creator_id))
+    if not isinstance(event, CreateCaseReceivedEvent):
+        raise TypeError(f"expected CreateCaseReceivedEvent, got {type(event)}")
+    return event
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "CBT-06-002: the reporter trusts one case creator per report, so no "
+        "link is recorded for the second recipient and its bootstrap is "
+        "dropped. Tracked by #3698."
+    ),
+)
+@pytest.mark.spec("CBT-06-002")
+@pytest.mark.parametrize(
+    "bootstrap_order",
+    [(_CREATOR_ID, _COORDINATOR_ID), (_COORDINATOR_ID, _CREATOR_ID)],
+    ids=["first-recipient-first", "second-recipient-first"],
+)
+def test_each_recipient_of_one_report_can_bootstrap_its_own_case(
+    dl: SqliteDataLayer,
+    make_payload: Callable[[as_Activity], VultronEvent],
+    bootstrap_order: tuple[str, str],
+) -> None:
+    """A report offered to two recipients yields two accepted bootstraps.
+
+    Each case gets its own CaseActor, so a CASE_MANAGER recorded against the
+    wrong recipient's case is caught.
+    """
+    case_for = {
+        _CREATOR_ID: (_CASE_ID, _CASE_ACTOR_ID),
+        _COORDINATOR_ID: (_SECOND_CASE_ID, _SECOND_CASE_ACTOR_ID),
+    }
+    _offer_report_to(dl, _CREATOR_ID)
+    _offer_report_to(dl, _COORDINATOR_ID)
+
+    for creator_id in bootstrap_order:
+        case_id, case_actor_id = case_for[creator_id]
+        event = _bootstrap_event(
+            make_payload, case_id, creator_id, case_actor_id
+        )
+        CreateCaseReceivedUseCase(dl, event).execute()
+
+    for case_id, case_actor_id in case_for.values():
+        assert dl.read(case_id) is not None
+        assert _find_case_actor_id(dl, case_id) == case_actor_id

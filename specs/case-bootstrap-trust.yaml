@@ -437,3 +437,60 @@ groups:
       spec_id: CBT-01-008
     lint_suppress:
     - missing_story_reference
+- id: CBT-06
+  title: One Report Offered to Several Recipients
+  specs:
+  - id: CBT-06-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Each `Offer(VulnerabilityReport)` a reporter sends MUST address exactly
+      one recipient and MUST carry an activity id distinct from every other
+      `Offer` of the same report, so that each submission attempt is
+      identified by at least the pair (report, recipient).
+    rationale: >-
+      A reporter that gets no answer from its first recipient routinely offers
+      the same report to a Coordinator, and either recipient may then accept
+      and create its own case. The protocol permits this on purpose. The two
+      attempts, and the cases that follow from them, are only distinguishable
+      if each `Offer` names one recipient and has its own id (issue #3366).
+    verification: >-
+      Unit tests confirm that two `Offer(VulnerabilityReport)` activities built
+      for the same report and different recipients each carry a single-element
+      `to` naming their own recipient and have distinct ids.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-09-001
+    stories:
+    - story_2022_038
+    - story_2022_088
+  - id: CBT-06-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A reporter that has offered one report to several recipients MUST accept
+      a valid bootstrap `Create(VulnerabilityCase)` from each of them, checking
+      each bootstrap (CBT-01-005) against the recipient that sent it and
+      recording the resulting case and CASE_MANAGER for that recipient alone.
+      Offering the report to a further recipient, or accepting one recipient's
+      bootstrap, MUST NOT change whether another recipient's bootstrap is
+      accepted or which case is recorded for it.
+    rationale: >-
+      In the common sequential escalation, a reporter re-offers an unanswered
+      report to a Coordinator and either recipient may create a case. A
+      reporter that trusts one case creator per report refuses the second
+      recipient's bootstrap and cannot join that case (issue #3366). How the
+      reporter stores per-recipient trust is an implementation choice; this
+      constrains only which bootstraps it accepts.
+    verification: >-
+      Unit tests confirm that after one report is offered to two recipients, a
+      valid bootstrap from each recipient is accepted and seeds that
+      recipient's case, in either order, without affecting the other.
+    relationships:
+    - rel_type: refines
+      spec_id: CBT-01-006
+    - rel_type: depends_on
+      spec_id: CBT-01-005
+    stories:
+    - story_2022_096
+    - story_2022_104
