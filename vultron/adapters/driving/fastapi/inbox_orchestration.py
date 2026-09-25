@@ -38,7 +38,7 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _queue_pending_case_activity,
     _replay_pending_case_activities,
 )
-from vultron.adapters.driving.fastapi.routers.actors._inbox import (
+from vultron.adapters.driving.fastapi.inbox_storage import (
     _store_inbox_activity,
     _store_nested_inbox_object,
 )
