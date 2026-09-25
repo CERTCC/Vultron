@@ -7,7 +7,7 @@ description: >-
   It is distinct from `python-app.yml` (Python unit tests and linting) and
   `.github/workflows/demo-integration.yml` (demo container integration tests,
   specified in `specs/demo-ci.yaml`).
-version: 1.2.0
+version: 1.3.0
 scope:
   - prototype
   - production
@@ -196,6 +196,51 @@ groups:
           page, a reference ending in `.md`, and a reference on a page no entry
           point links to. `test/ci/test_withheld_gate_in_workflows.py` extends to
           assert the step's presence and placement.
+      - id: DOCBW-03-008
+        priority: MUST
+        kind: project
+        statement: >-
+          Every workflow that builds the site MUST run `mkdocs build --strict`,
+          so that any warning the build emits fails the workflow.
+        rationale: >-
+          `mkdocs.yml` raises dead in-page anchors and un-navved pages to `warn`
+          so they would fail a strict build (#1304, #3027), and no workflow ran
+          one: the warnings printed and the job stayed green (#3051). Strictness
+          is not link coverage — `--strict` sees only links MkDocs parsed, which
+          is why DOCBW-03-007 checks the built output.
+        verification: >-
+          `test/ci/test_docs_build_strict.py` asserts every workflow running
+          `mkdocs build` passes `--strict`.
+      - id: DOCBW-03-009
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A site build that DOCBW-03-008 requires to be strict MUST NOT also pass
+          `--quiet` (or `-q`).
+        rationale: >-
+          `--quiet` raises the mkdocs logger to ERROR before strict mode's
+          warning counter sees a record, so `mkdocs build --strict --quiet` exits
+          0 over warnings. The flag reads as cosmetic and switches the gate off.
+        verification: >-
+          `test/ci/test_docs_build_strict.py` asserts no workflow's
+          `mkdocs build` command carries `--quiet` or `-q`.
+      - id: DOCBW-03-010
+        priority: MUST
+        kind: project
+        statement: >-
+          `mkdocs.yml` MUST set `validation.links.anchors` and
+          `validation.nav.omitted_files` to `warn`, so that a strict build fails
+          on a dead in-page anchor link and on a page absent from both the nav
+          and `not_in_nav`.
+        rationale: >-
+          `info` is below what `--strict` counts, so downgrading either setting
+          turns its check off as silently as dropping `--strict` would, and
+          nothing in the build output says so.
+        verification: >-
+          `test/ci/test_docs_build_strict.py` asserts both settings are `warn`,
+          and that a strict build of a synthetic two-page site carrying the
+          project's `validation` block fails on each defect and passes a clean
+          control.
 
   - id: DOCBW-04
     title: Docs-Changed Filter Step

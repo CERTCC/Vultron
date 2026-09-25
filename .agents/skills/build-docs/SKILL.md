@@ -30,8 +30,11 @@ Validate that documentation builds cleanly without real warnings or broken links
 committing changes to `docs/` directory files.
 
 When the `docs/` directory is modified, `mkdocs build --strict` MUST pass with
-zero real warnings before code is staged for commit. This mirrors the CI pipeline
-which enforces the same constraint.
+zero real warnings before code is staged for commit. CI enforces the same
+constraint: both `docs-build-check.yml` and `deploy_site.yml` run a plain
+`mkdocs build --strict` (DOCBW-03-008). CI suppresses **nothing**, so a warning
+this script forgives below still fails CI; the suppression list exists only for
+the griffe false positives, which are absent from the current build.
 
 **Note**: This skill automatically suppresses false-positive warnings from griffe
 that result from Python decorators being misinterpreted as bibliography citations

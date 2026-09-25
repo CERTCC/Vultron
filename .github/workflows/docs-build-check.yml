@@ -55,9 +55,13 @@ jobs:
           # distinguishable by shellcheck, which flags the bare form as SC1007.
           PYTHONPATH='' uv run python -m vultron.metadata.adr.index_gen --check
 
+      # --strict makes mkdocs.yml's `validation: warn` settings (dead in-page
+      # anchors, pages missing from the nav) fail the job; without it they
+      # print and the job stays green (DOCBW-03-008). Never add --quiet (DOCBW-03-009): it
+      # hides the warnings --strict counts, so the build passes over them.
       - name: Build Site
         run: |
-          uv run mkdocs build --verbose --clean --config-file mkdocs.yml
+          uv run mkdocs build --strict --verbose --clean --config-file mkdocs.yml
 
       # Runs against the built site above, so it must follow that step. Verifies
       # the publication axis: every artifact declared withheld produced no files

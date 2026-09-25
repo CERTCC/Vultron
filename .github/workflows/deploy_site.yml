@@ -44,10 +44,13 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
+      # --strict makes mkdocs.yml's `validation: warn` settings (dead in-page
+      # anchors, pages missing from the nav) fail the deploy instead of
+      # publishing (DOCBW-03-008). Never add --quiet (DOCBW-03-009): it hides the warnings
+      # --strict counts, so the build passes over them.
       - name: Build Site
         run: |
-          #export PYTHONPATH=src:$PYTHONPATH
-          uv run mkdocs build --clean --config-file mkdocs.yml
+          uv run mkdocs build --strict --clean --config-file mkdocs.yml
 
       # This is the workflow that actually publishes, so it is the one the
       # publication axis has to gate. It must sit between Build Site and Upload
