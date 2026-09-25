@@ -17,6 +17,7 @@ from vultron.core.models.events import (
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.report import VultronReport
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
@@ -33,6 +34,20 @@ class _LedgerEntry:
     log_index: int
 
 
+def _use_case_returning(
+    result: object = HandlerResult.applied(),
+) -> tuple[MagicMock, MagicMock]:
+    """Return ``(instance, class)`` mocks whose ``execute()`` yields *result*.
+
+    *result* defaults to ``HandlerResult.applied()``, the verdict every
+    received use case returns today. ``None`` is passed through, so a use
+    case that still returns nothing can be tested.
+    """
+    instance = MagicMock()
+    instance.execute.return_value = result
+    return instance, MagicMock(return_value=instance)
+
+
 def test_get_dispatcher_returns_local_dispatcher():
     """get_dispatcher should return an object implementing dispatch()."""
     dispatcher = get_dispatcher(use_case_map={})
@@ -44,7 +59,7 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
     caplog.set_level(logging.DEBUG)
     mock_dl = MagicMock()
     dispatcher = DirectActivityDispatcher(
-        use_case_map={MessageSemantics.CREATE_REPORT: MagicMock()}
+        use_case_map={MessageSemantics.CREATE_REPORT: _use_case_returning()[1]}
     )
 
     event = CreateReportReceivedEvent(
@@ -111,8 +126,7 @@ def test_dispatcher_blocks_gated_semantic_without_contiguous_genesis_prefix():
 
 def test_dispatcher_allows_gated_semantic_with_contiguous_prefix_but_tip_lag():
     mock_dl = MagicMock()
-    use_case_instance = MagicMock()
-    use_case_class = MagicMock(return_value=use_case_instance)
+    use_case_instance, use_case_class = _use_case_returning()
     dispatcher = DirectActivityDispatcher(
         use_case_map={MessageSemantics.ADD_NOTE_TO_CASE: use_case_class}
     )
@@ -146,8 +160,7 @@ def test_dispatcher_allows_gated_semantic_with_contiguous_prefix_but_tip_lag():
 
 def test_dispatcher_allows_gated_semantic_without_replication_state():
     mock_dl = MagicMock()
-    use_case_instance = MagicMock()
-    use_case_class = MagicMock(return_value=use_case_instance)
+    use_case_instance, use_case_class = _use_case_returning()
     dispatcher = DirectActivityDispatcher(
         use_case_map={MessageSemantics.ADD_NOTE_TO_CASE: use_case_class}
     )
@@ -183,8 +196,7 @@ def test_dispatcher_allows_gated_semantic_when_backfill_complete():
     reaches auto-close.  Regression for PR #1746 fvcv-handoff failure.
     """
     mock_dl = MagicMock()
-    use_case_instance = MagicMock()
-    use_case_class = MagicMock(return_value=use_case_instance)
+    use_case_instance, use_case_class = _use_case_returning()
     dispatcher = DirectActivityDispatcher(
         use_case_map={
             MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT: use_case_class
@@ -368,3 +380,49 @@ def test_dispatcher_resolves_case_for_reject_embargo_invite_gate():
         call.args == (state_id,) for call in mock_dl.read.call_args_list
     )
     use_case_class.assert_not_called()
+
+
+def _create_report_event() -> CreateReportReceivedEvent:
+    return CreateReportReceivedEvent(
+        activity_id="act-verdict",
+        actor_id="https://example.org/users/tester",
+        object_=VultronReport(content="test report"),
+        activity=VultronActivity(
+            type_="Create", actor="https://example.org/users/tester"
+        ),
+    )
+
+
+@pytest.mark.spec("UCORG-05-010")
+@pytest.mark.parametrize(
+    "verdict",
+    [
+        HandlerResult.applied(),
+        HandlerResult.skipped("duplicate"),
+        HandlerResult.deferred("awaiting predecessor"),
+        HandlerResult.refused("not a participant"),
+    ],
+)
+def test_dispatch_returns_the_use_case_verdict(verdict):
+    """The dispatcher carries the handler's result instead of dropping it."""
+    _, use_case_class = _use_case_returning(verdict)
+    dispatcher = DirectActivityDispatcher(
+        use_case_map={MessageSemantics.CREATE_REPORT: use_case_class}
+    )
+
+    assert dispatcher.dispatch(_create_report_event(), MagicMock()) == verdict
+
+
+@pytest.mark.spec("UCORG-05-001")
+@pytest.mark.parametrize("not_a_verdict", [None, {"ok": True}, "applied"])
+def test_dispatch_rejects_a_use_case_that_returns_no_handler_result(
+    not_a_verdict,
+):
+    """A non-HandlerResult return is a contract breach and fails fast."""
+    _, use_case_class = _use_case_returning(not_a_verdict)
+    dispatcher = DirectActivityDispatcher(
+        use_case_map={MessageSemantics.CREATE_REPORT: use_case_class}
+    )
+
+    with pytest.raises(TypeError, match="not HandlerResult"):
+        dispatcher.dispatch(_create_report_event(), MagicMock())

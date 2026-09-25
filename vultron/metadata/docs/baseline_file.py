@@ -1,10 +1,12 @@
-"""File I/O shared by the shrink-only baselines of the ``docs/`` checks.
+"""File I/O shared by the baselines of the ``docs/`` checks.
 
 A baseline is a text file under an explanatory ``#`` header, one entry per
-line. Each check owns what an entry means and how it parses: the
-``docs-frontmatter`` baseline lists page paths, and the ``docs-level-order``
-baseline lists ``page | term | reason``. This module owns only the file shape,
-so both read and rewrite it the same way.
+line. Each check owns what an entry means, how it parses, and which way the
+list may move: the ``docs-frontmatter`` baseline lists page paths and the
+``docs-level-order`` baseline lists ``page | term | reason``, both shrink-only;
+the ``docs-legacy-urls`` baseline lists published page paths and only grows.
+This module owns only the file shape, so every check reads and rewrites it the
+same way.
 """
 
 from __future__ import annotations

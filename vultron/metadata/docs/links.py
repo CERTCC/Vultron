@@ -41,7 +41,7 @@ Checking the bytes the build emitted covers them.
 
 Anchor validity is out of scope: a fragment is stripped before resolution, and
 dead in-page anchors are ``validation.links.anchors``' job under ``--strict``
-(DOCBW-03-010). External URLs are out of scope too.
+(DOCBW-03-011). External URLs are out of scope too.
 
 CLI (``uv run docs-links``)::
 
@@ -60,12 +60,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from vultron.metadata.base import (
-    built_site_dir,
-    mkdocs_config,
-    repo_root,
-    site_dir,
-)
+from vultron.metadata.base import mkdocs_config, repo_root
+from vultron.metadata.docs.built_site import require_built_site, site_dir
 
 # Bytes-mode so pages are never decoded whole; only matched values are. Both
 # quote styles and the unquoted form, and the leading whitespace keeps
@@ -207,7 +203,7 @@ def scan_site(root: Path | None = None) -> SiteScan:
             references, so it is a failure rather than a pass (DF-09-009).
     """
     base = root or repo_root()
-    built = built_site_dir(base, claim="its references resolve")
+    built = require_built_site(base, "its references resolve")
     # One walk builds the index, so resolution is a set lookup per reference
     # rather than a ``stat`` call: ~65k references, and the difference is ~2x.
     built_files = frozenset(

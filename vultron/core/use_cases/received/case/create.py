@@ -5,6 +5,7 @@ import logging
 from vultron.core.models.events.case import CreateCaseReceivedEvent
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import (
     VultronAlreadyExistsError,
@@ -42,7 +43,7 @@ class CreateCaseReceivedUseCase:
         self._dl = dl
         self._request: CreateCaseReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         actor_id = request.actor_id
         case_id = request.case_id
@@ -53,13 +54,13 @@ class CreateCaseReceivedUseCase:
                 "case '%s'",
                 case_id,
             )
-            return
+            return HandlerResult.applied()
 
         if case_id is None:
             logger.warning(
                 "create_case_received: case_id missing in event — skipping"
             )
-            return
+            return HandlerResult.applied()
 
         case_obj = request.case
         if case_obj is None:
@@ -68,7 +69,7 @@ class CreateCaseReceivedUseCase:
                 " — skipping",
                 case_id,
             )
-            return
+            return HandlerResult.applied()
         link = _find_report_case_link(actor_id, self._dl)
 
         if link is not None:
@@ -79,6 +80,7 @@ class CreateCaseReceivedUseCase:
             self._handle_direct_participant_bootstrap(
                 actor_id, case_id, case_obj
             )
+        return HandlerResult.applied()
 
     def _handle_direct_participant_bootstrap(
         self,

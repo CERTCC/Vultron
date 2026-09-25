@@ -58,7 +58,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from vultron.metadata.base import built_site_dir, repo_root, site_dir
+from vultron.metadata.base import repo_root
+from vultron.metadata.docs.built_site import require_built_site, site_dir
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,18 @@ class WithheldArtifact:
     source_globs: tuple[str, ...]
     reason: str
     gate: str
+
+    def covers(self, site_path: str) -> bool:
+        """Return whether *site_path*, relative to ``site/``, is this artifact's.
+
+        A path is covered when it equals a prefix or sits beneath one, so
+        ``reference/ontology/dfa`` covers ``reference/ontology/dfa/index.html``
+        but not ``reference/ontology/dfa2``.
+        """
+        return any(
+            site_path == prefix or site_path.startswith(f"{prefix}/")
+            for prefix in self.site_prefixes
+        )
 
     def site_globs(self) -> tuple[str, ...]:
         """Return the glob patterns matching every built path this artifact owns.
@@ -134,6 +147,10 @@ WITHHELD_ARTIFACTS: tuple[WithheldArtifact, ...] = (
             "reference/ontology/vultron_process",
             "reference/ontology/dfa",
             "reference/ontology/rfc2119",
+            # Protégé how-to fragments the detail pages included; each was
+            # built as a page of its own and is a live URL on the old site.
+            "includes/ontology_tips",
+            "includes/use_protege",
         ),
         source_globs=("ontology/*.ttl",),
         reason=(
@@ -177,8 +194,7 @@ def published_violations(
             the site first; an unbuilt site cannot evidence the claim, so it is a
             failure rather than a pass (DF-09-009).
     """
-    base = root or repo_root()
-    built = built_site_dir(base, claim="a withheld artifact is unpublished")
+    built = require_built_site(root, "a withheld artifact is unpublished")
 
     violations: list[tuple[WithheldArtifact, Path]] = []
     for artifact in artifacts:

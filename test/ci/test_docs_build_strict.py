@@ -1,6 +1,6 @@
 """CI verification test — every site build is strict, so build warnings fail.
 
-Implements DOCBW-03-008, DOCBW-03-009 and DOCBW-03-010 from
+Implements DOCBW-03-009, DOCBW-03-010 and DOCBW-03-011 from
 ``specs/docs-build-workflow.yaml`` (#3051).
 
 ``mkdocs.yml`` raises two checks to ``warn`` on purpose: dead in-page anchor
@@ -61,7 +61,7 @@ def _validation() -> dict[str, Any]:
     return block if isinstance(block, dict) else {}
 
 
-@pytest.mark.spec("DOCBW-03-008")
+@pytest.mark.spec("DOCBW-03-009")
 @pytest.mark.parametrize(
     "workflow", site_building_workflows(), ids=lambda p: p.name
 )
@@ -73,11 +73,11 @@ def test_every_site_build_is_strict(workflow: Path):
         assert STRICT_FLAG in shlex.split(command), (
             f"{workflow.name} runs {command!r} without {STRICT_FLAG}, so a "
             "dead anchor or un-navved page prints a warning and the job "
-            "stays green (DOCBW-03-008)."
+            "stays green (DOCBW-03-009)."
         )
 
 
-@pytest.mark.spec("DOCBW-03-009")
+@pytest.mark.spec("DOCBW-03-010")
 @pytest.mark.parametrize(
     "workflow", site_building_workflows(), ids=lambda p: p.name
 )
@@ -88,11 +88,11 @@ def test_no_strict_build_is_quiet(workflow: Path):
         assert not quiet, (
             f"{workflow.name} runs {command!r}: {sorted(quiet)} suppresses "
             f"the warnings {STRICT_FLAG} counts, so the build passes over "
-            "them (DOCBW-03-009)."
+            "them (DOCBW-03-010)."
         )
 
 
-@pytest.mark.spec("DOCBW-03-010")
+@pytest.mark.spec("DOCBW-03-011")
 @pytest.mark.parametrize(
     "section, key",
     [("links", "anchors"), ("nav", "omitted_files")],
@@ -103,7 +103,7 @@ def test_validation_setting_stays_at_warn(section: str, key: str):
     assert value == "warn", (
         f"mkdocs.yml validation.{section}.{key} is {value!r}, not 'warn'. "
         "Below warn, --strict never sees the defect it exists to catch "
-        "(DOCBW-03-010)."
+        "(DOCBW-03-011)."
     )
 
 
@@ -132,7 +132,7 @@ def _strict_build(root: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-@pytest.mark.spec("DOCBW-03-010")
+@pytest.mark.spec("DOCBW-03-011")
 def test_strict_build_with_project_validation_passes_a_clean_site(
     tmp_path: Path,
 ):
@@ -141,7 +141,7 @@ def test_strict_build_with_project_validation_passes_a_clean_site(
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.spec("DOCBW-03-010")
+@pytest.mark.spec("DOCBW-03-011")
 @pytest.mark.parametrize(
     "index_body, extra_page, expected",
     [

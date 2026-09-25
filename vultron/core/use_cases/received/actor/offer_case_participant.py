@@ -37,6 +37,7 @@ from vultron.core.models.events.actor import (
     OfferCaseParticipantReceivedEvent,
     RejectOfferCaseParticipantReceivedEvent,
 )
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.enums.roles import serialize_roles
@@ -64,7 +65,7 @@ class OfferCaseParticipantReceivedUseCase:
         self._request = request
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         activity_id = request.activity_id
         case_id = request.target_id
@@ -75,7 +76,7 @@ class OfferCaseParticipantReceivedUseCase:
                 " — skipping",
                 activity_id,
             )
-            return
+            return HandlerResult.applied()
 
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -90,6 +91,7 @@ class OfferCaseParticipantReceivedUseCase:
         bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
         )
+        return HandlerResult.applied()
 
 
 class AcceptOfferCaseParticipantReceivedUseCase:
@@ -110,7 +112,7 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         self._request = request
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         activity_id = request.activity_id
         case_id = request.target_id or request.inner_target_id
@@ -154,7 +156,7 @@ class AcceptOfferCaseParticipantReceivedUseCase:
                 " invitee_id in event '%s' — skipping",
                 activity_id,
             )
-            return
+            return HandlerResult.applied()
 
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -173,6 +175,7 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
         )
+        return HandlerResult.applied()
 
 
 class RejectOfferCaseParticipantReceivedUseCase:
@@ -193,7 +196,7 @@ class RejectOfferCaseParticipantReceivedUseCase:
         self._request = request
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         activity_id = request.activity_id
         case_id = request.target_id
@@ -219,7 +222,7 @@ class RejectOfferCaseParticipantReceivedUseCase:
                 " event '%s' — skipping",
                 activity_id,
             )
-            return
+            return HandlerResult.applied()
 
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -237,3 +240,4 @@ class RejectOfferCaseParticipantReceivedUseCase:
         bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
         )
+        return HandlerResult.applied()

@@ -36,6 +36,7 @@ from vultron.core.use_cases.triggers.embargo import SvcAcceptEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
 )
+from vultron.demo.utils import ref_id
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
@@ -529,8 +530,12 @@ def _make_pxa_case(
     embargo_id: str,
     pxa_state_name: str,
     em_state=EM.PROPOSED,
+    to: list[str] | None = None,
 ):
-    """Return (case, embargo, proposal) with pxa_state set."""
+    """Return (case, embargo, proposal) with pxa_state set.
+
+    *to* addresses the proposal; omitted, it carries no recipients.
+    """
     from vultron.core.states.cs import CS_pxa
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -550,11 +555,22 @@ def _make_pxa_case(
         context=case.id_,
         actor=coordinator_id,
         id_=f"{case_id}/proposals/p1",
+        to=to,
     )
     dl.create(case)
     dl.create(embargo)
     dl.create(proposal)
     return case, embargo, proposal
+
+
+def _sole_queued_reject(dl) -> Any:
+    """Return the one activity queued in *dl*'s outbox, asserting it is a Reject."""
+    outbox = dl.outbox_list()
+    assert len(outbox) == 1, f"Expected exactly 1 ER in outbox; got {outbox}"
+    reject = dl.read(outbox[0])
+    assert reject is not None, "queued ER must be readable"
+    assert getattr(reject, "type_", None) == "Reject"
+    return reject
 
 
 class TestInviteToEmbargoReceivedPxaGuard:
@@ -621,8 +637,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
         ).execute()
 
         # ER activity must be in the outbox
-        outbox = dl.outbox_list()
-        assert len(outbox) == 1, f"Expected 1 ER in outbox; got {outbox}"
+        _sole_queued_reject(dl)
 
     def test_pxa_clear_allows_ep_processing(self, make_payload):
         """invite_to_embargo_on_case runs normally when pxa_state is clear."""
@@ -737,8 +752,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         ).execute()
 
         # ER activity must be in the outbox
-        outbox = dl.outbox_list()
-        assert len(outbox) == 1, f"Expected 1 ER in outbox; got {outbox}"
+        _sole_queued_reject(dl)
 
     def test_pxa_clear_allows_ea_processing(self, make_payload):
         """accept_invite_to_embargo_on_case activates embargo normally when pxa_state is clear."""
@@ -784,3 +798,80 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated is not None
         assert updated.current_status.em.state == EM.ACTIVE
+
+
+class TestPxaRejectionAttribution:
+    """The P/X/A-guard ER is sent as the receiving actor, to the sender.
+
+    EMB-01-002 / EMB-02-002 name the *receiver* as the actor that emits ER.
+    When the message's subject (the invitee or accepting actor) is not the
+    receiving actor, the ER still goes out under the receiving actor's own
+    identity: this store can only speak for its own actor, and emitting as
+    the subject would impersonate it.  In the EP test sender, receiver and
+    invitee are three distinct actors.  In the EA test the accepting actor is
+    both sender and subject, so it tells the receiver apart from the accepter
+    but cannot tell "to the sender" apart from "to the subject".
+    """
+
+    SENDER_ID = "https://example.org/actors/sender-pxa-attr"
+    RECEIVER_ID = "https://example.org/actors/receiver-pxa-attr"
+    INVITEE_ID = "https://example.org/actors/invitee-pxa-attr"
+    CASE_ID = "https://example.org/cases/c-pxa-attr"
+
+    def _dl(self):
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        return SqliteDataLayer("sqlite:///:memory:", actor_id=self.RECEIVER_ID)
+
+    @pytest.mark.spec("EMB-01-002")
+    def test_ep_rejection_is_sent_as_receiver_not_invitee(self, make_payload):
+        """An EP naming another invitee is rejected as the receiving actor."""
+        dl = self._dl()
+        case_id = f"{self.CASE_ID}/ep"
+        _, _, proposal = _make_pxa_case(
+            dl,
+            case_id=case_id,
+            coordinator_id=self.SENDER_ID,
+            embargo_id=f"{case_id}/embargo_events/e1",
+            pxa_state_name="Pxa",
+            em_state=EM.NONE,
+            to=[self.INVITEE_ID],
+        )
+
+        event = make_payload(proposal, receiving_actor_id=self.RECEIVER_ID)
+        assert event.to_recipients == [self.INVITEE_ID]
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        reject = _sole_queued_reject(dl)
+        assert ref_id(reject.actor) == self.RECEIVER_ID
+        assert [ref_id(r) for r in reject.to or []] == [self.SENDER_ID]
+
+    @pytest.mark.spec("EMB-02-002")
+    def test_ea_rejection_is_sent_as_receiver_not_accepter(self, make_payload):
+        """An EA from the invitee is rejected as the receiving actor, to the invitee."""
+        dl = self._dl()
+        case_id = f"{self.CASE_ID}/ea"
+        case, _, proposal = _make_pxa_case(
+            dl,
+            case_id=case_id,
+            coordinator_id=self.SENDER_ID,
+            embargo_id=f"{case_id}/embargo_events/e1",
+            pxa_state_name="Pxa",
+            em_state=EM.PROPOSED,
+            # Realism only: the invitee accepts a proposal addressed to it.
+            to=[self.INVITEE_ID],
+        )
+        accept = em_accept_embargo_activity(
+            proposal, context=case.id_, actor=self.INVITEE_ID
+        )
+
+        event = make_payload(accept, receiving_actor_id=self.RECEIVER_ID)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        reject = _sole_queued_reject(dl)
+        assert ref_id(reject.actor) == self.RECEIVER_ID
+        assert [ref_id(r) for r in reject.to or []] == [self.INVITEE_ID]

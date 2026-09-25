@@ -18,6 +18,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
     CreateNoteReceivedUseCase,
@@ -346,7 +347,9 @@ class TestNoteUseCases:
         event = make_payload(activity)
 
         result = RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
-        assert result is None
+        # An idempotent re-removal is a no-op: APPLIED only until #2255 assigns
+        # per-site dispositions (it may then become SKIPPED).
+        assert result == HandlerResult.applied()
 
     # ------------------------------------------------------------------
     # CaseLedgerEntry cascade tests (PCR-08-003, PCR-08-004) — AC-1

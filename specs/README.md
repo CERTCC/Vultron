@@ -367,12 +367,14 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   via `uv run append-history --from-file`, the `--from-file` CLI flag
   behaviour, and skill documentation update requirements (BW-01 through BW-06)
 - **`parallel-development.yaml`** - Multi-agent coordination via GitHub Issues:
-  issue hierarchy (Epic/Task/Subtask), label taxonomy (`group:`, `size:`,
-  `stale-claim`, `needs-rebase`, `specs-notes`), task claiming protocol (branch
-  as distributed lock), size labeling (AC count + diff-based update), auto-merge
-  rules, pre-PR code review with `[BLOCKING]`/`[ADVISORY]` tags, stale-claim
-  sweeper, merge conflict recovery, and GitHub Issue-based task coordination
-  (PAD-01 through PAD-14). See also `notes/parallel-development.md`.
+  issue hierarchy (Epic/Task/Subtask), label taxonomy (`size:`,
+  `stale-claim`, `needs-rebase`, `specs-notes`, `needs-info`,
+  `ready-for-human`), task claiming protocol (GitHub branch as distributed
+  lock), size labeling (AC count + diff-based update), auto-merge rules,
+  pre-PR code review with `[BLOCKING]`/`[ADVISORY]` tags, stale-claim sweeper,
+  merge conflict recovery, and the two paths through Project #24 (`Schedule`
+  on Epics; mirrored `Status` and PR `Ship stage`). See also
+  `notes/parallel-development.md`.
   Distinct from `agentic-readiness.yaml` (AR), which covers making the
   Vultron protocol code integrable with external agentic tools.
 - **`project-documentation.yaml`** - Documentation file structure and purpose;

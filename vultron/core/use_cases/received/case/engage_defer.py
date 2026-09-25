@@ -9,6 +9,7 @@ from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
 )
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 
 from ._helpers import (
@@ -36,7 +37,7 @@ class EngageCaseReceivedUseCase:
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.report.prioritize_tree import (
@@ -47,7 +48,7 @@ class EngageCaseReceivedUseCase:
         case_id = request.case_id
         if case_id is None:
             logger.warning("engage_case: missing case_id on request")
-            return
+            return HandlerResult.applied()
 
         # The BT must execute under the receiving actor's identity so that
         # CheckIsCaseManagerNode in GuardedCommitCaseLedgerEntryBT can match
@@ -95,6 +96,7 @@ class EngageCaseReceivedUseCase:
                 case_id,
                 BTBridge.get_failure_reason(tree),
             )
+        return HandlerResult.applied()
 
 
 class DeferCaseReceivedUseCase:
@@ -110,7 +112,7 @@ class DeferCaseReceivedUseCase:
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.report.prioritize_tree import (
@@ -121,7 +123,7 @@ class DeferCaseReceivedUseCase:
         case_id = request.case_id
         if case_id is None:
             logger.warning("defer_case: missing case_id on request")
-            return
+            return HandlerResult.applied()
 
         # The BT must execute under the receiving actor's identity so that
         # CheckIsCaseManagerNode in GuardedCommitCaseLedgerEntryBT can match
@@ -158,3 +160,4 @@ class DeferCaseReceivedUseCase:
                 case_id,
                 BTBridge.get_failure_reason(tree),
             )
+        return HandlerResult.applied()

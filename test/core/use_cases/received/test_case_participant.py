@@ -16,6 +16,7 @@ from typing import cast
 
 import pytest
 
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.use_cases.received.case_participant import (
     AddCaseParticipantToCaseReceivedUseCase,
     RemoveCaseParticipantFromCaseReceivedUseCase,
@@ -117,7 +118,9 @@ class TestCaseParticipantUseCases:
         result = RemoveCaseParticipantFromCaseReceivedUseCase(
             dl, event
         ).execute()
-        assert result is None
+        # An idempotent re-removal is a no-op: APPLIED only until #2255 assigns
+        # per-site dispositions (it may then become SKIPPED).
+        assert result == HandlerResult.applied()
 
     def test_add_case_participant_updates_index(
         self, monkeypatch, make_payload

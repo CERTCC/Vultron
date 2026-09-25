@@ -71,8 +71,44 @@ def load_jsonl(path: Path) -> list[dict]:
 
 
 def log_index(entry: dict) -> int:
-    """Return the ``log_index`` from an entry dict."""
-    return int(entry.get("log_index", entry.get("logIndex", -1)))
+    """Return the ``log_index`` from an entry dict.
+
+    Raises:
+        ValueError: The entry has no ``logIndex``, a non-integer one, or a
+            negative one.  A committed entry always carries an integer index
+            ``>= 0`` (CLP-14-010), so there is no sentinel: a ``-1`` default
+            would sort and compare as a real — earliest — position and let
+            ordering checks pass on an entry whose position is unknown
+            (ISSUE-2764).  ``bool``, ``float`` and numeric strings are not
+            coerced, since each would silently stand in for a real position.
+    """
+    raw = entry.get("log_index")
+    if raw is None:
+        raw = entry.get("logIndex")
+    if raw is None:
+        raise ValueError(
+            f"Ledger entry eventType={event_type(entry)!r} has no logIndex"
+        )
+    if not isinstance(raw, int) or isinstance(raw, bool):
+        raise ValueError(
+            f"Ledger entry eventType={event_type(entry)!r} has non-integer "
+            f"logIndex={raw!r}"
+        )
+    if raw < 0:
+        raise ValueError(
+            f"Ledger entry eventType={event_type(entry)!r} has negative "
+            f"logIndex={raw}"
+        )
+    return raw
+
+
+def log_index_violation(entry: dict) -> str | None:
+    """Return why *entry*'s ``logIndex`` is unusable, or ``None`` if it is valid."""
+    try:
+        log_index(entry)
+    except ValueError as exc:
+        return str(exc)
+    return None
 
 
 def entry_hash(entry: dict) -> str:
@@ -258,9 +294,6 @@ def load_devlogs(
             pytest.fail(msg)
         pytest.skip(msg)
 
-    for actor in replicas:
-        replicas[actor] = sorted(replicas[actor], key=log_index)
-
     # Filter to the most recent run's case when the manifest provides a caseId.
     # Without this, accumulated JSONL files from prior local runs chain entries
     # from different cases together and break the hash-chain invariant (issue #2273).
@@ -272,7 +305,33 @@ def load_devlogs(
                 e for e in replicas[actor] if case_id(e) == filter_id
             ]
 
+    _fail_on_invalid_log_indices(replicas)
+
+    for actor in replicas:
+        replicas[actor] = sorted(replicas[actor], key=log_index)
+
     return replicas
+
+
+def _fail_on_invalid_log_indices(replicas: dict[str, list[dict]]) -> None:
+    """``pytest.fail`` naming every entry whose ``logIndex`` is unusable.
+
+    An entry with no position cannot be ordered, so every index-based
+    invariant would be judging a corrupt log.  All such entries are reported
+    at once, across every actor (EH-07-001, ISSUE-2764).
+    """
+    problems = [
+        f"  actor {actor!r}: {reason}"
+        for actor, entries in replicas.items()
+        for e in entries
+        if (reason := log_index_violation(e)) is not None
+    ]
+    if problems:
+        pytest.fail(
+            f"Ledger entries with no valid logIndex ({len(problems)}); a "
+            "committed entry always carries an index >= 0 (CLP-14-010):\n"
+            + "\n".join(problems)
+        )
 
 
 def auth_entries(replicas: dict[str, list[dict]]) -> list[dict]:
@@ -972,6 +1031,11 @@ def check_causal_edges(
     Returns a list of violation strings (empty = all edges satisfied).
     Diagnostic output names the unsatisfied edge and the indices that were
     observed, so failures are self-explanatory (DEMOMA-22-006-AC-6).
+
+    Raises:
+        ValueError: An antecedent or consequent entry has no valid
+            ``logIndex`` (see ``log_index()``).  ``load_devlogs()`` rejects
+            such entries up front, so this only fires for hand-built replicas.
     """
     auth = auth_entries(replicas)
     if not auth:

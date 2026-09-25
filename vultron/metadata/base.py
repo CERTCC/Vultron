@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Annotated
 
+import pathspec
 import yaml
 from pydantic import StringConstraints
 
@@ -53,35 +54,6 @@ MkDocsYamlLoader.add_multi_constructor(
 )
 
 
-def site_dir(root: Path | None = None) -> Path:
-    """Return the built site directory."""
-    return (root or repo_root()) / "site"
-
-
-def built_site_dir(root: Path | None = None, *, claim: str) -> Path:
-    """Return ``site/``, raising if the build has not produced it.
-
-    The built-site gates read the build's output, and an unbuilt site cannot
-    evidence any claim about it, so absence is a failure rather than a pass
-    (DF-09-009).
-
-    Args:
-        root: Repository root. Defaults to the enclosing checkout.
-        claim: What the caller's gate shows, completing "An unbuilt site
-            cannot show that ...".
-
-    Raises:
-        FileNotFoundError: If ``site/`` is absent or empty.
-    """
-    built = site_dir(root)
-    if not built.is_dir() or not any(built.iterdir()):
-        raise FileNotFoundError(
-            f"{built} is absent or empty — run 'uv run mkdocs build' first. "
-            f"An unbuilt site cannot show that {claim}."
-        )
-    return built
-
-
 def mkdocs_config(root: Path | None = None) -> dict[str, object]:
     """Return ``mkdocs.yml`` parsed with :class:`MkDocsYamlLoader`.
 
@@ -89,9 +61,37 @@ def mkdocs_config(root: Path | None = None) -> dict[str, object]:
         root: Repository root. Defaults to the enclosing checkout.
     """
     base = root or repo_root()
-    with (base / "mkdocs.yml").open(encoding="utf-8") as fh:
-        config = yaml.load(fh, Loader=MkDocsYamlLoader)  # noqa: S506
+    return parse_mkdocs_config(
+        (base / "mkdocs.yml").read_text(encoding="utf-8")
+    )
+
+
+def parse_mkdocs_config(text: str) -> dict[str, object]:
+    """Return ``mkdocs.yml`` content *text* parsed with :class:`MkDocsYamlLoader`.
+
+    For a config that is not a file in this checkout, such as the
+    ``mkdocs.yml`` on another git ref.
+    """
+    config = yaml.load(text, Loader=MkDocsYamlLoader)  # noqa: S506
     return config if isinstance(config, dict) else {}
+
+
+def unbuilt_docs_spec(
+    config: dict[str, object],
+) -> pathspec.gitignore.GitIgnoreSpec:
+    """Return a matcher for the ``docs/``-relative paths *config* does not build.
+
+    Reads ``draft_docs`` and ``exclude_docs``, with the same ``GitIgnoreSpec``
+    matcher MkDocs applies in ``mkdocs.structure.files.set_exclusions``, so the
+    semantics cannot drift from the build's. Pages in ``not_in_nav`` are **not**
+    matched: they are built and reachable by URL, just absent from the nav.
+    """
+    lines: list[str] = []
+    for key in ("draft_docs", "exclude_docs"):
+        value = config.get(key)
+        if isinstance(value, str):
+            lines.extend(value.splitlines())
+    return pathspec.gitignore.GitIgnoreSpec.from_lines(lines)
 
 
 def _walk_nav(nav: object) -> list[str]:

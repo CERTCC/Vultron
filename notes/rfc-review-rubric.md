@@ -341,7 +341,7 @@ Items moved here are no longer checked manually; the mechanism is noted.
 | Item | Mechanism | Since |
 |------|-----------|-------|
 | Markdown lint (heading format, list style) | `markdownlint-cli2` pre-commit hook | pre-existing |
-| MkDocs build with zero warnings | `mkdocs build --strict` in `docs-build-check.yml` and `deploy_site.yml` (DOCBW-03-008, DOCBW-03-009) | #3051 |
+| MkDocs build with zero warnings | `mkdocs build --strict` in `docs-build-check.yml` and `deploy_site.yml` (DOCBW-03-009, DOCBW-03-010) | #3051 |
 | Broken `§N.M` heading anchors | `mkdocs.yml` `validation.links.anchors: warn` + strict build | pre-existing |
 
 !!! warning "`lint-docs` does not cover this document yet — tracked as #3318"

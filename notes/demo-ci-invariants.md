@@ -5,6 +5,7 @@ related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
   - specs/ci-security.yaml
+  - specs/case-ledger-processing.yaml
 related_notes:
   - notes/ci-workflow-authoring.md
   - notes/demo-scenario-authoring.md
@@ -96,6 +97,7 @@ These cover any failure that happens *inside* `scenario_harness()`.
    | no ledger files **and** no `dump-manifest.json`, no `demo_name` | `skip` — unscoped load with no data |
    | no ledger files **but** a manifest exists | **`fail`** — real invariant failure |
    | manifest present but unparseable | **`fail`** |
+   | an entry (after the `caseId` filter) has no `logIndex`, or a negative one | **`fail`**, naming every such entry across all actors (ISSUE-2764) |
    | ledger files present | load and check normally |
 
    The failure message reproduces the manifest's own account — case ID, captured
@@ -107,6 +109,10 @@ These cover any failure that happens *inside* `scenario_harness()`.
    dump are recorded in the manifest's `reason` field and swallowed; the harness
    re-raises the original exception with the accumulated `demo_check` failures
    attached as exception notes (DEMOCI-10-004).
+
+   There is no `-1` sentinel for an unknown position: `log_index()` raises
+   rather than let an unplaced entry sort first and satisfy ordering checks
+   such as `check_causal_edges`.
 
 4. **The harness exits non-zero on an all-skip session.**
    When `devlogs/` is absent or empty, `load_devlogs()` calls `pytest.skip()` at

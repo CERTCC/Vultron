@@ -13,6 +13,7 @@ commands:
   - ".github/scripts/mkdocs-build-strict.sh"
   - "uv run docs-withheld"
   - "uv run docs-links"
+  - "uv run docs-legacy-urls"
 inputs:
   - name: repo_root
     description: "Repository root where the command will be executed"
@@ -33,7 +34,7 @@ committing changes to `docs/` directory files.
 When the `docs/` directory is modified, `mkdocs build --strict` MUST pass with
 zero real warnings before code is staged for commit. CI enforces the same
 constraint: both `docs-build-check.yml` and `deploy_site.yml` run a plain
-`mkdocs build --strict` (DOCBW-03-008). CI suppresses **nothing**, so a warning
+`mkdocs build --strict` (DOCBW-03-009). CI suppresses **nothing**, so a warning
 this script forgives below still fails CI; the suppression list exists only for
 the griffe false positives, which are absent from the current build.
 
@@ -73,13 +74,19 @@ still reported and must be fixed.
 
 ```bash
 PYTHONPATH='' uv run docs-withheld
+PYTHONPATH='' uv run docs-legacy-urls
 ```
 
-   This fails when an artifact the project declared withheld produced files in
-   `site/` (DOCBW-03-005). It reads the built tree, so it only means anything
-   after step 1 succeeded. Both the pull-request workflow and `deploy_site.yml`
-   run the same check, so a failure here is a failure that would have blocked
-   the deploy.
+   `docs-withheld` fails when an artifact the project declared withheld
+   produced files in `site/` (DOCBW-03-005). `docs-legacy-urls` fails when a
+   URL an earlier publish served no longer resolves as a page or a redirect
+   (DOCBW-03-008). The fix for a moved page is a `redirect_maps` entry in
+   `mkdocs.yml`. A page withdrawn on purpose gets a declaration in
+   `vultron/metadata/docs/withheld.py` instead. Both checks read the built tree,
+   so they only mean anything after step 1 succeeded. Both the pull-request
+   workflow and `deploy_site.yml` run them through the
+   `check-site-publication` action, so a failure here is a failure that would
+   have blocked the deploy.
 
 1. Check the reference axis against the same build:
 
@@ -91,9 +98,10 @@ PYTHONPATH='' uv run docs-links
    fails on any that points at a file the build did not produce, printing each
    as `<page>: <reference>` (DOCBW-03-007). It covers what `--strict` cannot:
    links printed by `markdown-exec` blocks, links to withheld pages, and pages
-   nothing links to. Both workflows run it unconditionally after the build.
+   nothing links to. Both workflows run it, unconditionally, through the same
+   `check-site-publication` action.
 
-1. Stage changes only after all three commands exit cleanly with zero code.
+1. Stage changes only after all four commands exit cleanly with zero code.
 
 ## Constraints / Rules
 
@@ -106,9 +114,9 @@ PYTHONPATH='' uv run docs-links
   - Invalid markdown: syntax errors that prevent proper parsing
 - Validate links using `markdownlint-cli2` BEFORE running the build script
   to catch markdown syntax issues early.
-- Run `docs-withheld` and `docs-links` AFTER the build script, never before:
-  both read `site/`, and both fail rather than pass when that directory is
-  absent or empty.
+- Run `docs-withheld`, `docs-legacy-urls` and `docs-links` AFTER the build
+  script, never before: they read `site/`, and they fail rather than pass when
+  that directory is absent or empty.
 
 ## Examples
 

@@ -32,6 +32,7 @@ from test.ci.invariants.common import (
     cs_observations_from_snap,
     event_type,
     load_devlogs,
+    log_index,
     payload,
 )
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
@@ -159,7 +160,7 @@ def test_fcv_reject_accept_invite_absent(
     assert not bad, (
         f"Found {len(bad)} unexpected accept_invite_actor_to_case entries "
         f"(Vendor should have rejected, not accepted): "
-        + str([e.get("log_index") for e in bad])
+        + str([log_index(e) for e in bad])
     )
 
 
