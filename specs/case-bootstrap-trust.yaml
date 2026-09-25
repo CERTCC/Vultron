@@ -468,24 +468,24 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A reporter MUST keep one report-to-case link per (report, recipient)
-      pair, each holding its own trusted case-creator identity, trusted
-      CASE_MANAGER identity, and case id. Offering a report to a further
-      recipient MUST NOT reuse, overwrite, or suppress the link held for an
-      earlier recipient, and a bootstrap `Create(VulnerabilityCase)` MUST be
-      validated (CBT-01-005) against the link for the recipient that sent it.
+      A reporter that has offered one report to several recipients MUST accept
+      a valid bootstrap `Create(VulnerabilityCase)` from each of them, checking
+      each bootstrap (CBT-01-005) against the recipient that sent it and
+      recording the resulting case and CASE_MANAGER for that recipient alone.
+      Offering the report to a further recipient, or accepting one recipient's
+      bootstrap, MUST NOT change whether another recipient's bootstrap is
+      accepted or which case is recorded for it.
     rationale: >-
-      A link keyed on the report alone holds one trusted case creator. When
-      the reporter re-offers the report to a second recipient, that recipient's
-      bootstrap is refused because its sender is not the first recipient, so
-      the reporter cannot join the second case at all — in exactly the
-      sequential escalation that is the common form of one report becoming two
-      cases (issue #3366).
+      In the common sequential escalation, a reporter re-offers an unanswered
+      report to a Coordinator and either recipient may create a case. A
+      reporter that trusts one case creator per report refuses the second
+      recipient's bootstrap and cannot join that case (issue #3366). How the
+      reporter stores per-recipient trust is an implementation choice; this
+      constrains only which bootstraps it accepts.
     verification: >-
-      Unit tests confirm that links for the same report and two different
-      recipients are distinct records, and that a valid bootstrap from either
-      recipient is accepted and recorded on that recipient's link without
-      altering the other.
+      Unit tests confirm that after one report is offered to two recipients, a
+      valid bootstrap from each recipient is accepted and seeds that
+      recipient's case, in either order, without affecting the other.
     relationships:
     - rel_type: refines
       spec_id: CBT-01-006

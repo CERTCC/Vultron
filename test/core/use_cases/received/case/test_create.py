@@ -33,6 +33,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronAlreadyExistsError
 from vultron.core.use_cases.received.actor import _find_case_actor_id
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
@@ -321,3 +322,73 @@ class TestAnnounceValidatedByTrustedCaseActorId:
 
         result = _find_case_actor_id(dl, _CASE_ID)
         assert result == _CASE_ACTOR_ID
+
+
+# ---------------------------------------------------------------------------
+# CBT-06-002: one report offered to two recipients — both bootstraps accepted
+# ---------------------------------------------------------------------------
+
+_COORDINATOR_ID = "https://example.org/actors/coordinator"
+_SECOND_CASE_ID = "https://example.org/cases/cbt-test-002"
+
+
+def _offer_report_to(dl, recipient_id: str) -> None:
+    """Record what the reporter trusts after offering the report to *recipient_id*.
+
+    Mirrors the recording step of ``SvcSubmitReportUseCase._prepare``, which
+    cannot yet re-offer an existing report (it always mints a new one).  When
+    #3698 adds that path, drive this through the trigger instead.
+    """
+    try:
+        dl.create(
+            VultronReportCaseLink(
+                report_id=_REPORT_ID, trusted_case_creator_id=recipient_id
+            )
+        )
+    except VultronAlreadyExistsError:
+        pass
+
+
+def _bootstrap_event(make_payload, case_id: str, creator_id: str):
+    participant = as_CaseParticipant(
+        case_roles=[CVDRole.CASE_MANAGER],
+        id_=f"{case_id}/participants/case-actor",
+        attributed_to=_CASE_ACTOR_ID,
+        context=case_id,
+        name="CaseActor",
+    )
+    case = as_VulnerabilityCase.model_construct(
+        id_=case_id, name="CBT-06 case", case_participants=[participant]
+    )
+    return make_payload(create_case_activity(case, actor=creator_id))
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CBT-06-002: the reporter trusts one case creator per report, so the "
+        "second recipient's bootstrap is refused. Tracked by #3698."
+    ),
+)
+@pytest.mark.spec("CBT-06-002")
+@pytest.mark.parametrize(
+    "bootstrap_order",
+    [(_CREATOR_ID, _COORDINATOR_ID), (_COORDINATOR_ID, _CREATOR_ID)],
+    ids=["first-recipient-first", "second-recipient-first"],
+)
+def test_each_recipient_of_one_report_can_bootstrap_its_own_case(
+    dl, make_payload, bootstrap_order
+):
+    """A report offered to two recipients yields two accepted bootstraps."""
+    case_for = {_CREATOR_ID: _CASE_ID, _COORDINATOR_ID: _SECOND_CASE_ID}
+    _offer_report_to(dl, _CREATOR_ID)
+    _offer_report_to(dl, _COORDINATOR_ID)
+
+    for creator_id in bootstrap_order:
+        event = _bootstrap_event(
+            make_payload, case_for[creator_id], creator_id
+        )
+        CreateCaseReceivedUseCase(dl, event).execute()
+
+    assert dl.read(_CASE_ID) is not None
+    assert dl.read(_SECOND_CASE_ID) is not None

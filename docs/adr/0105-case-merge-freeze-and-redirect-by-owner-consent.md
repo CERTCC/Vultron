@@ -20,7 +20,7 @@ The common form is sequential, not concurrent.
 A Reporter gets no answer from its first recipient, asks a Coordinator for help, and the Coordinator accepts first.
 The two Cases can also arise independently, when two Finders report the same vulnerability to different parties.
 
-The Reporter's side of this is a bookkeeping problem, and CBT-06 settles it: each `Offer` names one recipient, and the Reporter keeps one report-to-case link per (Report, recipient).
+The Reporter's side of this is settled by CBT-06: the Reporter sends the same Report in a separate `Offer` to each recipient, and it accepts a valid Case bootstrap from each recipient without one affecting another.
 Knowing about both Cases gives the Reporter nothing to act on, because the Reporter owns neither Case.
 The decision belongs to the Case Owners, and it arises when the Owner of one Case learns that the other Case exists.
 
@@ -105,7 +105,7 @@ Review confirms that no merge path writes to a frozen Case's ledger and that no 
 ## More Information
 
 - Source: Concern [#3366](https://github.com/CERTCC/Vultron/issues/3366) (one Report becoming two Cases).
-- Reporter-side bookkeeping: CBT-06 in `specs/case-bootstrap-trust.yaml`, implemented by [#3698](https://github.com/CERTCC/Vultron/issues/3698).
+- Reporter-side behaviour: CBT-06 in `specs/case-bootstrap-trust.yaml`, implemented by [#3698](https://github.com/CERTCC/Vultron/issues/3698).
 - Merge requirements: [#3701](https://github.com/CERTCC/Vultron/issues/3701); merge implementation: [#3702](https://github.com/CERTCC/Vultron/issues/3702).
 - Offer-and-accept routing pattern reused here: [ADR-0053](0053-ownership-transfer-routed-via-caseactor.md).
 - Case cross-reference fields: [ADR-0017](0017-domain-wire-object-separation.md).
