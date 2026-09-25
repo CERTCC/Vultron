@@ -21,14 +21,20 @@ the protocol allows". Instead they read the JSON this script produces, so the
 demo automatically tracks any change to the authoritative state machines in
 :mod:`vultron.core.states`.
 
-The four authoritative machines are read uniformly through their public
-``create_*_machine()`` factories (the same surface :func:`mermaid_machine`
-uses), so this script never needs to know how each enum serializes:
+Three of the four machines are read uniformly through their public
+``create_*_machine()`` factories in :mod:`vultron.core.states`, so this script
+never needs to know how each enum serializes:
 
 - **RM**  — Report Management (per-participant)
 - **EM**  — Embargo Management (case-level)
-- **VFD** — Vendor Fix Development (per-participant; the ``vfd``→``VFD`` ladder)
 - **PXA** — Public / eXploit / Attacks (case-level)
+
+The fourth, **VFD** (Vendor Fix Development; the per-participant
+``vfd``→``VFD`` ladder), no longer exists as a single machine in
+:mod:`vultron.core.states`: it was split into the orthogonal ``CS_vf`` and
+``CS_d`` sub-machines. The demo UI still consumes one combined ``vfd`` machine,
+so :func:`create_vfd_machine` below projects the two authoritative sub-machines
+back onto that ladder. See its docstring for the demo-scoped composition rule.
 
 Output is written to ``data/json/protocol_states.json`` at the repository root
 (following the SSVC ``data/json/`` precedent). The output is **deterministic**
@@ -41,7 +47,8 @@ Usage::
 
 Run it once now, commit the generated JSON, and re-run it (then re-commit)
 whenever the protocol's state machines change. The drift test
-``test/test_demo_states_export.py`` fails CI if the committed file goes stale.
+``test/metadata/demo_scenarios/test_export_states.py`` fails CI if the
+committed file goes stale.
 """
 
 import json
@@ -51,17 +58,84 @@ from typing import Any
 
 from transitions import Machine
 
-from vultron.core.states.cs import create_pxa_machine, create_vfd_machine
+from vultron.core.states.cs import (
+    CS_d,
+    CS_vf,
+    _d_transitions,
+    _vf_transitions,
+    create_pxa_machine,
+)
 from vultron.core.states.em import create_em_machine
 from vultron.core.states.rm import create_rm_machine
 from vultron.core.case_states.patterns.embargo import _EMBARGO_VIABILITY
 from vultron.core.scoring.embargo import EmbargoViability
 
 # Where the artifact lives, relative to the repo root.
-# __file__ = <repo>/vultron/scripts/export_states.py
-#   parents[0] = scripts, parents[1] = vultron, parents[2] = <repo root>
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# __file__ = <repo>/vultron/metadata/demo_scenarios/export_states.py
+#   parents[0] = demo_scenarios, [1] = metadata, [2] = vultron, [3] = <repo root>
+REPO_ROOT = Path(__file__).resolve().parents[3]
 OUTPUT_PATH = REPO_ROOT / "data" / "json" / "protocol_states.json"
+
+
+def _vfd_token(vf: CS_vf, d: CS_d) -> str:
+    """Combine a vf-ladder and d-ladder state into a demo VFD token.
+
+    E.g. ``(CS_vf.VF, CS_d.d)`` → ``"VFd"``. The token's characters are the
+    sub-state values concatenated, matching the historical VFD ladder tokens.
+    """
+    return f"{vf.value}{d.value}"
+
+
+def create_vfd_machine() -> Machine:
+    """Reconstruct the demo's combined VFD ladder from the vf and d sub-machines.
+
+    The protocol once modeled VFD as a single 4-state ladder
+    (``vfd → Vfd → VFd → VFD``). :mod:`vultron.core.states` has since split it
+    into two orthogonal monotone sub-machines — ``CS_vf`` (``vf → Vf → VF``) and
+    ``CS_d`` (``d → D``) — and no longer exposes a combined machine.
+
+    The demo UI still consumes a single ``vfd`` machine, so this exporter
+    projects the two sub-machines back onto the canonical path the ladder always
+    described: vf advances fully, then d. The states, transitions, and trigger
+    names are read from the authoritative ``CS_vf``/``CS_d`` tables (never
+    hand-copied); only the *composition order* lives here, and it is a
+    demo-scoped convenience — :mod:`vultron.core` deliberately no longer
+    represents a combined VFD machine.
+    """
+    d_initial = list(CS_d)[0]
+    vf_initial = list(CS_vf)[0]
+    vf_terminal = list(CS_vf)[-1]
+
+    # vf advances with d pinned at its initial value, then d advances with vf
+    # pinned at its terminal value: vfd → Vfd → VFd → VFD.
+    states = [_vfd_token(vf, d_initial) for vf in CS_vf] + [
+        _vfd_token(vf_terminal, d) for d in CS_d if d is not d_initial
+    ]
+
+    transitions = [
+        {
+            "trigger": t["trigger"].value,
+            "source": _vfd_token(t["source"], d_initial),
+            "dest": _vfd_token(t["dest"], d_initial),
+        }
+        for t in _vf_transitions
+    ] + [
+        {
+            "trigger": t["trigger"].value,
+            "source": _vfd_token(vf_terminal, t["source"]),
+            "dest": _vfd_token(vf_terminal, t["dest"]),
+        }
+        for t in _d_transitions
+    ]
+
+    return Machine(
+        states=states,
+        transitions=transitions,
+        initial=_vfd_token(vf_initial, d_initial),
+        auto_transitions=False,
+        name="Demo VFD ladder (vf × d projection)",
+    )
+
 
 # Fixed, ordered list of machines so the exported JSON is deterministic.
 _MACHINES = (
