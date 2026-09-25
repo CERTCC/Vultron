@@ -336,7 +336,8 @@ Three mechanics bite here, and each one has cost something:
 All three failures share one shape: the withholding claim and the build output
 were never compared. `uv run docs-withheld`
 (`vultron/metadata/docs/withheld.py`) is that comparison, and DOCBW-03-005 runs
-it in `docs-build-check.yml` after the build. It checks the *outcome* rather
+it after the build in every site-building workflow, through the shared
+`check-site-publication` action. It checks the *outcome* rather
 than the `mkdocs.yml` mechanism, so a mis-anchored pattern or a plugin-emitted
 file fails the gate instead of shipping. Its declaration of what is withheld is
 the interim home for the publication axis; #3555's maturity manifest replaces it.
@@ -431,6 +432,48 @@ MkDocs uses in `set_exclusions`, so its notion of "published" cannot drift from
 the build's. That replaced a hand-maintained tuple under a "keep this in sync
 with mkdocs.yml" comment — and #3574 is what that invitation cost. Prefer
 deriving in any new generator; the gate is what covers the ones that do not.
+
+## The Third Axis Is Time: a URL Once Served Must Keep Answering
+
+The publication and reference axes compare one build with itself. Neither can
+see a URL that an *earlier* build served and this one dropped. Between the
+`publish` branch and `main`, 162 pages had moved, been renamed, or been
+withdrawn, and a publish would have turned every one of those URLs into a 404
+(#3556). `--strict` saw no problem because nothing in the new build linked to
+the old paths. The only readers still using them were outside the site.
+
+`uv run docs-legacy-urls` (`vultron/metadata/docs/legacy_urls.py`,
+DOCBW-03-008) is the comparison. Three things about it are easy to get wrong:
+
+- **The evidence has to be committed before `publish` advances.** The record of
+  what was served is the `publish` branch itself, so a check that derived it at
+  check time would compare `main` with `main` after the next publish, and
+  pass. `legacy_urls_baseline.txt` holds every `docs/` page any publish has
+  built. It only grows (`--snapshot <ref>` adds a ref's pages and drops none),
+  because a URL that was cited once can be cited forever.
+- **The baseline lists source pages, not nav entries.** On `publish` nothing
+  was in `exclude_docs`, so every `_*.md` fragment and `includes/*` file was
+  built as a page of its own and answered with a 200. The issue's first count
+  left these out as not reader-facing, but they were live URLs all the same.
+  "Not in the nav" is a statement about discoverability. It says nothing about
+  whether the URL exists.
+- **Withdrawn is not redirected.** A page retired on purpose is declared in
+  `withheld.py` rather than redirected to whatever page happens to be nearby,
+  because a redirect to an unrelated page tells a reader the content moved when
+  it did not. `docs-withheld` checks that the withdrawn URL really is absent. A
+  page whose content was *folded into* another (`topics/future_work/ontology`
+  into the ontology tombstone) is a move, and it redirects.
+
+Confirm a rename by content, not by filename. `howto/general_implementation`
+looked like it had become `howto/process_implementation`. In fact it covered
+message formats, transport, identity, and encryption, which the commit that
+removed it said the ActivityPub mapping had since addressed. So it redirects to
+`howto/activitypub/`.
+
+Both publication-side checks run through one composite action,
+`.github/actions/check-site-publication`, in `docs-build-check.yml` and in
+`deploy_site.yml` before the Pages upload. The action exists so the workflow
+that ships is gated by exactly what the workflow that reviews is gated by.
 
 ## Nav Visibility Is Not a Content Class: Fragments vs. Assembly Units
 

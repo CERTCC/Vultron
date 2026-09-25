@@ -88,6 +88,18 @@ class WithheldArtifact:
     reason: str
     gate: str
 
+    def covers(self, site_path: str) -> bool:
+        """Return whether *site_path*, relative to ``site/``, is this artifact's.
+
+        A path is covered when it equals a prefix or sits beneath one, so
+        ``reference/ontology/dfa`` covers ``reference/ontology/dfa/index.html``
+        but not ``reference/ontology/dfa2``.
+        """
+        return any(
+            site_path == prefix or site_path.startswith(f"{prefix}/")
+            for prefix in self.site_prefixes
+        )
+
     def site_globs(self) -> tuple[str, ...]:
         """Return the glob patterns matching every built path this artifact owns.
 
@@ -134,6 +146,10 @@ WITHHELD_ARTIFACTS: tuple[WithheldArtifact, ...] = (
             "reference/ontology/vultron_process",
             "reference/ontology/dfa",
             "reference/ontology/rfc2119",
+            # Protégé how-to fragments the detail pages included; each was
+            # built as a page of its own and is a live URL on the old site.
+            "includes/ontology_tips",
+            "includes/use_protege",
         ),
         source_globs=("ontology/*.ttl",),
         reason=(

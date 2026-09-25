@@ -135,7 +135,8 @@ groups:
         verification: >-
           `uv run docs-withheld` (`vultron/metadata/docs/withheld.py`) exits
           non-zero, invoked by the `Check withheld artifacts are unpublished`
-          step in `.github/workflows/docs-build-check.yml`. Its logic is
+          step of `.github/actions/check-site-publication`, which
+          `.github/workflows/docs-build-check.yml` runs after the build. Its logic is
           covered by `test/metadata/docs/test_withheld.py`, including the
           empty-`site/` and stale-declaration failure modes. #3555 repoints the
           declaration at the maturity manifest.
@@ -155,8 +156,9 @@ groups:
           the step before the upload means the deploy fails rather than
           publishing an artifact the project declared withheld.
         verification: >-
-          `test/ci/test_withheld_gate_in_workflows.py` asserts every workflow
-          running `mkdocs build` also runs `docs-withheld` after it, and that in
+          `test/ci/test_publication_gates_in_workflows.py` asserts every
+          workflow running `mkdocs build` also runs `docs-withheld` after it,
+          directly or through a local composite action, and that in
           `deploy_site.yml` the step precedes `actions/upload-pages-artifact`.
       - id: DOCBW-03-007
         priority: MUST
@@ -194,8 +196,40 @@ groups:
           is covered by `test/metadata/docs/test_links.py` over synthetic built
           trees, including the absent-`site/` failure, a reference to a withheld
           page, a reference ending in `.md`, and a reference on a page no entry
-          point links to. `test/ci/test_withheld_gate_in_workflows.py` extends to
+          point links to. `test/ci/test_publication_gates_in_workflows.py` extends to
           assert the step's presence and placement.
+      - id: DOCBW-03-008
+        priority: MUST
+        kind: project
+        statement: >-
+          A continuity step MUST run after the Build Site step and MUST fail the
+          workflow when a URL that any earlier publish of the site served
+          resolves to neither a built page nor a redirect whose chain ends at a
+          built page, unless a withheld declaration (DOCBW-03-005) covers it. The
+          record of served URLs MUST be committed, MUST only grow, and MUST NOT
+          be derived at check time from the branch the publish replaces. The
+          step MUST fail when `site/` is absent or empty or the record is empty,
+          and MUST run in every workflow that builds the site on the same terms
+          as DOCBW-03-006.
+        rationale: >-
+          Between `publish` and `main`, 162 pages moved or were withdrawn, and a
+          publish would have turned each URL into a 404 (#3556). `--strict`
+          checks links within one build, not URLs an earlier build served. The
+          record is committed because its evidence, the `publish` branch, is
+          gone once `publish` advances. A withdrawn page is excluded, not
+          redirected, so a retirement is not disguised as a move. Other clauses:
+          `notes/documentation-strategy.md`.
+        verification: >-
+          `uv run docs-legacy-urls` (`vultron/metadata/docs/legacy_urls.py`)
+          exits non-zero, reading the record in
+          `vultron/metadata/docs/legacy_urls_baseline.txt`, invoked by the
+          `Check published URLs still resolve` step of
+          `.github/actions/check-site-publication`. Its logic is covered by
+          `test/metadata/docs/test_legacy_urls.py` over synthetic built trees,
+          including the absent-`site/` and empty-record failures, a redirect to
+          an unbuilt page, a loop, and a withheld URL.
+          `test/ci/test_publication_gates_in_workflows.py` asserts the step's
+          presence and placement in every site-building workflow.
 
   - id: DOCBW-04
     title: Docs-Changed Filter Step

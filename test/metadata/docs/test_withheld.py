@@ -262,3 +262,21 @@ def test_main_succeeds_when_nothing_withheld_is_published(tmp_path, capsys):
     )
     main(["--root", str(tmp_path)])
     assert "withheld artifacts are absent" in capsys.readouterr().out
+
+
+# --- covers ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "site_path,covered",
+    [
+        ("withheld", True),
+        ("withheld/index.html", True),
+        ("withheld/deep/page", True),
+        ("withheld2", False),
+        ("other/withheld", False),
+    ],
+)
+def test_covers_matches_a_prefix_and_what_is_beneath_it(site_path, covered):
+    """The continuity check (#3556) leans on this to skip withdrawn URLs."""
+    assert _artifact().covers(site_path) is covered

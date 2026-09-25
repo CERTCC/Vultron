@@ -11,6 +11,11 @@ on:
       # The withheld-artifact declaration (DOCBW-03-005): a PR that only edits
       # it must rerun the gate it configures.
       - 'vultron/metadata/docs/withheld.py'
+      # The published-URL baseline and its check (DOCBW-03-008), and the
+      # action that runs both gates.
+      - 'vultron/metadata/docs/legacy_urls.py'
+      - 'vultron/metadata/docs/legacy_urls_baseline.txt'
+      - '.github/actions/check-site-publication/**'
       - 'CONTRIBUTING.md'
       - 'ContributionInstructions.md'
       - 'LICENSE.md'
@@ -59,14 +64,11 @@ jobs:
         run: |
           uv run mkdocs build --verbose --clean --config-file mkdocs.yml
 
-      # Runs against the built site above, so it must follow that step. Verifies
-      # the publication axis: every artifact declared withheld produced no files
-      # in site/. The `docs/ns/` case is why this exists — the page claimed
-      # `draft: true` and shipped anyway, because nothing compared the claim to
-      # the output.
-      - name: Check withheld artifacts are unpublished
-        run: |
-          PYTHONPATH='' uv run docs-withheld
+      # Runs against the built site above, so it must follow that step: no
+      # withheld artifact was built, and every URL an earlier publish served
+      # still resolves. The same action gates deploy_site.yml.
+      - name: Check site publication
+        uses: ./.github/actions/check-site-publication
 
       - name: Check links
         if: steps.filter.outputs.docs_changed == 'true'
