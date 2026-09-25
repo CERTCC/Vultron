@@ -162,7 +162,6 @@ reference/case_states/state_vfdp_x__a_.md
 reference/case_states/state_vfdp_x_a.md
 reference/case_states/state_vfdpx_a_.md
 reference/case_states/state_vfdpxa.md
-reference/code/api/actor_inbox_handler.md
 reference/code/as_vocab/as_activities.md
 reference/code/as_vocab/as_base.md
 reference/code/as_vocab/as_links.md
@@ -193,7 +192,6 @@ reference/codebase/STACK.md
 reference/codebase/STRUCTURE.md
 reference/codebase/TESTING.md
 reference/codebase/index.md
-reference/inbox_handler.md
 reference/ontology/index.md
 reference/specs/process.md
 reference/specs/project.md
