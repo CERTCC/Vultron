@@ -405,14 +405,16 @@ So the rule is about what the filename means, not about what the generator does:
 an `index.md` orients and routes, and anything on it that is neither orientation
 nor routing belongs on a named page of its own, with the index linking to it.
 
-`docs/topics/background/index.md` is the open instance — 211 lines titled
-"Vultron Contextualized", which is an essay, not a door. The prerequisites
-admonition and the "New to Vultron?" pointer are the parts that belong to an
-index; the rest needs its own page. #3526 owns deciding what that page is called
-and what carries over, because the choice depends on how the neighbouring
-`background/` pages divide the same material — which is exactly the
+`docs/topics/background/index.md` was the worked instance — 211 lines titled
+"Vultron Contextualized", which was an essay, not a door. #3526 decided where
+each section went, because that depended on how the neighbouring
+`background/` pages divide the same material — exactly the
 several-overlapping-pages judgment an audit must settle rather than hand to a
-page-local fixer.
+page-local fixer. #3619 applied the ruling: the essay is now
+`cvd-coordination-problem.md`, its protocol definitions and the "Why Vultron?"
+sidebar live on `what-is-vultron.md`, and the index, retitled "Background",
+keeps only the prerequisites admonition, the "New to Vultron?" pointer, and one
+line per child in dependency order.
 
 ### Entry pages are titled by situation, never by type
 

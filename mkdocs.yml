@@ -18,6 +18,7 @@ nav:
     - Background:
       - 'topics/background/index.md'
       - What Is Vultron?: 'topics/background/what-is-vultron.md'
+      - CVD as a Coordination Problem: 'topics/background/cvd-coordination-problem.md'
       - Interoperability: 'topics/background/interoperability.md'
       - Defining CVD Success: 'topics/background/cvd_success.md'
     - Case Lifecycle:
