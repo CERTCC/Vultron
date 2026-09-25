@@ -16,6 +16,7 @@ related_notes:
 related_specs:
   - specs/diataxis-requirements.yaml
   - specs/docs-build-workflow.yaml
+  - specs/spec-registry.yaml
 relevant_packages:
   - vultron/bt
   - vultron/core
@@ -442,9 +443,12 @@ collects a page's valid anchors in two places: a treeprocessor that reads `id`
 attributes off the parent's element tree, and a preprocessor that scans the
 page's own Markdown source for raw-HTML `id=`/`<a name=>`. An exec block's output
 reaches the parent as a stashed HTML placeholder, so neither sees inside it.
-`markdown-exec` compensates for **headings only** — it reports them back to the
-parent's table of contents — so a heading `{#clp-15}` printed from an exec block
-is a valid link target and a `<a id="clp-15-001">` beside it is not.
+`markdown-exec` compensates for **headings only**: its `InsertHeadings`
+treeprocessor (priority 75) splices them into the parent's element tree, where
+MkDocs' anchor treeprocessor (priority 5) collects their ids before
+`RemoveHeadings` (priority 4) takes them out again. So a heading `{#clp-15}`
+printed from an exec block is a valid link target and a `<a id="clp-15-001">`
+beside it is not.
 
 The warning this produces is misleading in a specific way: "the doc
 `reference/specs/protocol.md` does not contain an anchor `#mv-03-002`", about a
@@ -456,12 +460,14 @@ requirement (#3243).
 Two consequences to keep apart:
 
 - **Targets.** Registering the ids found in each page's rendered HTML with the
-  page's `present_anchor_ids` (in an `on_page_content` hook, which runs after
-  every page renders and before any anchor is validated) makes exec-emitted ids
-  linkable. A fabricated anchor still fails, because the id must be in the HTML.
+  page's `present_anchor_ids` (in an `on_page_content` hook, which runs as each
+  page renders; every page renders before any anchor is validated) makes
+  exec-emitted ids linkable. A fabricated anchor still fails, because the id must
+  be in the HTML.
 - **Links.** A hook that fixes targets does nothing for links *printed by* an
-  exec block — those are still never validated (see above), and DOCBW-03-007
-  deliberately strips fragments. A generator that emits `#fragment` links needs
+  exec block — those are still never validated (see above), and the
+  DOCBW-03-007 `docs-links` gate checks path resolution only, stripping fragments
+  by design (#3634 AC-1). A generator that emits `#fragment` links needs
   its own test that each fragment exists on its target page; for the spec pages
   that is the `_cross_link` "Related" column.
 
