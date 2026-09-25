@@ -46,8 +46,8 @@ jobs:
 
       # --strict makes mkdocs.yml's `validation: warn` settings (dead in-page
       # anchors, pages missing from the nav) fail the deploy instead of
-      # publishing (DOCBW-03-008). Never add --quiet (DOCBW-03-009): it hides the warnings
-      # --strict counts, so the build passes over them.
+      # publishing (DOCBW-03-008). Never add --quiet (DOCBW-03-009): it hides
+      # the warnings --strict counts, so the build passes over them.
       - name: Build Site
         run: |
           uv run mkdocs build --strict --clean --config-file mkdocs.yml
@@ -60,6 +60,13 @@ jobs:
       - name: Check withheld artifacts are unpublished
         run: |
           PYTHONPATH='' uv run docs-withheld
+
+      # Same terms as the withheld check: after the build, before the upload, so
+      # a dead internal reference fails the deploy instead of publishing
+      # (DOCBW-03-007).
+      - name: Check internal references resolve
+        run: |
+          PYTHONPATH='' uv run docs-links
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

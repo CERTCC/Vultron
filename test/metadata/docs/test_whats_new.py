@@ -93,7 +93,7 @@ def test_render_recent_pages_excludes_the_withheld_namespace():
     this module carried a hand-maintained mirror of that list, so the rendered
     entry linked to `../../ns/` after the page stopped being built. `--strict`
     could not see it — the list is emitted by a `markdown-exec` block, whose links
-    MkDocs never parses — so only `linkchecker` over the built site caught it.
+    MkDocs never parses. `docs-links` now catches that shape in the built site.
     """
     out = render_recent_pages(
         [

@@ -12,6 +12,7 @@ shell: "zsh"
 commands:
   - ".github/scripts/mkdocs-build-strict.sh"
   - "uv run docs-withheld"
+  - "uv run docs-links"
 inputs:
   - name: repo_root
     description: "Repository root where the command will be executed"
@@ -80,7 +81,19 @@ PYTHONPATH='' uv run docs-withheld
    run the same check, so a failure here is a failure that would have blocked
    the deploy.
 
-1. Stage changes only after both commands exit cleanly with zero code.
+1. Check the reference axis against the same build:
+
+```bash
+PYTHONPATH='' uv run docs-links
+```
+
+   This resolves every internal `href`/`src` on every page in `site/` and
+   fails on any that points at a file the build did not produce, printing each
+   as `<page>: <reference>` (DOCBW-03-007). It covers what `--strict` cannot:
+   links printed by `markdown-exec` blocks, links to withheld pages, and pages
+   nothing links to. Both workflows run it unconditionally after the build.
+
+1. Stage changes only after all three commands exit cleanly with zero code.
 
 ## Constraints / Rules
 
@@ -93,8 +106,9 @@ PYTHONPATH='' uv run docs-withheld
   - Invalid markdown: syntax errors that prevent proper parsing
 - Validate links using `markdownlint-cli2` BEFORE running the build script
   to catch markdown syntax issues early.
-- Run `docs-withheld` AFTER the build script, never before: it reads `site/`,
-  and it fails rather than passes when that directory is absent or empty.
+- Run `docs-withheld` and `docs-links` AFTER the build script, never before:
+  both read `site/`, and both fail rather than pass when that directory is
+  absent or empty.
 
 ## Examples
 

@@ -35,20 +35,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check if docs/ changed
-        id: filter
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "docs_changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "origin/$BASE_REF"...HEAD \
-               | grep -q '^docs/'; then
-            echo "docs_changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "docs_changed=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
         with:
@@ -62,8 +48,9 @@ jobs:
 
       # --strict makes mkdocs.yml's `validation: warn` settings (dead in-page
       # anchors, pages missing from the nav) fail the job; without it they
-      # print and the job stays green (DOCBW-03-008). Never add --quiet (DOCBW-03-009): it
-      # hides the warnings --strict counts, so the build passes over them.
+      # print and the job stays green (DOCBW-03-008). Never add --quiet
+      # (DOCBW-03-009): it hides the warnings --strict counts, so the build
+      # passes over them.
       - name: Build Site
         run: |
           uv run mkdocs build --strict --verbose --clean --config-file mkdocs.yml
@@ -77,8 +64,14 @@ jobs:
         run: |
           PYTHONPATH='' uv run docs-withheld
 
-      - name: Check links
-        if: steps.filter.outputs.docs_changed == 'true'
+      # Verifies the reference axis (DOCBW-03-007): every internal href/src on
+      # every built page resolves to a file the build produced. It walks the
+      # whole tree rather than crawling from index.html, so pages nothing links
+      # to are read too, and it checks the bytes emitted, so links printed by
+      # markdown-exec blocks (which --strict never sees) are covered. No `if:`
+      # condition: the page that advertises a path and the config that withholds
+      # it can live in different files, so no path filter predicts a break.
+      - name: Check internal references resolve
         run: |
-          uv run linkchecker site/index.html
+          PYTHONPATH='' uv run docs-links
 

@@ -53,6 +53,35 @@ MkDocsYamlLoader.add_multi_constructor(
 )
 
 
+def site_dir(root: Path | None = None) -> Path:
+    """Return the built site directory."""
+    return (root or repo_root()) / "site"
+
+
+def built_site_dir(root: Path | None = None, *, claim: str) -> Path:
+    """Return ``site/``, raising if the build has not produced it.
+
+    The built-site gates read the build's output, and an unbuilt site cannot
+    evidence any claim about it, so absence is a failure rather than a pass
+    (DF-09-009).
+
+    Args:
+        root: Repository root. Defaults to the enclosing checkout.
+        claim: What the caller's gate shows, completing "An unbuilt site
+            cannot show that ...".
+
+    Raises:
+        FileNotFoundError: If ``site/`` is absent or empty.
+    """
+    built = site_dir(root)
+    if not built.is_dir() or not any(built.iterdir()):
+        raise FileNotFoundError(
+            f"{built} is absent or empty — run 'uv run mkdocs build' first. "
+            f"An unbuilt site cannot show that {claim}."
+        )
+    return built
+
+
 def mkdocs_config(root: Path | None = None) -> dict[str, object]:
     """Return ``mkdocs.yml`` parsed with :class:`MkDocsYamlLoader`.
 

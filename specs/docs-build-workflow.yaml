@@ -7,7 +7,7 @@ description: >-
   It is distinct from `python-app.yml` (Python unit tests and linting) and
   `.github/workflows/demo-integration.yml` (demo container integration tests,
   specified in `specs/demo-ci.yaml`).
-version: 1.4.0
+version: 1.5.0
 scope:
   - prototype
   - production
@@ -88,30 +88,6 @@ groups:
           of which paths changed, so that Python-macro and plugin failures
           introduced by `pyproject.toml` or `mkdocs.yml` changes are always
           caught.
-      - id: DOCBW-03-003
-        priority: MUST
-        kind: project
-        statement: >-
-          The Check Links step that **crawls** the built site from an entry page
-          MUST carry a step-level `if:` condition that skips it unless the
-          `docs_changed` filter output is `'true'`. This requirement governs
-          that step only, and it is not the project's position on internal
-          references as such: those are checked unconditionally and over the
-          whole tree by DOCBW-03-007, which subsumes this step's internal
-          coverage.
-        rationale: >-
-          Crawling the entire built site is significantly slower than the build
-          step alone, so running it on every trigger (e.g., `pyproject.toml`
-          bumps) wastes CI time. The scope limit matters because this clause
-          otherwise reads as licensing a `docs_changed` skip on internal
-          reference checking generally — which would contradict DOCBW-03-007.
-          It does not: it governs the crawl, whose coverage is bounded by
-          reachability from its entry page and is therefore strictly narrower
-          than the whole-tree resolution check. Note that `linkchecker` does not
-          resolve external URLs unless `--check-extern` is passed, which the
-          project does not pass; if an external check is ever added, its cost is
-          a network request per outbound link and this condition applies to it
-          for that separate reason.
       - id: DOCBW-03-004
         priority: SHOULD
         kind: project
@@ -164,13 +140,12 @@ groups:
           the step before the upload means the deploy fails rather than
           publishing an artifact the project declared withheld.
         verification: >-
-          `test/ci/test_withheld_gate_in_workflows.py` asserts every workflow
+          `test/ci/test_built_site_gates_in_workflows.py` asserts every workflow
           running `mkdocs build` also runs `docs-withheld` after it, and that in
           `deploy_site.yml` the step precedes `actions/upload-pages-artifact`.
       - id: DOCBW-03-007
         priority: MUST
         kind: project
-        lint_suppress: [phantom_path_ref]
         statement: >-
           A reference-axis step MUST run after the Build Site step on every
           trigger, with no `docs_changed` condition, and MUST fail the workflow
@@ -180,19 +155,13 @@ groups:
           `site/` is absent or empty, and MUST run in every workflow that builds
           the site, on the same terms as DOCBW-03-006.
         rationale: >-
-          DOCBW-03-005 checks the publication axis — a withheld artifact
-          produced no files. The reference axis went unchecked: `docs/ns/` moving
-          to `draft_docs` (#3549) left the What's New list advertising
-          `../../ns/`, a well-formed path with no target (#3574). `--strict` is
-          blind to it twice over: markdown-exec renders on a child `Markdown`
-          instance with no relative-link treeprocessor, and a hand-written link
-          to an excluded page is logged at INFO while its href is still
-          rewritten. Checking *resolution* subsumes form signatures like a `.md`
-          suffix. Unconditional here means no step-level `docs_changed`
-          condition. The other docs-scoped filter, the `paths:` trigger of
-          DOCBW-02-001, includes `vultron/**` since #3070, so a PR editing only
-          a page-enumerating generator reaches this step before merge. Other
-          clauses: `notes/documentation-strategy.md`.
+          The reference axis went unchecked: `docs/ns/` moving to `draft_docs`
+          (#3549) left What's New advertising `../../ns/`, a well-formed path
+          with no target (#3574). `--strict` cannot see it: markdown-exec renders
+          on a child `Markdown` instance with no relative-link treeprocessor.
+          Checking *resolution* subsumes form signatures like a `.md` suffix; a
+          crawl misses every page nothing links to. Other clauses:
+          `notes/documentation-strategy.md`.
         verification: >-
           `uv run docs-links` (`vultron/metadata/docs/links.py`) exits non-zero,
           invoked unconditionally after the build in
@@ -201,8 +170,8 @@ groups:
           is covered by `test/metadata/docs/test_links.py` over synthetic built
           trees, including the absent-`site/` failure, a reference to a withheld
           page, a reference ending in `.md`, and a reference on a page no entry
-          point links to. `test/ci/test_withheld_gate_in_workflows.py` extends to
-          assert the step's presence and placement.
+          point links to. `test/ci/test_built_site_gates_in_workflows.py` asserts
+          the step's presence, placement, and lack of an `if:` condition.
       - id: DOCBW-03-008
         priority: MUST
         kind: project
@@ -248,37 +217,6 @@ groups:
           and that a strict build of a synthetic two-page site carrying the
           project's `validation` block fails on each defect and passes a clean
           control.
-
-  - id: DOCBW-04
-    title: Docs-Changed Filter Step
-    specs:
-      - id: DOCBW-04-001
-        priority: MUST
-        kind: project
-        statement: >-
-          A filter step MUST appear before the Build Site step. It MUST
-          set a step output `docs_changed` to `true` or `false` using
-          `echo "docs_changed=<value>" >> "$GITHUB_OUTPUT"`.
-      - id: DOCBW-04-002
-        priority: MUST
-        kind: project
-        statement: >-
-          On `workflow_dispatch` events the filter step MUST set
-          `docs_changed=true` unconditionally, ensuring that manual runs
-          always execute the full link-check.
-      - id: DOCBW-04-003
-        priority: MUST
-        kind: project
-        statement: >-
-          On `pull_request` events the filter step MUST use
-          `git diff --name-only origin/${{ github.base_ref }}...HEAD`
-          (or equivalent) to list changed files and set
-          `docs_changed=true` if any path starts with `docs/`, otherwise
-          `docs_changed=false`.
-        rationale: >-
-          Using `git diff` against the PR base avoids introducing a
-          third-party path-filter action and keeps the SHA-pinning surface
-          minimal (CISEC-01-001).
 
   - id: DOCBW-05
     title: Security Compliance
