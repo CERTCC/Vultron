@@ -86,9 +86,12 @@ their own outcome writes at INFO so a refusal is not reported twice.
 Replay of activities held pending a case bootstrap runs only when the
 bootstrap's verdict maps to `processed`. A bootstrap the handler refused or
 deferred has not made the case locally available, so replaying its held
-activities would only defer them again. This is inert while every received
-handler returns `APPLIED`, and becomes live as handlers adopt real
-dispositions (#2255).
+activities would only defer them again. The legacy adapter paths
+(`inbox_handler._dispatch_or_defer_inbox_item`, `InboxPipeline.process`)
+apply the same gate through `HandlerResult.took_effect`. A replay that raises
+is logged and does not turn an applied bootstrap into `rejected`
+(MV-01-007). This is inert while every received handler returns `APPLIED`,
+and becomes live as handlers adopt real dispositions (#2255).
 
 This two-adapter design was chosen over:
 

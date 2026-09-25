@@ -150,3 +150,18 @@ def test_constructors_build_the_matching_disposition() -> None:
 def test_refused_constructor_still_enforces_non_empty_reason() -> None:
     with pytest.raises(ValidationError):
         HandlerResult.refused("")
+
+
+@pytest.mark.parametrize(
+    ("result", "took_effect"),
+    [
+        (HandlerResult.applied(), True),
+        (HandlerResult.skipped("already present"), True),
+        (HandlerResult.deferred("awaiting predecessor"), False),
+        (HandlerResult.refused("not a participant"), False),
+    ],
+)
+def test_took_effect_is_true_only_for_applied_and_skipped(
+    result: HandlerResult, took_effect: bool
+) -> None:
+    assert result.took_effect is took_effect

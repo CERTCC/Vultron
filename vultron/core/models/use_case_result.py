@@ -123,6 +123,20 @@ class HandlerResult(UseCaseResult):
             )
         return self
 
+    @property
+    def took_effect(self) -> bool:
+        """True when the assertion holds locally: ``APPLIED`` or ``SKIPPED``.
+
+        A skip is a correct no-op, typically because the effect is already
+        present. Callers that act on a completed effect — replaying items held
+        for a case bootstrap, for example — gate on this rather than on the
+        dispatch merely not raising.
+        """
+        return self.disposition in (
+            HandlerDisposition.APPLIED,
+            HandlerDisposition.SKIPPED,
+        )
+
     @classmethod
     def applied(cls) -> Self:
         """The handler changed local state to reflect the inbound assertion."""

@@ -35,17 +35,16 @@ class _LedgerEntry:
 
 
 def _use_case_returning(
-    result: object = None,
+    result: object = HandlerResult.applied(),
 ) -> tuple[MagicMock, MagicMock]:
     """Return ``(instance, class)`` mocks whose ``execute()`` yields *result*.
 
     *result* defaults to ``HandlerResult.applied()``, the verdict every
-    received use case returns today.
+    received use case returns today. ``None`` is passed through, so a use
+    case that still returns nothing can be tested.
     """
     instance = MagicMock()
-    instance.execute.return_value = (
-        HandlerResult.applied() if result is None else result
-    )
+    instance.execute.return_value = result
     return instance, MagicMock(return_value=instance)
 
 
@@ -415,7 +414,7 @@ def test_dispatch_returns_the_use_case_verdict(verdict):
 
 
 @pytest.mark.spec("UCORG-05-001")
-@pytest.mark.parametrize("not_a_verdict", [{"ok": True}, "applied"])
+@pytest.mark.parametrize("not_a_verdict", [None, {"ok": True}, "applied"])
 def test_dispatch_rejects_a_use_case_that_returns_no_handler_result(
     not_a_verdict,
 ):

@@ -266,6 +266,12 @@ def _dispatch_or_defer_inbox_item(
 ) -> VultronEvent | None:
     """Dispatch an inbox item or defer it until its case replica exists.
 
+    Returns the dispatched event only when the handler's verdict took effect
+    (``HandlerResult.took_effect``). An item queued or dropped before
+    dispatch, or one the handler refused or deferred, returns ``None``, so
+    the caller does not replay pending activities after a bootstrap that did
+    not make the case available.
+
     When deferring, first checks whether the existing pending queue for
     this case has expired.  If the queue has expired, the existing items
     are dropped, a replay ``Question`` is emitted, and the new item is
@@ -309,8 +315,8 @@ def _dispatch_or_defer_inbox_item(
         )
         return None
 
-    dispatch(event=event, dl=dl, dispatcher=dispatcher)
-    return event
+    result = dispatch(event=event, dl=dl, dispatcher=dispatcher)
+    return event if result.took_effect else None
 
 
 def _log_rehydrated_item(item: as_Activity) -> None:

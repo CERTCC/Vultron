@@ -530,9 +530,10 @@ def test_successful_dispatch_resets_requeue_budget(
     queue_dl = dl.clone_for_actor(RECEIVER_ID)
     fail = True
 
-    def _dispatch(**_kwargs: object) -> None:
+    def _dispatch(**_kwargs: object) -> HandlerResult:
         if fail:
             raise VultronValidationError("transient validation failure")
+        return HandlerResult.applied()
 
     monkeypatch.setattr(ip_module, "dispatch", _dispatch)
 
@@ -563,7 +564,9 @@ def test_failure_after_dispatch_is_still_bounded(
     def _replay_fails(**_kwargs: object) -> None:
         raise RuntimeError("replay failure")
 
-    monkeypatch.setattr(ip_module, "dispatch", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        ip_module, "dispatch", lambda **_kwargs: HandlerResult.applied()
+    )
     monkeypatch.setattr(ip_module, "is_case_bootstrap", lambda _event: True)
     monkeypatch.setattr(
         ip_module, "_replay_pending_case_activities", _replay_fails
@@ -574,6 +577,46 @@ def test_failure_after_dispatch_is_still_bounded(
         MAX_REQUEUE_ATTEMPTS + 1
     )
     assert activity_id not in queue_dl.inbox_list()
+
+
+@pytest.mark.spec("UCORG-05-011")
+@pytest.mark.parametrize(
+    ("verdict", "replays"),
+    [
+        (HandlerResult.applied(), True),
+        (HandlerResult.skipped("case already present"), True),
+        (HandlerResult.refused("not the case owner"), False),
+        (HandlerResult.deferred("awaiting predecessor"), False),
+    ],
+)
+def test_bootstrap_replays_only_when_the_verdict_took_effect(
+    test_pipeline: PipelineFixture,
+    monkeypatch: MonkeyPatch,
+    verdict: HandlerResult,
+    replays: bool,
+) -> None:
+    """The legacy pipeline gates replay like ``DispatchNode`` does: a
+    bootstrap the handler refused or deferred has not made the case
+    available, so its held activities are not replayed."""
+    import vultron.adapters.driving.fastapi.inbox_pipeline as ip_module
+
+    pipeline, dl = test_pipeline
+    activity_id = _store_note_activity(
+        dl, "https://example.org/notes/n-ibp-replay-gate"
+    )
+    replayed: list[object] = []
+
+    monkeypatch.setattr(ip_module, "dispatch", lambda **_kwargs: verdict)
+    monkeypatch.setattr(ip_module, "is_case_bootstrap", lambda _event: True)
+    monkeypatch.setattr(
+        ip_module,
+        "_replay_pending_case_activities",
+        lambda **kwargs: replayed.append(kwargs["case_id"]),
+    )
+
+    pipeline.process(activity_id)
+
+    assert bool(replayed) is replays
 
 
 def test_deferral_resets_requeue_budget(

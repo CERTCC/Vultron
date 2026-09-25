@@ -5,7 +5,7 @@ description: >
   Design decisions for the UseCaseResult type hierarchy, the HandlerDisposition
   vocabulary and its route to InboxOutcome, the two semantically distinct request
   paths (VultronEvent vs TriggerRequest), and why a shared UseCaseRequest base
-  was not introduced. Received side migrated; dispatcher and trigger side not.
+  was not introduced. Received side and dispatcher chain migrated; trigger side not.
 related_specs:
   - specs/use-case-organization.yaml
   - specs/handler-protocol.yaml
@@ -221,13 +221,15 @@ of *this note* was the only place it was ever addressed, with a bare "separate
 architectural decision." ADR-0095 decides it: **it does**, because that boundary
 is the only road from the handler to `InboxOutcome`.
 
-`InboxOutcome` (`vultron/core/behaviors/inbox/models.py`) already models
-`processed`/`deferred`/`rejected` and carries `failure_reason`, but
-`_read_inbox_outcome()` assembles it from inbox-BT blackboard keys, and
-`DispatchNode.update()` treats "dispatch did not raise" as SUCCESS. Every link
-from `execute()` to `DispatchNode` is typed `-> None`, so a handler's verdict
-cannot reach `InboxOutcome`. That is bug #2255: a handler can find nothing it
-can act on, log a warning, return, and the pipeline still reports `processed`.
+`InboxOutcome` (`vultron/core/behaviors/inbox/models.py`) models
+`processed`/`deferred`/`rejected` and carries `failure_reason`, and
+`_read_inbox_outcome()` assembles it from inbox-BT blackboard keys. Before the
+change in #3373, `DispatchNode.update()` treated "dispatch did not raise" as
+SUCCESS and every link from `execute()` to `DispatchNode` was typed `-> None`, so a
+handler's verdict could not reach `InboxOutcome`: a handler could find nothing
+it could act on, log a warning, return, and the pipeline still reported
+`processed`. The plumbing is now in place; assigning each handler its real
+disposition is #2255.
 
 Each link returns `HandlerResult`:
 
@@ -256,9 +258,10 @@ Two things are easy to get wrong here:
 - **`_handle()` can return without a handler running at all.** It catches
   `UnroutableActivityError` and returns, and `_get_use_case()` raises
   `VultronApiHandlerNotFoundError` for unrecognised semantics. The first path
-  raises nothing, so a dropped activity is reported `processed` today. A return
-  type alone does not fix it; UCORG-05-012 requires the dispatcher layer to
-  synthesize a verdict when no handler ran.
+  raises nothing, so before #3373 a dropped activity was reported `processed`.
+  A return type alone does not fix it; UCORG-05-012 requires the dispatcher
+  layer to synthesize a verdict when no handler ran, so `_handle()` now
+  returns `REFUSED("unroutable: …")` there.
 
 Most `SKIPPED` decisions also do not live in `execute()` — `_idempotent_create`
 and peers in `vultron/core/use_cases/_helpers.py` return without storing when the

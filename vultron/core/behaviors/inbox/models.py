@@ -32,6 +32,7 @@ from pydantic import BaseModel
 
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.primitives import NonEmptyString
 
 
 class InboxOutcomeStatus(StrEnum):
@@ -60,7 +61,7 @@ class InboxOutcome(BaseModel):
 
     status: InboxOutcomeStatus
     context_id: str | None = None
-    activity_id: str | None = None
+    activity_id: NonEmptyString | None = None
     failure_reason: str | None = None
 
 

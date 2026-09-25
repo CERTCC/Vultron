@@ -18,6 +18,7 @@ BT node helpers (IO-04-002).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import logging
 from enum import StrEnum
 from typing import Any
 
@@ -213,6 +214,15 @@ class TestInboxOutcomeModel:
     def test_unknown_status_is_rejected(self):
         with pytest.raises(ValidationError):
             InboxOutcome.model_validate({"status": "applied"})
+
+    @pytest.mark.spec("CS-08-002")
+    @pytest.mark.parametrize("blank", ["", "   "])
+    def test_blank_activity_id_is_rejected(self, blank):
+        """If present, ``activity_id`` is non-empty (CS-08-002)."""
+        with pytest.raises(ValidationError):
+            InboxOutcome(
+                status=InboxOutcomeStatus.PROCESSED, activity_id=blank
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -551,3 +561,52 @@ class TestProcessPayloadHandlerDisposition:
         )
 
         assert (CASE_ID in queue.replayed) is replays
+
+
+class _FailingReplayQueuePort(_StubQueuePort):
+    """Queue port whose ``replay()`` raises, as a DataLayer fault would."""
+
+    def replay(self, case_id: str) -> None:
+        raise RuntimeError("replay storage fault (stub)")
+
+
+class TestDispatchNodeFaults:
+    @pytest.mark.spec("MV-01-007")
+    def test_replay_failure_does_not_reject_an_applied_bootstrap(
+        self, case_activity, caplog
+    ):
+        ingress = _StubIngressAdapter(activity=case_activity)
+
+        with caplog.at_level(logging.ERROR):
+            outcome = process_payload(
+                {},
+                ingress,
+                _StubDispatchAdapter(result=HandlerResult.applied()),
+                _FailingReplayQueuePort(case_known=True),
+            )
+
+        assert outcome.status is InboxOutcomeStatus.PROCESSED
+        replay_errors = [
+            r for r in caplog.records if "replay failed" in r.getMessage()
+        ]
+        assert len(replay_errors) == 1
+        assert replay_errors[0].exc_info is not None
+
+    def test_dispatch_raise_is_logged_with_its_traceback(
+        self, report_activity, caplog
+    ):
+        """A raise is a programming error, not a REFUSED: keep the trace."""
+        ingress = _StubIngressAdapter(activity=report_activity)
+
+        with caplog.at_level(logging.WARNING):
+            outcome = process_payload(
+                {}, ingress, _StubDispatchAdapter(should_fail=True)
+            )
+
+        assert outcome.status is InboxOutcomeStatus.REJECTED
+        raised = [
+            r for r in caplog.records if "dispatch raised" in r.getMessage()
+        ]
+        assert len(raised) == 1
+        assert raised[0].exc_info is not None
+        assert raised[0].exc_info[0] is RuntimeError

@@ -86,7 +86,10 @@ class DispatchNode(_InboxNodeWithPorts):
         """Replay activities held pending this case's local replica.
 
         Runs only for a ``processed`` verdict: a bootstrap the handler refused
-        or deferred has not made the case locally available.
+        or deferred has not made the case locally available. A replay failure
+        is logged and swallowed rather than escaping ``update()`` (MV-01-007):
+        the bootstrap itself was applied, so it must not be reported as
+        rejected.
         """
         try:
             context_id: str | None = self.get_input(KEY_CONTEXT_ID)
@@ -103,7 +106,18 @@ class DispatchNode(_InboxNodeWithPorts):
             and context_id is not None
             and queue is not None
         ):
-            queue.replay(context_id)
+            try:
+                queue.replay(context_id)
+            except Exception:
+                self.logger.error(
+                    "%s: replay failed for case '%s' after bootstrap"
+                    " activity_id=%s",
+                    self.name,
+                    context_id,
+                    event.activity_id,
+                    exc_info=True,
+                )
+                return
             self.logger.info(
                 "%s: triggered replay for case '%s'", self.name, context_id
             )
@@ -118,6 +132,14 @@ class DispatchNode(_InboxNodeWithPorts):
         try:
             result = dispatch.dispatch(event)
         except Exception as exc:
+            # A raise is not a verdict: keep the traceback so a programming
+            # error stays distinguishable from a handler's REFUSED.
+            self.logger.warning(
+                "%s: dispatch raised for activity_id=%s",
+                self.name,
+                getattr(event, "activity_id", None),
+                exc_info=True,
+            )
             return self._reject(f"Dispatch raised exception: {exc}")
 
         if not isinstance(result, HandlerResult):
