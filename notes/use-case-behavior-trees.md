@@ -10,6 +10,7 @@ related_specs:
 related_notes:
   - notes/bt-integration.md
   - notes/domain-model-separation.md
+  - notes/use-case-protocol.md
 relevant_packages:
   - transitions
   - vultron/core/use_cases
@@ -90,7 +91,8 @@ mirroring the canonical CVD protocol BT structure.
 
 > **The return types in both samples are the target contract, not current code.**
 > Every received-side `execute()` is `-> None` today; `HandlerResult` and
-> `HandlerDisposition` do not exist yet. See
+> `HandlerDisposition` exist (`vultron/core/models/use_case_result.py`) but no
+> handler returns them yet (#3372). See
 > [notes/use-case-protocol.md](use-case-protocol.md) and ADR-0095 for the design,
 > and #1769 for why this note previously read as though the migration had
 > happened. The in-tree-cascade rule the samples illustrate is in force

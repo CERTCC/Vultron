@@ -5,7 +5,7 @@ description: >
   Design decisions for the UseCaseResult type hierarchy, the HandlerDisposition
   vocabulary and its route to InboxOutcome, the two semantically distinct request
   paths (VultronEvent vs TriggerRequest), and why a shared UseCaseRequest base
-  was not introduced. Designed, not yet built.
+  was not introduced. Types built; use cases not yet migrated.
 related_specs:
   - specs/use-case-organization.yaml
   - specs/handler-protocol.yaml
@@ -15,6 +15,7 @@ related_notes:
   - notes/architecture-hexagonal.md
   - notes/inbox-orchestration.md
 relevant_packages:
+  - vultron/core/models
   - vultron/core/ports
   - vultron/core/use_cases
   - vultron/core/use_cases/received
@@ -32,14 +33,15 @@ See `specs/use-case-organization.yaml` UCORG-05 for the normative requirements.
 See `docs/adr/0040-use-case-result-envelope.md` for the original decision record
 and `docs/adr/0095-received-side-handler-result.md` for the received-side half.
 
-> **Status: largely designed, not built.** One slice now exists: a standalone
-> `TriggerResult` envelope in `vultron/core/use_cases/triggers/results.py`
+> **Status: types built, contract not yet adopted.** `UseCaseResult`,
+> `HandlerResult`, and `HandlerDisposition` exist in
+> `vultron/core/models/use_case_result.py` (#3371). A standalone
+> `TriggerResult` envelope lives in `vultron/core/use_cases/triggers/results.py`
 > (#3398), plus a demo-layer `ActivityResult` subtype, introduced only so
-> `ActorSession` can type demo trigger responses at the HTTP boundary. It is
-> **not** yet a use-case return type — the shared `UseCaseResult` base and the
-> `HandlerResult` sibling below do not exist (`grep -rn "class UseCaseResult"
-> vultron/` returns nothing), all 51 received-side `execute()` methods are
-> `-> None`, and all trigger-side ones still return `dict`. Earlier revisions of
+> `ActorSession` can type demo trigger responses at the HTTP boundary; it does
+> not yet inherit `UseCaseResult` (#3354). No use case returns any of them yet:
+> all 51 received-side `execute()` methods are `-> None` (#3372), and all
+> trigger-side ones still return `dict`. Earlier revisions of
 > this note described the whole migration in the past tense while no part of it
 > had been written — that drift is what concern #1769 was filed to correct.
 > Treat the hierarchy below as the design to implement, and do not infer from it
@@ -63,7 +65,16 @@ component that knows what actually happened to the activity, and that verdict ha
 a destination (`InboxOutcome`). `HandlerResult` carries it:
 
 - `disposition: HandlerDisposition` — what the handler did
-- `reason: str | None` — populated when the disposition is `REFUSED`
+- `reason: str | None` — required when the disposition is `REFUSED` (it becomes
+  `failure_reason`), rejected on `APPLIED`, and optional on `SKIPPED` and
+  `DEFERRED`, where it says why the no-op was correct or what a parked item
+  awaits. Enforced at construction; the model is frozen.
+
+`REFUSED` covers protocol outcomes only — the handler decided the assertion must
+not be applied. A programming error is not a refusal: it propagates as an
+exception, as it does today, so the dispatcher side can keep telling the two
+apart the way `BTExecutionResult.internal_error` does for a behavior tree
+(CONCERN-3019).
 
 `HandlerDisposition` is a `StrEnum`, following the project idiom for closed
 value sets (`CVDRole`, `VultronObjectType`) — not a `Literal`:

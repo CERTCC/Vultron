@@ -22,8 +22,8 @@ documentation structure guidance.
   (`vultron/core/use_cases/`).
 - Use-Case Protocol: `__init__(dl, request)` + `execute() -> None` (received) or
   `-> dict` (trigger); routing via `use_case_map()` key lookup. Both are slated
-  to return `UseCaseResult` subtypes — designed in ADR-0040/ADR-0095, **not yet
-  built** (#1769, #3354). Do not assume the envelope exists.
+  to return `UseCaseResult` subtypes (ADR-0040/ADR-0095); the types exist in
+  `core/models/use_case_result.py` but no `execute()` returns them yet (#3372).
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
 - Tests: `uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`
   — run once; read `exit:` first. Never end a gate command with a pipe: a pipeline exits with its last stage's status, so a killed run reads as success. See `.agents/skills/run-tests/SKILL.md`.
