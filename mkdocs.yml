@@ -219,17 +219,19 @@ validation:
   nav:
     # Emit a warning when a page exists but is missing from the nav and is not
     # declared in not_in_nav above. Surfaces future un-navved pages (e.g. new
-    # ADRs) and fails any --strict build (see mkdocs-build-strict.sh). #1304.
+    # ADRs) and fails the --strict build every site-building workflow runs
+    # (DOCBW-03-009/011, #1304, #3051). Keep at `warn`: `info` is below what
+    # --strict counts, so a downgrade turns the gate off silently.
     omitted_files: warn
   links:
-    # Fail --strict on a link to a #fragment that does not exist on the target
-    # page. Default is `info`, which is silent in the warning count: a page can
-    # ship dozens of dead in-page links and still look clean. Note that this
-    # check only knows about heading anchors: the per-requirement
-    # `<a id="clp-14-001">` anchors in the generated spec tables are real and
-    # work in a browser, but linking to one still warns here. Cite the
-    # requirement ID in the link text and point the href at its group anchor
-    # (`#clp-14`).
+    # Fail --strict (DOCBW-03-011) on a link to a #fragment that does not
+    # exist on the target page. Default is `info`, which is silent in the
+    # warning count: a page can ship dozens of dead in-page links and still
+    # look clean. Note that this check only knows about heading anchors: the
+    # per-requirement `<a id="clp-14-001">` anchors in the generated spec
+    # tables are real and work in a browser, but linking to one still warns
+    # here. Cite the requirement ID in the link text and point the href at its
+    # group anchor (`#clp-14`).
     anchors: warn
 draft_docs: |
   draft-*.md
@@ -278,7 +280,8 @@ plugins:
       enabled: !ENV [ENABLE_MKDOCSTRINGS, true]
       handlers:
         python:
-          paths: [ 'src' ]
+          # The package lives at the repo root (vultron/); there is no src/.
+          paths: [ '.' ]
           options:
             show_bases: true
             show_root_heading: true

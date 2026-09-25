@@ -51,7 +51,6 @@ stakeholder_type: [project-contributor]
 | pytest-timeout | Per-test timeout (30 s unit tier, raised from 5 s in #2270; 60 s integration tier) | `pyproject.toml` `[tool.pytest.ini_options]`, `test/conftest.py` |
 | pytest-xdist | Parallel test execution | `[dependency-groups].dev` |
 | pandas-stubs / types-networkx / types-pyyaml | Type stubs for third-party deps | `[dependency-groups].dev` |
-| linkchecker | Doc link validation (>=10.6.0) | `[dependency-groups].dev` |
 | graphifyy | Codebase knowledge-graph tooling (>=0.9.43) | `[dependency-groups].dev` |
 | markdownlint-cli2 | Markdown linting | `mdlint.sh`, `Makefile` |
 

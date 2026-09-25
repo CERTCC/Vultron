@@ -66,7 +66,7 @@ def _unpublished_spec() -> pathspec.gitignore.GitIgnoreSpec:
 
     `mkdocs build --strict` cannot catch that. This page's list is emitted by a
     ``markdown-exec`` block, whose links MkDocs never parses and therefore never
-    validates, so the only gate that sees them is `linkchecker` over the built
+    validates, so the only gate that sees them is ``docs-links`` over the built
     ``site/`` in CI. A declaration mirrored by hand and checkable only in CI is
     the combination to avoid — hence deriving it.
     """

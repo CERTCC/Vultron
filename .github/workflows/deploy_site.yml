@@ -44,16 +44,20 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
+      # --strict makes mkdocs.yml's `validation: warn` settings (dead in-page
+      # anchors, pages missing from the nav) fail the deploy instead of
+      # publishing (DOCBW-03-009). Never add --quiet (DOCBW-03-010): it hides
+      # the warnings --strict counts, so the build passes over them.
       - name: Build Site
         run: |
-          #export PYTHONPATH=src:$PYTHONPATH
-          uv run mkdocs build --clean --config-file mkdocs.yml
+          uv run mkdocs build --strict --clean --config-file mkdocs.yml
 
       # This is the workflow that actually publishes, so it is the one the
       # publication checks have to gate. It must sit between Build Site and
       # Upload artifact: after the build so site/ exists, before the upload so
-      # a withheld artifact or a dropped URL cannot reach Pages. Same action as
-      # docs-build-check.yml (DOCBW-03-006, DOCBW-03-008).
+      # a withheld artifact, a dead internal reference or a dropped URL cannot
+      # reach Pages. Same action as docs-build-check.yml (DOCBW-03-006,
+      # DOCBW-03-007, DOCBW-03-008).
       - name: Check site publication
         uses: ./.github/actions/check-site-publication
 

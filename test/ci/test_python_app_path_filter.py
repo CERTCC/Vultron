@@ -22,9 +22,11 @@ filter no test runs at all — which is how the py_trees 2.6.0 bump reached
 """
 
 from pathlib import Path
+from typing import Any
 
 import pytest
-import yaml
+
+from test.ci._workflows import load_workflow, triggers
 
 WORKFLOW = (
     Path(__file__).resolve().parents[2]
@@ -34,11 +36,8 @@ WORKFLOW = (
 )
 
 
-def _triggers() -> dict:
-    data = yaml.safe_load(WORKFLOW.read_text())
-    # PyYAML reads a bare ``on:`` key as the boolean True.
-    triggers: dict = data.get("on", data.get(True))
-    return triggers
+def _triggers() -> dict[str, Any]:
+    return triggers(load_workflow(WORKFLOW))
 
 
 @pytest.mark.spec("DEMOCI-02-016")

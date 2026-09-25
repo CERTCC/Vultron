@@ -20,6 +20,7 @@ relevant_packages:
   - vultron/bt
   - vultron/core
   - vultron/demo
+  - vultron/metadata/docs
   - vultron/wire/as2
 ---
 
@@ -349,6 +350,8 @@ the interim home for the publication axis; #3555's maturity manifest replaces it
 `docs-withheld` answers "did a withheld artifact produce files in `site/`". The
 opposite question — "does anything *link to* a path the build did not produce" —
 is a separate axis, and it stayed unchecked for one release cycle longer.
+`uv run docs-links` (`vultron/metadata/docs/links.py`, #3634) now checks it after
+every build, in both workflows (DOCBW-03-007).
 
 `docs/ns/` moving into `draft_docs` (#3549) withheld the page, and the What's
 New list went on advertising it as `href="../../ns/"` (#3574). The publication
@@ -406,26 +409,27 @@ of how this one hid, not preferences:
   looks like. It is dead because the target is not built, not because the form
   is wrong. Ask whether the reference resolves and both cases collapse into one
   assertion.
-- **Every built page, not a crawl.** `linkchecker site/index.html` follows links
-  from one entry point, so the pages nothing links to are never inspected: the
-  `includes/` fragments, `reference/codebase/`, `agents/`, `404.html`,
-  `print_page/`. That is not the same set as `not_in_nav` — most `not_in_nav`
-  pages are linked from a page that *is* in the nav, so nav absence and crawl
-  reachability are different properties and only the second one bounds the
-  crawl. Worse, the crawl reports success over what it did reach, so the
+- **Every built page, not a crawl.** `linkchecker site/index.html` (retired in
+  #3634) followed links from one entry point, so the pages nothing links to were
+  never inspected: the `includes/` fragments, `reference/codebase/`, `agents/`,
+  `404.html`, `print_page/`. That is not the same set as `not_in_nav` — most
+  `not_in_nav` pages are linked from a page that *is* in the nav, so nav absence
+  and crawl reachability are different properties and only the second one bounds
+  the crawl. Worse, the crawl reports success over what it did reach, so the
   omission is invisible. A tree walk over `site/**/*.html` has no reachability
-  precondition.
+  precondition, which is what `docs-links` does.
 - **Unconditional, because the two declarations are in different files.** The
   withholding lives in `mkdocs.yml`; the generator that advertises the page
   lives in `vultron/` or `docs/_scripts/`. A `docs/**` path filter is the wrong
   predicate for a defect that neither file has to touch — which is why the one
   gate that *could* have caught this (`linkchecker`, conditioned on
-  `docs_changed`) did not. Be precise about what DOCBW-03-007 therefore reaches:
-  dropping the step-level `docs_changed` condition (DOCBW-04-003) is one of the
-  two docs-scoped filters on this workflow. The other is the workflow's own
-  `paths:` trigger (DOCBW-02-001), which still omits `vultron/**` — so a PR that
-  edits only a generator never runs `docs-build-check.yml`, and the gate first
-  sees it in `deploy_site.yml` after merge. Closing that half is #3070.
+  `docs_changed`) did not. There were two docs-scoped filters on this workflow,
+  and each had to go: DOCBW-03-007 forbids the step-level `docs_changed`
+  condition, whose filter step went with the crawl (#3634), and the
+  workflow's own `paths:` trigger (DOCBW-02-001) omitted `vultron/**` and
+  `specs/**` until #3070 — so a PR that edited only a generator never ran
+  `docs-build-check.yml`, and a gate first saw it in `deploy_site.yml` after
+  merge. A trigger filter is part of every gate behind it.
 
 Deriving rather than mirroring is the complementary half, and it is cheaper
 where it applies. `whats_new.py::_unpublished_spec` reads `draft_docs` and

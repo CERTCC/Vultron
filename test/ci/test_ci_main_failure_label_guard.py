@@ -13,6 +13,8 @@ from typing import Any
 
 import yaml
 
+from test.ci._workflows import triggers
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 GUARD_WORKFLOW = WORKFLOWS_DIR / "ci-main-failure-label-guard.yml"
@@ -37,7 +39,7 @@ def test_guard_workflow_exists() -> None:
 def test_guard_workflow_triggers_on_issues_labeled() -> None:
     """CISEC-05-005: workflow must trigger on issues: labeled."""
     data = _load()
-    on = data.get(True, data.get("on", {}))  # type: ignore[call-overload]
+    on = triggers(data)
     assert isinstance(on, dict), "workflow has no 'on:' block"
     issues_trigger = on.get("issues", {})
     types = (

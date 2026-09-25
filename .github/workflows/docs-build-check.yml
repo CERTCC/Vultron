@@ -8,18 +8,16 @@ on:
       - 'mkdocs.yml'
       - 'pyproject.toml'
       - 'uv.lock'
-      # The withheld-artifact declaration (DOCBW-03-005): a PR that only edits
-      # it must rerun the gate it configures.
-      - 'vultron/metadata/docs/withheld.py'
-      # The published-URL baseline and its check (DOCBW-03-008), and the
-      # action that runs both gates.
-      - 'vultron/metadata/docs/legacy_urls.py'
-      - 'vultron/metadata/docs/legacy_urls_baseline.txt'
-      # What both gates import: the site reader, the baseline reader, and the
-      # mkdocs.yml parsing that decides what a snapshot counts as built.
-      - 'vultron/metadata/docs/built_site.py'
-      - 'vultron/metadata/docs/baseline_file.py'
-      - 'vultron/metadata/base.py'
+      # Pages render from these at build time (DOCBW-02-001, #3070): the API
+      # reference is mkdocstrings over vultron/, the ActivityPub examples print
+      # vultron/wire/as2/vocab/examples/, the spec pages render specs/*.yaml,
+      # and the scenario table and What's New are vultron/metadata/ generators.
+      # vultron/** also covers the gates themselves and what they read
+      # (vultron/metadata/docs/: withheld.py, links.py, legacy_urls.py and its
+      # baseline, built_site.py), so a PR editing only a gate reruns it.
+      - 'vultron/**'
+      - 'specs/**'
+      # Runs the built-site gates (DOCBW-03-005/007/008).
       - '.github/actions/check-site-publication/**'
       - 'CONTRIBUTING.md'
       - 'ContributionInstructions.md'
@@ -40,20 +38,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check if docs/ changed
-        id: filter
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "docs_changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "origin/$BASE_REF"...HEAD \
-               | grep -q '^docs/'; then
-            echo "docs_changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "docs_changed=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
         with:
@@ -65,18 +49,18 @@ jobs:
           # distinguishable by shellcheck, which flags the bare form as SC1007.
           PYTHONPATH='' uv run python -m vultron.metadata.adr.index_gen --check
 
+      # --strict makes mkdocs.yml's `validation: warn` settings (dead in-page
+      # anchors, pages missing from the nav) fail the job; without it they
+      # print and the job stays green (DOCBW-03-009). Never add --quiet
+      # (DOCBW-03-010): it hides the warnings --strict counts, so the build
+      # passes over them.
       - name: Build Site
         run: |
-          uv run mkdocs build --verbose --clean --config-file mkdocs.yml
+          uv run mkdocs build --strict --verbose --clean --config-file mkdocs.yml
 
       # Runs against the built site above, so it must follow that step: no
-      # withheld artifact was built, and every URL an earlier publish served
-      # still resolves. The same action gates deploy_site.yml.
+      # withheld artifact was built, every internal reference resolves, and
+      # every URL an earlier publish served still resolves. The same action
+      # gates deploy_site.yml.
       - name: Check site publication
         uses: ./.github/actions/check-site-publication
-
-      - name: Check links
-        if: steps.filter.outputs.docs_changed == 'true'
-        run: |
-          uv run linkchecker site/index.html
-

@@ -12,6 +12,7 @@ shell: "zsh"
 commands:
   - ".github/scripts/mkdocs-build-strict.sh"
   - "uv run docs-withheld"
+  - "uv run docs-links"
   - "uv run docs-legacy-urls"
 inputs:
   - name: repo_root
@@ -31,8 +32,11 @@ Validate that documentation builds cleanly without real warnings or broken links
 committing changes to `docs/` directory files.
 
 When the `docs/` directory is modified, `mkdocs build --strict` MUST pass with
-zero real warnings before code is staged for commit. This mirrors the CI pipeline
-which enforces the same constraint.
+zero real warnings before code is staged for commit. CI enforces the same
+constraint: both `docs-build-check.yml` and `deploy_site.yml` run a plain
+`mkdocs build --strict` (DOCBW-03-009). CI suppresses **nothing**, so a warning
+this script forgives below still fails CI; the suppression list exists only for
+the griffe false positives, which are absent from the current build.
 
 **Note**: This skill automatically suppresses false-positive warnings from griffe
 that result from Python decorators being misinterpreted as bibliography citations
@@ -84,7 +88,20 @@ PYTHONPATH='' uv run docs-legacy-urls
    `check-site-publication` action, so a failure here is a failure that would
    have blocked the deploy.
 
-1. Stage changes only after both commands exit cleanly with zero code.
+1. Check the reference axis against the same build:
+
+```bash
+PYTHONPATH='' uv run docs-links
+```
+
+   This resolves every internal `href`/`src` on every page in `site/` and
+   fails on any that points at a file the build did not produce, printing each
+   as `<page>: <reference>` (DOCBW-03-007). It covers what `--strict` cannot:
+   links printed by `markdown-exec` blocks, links to withheld pages, and pages
+   nothing links to. Both workflows run it, unconditionally, through the same
+   `check-site-publication` action.
+
+1. Stage changes only after all four commands exit cleanly with zero code.
 
 ## Constraints / Rules
 
@@ -97,9 +114,9 @@ PYTHONPATH='' uv run docs-legacy-urls
   - Invalid markdown: syntax errors that prevent proper parsing
 - Validate links using `markdownlint-cli2` BEFORE running the build script
   to catch markdown syntax issues early.
-- Run `docs-withheld` and `docs-legacy-urls` AFTER the build script, never
-  before: they read `site/`, and they fail rather than pass when that directory
-  is absent or empty.
+- Run `docs-withheld`, `docs-legacy-urls` and `docs-links` AFTER the build
+  script, never before: they read `site/`, and they fail rather than pass when
+  that directory is absent or empty.
 
 ## Examples
 

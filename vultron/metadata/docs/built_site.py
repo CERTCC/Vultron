@@ -12,9 +12,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The built ``site/`` tree, shared by the checks that read the build product.
 
-``docs-withheld`` and ``docs-legacy-urls`` both judge what ``mkdocs build``
-produced rather than the ``docs/`` sources. Both must refuse an absent or empty
-``site/``: an unbuilt site evidences nothing, so a check that ran against one and
+``docs-withheld``, ``docs-links`` and ``docs-legacy-urls`` judge what
+``mkdocs build`` produced rather than the ``docs/`` sources. Each must refuse an
+absent or empty ``site/``: an unbuilt site evidences nothing, so a check that ran against one and
 reported success would pass while checking nothing (DF-09-009).
 """
 
