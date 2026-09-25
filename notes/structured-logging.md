@@ -67,7 +67,7 @@ MUST be at DEBUG or lower. Verify with a grep after any bulk refactor.
 |---|---|---|
 | `BT structure:\n<tree>` (before every execution) | `vultron/core/behaviors/bridge.py:209` | BT scaffolding, not story |
 | `DataLayer stored/saved/updated X 'ID'` | `vultron/adapters/driven/datalayer_sqlite/crud.py:70,152,195,301` | Persistence internals; higher-level "Created X" messages above them are fine |
-| `Parsing activity from request body` / `Parsing activity from body` | `vultron/adapters/driving/fastapi/routers/actors/_inbox.py:62`, `vultron/wire/as2/parser.py:113` | HTTP handler internals; duplicate pair |
+| `Parsing activity from request body` / `Parsing activity from body` | `vultron/adapters/driving/fastapi/routers/actors/_inbox.py:64`, `vultron/wire/as2/parser.py:113` | HTTP handler internals; duplicate pair |
 | `Processing outbox for actor ...` | `vultron/adapters/driving/fastapi/outbox_handler.py:242` | Preamble; delivery result is the meaningful line |
 | `Dispatch: dispatched X activity_id=...` / `process_payload: outcome status=processed` / `run_inbox_pipeline: status=processed` | `vultron/core/behaviors/inbox/_process_payload.py:214`, `vultron/adapters/driving/fastapi/inbox_orchestration.py:370,386` | Mechanical pipeline completion repeats |
 | `EM FSM: Finished processing state X exit/enter callbacks` | `transitions` library logger (see below) | FSM internals; the `Actor X proposed embargo Y (EM A → B)` already captures this |

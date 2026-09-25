@@ -20,10 +20,10 @@ documentation structure guidance.
 - Pipeline: FastAPI inbox → AS2 parser → semantic extraction
   (`vultron/wire/as2/extractor/`) → dispatcher → use-case callable
   (`vultron/core/use_cases/`).
-- Use-Case Protocol: `__init__(dl, request)` + `execute() -> None` (received) or
-  `-> dict` (trigger); routing via `use_case_map()` key lookup. Both are slated
-  to return `UseCaseResult` subtypes — designed in ADR-0040/ADR-0095, **not yet
-  built** (#1769, #3354). Do not assume the envelope exists.
+- Use-Case Protocol: `__init__(dl, request)` + `execute() -> HandlerResult`
+  (received; `core/models/use_case_result.py`, ADR-0095) or `-> dict` (trigger,
+  slated for a `UseCaseResult` subtype in #3354); routing via `use_case_map()`
+  key lookup. `DispatchNode` maps the verdict onto `InboxOutcome.status`.
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
 - Tests: `uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`
   — run once; read `exit:` first. Never end a gate command with a pipe: a pipeline exits with its last stage's status, so a killed run reads as success. See `.agents/skills/run-tests/SKILL.md`.

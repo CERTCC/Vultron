@@ -12,6 +12,7 @@ from vultron.core.models.events.actor import (
     AcceptCaseParticipantRoleReceivedEvent,
     RejectCaseParticipantRoleReceivedEvent,
 )
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import _idempotent_create
 
@@ -34,7 +35,7 @@ class AcceptCaseParticipantRoleReceivedUseCase:
         self._dl = dl
         self._request: AcceptCaseParticipantRoleReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         _idempotent_create(
             self._dl,
@@ -50,6 +51,7 @@ class AcceptCaseParticipantRoleReceivedUseCase:
             request.actor_id,
             request.object_id,
         )
+        return HandlerResult.applied()
 
 
 class RejectCaseParticipantRoleReceivedUseCase:
@@ -68,7 +70,7 @@ class RejectCaseParticipantRoleReceivedUseCase:
         self._dl = dl
         self._request: RejectCaseParticipantRoleReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         logger.warning(
             "RejectCaseParticipantRoleReceived: actor '%s' rejected role"
@@ -76,3 +78,4 @@ class RejectCaseParticipantRoleReceivedUseCase:
             request.actor_id,
             request.object_id,
         )
+        return HandlerResult.applied()

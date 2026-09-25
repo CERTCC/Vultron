@@ -124,7 +124,11 @@ groups:
       An architecture ratchet test MUST verify that all concrete use-case classes in
       `vultron/core/use_cases/` declare an `execute()` return annotation that is
       `UseCaseResult` or a registered subtype
-    rationale: Belt-and-suspenders companion to mypy enforcement; caught at CI time without mypy strictness flags.
+    rationale: >-
+      The enforcement for UCORG-05-003. No call site is typed against the
+      `UseCase` Protocol (the dispatcher routing table holds bare `type` values),
+      so mypy alone does not report a non-conforming `execute()`; the ratchet
+      catches it at CI time.
   - id: UCORG-05-004b
     priority: MAY
     kind: project

@@ -35,6 +35,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 from vultron.core.models.events import MessageSemantics
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.use_cases.received.report import (
     CreateReportReceivedUseCase,
     SubmitReportReceivedUseCase,
@@ -98,14 +99,16 @@ def _call_use_case(activity: as_Activity, use_case_class, dl=None):
         result = use_case_class(dl, event).execute()
     except Exception as e:
         pytest.fail(f"Use case raised an exception: {e}")
-    assert result is None
+    # Every handler returns APPLIED until #2255 assigns per-site dispositions;
+    # a no-op such as the Read(Offer) acknowledgement may then become SKIPPED.
+    assert result == HandlerResult.applied()
 
 
 # TODO shouldn't we be testing the dispatcher routing to the right handler?
 
 
 # Tests
-def test_create_report_handler_returns_none(reporter, report, dl):
+def test_create_report_handler_returns_applied(reporter, report, dl):
     activity = as_Create(actor=reporter, object_=report)
     _call_use_case(activity, CreateReportReceivedUseCase, dl=dl)
 
@@ -119,7 +122,7 @@ def test_submit_report_persists_activity_and_report(reporter, report, dl):
     assert dl.read(report.id_) is not None
 
 
-def test_read_activity_handler_noop_returns_none(reporter, report, dl):
+def test_read_activity_handler_noop_returns_applied(reporter, report, dl):
     activity = as_Read(
         actor=reporter, object_=as_Offer(actor=reporter, object_=report)
     )
@@ -141,7 +144,7 @@ def test_tentative_reject_triggers_invalidation(reporter, report, dl):
     assert dl.read(activity.id_) is not None
 
 
-def test_create_case_handler_returns_none(coordinator, case, dl):
+def test_create_case_handler_returns_applied(coordinator, case, dl):
     activity = as_Create(actor=coordinator, object_=case)
     _call_use_case(activity, CreateCaseReceivedUseCase, dl=dl)
 

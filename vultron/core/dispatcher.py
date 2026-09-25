@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.events import MessageSemantics
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.errors import (
     UnroutableActivityError,
@@ -60,8 +61,8 @@ class DispatcherBase:
     """Base dispatcher implementation.
 
     Looks up the use case class for the event's ``semantic_type`` from the
-    supplied routing table, instantiates it with ``dl``, and calls
-    ``execute(event)``.
+    supplied routing table, instantiates it with ``dl``, calls ``execute()``,
+    and returns the handler's ``HandlerResult`` (UCORG-05-010).
 
     Optional *port_factories* allow driven ports to be injected for specific
     semantic types.  Each factory receives the ``DataLayer`` and returns a
@@ -83,7 +84,9 @@ class DispatcherBase:
         self._use_case_map = use_case_map
         self._port_factories = port_factories or {}
 
-    def dispatch(self, event: "VultronEvent", dl: "DataLayer") -> None:
+    def dispatch(
+        self, event: "VultronEvent", dl: "DataLayer"
+    ) -> HandlerResult:
         logger.info(
             "Dispatching activity of type '%s' with semantics '%s'",
             event.object_type,
@@ -95,12 +98,26 @@ class DispatcherBase:
             event.actor_id,
             event.object_type,
         )
-        self._handle(event, dl)
+        return self._handle(event, dl)
 
-    def _handle(self, event: "VultronEvent", dl: "DataLayer") -> None:
+    def _handle(self, event: "VultronEvent", dl: "DataLayer") -> HandlerResult:
+        """Run the routed use case and return its verdict.
+
+        This is the link that calls ``execute()``, so it is the first hop that
+        must keep the ``HandlerResult`` (UCORG-05-010). An unroutable activity
+        runs no handler; the dispatcher then synthesizes a ``REFUSED`` verdict
+        rather than returning as though one had succeeded (UCORG-05-012). The
+        activity is still dropped, not re-queued (ARCH-15-003).
+
+        Raises:
+            VultronApiHandlerNotFoundError: No use case is registered for the
+                event's semantics (the pipeline records the raise as rejected).
+            TypeError: The use case returned something other than a
+                ``HandlerResult`` — a contract breach, not a verdict.
+        """
         try:
             self._enforce_join_backfill_gate(event, dl)
-        except UnroutableActivityError:
+        except UnroutableActivityError as exc:
             logger.error(
                 "Activity '%s' is unroutable and will be dropped"
                 " (semantics=%s actor_id=%s): no case_id extractable",
@@ -108,13 +125,20 @@ class DispatcherBase:
                 event.semantic_type,
                 event.actor_id,
             )
-            return
+            return HandlerResult.refused(f"unroutable: {exc.reason}")
         use_case_class = self._get_use_case(event.semantic_type)
         extra_kwargs: dict[str, Any] = {}
         port_factory = self._port_factories.get(event.semantic_type)
         if port_factory is not None:
             extra_kwargs = port_factory(dl)
-        use_case_class(dl, event, **extra_kwargs).execute()
+        result = use_case_class(dl, event, **extra_kwargs).execute()
+        if not isinstance(result, HandlerResult):
+            raise TypeError(
+                f"use case {use_case_class!r} for {event.semantic_type} "
+                f"returned {type(result).__name__}, not HandlerResult"
+                " (UCORG-05-001)"
+            )
+        return result
 
     def _enforce_join_backfill_gate(
         self, event: "VultronEvent", dl: "DataLayer"

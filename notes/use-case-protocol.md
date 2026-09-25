@@ -5,7 +5,7 @@ description: >
   Design decisions for the UseCaseResult type hierarchy, the HandlerDisposition
   vocabulary and its route to InboxOutcome, the two semantically distinct request
   paths (VultronEvent vs TriggerRequest), and why a shared UseCaseRequest base
-  was not introduced. Designed, not yet built.
+  was not introduced. Received side and dispatcher chain migrated; trigger side not.
 related_specs:
   - specs/use-case-organization.yaml
   - specs/handler-protocol.yaml
@@ -15,6 +15,7 @@ related_notes:
   - notes/architecture-hexagonal.md
   - notes/inbox-orchestration.md
 relevant_packages:
+  - vultron/core/models
   - vultron/core/ports
   - vultron/core/use_cases
   - vultron/core/use_cases/received
@@ -32,18 +33,23 @@ See `specs/use-case-organization.yaml` UCORG-05 for the normative requirements.
 See `docs/adr/0040-use-case-result-envelope.md` for the original decision record
 and `docs/adr/0095-received-side-handler-result.md` for the received-side half.
 
-> **Status: largely designed, not built.** One slice now exists: a standalone
-> `TriggerResult` envelope in `vultron/core/use_cases/triggers/results.py`
+> **Status: received half adopted, trigger half not.** `UseCaseResult`,
+> `HandlerResult`, and `HandlerDisposition` exist in
+> `vultron/core/models/use_case_result.py` (#3371). Every received-side
+> `execute()` declares `-> HandlerResult`, and the `UseCase` Protocol declares
+> `-> UseCaseResult` (#3372); the query use case returns `ActionRulesResult`.
+> `test/architecture/test_use_case_execute_returns_result.py` enforces
+> UCORG-05-004 outside `triggers/`. The dispatcher returns the value and
+> `DispatchNode` maps its disposition onto `InboxOutcome.status` (#3373). Every
+> handler still returns `APPLIED` unconditionally — assigning the correct
+> disposition per site is #2255. On the trigger side, a standalone
+> `TriggerResult` envelope lives in `vultron/core/use_cases/triggers/results.py`
 > (#3398), plus a demo-layer `ActivityResult` subtype, introduced only so
-> `ActorSession` can type demo trigger responses at the HTTP boundary. It is
-> **not** yet a use-case return type — the shared `UseCaseResult` base and the
-> `HandlerResult` sibling below do not exist (`grep -rn "class UseCaseResult"
-> vultron/` returns nothing), all 51 received-side `execute()` methods are
-> `-> None`, and all trigger-side ones still return `dict`. Earlier revisions of
-> this note described the whole migration in the past tense while no part of it
-> had been written — that drift is what concern #1769 was filed to correct.
-> Treat the hierarchy below as the design to implement, and do not infer from it
-> that any of it beyond the `TriggerResult` envelope is in place.
+> `ActorSession` can type demo trigger responses at the HTTP boundary; it does
+> not yet inherit `UseCaseResult`, and trigger `execute()` methods still return
+> `dict` (#3354). Earlier revisions of this note described the whole migration
+> in the past tense while no part of it had been written — that drift is what
+> concern #1769 was filed to correct.
 
 ---
 
@@ -63,7 +69,16 @@ component that knows what actually happened to the activity, and that verdict ha
 a destination (`InboxOutcome`). `HandlerResult` carries it:
 
 - `disposition: HandlerDisposition` — what the handler did
-- `reason: str | None` — populated when the disposition is `REFUSED`
+- `reason: str | None` — required when the disposition is `REFUSED` (it becomes
+  `failure_reason`), rejected on `APPLIED`, and optional on `SKIPPED` and
+  `DEFERRED`, where it says why the no-op was correct or what a parked item
+  awaits. Enforced at construction; the model is frozen.
+
+`REFUSED` covers protocol outcomes only — the handler decided the assertion must
+not be applied. A programming error is not a refusal: it propagates as an
+exception, as it does today, so the dispatcher side can keep telling the two
+apart the way `BTExecutionResult.internal_error` does for a behavior tree
+(CONCERN-3019).
 
 `HandlerDisposition` is a `StrEnum`, following the project idiom for closed
 value sets (`CVDRole`, `VultronObjectType`) — not a `Literal`:
@@ -206,13 +221,15 @@ of *this note* was the only place it was ever addressed, with a bare "separate
 architectural decision." ADR-0095 decides it: **it does**, because that boundary
 is the only road from the handler to `InboxOutcome`.
 
-`InboxOutcome` (`vultron/core/behaviors/inbox/models.py`) already models
-`processed`/`deferred`/`rejected` and carries `failure_reason`, but
-`_read_inbox_outcome()` assembles it from inbox-BT blackboard keys, and
-`DispatchNode.update()` treats "dispatch did not raise" as SUCCESS. Every link
-in between is typed `-> None`, so a handler's verdict cannot reach it. That is
-bug #2255: a handler can find nothing it can act on, log a warning, return, and
-the pipeline still reports `processed`.
+`InboxOutcome` (`vultron/core/behaviors/inbox/models.py`) models
+`processed`/`deferred`/`rejected` and carries `failure_reason`, and
+`_read_inbox_outcome()` assembles it from inbox-BT blackboard keys. Before the
+change in #3373, `DispatchNode.update()` treated "dispatch did not raise" as
+SUCCESS and every link from `execute()` to `DispatchNode` was typed `-> None`, so a
+handler's verdict could not reach `InboxOutcome`: a handler could find nothing
+it could act on, log a warning, return, and the pipeline still reported
+`processed`. The plumbing is now in place; assigning each handler its real
+disposition is #2255.
 
 Each link returns `HandlerResult`:
 
@@ -241,15 +258,18 @@ Two things are easy to get wrong here:
 - **`_handle()` can return without a handler running at all.** It catches
   `UnroutableActivityError` and returns, and `_get_use_case()` raises
   `VultronApiHandlerNotFoundError` for unrecognised semantics. The first path
-  raises nothing, so a dropped activity is reported `processed` today. A return
-  type alone does not fix it; UCORG-05-012 requires the dispatcher layer to
-  synthesize a verdict when no handler ran.
+  raises nothing, so before #3373 a dropped activity was reported `processed`.
+  A return type alone does not fix it; UCORG-05-012 requires the dispatcher
+  layer to synthesize a verdict when no handler ran, so `_handle()` now
+  returns `REFUSED("unroutable: …")` there.
 
 Most `SKIPPED` decisions also do not live in `execute()` — `_idempotent_create`
 and peers in `vultron/core/use_cases/_helpers.py` return without storing when the
-record already exists, and are `-> None` themselves. Five handlers delegate their
-whole duplicate-skip decision there, so that layer has to return a disposition
-too or `SKIPPED` is unreachable for the commonest skip in the codebase.
+record already exists. Five handlers delegate their whole duplicate-skip decision
+there, so that layer has to return a disposition too or `SKIPPED` is unreachable
+for the commonest skip in the codebase. `_idempotent_create` therefore returns a
+`HandlerResult` (`SKIPPED` with a reason, or `APPLIED`) describing its own act;
+escalating a skip to `REFUSED` stays the calling handler's verdict (#2255).
 
 `DispatchNode` owns the mapping (`APPLIED`/`SKIPPED` → `processed`, `DEFERRED` →
 `deferred`, `REFUSED` → `rejected` + `failure_reason`). Handlers do not know about
@@ -276,15 +296,21 @@ level it is an ack/`ProcessingFault` message, not a response code.
 
 ## Ratchet Test
 
-Not yet written. Planned: an architecture ratchet that inspects all concrete
-use-case classes in `vultron/core/use_cases/` and asserts that their `execute()`
-annotation is `UseCaseResult` or a subtype, catching drift when new use cases are
-added without the correct return type, independent of mypy configuration
-(UCORG-05-004).
+`test/architecture/test_use_case_execute_returns_result.py` inspects every
+top-level class under `vultron/core/use_cases/` that defines `execute()` and
+asserts its return annotation resolves to `UseCaseResult` or a subtype, catching
+drift when new use cases are added without the correct return type, independent
+of mypy configuration (UCORG-05-004). "Registered subtype" is the subclass
+relation itself, resolved with `typing.get_type_hints`, so a new result type
+needs no list edit.
 
-It must exclude trigger-side classes until #3354 migrates them from `dict`. That
-exclusion is temporary and tied to that issue — record it as such in the test, so
-it does not read as a permanent carve-out.
+It excludes `triggers/` until #3354 migrates those classes from `dict`
+(UCORG-05-004b). The exclusion names #3354 in the test, and a companion test
+fails once every trigger conforms, so the carve-out cannot outlive its reason.
+
+Nothing yet types a call site against the `UseCase` Protocol — the dispatcher's
+routing table is `dict[MessageSemantics, type]` — so mypy does not enforce the
+Protocol's return type on its own. The ratchet is the enforcement.
 
 ADR-0040's Validation section listed this test as realized validation for three
 months while the file was never written. Do not cite a ratchet as validation

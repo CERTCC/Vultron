@@ -7,8 +7,11 @@ description: >
   rationale, InboxOutcome contract, and pending-queue port design.
 related_specs:
   - specs/inbox-orchestration.yaml
+  - specs/use-case-organization.yaml
+  - specs/handler-protocol.yaml
 related_notes:
   - notes/architecture-hexagonal.md
+  - notes/use-case-protocol.md
   - notes/bt-integration.md
   - notes/architecture-adapters.md
 relevant_packages:
@@ -66,8 +69,29 @@ Rules for any future route-level guard:
 - **`IngressPayloadAdapter`** — translates raw input (bytes or dict) into a
   rehydrated `as_Activity`. Owns parse + rehydrate; isolates wire-format
   knowledge from the orchestration BT.
-- **`DispatchAdapter`** — accepts a `VultronEvent` and executes the
-  appropriate use-case path. Wraps the existing `ActivityDispatcher` port.
+- **`DispatchAdapter`** — accepts a `VultronEvent`, executes the
+  appropriate use-case path, and returns the handler's `HandlerResult`
+  (IO-03-001, UCORG-05-010). Wraps the existing `ActivityDispatcher` port.
+
+`DispatchNode` is the only place the verdict becomes an outcome (HP-01-004):
+`APPLIED`/`SKIPPED` → `processed`, `DEFERRED` → `deferred`, `REFUSED` →
+`rejected` with the handler's reason. A dispatch that returns no
+`HandlerResult` is rejected — "did not raise" is not a verdict. When no
+handler runs at all (an unroutable activity), the dispatcher synthesizes a
+`REFUSED` verdict, so the drop is never reported as `processed`
+(UCORG-05-012). `run_inbox_pipeline` logs every `rejected` outcome at WARNING
+with the actor and activity ids (UCORG-05-013, SL-02-001); the BT nodes log
+their own outcome writes at INFO so a refusal is not reported twice.
+
+Replay of activities held pending a case bootstrap runs only when the
+bootstrap's verdict maps to `processed`. A bootstrap the handler refused or
+deferred has not made the case locally available, so replaying its held
+activities would only defer them again. The legacy adapter paths
+(`inbox_handler._dispatch_or_defer_inbox_item`, `InboxPipeline.process`)
+apply the same gate through `HandlerResult.took_effect`. A replay that raises
+is logged and does not turn an applied bootstrap into `rejected`
+(MV-01-007). This is inert while every received handler returns `APPLIED`,
+and becomes live as handlers adopt real dispositions (#2255).
 
 This two-adapter design was chosen over:
 
@@ -104,7 +128,7 @@ Tests MUST target the `process_payload` interface:
 
 ```python
 outcome = process_payload(raw_payload, ingress_adapter, dispatch_adapter)
-assert outcome.status == "processed"
+assert outcome.status is InboxOutcomeStatus.PROCESSED
 assert outcome.context_id == expected_case_id
 ```
 
