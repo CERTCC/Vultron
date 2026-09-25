@@ -15,8 +15,7 @@
 
 """Domain representation of a case participant and role subclasses.
 
-``CaseParticipant`` is the canonical core type.  ``CaseParticipant`` is
-kept as a backward-compatibility alias.
+``CaseParticipant`` is the canonical core type.
 
 Several convenience subclasses are provided that auto-set ``case_roles`` via
 model validators:

@@ -277,50 +277,44 @@ _RETIRED_CORE_ALIASES = frozenset(
 )
 
 
-def test_retired_case_and_ledger_entry_aliases_are_gone():
-    """``VultronCase`` and ``VultronCaseLedgerEntry(Ref)`` are removed (#3431).
+@pytest.mark.parametrize(
+    ("module_name", "alias"),
+    [
+        # #3431
+        ("vultron.core.models.case", "VultronCase"),
+        ("vultron.core.models.case_ledger_entry", "VultronCaseLedgerEntry"),
+        ("vultron.core.models.case_ledger_entry", "VultronCaseLedgerEntryRef"),
+        (
+            "vultron.wire.as2.vocab.objects.case_ledger_entry",
+            "VultronCaseLedgerEntry",
+        ),
+        (
+            "vultron.wire.as2.vocab.objects.case_ledger_entry",
+            "VultronCaseLedgerEntryRef",
+        ),
+        # #3678
+        ("vultron.core.models.case_actor", "VultronCaseActor"),
+        ("vultron.core.models.report", "VultronReport"),
+        ("vultron.core.models.embargo_event", "VultronEmbargoEvent"),
+        ("vultron.core.models.case_participant", "VultronParticipant"),
+        (
+            "vultron.wire.as2.vocab.objects.case_participant",
+            "VultronParticipant",
+        ),
+    ],
+)
+def test_retired_core_alias_is_gone_from_its_old_home(module_name, alias):
+    """Retired ``Vultron``-prefixed aliases are not re-exported (#3431, #3678).
 
     Each was an assignment alias of its canonical class, never a distinct type,
     so an ``isinstance`` check against the alias could not fail and the
     re-coercion branch it guarded was unreachable. CS-15-001 forbids keeping
-    them to spare call sites; this pins that no module re-exports them.
+    them to spare call sites; this pins that the module that defined each one
+    no longer does.
     """
-    import vultron.core.models.case as case_module
-    import vultron.core.models.case_ledger_entry as ledger_module
-    import vultron.wire.as2.vocab.objects.case_ledger_entry as wire_module
-
-    for module, name in (
-        (case_module, "VultronCase"),
-        (ledger_module, "VultronCaseLedgerEntry"),
-        (ledger_module, "VultronCaseLedgerEntryRef"),
-        (wire_module, "VultronCaseLedgerEntry"),
-        (wire_module, "VultronCaseLedgerEntryRef"),
-    ):
-        assert not hasattr(module, name), f"{module.__name__}.{name}"
-
-
-def test_retired_vultron_prefixed_aliases_are_gone():
-    """The last ``Vultron``-prefixed core aliases are removed (#3678).
-
-    ``VultronCaseActor``, ``VultronReport``, ``VultronEmbargoEvent`` and
-    ``VultronParticipant`` were assignment aliases of ``CaseActor``,
-    ``VulnerabilityReport``, ``EmbargoEvent`` and ``CaseParticipant``
-    (CS-15-001, CS-12-001).
-    """
-    import vultron.core.models.case_actor as case_actor_module
-    import vultron.core.models.case_participant as participant_module
-    import vultron.core.models.embargo_event as embargo_event_module
-    import vultron.core.models.report as report_module
-    import vultron.wire.as2.vocab.objects.case_participant as wire_module
-
-    for module, name in (
-        (case_actor_module, "VultronCaseActor"),
-        (report_module, "VultronReport"),
-        (embargo_event_module, "VultronEmbargoEvent"),
-        (participant_module, "VultronParticipant"),
-        (wire_module, "VultronParticipant"),
-    ):
-        assert not hasattr(module, name), f"{module.__name__}.{name}"
+    assert alias in _RETIRED_CORE_ALIASES
+    module = importlib.import_module(module_name)
+    assert not hasattr(module, alias), f"{module_name}.{alias}"
 
 
 @pytest.mark.parametrize(

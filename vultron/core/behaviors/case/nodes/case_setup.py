@@ -301,9 +301,7 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
             case_actor_identity,
         )
         from vultron.core.behaviors.store_scope import store_for_actor
-        from vultron.core.models.case_actor import (
-            CaseActor as CaseActor,
-        )
+        from vultron.core.models.case_actor import CaseActor
 
         if (f := self._require_datalayer()) is not None:
             return f

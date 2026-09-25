@@ -13,9 +13,7 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
-    from vultron.core.models.embargo_event import (
-        EmbargoEvent as EmbargoEvent,
-    )
+    from vultron.core.models.embargo_event import EmbargoEvent
 else:
     VulnerabilityCase = object
     EmbargoEvent = object

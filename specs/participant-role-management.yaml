@@ -199,10 +199,10 @@ groups:
   - id: PRM-04-001
     priority: MUST
     kind: project
-    statement: 'The wire-layer name `as_CaseParticipant` (`vultron/wire/as2/vocab/objects/case_participant.py`) MUST resolve
-      to the core `CaseParticipant` class (ADR-0099 detail 3), so that the `add_role()`, `remove_role()`, and `has_role()`
-      methods a wire caller reaches are the core methods: idempotent add/remove with optional raise-on-duplicate/missing
-      flags, and a boolean presence check.'
+    statement: 'The wire-layer participant `as_CaseParticipant` (`vultron/wire/as2/vocab/objects/case_participant.py`) MUST
+      expose `add_role()`, `remove_role()`, and `has_role()` methods with behavioral contracts equivalent to those on the
+      core `CaseParticipant`: idempotent add/remove with optional raise-on-duplicate/missing flags, and a boolean presence
+      check. Under ADR-0099 detail 3 the two names are one class, which satisfies this by identity.'
     rationale: 'Callers that work with either domain or wire participant objects should not need to know which class they
       hold in order to manage roles.'
     tags:
