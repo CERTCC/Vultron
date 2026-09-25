@@ -160,6 +160,23 @@ def test_rm_submit_report_to_accepts_actor_object(sample_report, sample_actor):
     assert result.to == [recipient]
 
 
+@pytest.mark.spec("CBT-06-001")
+def test_rm_submit_report_offers_to_two_recipients_are_distinct(
+    sample_report, sample_actor
+):
+    """Offering one report to two recipients yields two distinguishable Offers."""
+    coordinator_uri = "https://example.org/actors/coordinator"
+    first = rm_submit_report_activity(
+        report=sample_report, to=_RECIPIENT_URI, actor=sample_actor
+    )
+    second = rm_submit_report_activity(
+        report=sample_report, to=coordinator_uri, actor=sample_actor
+    )
+    assert first.to == [_RECIPIENT_URI]
+    assert second.to == [coordinator_uri]
+    assert first.id_ != second.id_
+
+
 def test_rm_submit_report_kwargs_actor_forwarded(sample_report, sample_actor):
     result = rm_submit_report_activity(
         report=sample_report, to=_RECIPIENT_URI, actor=sample_actor

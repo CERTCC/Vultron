@@ -437,3 +437,60 @@ groups:
       spec_id: CBT-01-008
     lint_suppress:
     - missing_story_reference
+- id: CBT-06
+  title: One Report Offered to Several Recipients
+  specs:
+  - id: CBT-06-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Each `Offer(VulnerabilityReport)` a reporter sends MUST address exactly
+      one recipient and MUST carry an activity id distinct from every other
+      `Offer` of the same report, so that each submission attempt is
+      identified by at least the pair (report, recipient).
+    rationale: >-
+      A reporter that gets no answer from its first recipient routinely offers
+      the same report to a Coordinator, and either recipient may then accept
+      and create its own case. The protocol permits this on purpose. The two
+      attempts, and the cases that follow from them, are only distinguishable
+      if each `Offer` names one recipient and has its own id (issue #3366).
+    verification: >-
+      Unit tests confirm that two `Offer(VulnerabilityReport)` activities built
+      for the same report and different recipients each carry a single-element
+      `to` naming their own recipient and have distinct ids.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-09-001
+    stories:
+    - story_2022_038
+    - story_2022_088
+  - id: CBT-06-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A reporter MUST keep one report-to-case link per (report, recipient)
+      pair, each holding its own trusted case-creator identity, trusted
+      CASE_MANAGER identity, and case id. Offering a report to a further
+      recipient MUST NOT reuse, overwrite, or suppress the link held for an
+      earlier recipient, and a bootstrap `Create(VulnerabilityCase)` MUST be
+      validated (CBT-01-005) against the link for the recipient that sent it.
+    rationale: >-
+      A link keyed on the report alone holds one trusted case creator. When
+      the reporter re-offers the report to a second recipient, that recipient's
+      bootstrap is refused because its sender is not the first recipient, so
+      the reporter cannot join the second case at all — in exactly the
+      sequential escalation that is the common form of one report becoming two
+      cases (issue #3366).
+    verification: >-
+      Unit tests confirm that links for the same report and two different
+      recipients are distinct records, and that a valid bootstrap from either
+      recipient is accepted and recorded on that recipient's link without
+      altering the other.
+    relationships:
+    - rel_type: refines
+      spec_id: CBT-01-006
+    - rel_type: depends_on
+      spec_id: CBT-01-005
+    stories:
+    - story_2022_096
+    - story_2022_104
