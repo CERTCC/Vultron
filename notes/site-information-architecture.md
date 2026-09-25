@@ -325,9 +325,12 @@ Some consequences of that design:
 Pre-existing violations are listed in
 `vultron/metadata/docs/level_order_baseline.txt`. Each entry is
 `page | term | reason`, and the reason names the remediation task that owns
-the fix. The list may only shrink. Most entries clear together when a 300-level
-introduction of the CASE_MANAGER and the case ledger exists (audit missing
-page 3) and moves `introduces:` there.
+the fix. The list may only shrink. It is currently empty: the 21 entries it
+started with cleared together when the 300-level introduction of the
+CASE_MANAGER and the case ledger (audit missing page 3,
+`topics/case_lifecycle/case_manager_and_ledger.md`) took over their
+`introduces:` terms (#3621). A new violation is fixed by a link or a re-level,
+never by an entry.
 
 ## Reader-facing content versus the project working record
 
