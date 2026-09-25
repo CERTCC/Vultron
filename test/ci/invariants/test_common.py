@@ -84,6 +84,21 @@ def _simple_two_entry_chain(actor: str = "case-actor") -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize(
+    "entry",
+    [{"eventType": "noop"}, {"logIndex": -1, "eventType": "noop"}],
+    ids=["missing", "negative"],
+)
+def test_log_index_rejects_missing_and_negative(entry):
+    """No sentinel index: an unknown position raises (ISSUE-2764).
+
+    A committed entry always carries ``logIndex >= 0`` (CLP-14-010), so a
+    ``-1`` default would sort and compare as a real — earliest — position.
+    """
+    with pytest.raises(ValueError, match="logIndex"):
+        common.log_index(entry)
+
+
 def test_check_hash_chain_detects_broken_link():
     broken = _simple_two_entry_chain()
     broken[1]["prevLogHash"] = "a" * 64  # wrong hash
@@ -751,6 +766,39 @@ class TestLoadDevlogsManifestHandling:
         assert [common.log_index(e) for e in replicas["case-actor"]] == list(
             range(len(entries))
         )
+
+    def test_fails_when_ledger_entry_lacks_log_index(
+        self, tmp_path, monkeypatch, single_actor_replicas
+    ):
+        """An entry with no valid ``logIndex`` fails the load (ISSUE-2764).
+
+        Every such entry is named, across every actor (EH-07-001), rather
+        than being sorted to the front of the log as index ``-1``.
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        (tmp_path / "fvv").mkdir()
+        (tmp_path / "fvv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps({"demoName": "fvv", "ledgerFileCount": 2}),
+            encoding="utf-8",
+        )
+        good = single_actor_replicas["case-actor"]
+        for actor, bad in (
+            ("case-actor", {"eventType": "missing_index"}),
+            ("vendor", {"logIndex": -1, "eventType": "negative_index"}),
+        ):
+            actor_dir = tmp_path / "fvv" / actor
+            actor_dir.mkdir()
+            (actor_dir / "test-case-case-ledger.jsonl").write_text(
+                "".join(json.dumps(e) + "\n" for e in [*good, bad]),
+                encoding="utf-8",
+            )
+
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("fvv")
+
+        msg = excinfo.value.msg or ""
+        assert "'case-actor'" in msg and "missing_index" in msg
+        assert "'vendor'" in msg and "negative_index" in msg
 
     def test_skip_survives_when_no_demo_name_and_no_manifest(
         self, tmp_path, monkeypatch
