@@ -25,3 +25,5 @@ Governing specs: none cited; related to the EM state machine in spec §7.
 **Resolved**: 2026-09-25 — implementation tracked in #3686.
 
 Decision: keep both name sets. Spec §7 uses *Revised*/*Exited* on purpose, because those are the names the RFC review asked for (`notes/rfc-review-rubric.md`, which also warns against a blind rename sweep). The process-model pages keep *Revise*/*eXited* because the capital letters give the DFA shorthand R and X. Nothing is renamed. #3686 moves the explanation, which is currently written out on two pages, into one include fragment and adds the spec's names to the glossary.
+
+Docs PR: <https://github.com/CERTCC/Vultron/pull/3688>.
