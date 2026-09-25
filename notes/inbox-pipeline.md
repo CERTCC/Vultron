@@ -5,6 +5,8 @@ description: >
   Design decisions, implementation guidance, and test patterns for the
   `InboxPipeline` class and `build_test_pipeline()` factory that surface
   the `inbox_handler → dispatcher` seam as a testable unit.
+related_specs:
+  - specs/inbox-pipeline.yaml
 related_notes:
   - notes/architecture-ports.md
   - notes/architecture-hexagonal.md
@@ -24,8 +26,10 @@ relevant_packages:
 When a gate/guard helper is called *before* the `try/except` that wraps
 use-case execution in `DispatcherBase._handle`, any exception it raises
 escapes `_handle` entirely. The inbox adapter's `_process_inbox_item`
-catches all `Exception` at a higher level and re-queues the item — creating
-an infinite retry loop for any unroutable event.
+treats every exception other than `VultronProtocolViolationError` as transient
+and re-queues the item — creating an infinite retry loop for any unroutable
+event. A `VultronProtocolViolationError` is permanent and is not re-queued
+(#2865).
 
 ```python
 # ❌ WRONG — _enforce_join_backfill_gate is called BEFORE the try/except
