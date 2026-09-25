@@ -1325,26 +1325,41 @@ groups:
     kind: project
     statement: >-
       A serialize-then-validate round trip on a core object MUST reproduce that
-      object.  Serialization MUST omit computed fields, and MUST emit wire-facing
+      object.  Serialization MAY emit computed fields (ADR-0056's
+      `embargo_adherence` is emitted as part of the AS2 form); validation MUST
+      discard a supplied computed-field value that equals the value derived from
+      the object's own state, and MUST refuse one that contradicts it rather
+      than silently discarding it (#3547).  Serialization MUST emit wire-facing
       key names (`id`, `type`, `@context`) rather than Python field names
       (`id_`, `type_`, `context_`).  This applies to the persistence record
       round trip as well as to translation.
     note: >-
-      The *translation* half of this requirement is met (#2940): computed fields
-      are stripped, `_to_core_data()` emits wire-facing names, and a round-trip
-      test covers every `CORE_VOCABULARY` entry.  The *persistence* half is
+      The *translation* half of this requirement is met (#2940) except for the
+      refusal clause: `_to_core_data()` emits wire-facing names and a round-trip
+      test covers every `CORE_VOCABULARY` entry, but computed fields are still
+      stripped *unconditionally*, so a contradicted value is not yet refused.
+      That clause is knowingly unmet and tracked by #3695.  The *persistence* half is
       knowingly not met and must not be read as satisfied: `Record.from_obj()`
       still calls `model_dump(mode="json", serialize_as_any=True)` with no
       `by_alias`, so rows remain keyed `id_`/`type_`, and no test asserts the
       absence of trailing-underscore keys.  Re-keying was deliberately descoped
       from #2940 rather than overlooked — `notes/wire-core-boundary.md` shows it
       would *mask* the `CaseLedgerEntry` alias-injection bug that the validator
-      fix addresses instead — and it is sequenced behind the `WireParsePort`
-      (#2938), which owns wire<->core key translation centrally.  Do not add a
-      blanket `by_alias=True`: the wire class carries
+      fix addresses instead.  It was sequenced behind the `WireParsePort`
+      (#2938), but #2938 is closed as not planned, so that sequencing no longer
+      holds.  Do not add a blanket `by_alias=True`: the wire class carries
       `alias_generator=to_camel`, so it emits camelCase and makes things worse
-      (measured).  Tracked by #3546 (blocked by #2938).
+      (measured).  Tracked by #3546.
     rationale: >-
+      A contradicted computed value cannot come from an honest producer: the
+      value is derived, so every dump agrees with itself.  Refusing it closes
+      the last silent-drop carve-out in a boundary whose contract is that an
+      unrecognised key is rejected loudly, and `embargo_adherence` gates
+      disclosure, so a peer claiming adherence its consent state denies must
+      fail closed.  The objection recorded during #2940 triage — that
+      `as_ParticipantStatus` carried an independent settable wire field — was
+      retired when ADR-0099 detail 3 aliased that class onto core.
+
       `extra="forbid"` (ARCH-12-003) is only viable if the project can
       round-trip its own output.  Measured on the unit suite, the two blockers
       were `embargo_adherence` — a `@computed_field` per ADR-0056 that appears
@@ -1352,12 +1367,16 @@ groups:
       `id_` with 110.  Neither was a wire-spelling problem; both were the
       project failing to re-read what it had just written.  `Record.from_obj()`
       calls `model_dump(mode="json", serialize_as_any=True)` with no `by_alias`,
-      so persisted rows are keyed `id_`/`type_`, which is invisible only because
-      unknown keys are currently ignored on read-back.
+      so persisted rows are keyed `id_`/`type_`, which read back cleanly only
+      because `populate_by_name=True` accepts the field-name spelling.
     verification: >-
       A test asserts `type(obj).model_validate(dump(obj)) == obj` for every
       `CORE_VOCABULARY` entry, and that no persisted row carries a
-      trailing-underscore key.
+      trailing-underscore key.  A test asserts that a contradicted
+      `embargo_adherence` (under both its field-name and camelCase spellings)
+      raises a validation error, and a test-local subclass with two computed
+      fields asserts the error names every contradicted field
+      (`embargo_adherence` is the only production computed field).
     adr:
     - ADR-0056
     - ADR-0082

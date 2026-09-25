@@ -9,7 +9,7 @@ description: >
   extra="forbid" on the core branch) is superseded by ADR-0099, which removes the
   second hierarchy instead. Read it for the problem, not the mechanism.
 related_specs:
-  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002)
+  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-23-005)
   - specs/vocabulary-model.yaml
 related_notes:
   - notes/vocabulary-registry.md
@@ -410,13 +410,24 @@ know. Keys the model *does* know under a wire spelling are still accepted:
   would have made those spellings raise by removing the `alias_generator`, are
   closed as superseded by ADR-0099; #3578 owns reconciling ARCH-12-003.
 
-Two invariants keep `extra="forbid"` self-consistent, both enforced on
-`CoreObject` as `mode="before"` validators (see `_drop_computed_field_inputs`
-and `_drop_alias_shadowed_field_names`):
+Two invariants keep `extra="forbid"` self-consistent, both enforced by
+validators on `CoreObject` (see `_drop_computed_field_inputs` and
+`_drop_alias_shadowed_field_names`):
 
-- **Strip computed fields before re-validation.** A `@computed_field`
-  (`embargo_adherence`, ADR-0056) appears in `model_dump()` output but is not
-  settable, so a round-trip must drop it first.
+- **Strip a matching computed field; refuse a contradicted one.** A
+  `@computed_field` (`embargo_adherence`, ADR-0056) appears in `model_dump()`
+  output but is not settable, so a round-trip must drop it first. Dropping it
+  *unconditionally* would silently erase a peer asserting adherence its own
+  consent state denies, so ARCH-23-005 now requires a supplied value that
+  differs from the derived one to be refused instead (#3547). **Not built yet:**
+  `_drop_computed_field_inputs` still strips unconditionally until #3695 lands.
+  This was tried and reverted during
+  #2940 triage because `as_ParticipantStatus` then had an independent settable
+  `embargo_adherence`, so a wire row could legitimately disagree with core. That
+  objection died with the second hierarchy: ADR-0099 detail 3 aliases
+  `as_ParticipantStatus` onto `ParticipantStatus`, and the `WireParsePort` the
+  triage note waited on (#2938) is rejected, not pending. Measured on the unit
+  suite, only two tests fed a self-contradictory row, and both fabricated it.
 - **Never leave an alias key beside its field-name twin.** A `mode="before"`
   validator that derives a field and writes it under the alias (`id`) beside a
   dumped field-name key (`id_`) leaves an unconsumed twin that `extra="forbid"`
