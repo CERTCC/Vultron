@@ -29,7 +29,12 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import Session
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.datalayer_sqlite.hydration import (
+    core_class_for_row_type,
+)
 from vultron.adapters.driven.datalayer_sqlite.schema import VultronObjectRecord
+from vultron.core.models.actor import VultronService
+from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -229,6 +234,41 @@ def test_stored_wire_note_reads_back_as_core_note(dl):
     result = dl.read(wire_note.id_)
     assert type(result) is VultronNote
     assert result.content == "Hello from wire"
+
+
+@pytest.mark.spec("DL-05-006")
+def test_shared_type_value_resolves_to_no_core_class():
+    """A ``type`` value two core classes present is not guessed.
+
+    ``VultronService`` and ``CaseActor`` both store as ``"Service"``; letting
+    registration order pick one would read a row back as the wrong class.
+    """
+    with pytest.raises(KeyError):
+        core_class_for_row_type("Service")
+
+
+@pytest.mark.spec("DL-05-006")
+def test_saved_core_service_reads_back_as_itself(dl):
+    """The ``"Service"`` exclusion does not stop a ``VultronService`` round-trip."""
+    service = VultronService(name="svc")
+    dl.save(service)
+    result = dl.read(service.id_)
+    assert type(result) is VultronService
+    assert result == service
+
+
+@pytest.mark.spec("DL-05-006")
+def test_type_value_index_follows_a_replaced_class(monkeypatch):
+    """Replacing a registered class keeps the registry size but updates the index."""
+    assert core_class_for_row_type("Note") is VultronNote  # warm the cache
+
+    class _StandInNote(VultronNote):
+        pass
+
+    # No own ``type_`` annotation, so the subclass registers only here.
+    CORE_TYPE_MAP.pop(_StandInNote.__name__, None)
+    monkeypatch.setitem(CORE_VOCABULARY, "VultronNote", _StandInNote)
+    assert core_class_for_row_type("Note") is _StandInNote
 
 
 def test_core_entity_type_string_matches_class_name(dl):

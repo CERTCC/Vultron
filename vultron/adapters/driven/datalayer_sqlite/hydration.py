@@ -117,7 +117,10 @@ def core_class_for_row_type(type_: str) -> type[BaseModel]:
     (stored as ``"Note"``). So after the class-name lookup this falls back to
     the DataLayer's own match on declared ``type`` values over
     ``CORE_VOCABULARY`` (DL-05-006) — without it a stored note read back as the
-    unpaired wire ``as_Note`` (ISSUE-3647).
+    unpaired wire ``as_Note`` (ISSUE-3647). The row does not record which
+    branch wrote it, so an inbound wire ``as_Note`` persisted verbatim — and
+    the note embedded in a stored ``Create(Note)`` — reads back as
+    ``VultronNote`` too.
 
     The match leaves two kinds of class out, and both are deliberate:
 
@@ -141,20 +144,25 @@ def core_class_for_row_type(type_: str) -> type[BaseModel]:
     return cls
 
 
-#: ``(len(CORE_VOCABULARY), index)`` — rebuilt when a core class registers
-#: after the first read, since registration happens at class definition.
-_TYPE_VALUE_INDEX: tuple[int, dict[str, type[BaseModel] | None]] = (-1, {})
+#: ``(registered classes, index)`` — rebuilt when a core class registers or
+#: replaces another after the first read, since registration happens at class
+#: definition. Keyed on the classes, not the count: re-registering a name
+#: swaps the class without changing the size.
+_TYPE_VALUE_INDEX: tuple[
+    tuple[type[BaseModel], ...], dict[str, type[BaseModel] | None]
+] = ((), {})
 
 
 def _core_classes_by_type_value() -> dict[str, type[BaseModel] | None]:
     """Map each declared ``type`` value to its core class, ``None`` if shared.
 
-    Built once per registry size rather than per read: every activity row
+    Built once per registry state rather than per read: every activity row
     misses the class-name lookup and would otherwise rescan the registry.
     """
     global _TYPE_VALUE_INDEX
-    size, index = _TYPE_VALUE_INDEX
-    if size == len(CORE_VOCABULARY):
+    registered = tuple(CORE_VOCABULARY.values())
+    cached, index = _TYPE_VALUE_INDEX
+    if cached == registered:
         return index
     index = {}
     for cls in CORE_VOCABULARY.values():
@@ -164,7 +172,7 @@ def _core_classes_by_type_value() -> dict[str, type[BaseModel] | None]:
         if value is None:
             continue
         index[value] = None if value in index else cls
-    _TYPE_VALUE_INDEX = (len(CORE_VOCABULARY), index)
+    _TYPE_VALUE_INDEX = (registered, index)
     return index
 
 
