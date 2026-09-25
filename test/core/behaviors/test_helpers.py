@@ -32,7 +32,7 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.participant import VultronParticipant
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -210,7 +210,7 @@ def test_find_participant_by_actor_id_success_writes_blackboard(
         attributed_to=target_actor_id,
         context="https://example.org/cases/case-1",
     )
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-1",
         name="Case 1",
         case_participants=[participant.id_],
@@ -276,7 +276,7 @@ def test_find_participant_by_actor_id_fails_when_actor_not_participant(
         attributed_to="https://example.org/actors/vendor-2",
         context="https://example.org/cases/case-2",
     )
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-2",
         name="Case 2",
         case_participants=[participant.id_],
@@ -301,7 +301,7 @@ def test_find_participant_by_actor_id_fails_on_index_divergence(
 ):
     """FindParticipantByActorIdNode fails fast on participant/index mismatch."""
     target_actor_id = "https://example.org/actors/vendor-1"
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-diverge",
         name="Case Divergence",
         case_participants=[],
@@ -362,7 +362,7 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
         stale_inline, RM.RECEIVED, actor=target_actor_id, context=case_id
     )
 
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=case_id,
         name="Case Live",
         case_participants=[stale_inline],  # inline, not string ID

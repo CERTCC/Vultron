@@ -27,7 +27,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
     EvaluateReportCredibility,
     EvaluateReportValidity,
 )
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.participant import VultronParticipant
 from vultron.core.models.report import VultronReport
@@ -183,7 +183,7 @@ def test_ensure_embargo_exists_when_case_has_active_embargo(
     report: VultronReport,
 ) -> None:
     """EnsureEmbargoExists returns SUCCESS when the linked case has embargo."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         name="Embargoed Case",
         vulnerability_reports=[report.id_],
         active_embargo="https://example.org/embargoes/embargo-001",
@@ -224,7 +224,7 @@ def test_ensure_embargo_exists_fails_without_active_embargo(
     report: VultronReport,
 ) -> None:
     """EnsureEmbargoExists returns FAILURE when linked case has no embargo."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         name="No Embargo Case",
         vulnerability_reports=[report.id_],
         attributed_to=actor.id_,
@@ -273,7 +273,7 @@ def test_evaluate_case_priority(
     actor: VultronCaseActor,
 ) -> None:
     """EvaluateCasePriority always returns SUCCESS."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-priority",
         name="Priority Case",
         attributed_to=actor.id_,
@@ -299,7 +299,7 @@ def test_check_participant_exists_when_participant_is_present(
         attributed_to=actor.id_,
         context="https://example.org/cases/case-001",
     )
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-001",
         name="Participant Case",
         vulnerability_reports=[report.id_],
@@ -343,7 +343,7 @@ def test_check_participant_exists_fails_without_matching_participant(
         attributed_to="https://example.org/actors/other",
         context="https://example.org/cases/case-002",
     )
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-002",
         name="Other Participant Case",
         vulnerability_reports=[report.id_],

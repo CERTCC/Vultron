@@ -26,7 +26,7 @@ from vultron.core.behaviors.sync.nodes import (
     SendLogEntryToEachNode,
     SendMissingEntriesNode,
 )
-from vultron.core.models.case import VulnerabilityCase, VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
@@ -320,7 +320,7 @@ def test_replay_missing_entries_node_replays_from_divergence(
 @pytest.mark.spec("SYNC-02-001")
 @pytest.mark.spec("SYNC-02-003")
 def test_fanout_log_entry_node_sends_to_case_addressees(bridge, datalayer):
-    case_obj = VultronCase(
+    case_obj = VulnerabilityCase(
         id_=CASE_ID,
         attributed_to=OWNER_ACTOR_ID,
         actor_participant_index={

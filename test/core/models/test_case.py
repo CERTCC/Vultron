@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import pytest
 
 from vultron.core.models.base import CoreObject
-from vultron.core.models.case import VulnerabilityCase, VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     FinderParticipant,
     VendorParticipant,
@@ -100,18 +100,6 @@ class TestVulnerabilityCaseRegistration:
     def test_registered_in_core_vocabulary(self):
         assert "VulnerabilityCase" in CORE_VOCABULARY
         assert CORE_VOCABULARY["VulnerabilityCase"] is VulnerabilityCase
-
-
-class TestVulnerabilityCaseBackwardCompatAlias:
-    """VultronCase must be an alias for VulnerabilityCase."""
-
-    def test_alias_is_same_class(self):
-        assert VultronCase is VulnerabilityCase
-
-    def test_alias_construction_works(self):
-        c = VultronCase(attributed_to=_ACTOR)
-        assert isinstance(c, VulnerabilityCase)
-        assert c.type_ == "VulnerabilityCase"
 
 
 class TestVulnerabilityCaseCurrentStatus:

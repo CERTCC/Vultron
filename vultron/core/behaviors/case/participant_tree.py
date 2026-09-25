@@ -58,7 +58,7 @@ from vultron.core.behaviors.case.nodes.participant.participant_add import (
     SeedParticipantAsSignatoryNode,
 )
 from vultron.config.actor import ActorConfig
-from vultron.core.models.vultron_types import VultronCase
+from vultron.core.models.vultron_types import VulnerabilityCase
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -105,7 +105,7 @@ class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
         self,
         actor_config: ActorConfig | None = None,
         report_id: str | None = None,
-        case_obj: VultronCase | None = None,
+        case_obj: VulnerabilityCase | None = None,
         initial_rm_state: RM = RM.VALID,
         name: str | None = None,
     ):

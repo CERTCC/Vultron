@@ -279,10 +279,10 @@ class TestDemoAddNoteToCaseNotAtTriggerPrefix:
 
 
 def _make_log_entry(dl, case_id: str, log_index: int) -> object:
-    """Create and save a VultronCaseLedgerEntry directly to the DataLayer."""
-    from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+    """Create and save a CaseLedgerEntry directly to the DataLayer."""
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
-    entry = VultronCaseLedgerEntry(
+    entry = CaseLedgerEntry(
         case_id=case_id,
         log_index=log_index,
         log_object_id=f"{case_id}/objects/{log_index}",

@@ -18,7 +18,7 @@ from typing import cast
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.status import (
@@ -737,11 +737,11 @@ class TestParticipantStatusLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).event_type == (
             "add_participant_status_to_participant"
         )
 
@@ -778,8 +778,8 @@ class TestParticipantStatusLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
 
@@ -838,8 +838,8 @@ class TestParticipantStatusLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert entries == []
 
@@ -881,8 +881,8 @@ class TestParticipantStatusLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
 
@@ -927,8 +927,8 @@ class TestParticipantStatusLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert entries == []
 
@@ -983,10 +983,10 @@ class TestParticipantStatusLogEntryCascade:
         ).execute()
 
         entries = [
-            cast(VultronCaseLedgerEntry, obj)
+            cast(CaseLedgerEntry, obj)
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
         assert entries[0].payload_snapshot.get("actor") == reporter_actor_id
@@ -1062,13 +1062,13 @@ class TestParticipantStatusLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1, (
             "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
             " and commit an add_participant_status_to_participant ledger entry"
         )
-        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).event_type == (
             "add_participant_status_to_participant"
         )
