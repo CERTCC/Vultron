@@ -128,9 +128,12 @@ spelling, and both are the status classes covered by ADR-0036.
 
    **AS2 is the HTTP transmission format only.** Stored rows are not AS2-spelled
    today and this decision does not change that. A received activity is
-   additionally kept verbatim as an unparsed `dict[str, Any]` in the ledger
-   payload snapshot (CLP-07-001); that copy is neither serialization above — it
-   is the bytes as they arrived.
+   additionally kept as an unparsed `dict[str, Any]` in the ledger payload
+   snapshot (CLP-07-001); that copy is neither serialization above. It is meant
+   to be the body as it arrived, but today it is rebuilt from the parsed graph;
+   [ADR-0106](0106-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
+   records that gap and stages the change that records the received evidence
+   instead.
 2. **Core field names follow Python convention; the AS2 spelling lives in a
    Pydantic alias.** Core models are `pydantic.BaseModel` subclasses and
    Pydantic's own JSON handling is the mechanism. AS2 is a JSON format and
@@ -270,6 +273,8 @@ spelling, and both are the status classes covered by ADR-0036.
 - Bad, because work has already landed on the superseded plan — PR #3440 merged
   2026-09-20 and created the branch-neutral layer for #2932 — so some recent
   effort is reversed.
+- Bad, because detail 3 took away the mechanism ADR-0074 used to keep received evidence intact: `frozen` on the envelope does not reach the nested core objects.
+  The evidence is now sealed as text at parse instead (#3584); see **Amends** below.
 - Neutral, because the AS2 wire form is unchanged by this decision. The
   dimension-object change is deliberately designed to keep output identical.
 
@@ -632,10 +637,15 @@ provisional one would overstate what has been established. Flip both to
   ADR-0032 did not state.
 - ADR-0036 — dimension objects serialize as a bare value. Governing principles
   1 through 3 are unchanged.
+- ADR-0074 — its principle stands: a received activity is immutable evidence (VM-08-002).
+  Its mechanism does not.
+  `frozen=True` covers only the class that declares it, and detail 3 made every paired nested object a mutable core class, so a frozen envelope can carry a writable case, report, participant or status.
+  Pydantic has no per-instance freezing, and the nested classes are mutable by design because they are also the domain objects.
+  The evidence therefore moves out of the object graph: `parse_activity` seals the received body as JSON text before anything expands or validates it, and ingress rehydration carries that text to the routing copy (snapshot-at-parse, #3584).
+  What the ledger does with that evidence is [ADR-0106](0106-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)'s decision, not this one's.
 
 **Unaffected:** ADR-0063 (rendering behind a port), ADR-0083 (the message set
-and the AS2 vocabulary are different shapes), ADR-0069 (namespace), ADR-0074
-(wire activity immutability).
+and the AS2 vocabulary are different shapes), ADR-0069 (namespace).
 
 ### Issue dispositions
 

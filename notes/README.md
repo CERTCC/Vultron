@@ -114,9 +114,11 @@ resolving which store a read or write belongs to, rehydration of nested
 objects, or storage record migration.
 
 **`wire-artifact-immutability.md`**
-Design principle for wire Activity immutability: received artifacts MUST be
-frozen at receipt (A/B split — A = frozen ledger snapshot, B = separately
-constructed hydrated routing copy); emitted blobs MUST be frozen by the factory
+Design principle for wire Activity immutability: a received activity's evidence
+is its body, sealed as JSON text at parse because `frozen` no longer reaches the
+nested core objects (A/B split — A = the received artifact, B = separately
+constructed hydrated routing copy that carries A's evidence); emitted blobs MUST
+be frozen by the factory
 and used unchanged as both `payloadSnapshot` and delivery payload; ports are
 dumb relays (no adapter enrichment). Covers the orthogonality of the lenient
 wire branch (no `validate_assignment`) and post-construction immutability

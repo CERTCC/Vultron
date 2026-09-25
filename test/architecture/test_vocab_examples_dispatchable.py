@@ -40,7 +40,8 @@ Three defects found when this was first measured:
 activity is the ambiguity SE-08-001 forbids, and it makes dispatch depend on
 registry order.
 
-The collector is deliberately permissive about *shape*, because every way of
+The collector (``_vocab_example_corpus``, shared with the evidence gate) is
+deliberately permissive about *shape*, because every way of
 narrowing it has already hidden a target:
 
 * Skipping any callable that declares a parameter dropped the four ``report.py``
@@ -58,46 +59,12 @@ signal, which is worse than no gate (DF-09-009).
 Source: ISSUE-3003.
 """
 
-import inspect
-
 import pytest
 
+from test.architecture._vocab_example_corpus import activity_examples
 from vultron.wire.as2.extractor import _instances
 from vultron.wire.as2.extractor._pattern import ActivityPattern
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.examples import (
-    submit_report_tutorial,
-    vocab_examples,
-)
-
-# Helpers and module plumbing reachable from ``vocab_examples``' star-imports that
-# are not example factories.
-#
-# ``main`` is load-bearing here, not belt-and-braces: its only parameter is
-# ``outdir=None``, so under the "no *required* parameters" rule it is callable, and
-# calling it writes all 60 artifacts into the repo's ``docs/reference/examples/``.
-_NOT_EXAMPLES = frozenset(
-    {
-        "main",
-        "cast",
-        "obj_to_file",
-        "json2md",
-        "print_obj",
-        "case",
-        "gen_report",
-    }
-)
-
-_EXAMPLES_PACKAGE = "vultron.wire.as2.vocab.examples"
-
-# Activity examples rendered under ``docs/`` that ``vocab_examples`` does not
-# re-export, so scanning that module alone cannot see them.  Keyed by the name the
-# test parametrization reports.
-_EXTRA_SOURCES = {
-    "submit_report_tutorial.create_report_activity": (
-        submit_report_tutorial.create_report_activity
-    ),
-}
 
 # Examples that are not dispatchable, each with the reason that owns it.  An entry
 # whose reason is an open issue is debt and goes when the issue closes; an entry
@@ -130,50 +97,7 @@ def _patterns() -> list[tuple[str, ActivityPattern]]:
     ]
 
 
-def _takes_no_required_arguments(value: object) -> bool:
-    """Whether ``value`` can be called with no arguments.
-
-    Not "declares no parameters": the four ``report.py`` examples take a defaulted
-    ``verbose``, and testing for an empty parameter list skipped all of them.
-    """
-    try:
-        parameters = inspect.signature(value).parameters.values()  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return False
-    return all(
-        p.default is not inspect.Parameter.empty
-        or p.kind
-        in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
-        for p in parameters
-    )
-
-
-def _activity_examples() -> dict[str, as_Activity]:
-    """Build every example that returns an activity and needs no arguments.
-
-    Object examples (``vendor()``, ``case_participant()``, …) are skipped: a
-    pattern matches an activity, so an object has nothing to dispatch.  Activities
-    are *not* narrowed to the transitive ones — see the module docstring.
-    """
-    built: dict[str, as_Activity] = {}
-    candidates: list[tuple[str, object]] = list(vars(vocab_examples).items())
-    candidates += list(_EXTRA_SOURCES.items())
-    for name, value in candidates:
-        if name.startswith("_") or name in _NOT_EXAMPLES:
-            continue
-        if not callable(value):
-            continue
-        if not getattr(value, "__module__", "").startswith(_EXAMPLES_PACKAGE):
-            continue
-        if not _takes_no_required_arguments(value):
-            continue
-        result = value()
-        if isinstance(result, as_Activity):
-            built[name] = result
-    return built
-
-
-_ACTIVITY_EXAMPLES = _activity_examples()
+_ACTIVITY_EXAMPLES = activity_examples()
 
 
 def _matching_pattern_names(activity: as_Activity) -> list[str]:

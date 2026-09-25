@@ -5,6 +5,7 @@ deciders: ahouseholder
 consulted: notes/wire-artifact-immutability.md, notes/datalayer-design.md, notes/activity-factories.md, notes/core-wire-rendering-port.md, docs/adr/0017-domain-wire-object-separation.md, docs/adr/0064-core-branch-validate-assignment.md, docs/adr/0073-per-actor-storage-isolation.md
 informed: specs/vocabulary-model.yaml
 stakeholder_type: [project-contributor]
+partially_superseded_by: 0099-one-object-model-as2-is-a-serialization.md
 ---
 
 # Treat Wire Activities as Immutable Artifacts; Freeze at Receipt and at Factory Seal
@@ -74,6 +75,12 @@ Two distinct objects serve the two needs of the inbound pipeline:
 
 A is never modified to produce B. If rehydration fails, A remains intact.
 
+How A is held changed after this decision.
+`frozen=True` covers only the class that declares it, and ADR-0099 detail 3 made every paired nested object a mutable core class, so a frozen envelope no longer makes the received activity immutable.
+A is now the received body itself: `parse_activity` seals it as JSON text before anything expands or validates it, and ingress rehydration carries that text onto B (#3584).
+That mechanism is recorded in ADR-0099's **Amends** list; the principle, that A is the evidence and B is never it, is unchanged.
+This is why `status:` stays `accepted` with `partially_superseded_by:` rather than `superseded`: the outbound half of this decision is unaffected.
+
 ### Outbound: frozen blob pipeline
 
 1. **Factory** (`vultron/wire/as2/factories/`) constructs the wire object
@@ -107,8 +114,7 @@ compensates for an incomplete factory and creates a ledger/delivery gap.
 
 ## Validation
 
-- `test/architecture/test_wire_artifact_immutability.py`: xfail tests for
-  VM-08-002 and VM-08-003; promote to passing once implementation is complete.
+- `test/architecture/test_wire_artifact_immutability.py`: for every class reachable in a parsed example activity, tampering with its instances leaves the received evidence equal to the delivered body (VM-08-002); and the VM-08-003 trigger-port return-type check.
 - `specs/vocabulary-model.yaml` VM-08-002 and VM-08-003 (MUST-level requirements).
 
 ## More Information

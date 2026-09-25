@@ -44,7 +44,7 @@ def _body() -> dict:
         actor="https://example.org/actors/finder",
         to=["https://example.org/actors/vendor"],
     )
-    return activity.model_dump(by_alias=True, exclude_none=True)
+    return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
 def _parsing_records(caplog) -> list[logging.LogRecord]:
