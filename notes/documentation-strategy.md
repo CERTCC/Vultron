@@ -437,8 +437,8 @@ deriving in any new generator; the gate is what covers the ones that do not.
 
 The publication and reference axes compare one build with itself. Neither can
 see a URL that an *earlier* build served and this one dropped. Between the
-`publish` branch and `main`, 162 pages had moved, been renamed, or been
-withdrawn, and a publish would have turned every one of those URLs into a 404
+`publish` branch and `main`, well over a hundred pages had moved, been
+renamed, or been withdrawn, and a publish would have turned every one of those URLs into a 404
 (#3556). `--strict` saw no problem because nothing in the new build linked to
 the old paths. The only readers still using them were outside the site.
 

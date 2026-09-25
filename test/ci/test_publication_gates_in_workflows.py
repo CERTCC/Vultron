@@ -87,6 +87,17 @@ def _steps(wf_data: dict[str, Any]) -> list[Step]:
     return flat
 
 
+def _neutering(step: Step) -> list[str]:
+    """Return every way *step*, or the step that called it, cannot fail the run."""
+    problems: list[str] = []
+    for part in (step.body, step.caller):
+        if "if" in part:
+            problems.append(f"it is conditional (if: {part['if']!r})")
+        if part.get("continue-on-error", False):
+            problems.append("it sets continue-on-error")
+    return problems
+
+
 def _index_of(steps: list[Step], needle: str, key: str) -> int | None:
     """Return the index of the first step whose ``key`` field contains ``needle``."""
     for i, step in enumerate(steps):
@@ -155,15 +166,10 @@ def test_gate_is_not_neutered(workflow: Path, command: str):
     steps = _steps(_load_yaml(workflow))
     gate = _index_of(steps, command, "run")
     assert gate is not None
-    for step in (steps[gate].body, steps[gate].caller):
-        assert "if" not in step, (
-            f"The '{command}' step in {workflow.name} is conditional "
-            f"(if: {step['if']!r}), so it can be skipped."
-        )
-        assert not step.get("continue-on-error", False), (
-            f"The '{command}' step in {workflow.name} sets continue-on-error, "
-            "so a failing check would not fail the workflow."
-        )
+    assert not _neutering(steps[gate]), (
+        f"The '{command}' step in {workflow.name} cannot fail the workflow: "
+        + "; ".join(_neutering(steps[gate]))
+    )
 
 
 @pytest.mark.parametrize("command", GATE_COMMANDS)
@@ -212,4 +218,4 @@ def test_a_conditional_action_step_neuters_the_checks_it_runs():
     gate = _index_of(steps, "docs-legacy-urls", "run")
     assert gate is not None
     assert "if" not in steps[gate].body
-    assert steps[gate].caller.get("if") == "false"
+    assert _neutering(steps[gate]) == ["it is conditional (if: 'false')"]

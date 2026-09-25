@@ -212,8 +212,8 @@ groups:
           and MUST run in every workflow that builds the site on the same terms
           as DOCBW-03-006.
         rationale: >-
-          Between `publish` and `main`, 162 pages moved or were withdrawn, and a
-          publish would have turned each URL into a 404 (#3556). `--strict`
+          Between `publish` and `main`, over a hundred pages moved or were
+          withdrawn, and a publish would have 404ed each URL (#3556). `--strict`
           checks links within one build, not URLs an earlier build served. The
           record is committed because its evidence, the `publish` branch, is
           gone once `publish` advances. A withdrawn page is excluded, not

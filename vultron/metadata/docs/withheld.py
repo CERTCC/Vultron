@@ -59,6 +59,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from vultron.metadata.base import repo_root
+from vultron.metadata.docs.built_site import require_built_site, site_dir
 
 
 @dataclass(frozen=True)
@@ -172,11 +173,6 @@ WITHHELD_ARTIFACTS: tuple[WithheldArtifact, ...] = (
 )
 
 
-def site_dir(root: Path | None = None) -> Path:
-    """Return the built site directory."""
-    return (root or repo_root()) / "site"
-
-
 def published_violations(
     root: Path | None = None,
     artifacts: tuple[WithheldArtifact, ...] = WITHHELD_ARTIFACTS,
@@ -198,13 +194,7 @@ def published_violations(
             the site first; an unbuilt site cannot evidence the claim, so it is a
             failure rather than a pass (DF-09-009).
     """
-    base = root or repo_root()
-    built = site_dir(base)
-    if not built.is_dir() or not any(built.iterdir()):
-        raise FileNotFoundError(
-            f"{built} is absent or empty — run 'uv run mkdocs build' first. "
-            "An unbuilt site cannot show that a withheld artifact is unpublished."
-        )
+    built = require_built_site(root, "a withheld artifact is unpublished")
 
     violations: list[tuple[WithheldArtifact, Path]] = []
     for artifact in artifacts:

@@ -525,6 +525,9 @@ plugins:
         topics/future_work/cs_model_limitations.md: topics/process_models/cs/cs_model_limitations.md
         topics/future_work/cvd_directory.md: topics/other_uses/cvd_directory.md
         topics/future_work/mod_sim.md: topics/measuring_cvd/mod_sim.md
+        # The old page speculated about an OWL ontology; its target now records
+        # what became of that ontology (kept in the repo, not published), which
+        # is the answer a reader following the old URL is after.
         topics/future_work/ontology.md: reference/ontology/index.md
         topics/future_work/reward_functions.md: topics/measuring_cvd/reward_functions.md
         topics/process_models/cs/events.md: topics/process_models/cs/cs_model.md

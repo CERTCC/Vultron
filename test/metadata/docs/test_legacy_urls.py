@@ -1,7 +1,7 @@
 """Tests for vultron.metadata.docs.legacy_urls (issue #3556).
 
-Between the ``publish`` branch and ``main``, 162 pages moved, were renamed, or
-were withdrawn, and a publish would have turned every one of their URLs into a
+Between the ``publish`` branch and ``main``, well over a hundred pages moved,
+were renamed, or were withdrawn, and a publish would have turned every one of their URLs into a
 404. These tests pin the comparison that catches that: every page in the
 committed baseline resolves in the built ``site/`` as a page, or as a redirect
 chain ending at one, unless a withheld declaration withdraws it.
@@ -161,6 +161,22 @@ def test_a_redirect_loop_is_unmapped(tmp_path):
 
 
 @pytest.mark.parametrize(
+    "target,built",
+    [
+        ("../index.html", "index.html"),
+        ("../new/index.html", "new/index.html"),
+        ("../page.html", "page.html"),
+    ],
+)
+def test_a_redirect_to_an_html_file_resolves_to_that_file(
+    tmp_path, target, built
+):
+    """A file target names the file itself, not a directory beneath it."""
+    _site(tmp_path, {"old/index.html": _stub(target), built: "<p>page</p>"})
+    assert unmapped_pages(tmp_path, ["old/index.md"], NO_ARTIFACTS) == []
+
+
+@pytest.mark.parametrize(
     "target", ["https://example.org/", "/abs/", "../../../outside/"]
 )
 def test_a_redirect_the_build_cannot_evidence_is_unmapped(tmp_path, target):
@@ -256,15 +272,54 @@ def test_cli_fails_on_an_unbuilt_site(tmp_path, capsys):
     assert "absent or empty" in capsys.readouterr().err
 
 
-def test_cli_names_each_unmapped_url(tmp_path, capsys, monkeypatch):
+def _baseline(tmp_path: Path, pages: list[str]) -> Path:
+    path = tmp_path / "baseline.txt"
+    path.write_text("# header\n" + "".join(f"{p}\n" for p in pages))
+    return path
+
+
+def test_cli_names_each_unmapped_url(tmp_path, capsys):
     _site(tmp_path, {"index.html": "<p>home</p>"})
-    monkeypatch.setattr(
-        "vultron.metadata.docs.legacy_urls.load_baseline",
-        lambda *_args: ["old/page.md"],
-    )
+    baseline = _baseline(tmp_path, ["index.md", "old/page.md"])
     with pytest.raises(SystemExit) as exc:
-        main(["--root", str(tmp_path)])
+        main(["--root", str(tmp_path), "--baseline", str(baseline)])
     assert exc.value.code == 1
     err = capsys.readouterr().err
     assert "old/page/ (from old/page.md)" in err
-    assert "1 of 1 published URL(s) would 404" in err
+    assert "1 of 2 published URL(s) would 404" in err
+
+
+def test_cli_passes_when_every_url_resolves(tmp_path, capsys):
+    _site(tmp_path, {"index.html": "<p>home</p>"})
+    baseline = _baseline(tmp_path, ["index.md"])
+    main(["--root", str(tmp_path), "--baseline", str(baseline)])
+    assert "All 1 published URLs resolve in site/" in capsys.readouterr().out
+
+
+def test_cli_fails_on_an_empty_baseline(tmp_path, capsys):
+    _site(tmp_path, {"index.html": "<p>home</p>"})
+    baseline = _baseline(tmp_path, [])
+    with pytest.raises(SystemExit) as exc:
+        main(["--root", str(tmp_path), "--baseline", str(baseline)])
+    assert exc.value.code == 1
+    assert "baseline is empty" in capsys.readouterr().err
+
+
+def test_cli_snapshot_extends_the_named_baseline(tmp_path, capsys):
+    repo = tmp_path / "repo"
+    _git_repo(repo, ["docs/new.md"])
+    baseline = _baseline(tmp_path, ["old/gone.md"])
+    main(
+        [
+            "--root",
+            str(repo),
+            "--baseline",
+            str(baseline),
+            "--snapshot",
+            "HEAD",
+        ]
+    )
+    assert (
+        "Added 1 page(s) from HEAD to baseline.txt" in capsys.readouterr().out
+    )
+    assert load_baseline(baseline) == ["new.md", "old/gone.md"]

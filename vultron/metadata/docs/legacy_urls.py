@@ -14,8 +14,8 @@
 
 A page that moves between two publishes takes its old URL with it, and whoever
 cited that URL — in a paper, a standards comment, a partner's tracker — gets a
-404 on publish day. #3556 found 162 such URLs between the ``publish`` branch
-and ``main``. Every one had moved, been renamed, or been withdrawn, and nothing
+404 on publish day. #3556 found well over a hundred such URLs between the
+``publish`` branch and ``main``. Every one had moved, been renamed, or been withdrawn, and nothing
 in the build said so.
 
 The evidence of what was live lives on the ``publish`` branch, and it is gone
@@ -30,8 +30,9 @@ page is accounted for when one of these holds:
 * the build produced a redirect there (``mkdocs-redirects``, configured in
   ``mkdocs.yml``) whose chain ends at a page the build produced; or
 * a :data:`~vultron.metadata.docs.withheld.WITHHELD_ARTIFACTS` declaration
-  covers the URL — the project decided to withdraw it, and ``docs-withheld``
-  verifies that it really is absent.
+  covers the URL — the project decided to withdraw it. This check trusts the
+  declaration; ``docs-withheld`` verifies the URL really is absent, which is
+  why the ``check-site-publication`` action always runs the two together.
 
 Everything else is a 404 the publish would introduce, and fails.
 
@@ -58,11 +59,8 @@ from pathlib import Path
 
 from vultron.metadata.base import repo_root
 from vultron.metadata.docs.baseline_file import entry_lines, write_entries
-from vultron.metadata.docs.withheld import (
-    WITHHELD_ARTIFACTS,
-    WithheldArtifact,
-    site_dir,
-)
+from vultron.metadata.docs.built_site import require_built_site, site_dir
+from vultron.metadata.docs.withheld import WITHHELD_ARTIFACTS, WithheldArtifact
 
 BASELINE = Path(__file__).with_name("legacy_urls_baseline.txt")
 
@@ -86,6 +84,10 @@ _REFRESH = re.compile(
 
 # A redirect chain longer than this is a loop, not a chain.
 _MAX_HOPS = 10
+
+
+class EmptyBaselineError(ValueError):
+    """The baseline lists no pages, so a check against it would check nothing."""
 
 
 @dataclass(frozen=True)
@@ -115,56 +117,69 @@ def page_url(source: str) -> str:
     return head if name in ("index", "README") else stem
 
 
-def _built_file(site: Path, url: str) -> Path:
-    return site / url / "index.html" if url else site / "index.html"
-
-
 def redirect_target(html: str) -> str | None:
     """Return the meta-refresh target of a redirect stub, or ``None``."""
     match = _REFRESH.search(html)
     return match.group(1).strip() if match else None
 
 
-def _resolve(url: str, target: str) -> str | None:
-    """Resolve a stub's relative *target* against the stub's directory *url*.
+def _page_file(url: str) -> str:
+    """Return the file, relative to ``site/``, that serves directory *url*."""
+    return posixpath.join(url, "index.html") if url else "index.html"
 
+
+def _file_url(file: str) -> str:
+    """Return the URL a file relative to ``site/`` is served at, for messages."""
+    return file.removesuffix("index.html").removesuffix("/")
+
+
+def _resolve(file: str, target: str) -> str | None:
+    """Resolve a stub's relative *target* to the file, relative to ``site/``, it names.
+
+    *file* is the stub itself; the target is relative to its directory. A
+    directory target (``../new/``) names that directory's ``index.html``, and a
+    file target (``../new/index.html``, ``../page.html``) names the file.
     Returns ``None`` for a target outside the site — an absolute URL, or a path
     that climbs above the site root — because the build cannot evidence it.
     """
-    if "://" in target or target.startswith(("/", "//")):
+    if "://" in target or target.startswith("/"):
         return None
     path = target.split("#", 1)[0]
-    joined = posixpath.normpath(posixpath.join(url or ".", path))
+    joined = posixpath.normpath(posixpath.join(posixpath.dirname(file), path))
     if joined == ".":
-        return ""
+        return "index.html"
     if joined.startswith(".."):
         return None
-    return joined.removesuffix("/index.html").removesuffix("/")
+    return joined if joined.endswith(".html") else _page_file(joined)
 
 
-def _check(site: Path, source: str) -> str | None:
+def _resolution_problem(site: Path, source: str) -> str | None:
     """Return why *source*'s URL fails to resolve, or ``None`` when it does."""
-    url = page_url(source)
-    seen = [url]
+    file = _page_file(page_url(source))
+    seen = [file]
     for _ in range(_MAX_HOPS):
-        built = _built_file(site, url)
+        built = site / file
         if not built.is_file():
-            if url == seen[0]:
+            if file == seen[0]:
                 return "the build produced neither a page nor a redirect here"
-            return f"its redirect chain ends at '{url}/', which was not built"
+            return (
+                f"its redirect chain ends at '{_file_url(file)}/', which was "
+                "not built"
+            )
         target = redirect_target(built.read_text(encoding="utf-8"))
         if target is None:
             return None
-        resolved = _resolve(url, target)
+        resolved = _resolve(file, target)
         if resolved is None:
             return (
                 f"it redirects to '{target}', outside the built site, which "
                 "this check cannot verify"
             )
         if resolved in seen:
-            return f"its redirects loop: {' -> '.join(seen + [resolved])}"
+            chain = " -> ".join(_file_url(f) for f in seen + [resolved])
+            return f"its redirects loop: {chain}"
         seen.append(resolved)
-        url = resolved
+        file = resolved
     return f"its redirect chain exceeds {_MAX_HOPS} hops"
 
 
@@ -190,18 +205,13 @@ def unmapped_pages(
 
     Raises:
         FileNotFoundError: If ``site/`` is absent or empty.
-        ValueError: If there are no pages to check. Both would otherwise pass
-            while checking nothing (DF-09-009).
+        EmptyBaselineError: If there are no pages to check. Both would
+            otherwise pass while checking nothing (DF-09-009).
     """
-    site = site_dir(root)
-    if not site.is_dir() or not any(site.iterdir()):
-        raise FileNotFoundError(
-            f"{site} is absent or empty — run 'uv run mkdocs build' first. An "
-            "unbuilt site cannot show that a published URL still resolves."
-        )
+    site = require_built_site(root, "a published URL still resolves")
     listed = load_baseline() if pages is None else pages
     if not listed:
-        raise ValueError(
+        raise EmptyBaselineError(
             "The published-page baseline is empty, so there is nothing to "
             "check. Seed it with 'uv run docs-legacy-urls --snapshot <ref>'."
         )
@@ -211,7 +221,7 @@ def unmapped_pages(
         url = page_url(source)
         if any(artifact.covers(url) for artifact in artifacts):
             continue
-        problem = _check(site, source)
+        problem = _resolution_problem(site, source)
         if problem is not None:
             unmapped.append(UnmappedPage(source, url, problem))
     return unmapped
@@ -251,7 +261,16 @@ def main(argv: list[str] | None = None) -> None:
         "--root",
         type=Path,
         default=None,
-        help="Repository root holding the built site/ (default: this checkout).",
+        help=(
+            "Repository root holding the built site/, and the git repository "
+            "--snapshot lists (default: this checkout)."
+        ),
+    )
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=BASELINE,
+        help=f"Published-page baseline to check or extend (default: {BASELINE.name}).",
     )
     parser.add_argument(
         "--snapshot",
@@ -262,19 +281,21 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     if args.snapshot is not None:
-        added = snapshot(args.snapshot, args.root)
+        added = snapshot(args.snapshot, args.root, args.baseline)
         print(
-            f"✓ Added {added} page(s) from {args.snapshot} to {BASELINE.name}."
+            f"✓ Added {added} page(s) from {args.snapshot} to "
+            f"{args.baseline.name}."
         )
         return
 
+    pages = load_baseline(args.baseline)
     try:
-        unmapped = unmapped_pages(args.root)
-    except (FileNotFoundError, ValueError) as exc:
+        unmapped = unmapped_pages(args.root, pages)
+    except (FileNotFoundError, EmptyBaselineError) as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         sys.exit(1)
 
-    total = len(load_baseline())
+    total = len(pages)
     if unmapped:
         for page in unmapped:
             print(
