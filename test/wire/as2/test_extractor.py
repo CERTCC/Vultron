@@ -1,5 +1,6 @@
 """Tests for vultron.wire.as2.extractor."""
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
@@ -340,8 +341,11 @@ def test_extract_intent_participant_status_vf_state():
 # ---------------------------------------------------------------------------
 
 
-def _make_embargo_invite(end_time=None):
-    """Build an as_Invite(as_EmbargoEvent) with optional activity-level end_time."""
+def _make_embargo_invite(end_time=None, embargo_end=None, published=None):
+    """Build an as_Invite(as_EmbargoEvent) with optional activity-level end_time.
+
+    The invited embargo ends *embargo_end* (default: 90 days out).
+    """
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Invite,
     )
@@ -352,7 +356,8 @@ def _make_embargo_invite(end_time=None):
 
     embargo = as_EmbargoEvent(
         context="https://example.org/cases/1",
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=90),
+        end_time=embargo_end
+        or datetime.now(tz=timezone.utc) + timedelta(days=90),
     )
     case = as_VulnerabilityCase(id_="https://example.org/cases/1")
     kwargs = {
@@ -362,6 +367,8 @@ def _make_embargo_invite(end_time=None):
     }
     if end_time is not None:
         kwargs["end_time"] = end_time
+    if published is not None:
+        kwargs["published"] = published
     return as_Invite(**kwargs)
 
 
@@ -379,14 +386,23 @@ def test_invite_rsvp_deadline_extracted_when_present():
     assert ev.rsvp_deadline == deadline.astimezone(timezone.utc)
 
 
-@pytest.mark.spec("CM-27-001")
-def test_invite_rsvp_deadline_absent_when_no_end_time():
-    """AC-7 (absent): no end_time on invite → rsvp_deadline is None."""
-    invite = _make_embargo_invite(end_time=None)
+@pytest.mark.spec("EP-07-001")
+def test_invite_rsvp_deadline_defaults_to_policy_window_when_no_end_time():
+    """No Invite.end_time → the 7-day policy window from ``published``."""
+    published = datetime.now(tz=timezone.utc)
+    invite = _make_embargo_invite(end_time=None, published=published)
     event = extract_event(invite)
 
-    assert hasattr(event, "rsvp_deadline")
-    assert cast(Any, event).rsvp_deadline is None
+    assert cast(Any, event).rsvp_deadline == published + timedelta(days=7)
+
+
+@pytest.mark.spec("EP-07-001")
+def test_extract_event_honours_custom_default_rsvp_window():
+    published = datetime.now(tz=timezone.utc)
+    invite = _make_embargo_invite(end_time=None, published=published)
+    event = extract_event(invite, default_rsvp_window=timedelta(days=10))
+
+    assert cast(Any, event).rsvp_deadline == published + timedelta(days=10)
 
 
 @pytest.mark.spec("CM-27-001")
@@ -491,6 +507,144 @@ def test_extract_event_honours_custom_min_rsvp_window():
     assert ev.rsvp_deadline > deadline.astimezone(timezone.utc), (
         "extract_event() must apply the caller-supplied min_rsvp_window,"
         " not always use the 72 h default (#3045)"
+    )
+
+
+# --- RSVP deadline bounded by the embargo's end (issue #3391) ---
+
+
+@pytest.mark.spec("EP-07-006")
+@pytest.mark.spec("CM-28-011")
+def test_invite_on_day_28_of_30_day_embargo_gets_two_day_window(caplog):
+    """The 7-day policy window and the 72 h minimum both yield to the end."""
+    published = datetime.now(tz=timezone.utc)
+    embargo_end = published + timedelta(days=2)
+    invite = _make_embargo_invite(
+        end_time=None, embargo_end=embargo_end, published=published
+    )
+
+    with caplog.at_level(logging.INFO):
+        event = extract_event(invite)
+
+    assert cast(Any, event).rsvp_deadline == embargo_end
+    assert any("EP-07-006" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.spec("EP-07-006")
+def test_explicit_deadline_after_embargo_end_is_clamped_down(caplog):
+    published = datetime.now(tz=timezone.utc)
+    embargo_end = published + timedelta(days=10)
+    invite = _make_embargo_invite(
+        end_time=published + timedelta(days=20),
+        embargo_end=embargo_end,
+        published=published,
+    )
+
+    with caplog.at_level(logging.INFO):
+        event = extract_event(invite)
+
+    assert cast(Any, event).rsvp_deadline == embargo_end
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("EP-07-006" in m and "Invite.end_time" in m for m in messages)
+
+
+@pytest.mark.spec("EP-07-002")
+@pytest.mark.spec("EP-07-003")
+def test_minimum_is_the_remaining_embargo_when_shorter_than_72_hours(caplog):
+    """A 12-hour embargo gets a 12-hour window, not a raise to 72 h."""
+    published = datetime.now(tz=timezone.utc)
+    embargo_end = published + timedelta(hours=12)
+    invite = _make_embargo_invite(
+        end_time=published + timedelta(hours=1),
+        embargo_end=embargo_end,
+        published=published,
+    )
+
+    with caplog.at_level(logging.INFO):
+        event = extract_event(invite)
+
+    assert cast(Any, event).rsvp_deadline == embargo_end
+    assert any("EP-07-003" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.spec("EP-07-003")
+@pytest.mark.spec("EP-07-005")
+def test_clamp_up_is_logged_with_both_values(caplog):
+    published = datetime.now(tz=timezone.utc)
+    requested = published + timedelta(hours=1)
+    invite = _make_embargo_invite(end_time=requested, published=published)
+
+    with caplog.at_level(logging.INFO):
+        event = extract_event(invite)
+
+    effective = cast(Any, event).rsvp_deadline
+    assert effective == published + timedelta(hours=72)
+    assert any(
+        "EP-07-003" in r.getMessage()
+        and requested.isoformat() in r.getMessage()
+        and effective.isoformat() in r.getMessage()
+        for r in caplog.records
+    )
+
+
+@pytest.mark.spec("EP-07-005")
+def test_unclamped_deadline_logs_nothing(caplog):
+    published = datetime.now(tz=timezone.utc)
+    invite = _make_embargo_invite(
+        end_time=published + timedelta(days=5), published=published
+    )
+
+    with caplog.at_level(logging.INFO):
+        extract_event(invite)
+
+    assert not any("rsvp_deadline" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.spec("EP-07-004")
+def test_sub_minimum_deadline_is_not_rejected():
+    """A deadline already past is clamped, and the invite still extracts."""
+    published = datetime.now(tz=timezone.utc)
+    invite = _make_embargo_invite(
+        end_time=published - timedelta(days=1), published=published
+    )
+
+    event = extract_event(invite)
+
+    assert event.semantic_type == MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+    assert cast(Any, event).rsvp_deadline == published + timedelta(hours=72)
+
+
+@pytest.mark.spec("EP-07-004")
+@pytest.mark.spec("EP-07-006")
+def test_naive_embargo_end_is_read_as_utc_not_rejected():
+    """A nested embargo end without an offset is taken as UTC.
+
+    The wire edge normalises the activity's own datetimes but not the nested
+    embargo's, so a naive value reaches the clamp and must not raise there.
+    """
+    published = datetime.now(tz=timezone.utc).replace(microsecond=0)
+    naive_end = (published + timedelta(days=2)).replace(tzinfo=None)
+    invite = _make_embargo_invite(embargo_end=naive_end, published=published)
+
+    event = extract_event(invite)
+
+    assert cast(Any, event).rsvp_deadline == published + timedelta(days=2)
+
+
+@pytest.mark.spec("EP-07-005")
+def test_deadline_already_past_is_warned(caplog):
+    """A backdated invite yields a past deadline; that is surfaced, not hidden."""
+    published = datetime.now(tz=timezone.utc) - timedelta(days=30)
+    invite = _make_embargo_invite(
+        end_time=published + timedelta(days=5), published=published
+    )
+
+    with caplog.at_level(logging.WARNING):
+        extract_event(invite)
+
+    assert any(
+        r.levelno == logging.WARNING and "already past" in r.getMessage()
+        for r in caplog.records
     )
 
 

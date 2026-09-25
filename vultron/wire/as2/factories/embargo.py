@@ -23,11 +23,16 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Sequence, cast
 
 from pydantic import ValidationError
 
+from vultron.core.models.rsvp_deadline import (
+    DEFAULT_MIN_RSVP_WINDOW,
+    RsvpDeadlineClamp,
+    resolve_rsvp_deadline,
+)
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
@@ -61,14 +66,11 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 logger = logging.getLogger(__name__)
 
 
-_DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
-
-
 def em_propose_embargo_activity(
     embargo: as_EmbargoEvent,
     context: as_VulnerabilityCaseRef | None = None,
     rsvp_deadline: datetime | None = None,
-    min_rsvp_window: timedelta = _DEFAULT_MIN_RSVP_WINDOW,
+    min_rsvp_window: timedelta = DEFAULT_MIN_RSVP_WINDOW,
     **kwargs,
 ) -> as_Invite:
     """Build an Invite(as_EmbargoEvent) — the EP/EV message.
@@ -80,11 +82,14 @@ def em_propose_embargo_activity(
         context: The ``VulnerabilityCase`` (or its URI) for which the
             embargo is being proposed.
         rsvp_deadline: Optional RSVP-by deadline set on the activity-level
-            ``end_time`` (CM-27-001, ADR-0065). MUST be timezone-aware and
-            at least ``min_rsvp_window`` in the future (EP-07-002).
-        min_rsvp_window: Minimum time between now and the deadline; defaults
-            to 72 hours (EP-07-002). Pass ``ActorConfig.min_rsvp_window``
-            from the caller to apply the configured floor.
+            ``end_time`` (CM-27-001, ADR-0065). MUST be timezone-aware, no
+            earlier than the applicable minimum — ``min_rsvp_window`` after
+            ``published`` (or now), or the embargo's ``end_time`` if that is
+            sooner (EP-07-002) — and no later than the embargo's
+            ``end_time`` (EP-07-006).
+        min_rsvp_window: Configured minimum RSVP window; defaults to 72 hours
+            (EP-07-002). Pass ``ActorConfig.min_rsvp_window`` from the caller
+            to apply the configured floor.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
@@ -94,7 +99,8 @@ def em_propose_embargo_activity(
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails, or
-            if *rsvp_deadline* is naive or below the minimum window.
+            if *rsvp_deadline* is naive, below the applicable minimum, or
+            after the embargo's end.
     """
     if rsvp_deadline is not None:
         if rsvp_deadline.tzinfo is None:
@@ -102,12 +108,24 @@ def em_propose_embargo_activity(
                 "em_propose_embargo_activity: rsvp_deadline must be"
                 " timezone-aware (naive datetime rejected per EP-07-002)"
             )
-        floor = datetime.now(tz=timezone.utc) + min_rsvp_window
-        if rsvp_deadline < floor:
+        published = kwargs.get("published")
+        deadline = resolve_rsvp_deadline(
+            requested=rsvp_deadline,
+            published=published if isinstance(published, datetime) else None,
+            embargo_end=embargo.end_time,
+            min_window=min_rsvp_window,
+        )
+        if deadline.clamp is RsvpDeadlineClamp.RAISED_TO_MINIMUM:
             raise VultronActivityConstructionError(
                 f"em_propose_embargo_activity: rsvp_deadline"
                 f" {rsvp_deadline.isoformat()} is below the minimum"
-                f" window floor {floor.isoformat()} (EP-07-002)"
+                f" window floor {deadline.minimum.isoformat()} (EP-07-002)"
+            )
+        if deadline.clamp is RsvpDeadlineClamp.LOWERED_TO_EMBARGO_END:
+            raise VultronActivityConstructionError(
+                f"em_propose_embargo_activity: rsvp_deadline"
+                f" {rsvp_deadline.isoformat()} is after the embargo end"
+                f" {deadline.effective.isoformat()} (EP-07-006)"
             )
         kwargs["end_time"] = rsvp_deadline
     try:

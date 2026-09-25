@@ -17,11 +17,18 @@ related_specs:
 related_notes:
   - notes/participant-embargo-consent.md
   - notes/embargo-lifecycle.md
+  - notes/configuration.md
+  - notes/bt-pitfalls.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
+  - vultron/config
   - vultron/core/behaviors/case
+  - vultron/core/models
+  - vultron/core/services
   - vultron/core/use_cases/triggers
+  - vultron/wire/as2/extractor
+  - vultron/wire/as2/factories
 ---
 
 # Embargo Default Semantics — Implementation Notes
@@ -168,43 +175,58 @@ It is also **not a minimum** (EP-04-007). A reporter who proposes 12 hours gets
 12 hours. EP-04-005's `[72 hours, 5 days]` range bounds what the *fallback* may be
 configured to, not what parties may agree.
 
-### How the conflation hid a defect
+### How the conflation hid a defect (resolved, #3390)
 
-`_preferred_embargo_duration()` (`vultron/core/behaviors/case/nodes/embargo.py`)
-returned a hardcoded 90-day fallback into the *same* blackboard key
-(`default_embargo_duration`) that a published `EmbargoPolicy` filled. Downstream,
-nothing could distinguish "the receiver published 90 days" from "the receiver
-published nothing". That is how a silent 90-day embargo survived in contradiction
-of three documents — `em/defaults.md` ("no embargo SHALL exist"), this file's own
-decision table, and `em/principles.md` ("shortest duration possible").
+`_preferred_embargo_duration()` (formerly in
+`vultron/core/behaviors/case/nodes/embargo.py`) returned a hardcoded 90-day
+fallback into the *same* blackboard key (`default_embargo_duration`) that a
+published `EmbargoPolicy` filled. Downstream, nothing could distinguish "the
+receiver published 90 days" from "the receiver published nothing". That is how a
+silent 90-day embargo survived in contradiction of three documents —
+`em/defaults.md` ("no embargo SHALL exist"), this file's own decision table, and
+`em/principles.md` ("shortest duration possible").
 
 It also inverted the incentive the protocol depends on: a receiver who published
 *nothing* got a longer embargo than one who published a considered 30 days. The
 short protocol default exists to reverse that — publishing must be the rewarded
-behavior.
+behavior. The same function also selected `policies[0]` from an unordered
+`list_objects()` result, so which policy applied was arbitrary.
 
-Two smaller traps in the same function:
+What replaced it:
 
-- It selected `policies[0]` from an unordered `list_objects()` result, so which
-  policy applied was arbitrary when an actor's store held more than one.
-- Its 90-day value was never *chosen*; it sat at the far end of `em/principles.md`'s
-  "a few days to a few months" by default.
+| Concern | Where it lives now |
+|---|---|
+| Configured fallback, refused outside `[72h, 5d]` (EP-04-005) | `ActorConfig.protocol_default_embargo_duration` (`vultron/config/actor.py`) |
+| Shortest-wins over candidates only, fallback when none (EP-04-006/007) | `resolve_initial_embargo_duration()` (`vultron/core/services/embargo_duration.py`) |
+| Deterministic actor default: shortest, ties by policy id (EP-04-010) | `select_actor_default()` (same module) |
+| Distinct blackboard names (EP-04-010) | `actor_default_embargo_duration`, `protocol_default_embargo_duration`, and the resolved `initial_embargo_duration` (duration plus source) |
+| P/X/A refusal before anything is created (EP-04-008) | `CaseNotEmbargoEligibleNode`, the first arm of the `InitializeDefaultEmbargoNode` Selector |
+
+The refusal arm is a *negative* condition — SUCCESS means "not eligible, stop" —
+rather than a Success fallback after the creation sequence. A fallback would turn
+any failure in creation into a silent "no embargo"; with the refusal arm first,
+creation failures still propagate. The refusal arm itself returns FAILURE only
+for "eligible": a missing case or unreadable store *raises*, because FAILURE
+there would run creation, which persists an `EmbargoEvent` before anything
+re-checks P/X/A (`notes/bt-pitfalls.md` § "A Refusal Arm in a Selector Fails
+Toward 'Admit'"). The sender-proposal input
+(`sender_proposed_embargo_duration`) is wired but unwritten until the embedded
+proposal lands (#3392).
 
 ### There is a third implicit duration, and it is the quietest
 
-`_DEFAULT_EMBARGO_DAYS` is not the only unchosen number. `EmbargoEvent.end_time`
-(`vultron/core/models/embargo_event.py`) carries
+The 90-day constant and the shared key are gone; one unchosen number remains.
+`EmbargoEvent.end_time` (`vultron/core/models/embargo_event.py`) carries
 `default_factory=_45_days_hence`, so **any** `EmbargoEvent` constructed without an
 explicit `end_time` silently acquires 45 days — nine times the 5-day ceiling
 EP-04-005 sets, and reachable from any construction site that forgets the argument.
 
-It is worth naming separately because it hides differently from the 90-day fallback.
-The 90 days was at least reachable by reading one function that everyone knew
-resolved the default. A field default applies wherever the object is built, with no
-call site to inspect. EP-04-010 therefore requires the protocol default be the
-*single* source of the fallback duration: all three carriers — the 90-day constant,
-the shared blackboard key, and this field default — must resolve to it or be made
-explicit at construction. Tracked as #3404.
+It hides differently from the 90-day fallback did. That fallback was at least
+reachable by reading one function that everyone knew resolved the default. A field
+default applies wherever the object is built, with no call site to inspect.
+EP-04-010 requires the protocol default be the *single* source of the fallback
+duration, so this field default must resolve to it or be made explicit at
+construction. Tracked as #3404.
 
 ## Resolved: Reporter Embargo Proposal Mechanism (EP-04-004)
 
@@ -263,8 +285,8 @@ EP-07-006 and CM-28-011, added by ADR-0096, close a defect that is independent o
 everything else in this file.
 
 Nothing previously compared the RSVP deadline against the embargo's own
-`end_time`. EP-07-003 clamps a sub-minimum deadline **up** to a 72-hour floor, with
-no upper bound at all. So:
+`end_time`. EP-07-003 clamped a sub-minimum deadline **up** to a 72-hour floor,
+with no upper bound at all. So:
 
 > Invite a participant to a 24-hour embargo. The `Invite(EmbargoEvent)` carries no
 > `end_time`, so the CM-18-002 policy window applies: 7 days. The pocket veto fires
@@ -272,8 +294,8 @@ no upper bound at all. So:
 
 The participant is asked to consent to an embargo that is already over, and their
 inaction is recorded as a decline six days after it stopped mattering. The same
-thing happens on day 28 of a 30-day embargo with an ordinary published actor
-default — this is reachable today, without any protocol default in the picture.
+thing happened on day 28 of a 30-day embargo with an ordinary published actor
+default — without any protocol default in the picture.
 
 The rule is now: an RSVP deadline is clamped **down** to the embargo's `end_time`.
 Consequently EP-07-002's minimum became "72 hours, **or the remaining embargo,
@@ -296,6 +318,26 @@ than the protocol default, EP-07-002's *effective* minimum still has to be compu
 as the lesser of the configured window and the time remaining in the embargo. The
 arithmetic relating the RSVP floor to the embargo duration exists either way; the
 alignment only guarantees it never fires on the protocol-default path.
+
+### Where the rule lives (#3391)
+
+One pure function, `resolve_rsvp_deadline()` (`vultron/core/models/rsvp_deadline.py`),
+computes the effective deadline for both sides, which is what makes the clamp up
+and the clamp down agree. Every window is measured from the invite's `published`
+time:
+
+1. Computed deadline: the explicit `Invite.end_time`, else `published` plus the
+   policy window (EP-07-001, CM-18-002).
+2. Minimum: `published` plus the minimum window, or the embargo's end, whichever
+   is earlier (EP-07-002).
+3. Raise to the minimum (EP-07-003), then lower to the embargo's end (EP-07-006).
+
+The sender side (`em_propose_embargo_activity`) refuses a deadline the function
+would move. The receiver side (`extract_intent`) applies the moved value, logs
+each clamp at INFO with the requested and effective values (EP-07-005), and never
+rejects the invitation (EP-07-004). Because the policy window is now applied at
+extraction, an invite without `end_time` carries a concrete `rsvp_deadline` into
+core rather than `None`.
 
 ---
 

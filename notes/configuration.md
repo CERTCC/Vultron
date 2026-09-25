@@ -5,6 +5,7 @@ description: Design decisions for YAML-backed Pydantic configuration loading in 
 related_specs:
   - specs/case-ledger-processing.yaml
   - specs/configuration.yaml
+  - specs/embargo-policy.yaml
 relevant_packages:
   - fastapi
   - pydantic
@@ -14,6 +15,7 @@ relevant_packages:
   - vultron/core
 related_notes:
   - notes/case-ledger-authority.md
+  - notes/embargo-default-semantics.md
   - notes/testing-pitfalls.md
 ---
 
@@ -224,6 +226,15 @@ actor-policy defaults used by BT nodes and the production adapter:
   `ResolveCaseActorUrlsNode` to return `FAILURE` with a clear error message.
   `None` by default; MUST be supplied via `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`
   or the `config.yaml` `actor:` block. See CP-08-001, `notes/case-proposal.md`.
+- `min_rsvp_window` (72 h) and `default_rsvp_window` (7 d): the EP-07-002
+  minimum and the CM-18-002 policy window for an embargo invitation's RSVP
+  deadline. Both are measured from the invite's `published` time and bounded
+  by the embargo's end (EP-07-006); see
+  [notes/embargo-default-semantics.md](embargo-default-semantics.md).
+- `protocol_default_embargo_duration` (72 h): the embargo applied at case
+  creation when no proposal and no actor default applies (EP-04-005). A value
+  outside `[72 hours, 5 days]` is refused at load. It never competes under
+  shortest-wins and is not a minimum (EP-04-006, EP-04-007).
 
 ---
 
@@ -238,6 +249,7 @@ actor-policy defaults used by BT nodes and the production adapter:
 | `VULTRON_ACTOR__AUTO_CREATE_CASE` | `actor.auto_create_case` | `true` |
 | `VULTRON_ACTOR__DEFAULT_CASE_ROLES` | `actor.default_case_roles` | `[]` |
 | `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` | `actor.case_actor_service_url` | `None` |
+| `VULTRON_ACTOR__PROTOCOL_DEFAULT_EMBARGO_DURATION` | `actor.protocol_default_embargo_duration` | `PT72H` |
 | `VULTRON_LEDGER__CLOCK_SKEW_TOLERANCE_SECONDS` | `ledger.clock_skew_tolerance_seconds` | `300` |
 | `VULTRON_LEDGER__FUTURE_TOLERANCE_SECONDS` | `ledger.future_tolerance_seconds` | `300` |
 | `VULTRON_LEDGER__STALENESS_WINDOW_DAYS` | `ledger.staleness_window_days` | `7` |

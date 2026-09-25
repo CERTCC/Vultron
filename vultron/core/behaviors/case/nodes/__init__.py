@@ -108,8 +108,11 @@ from vultron.core.behaviors.case.nodes.embargo import (
     AdvanceEMStateToActiveNode,
     AttachEmbargoToCaseNode,
     CreateEmbargoEventNode,
-    ResolveEmbargoDurationNode,
     SeedOwnerAsSignatoryNode,
+)
+from vultron.core.behaviors.case.nodes.embargo_resolution import (
+    CaseNotEmbargoEligibleNode,
+    ResolveEmbargoDurationNode,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
@@ -241,6 +244,7 @@ __all__ = [
     # embargo (leaf nodes)
     "AdvanceEMStateToActiveNode",
     "AttachEmbargoToCaseNode",
+    "CaseNotEmbargoEligibleNode",
     "CreateEmbargoEventNode",
     "ResolveEmbargoDurationNode",
     "SeedOwnerAsSignatoryNode",

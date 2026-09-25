@@ -24,6 +24,8 @@ defaults for the local actor without importing from the demo or adapter layers.
 
 Per ``specs/configuration.yaml`` CFG-07-001, CFG-07-002, CFG-07-005, CFG-07-006.
 RSVP window fields per ``specs/embargo-policy.yaml`` EP-07-001, EP-07-002.
+Protocol default embargo duration per ``specs/embargo-policy.yaml`` EP-04-005
+(ADR-0096).
 """
 
 from datetime import timedelta
@@ -37,6 +39,12 @@ from pydantic import (
 )
 
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
+
+PROTOCOL_DEFAULT_EMBARGO_MIN = timedelta(hours=72)
+"""Lower bound on the configurable protocol default embargo (EP-04-005)."""
+
+PROTOCOL_DEFAULT_EMBARGO_MAX = timedelta(days=5)
+"""Upper bound on the configurable protocol default embargo (EP-04-005)."""
 
 
 class ActorConfig(BaseModel):
@@ -64,6 +72,12 @@ class ActorConfig(BaseModel):
             ``engage-case`` path.  When ``None``, the nodes that need it return
             ``FAILURE`` with a clear error rather than guessing a base URL, since
             a guessed identity is one no container hosts (CP-08-001, CP-08-002).
+        protocol_default_embargo_duration: Embargo duration applied at case
+            creation when neither a sender proposal nor an actor default
+            (published ``EmbargoPolicy``) applies.  Constrained to
+            [72 hours, 5 days]; a value outside that range is refused
+            (EP-04-005, ADR-0096).  It never competes under shortest-wins and
+            is never a minimum on agreed terms (EP-04-006, EP-04-007).
     """
 
     default_case_roles: list[CVDRole] = Field(default_factory=list)
@@ -102,6 +116,32 @@ class ActorConfig(BaseModel):
             "on an outbound Invite(EmbargoEvent) (EP-07-001). Default: 7 days."
         ),
     )
+
+    protocol_default_embargo_duration: timedelta = Field(
+        default=PROTOCOL_DEFAULT_EMBARGO_MIN,
+        description=(
+            "Embargo duration applied at case creation when no sender proposal "
+            "and no actor default applies (EP-04-005). Must lie within "
+            "[72 hours, 5 days]. Default: 72 h."
+        ),
+    )
+
+    @field_validator("protocol_default_embargo_duration")
+    @classmethod
+    def _validate_protocol_default_embargo_duration(
+        cls, value: timedelta
+    ) -> timedelta:
+        if not (
+            PROTOCOL_DEFAULT_EMBARGO_MIN
+            <= value
+            <= PROTOCOL_DEFAULT_EMBARGO_MAX
+        ):
+            raise ValueError(
+                f"protocol_default_embargo_duration {value} is outside the"
+                f" permitted range [{PROTOCOL_DEFAULT_EMBARGO_MIN},"
+                f" {PROTOCOL_DEFAULT_EMBARGO_MAX}] (EP-04-005)"
+            )
+        return value
 
     @field_serializer("default_case_roles")
     def _serialize_default_case_roles(self, value: list[CVDRole]) -> list[str]:
