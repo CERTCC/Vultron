@@ -22,7 +22,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
 )
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -48,9 +48,9 @@ _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
 def _to_persistable_entry(
     chain_entry: HashChainLedgerRecord,
-) -> VultronCaseLedgerEntry:
-    """Test helper: convert a HashChainLedgerRecord to a VultronCaseLedgerEntry."""
-    return VultronCaseLedgerEntry(
+) -> CaseLedgerEntry:
+    """Test helper: convert a HashChainLedgerRecord to a CaseLedgerEntry."""
+    return CaseLedgerEntry(
         case_id=chain_entry.case_id,
         log_index=chain_entry.log_index,
         term=chain_entry.term,
@@ -64,7 +64,7 @@ def _to_persistable_entry(
 
 def _make_entry(
     case_id: str, log_index: int, prev_hash: str
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     chain = HashChainLedgerRecord(
         case_id=case_id,
         log_index=log_index,
@@ -85,7 +85,7 @@ def dl() -> SqliteDataLayer:
 
 
 @pytest.fixture
-def first_entry() -> VultronCaseLedgerEntry:
+def first_entry() -> CaseLedgerEntry:
     # Use _ZERO_HASH as prev_log_hash for chain tests that don't need
     # genesis validation. Tests that need genesis hash must build their own.
     return _make_entry(CASE_URI, 0, _ZERO_HASH)
@@ -100,7 +100,7 @@ def case_with_genesis(dl) -> VulnerabilityCase:
 
 
 @pytest.fixture
-def genesis_entry(case_with_genesis) -> VultronCaseLedgerEntry:
+def genesis_entry(case_with_genesis) -> CaseLedgerEntry:
     """First entry whose prev_log_hash matches the per-case genesis hash."""
     return _make_entry(CASE_URI, 0, case_with_genesis.genesis_hash)
 
@@ -167,7 +167,7 @@ RECEIVER_URI = "https://example.org/actors/reporter"
 
 class TestAnnounceLedgerEntryReceivedUseCase:
     def _make_event(
-        self, entry: VultronCaseLedgerEntry
+        self, entry: CaseLedgerEntry
     ) -> AnnounceLogEntryReceivedEvent:
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
@@ -380,7 +380,7 @@ class TestOutOfOrderAnnounceBuffering:
         return LedgerGapBuffer()
 
     def _make_event(
-        self, entry: VultronCaseLedgerEntry
+        self, entry: CaseLedgerEntry
     ) -> AnnounceLogEntryReceivedEvent:
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
@@ -390,9 +390,9 @@ class TestOutOfOrderAnnounceBuffering:
 
     def _chain(
         self, case: VulnerabilityCase, length: int
-    ) -> list[VultronCaseLedgerEntry]:
+    ) -> list[CaseLedgerEntry]:
         """Build a valid hash chain of *length* entries anchored on genesis."""
-        entries: list[VultronCaseLedgerEntry] = []
+        entries: list[CaseLedgerEntry] = []
         prev = case.genesis_hash
         for i in range(length):
             entry = _make_entry(CASE_URI, i, prev)
@@ -405,7 +405,7 @@ class TestOutOfOrderAnnounceBuffering:
             obj.log_index
             for obj in dl.list_objects("CaseLedgerEntry")
             if getattr(obj, "case_id", None) == CASE_URI
-            and isinstance(obj, VultronCaseLedgerEntry)
+            and isinstance(obj, CaseLedgerEntry)
         }
 
     @pytest.mark.spec("SYNC-14-001")
@@ -559,7 +559,7 @@ class TestPreGenesisAnnounceBuffering:
         return LedgerGapBuffer()
 
     def _make_event(
-        self, entry: VultronCaseLedgerEntry
+        self, entry: CaseLedgerEntry
     ) -> AnnounceLogEntryReceivedEvent:
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
@@ -634,7 +634,7 @@ class TestPreGenesisAnnounceBuffering:
         in hash-chain order the moment the case is seeded."""
         case = _make_case()
         prev = case.genesis_hash
-        entries: list[VultronCaseLedgerEntry] = []
+        entries: list[CaseLedgerEntry] = []
         for i in range(3):
             e = _make_entry(CASE_URI, i, prev)
             entries.append(e)

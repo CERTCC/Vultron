@@ -14,7 +14,7 @@ from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -97,7 +97,7 @@ def case_manager_case(datalayer):
 
 def _make_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -111,7 +111,7 @@ def _make_entry(
 
 
 def _make_event(
-    entry: VultronCaseLedgerEntry, tail_hash: str
+    entry: CaseLedgerEntry, tail_hash: str
 ) -> RejectLogEntryReceivedEvent:
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")

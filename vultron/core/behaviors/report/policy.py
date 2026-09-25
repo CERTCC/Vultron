@@ -33,7 +33,7 @@ Extension Points:
 
 import logging
 
-from vultron.core.models.vultron_types import VultronCase, VultronReport
+from vultron.core.models.vultron_types import VulnerabilityCase, VultronReport
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +147,7 @@ class PrioritizationPolicy:
     PROTO-05-001 for the deferral policy on SSVC integration.
     """
 
-    def should_engage(self, case: VultronCase) -> bool:
+    def should_engage(self, case: VulnerabilityCase) -> bool:
         """
         Evaluate whether the case should be engaged (accepted for active work).
 
@@ -170,7 +170,7 @@ class AlwaysPrioritizePolicy(PrioritizationPolicy):
     Future: Replace with SSVC-based evaluation (see PROTO-05-001).
     """
 
-    def should_engage(self, case: VultronCase) -> bool:
+    def should_engage(self, case: VulnerabilityCase) -> bool:
         """
         Always engage the case (returns True).
 

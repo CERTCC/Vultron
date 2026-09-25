@@ -12,12 +12,12 @@ from vultron.core.models.events.base import MessageSemantics, VultronEvent
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from vultron.core.models.case import VulnerabilityCase as VultronCase
+    from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.embargo_event import (
         EmbargoEvent as VultronEmbargoEvent,
     )
 else:
-    VultronCase = object
+    VulnerabilityCase = object
     VultronEmbargoEvent = object
 
 
@@ -57,8 +57,8 @@ class AddEmbargoEventToCaseReceivedEvent(VultronEvent):
         return self.target_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.target)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.target)
 
 
 class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):
@@ -81,8 +81,8 @@ class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):
         return self.origin_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.origin)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.origin)
 
 
 class AnnounceEmbargoEventToCaseReceivedEvent(VultronEvent):
@@ -97,8 +97,8 @@ class AnnounceEmbargoEventToCaseReceivedEvent(VultronEvent):
         return self.context_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.context)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.context)
 
 
 class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
@@ -131,8 +131,8 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         return self.context_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.context)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.context)
 
     @property
     def to_recipients(self) -> list[str]:
@@ -208,8 +208,8 @@ class AcceptInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         return self.inner_context_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.inner_context)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.inner_context)
 
 
 class RejectInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
@@ -240,5 +240,5 @@ class RejectInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         return self.inner_context_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.inner_context)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.inner_context)

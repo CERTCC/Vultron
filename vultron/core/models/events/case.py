@@ -6,10 +6,10 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 if TYPE_CHECKING:
-    from vultron.core.models.case import VulnerabilityCase as VultronCase
+    from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.report import VultronReport
 else:
-    VultronCase = object
+    VulnerabilityCase = object
     VultronReport = object
 
 
@@ -26,8 +26,8 @@ class CreateCaseReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.object_)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.object_)
 
 
 class UpdateCaseReceivedEvent(VultronEvent):
@@ -42,8 +42,8 @@ class UpdateCaseReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.object_)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.object_)
 
 
 class EngageCaseReceivedEvent(VultronEvent):
@@ -58,8 +58,8 @@ class EngageCaseReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.object_)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.object_)
 
 
 class DeferCaseReceivedEvent(VultronEvent):
@@ -74,8 +74,8 @@ class DeferCaseReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.object_)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.object_)
 
 
 class AddReportToCaseReceivedEvent(VultronEvent):
@@ -98,8 +98,8 @@ class AddReportToCaseReceivedEvent(VultronEvent):
         return self.target_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.target)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.target)
 
 
 class CloseCaseReceivedEvent(VultronEvent):
@@ -114,5 +114,5 @@ class CloseCaseReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.object_)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.object_)

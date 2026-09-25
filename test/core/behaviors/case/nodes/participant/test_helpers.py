@@ -21,7 +21,10 @@ from typing import Any, cast
 import pytest
 
 from vultron.core.behaviors.case.nodes import _create_and_attach_participant
-from vultron.core.models.vultron_types import VultronCase, VultronParticipant
+from vultron.core.models.vultron_types import (
+    VulnerabilityCase,
+    VultronParticipant,
+)
 from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
@@ -32,7 +35,7 @@ class TestCreateAndAttachParticipant:
     def test_creates_participant_in_datalayer(
         self,
         bt_scenario: BTTestScenario,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         participant = VultronParticipant(
@@ -53,7 +56,7 @@ class TestCreateAndAttachParticipant:
     def test_attaches_participant_to_case(
         self,
         bt_scenario: BTTestScenario,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         participant = VultronParticipant(
@@ -75,7 +78,7 @@ class TestCreateAndAttachParticipant:
     def test_updates_actor_participant_index(
         self,
         bt_scenario: BTTestScenario,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         participant = VultronParticipant(
@@ -96,7 +99,7 @@ class TestCreateAndAttachParticipant:
     def test_returns_unsaved_case(
         self,
         bt_scenario: BTTestScenario,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         """The returned case is unsaved; the caller controls the final save."""
@@ -119,7 +122,7 @@ class TestCreateAndAttachParticipant:
     def test_idempotent_participant_creation(
         self,
         bt_scenario: BTTestScenario,
-        case_obj: VultronCase,
+        case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
         """Calling twice does not create a duplicate participant."""

@@ -135,7 +135,7 @@ def _make_offer_report_snapshot() -> dict:
 
 
 def _make_offer_report_ledger_entry():
-    """Build a VultronCaseLedgerEntry for an add_report_to_case canonical event."""
+    """Build a CaseLedgerEntry for an add_report_to_case canonical event."""
     snapshot = _make_offer_report_snapshot()
     return _to_persistable_entry(
         HashChainLedgerRecord(

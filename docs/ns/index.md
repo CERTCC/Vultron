@@ -28,7 +28,7 @@ extends the AS2 core vocabulary with CVD-specific object types.
 | `CaseStatus` | Snapshot of all three state machines (RM/EM/CS) at one moment |
 | `EmbargoEvent` | Embargo proposal, acceptance, revision, or termination record |
 | `EmbargoPolicy` | Actor-level declaration of embargo preferences |
-| `ParticipantStatus` | Per-participant snapshot of RM state and embargo consent |
+| `ParticipantStatus` | Per-participant snapshot of RM state and [embargo consent](../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) |
 | `ProcessingFault` | Negative acknowledgement returned when a received activity could not be processed |
 | `VulnerabilityCase` | Coordination container for a vulnerability disclosure case |
 | `VulnerabilityRecord` | Persistent identifier record for a confirmed vulnerability |

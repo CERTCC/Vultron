@@ -34,7 +34,7 @@ from vultron.core.behaviors.status.nodes.case_status import (
     EmitCaseStatusUpdateNode,
 )
 from vultron.core.models.case import VulnerabilityCase as CoreCase
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -258,7 +258,7 @@ class TestEmitCaseStatusUpdateNode:
         entries = [
             obj
             for obj in populated_dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
+            if isinstance(obj, CaseLedgerEntry)
             and getattr(obj, "case_id", None) == CASE_ID
             and getattr(obj, "event_type", None) == "add_case_status_to_case"
         ]
