@@ -213,18 +213,17 @@ state. The boundary is not valuable enough to protect at that price.
 
 ## Validation
 
-Not yet implemented. This ADR records the decision; the work is tracked
-separately, and this section will describe realized validation once it lands.
+Partly implemented: the received-side half has landed and the dispatcher half has not.
+
+Realized:
+
+- The architecture ratchet `test/architecture/test_use_case_execute_returns_result.py` (UCORG-05-004) asserts that every concrete use-case class in `vultron/core/use_cases/` declares an `execute()` return annotation that resolves to `UseCaseResult` or a subtype (#3372).
+  It excludes `triggers/` until #3354 migrates them, names that issue, and fails once the exclusion is no longer needed.
+- The `UseCase` Protocol declares `execute() -> UseCaseResult`.
+  No call site is yet typed against the Protocol, so mypy does not report a non-conforming class by itself; the ratchet does.
 
 Planned:
 
-- An architecture ratchet (UCORG-05-004) asserting that every concrete use-case
-  class in `vultron/core/use_cases/` declares an `execute()` return annotation
-  of `UseCaseResult` or a registered subtype. The ratchet excludes trigger-side
-  classes until #3354 migrates them; that exclusion is temporary and tied to
-  that issue, not open-ended.
-- mypy: the `UseCase` Protocol declares `execute() -> UseCaseResult`, so a
-  non-conforming concrete class is reported statically.
 - Behavioural tests for the two paths a ratchet cannot see: a `REFUSED`
   disposition reaching `InboxOutcome.status == "rejected"` with a populated
   `failure_reason`, and an unroutable or unrecognised-semantics activity **not**

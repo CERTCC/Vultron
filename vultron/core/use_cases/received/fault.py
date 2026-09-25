@@ -21,6 +21,7 @@ issue #2883 (outstanding-request register).
 import logging
 
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ class CreateProcessingFaultReceivedUseCase:
         self._dl = dl
         self._request = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         logger.warning(
             "ProcessingFault received from '%s' for activity '%s'"
@@ -49,3 +50,4 @@ class CreateProcessingFaultReceivedUseCase:
             request.activity_id,
             request.fault_id,
         )
+        return HandlerResult.applied()

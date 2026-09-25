@@ -5,7 +5,7 @@ description: >
   Design decisions for the UseCaseResult type hierarchy, the HandlerDisposition
   vocabulary and its route to InboxOutcome, the two semantically distinct request
   paths (VultronEvent vs TriggerRequest), and why a shared UseCaseRequest base
-  was not introduced. Types built; use cases not yet migrated.
+  was not introduced. Received side migrated; dispatcher and trigger side not.
 related_specs:
   - specs/use-case-organization.yaml
   - specs/handler-protocol.yaml
@@ -33,19 +33,23 @@ See `specs/use-case-organization.yaml` UCORG-05 for the normative requirements.
 See `docs/adr/0040-use-case-result-envelope.md` for the original decision record
 and `docs/adr/0095-received-side-handler-result.md` for the received-side half.
 
-> **Status: types built, contract not yet adopted.** `UseCaseResult`,
+> **Status: received half adopted, trigger half not.** `UseCaseResult`,
 > `HandlerResult`, and `HandlerDisposition` exist in
-> `vultron/core/models/use_case_result.py` (#3371). A standalone
+> `vultron/core/models/use_case_result.py` (#3371). Every received-side
+> `execute()` declares `-> HandlerResult`, and the `UseCase` Protocol declares
+> `-> UseCaseResult` (#3372); the query use case returns `ActionRulesResult`.
+> `test/architecture/test_use_case_execute_returns_result.py` enforces
+> UCORG-05-004 outside `triggers/`. Two parts are still open. Every handler
+> returns `APPLIED` unconditionally — assigning the correct disposition per
+> site is #2255 — and the dispatcher discards the value, so it does not yet
+> reach `InboxOutcome` (#3373). On the trigger side, a standalone
 > `TriggerResult` envelope lives in `vultron/core/use_cases/triggers/results.py`
 > (#3398), plus a demo-layer `ActivityResult` subtype, introduced only so
 > `ActorSession` can type demo trigger responses at the HTTP boundary; it does
-> not yet inherit `UseCaseResult` (#3354). No use case returns any of them yet:
-> all 51 received-side `execute()` methods are `-> None` (#3372), and all
-> trigger-side ones still return `dict`. Earlier revisions of
-> this note described the whole migration in the past tense while no part of it
-> had been written — that drift is what concern #1769 was filed to correct.
-> Treat the hierarchy below as the design to implement, and do not infer from it
-> that any of it beyond the `TriggerResult` envelope is in place.
+> not yet inherit `UseCaseResult`, and trigger `execute()` methods still return
+> `dict` (#3354). Earlier revisions of this note described the whole migration
+> in the past tense while no part of it had been written — that drift is what
+> concern #1769 was filed to correct.
 
 ---
 
@@ -221,9 +225,9 @@ is the only road from the handler to `InboxOutcome`.
 `processed`/`deferred`/`rejected` and carries `failure_reason`, but
 `_read_inbox_outcome()` assembles it from inbox-BT blackboard keys, and
 `DispatchNode.update()` treats "dispatch did not raise" as SUCCESS. Every link
-in between is typed `-> None`, so a handler's verdict cannot reach it. That is
-bug #2255: a handler can find nothing it can act on, log a warning, return, and
-the pipeline still reports `processed`.
+from `execute()` to `DispatchNode` is typed `-> None`, so a handler's verdict
+cannot reach `InboxOutcome`. That is bug #2255: a handler can find nothing it
+can act on, log a warning, return, and the pipeline still reports `processed`.
 
 Each link returns `HandlerResult`:
 
@@ -258,9 +262,11 @@ Two things are easy to get wrong here:
 
 Most `SKIPPED` decisions also do not live in `execute()` — `_idempotent_create`
 and peers in `vultron/core/use_cases/_helpers.py` return without storing when the
-record already exists, and are `-> None` themselves. Five handlers delegate their
-whole duplicate-skip decision there, so that layer has to return a disposition
-too or `SKIPPED` is unreachable for the commonest skip in the codebase.
+record already exists. Five handlers delegate their whole duplicate-skip decision
+there, so that layer has to return a disposition too or `SKIPPED` is unreachable
+for the commonest skip in the codebase. `_idempotent_create` therefore returns a
+`HandlerResult` (`SKIPPED` with a reason, or `APPLIED`) describing its own act;
+escalating a skip to `REFUSED` stays the calling handler's verdict (#2255).
 
 `DispatchNode` owns the mapping (`APPLIED`/`SKIPPED` → `processed`, `DEFERRED` →
 `deferred`, `REFUSED` → `rejected` + `failure_reason`). Handlers do not know about
@@ -287,15 +293,21 @@ level it is an ack/`ProcessingFault` message, not a response code.
 
 ## Ratchet Test
 
-Not yet written. Planned: an architecture ratchet that inspects all concrete
-use-case classes in `vultron/core/use_cases/` and asserts that their `execute()`
-annotation is `UseCaseResult` or a subtype, catching drift when new use cases are
-added without the correct return type, independent of mypy configuration
-(UCORG-05-004).
+`test/architecture/test_use_case_execute_returns_result.py` inspects every
+top-level class under `vultron/core/use_cases/` that defines `execute()` and
+asserts its return annotation resolves to `UseCaseResult` or a subtype, catching
+drift when new use cases are added without the correct return type, independent
+of mypy configuration (UCORG-05-004). "Registered subtype" is the subclass
+relation itself, resolved with `typing.get_type_hints`, so a new result type
+needs no list edit.
 
-It must exclude trigger-side classes until #3354 migrates them from `dict`. That
-exclusion is temporary and tied to that issue — record it as such in the test, so
-it does not read as a permanent carve-out.
+It excludes `triggers/` until #3354 migrates those classes from `dict`
+(UCORG-05-004b). The exclusion names #3354 in the test, and a companion test
+fails once every trigger conforms, so the carve-out cannot outlive its reason.
+
+Nothing yet types a call site against the `UseCase` Protocol — the dispatcher's
+routing table is `dict[MessageSemantics, type]` — so mypy does not enforce the
+Protocol's return type on its own. The ratchet is the enforcement.
 
 ADR-0040's Validation section listed this test as realized validation for three
 months while the file was never written. Do not cite a ratchet as validation

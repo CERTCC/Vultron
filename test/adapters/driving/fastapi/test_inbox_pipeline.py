@@ -15,6 +15,7 @@ from vultron.errors import (
 )
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.use_cases.received.actor import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
@@ -61,8 +62,9 @@ UNKNOWN_CASE_ID = "https://example.org/cases/case-unknown"
 def _patch_execute_with_marker(
     monkeypatch: MonkeyPatch, use_case_class: type, marker_id: str
 ) -> None:
-    def _execute(self) -> None:
+    def _execute(self) -> HandlerResult:
         self._dl.save(as_Note(id_=marker_id, content=marker_id))
+        return HandlerResult.applied()
 
     monkeypatch.setattr(use_case_class, "execute", _execute)
 

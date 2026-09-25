@@ -467,9 +467,11 @@ def get_action_rules(
         # case-aware reads.  `SqliteDataLayer` satisfies both protocols
         # structurally; a bare `DataLayer` does not, because
         # `CasePersistence.clone_for_actor` returns a `CasePersistence`.
-        return GetActionRulesUseCase(
-            dl=cast(CasePersistence, dl), request=req
-        ).execute()
+        return (
+            GetActionRulesUseCase(dl=cast(CasePersistence, dl), request=req)
+            .execute()
+            .model_dump(mode="json")
+        )
     except VultronNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

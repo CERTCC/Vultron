@@ -7,6 +7,7 @@ description: >
 related_specs:
   - specs/code-style.yaml
   - specs/bt-composability.yaml
+  - specs/use-case-organization.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/domain-model-separation.md
@@ -89,10 +90,12 @@ class SvcValidateReportUseCase:
 The validate→engage/defer cascade is a child subtree of `ValidateReportBt`,
 mirroring the canonical CVD protocol BT structure.
 
-> **The return types in both samples are the target contract, not current code.**
-> Every received-side `execute()` is `-> None` today; `HandlerResult` and
-> `HandlerDisposition` exist (`vultron/core/models/use_case_result.py`) but no
-> handler returns them yet (#3372). See
+> **The samples' return type matches current code; `APPLIED` is not yet a real
+> verdict.** The class names are illustrative. Every received-side `execute()`
+> returns `HandlerResult` (spelled `HandlerResult.applied()` in code)
+> from `vultron/core/models/use_case_result.py`, but always `APPLIED` until
+> #2255 assigns the correct disposition per site, and the dispatcher does not
+> yet carry it to `InboxOutcome` (#3373). See
 > [notes/use-case-protocol.md](use-case-protocol.md) and ADR-0095 for the design,
 > and #1769 for why this note previously read as though the migration had
 > happened. The in-tree-cascade rule the samples illustrate is in force
