@@ -83,12 +83,13 @@ def nav_paths(root: Path | None = None) -> frozenset[str]:
     The nav is walked structurally rather than matched as a substring: a path
     that appears only in a comment or an unrelated key would otherwise satisfy
     a completeness check while leaving the page genuinely un-navved, which then
-    fails ``mkdocs build --strict`` instead (MS-14-006).
+    fails ``mkdocs build --strict`` instead (DEMOCI-11-007).
 
-    Shared by every consumer that checks nav completeness rather than
-    regenerating the nav — ADR pages (MS-14-006) and scenario narrative pages
-    (DEMOCI-11-007) — because the nav's labels are hand-written prose in both
-    cases and only the *set* of files is derivable.
+    Shared by every consumer that checks nav placement rather than
+    regenerating the nav: scenario narrative pages must be present
+    (DEMOCI-11-007), while ADR pages (MS-14-006) and other working-record pages
+    (DF-11-003, ``docs-frontmatter``) must be absent. The nav's labels are
+    hand-written prose, so only the *set* of files is derivable.
     """
     return frozenset(_walk_nav(mkdocs_config(root).get("nav")))
 

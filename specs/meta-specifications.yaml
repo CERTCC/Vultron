@@ -779,8 +779,8 @@ groups:
     kind: project
     statement: >-
       docs/adr/index.md MUST be generated from ADR frontmatter (uv run
-      adr-index --write), and no ADR, archived or not, may be referenced in the
-      mkdocs nav: each MUST instead be matched by the not_in_nav patterns in
+      adr-index --write), and an ADR, archived or not, MUST NOT be referenced in
+      the mkdocs nav: each MUST instead be matched by the not_in_nav patterns in
       mkdocs.yml and reached through the index. CI (uv run adr-index --check)
       fails on drift.
     rationale: >-

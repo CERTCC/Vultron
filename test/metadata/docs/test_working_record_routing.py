@@ -27,7 +27,9 @@ UNROUTED = re.compile(
     r"(agents|developer|reference/codebase)/.*|reference/ontology/index\.md"
 )
 
-_LINK_RE = re.compile(r"\]\((?!https?:|mailto:|#)([^)\s#]+\.md)(?:#[^)]*)?\)")
+_LINK_RE = re.compile(
+    r"\]\((?!https?:|mailto:|#)([^)\s#]+\.md)(?:#[^)\s]*)?(?:\s+\"[^\"]*\")?\)"
+)
 
 
 def _links(docs_path: str, text: str) -> set[str]:
@@ -67,6 +69,12 @@ def test_links_resolve_relative_to_the_linking_page():
     ) == {"adr/index.md"}
 
 
+def test_links_with_a_title_are_followed():
+    assert _links(
+        "about/x.md", '[a](../adr/index.md "ADRs") [b](y.md#s "t")'
+    ) == {"adr/index.md", "about/y.md"}
+
+
 @pytest.mark.spec("DF-11-003")
 @pytest.mark.spec("DF-11-006")
 def test_every_working_record_page_is_reached_from_the_door():
@@ -77,6 +85,7 @@ def test_every_working_record_page_is_reached_from_the_door():
         if is_working_record(rel) and not UNROUTED.fullmatch(rel)
     }
 
+    assert working, "no working-record pages classified; check is vacuous"
     orphaned = sorted(working - _reachable_from_door())
 
     assert orphaned == [], (
