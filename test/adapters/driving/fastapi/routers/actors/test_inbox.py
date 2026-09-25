@@ -168,6 +168,53 @@ def test_reparse_as_specific_type_returns_same_object_when_already_specific_clas
     assert result is case
 
 
+@pytest.mark.spec("VM-06-008")
+def test_reparse_as_specific_type_never_returns_a_core_class():
+    """A core-only ``type`` name must not re-parse as a core class (ISSUE-3565).
+
+    ``CoreActor`` is registered only in the core map, and a minimal dict
+    validates as it, so before the lookup went wire-only the inbox handed a core
+    object to the DataLayer for an inbound ``{"type": "CoreActor"}``.
+    """
+    from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+    raw_obj = {"id": "urn:uuid:core-only-reparse", "type": "CoreActor"}
+    nested = as_Object.model_validate(raw_obj)
+
+    result = _reparse_as_specific_type(nested, raw_obj)
+
+    assert result is nested  # type: ignore[comparison-overlap]
+    assert not isinstance(result, CoreActor)
+
+
+@pytest.mark.spec("VM-06-008")
+def test_store_nested_inbox_object_persists_no_core_class_for_core_only_name(
+    datalayer, monkeypatch
+):
+    """The object the inbox persists for a core-only name is not core."""
+    from vultron.adapters.driving.fastapi.routers.actors import _inbox
+    from vultron.core.models.base import CoreObject
+    from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+    persisted: list[object] = []
+    real_object_to_record = _inbox.object_to_record
+
+    def _spy(obj):
+        persisted.append(obj)
+        return real_object_to_record(obj)
+
+    monkeypatch.setattr(_inbox, "object_to_record", _spy)
+
+    raw_obj = {"id": "urn:uuid:core-only-store", "type": "CoreActor"}
+    activity = as_Announce(
+        actor=_ACTOR_URI, object_=as_Object.model_validate(raw_obj)
+    )
+    _store_nested_inbox_object(datalayer, activity, {"object": raw_obj})
+
+    assert len(persisted) == 1
+    assert not isinstance(persisted[0], CoreObject)
+
+
 # ---------------------------------------------------------------------------
 # _store_inbox_activity
 # ---------------------------------------------------------------------------

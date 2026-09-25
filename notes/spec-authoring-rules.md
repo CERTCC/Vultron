@@ -327,6 +327,12 @@ fails CI.
 the branch lands. Run `spec-coverage` to verify coverage after adding the
 marker. See SR-05-004, SR-05-005.
 
+`spec-coverage` reports `kind: protocol` IDs only. A `project`- or other-kind ID
+never appears in its output, covered or not, so an acceptance criterion reading
+"`spec-coverage` shows `<ID>` covered" cannot be met for one (#3565's AC-6
+asked this of VM-06-008). Write such a criterion as "a test carries
+`@pytest.mark.spec("<ID>")`" and check it with `grep`.
+
 ### Never Raise the Ceiling — Use a Strict `xfail` for Not-Yet-Implemented Specs
 
 `test_protocol_spec_coverage_floor` counts uncovered `kind: protocol` specs

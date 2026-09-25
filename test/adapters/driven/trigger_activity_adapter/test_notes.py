@@ -16,6 +16,8 @@
 import json
 import pytest
 
+from vultron.core.models.note import VultronNote
+from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 _ACTOR = "https://example.org/actors/reporter"
@@ -144,3 +146,59 @@ class TestAddNoteToCase:
         )
 
         assert dl.read(activity_id) is not None
+
+
+class TestStoredNoteCarriedAsWireNote:
+    """A stored note reads back as ``VultronNote`` (DL-05-004, ISSUE-3647).
+
+    The Add/Create activities carry an ``as_Note``, so the adapter must render
+    the core note to its wire form rather than cast it.
+    """
+
+    @pytest.mark.spec("DL-05-004", "ARCH-12-005")
+    def test_add_carries_stored_core_note_as_wire_note(self, adapter, dl):
+        note_id, _ = adapter.create_note(
+            name="Note",
+            content="the content",
+            context_id=_CASE_ID,
+            attributed_to=_ACTOR,
+        )
+        assert isinstance(dl.read(note_id), VultronNote)
+
+        _, activity_dict = adapter.add_note_to_case(
+            note_id=note_id, case_id=_CASE_ID, actor=_ACTOR
+        )
+
+        carried = json.loads(activity_dict)["object"]
+        assert carried["id"] == note_id
+        assert carried["type"] == "Note"
+        assert carried["content"] == "the content"
+
+    @pytest.mark.spec("DL-05-004", "ARCH-12-005")
+    def test_create_activity_carries_stored_core_note(self, adapter, dl):
+        note_id, _ = adapter.create_note(
+            name="Note",
+            content="content",
+            context_id=_CASE_ID,
+            attributed_to=_ACTOR,
+        )
+
+        activity_id = adapter.create_note_activity(
+            actor=_ACTOR, note_id=note_id
+        )
+
+        stored = dl.read(activity_id)
+        assert stored is not None
+        assert stored.object_.id_ == note_id
+        assert stored.object_.content == "content"
+
+    @pytest.mark.parametrize("method", ["add", "create"])
+    def test_missing_note_raises_not_found(self, adapter, method):
+        missing = "https://example.org/notes/missing"
+        with pytest.raises(VultronNotFoundError):
+            if method == "add":
+                adapter.add_note_to_case(
+                    note_id=missing, case_id=_CASE_ID, actor=_ACTOR
+                )
+            else:
+                adapter.create_note_activity(actor=_ACTOR, note_id=missing)

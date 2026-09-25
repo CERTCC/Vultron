@@ -235,10 +235,11 @@ class TestDynamicDiscovery:
 
 
 class TestCoreTypeMapFallback:
-    """Regression tests for ARCH-12-003 / issue #1992.
+    """Regression tests for ARCH-12-003 / issue #1992 and VM-06-008.
 
-    Core-layer types must NOT appear in VOCABULARY directly, but
-    find_in_vocabulary() must still locate them via the CORE_TYPE_MAP fallback.
+    Core-layer types must NOT appear in VOCABULARY directly.  A caller that
+    asks for the CORE_TYPE_MAP fallback (``include_core=True``) still finds
+    them; the default wire-only lookup must not (ISSUE-3565).
     """
 
     def setup_method(self):
@@ -286,9 +287,9 @@ class TestCoreTypeMapFallback:
         assert WIRE_TYPE_MAP["Actor"] is not CoreActor
 
     def test_core_types_findable_via_fallback(self):
-        """find_in_vocabulary must resolve each formerly-misregistered core type."""
+        """The opted-in fallback resolves each formerly-misregistered core type."""
         for name in self._CORE_TYPE_NAMES:
-            cls = find_in_vocabulary(name)
+            cls = find_in_vocabulary(name, include_core=True)
             assert (
                 cls is not None
             ), f"find_in_vocabulary({name!r}) returned None"
@@ -300,14 +301,14 @@ class TestCoreTypeMapFallback:
         """find_in_vocabulary('CoreActor') returns CoreActor."""
         from vultron.core.models.actor import CoreActor
 
-        cls = find_in_vocabulary("CoreActor")
+        cls = find_in_vocabulary("CoreActor", include_core=True)
         assert cls is CoreActor
 
     def test_offer_record_resolves_correctly(self):
         """find_in_vocabulary('OfferRecord') returns VultronOfferRecord."""
         from vultron.core.models.offer_record import VultronOfferRecord
 
-        cls = find_in_vocabulary("OfferRecord")
+        cls = find_in_vocabulary("OfferRecord", include_core=True)
         assert cls is VultronOfferRecord
 
     def test_replication_state_resolves_correctly(self):
@@ -316,7 +317,7 @@ class TestCoreTypeMapFallback:
             VultronReplicationState,
         )
 
-        cls = find_in_vocabulary("ReplicationState")
+        cls = find_in_vocabulary("ReplicationState", include_core=True)
         assert cls is VultronReplicationState
 
     def test_pending_case_inbox_resolves_correctly(self):
@@ -325,7 +326,7 @@ class TestCoreTypeMapFallback:
             VultronPendingCaseInbox,
         )
 
-        cls = find_in_vocabulary("PendingCaseInbox")
+        cls = find_in_vocabulary("PendingCaseInbox", include_core=True)
         assert cls is VultronPendingCaseInbox
 
     def test_pending_create_case_activity_resolves_correctly(self):
@@ -334,7 +335,9 @@ class TestCoreTypeMapFallback:
             PendingCreateCaseActivity,
         )
 
-        cls = find_in_vocabulary("PendingCreateCaseActivity")
+        cls = find_in_vocabulary(
+            "PendingCreateCaseActivity", include_core=True
+        )
         assert cls is PendingCreateCaseActivity
 
     def test_report_case_link_resolves_correctly(self):
@@ -343,8 +346,58 @@ class TestCoreTypeMapFallback:
             VultronReportCaseLink,
         )
 
-        cls = find_in_vocabulary("ReportCaseLink")
+        cls = find_in_vocabulary("ReportCaseLink", include_core=True)
         assert cls is VultronReportCaseLink
+
+    @pytest.mark.spec("VM-06-008")
+    def test_default_lookup_refuses_every_core_only_name(self):
+        """The default lookup is wire-only: a name held only by CORE_TYPE_MAP
+        raises ``KeyError`` rather than handing a wire caller a core class.
+
+        Measured over the whole map, not a sample, so a newly registered
+        core-only name is covered without editing this test.
+        """
+        from vultron.core.models.registry import CORE_TYPE_MAP
+
+        core_only = [
+            name
+            for name in CORE_TYPE_MAP
+            if name not in WIRE_TYPE_MAP and name not in VOCABULARY
+        ]
+        assert core_only, "population guard: expected core-only names"
+        for name in core_only:
+            with pytest.raises(KeyError):
+                find_in_vocabulary(name)
+            assert find_in_vocabulary(name, include_core=True) is (
+                CORE_TYPE_MAP[name]
+            )
+
+    @pytest.mark.spec("VM-06-008")
+    def test_default_lookup_admits_core_class_registered_as_wire_type(self):
+        """Registry membership, not branch ancestry, is the discriminator.
+
+        ADR-0099 detail 3 registers ``VulnerabilityCase`` in ``WIRE_TYPE_MAP``
+        as its own wire form, so an ``as_Base``-only rule would refuse the
+        canonical case type.
+        """
+        from vultron.core.models.case import VulnerabilityCase
+
+        assert find_in_vocabulary("VulnerabilityCase") is VulnerabilityCase
+
+    @pytest.mark.spec("VM-06-008")
+    def test_default_lookup_returns_only_wire_registry_classes(self):
+        """Every default answer is an ``as_Base`` subclass or a class the wire
+        type map holds under that name."""
+        from vultron.core.models.registry import CORE_TYPE_MAP
+        from vultron.wire.as2.vocab.base.base import as_Base
+
+        names = set(WIRE_TYPE_MAP) | set(VOCABULARY) | set(CORE_TYPE_MAP)
+        for name in names:
+            try:
+                cls = find_in_vocabulary(name)
+            except KeyError:
+                continue
+            assert issubclass(cls, as_Base) or WIRE_TYPE_MAP.get(name) is cls
 
 
 class TestDisjointKeys:

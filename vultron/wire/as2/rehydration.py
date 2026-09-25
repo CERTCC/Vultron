@@ -412,6 +412,9 @@ def _cast_to_vocabulary_type(obj: as_Object, dl: DataLayer) -> as_Object:
         raise ValueError(f"Object {obj} has no 'type_' attribute.")
     if obj.type_ is None:
         raise ValueError(f"Object {obj} has no 'type_' value.")
+    # Wire-only lookup (VM-06-008): this rehydrates a wire tree to wire
+    # classes, and a core-only name must be an unknown type here, not a core
+    # class returned as ``as_Object``.
     try:
         cls = find_in_vocabulary(obj.type_)
     except KeyError:
