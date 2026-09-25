@@ -1,9 +1,14 @@
 """Tests for CoreObject base class and CORE_VOCABULARY registry."""
 
+import importlib.util
+import pathlib
+import tokenize
 from typing import Literal
 
 import pytest
 from pydantic import BaseModel
+
+import vultron
 
 from vultron.core.models import (
     CORE_VOCABULARY,
@@ -17,7 +22,7 @@ from vultron.core.models.case_ledger_entry import (
 )
 from vultron.core.models.note import VultronNote
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.report import VulnerabilityReport, VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 
 # --- Inheritance shape ------------------------------------------------------
@@ -234,11 +239,6 @@ def test_vulnerability_report_inherits_core_object():
     assert CORE_VOCABULARY["VulnerabilityReport"] is VulnerabilityReport
 
 
-def test_vultron_report_alias_is_vulnerability_report():
-    """VultronReport backward-compat alias must resolve to VulnerabilityReport."""
-    assert VultronReport is VulnerabilityReport
-
-
 def test_vulnerability_record_inherits_core_object():
     """VulnerabilityRecord (new in #727) must be a CoreObject subclass."""
     assert issubclass(VulnerabilityRecord, CoreObject)
@@ -262,6 +262,21 @@ def test_vulnerability_case_inherits_core_object():
     assert CORE_VOCABULARY["VulnerabilityCase"] is VulnerabilityCase
 
 
+_RETIRED_CORE_ALIASES = frozenset(
+    {
+        # #3431
+        "VultronCase",
+        "VultronCaseLedgerEntry",
+        "VultronCaseLedgerEntryRef",
+        # #3678
+        "VultronCaseActor",
+        "VultronReport",
+        "VultronEmbargoEvent",
+        "VultronParticipant",
+    }
+)
+
+
 def test_retired_case_and_ledger_entry_aliases_are_gone():
     """``VultronCase`` and ``VultronCaseLedgerEntry(Ref)`` are removed (#3431).
 
@@ -272,18 +287,70 @@ def test_retired_case_and_ledger_entry_aliases_are_gone():
     """
     import vultron.core.models.case as case_module
     import vultron.core.models.case_ledger_entry as ledger_module
-    import vultron.core.models.vultron_types as types_module
     import vultron.wire.as2.vocab.objects.case_ledger_entry as wire_module
 
     for module, name in (
         (case_module, "VultronCase"),
-        (types_module, "VultronCase"),
         (ledger_module, "VultronCaseLedgerEntry"),
         (ledger_module, "VultronCaseLedgerEntryRef"),
         (wire_module, "VultronCaseLedgerEntry"),
         (wire_module, "VultronCaseLedgerEntryRef"),
     ):
         assert not hasattr(module, name), f"{module.__name__}.{name}"
+
+
+def test_retired_vultron_prefixed_aliases_are_gone():
+    """The last ``Vultron``-prefixed core aliases are removed (#3678).
+
+    ``VultronCaseActor``, ``VultronReport``, ``VultronEmbargoEvent`` and
+    ``VultronParticipant`` were assignment aliases of ``CaseActor``,
+    ``VulnerabilityReport``, ``EmbargoEvent`` and ``CaseParticipant``
+    (CS-15-001, CS-12-001).
+    """
+    import vultron.core.models.case_actor as case_actor_module
+    import vultron.core.models.case_participant as participant_module
+    import vultron.core.models.embargo_event as embargo_event_module
+    import vultron.core.models.report as report_module
+    import vultron.wire.as2.vocab.objects.case_participant as wire_module
+
+    for module, name in (
+        (case_actor_module, "VultronCaseActor"),
+        (report_module, "VultronReport"),
+        (embargo_event_module, "VultronEmbargoEvent"),
+        (participant_module, "VultronParticipant"),
+        (wire_module, "VultronParticipant"),
+    ):
+        assert not hasattr(module, name), f"{module.__name__}.{name}"
+
+
+@pytest.mark.parametrize(
+    "module_name",
+    ["vultron.core.models.vultron_types", "vultron.core.models.participant"],
+)
+def test_retired_core_model_shim_modules_are_gone(module_name):
+    """The re-export shim modules are deleted, not emptied (#3678, CS-15-001)."""
+    assert importlib.util.find_spec(module_name) is None
+
+
+def test_no_source_module_names_a_retired_core_alias():
+    """No identifier anywhere under ``vultron/`` spells a retired alias.
+
+    The per-module checks above catch a re-added definition in its old home;
+    this catches one re-introduced anywhere else, or a stale reference.
+    """
+    package_root = pathlib.Path(vultron.__file__).parent
+    offenders = []
+    for path in sorted(package_root.rglob("*.py")):
+        with path.open("rb") as handle:
+            for token in tokenize.tokenize(handle.readline):
+                if (
+                    token.type == tokenize.NAME
+                    and token.string in _RETIRED_CORE_ALIASES
+                ):
+                    offenders.append(
+                        f"{path}:{token.start[0]}: {token.string}"
+                    )
+    assert offenders == []
 
 
 # ---------------------------------------------------------------------------

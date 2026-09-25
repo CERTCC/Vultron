@@ -626,10 +626,10 @@ use cases, designing the `EmbargoLifecycle` service (#538), auditing inline
 
 **`codebase-structure.md`**
 Module conventions and known gaps: top-level modules, enum refactoring,
-`vultron_types.py` split (TECHDEBT-14), `CVDRoles` design decision, BT
-module boundary (`vultron/bt/` vs `vultron/core/behaviors/`), demo script
-patterns (`demo_step` / `demo_check`), docstring/markdown compatibility,
-bulk module-rename lessons, and known documentation gaps.
+`CVDRoles` design decision, BT module boundary (`vultron/bt/` vs
+`vultron/core/behaviors/`), demo script patterns (`demo_step` /
+`demo_check`), docstring/markdown compatibility, bulk module-rename
+lessons, and known documentation gaps.
 **Load when**: adding or moving modules, following established code
 organization conventions, or orienting to the module boundary rules.
 

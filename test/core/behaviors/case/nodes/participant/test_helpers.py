@@ -21,10 +21,8 @@ from typing import Any, cast
 import pytest
 
 from vultron.core.behaviors.case.nodes import _create_and_attach_participant
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronParticipant,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
@@ -38,7 +36,7 @@ class TestCreateAndAttachParticipant:
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
-        participant = VultronParticipant(
+        participant = CaseParticipant(
             attributed_to=actor_id,
             context=case_obj.id_,
             case_roles=[CVDRole.VENDOR],
@@ -59,7 +57,7 @@ class TestCreateAndAttachParticipant:
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
-        participant = VultronParticipant(
+        participant = CaseParticipant(
             attributed_to=actor_id,
             context=case_obj.id_,
             case_roles=[CVDRole.VENDOR],
@@ -81,7 +79,7 @@ class TestCreateAndAttachParticipant:
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
-        participant = VultronParticipant(
+        participant = CaseParticipant(
             attributed_to=actor_id,
             context=case_obj.id_,
             case_roles=[CVDRole.VENDOR],
@@ -103,7 +101,7 @@ class TestCreateAndAttachParticipant:
         actor_id: str,
     ) -> None:
         """The returned case is unsaved; the caller controls the final save."""
-        participant = VultronParticipant(
+        participant = CaseParticipant(
             attributed_to=actor_id,
             context=case_obj.id_,
             case_roles=[CVDRole.VENDOR],
@@ -126,7 +124,7 @@ class TestCreateAndAttachParticipant:
         actor_id: str,
     ) -> None:
         """Calling twice does not create a duplicate participant."""
-        participant = VultronParticipant(
+        participant = CaseParticipant(
             attributed_to=actor_id,
             context=case_obj.id_,
             case_roles=[CVDRole.VENDOR],
@@ -146,7 +144,7 @@ class TestCreateAndAttachParticipant:
     def test_returns_none_when_case_not_found(
         self, bt_scenario: BTTestScenario, actor_id: str
     ) -> None:
-        participant = VultronParticipant(
+        participant = CaseParticipant(
             attributed_to=actor_id,
             context="https://example.org/cases/missing",
             case_roles=[CVDRole.VENDOR],

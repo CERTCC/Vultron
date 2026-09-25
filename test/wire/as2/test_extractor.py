@@ -96,7 +96,7 @@ def test_activity_pattern_match_returns_false_for_wrong_activity_type():
 @pytest.mark.spec("VAM-02-001")
 @pytest.mark.spec("SE-01-002")
 def test_extract_intent_report_pass_through_fields():
-    """New VultronReport fields (summary, url, media_type, published, updated) survive extraction."""
+    """New VulnerabilityReport fields (summary, url, media_type, published, updated) survive extraction."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
@@ -156,7 +156,7 @@ def test_extract_intent_case_pass_through_fields():
 
 @pytest.mark.spec("VAM-05-001")
 def test_extract_intent_embargo_pass_through_fields():
-    """New VultronEmbargoEvent fields (published, updated) survive extraction."""
+    """New EmbargoEvent fields (published, updated) survive extraction."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
@@ -262,7 +262,7 @@ def test_extract_intent_preserves_sender_published_timestamp():
 
 @pytest.mark.spec("VAM-06-001")
 def test_extract_intent_participant_case_roles():
-    """VultronParticipant.case_roles is populated from the wire as_CaseParticipant."""
+    """CaseParticipant.case_roles is populated from the wire as_CaseParticipant."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )

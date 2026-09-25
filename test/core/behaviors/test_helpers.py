@@ -33,7 +33,6 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.participant import VultronParticipant
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from test.support.participant_status import advance_participant_rm
@@ -205,7 +204,7 @@ def test_find_participant_by_actor_id_success_writes_blackboard(
 ):
     """FindParticipantByActorIdNode stores the matched participant."""
     target_actor_id = "https://example.org/actors/vendor-1"
-    participant = VultronParticipant(
+    participant = CaseParticipant(
         id_="https://example.org/participants/vendor-1",
         attributed_to=target_actor_id,
         context="https://example.org/cases/case-1",
@@ -271,7 +270,7 @@ def test_find_participant_by_actor_id_fails_when_actor_not_participant(
     bridge, datalayer
 ):
     """FindParticipantByActorIdNode returns FAILURE on actor mismatch."""
-    participant = VultronParticipant(
+    participant = CaseParticipant(
         id_="https://example.org/participants/vendor-2",
         attributed_to="https://example.org/actors/vendor-2",
         context="https://example.org/cases/case-2",

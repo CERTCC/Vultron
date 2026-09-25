@@ -26,10 +26,10 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.report import AckReportReceivedEvent
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.report import AckReportReceivedUseCase
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -81,7 +81,7 @@ def _make_case_store(owner_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
 
-    ca_svc = VultronCaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
+    ca_svc = CaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
     case = as_VulnerabilityCase(
@@ -113,7 +113,7 @@ def _make_ack_event(
     receiving_actor_id: str | None = CASE_ACTOR_ID,
 ) -> AckReportReceivedEvent:
     """Construct an AckReportReceivedEvent (Read(Offer(Report)))."""
-    report_obj = VultronReport(id_=REPORT_ID)
+    report_obj = VulnerabilityReport(id_=REPORT_ID)
     offer_obj = VultronActivity(
         id_=OFFER_ID,
         type_="Offer",

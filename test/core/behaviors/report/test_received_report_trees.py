@@ -53,10 +53,10 @@ from vultron.core.models.events.report import (
     CreateReportReceivedEvent,
     InvalidateReportReceivedEvent,
 )
-from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.report import VultronReport as CoreReport
+from vultron.core.models.report import VulnerabilityReport as CoreReport
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.report import (
     AckReportReceivedUseCase,
@@ -113,7 +113,7 @@ def _setup_case_with_participant(
     report_id: str = REPORT_ID,
     actor_id: str = ACTOR_ID,
     initial_rm: RM = RM.RECEIVED,
-) -> tuple[as_VulnerabilityCase, VultronParticipant]:
+) -> tuple[as_VulnerabilityCase, CaseParticipant]:
     """Create and persist a as_VulnerabilityCase linked to a report.
 
     Adds a CaseParticipant for *actor_id* so RM transition nodes can find
@@ -125,7 +125,7 @@ def _setup_case_with_participant(
     report = CoreReport(id_=report_id)
     dl.save(report)
 
-    participant = VultronParticipant(
+    participant = CaseParticipant(
         id_=PARTICIPANT_ID,
         attributed_to=actor_id,
         context=CASE_ID,
@@ -294,7 +294,7 @@ class TestCreateParticipantStatusNodeClosed:
         assert result.status == Status.SUCCESS
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
-        participant = cast(VultronParticipant, dl.read(p_id))
+        participant = cast(CaseParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
     def test_no_case_id_fails(self, dl, bridge, caplog):
@@ -373,7 +373,7 @@ class TestCreateParticipantStatusNodeInvalid:
         assert result.status == Status.SUCCESS
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
-        participant = cast(VultronParticipant, dl.read(p_id))
+        participant = cast(CaseParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_no_case_id_fails(self, dl, bridge, caplog):
@@ -625,7 +625,7 @@ class TestCloseReportReceivedTree:
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
-        participant = cast(VultronParticipant, dl.read(p_id))
+        participant = cast(CaseParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
     def test_no_case_fails_after_storing_activity(self, dl, caplog):
@@ -680,7 +680,7 @@ class TestCloseReportReceivedUseCase:
         assert _activity_stored(dl, ACTIVITY_ID)
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
-        participant = cast(VultronParticipant, dl.read(p_id))
+        participant = cast(CaseParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
     def test_use_case_warns_when_no_case(self, caplog):
@@ -727,7 +727,7 @@ class TestInvalidateReportReceivedTree:
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
-        participant = cast(VultronParticipant, dl.read(p_id))
+        participant = cast(CaseParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_no_case_fails_after_storing_activity(self, dl, caplog):
@@ -784,7 +784,7 @@ class TestInvalidateReportReceivedUseCase:
         assert _activity_stored(dl, ACTIVITY_ID)
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
-        participant = cast(VultronParticipant, dl.read(p_id))
+        participant = cast(CaseParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_use_case_warns_when_no_case(self, caplog):

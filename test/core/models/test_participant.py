@@ -1,10 +1,10 @@
-"""Unit tests for VultronParticipant role-management API (PRM-05-001–PRM-05-004)."""
+"""Unit tests for CaseParticipant role-management API (PRM-05-001–PRM-05-004)."""
 
 import logging
 
 import pytest
 
-from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 
 # ---------------------------------------------------------------------------
@@ -17,8 +17,8 @@ _CONTEXT = "https://example.org/cases/case-001"
 
 def _make_participant(
     roles: list[CVDRole] | None = None,
-) -> VultronParticipant:
-    return VultronParticipant(
+) -> CaseParticipant:
+    return CaseParticipant(
         attributed_to=_ACTOR,
         context=_CONTEXT,
         case_roles=roles or [],
@@ -31,7 +31,7 @@ def _make_participant(
 
 
 class TestRolesProperty:
-    """Tests for VultronParticipant.roles read-only property (PRM-01-001)."""
+    """Tests for CaseParticipant.roles read-only property (PRM-01-001)."""
 
     def test_roles_returns_list(self):
         """roles property returns a list."""
@@ -68,7 +68,7 @@ class TestRolesProperty:
 
 
 class TestHasRole:
-    """Tests for VultronParticipant.has_role() (PRM-05-003)."""
+    """Tests for CaseParticipant.has_role() (PRM-05-003)."""
 
     def test_has_role_present_returns_true(self):
         """has_role() returns True when the role is held (PRM-05-003a)."""
@@ -99,7 +99,7 @@ class TestHasRole:
 
 
 class TestAddRole:
-    """Tests for VultronParticipant.add_role() (PRM-05-001)."""
+    """Tests for CaseParticipant.add_role() (PRM-05-001)."""
 
     def test_add_role_new(self):
         """add_role() adds a new role to the participant (PRM-05-001a)."""
@@ -158,7 +158,7 @@ class TestAddRole:
 
 
 class TestRemoveRole:
-    """Tests for VultronParticipant.remove_role() (PRM-05-002)."""
+    """Tests for CaseParticipant.remove_role() (PRM-05-002)."""
 
     def test_remove_role_present(self):
         """remove_role() removes a role that is held (PRM-05-002a)."""

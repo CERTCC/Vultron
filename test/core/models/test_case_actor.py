@@ -17,7 +17,6 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_actor import (
     CaseActor,
-    VultronCaseActor,
     VultronOutbox,
 )
 from vultron.core.models.registry import CORE_VOCABULARY
@@ -63,18 +62,6 @@ class TestCaseActorRegistration:
     def test_not_registered_under_service_key(self):
         # "Service" key belongs to the wire layer, not core
         assert CORE_VOCABULARY.get("Service") is not CaseActor
-
-
-class TestCaseActorBackwardCompatAlias:
-    """VultronCaseActor must be an alias for CaseActor."""
-
-    def test_alias_is_same_class(self):
-        assert VultronCaseActor is CaseActor
-
-    def test_alias_construction_works(self):
-        actor = VultronCaseActor()
-        assert isinstance(actor, CaseActor)
-        assert actor.type_ == "Service"
 
 
 class TestCaseActorWireRoundTrip:

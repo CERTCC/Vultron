@@ -172,7 +172,7 @@ services:
       - "${COORDINATOR_HOST_PORT:-0}:7999"
 
   # ── CaseActor ─────────────────────────────────────────────────────────────
-  # Hosts the VultronCaseActor that manages case state and broadcasts updates
+  # Hosts the CaseActor that manages case state and broadcasts updates
   # to all case participants.  For D5-2 (FV scenario), CaseActor MAY
   # run in the vendor container instead; this dedicated service is required
   # for D5-3 and later (three-actor scenarios).
@@ -180,7 +180,7 @@ services:
   # CaseActor instantiation strategy (D5-1-G3):
   #   - Container identity: VultronService actor pre-seeded with a fixed
   #     VULTRON_ACTOR_ID on first `vultron-demo seed` run.
-  #   - Per-case VultronCaseActor records are created by CreateCaseActorNode
+  #   - Per-case CaseActor records are created by CreateCaseActorNode
   #     at case creation time.  Currently written to the local DataLayer of
   #     whichever container runs the BT (#1700); the intent is for all
   #     containers to delegate to this dedicated case-actor container.

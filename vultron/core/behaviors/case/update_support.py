@@ -22,7 +22,7 @@ from typing import Any, cast
 
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.vultron_types import VultronActivity
+from vultron.core.models.activity import VultronActivity
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,

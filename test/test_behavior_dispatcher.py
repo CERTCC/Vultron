@@ -16,7 +16,7 @@ from vultron.core.models.events import (
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import (
@@ -65,7 +65,7 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
     event = CreateReportReceivedEvent(
         activity_id="act-xyz",
         actor_id="https://example.org/users/tester",
-        object_=VultronReport(content="test report"),
+        object_=VulnerabilityReport(content="test report"),
         activity=VultronActivity(
             type_="Create", actor="https://example.org/users/tester"
         ),
@@ -386,7 +386,7 @@ def _create_report_event() -> CreateReportReceivedEvent:
     return CreateReportReceivedEvent(
         activity_id="act-verdict",
         actor_id="https://example.org/users/tester",
-        object_=VultronReport(content="test report"),
+        object_=VulnerabilityReport(content="test report"),
         activity=VultronActivity(
             type_="Create", actor="https://example.org/users/tester"
         ),

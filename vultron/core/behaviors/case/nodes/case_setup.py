@@ -35,7 +35,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models.vultron_types import VulnerabilityCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.errors import VultronAlreadyExistsError
 
 
@@ -204,7 +204,7 @@ class PublishCaseActorIdentityNode(DataLayerActionWithPorts):
 
     Replaces ``ResolveCaseActorUrlsNode``, which derived a *per-case* identity —
     ``{case_actor_service_url}/actors/case-actor-{slug}`` — and also created a
-    per-case ``VultronCaseActor`` ``Service`` object to go with it. Both were
+    per-case ``CaseActor`` ``Service`` object to go with it. Both were
     wrong for the same reason: the CaseActor is a participant wearing the
     `CVDRole.CASE_MANAGER` hat, not a per-case entity, and an identity the sender
     invents is one no container hosts, so delivery to it 404s permanently
@@ -302,7 +302,7 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
         )
         from vultron.core.behaviors.store_scope import store_for_actor
         from vultron.core.models.case_actor import (
-            CaseActor as VultronCaseActor,
+            CaseActor as CaseActor,
         )
 
         if (f := self._require_datalayer()) is not None:
@@ -318,7 +318,7 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
             self.logger.error(self.feedback_message)
             return Status.FAILURE
 
-        case_actor = VultronCaseActor(id_=case_actor_id, name="CaseActor")
+        case_actor = CaseActor(id_=case_actor_id, name="CaseActor")
         own_store = store_for_actor(
             self.datalayer, case_actor_id, require_same_authority=True
         )

@@ -49,10 +49,7 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronParticipant,
-)
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -67,8 +64,8 @@ VENDOR_ACTOR_ID = "https://example.org/actors/vendor-mit-001"
 
 
 @pytest.fixture
-def deployer_participant() -> VultronParticipant:
-    return VultronParticipant(
+def deployer_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/deployer-mit-cp-001",
         attributed_to=DEPLOYER_ACTOR_ID,
         context=CASE_ID,
@@ -79,7 +76,7 @@ def deployer_participant() -> VultronParticipant:
 @pytest.fixture
 def case_with_deployer(
     bt_scenario: BTTestScenario,
-    deployer_participant: VultronParticipant,
+    deployer_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_=CASE_ID,
@@ -488,7 +485,7 @@ def test_non_deployer_role_skips_deploy_arm(
 
     The monitor arm (AlwaysSucceed defaults) then rescues the tree.
     """
-    non_deployer = VultronParticipant(
+    non_deployer = CaseParticipant(
         id_="https://example.org/participants/vendor-mit-cp-001",
         attributed_to=VENDOR_ACTOR_ID,
         context=CASE_ID,

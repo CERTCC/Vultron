@@ -25,7 +25,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import SubmitReportReceivedEvent
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.report import SubmitReportReceivedUseCase
@@ -62,9 +62,9 @@ class TestSubmitReportLogMessages:
         """
         import logging
 
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
-        report = VultronReport(id_="https://example.org/reports/r-log-1")
+        report = VulnerabilityReport(id_="https://example.org/reports/r-log-1")
         activity = VultronActivity(
             id_="https://example.org/activities/submit-log-1",
             type_="Offer",
@@ -85,7 +85,7 @@ class TestSubmitReportLogMessages:
             actor_id="https://example.org/actors/vendor",
         )
         # CreateCaseParticipantNode reads the vendor actor from DataLayer.
-        dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
+        dl.save(CaseActor(id_="https://example.org/actors/vendor"))
 
         with caplog.at_level(logging.INFO):
             SubmitReportReceivedUseCase(
@@ -121,9 +121,9 @@ class TestSubmitReportCreatesCase:
         vendor_id: str = VENDOR_ID,
         finder_id: str = FINDER_ID,
     ):
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
-        report = VultronReport(id_=report_id)
+        report = VulnerabilityReport(id_=report_id)
         activity = VultronActivity(
             id_=offer_id,
             type_="Offer",
@@ -143,7 +143,7 @@ class TestSubmitReportCreatesCase:
             actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
         dl.save(report)
-        vendor_actor = VultronCaseActor(id_=vendor_id)
+        vendor_actor = CaseActor(id_=vendor_id)
         dl.save(vendor_actor)
         return event, dl
 
@@ -241,7 +241,7 @@ class TestSubmitReportCreatesCase:
 
         py_trees.blackboard.Blackboard.storage.clear()
         try:
-            report = VultronReport(
+            report = VulnerabilityReport(
                 id_="https://example.org/reports/r-nostamp-1"
             )
             activity = VultronActivity(
@@ -258,11 +258,11 @@ class TestSubmitReportCreatesCase:
                 activity=activity,
                 receiving_actor_id=None,
             )
-            from vultron.core.models.case_actor import VultronCaseActor
+            from vultron.core.models.case_actor import CaseActor
 
             dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
             dl.save(report)
-            dl.save(VultronCaseActor(id_=self.VENDOR_ID))
+            dl.save(CaseActor(id_=self.VENDOR_ID))
 
             SubmitReportReceivedUseCase(
                 dl, event, trigger_activity=TriggerActivityAdapter(dl)
@@ -288,7 +288,9 @@ class TestSubmitReportCreatesCase:
         If Offer.to is absent (or receiving actor is not listed), the use case
         logs a WARNING and returns without creating a case (HP-09-001).
         """
-        report = VultronReport(id_="https://example.org/reports/r-no-to-1")
+        report = VulnerabilityReport(
+            id_="https://example.org/reports/r-no-to-1"
+        )
         activity = VultronActivity(
             id_="https://example.org/activities/offer-no-to-1",
             type_="Offer",
@@ -326,9 +328,9 @@ class TestSubmitReportAutoCreateCasePolicy:
     OFFER_ID = "https://example.org/activities/offer-policy-1"
 
     def _make_event_and_dl(self):
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
-        report = VultronReport(id_=self.REPORT_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         activity = VultronActivity(
             id_=self.OFFER_ID,
             type_="Offer",
@@ -347,7 +349,7 @@ class TestSubmitReportAutoCreateCasePolicy:
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
-        dl.save(VultronCaseActor(id_=self.VENDOR_ID))
+        dl.save(CaseActor(id_=self.VENDOR_ID))
         return event, dl
 
     def test_auto_create_disabled_stores_report_and_offer_no_case(self):
@@ -388,7 +390,7 @@ class TestSubmitReportAutoCreateCasePolicy:
         from vultron.config.actor import ActorConfig
 
         event, dl = self._make_event_and_dl()
-        dl.save(VultronReport(id_=self.REPORT_ID))
+        dl.save(VulnerabilityReport(id_=self.REPORT_ID))
         SubmitReportReceivedUseCase(
             dl,
             event,
@@ -402,7 +404,7 @@ class TestSubmitReportAutoCreateCasePolicy:
     def test_no_actor_config_creates_case(self):
         """AC-1: absent ActorConfig preserves always-send-proposal behavior (ADR-0041)."""
         event, dl = self._make_event_and_dl()
-        dl.save(VultronReport(id_=self.REPORT_ID))
+        dl.save(VulnerabilityReport(id_=self.REPORT_ID))
         SubmitReportReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
@@ -427,7 +429,7 @@ class TestOfferAddressingSemantics:
         target: str | None = None,
         receiving_actor_id: str | None = None,
     ) -> SubmitReportReceivedEvent:
-        report = VultronReport(id_=self.REPORT_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         activity = VultronActivity(
             id_=self.OFFER_ID,
             type_="Offer",
@@ -446,14 +448,14 @@ class TestOfferAddressingSemantics:
         )
 
     def _make_dl(self) -> SqliteDataLayer:
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
-        dl.save(VultronReport(id_=self.REPORT_ID))
-        dl.save(VultronCaseActor(id_=self.VENDOR_ID))
+        dl.save(VulnerabilityReport(id_=self.REPORT_ID))
+        dl.save(CaseActor(id_=self.VENDOR_ID))
         return dl
 
     def test_receiving_actor_in_to_creates_case(self):
@@ -584,9 +586,9 @@ class TestSubmitReportStoresOfferRecord:
     OFFER_ID = "https://example.org/activities/offer-rec-1"
 
     def _make_event_and_dl(self):
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
-        report = VultronReport(id_=self.REPORT_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         activity = VultronActivity(
             id_=self.OFFER_ID,
             type_="Offer",
@@ -605,7 +607,7 @@ class TestSubmitReportStoresOfferRecord:
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
-        dl.save(VultronCaseActor(id_=self.VENDOR_ID))
+        dl.save(CaseActor(id_=self.VENDOR_ID))
         return event, dl
 
     def test_stores_offer_record_on_received(self):

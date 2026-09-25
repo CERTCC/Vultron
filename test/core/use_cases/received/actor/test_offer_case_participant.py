@@ -591,7 +591,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
     AC-1: Full round-trip — Accept(Offer(CaseParticipant[roles])) →
           EmitInviteActorToCaseNode (roles=None, no blackboard key) →
           Invite(roles=None) stored → Accept(Invite) →
-          VultronParticipant.case_roles == [].
+          CaseParticipant.case_roles == [].
 
     AC-2: Confirm that EmitInviteActorToCaseNode with no ``suggested_roles``
           blackboard key passes roles=None to invite_actor_to_case(), verifying
@@ -689,7 +689,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             invite_obj is not None
         ), "Invite must be present in CaseActor outbox"
 
-        # Step 3: invitee sends Accept(Invite) — BT creates VultronParticipant
+        # Step 3: invitee sends Accept(Invite) — BT creates CaseParticipant
         py_trees.blackboard.Blackboard.storage.clear()
         from vultron.core.models.events.actor import (
             AcceptInviteActorToCaseReceivedEvent,

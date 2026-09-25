@@ -33,7 +33,7 @@ from vultron.core.behaviors.status.nodes.case_status import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.vultron_types import VultronParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from test.core.behaviors.bt_harness import BTTestScenario
 
 _CASE_ID = "https://example.org/cases/case-001"
@@ -73,7 +73,7 @@ def _seed_case_with_participant(
     """Seed a case that already has the invitee as a participant."""
     from vultron.core.models.replication_state import VultronReplicationState
 
-    participant = VultronParticipant(
+    participant = CaseParticipant(
         id_=f"{_CASE_ID}/participants/invitee",
         attributed_to=_INVITEE_ID,
         context=_CASE_ID,

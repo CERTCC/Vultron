@@ -15,7 +15,7 @@
 
 """Domain representation of a case participant and role subclasses.
 
-``CaseParticipant`` is the canonical core type.  ``VultronParticipant`` is
+``CaseParticipant`` is the canonical core type.  ``CaseParticipant`` is
 kept as a backward-compatibility alias.
 
 Several convenience subclasses are provided that auto-set ``case_roles`` via
@@ -497,12 +497,3 @@ class CaseActorParticipant(CaseParticipant):
             if isinstance(latest, ParticipantStatus):
                 latest.cvd_role = coerce_cvd_roles(roles)
         return data
-
-
-# ---------------------------------------------------------------------------
-# Backward-compatibility alias
-# ---------------------------------------------------------------------------
-
-#: Alias kept for backward compatibility.  New code should import
-#: :class:`CaseParticipant` directly.
-VultronParticipant = CaseParticipant

@@ -36,7 +36,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models.vultron_types import VultronCreateCaseActivity
+from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)

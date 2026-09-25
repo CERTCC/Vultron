@@ -22,7 +22,7 @@ from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.use_cases.received.case.update import (
     UpdateCaseReceivedUseCase,
 )
@@ -51,7 +51,7 @@ def _make_receiver_the_case_manager(dl, case, receiver_id=None):
 
     ``GuardedBroadcastCaseUpdateBT`` gates the announce on
     ``CheckIsCaseManagerNode``, which reads the **role** resolved from the case —
-    not the presence of a ``VultronCaseActor`` service entity. A service-only
+    not the presence of a ``CaseActor`` service entity. A service-only
     fixture makes the gate correctly *skip*, so nothing is announced and the test
     proves nothing (BT-17-005).
 
@@ -356,7 +356,7 @@ class TestCaseUseCases:
         )
         dl.create(bogus_ref)
 
-        case_actor = VultronCaseActor(
+        case_actor = CaseActor(
             id_=f"{case_id}/actor",
             name=f"CaseActor for {case_id}",
             attributed_to=owner_id,
@@ -410,7 +410,7 @@ class TestCaseUseCases:
         participant_id = "https://example.org/users/alice"
         case_id = "https://example.org/cases/bc1"
 
-        case_actor = VultronCaseActor(
+        case_actor = CaseActor(
             id_=f"{case_id}/actor",
             name=f"CaseActor for {case_id}",
             attributed_to=owner_id,
@@ -489,7 +489,7 @@ class TestCaseUseCases:
         owner_id = "https://example.org/users/owner"
         case_id = "https://example.org/cases/bc3"
 
-        case_actor = VultronCaseActor(
+        case_actor = CaseActor(
             id_=f"{case_id}/actor",
             name=f"CaseActor for {case_id}",
             attributed_to=owner_id,
@@ -526,7 +526,7 @@ class TestCaseUseCases:
         alice = "https://example.org/users/alice"
         bob = "https://example.org/users/bob"
 
-        case_actor = VultronCaseActor(
+        case_actor = CaseActor(
             id_=f"{case_id}/actor",
             name=f"CaseActor for {case_id}",
             attributed_to=owner_id,

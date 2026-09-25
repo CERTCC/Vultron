@@ -524,7 +524,7 @@ class TestRolesThreadingIntegration:
 
     InviteActorToCaseTriggerRequest.roles flows through the BT blackboard
     (suggested_roles) → Invite wire object → Accept(Invite) BT →
-    VultronParticipant.case_roles.
+    CaseParticipant.case_roles.
     """
 
     def setup_method(self):
@@ -539,7 +539,7 @@ class TestRolesThreadingIntegration:
         py_trees.blackboard.Blackboard.disable_activity_stream()
 
     def _run_round_trip(self, roles, make_payload):
-        """Trigger Invite then Accept(Invite); return the new VultronParticipant."""
+        """Trigger Invite then Accept(Invite); return the new CaseParticipant."""
         from typing import Any, cast
         from unittest.mock import MagicMock
 
@@ -629,7 +629,7 @@ class TestRolesThreadingIntegration:
         self, make_payload
     ):
         """AC-1 (CM-17-003/004): roles=[CVDRole.VENDOR] in request results in
-        VultronParticipant.case_roles=[CVDRole.VENDOR] after Accept(Invite)."""
+        CaseParticipant.case_roles=[CVDRole.VENDOR] after Accept(Invite)."""
         participant = self._run_round_trip(
             roles=[CVDRole.VENDOR], make_payload=make_payload
         )
@@ -639,7 +639,7 @@ class TestRolesThreadingIntegration:
 
     def test_ac2_none_roles_gives_empty_case_roles(self, make_payload):
         """AC-2 (CM-17-003/004): roles=None in request results in
-        VultronParticipant.case_roles=[] after Accept(Invite)."""
+        CaseParticipant.case_roles=[] after Accept(Invite)."""
         participant = self._run_round_trip(
             roles=None, make_payload=make_payload
         )

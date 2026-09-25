@@ -67,9 +67,9 @@ def case_manager_case(datalayer):
     same role (ADR-0088, ARCH-24-004) and returns FAILURE without it.
 
     Note that the role is modelled as a ``CaseParticipant`` carrying
-    ``case_roles``, not as the ``VultronCaseActor`` service entity — those are
+    ``case_roles``, not as the ``CaseActor`` service entity — those are
     different things, and only the former satisfies either node.  A
-    ``VultronCaseActor`` whose ``context`` was the case id used to be enough for
+    ``CaseActor`` whose ``context`` was the case id used to be enough for
     ``FindCaseActorNode``; ADR-0088 retired that hosting signal, so this module
     no longer creates one.
     """

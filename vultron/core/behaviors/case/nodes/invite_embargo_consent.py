@@ -31,7 +31,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.vultron_types import VultronParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 
@@ -118,7 +118,7 @@ class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts):
     def update(self) -> Status:
         participant = self.new_invite_participant
         active_embargo_id = self.active_embargo_id
-        if not isinstance(participant, VultronParticipant) or not isinstance(
+        if not isinstance(participant, CaseParticipant) or not isinstance(
             active_embargo_id, str
         ):
             self.logger.error(

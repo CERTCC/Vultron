@@ -68,7 +68,3 @@ class EmbargoEvent(CoreObject):
         parts.append(f"end: {self.end_time.isoformat()}")
         object.__setattr__(self, "name", " ".join(parts))
         return self
-
-
-# Backward-compatibility alias
-VultronEmbargoEvent = EmbargoEvent

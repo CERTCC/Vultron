@@ -27,11 +27,9 @@ from vultron.core.behaviors.case.nodes import (
     CreateAndPersistCaseActivityNode,
     EmitCreateCaseActivity,
 )
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronCaseActor,
-    VultronReport,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.report import VulnerabilityReport
 from test.core.behaviors.bt_harness import BTTestScenario
 
 # The URL used by tests as the CaseActor service base URL (CP-08-001).
@@ -72,22 +70,24 @@ def actor_id() -> str:
 
 
 @pytest.fixture
-def actor(bt_scenario: BTTestScenario, actor_id: str) -> VultronCaseActor:
-    obj = VultronCaseActor(id_=actor_id, name="Vendor Co")
+def actor(bt_scenario: BTTestScenario, actor_id: str) -> CaseActor:
+    obj = CaseActor(id_=actor_id, name="Vendor Co")
     bt_scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
-def report(bt_scenario: BTTestScenario) -> VultronReport:
-    obj = VultronReport(name="TEST-001", content="Test vulnerability report")
+def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
+    obj = VulnerabilityReport(
+        name="TEST-001", content="Test vulnerability report"
+    )
     bt_scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
 def case_obj(
-    bt_scenario: BTTestScenario, report: VultronReport
+    bt_scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_="https://example.org/cases/case-001",
@@ -118,7 +118,7 @@ class TestEmitCreateCaseActivity:
     def test_collect_case_addressees_filters_sender(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:
@@ -145,7 +145,7 @@ class TestEmitCreateCaseActivity:
     def test_create_and_persist_case_activity_writes_activity_id(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:

@@ -370,8 +370,9 @@ Recommended direction:
 2. Rehydration of wire objects from storage should be confined to the
    wire adapter layer, not shared with core.
 3. Core's interaction with the DataLayer should use core domain type keys
-   (`"VultronCase"`, `"VultronReport"`, etc.) rather than AS2 type
-   names (`"Case"`, `"VulnerabilityReport"`, etc.).
+   (the `CORE_VOCABULARY` class names, e.g. `"VulnerabilityCase"`,
+   `"VulnerabilityReport"`) rather than lookups in the wire vocabulary
+   registry.
 
 This separation allows the wire layer to evolve (or be replaced) without
 breaking DataLayer storage, and allows core to read/write domain objects

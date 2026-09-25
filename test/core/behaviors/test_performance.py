@@ -37,12 +37,12 @@ from vultron.core.behaviors.report.validate_tree import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.vultron_types import (
+from vultron.core.models.activity import (
     VultronAccept,
-    VultronCaseActor,
     VultronOffer,
-    VultronReport,
 )
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from test.support.participant_status import advance_participant_rm
@@ -104,7 +104,7 @@ def _mock_read_helper(
     if id_ in storage:
         return storage[id_]
     if "report" in id_:
-        return VultronReport(
+        return VulnerabilityReport(
             id_=id_,
             name="TEST-REPORT",
             content="Test vulnerability report",
@@ -116,7 +116,7 @@ def _mock_read_helper(
             object_="test-report-123",
         )
     if id_.startswith("https://example.org/"):
-        return VultronCaseActor(id_=id_, name="Test Actor")
+        return CaseActor(id_=id_, name="Test Actor")
     if raise_on_missing:
         raise ValueError(f"Object not found: {id_}")
     return None
@@ -216,7 +216,7 @@ def mock_datalayer():
 @pytest.fixture
 def sample_activity():
     """Sample validation activity for testing."""
-    report = VultronReport(
+    report = VulnerabilityReport(
         name="TEST-PERF-001",
         content="Performance test report",
     )
