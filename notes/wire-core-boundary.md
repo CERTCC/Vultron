@@ -100,13 +100,14 @@ Three MUST-level requirements made zero impossible:
   `from_core()`/`to_core()` methods were "**not required** for
   structurally-compatible types". It is ARCH-20-002 that made the projection
   method load-bearing, and therefore the import permanent.
-- **ARCH-12-010** — `find_in_vocabulary()` MUST consult the core
-  `CORE_TYPE_MAP`.
+- **ARCH-12-010** — `find_in_vocabulary()` MUST be able to consult the core
+  `CORE_TYPE_MAP`; since #3565 only when the caller passes `include_core=True`.
 
 ### ARCH-12-010 is a trap for wire-side callers
 
-`find_in_vocabulary()` must consult `CORE_TYPE_MAP`, but a **wire** caller that
-resolves an inline `type` string through it gets a core class placed inside a wire
+`find_in_vocabulary()` must be able to consult `CORE_TYPE_MAP`, and while that
+fallback was the default, a **wire** caller that resolved an inline `type`
+string through it got a core class placed inside a wire
 tree, which the wire parent's field type then rejects. The measured case: an
 inbound activity with an inline actor, whose `inbox` is typed `OrderedCollection`
 — registered *only* in the core map — expanded to a core `CoreActorCollection`
@@ -115,27 +116,28 @@ the inbound path to a bare `as_Link`. One instrumented suite run showed 52 hits,
 all from this single cause, with no malformed input involved (ISSUE-3217).
 
 The rule, now normative as **MV-04-003**: resolving an inline object's type
-inside a wire tree MUST consider wire-branch classes only
-(`issubclass(cls, as_Base)`); an unresolved type is left for the parent field to
-validate. A hit in the core map is a **coincidence of naming**, not a wire
+inside a wire tree MUST consider wire-branch classes only; an unresolved type is left for the parent field to
+validate. "Wire-branch" means *held by the wire registry* — an `as_Base`
+subclass or a class registered in `WIRE_TYPE_MAP` — not `as_Base` ancestry:
+since ADR-0099 detail 3 the canonical `VulnerabilityCase` is a core class
+registered as its own wire form, and an ancestry test would refuse it. A hit in
+the core map is a **coincidence of naming**, not a wire
 counterpart — the same disjointness ARCH-23-002 records for `VOCABULARY` and
 `WIRE_TYPE_MAP`. Wire-branch field annotations MUST NOT name `CoreObject`
 subclasses (ARCH-23-006; see § "`as_ObjectRef`: The Former Kludge" below for
 the history). The *name lookup* path is the wrong way to place a core object
 in a wire tree; the parent field annotation is the declared authority.
 
-Implementation: `vultron/wire/as2/parser.py::_inline_vocab_class`. ADR-0090.
-
-A filter inside one caller protects only that caller. The inbox adapter's
-`_reparse_as_specific_type` has no such filter and still produces a core class
-for an inbound `{"type": "OrderedCollection"}` (#3565). The general rule is
-**VM-06-008**: wire-branch resolution goes through a lookup that returns
-`as_Base` subclasses only, and the core fallback is opt-in. For
-`OrderedCollection` itself both causes are gone: the vestigial core class
+A filter inside one caller protected only that caller: the inbox adapter's
+`_reparse_as_specific_type` had none and persisted a core class for an inbound
+`{"type": "OrderedCollection"}`. The general rule is **VM-06-008**, which the
+lookup itself has enforced since #3565: `find_in_vocabulary()` is wire-only by
+default, and the core fallback is opt-in via `include_core=True`. Only the
+persistence read paths opt in (`db_record.py`, `hydration.object_from_storage`),
+each saying why at the call. ADR-0090. For `OrderedCollection` itself both causes are gone: the vestigial core class
 `CoreActorCollection` was deleted (#3563) and the wire collection classes now
 declare the `type_` they present, so the wire registry answers first (#3564).
-The inbox adapter's lookup still inherits the fallback for every other core-only
-name. Details are in
+Details are in
 [vocabulary-registry](vocabulary-registry.md) § "Why `OrderedCollection` Collided
 At All".
 

@@ -99,29 +99,53 @@ def is_wire_type_alias(cls: type) -> bool:
     return bool(cls.__dict__.get("_wire_type_alias", False))
 
 
-def find_in_vocabulary(item_name: str) -> type[BaseModel]:
-    """Find a class in the vocabulary by type name.
+def find_in_vocabulary(
+    item_name: str, *, include_core: bool = False
+) -> type[BaseModel]:
+    """Find the class the wire registry holds for *item_name*.
 
-    Checks ``WIRE_TYPE_MAP`` (keyed by wire ``type_`` value) first, then
-    ``VOCABULARY`` (keyed by full wire class name), then falls back to the
-    core ``CORE_TYPE_MAP`` (via :func:`find_in_core_type_map`) for types
-    that belong to the core domain layer (ARCH-12-003).
+    Checks ``WIRE_TYPE_MAP`` (keyed by wire ``type`` value) first, then
+    ``VOCABULARY`` (keyed by full wire class name). By default that is all it
+    checks, so the answer is always a class the *wire* registry holds: an
+    ``as_Base`` subclass, or a core class registered in ``WIRE_TYPE_MAP`` as its
+    own wire form (ADR-0099 detail 3, e.g. ``VulnerabilityCase``). The
+    discriminator is registry membership, not branch ancestry — an
+    ``as_Base``-only rule would refuse the canonical case type.
+
+    The core ``CORE_TYPE_MAP`` fallback (ARCH-12-010) is reached only when the
+    caller passes ``include_core=True`` (VM-06-008). A hit there is a
+    coincidence of naming rather than a wire counterpart (ARCH-23-002): while
+    ``OrderedCollection`` was registered only in the core map, a wire caller
+    resolving an inline actor's ``inbox`` got a core class that
+    ``as_VultronOrganization.inbox`` refused, degrading the whole actor to a bare
+    ``as_Link`` (ISSUE-3217), and the inbox adapter persisted a core object for
+    an inbound ``{"type": "OrderedCollection"}`` (ISSUE-3565). Only a caller that
+    reconstructs whatever was stored — the persistence read paths — may ask for
+    the fallback, and it must say so in its call.
+
+    Scope of the wire-only guarantee: it constrains what a *type lookup*
+    returns, not what a wire tree may contain. ``as_ObjectRef`` unions do admit
+    ``CoreObject``, so "wire trees contain only wire objects" is not true in
+    general; the parent field annotation stays the authority on that.
 
     Args:
-        item_name: The name of the type to find.
+        item_name: The ``type`` value or wire class name to find.
+        include_core: Also consult ``CORE_TYPE_MAP`` when neither wire map
+            holds *item_name*. Wire-branch callers MUST leave this ``False``.
     Returns:
         The class registered under that name.
     Raises:
-        KeyError: If the type name is not registered in either vocabulary.
+        KeyError: If no consulted registry holds *item_name*.
     """
     if item_name in WIRE_TYPE_MAP:
         return WIRE_TYPE_MAP[item_name]
     if item_name in VOCABULARY:
         return VOCABULARY[item_name]
-    try:
-        return find_in_core_type_map(item_name)
-    except KeyError:
-        pass
+    if include_core:
+        try:
+            return find_in_core_type_map(item_name)
+        except KeyError:
+            pass
     raise KeyError(f"Unknown vocabulary type: {item_name!r}")
 
 

@@ -29,7 +29,12 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import Session
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.datalayer_sqlite.hydration import (
+    core_class_for_row_type,
+)
 from vultron.adapters.driven.datalayer_sqlite.schema import VultronObjectRecord
+from vultron.core.models.actor import VultronService
+from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -43,7 +48,11 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.core.models.note import VultronNote
+from vultron.wire.as2.vocab.base.objects.object_types import (
+    as_Article,
+    as_Note,
+)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -191,12 +200,75 @@ def test_list_objects_returns_core_type_for_core_entity(dl):
 
 
 def test_read_wire_only_type_still_works(dl):
-    """Types not in CORE_VOCABULARY (e.g. as_Note) still reconstruct via wire path."""
-    note = as_Note(content="Hello from wire")
+    """A type with no core counterpart (``as_Article``) reconstructs via the wire path."""
+    article = as_Article(content="Hello from wire")
+    dl.save(article)
+    result = dl.read(article.id_)
+    assert result is not None
+    assert isinstance(result, as_Article)
+
+
+@pytest.mark.spec("DL-05-001", "DL-05-006")
+def test_saved_core_note_reads_back_as_core_note(dl):
+    """A saved ``VultronNote`` reads back as itself, not as the wire ``as_Note``.
+
+    It stores as ``type: "Note"``, which the class-name-keyed
+    ``CORE_VOCABULARY`` never matched (#3647).
+    """
+    note = VultronNote(content="Hello from core")
     dl.save(note)
     result = dl.read(note.id_)
-    assert result is not None
-    assert isinstance(result, as_Note)
+    assert type(result) is VultronNote
+    assert result == note
+
+
+@pytest.mark.spec("DL-05-001", "DL-05-006")
+def test_stored_wire_note_reads_back_as_core_note(dl):
+    """An inbound wire ``as_Note`` persisted verbatim also reads back as core.
+
+    The row cannot say which branch wrote it, so a ``"Note"`` row with a
+    registered core counterpart reconstructs as that counterpart (DL-05-001).
+    """
+    wire_note = as_Note(content="Hello from wire")
+    dl.save(wire_note)
+    result = dl.read(wire_note.id_)
+    assert type(result) is VultronNote
+    assert result.content == "Hello from wire"
+
+
+@pytest.mark.spec("DL-05-006")
+def test_shared_type_value_resolves_to_no_core_class():
+    """A ``type`` value two core classes present is not guessed.
+
+    ``VultronService`` and ``CaseActor`` both store as ``"Service"``; letting
+    registration order pick one would read a row back as the wrong class.
+    """
+    with pytest.raises(KeyError):
+        core_class_for_row_type("Service")
+
+
+@pytest.mark.spec("DL-05-006")
+def test_saved_core_service_reads_back_as_itself(dl):
+    """The ``"Service"`` exclusion does not stop a ``VultronService`` round-trip."""
+    service = VultronService(name="svc")
+    dl.save(service)
+    result = dl.read(service.id_)
+    assert type(result) is VultronService
+    assert result == service
+
+
+@pytest.mark.spec("DL-05-006")
+def test_type_value_index_follows_a_replaced_class(monkeypatch):
+    """Replacing a registered class keeps the registry size but updates the index."""
+    assert core_class_for_row_type("Note") is VultronNote  # warm the cache
+
+    class _StandInNote(VultronNote):
+        pass
+
+    # No own ``type_`` annotation, so the subclass registers only here.
+    CORE_TYPE_MAP.pop(_StandInNote.__name__, None)
+    monkeypatch.setitem(CORE_VOCABULARY, "VultronNote", _StandInNote)
+    assert core_class_for_row_type("Note") is _StandInNote
 
 
 def test_core_entity_type_string_matches_class_name(dl):

@@ -16,9 +16,12 @@
 """Note-domain trigger activity construction for TriggerActivityAdapter."""
 
 import logging
-from typing import cast
 
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+    CasePersistence,
+)
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
@@ -26,9 +29,35 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 from ._base import _DUMP_KWARGS
-from vultron.errors import VultronAlreadyExistsError
+from vultron.errors import VultronAlreadyExistsError, VultronNotFoundError
 
 logger = logging.getLogger(__name__)
+
+
+def _note_for_wire(dl: CasePersistence, note_id: str) -> as_Note:
+    """Return the stored note *note_id* as the wire ``as_Note`` activities carry.
+
+    Note is unpaired AS2 vocabulary: ``as_Note`` is a wire class of its own, so
+    the core ``VultronNote`` that ``dl.read()`` returns for a stored note
+    (DL-05-001) is not what ``_AddNoteToCaseActivity``'s ``as_Note``-typed
+    ``object`` field accepts, although a generic ``as_Add`` admits any
+    ``CoreObject``. ``Create`` gets the same wire note so the two agree. The translation
+    belongs here on the adapter side (ARCH-12-005) and goes through the core
+    object's AS2 rendering (ADR-0099 detail 1).
+
+    Raises:
+        VultronNotFoundError: when no object is stored under *note_id*.
+        VultronValidationError: when the stored object is not a ``CoreObject``
+            and so has no AS2 rendering.
+        pydantic.ValidationError: when the stored object renders to something
+            ``as_Note`` refuses (it is not a note).
+    """
+    stored = dl.read(note_id)
+    if stored is None:
+        raise VultronNotFoundError("Note", note_id)
+    if isinstance(stored, as_Note):
+        return stored
+    return as_Note.model_validate(As2WireRenderAdapter().render(stored))
 
 
 class _NotesMixin:
@@ -67,7 +96,7 @@ class _NotesMixin:
         to: list[str] | None = None,
     ) -> str:
         """Create and persist a ``Create(Note)`` activity; return activity_id."""
-        note = cast(as_Note, self._dl.read(note_id))
+        note = _note_for_wire(self._dl, note_id)
         activity = as_Create(actor=actor, object_=note, to=to)
         try:
             self._dl.create(activity)
@@ -87,7 +116,7 @@ class _NotesMixin:
         to: list[str] | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Add(Note, Case)`` activity."""
-        note = cast(as_Note, self._dl.read(note_id))
+        note = _note_for_wire(self._dl, note_id)
         activity = add_note_to_case_activity(
             note=note, target=case_id, actor=actor, to=to
         )

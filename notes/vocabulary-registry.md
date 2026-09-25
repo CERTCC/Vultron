@@ -180,10 +180,13 @@ The fix:
    `CoreObject.__init_subclass__` (for no-`type_` subclasses that use
    `_set_type_from_class_name`).
 
-2. **`find_in_vocabulary()` fallback** — after checking `VOCABULARY`, the
-   function calls `find_in_core_type_map()` before raising `KeyError`.
-   This means callers (deserialization, discriminated-union construction) can
-   look up core types by name without those types polluting the wire registry.
+2. **`find_in_vocabulary(..., include_core=True)` fallback** — after checking
+   `WIRE_TYPE_MAP` and `VOCABULARY`, the function calls
+   `find_in_core_type_map()` before raising `KeyError`, but only when the
+   caller asks. The persistence read paths (`db_record.py`,
+   `hydration.object_from_storage`) ask, so stored core types reconstruct by
+   name without polluting the wire registry. The default is wire-only
+   (VM-06-008, #3565).
 
    **Wire-side callers must not take this fallback** (MV-04-003, ADR-0090). A
    core class placed inside a wire tree is rejected by the wire parent's field
@@ -191,11 +194,11 @@ The fix:
    child — it flattened every inline actor on the inbound path to an `as_Link`,
    because `OrderedCollection` is registered only in the core map. A hit there is
    a coincidence of naming, not a wire counterpart (ARCH-23-002). Inline type
-   resolution in `parser._inline_vocab_class` therefore filters on
-   `issubclass(cls, as_Base)`. Full write-up:
+   resolution in `parser._inline_vocab_class` first filtered on
+   `issubclass(cls, as_Base) or type in WIRE_TYPE_MAP`; #3565 moved that rule
+   into the lookup's default, so every wire caller gets it. Full write-up:
    [wire-core-boundary](wire-core-boundary.md) § "ARCH-12-010 is a trap for
-   wire-side callers". **The per-caller filter is not the end state** — see
-   § "Why `OrderedCollection` Collided At All" below, and VM-06-008.
+   wire-side callers".
 
 3. **Wire re-export modules** (`offer_record.py`, etc.) no longer write to
    `VOCABULARY`. They import and re-export the core class unchanged.
@@ -256,14 +259,14 @@ are a per-class exemption set, each member naming its reason: abstract roots and
 mixins, and the five VM-01-008 actor shadows. A companion test fails an
 exemption that no longer needs to exist.
 
-**Do not read the per-caller filter as the fix.** #3232's
-`issubclass(cls, as_Base)` guard in `parser._inline_vocab_class` closes one path.
-The FastAPI inbox adapter's re-parse helper
-(`routers/actors/_inbox.py::_reparse_as_specific_type`) has no such guard (#3565).
-For `OrderedCollection` that no longer matters, but any other name registered
-only in `CORE_TYPE_MAP` still resolves to a core class there. The general rule
-is VM-06-008: a wire-branch caller resolves through a lookup that returns
-`as_Base` subclasses only, and the core fallback is reached by asking for it.
+**The per-caller filter was not the fix.** #3232's guard in
+`parser._inline_vocab_class` closed one path, while the FastAPI inbox adapter's
+re-parse helper (`routers/actors/_inbox.py::_reparse_as_specific_type`) still
+resolved any name registered only in `CORE_TYPE_MAP` to a core class — measured
+at #3565, `{"type": "CoreActor"}` persisted a `CoreActor`. The general rule is
+VM-06-008, and since #3565 the lookup enforces it: `find_in_vocabulary()`
+returns only what the wire registry holds unless the caller passes
+`include_core=True`.
 
 **The paging machinery went with it.** `as_CollectionPage`,
 `as_OrderedCollectionPage`, `as_Mention`, the `following`/`followers`/`liked`/
@@ -276,7 +279,7 @@ inbox/outbox now gets `{id}/inbox` and `{id}/outbox`, as `set_collections`
 always intended, instead of a fresh `urn:uuid:`.
 
 Separately, 32 `CORE_TYPE_MAP` keys (27 distinct classes) resolved through
-`find_in_vocabulary` to a class that is not an `as_Base` subclass when this was
+the then-default `find_in_vocabulary` fallback to a class that is not an `as_Base` subclass when this was
 measured. The figure moves with the code; re-measure rather than quoting it
 (MS-16-001).
 
@@ -314,8 +317,9 @@ are exempt from it as sanctioned VM-01-008 shadows.
 **Current state (post ISSUE-1992)**: `VOCABULARY["Actor"]` correctly maps to
 `as_Actor`. The earlier `CoreActor` assignment was removed as an ARCH-12-003
 violation — `CoreActor` is a core-layer type and must not appear in the wire
-`VOCABULARY`. It is now reachable via `find_in_vocabulary("CoreActor")` through
-the `CORE_TYPE_MAP` fallback.
+`VOCABULARY`. It is now reachable via `find_in_vocabulary("CoreActor", include_core=True)`
+through the `CORE_TYPE_MAP` fallback; the wire-only default refuses it
+(VM-06-008).
 
 ---
 
