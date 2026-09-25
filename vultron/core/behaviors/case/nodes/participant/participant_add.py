@@ -29,7 +29,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.participant_status import (
     ParticipantStatus,
 )
-from vultron.core.models.vultron_types import VultronParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import _as_id
@@ -107,7 +107,7 @@ class CreateParticipantInitialStatusNode(DataLayerActionWithPorts):
 
 
 class CreateParticipantNode(DataLayerActionWithPorts):
-    """Create an in-memory VultronParticipant and store it on the blackboard."""
+    """Create an in-memory CaseParticipant and store it on the blackboard."""
 
     def __init__(
         self,
@@ -173,7 +173,7 @@ class CreateParticipantNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        participant = VultronParticipant(
+        participant = CaseParticipant(
             attributed_to=self.participant_actor_id,
             context=case_id,
             case_roles=self.roles,
@@ -238,7 +238,7 @@ class AttachParticipantToCaseNode(DataLayerActionWithPorts):
         if not isinstance(case_id, str):
             self.logger.error("%s: case_id not found in blackboard", self.name)
             return Status.FAILURE
-        if not isinstance(participant, VultronParticipant):
+        if not isinstance(participant, CaseParticipant):
             self.logger.error(
                 "%s: %s not found in blackboard",
                 self.name,
@@ -442,9 +442,7 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
 
         stored_case = self._stored_case
         participant = self._participant
-        if stored_case is None or not isinstance(
-            participant, VultronParticipant
-        ):
+        if stored_case is None or not isinstance(participant, CaseParticipant):
             self.logger.error(
                 "%s: %s/%s missing in blackboard",
                 self.name,

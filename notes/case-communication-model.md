@@ -221,7 +221,7 @@ Invitee sends Accept(Invite, actor=invitee_id, to=[case_actor_id])
   → CASE_MANAGER's inbox (NOT the case owner's inbox)
 
 CASE_MANAGER's AcceptInviteActorToCaseReceivedUseCase:
-  1. Creates VultronParticipant at RM.VALID
+  1. Creates CaseParticipant at RM.VALID
   2. Records RM VALID→ACCEPTED inline (Accept(Invite) IS the engage signal)
   3. Emits Announce(VulnerabilityCase) to invitee
   4. Commits CaseLedgerEntry → Announce(CaseLedgerEntry) broadcast

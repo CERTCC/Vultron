@@ -28,10 +28,8 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
     create_guarded_commit_case_ledger_entry_tree,
 )
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronParticipant,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
@@ -42,13 +40,13 @@ ACTIVITY_ID = "https://example.org/activities/act-001"
 
 
 def _seed_case_with_manager(bt_scenario: BTTestScenario) -> None:
-    manager_participant = VultronParticipant(
+    manager_participant = CaseParticipant(
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=MANAGER_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
     )
-    vendor_participant = VultronParticipant(
+    vendor_participant = CaseParticipant(
         id_="https://example.org/participants/vendor-cp-001",
         attributed_to=NON_MANAGER_ACTOR_ID,
         context=CASE_ID,

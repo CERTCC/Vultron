@@ -22,7 +22,7 @@ from vultron.core.behaviors.case.nodes.update import (
     CheckCaseUpdateOwnerNode,
 )
 from vultron.core.behaviors.case.update_support import broadcast_case_update
-from vultron.core.models.participant import CaseParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
@@ -30,7 +30,7 @@ from vultron.core.behaviors.case.nodes.conditions import (
 from vultron.core.behaviors.case.update_tree import (
     create_update_case_received_tree,
 )
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.use_cases.received.case.update import (
     UpdateCaseReceivedUseCase,
 )
@@ -91,7 +91,7 @@ class TestUpdateCaseBTStructure:
         participant_id = "https://example.org/users/alice"
         case_id = "https://example.org/cases/bt2"
 
-        case_actor = VultronCaseActor(
+        case_actor = CaseActor(
             id_=f"{case_id}/actor",
             name=f"CaseActor for {case_id}",
             attributed_to=owner_id,
@@ -100,7 +100,7 @@ class TestUpdateCaseBTStructure:
         dl.create(case_actor)
 
         # BT-17-005: the broadcast gate resolves CASE_MANAGER from the case's
-        # participants, not from the VultronCaseActor *service* entity.  A
+        # participants, not from the CaseActor *service* entity.  A
         # fixture that models only the Service leaves the case with no role
         # holder, so the gate correctly skips and nothing is announced.
         manager_participant_id = "https://example.org/participants/p-mgr-bt2"

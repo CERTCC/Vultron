@@ -31,11 +31,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronCaseActor,
-    VultronReport,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.create_tree import create_create_case_tree
 
@@ -80,14 +78,14 @@ def actor_id():
 
 @pytest.fixture
 def actor(datalayer, actor_id):
-    obj = VultronCaseActor(id_=actor_id, name="Vendor Co")
+    obj = CaseActor(id_=actor_id, name="Vendor Co")
     datalayer.create(obj)
     return obj
 
 
 @pytest.fixture
 def report(datalayer):
-    obj = VultronReport(
+    obj = VulnerabilityReport(
         id_="https://example.org/reports/CVE-2024-001",
         name="Test Vulnerability Report",
         content="Buffer overflow in component X",

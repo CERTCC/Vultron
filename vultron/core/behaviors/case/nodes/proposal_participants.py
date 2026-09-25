@@ -39,7 +39,7 @@ from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.models.vultron_types import VultronParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -113,7 +113,7 @@ class AddCaseActorParticipantNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        participant = VultronParticipant(
+        participant = CaseParticipant(
             attributed_to=self.actor_id,
             context=case_id,
             name=f"CaseActor for {case_id}",
@@ -278,7 +278,7 @@ class AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
         # mislabelling coordinators as vendors.  A future spec amendment
         # should carry role hints in the CaseProposal itself so the CaseActor
         # does not have to rely on co-located configuration.
-        participant = VultronParticipant(
+        participant = CaseParticipant(
             attributed_to=self._vendor_uri,
             context=case_id,
             case_roles=_effective_case_roles(self._actor_config),

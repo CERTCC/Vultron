@@ -13,12 +13,10 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
-    from vultron.core.models.embargo_event import (
-        EmbargoEvent as VultronEmbargoEvent,
-    )
+    from vultron.core.models.embargo_event import EmbargoEvent
 else:
     VulnerabilityCase = object
-    VultronEmbargoEvent = object
+    EmbargoEvent = object
 
 
 class CreateEmbargoEventReceivedEvent(VultronEvent):
@@ -33,8 +31,8 @@ class CreateEmbargoEventReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def embargo(self) -> "VultronEmbargoEvent | None":
-        return cast("VultronEmbargoEvent | None", self.object_)
+    def embargo(self) -> "EmbargoEvent | None":
+        return cast("EmbargoEvent | None", self.object_)
 
 
 class AddEmbargoEventToCaseReceivedEvent(VultronEvent):
@@ -49,8 +47,8 @@ class AddEmbargoEventToCaseReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def embargo(self) -> "VultronEmbargoEvent | None":
-        return cast("VultronEmbargoEvent | None", self.object_)
+    def embargo(self) -> "EmbargoEvent | None":
+        return cast("EmbargoEvent | None", self.object_)
 
     @property
     def case_id(self) -> str | None:
@@ -73,8 +71,8 @@ class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def embargo(self) -> "VultronEmbargoEvent | None":
-        return cast("VultronEmbargoEvent | None", self.object_)
+    def embargo(self) -> "EmbargoEvent | None":
+        return cast("EmbargoEvent | None", self.object_)
 
     @property
     def case_id(self) -> str | None:
@@ -200,8 +198,8 @@ class AcceptInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         return self.inner_object_id
 
     @property
-    def embargo(self) -> "VultronEmbargoEvent | None":
-        return cast("VultronEmbargoEvent | None", self.inner_object)
+    def embargo(self) -> "EmbargoEvent | None":
+        return cast("EmbargoEvent | None", self.inner_object)
 
     @property
     def case_id(self) -> str | None:
@@ -232,8 +230,8 @@ class RejectInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         return self.inner_object_id
 
     @property
-    def embargo(self) -> "VultronEmbargoEvent | None":
-        return cast("VultronEmbargoEvent | None", self.inner_object)
+    def embargo(self) -> "EmbargoEvent | None":
+        return cast("EmbargoEvent | None", self.inner_object)
 
     @property
     def case_id(self) -> str | None:

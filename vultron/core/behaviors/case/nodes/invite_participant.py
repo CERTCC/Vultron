@@ -17,7 +17,7 @@
 """Invitee idempotency-guard and participant-construction leaf nodes.
 
 Guards a duplicate ``Accept(Invite(actor, case))`` and constructs the
-invitee ``VultronParticipant`` at RM.START (ADR-0089 birth step 1). The
+invitee ``CaseParticipant`` at RM.START (ADR-0089 birth step 1). The
 persist/advance steps live in ``invite_participant_persist.py``. Composed by
 ``create_accept_invite_actor_to_case_tree`` (BTND-07-003).
 """
@@ -37,7 +37,6 @@ from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.core.models.vultron_types import VultronParticipant
 from vultron.enums.roles import validate_roles
 
 logger = logging.getLogger(__name__)
@@ -165,7 +164,7 @@ class CheckInviteeNotAlreadyParticipantNode(
 
 
 class CreateInviteeParticipantNode(DataLayerActionWithPorts):
-    """Construct a ``VultronParticipant`` record for the invitee, at RM.START.
+    """Construct a ``CaseParticipant`` record for the invitee, at RM.START.
 
     Under ADR-0089 birth is three steps and RM advances only through the sole
     writer.  This node performs step 1 (*construct*): it builds the participant
@@ -312,7 +311,7 @@ class CreateInviteeParticipantNode(DataLayerActionWithPorts):
                 )
                 return Status.FAILURE
             self._set_output(
-                "new_invite_participant", cast(VultronParticipant, existing)
+                "new_invite_participant", cast(CaseParticipant, existing)
             )
             self.logger.info(
                 "%s: reusing existing participant '%s' for backfill resume",
@@ -327,7 +326,7 @@ class CreateInviteeParticipantNode(DataLayerActionWithPorts):
         # AdvanceInviteeToReceivedNode advances it to RM.RECEIVED through the
         # sole writer. CM-11-001: Accept(Invite) records RM.RECEIVED only; the
         # full triage cycle is a later step (PCR-08-010).
-        participant = VultronParticipant(
+        participant = CaseParticipant(
             id_=(
                 f"{self.case_id}/participants/"
                 f"{self.invitee_id.split('/')[-1]}"

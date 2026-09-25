@@ -42,10 +42,8 @@ from vultron.core.models.events import (
     MessageSemantics,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.models.vultron_types import (
-    VultronCaseActor,
-    VulnerabilityCase,
-)
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case import VulnerabilityCase
 from vultron.errors import UnroutableActivityError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase as as_VulnerabilityCase,
@@ -86,7 +84,7 @@ def datalayer():
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor Co")
+    actor = CaseActor(id_=ACTOR_ID, name="Vendor Co")
     dl.create(actor)
     return dl
 

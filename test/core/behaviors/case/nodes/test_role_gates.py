@@ -35,10 +35,8 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronParticipant,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 
 CASE_ID = "https://example.org/cases/case-gate-001"
@@ -61,13 +59,13 @@ class _Spy(py_trees.behaviour.Behaviour):
 
 @pytest.fixture
 def case_with_manager(bt_scenario: BTTestScenario) -> VulnerabilityCase:
-    manager = VultronParticipant(
+    manager = CaseParticipant(
         id_="https://example.org/participants/coordinator-gate-001",
         attributed_to=MANAGER_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
     )
-    vendor = VultronParticipant(
+    vendor = CaseParticipant(
         id_="https://example.org/participants/vendor-gate-001",
         attributed_to=NON_MANAGER_ACTOR_ID,
         context=CASE_ID,

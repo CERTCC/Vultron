@@ -13,7 +13,6 @@ from vultron.core.models.case_participant import (
     ObserverParticipant,
     ReporterParticipant,
     VendorParticipant,
-    VultronParticipant,
 )
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
@@ -47,10 +46,6 @@ class TestCaseParticipantConstruction:
         from vultron.core.models import CORE_VOCABULARY
 
         assert "CaseParticipant" in CORE_VOCABULARY
-
-    def test_vultron_participant_alias(self):
-        """VultronParticipant is an alias for CaseParticipant."""
-        assert VultronParticipant is CaseParticipant
 
     def test_default_case_roles_empty(self):
         """Fresh participant has no roles."""

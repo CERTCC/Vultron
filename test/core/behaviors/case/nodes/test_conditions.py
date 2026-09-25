@@ -34,12 +34,10 @@ from vultron.core.behaviors.case.nodes.conditions import (
     CheckCaseExistsForReport,
 )
 from vultron.config.actor import ActorConfig
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronCaseActor,
-    VultronParticipant,
-    VultronReport,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report import VulnerabilityReport
 from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
@@ -54,22 +52,24 @@ def actor_id() -> str:
 
 
 @pytest.fixture
-def actor(bt_scenario: BTTestScenario, actor_id: str) -> VultronCaseActor:
-    obj = VultronCaseActor(id_=actor_id, name="Vendor Co")
+def actor(bt_scenario: BTTestScenario, actor_id: str) -> CaseActor:
+    obj = CaseActor(id_=actor_id, name="Vendor Co")
     bt_scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
-def report(bt_scenario: BTTestScenario) -> VultronReport:
-    obj = VultronReport(name="TEST-001", content="Test vulnerability report")
+def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
+    obj = VulnerabilityReport(
+        name="TEST-001", content="Test vulnerability report"
+    )
     bt_scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
 def case_obj(
-    bt_scenario: BTTestScenario, report: VultronReport
+    bt_scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_="https://example.org/cases/case-001",
@@ -85,8 +85,8 @@ def participant(
     bt_scenario: BTTestScenario,
     case_obj: VulnerabilityCase,
     actor_id: str,
-) -> VultronParticipant:
-    p = VultronParticipant(
+) -> CaseParticipant:
+    p = CaseParticipant(
         attributed_to=actor_id,
         context=case_obj.id_,
         case_roles=[CVDRole.VENDOR],
@@ -108,7 +108,7 @@ class TestCheckCaseAlreadyExists:
     def test_returns_failure_when_case_missing(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
     ) -> None:
         result = bt_scenario.run(
@@ -122,7 +122,7 @@ class TestCheckCaseAlreadyExists:
     def test_returns_failure_when_case_has_no_participants(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:
@@ -136,10 +136,10 @@ class TestCheckCaseAlreadyExists:
     def test_returns_success_when_case_has_participants(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
         case_obj: VulnerabilityCase,
-        participant: VultronParticipant,
+        participant: CaseParticipant,
     ) -> None:
         """Case with participants → SUCCESS (already initialized)."""
         result = bt_scenario.run(
@@ -160,9 +160,9 @@ class TestCheckCaseExistsForReport:
     def test_returns_failure_when_no_case_for_report(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
-        report: VultronReport,
+        report: VulnerabilityReport,
     ) -> None:
         result = bt_scenario.run(
             CheckCaseExistsForReport(report_id=report.id_),
@@ -173,10 +173,10 @@ class TestCheckCaseExistsForReport:
     def test_returns_failure_when_case_has_no_participants(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
         case_obj: VulnerabilityCase,
-        report: VultronReport,
+        report: VulnerabilityReport,
     ) -> None:
         """Case linked to report exists but has no participants → FAILURE."""
         result = bt_scenario.run(
@@ -188,11 +188,11 @@ class TestCheckCaseExistsForReport:
     def test_returns_success_when_case_has_participants(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
         case_obj: VulnerabilityCase,
-        report: VultronReport,
-        participant: VultronParticipant,
+        report: VulnerabilityReport,
+        participant: CaseParticipant,
     ) -> None:
         """Case linked to report with participants → SUCCESS."""
         result = bt_scenario.run(

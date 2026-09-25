@@ -39,7 +39,7 @@ from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.models.report import VulnerabilityReport, VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
@@ -249,7 +249,7 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        report = VultronReport(
+        report = VulnerabilityReport(
             name=request.report_name,
             content=request.report_content,
             attributed_to=self._actor_id,

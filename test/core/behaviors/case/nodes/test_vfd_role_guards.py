@@ -35,10 +35,8 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
 )
 from vultron.core.models.dimensions import VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronParticipant,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.cs import CS_vf
 from vultron.enums.roles import CVDRole
 
@@ -51,8 +49,8 @@ OBSERVER_VENDOR_ACTOR_ID = "https://example.org/actors/observer-vendor"
 
 
 @pytest.fixture
-def vendor_participant() -> VultronParticipant:
-    return VultronParticipant(
+def vendor_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/vendor-cp-001",
         attributed_to=VENDOR_ACTOR_ID,
         context=CASE_ID,
@@ -61,8 +59,8 @@ def vendor_participant() -> VultronParticipant:
 
 
 @pytest.fixture
-def deployer_participant() -> VultronParticipant:
-    return VultronParticipant(
+def deployer_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/deployer-cp-001",
         attributed_to=DEPLOYER_ACTOR_ID,
         context=CASE_ID,
@@ -71,8 +69,8 @@ def deployer_participant() -> VultronParticipant:
 
 
 @pytest.fixture
-def coordinator_participant() -> VultronParticipant:
-    return VultronParticipant(
+def coordinator_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=COORDINATOR_ACTOR_ID,
         context=CASE_ID,
@@ -83,9 +81,9 @@ def coordinator_participant() -> VultronParticipant:
 @pytest.fixture
 def case_with_vendor_and_deployer(
     bt_scenario: BTTestScenario,
-    vendor_participant: VultronParticipant,
-    deployer_participant: VultronParticipant,
-    coordinator_participant: VultronParticipant,
+    vendor_participant: CaseParticipant,
+    deployer_participant: CaseParticipant,
+    coordinator_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_=CASE_ID,
@@ -172,7 +170,7 @@ def test_vendor_guard_failure_when_case_missing(
 
 def test_vendor_guard_failure_when_actor_not_in_case(
     bt_scenario: BTTestScenario,
-    vendor_participant: VultronParticipant,
+    vendor_participant: CaseParticipant,
 ) -> None:
     """FAILURE when actor_id is not present in actor_participant_index."""
     case = VulnerabilityCase(
@@ -257,7 +255,7 @@ def test_deployer_guard_failure_when_case_missing(
 
 def test_deployer_guard_failure_when_actor_not_in_case(
     bt_scenario: BTTestScenario,
-    deployer_participant: VultronParticipant,
+    deployer_participant: CaseParticipant,
 ) -> None:
     """FAILURE when actor_id is not present in actor_participant_index."""
     case = VulnerabilityCase(
@@ -282,8 +280,8 @@ def test_deployer_guard_failure_when_actor_not_in_case(
 
 
 @pytest.fixture
-def observer_participant() -> VultronParticipant:
-    return VultronParticipant(
+def observer_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/observer-cp-001",
         attributed_to=OBSERVER_ACTOR_ID,
         context=CASE_ID,
@@ -292,8 +290,8 @@ def observer_participant() -> VultronParticipant:
 
 
 @pytest.fixture
-def observer_vendor_participant() -> VultronParticipant:
-    return VultronParticipant(
+def observer_vendor_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/observer-vendor-cp-001",
         attributed_to=OBSERVER_VENDOR_ACTOR_ID,
         context=CASE_ID,
@@ -304,10 +302,10 @@ def observer_vendor_participant() -> VultronParticipant:
 @pytest.fixture
 def case_with_observer_actors(
     bt_scenario: BTTestScenario,
-    observer_participant: VultronParticipant,
-    observer_vendor_participant: VultronParticipant,
-    vendor_participant: VultronParticipant,
-    coordinator_participant: VultronParticipant,
+    observer_participant: CaseParticipant,
+    observer_vendor_participant: CaseParticipant,
+    vendor_participant: CaseParticipant,
+    coordinator_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_=CASE_ID,
@@ -443,8 +441,8 @@ def test_deployer_only_blocked_when_no_vendor_at_vfd(
 
 
 @pytest.fixture
-def vendor_at_vf_participant() -> VultronParticipant:
-    return VultronParticipant(
+def vendor_at_vf_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/vendor-at-vf-cp-001",
         attributed_to=VENDOR_ACTOR_ID,
         context=CASE_ID,
@@ -463,9 +461,9 @@ def vendor_at_vf_participant() -> VultronParticipant:
 @pytest.fixture
 def case_with_vendor_at_vf_and_deployer(
     bt_scenario: BTTestScenario,
-    vendor_at_vf_participant: VultronParticipant,
-    deployer_participant: VultronParticipant,
-    coordinator_participant: VultronParticipant,
+    vendor_at_vf_participant: CaseParticipant,
+    deployer_participant: CaseParticipant,
+    coordinator_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_=CASE_ID,
@@ -515,8 +513,8 @@ def test_deployer_allowed_when_some_vendor_at_vf(
 @pytest.fixture
 def case_with_vendor_at_vf_in_fallback(
     bt_scenario: BTTestScenario,
-    vendor_at_vf_participant: VultronParticipant,
-    deployer_participant: VultronParticipant,
+    vendor_at_vf_participant: CaseParticipant,
+    deployer_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     """Vendor at VF is in case_participants but NOT in actor_participant_index.
 
@@ -564,7 +562,7 @@ def test_deployer_allowed_when_vendor_at_vf_via_fallback(
 
 def test_not_sole_observer_failure_when_actor_not_in_case(
     bt_scenario: BTTestScenario,
-    observer_participant: VultronParticipant,
+    observer_participant: CaseParticipant,
 ) -> None:
     """FAILURE when actor_id is not present in actor_participant_index."""
     case = VulnerabilityCase(

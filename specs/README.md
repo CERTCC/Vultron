@@ -232,7 +232,7 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   pre-bootstrap queue / replay rules, and trusted CaseActor persistence
   (CBT-01 through CBT-05)
 - **`participant-role-management.yaml`** - Role read/mutation API on
-  `VultronParticipant` and `CaseParticipant`: `add_role()`, `remove_role()`,
+  `CaseParticipant`: `add_role()`, `remove_role()`,
   `has_role()`, `roles` property, core-layer no-direct-mutation rule, wire-layer
   interface parity, and test requirements
   (PRM-01 through PRM-05)

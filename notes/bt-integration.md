@@ -522,9 +522,9 @@ carries its own RM state in `participant_status[].rm_state`, independently
 of other participants.
 
 Per ADR-0015, a `VulnerabilityCase` is created at report receipt
-(RM.RECEIVED). `VultronParticipant` records are created at that time:
+(RM.RECEIVED). `CaseParticipant` records are created at that time:
 reporter at RM.ACCEPTED, receiver at RM.RECEIVED. RM state is tracked
-in `VultronParticipant.participant_status[].rm_state` from the moment
+in `CaseParticipant.participant_status[].rm_state` from the moment
 of case creation.
 
 > **ADR-0015 is superseded by ADR-0041.** In the CASE_MANAGER-authoritative model
@@ -538,7 +538,7 @@ of case creation.
 `ReportStatus` in the flat status layer is a **transient pre-case
 mechanism** that was previously used for reports not yet associated with
 a case (pre-case RM states: RECEIVED, INVALID). Under ADR-0015, the case
-is created at receipt, so `VultronParticipant` records carry RM state
+is created at receipt, so `CaseParticipant` records carry RM state
 from the start. `ReportStatus` is retained for backwards compatibility but
 is no longer the primary RM state carrier.
 

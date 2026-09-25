@@ -42,7 +42,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.vultron_types import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 
 VENDOR_ID = "https://example.org/actors/vendor"
 CASE_ACTOR_ID = "https://example.org/actors/case-actor"
@@ -65,7 +65,7 @@ def port():
 
 @pytest.fixture
 def vendor_actor(dl):
-    actor = VultronCaseActor(id_=VENDOR_ID, name="Vendor Co")
+    actor = CaseActor(id_=VENDOR_ID, name="Vendor Co")
     dl.create(actor)
     return actor
 

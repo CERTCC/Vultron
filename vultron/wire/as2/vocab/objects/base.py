@@ -101,7 +101,7 @@ class as_VultronObject(as_Object):
     a narrowed type signature, e.g.::
 
         @classmethod
-        def from_core(cls, core_obj: VultronReport) -> "VulnerabilityReport":
+        def from_core(cls, core_obj: VulnerabilityReport) -> "VulnerabilityReport":
             ...
 
     **``_field_map`` contract**: If a subclass wire type uses different field

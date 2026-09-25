@@ -32,7 +32,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.vultron_types import VultronParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -173,7 +173,7 @@ class AddReporterParticipantNode(DataLayerActionWithPorts):
         if self._already_has_participant(case_id, reporter_uri):
             return Status.SUCCESS
 
-        participant = VultronParticipant(
+        participant = CaseParticipant(
             attributed_to=reporter_uri,
             context=case_id,
             case_roles=[CVDRole.REPORTER],

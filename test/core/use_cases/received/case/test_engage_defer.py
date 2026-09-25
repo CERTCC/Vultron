@@ -26,7 +26,7 @@ from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
 )
-from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.case.engage_defer import (
@@ -160,8 +160,8 @@ class TestEngageCaseStoresEmbeddedParticipants:
 
     @pytest.fixture
     def case_with_inline_participant(self):
-        """VulnerabilityCase carrying a fully inline VultronParticipant."""
-        participant = VultronParticipant(
+        """VulnerabilityCase carrying a fully inline CaseParticipant."""
+        participant = CaseParticipant(
             id_=self._PARTICIPANT_ID,
             attributed_to=self._ACTOR_ID,
             context=self._CASE_ID,
@@ -218,7 +218,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
         stored = dl.read(self._PARTICIPANT_ID)
         assert stored is None, (
             "_store_embedded_participants must skip bare string participant "
-            "refs — no VultronParticipant record should be created for a bare "
+            "refs — no CaseParticipant record should be created for a bare "
             "string"
         )
 
@@ -248,11 +248,11 @@ class TestEngageCaseLedgerCommit:
 
     @pytest.fixture
     def seeded_dl(self, dl):
-        from vultron.core.models.vultron_types import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
-        dl.create(VultronCaseActor(id_=self._SENDER_ID, name="Vendor"))
+        dl.create(CaseActor(id_=self._SENDER_ID, name="Vendor"))
 
-        vendor_p = VultronParticipant(
+        vendor_p = CaseParticipant(
             id_=self._VENDOR_PARTICIPANT_ID,
             attributed_to=self._SENDER_ID,
             context=self._CASE_ID,
@@ -271,11 +271,9 @@ class TestEngageCaseLedgerCommit:
         )
         dl.create(vendor_p)
 
-        dl.create(
-            VultronCaseActor(id_=self._CASE_MANAGER_ID, name="Coordinator")
-        )
+        dl.create(CaseActor(id_=self._CASE_MANAGER_ID, name="Coordinator"))
 
-        cm_p = VultronParticipant(
+        cm_p = CaseParticipant(
             id_=self._CM_PARTICIPANT_ID,
             attributed_to=self._CASE_MANAGER_ID,
             context=self._CASE_ID,
@@ -353,7 +351,7 @@ class TestEngageCaseLedgerCommit:
         EngageCaseReceivedUseCase(seeded_dl, self._engage_event()).execute()
 
         updated = seeded_dl.read(self._VENDOR_PARTICIPANT_ID)
-        assert isinstance(updated, VultronParticipant)
+        assert isinstance(updated, CaseParticipant)
         latest_status = updated.participant_statuses[-1]
         assert latest_status.rm.state == RM.ACCEPTED
 
@@ -379,10 +377,10 @@ class TestDeferCaseLedgerCommit:
 
     @pytest.fixture
     def seeded_dl(self, dl):
-        from vultron.core.models.vultron_types import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
-        dl.create(VultronCaseActor(id_=self._SENDER_ID, name="Vendor"))
-        vendor_p = VultronParticipant(
+        dl.create(CaseActor(id_=self._SENDER_ID, name="Vendor"))
+        vendor_p = CaseParticipant(
             id_=self._VENDOR_PARTICIPANT_ID,
             attributed_to=self._SENDER_ID,
             context=self._CASE_ID,
@@ -400,10 +398,8 @@ class TestDeferCaseLedgerCommit:
             ],
         )
         dl.create(vendor_p)
-        dl.create(
-            VultronCaseActor(id_=self._CASE_MANAGER_ID, name="Coordinator")
-        )
-        cm_p = VultronParticipant(
+        dl.create(CaseActor(id_=self._CASE_MANAGER_ID, name="Coordinator"))
+        cm_p = CaseParticipant(
             id_=self._CM_PARTICIPANT_ID,
             attributed_to=self._CASE_MANAGER_ID,
             context=self._CASE_ID,
@@ -471,7 +467,7 @@ class TestDeferCaseLedgerCommit:
         DeferCaseReceivedUseCase(seeded_dl, self._defer_event()).execute()
 
         updated = seeded_dl.read(self._VENDOR_PARTICIPANT_ID)
-        assert isinstance(updated, VultronParticipant)
+        assert isinstance(updated, CaseParticipant)
         latest_status = updated.participant_statuses[-1]
         assert latest_status.rm.state == RM.DEFERRED
 

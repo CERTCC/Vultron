@@ -29,10 +29,8 @@ from vultron.core.behaviors.case.nodes.participant import (
     RecordOwnerJoinedEventNode,
 )
 from vultron.config.actor import ActorConfig
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronCaseActor,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
@@ -45,7 +43,7 @@ class TestCreateCaseOwnerParticipant:
     def test_creates_and_attaches_case_owner_participant(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
@@ -60,7 +58,7 @@ class TestCreateCaseOwnerParticipant:
     def test_idempotent(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
@@ -82,7 +80,7 @@ class TestCreateCaseOwnerParticipant:
     def test_fails_when_case_not_found(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
     ) -> None:
         result = bt_scenario.run(
@@ -95,7 +93,7 @@ class TestCreateCaseOwnerParticipant:
     def test_default_role_is_case_owner(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
@@ -125,7 +123,7 @@ class TestCreateCaseOwnerParticipant:
     def test_config_roles_combined_with_case_owner(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
@@ -168,7 +166,7 @@ class TestCreateCaseOwnerParticipant:
     def test_records_owner_joined_event(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:

@@ -13,7 +13,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -68,7 +68,7 @@ def bridge(datalayer):
 
 @pytest.fixture
 def case_actor(datalayer):
-    actor = VultronCaseActor(
+    actor = CaseActor(
         name="Case Actor",
         attributed_to=OWNER_ACTOR_ID,
         context=CASE_ID,
@@ -163,7 +163,7 @@ def test_case_manager_role_takes_authority_arm_without_service_object(
     )
 
     assert result.status == Status.SUCCESS
-    # Verify no VultronCaseActor Service was involved
+    # Verify no CaseActor Service was involved
     services = list(owner_bridge.datalayer.list_objects("Service"))
     assert not any(getattr(s, "context", None) == CASE_ID for s in services)
 

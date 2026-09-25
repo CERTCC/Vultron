@@ -997,9 +997,9 @@ groups:
   - id: CM-12-002
     priority: MUST
     kind: protocol
-    statement: At case creation, the system MUST create two initial `VultronParticipant` records in the order defined by CM-14-001
+    statement: At case creation, the system MUST create two initial `CaseParticipant` records in the order defined by CM-14-001
     verification: Integration tests in `test/demo/` confirm that case creation produces exactly
-      two initial `VultronParticipant` records ordered as defined by CM-14-001.
+      two initial `CaseParticipant` records ordered as defined by CM-14-001.
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-001
@@ -1201,12 +1201,12 @@ groups:
   - id: CM-14-002
     priority: MUST
     kind: protocol
-    statement: The case-owner `VultronParticipant` MUST be created before the default embargo is initialized, so that the
+    statement: The case-owner `CaseParticipant` MUST be created before the default embargo is initialized, so that the
       embargo is always associated with an existing participant
     rationale: An embargo without any participant lacks an owning actor. Creating the owner participant first ensures that
       the embargo is initialized in the context of an actor who can be responsible for it.
     verification: Inspection of `vultron/core/` confirms that the case-owner
-      `VultronParticipant` creation step precedes the default embargo initialization step in the
+      `CaseParticipant` creation step precedes the default embargo initialization step in the
       initialization sequence.
     relationships:
     - rel_type: depends_on
@@ -1235,13 +1235,13 @@ groups:
   - id: CM-14-004
     priority: MUST
     kind: protocol
-    statement: The `Create(Case)` notification MUST be queued and the outbox flushed before the reporter is added as a `VultronParticipant`
+    statement: The `Create(Case)` notification MUST be queued and the outbox flushed before the reporter is added as a `CaseParticipant`
       in step 5 of CM-14-001
     rationale: The reporter's system must receive and store the case object before any Announce(CaseLedgerEntry) fan-out that
       lists them as a participant. Reversing this order causes "case not found" errors on the reporter side when the log entry
       arrives referencing a case the reporter has not yet seen.
     verification: Integration tests in `test/demo/` confirm that the `Create(Case)` outbox flush
-      occurs before the reporter `VultronParticipant` record is created during case
+      occurs before the reporter `CaseParticipant` record is created during case
       initialization.
     relationships:
     - rel_type: depends_on
@@ -1254,14 +1254,14 @@ groups:
   - id: CM-14-005
     priority: MUST
     kind: protocol
-    statement: When the reporter is added as a `VultronParticipant` during case initialization, they MUST be seeded as `SIGNATORY`
+    statement: When the reporter is added as a `CaseParticipant` during case initialization, they MUST be seeded as `SIGNATORY`
       on any active embargo
     rationale: 'The reporter already possesses the vulnerability information before the case is created. Requiring an explicit
       embargo acceptance before sharing case content would create a paradoxical deadlock: the reporter has the information
       that the embargo is meant to protect, yet cannot receive case updates until they accept the embargo. Seeding them as
       SIGNATORY reflects their implicit consent, expressed by submitting the report.'
     verification: Integration tests in `test/demo/` confirm that the reporter is seeded as
-      `SIGNATORY` on any active embargo when added as a `VultronParticipant` during case
+      `SIGNATORY` on any active embargo when added as a `CaseParticipant` during case
       initialization.
     relationships:
     - rel_type: depends_on
@@ -1323,11 +1323,11 @@ groups:
     kind: protocol
     statement: >-
       Step 2 of the case initialization sequence MUST create the case-owner
-      `VultronParticipant` with `RM.RECEIVED` and `CVDRole.CASE_OWNER`.
+      `CaseParticipant` with `RM.RECEIVED` and `CVDRole.CASE_OWNER`.
     rationale: The case-owner participant must exist before the default embargo can be
       initialized, so that the embargo is always associated with an existing participant.
     verification: Integration tests in `test/demo/` confirm that step 2 creates the case-owner
-      `VultronParticipant` with `RM.RECEIVED` and `CVDRole.CASE_OWNER`.
+      `CaseParticipant` with `RM.RECEIVED` and `CVDRole.CASE_OWNER`.
     stories:
     - story_2022_046
   - id: CM-14-010
@@ -1374,13 +1374,13 @@ groups:
     kind: protocol
     statement: >-
       Step 5 of the case initialization sequence MUST add the reporter as a
-      `VultronParticipant` with `RM.ACCEPTED` and `CVDRole.FINDER`/`REPORTER`, and seed
+      `CaseParticipant` with `RM.ACCEPTED` and `CVDRole.FINDER`/`REPORTER`, and seed
       them as `SIGNATORY` on any active embargo.
     rationale: The reporter is added after the Create(Case) notification is flushed
       (CM-14-011) so that the case object exists on the reporter's system before the
       fan-out of the ledger entry that records their participation.
     verification: Integration tests in `test/demo/` confirm that step 5 adds the reporter as a
-      `VultronParticipant` with `RM.ACCEPTED` and seeds them as `SIGNATORY` on any active
+      `CaseParticipant` with `RM.ACCEPTED` and seeds them as `SIGNATORY` on any active
       embargo.
     stories:
     - story_2022_013

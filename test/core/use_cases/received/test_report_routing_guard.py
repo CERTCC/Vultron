@@ -46,8 +46,8 @@ from vultron.core.models.events.report import (
     InvalidateReportReceivedEvent,
 )
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.participant import VultronParticipant
-from vultron.core.models.report import VultronReport
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.report import (
     CloseReportReceivedUseCase,
@@ -105,7 +105,7 @@ def _make_dl(
     report = as_VulnerabilityReport(id_=REPORT_ID, name="Routing Guard Report")
     dl.save(report)
 
-    receiving_participant = VultronParticipant(
+    receiving_participant = CaseParticipant(
         id_="https://example.org/participants/p-receiving-guard",
         attributed_to=RECEIVING_ACTOR_ID,
         context=CASE_ID,
@@ -117,7 +117,7 @@ def _make_dl(
             )
         ],
     )
-    sender_participant = VultronParticipant(
+    sender_participant = CaseParticipant(
         id_="https://example.org/participants/p-sender-guard",
         attributed_to=SENDER_ACTOR_ID,
         context=CASE_ID,
@@ -155,7 +155,7 @@ def _rm_state(dl: SqliteDataLayer, actor_id: str) -> RM | None:
     participant_id = case.actor_participant_index.get(actor_id)
     if not participant_id:
         return None
-    participant = cast(VultronParticipant, dl.read(participant_id))
+    participant = cast(CaseParticipant, dl.read(participant_id))
     if not participant.participant_statuses:
         return None
     return participant.participant_statuses[-1].rm.state
@@ -174,8 +174,8 @@ def _make_invalidate_event(
         semantic_type=MessageSemantics.INVALIDATE_REPORT,
         activity_id=activity.id_,
         actor_id=SENDER_ACTOR_ID,
-        object_=VultronReport(id_=REPORT_ID),
-        inner_object=VultronReport(id_=REPORT_ID),
+        object_=VulnerabilityReport(id_=REPORT_ID),
+        inner_object=VulnerabilityReport(id_=REPORT_ID),
         activity=activity,
         receiving_actor_id=receiving_actor_id,
     )
@@ -194,8 +194,8 @@ def _make_close_report_event(
         semantic_type=MessageSemantics.CLOSE_REPORT,
         activity_id=activity.id_,
         actor_id=SENDER_ACTOR_ID,
-        object_=VultronReport(id_=REPORT_ID),
-        inner_object=VultronReport(id_=REPORT_ID),
+        object_=VulnerabilityReport(id_=REPORT_ID),
+        inner_object=VulnerabilityReport(id_=REPORT_ID),
         activity=activity,
         receiving_actor_id=receiving_actor_id,
     )

@@ -129,7 +129,7 @@ def dl():
 
 @pytest.fixture()
 def case_with_participant():
-    """Return (as_VulnerabilityCase, VultronParticipant) with CASE_MANAGER role."""
+    """Return (as_VulnerabilityCase, CaseParticipant) with CASE_MANAGER role."""
     return _case_with_case_actor_participant()
 
 

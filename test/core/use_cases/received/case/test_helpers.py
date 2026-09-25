@@ -27,12 +27,12 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.errors import VultronProtocolViolationError
-from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     RmDimension,
 )
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -75,7 +75,7 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
     _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor-cbt05007"
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_FINDER_ID)
-    report = VultronReport(id_=_REPORT_ID, attributed_to=_FINDER_ID)
+    report = VulnerabilityReport(id_=_REPORT_ID, attributed_to=_FINDER_ID)
     dl.create(report)
     link = VultronReportCaseLink(
         report_id=_REPORT_ID,
@@ -268,7 +268,7 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
             attributed_to=self._ACTOR_ID,
         )
         dl.create(
-            VultronParticipant(
+            CaseParticipant(
                 id_=self._PARTICIPANT_ID,
                 attributed_to=self._ACTOR_ID,
                 context=self._CASE_ID,
@@ -393,7 +393,7 @@ def test_bootstrap_bare_uri_participant_raises_protocol_error(make_payload):
     _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor-cbt05008"
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_FINDER_ID)
-    report = VultronReport(id_=_REPORT_ID, attributed_to=_FINDER_ID)
+    report = VulnerabilityReport(id_=_REPORT_ID, attributed_to=_FINDER_ID)
     dl.create(report)
     link = VultronReportCaseLink(
         report_id=_REPORT_ID,

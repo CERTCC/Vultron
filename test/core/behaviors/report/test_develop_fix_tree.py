@@ -53,10 +53,7 @@ from vultron.core.behaviors.report.nodes.develop_fix import (
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronParticipant,
-)
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -82,8 +79,8 @@ def bt_scenario():
 
 
 @pytest.fixture
-def vendor_participant() -> VultronParticipant:
-    return VultronParticipant(
+def vendor_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/vendor-cp-001",
         attributed_to=VENDOR_ACTOR_ID,
         context=CASE_ID,
@@ -92,8 +89,8 @@ def vendor_participant() -> VultronParticipant:
 
 
 @pytest.fixture
-def coordinator_participant() -> VultronParticipant:
-    return VultronParticipant(
+def coordinator_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=COORDINATOR_ACTOR_ID,
         context=CASE_ID,
@@ -104,7 +101,7 @@ def coordinator_participant() -> VultronParticipant:
 @pytest.fixture
 def case_with_vendor(
     bt_scenario: BTTestScenario,
-    vendor_participant: VultronParticipant,
+    vendor_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_=CASE_ID,
@@ -129,8 +126,8 @@ def coordinator_scenario():
 @pytest.fixture
 def coordinator_case(
     coordinator_scenario: BTTestScenario,
-    vendor_participant: VultronParticipant,
-    coordinator_participant: VultronParticipant,
+    vendor_participant: CaseParticipant,
+    coordinator_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     """The same two-participant case, seeded in the coordinator's store."""
     case = VulnerabilityCase(
@@ -154,8 +151,8 @@ def coordinator_case(
 @pytest.fixture
 def case_with_vendor_and_coordinator(
     bt_scenario: BTTestScenario,
-    vendor_participant: VultronParticipant,
-    coordinator_participant: VultronParticipant,
+    vendor_participant: CaseParticipant,
+    coordinator_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_=CASE_ID,
@@ -619,8 +616,8 @@ CASE_MANAGER_ACTOR_ID = "https://example.org/actors/case-manager-001"
 
 
 @pytest.fixture
-def case_manager_participant() -> VultronParticipant:
-    return VultronParticipant(
+def case_manager_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/cm-cp-001",
         attributed_to=CASE_MANAGER_ACTOR_ID,
         context=CASE_ID,
@@ -631,8 +628,8 @@ def case_manager_participant() -> VultronParticipant:
 @pytest.fixture
 def case_with_vendor_and_case_manager(
     bt_scenario: BTTestScenario,
-    vendor_participant: VultronParticipant,
-    case_manager_participant: VultronParticipant,
+    vendor_participant: CaseParticipant,
+    case_manager_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_=CASE_ID,

@@ -35,10 +35,8 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
 )
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronParticipant,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
@@ -49,13 +47,13 @@ OFFER_ID = "https://example.org/activities/offer-2252"
 
 
 def _seed_case(bt_scenario: BTTestScenario) -> None:
-    case_actor_participant = VultronParticipant(
+    case_actor_participant = CaseParticipant(
         id_="https://example.org/participants/case-actor-cp",
         attributed_to=CASE_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
     )
-    transferee_participant = VultronParticipant(
+    transferee_participant = CaseParticipant(
         id_="https://example.org/participants/coordinator-cp",
         attributed_to=TRANSFEREE_ID,
         context=CASE_ID,

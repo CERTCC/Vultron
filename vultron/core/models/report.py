@@ -43,8 +43,4 @@ class VulnerabilityReport(CoreObject):
     )
 
 
-#: Backward-compatibility alias; prefer :class:`VulnerabilityReport` in new code.
-VultronReport = VulnerabilityReport
-
-
-__all__ = ["VulnerabilityReport", "VultronReport"]
+__all__ = ["VulnerabilityReport"]

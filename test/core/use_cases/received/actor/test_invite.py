@@ -533,7 +533,7 @@ class TestInviteActorUseCases:
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
-        from vultron.core.models.vultron_types import VultronParticipant
+        from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.states.rm import RM
         from vultron.enums.roles import CVDRole
 
@@ -547,7 +547,7 @@ class TestInviteActorUseCases:
         case_manager_participant_id = (
             "https://example.org/cases/caseRM002/participants/case-manager"
         )
-        case_manager_participant = VultronParticipant(
+        case_manager_participant = CaseParticipant(
             id_=case_manager_participant_id,
             attributed_to=owner_id,
             context="https://example.org/cases/caseRM002",
@@ -939,9 +939,9 @@ class TestInviteActorUseCases:
             dl.read(participant_case.actor_participant_index[invitee_id]),
         )
         if participant is None:
-            from vultron.core.models.vultron_types import VultronParticipant
+            from vultron.core.models.case_participant import CaseParticipant
 
-            participant = VultronParticipant(
+            participant = CaseParticipant(
                 id_=participant_case.actor_participant_index[invitee_id],
                 attributed_to=invitee_id,
                 context=case.id_,
@@ -992,7 +992,7 @@ class TestInviteActorUseCases:
         self, make_payload
     ):
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.models.vultron_types import VultronParticipant
+        from vultron.core.models.case_participant import CaseParticipant
         from vultron.wire.as2.vocab.base.objects.actors import (
             as_Organization,
             as_Service,
@@ -1017,7 +1017,7 @@ class TestInviteActorUseCases:
             attributed_to=case_actor_id,
         )
         object.__setattr__(case_actor, "context", case.id_)
-        participant = VultronParticipant(
+        participant = CaseParticipant(
             id_=f"{case.id_}/participants/late-joiner-nomarker",
             attributed_to=invitee_id,
             context=case.id_,

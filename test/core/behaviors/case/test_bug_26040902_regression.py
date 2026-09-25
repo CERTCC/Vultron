@@ -115,11 +115,9 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
         create_receive_report_case_tree,
     )
     from vultron.core.models.report_case_link import VultronReportCaseLink
-    from vultron.core.models.vultron_types import (
-        VultronCaseActor,
-        VultronOffer,
-        VultronReport,
-    )
+    from vultron.core.models.case_actor import CaseActor
+    from vultron.core.models.activity import VultronOffer
+    from vultron.core.models.report import VulnerabilityReport
     from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
     dl = _fresh_datalayer
@@ -136,15 +134,13 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     )
 
     # Seed minimal DataLayer state (mirrors what upstream use cases create)
-    actor = VultronCaseActor(id_=_actor_id, name="Vendor Co")
+    actor = CaseActor(id_=_actor_id, name="Vendor Co")
     dl.create(actor)
 
-    reporter_actor = VultronCaseActor(
-        id_=_reporter_actor_id, name="Reporter Co"
-    )
+    reporter_actor = CaseActor(id_=_reporter_actor_id, name="Reporter Co")
     dl.create(reporter_actor)
 
-    report = VultronReport(
+    report = VulnerabilityReport(
         id_=_report_id,
         name="BUG-26040902 Regression Report",
         content="Buffer overflow in regression test component",
