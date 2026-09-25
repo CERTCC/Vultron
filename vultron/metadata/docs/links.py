@@ -68,10 +68,16 @@ from vultron.metadata.base import (
 )
 
 # Bytes-mode so pages are never decoded whole; only matched values are. Both
-# quote styles, and the leading whitespace keeps ``data-href=`` from matching.
+# quote styles and the unquoted form, and the leading whitespace keeps
+# ``data-href=`` from matching. Escaped text such as ``href=&quot;x&quot;`` in
+# a code block cannot match the quoted forms.
 _REFERENCE = re.compile(
-    rb"""\s(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.IGNORECASE
+    rb"""\s(href|src|srcset)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))""",
+    re.IGNORECASE,
 )
+# One ``srcset`` candidate: separators, the URL (a non-whitespace run whose
+# trailing commas end the candidate), then descriptors up to the next comma.
+_SRCSET_CANDIDATE = re.compile(r"[\s,]*(\S*[^\s,])(?:,+|[^,]*,?)")
 # RFC 3986 scheme: ``https:``, ``mailto:``, ``data:``, ``javascript:``, …
 _SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 
@@ -154,6 +160,36 @@ def _resolves(target: str, built_files: frozenset[str]) -> bool:
     return target in built_files or f"{target}/index.html" in built_files
 
 
+def _values(match: re.Match[bytes]) -> list[str]:
+    """Return the references one attribute match carries.
+
+    ``href`` and ``src`` carry one. ``srcset`` carries a comma-separated list
+    of candidates, each a URL optionally followed by a width or density
+    descriptor (``logo.png 2x``); every candidate URL is a reference.
+    """
+    value = (match.group(2) or match.group(3) or match.group(4) or b"").decode(
+        "utf-8", errors="replace"
+    )
+    if match.group(1).lower() != b"srcset":
+        return [value]
+    return _srcset_urls(value)
+
+
+def _srcset_urls(value: str) -> list[str]:
+    """Return the candidate URLs of a ``srcset``, per the HTML parsing rules.
+
+    A candidate's URL is its first run of non-whitespace, so a comma *inside*
+    a URL (``data:image/png;base64,…``) does not split it; trailing commas end
+    the candidate, and otherwise its descriptors run to the next comma.
+    """
+    urls: list[str] = []
+    pos = 0
+    while candidate := _SRCSET_CANDIDATE.match(value, pos):
+        urls.append(candidate.group(1))
+        pos = candidate.end()
+    return urls
+
+
 def scan_site(root: Path | None = None) -> SiteScan:
     """Resolve every internal reference on every built HTML page.
 
@@ -190,15 +226,13 @@ def scan_site(root: Path | None = None) -> SiteScan:
     dead: list[DeadReference] = []
     for page in pages:
         for match in _REFERENCE.finditer((built / page).read_bytes()):
-            raw = (match.group(1) or match.group(2) or b"").decode(
-                "utf-8", errors="replace"
-            )
-            target = _target(page, raw, base_path)
-            if target is None:
-                continue
-            references += 1
-            if not _resolves(target, built_files):
-                dead.append(DeadReference(page=page, reference=raw))
+            for raw in _values(match):
+                target = _target(page, raw, base_path)
+                if target is None:
+                    continue
+                references += 1
+                if not _resolves(target, built_files):
+                    dead.append(DeadReference(page=page, reference=raw))
     return SiteScan(
         pages=len(pages),
         references=references,

@@ -232,6 +232,53 @@ def test_data_attribute_is_not_a_reference(tmp_path):
     assert _dead(tmp_path) == []
 
 
+@pytest.mark.spec("DOCBW-03-007")
+def test_unquoted_reference_is_resolved(tmp_path):
+    _build_tree(
+        tmp_path,
+        {
+            **CLEAN,
+            "orphan/index.html": "<a href=../guide/>x</a><a href=../gone/>y</a>",
+        },
+    )
+    assert _dead(tmp_path) == [
+        DeadReference(page="orphan/index.html", reference="../gone/")
+    ]
+
+
+@pytest.mark.spec("DOCBW-03-007")
+def test_every_srcset_candidate_is_resolved(tmp_path):
+    _build_tree(
+        tmp_path,
+        {
+            **CLEAN,
+            "orphan/index.html": (
+                '<img srcset="../assets/logo.png 1x, ../assets/big.png 2x">'
+                "<img srcset=../assets/logo.png>"
+            ),
+        },
+    )
+    scan = scan_site(tmp_path)
+    assert scan.dead == [
+        DeadReference(page="orphan/index.html", reference="../assets/big.png")
+    ]
+    assert scan.references == 7 + 3
+
+
+def test_srcset_data_uri_is_not_split_at_its_comma(tmp_path):
+    """A comma inside a candidate URL does not start a new candidate."""
+    _build_tree(
+        tmp_path,
+        {
+            **CLEAN,
+            "orphan/index.html": (
+                '<img srcset="data:image/png;base64,AAAA 1x, ../assets/logo.png 2x">'
+            ),
+        },
+    )
+    assert _dead(tmp_path) == []
+
+
 @pytest.mark.parametrize(
     "site_url, expected",
     [(SITE_URL, "/Vultron/"), ("https://example.org", "/"), (None, "/")],

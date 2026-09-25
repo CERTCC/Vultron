@@ -148,7 +148,7 @@ groups:
         kind: project
         statement: >-
           A reference-axis step MUST run after the Build Site step on every
-          trigger, with no `docs_changed` condition, and MUST fail the workflow
+          trigger, with no step-level `if:` condition, and MUST fail the workflow
           when any internal reference in the built `site/` tree resolves to a
           path the build did not produce. It MUST evaluate every built HTML file
           rather than only those reachable from an entry page, MUST fail when
