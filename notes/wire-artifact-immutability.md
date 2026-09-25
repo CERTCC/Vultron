@@ -3,6 +3,12 @@ title: Wire Artifact Immutability
 status: active
 related_specs:
   - specs/architecture.yaml (ARCH-12-001, ARCH-21-002)
+  - specs/vocabulary-model.yaml (VM-08-002, VM-08-003)
+related_notes:
+  - notes/datalayer-design.md
+  - notes/case-ledger-authority.md
+  - notes/core-wire-rendering-port.md
+  - notes/activity-factories.md
 ---
 
 # Wire Artifact Immutability
@@ -19,8 +25,9 @@ Source: CONCERN-2545.
 
 A wire Activity is immutable once it is complete:
 
-- **Received**: frozen at the moment of receipt, before any rehydration or
-  routing logic touches it.
+- **Received**: sealed at the moment of receipt, before any rehydration or
+  routing logic touches it — as the received JSON text, not as a frozen object
+  (see "Received evidence is a value, not a frozen graph" below).
 - **Emitted**: frozen at the moment the factory seals it, before it is handed
   to any port or adapter.
 
@@ -35,6 +42,45 @@ assignment regardless of type. Under Pydantic v2 that
 rejection surfaces as a `ValidationError` with `type=frozen_instance`, not a
 `TypeError`; code that means to clear a field on a wire object must build a
 new one via `model_copy(update=...)` instead (issue #2904).
+
+---
+
+## Received Evidence Is a Value, Not a Frozen Graph
+
+`frozen=True` on the envelope used to be the inbound guarantee, and it stopped
+being one without anything failing. Pydantic's `frozen` covers only the class
+that declares it, not the models nested in its fields. ADR-0099 detail 3
+deleted the paired `as_*` classes, so the case, report, participant and status
+inside a parsed activity are now mutable core classes. The old gate asserted
+`as_Object.model_config["frozen"]` and kept passing throughout.
+
+The nested classes cannot simply be frozen: they are also the domain objects,
+mutable by design, and Pydantic has no per-instance freezing. So the evidence
+moved out of the object graph:
+
+- `parse_activity` serializes the body to JSON text **before** anything expands
+  or validates it, and seals that text onto the parsed activity
+  (`as_Activity.seal_received_evidence`). A `str` cannot be mutated in place,
+  and `received_evidence` decodes a fresh `dict` per read, so no reader has to
+  be trusted.
+- The seal is write-once: resealing the same text is a no-op, and different
+  text raises. It is a private attribute, which Pydantic leaves writable even
+  on a frozen model, so the rule is enforced by the method, not the config.
+- `FastAPIIngressAdapter.rehydrate` builds B from storage, which never kept the
+  body, so it copies A's evidence onto B. Without that the evidence would stop
+  at the first pipeline step.
+- Replay through `StoredActivityIngressAdapter` carries no evidence yet: storage
+  does not keep it. Persisting it is a step of ADR-0106 (#3742).
+
+The gate follows the mechanism. It tampers with every class reachable in a
+parsed example tree, so a class added to the vocabulary is checked the first
+time an example carries it. A gate on a class flag checks the flag, not the
+guarantee the flag was meant to give.
+
+Nothing consumes the evidence yet. Recording it verbatim as the ledger's
+`payloadSnapshot`, in place of today's rebuilt snapshot, is ADR-0106.
+
+Source: ISSUE-3584.
 
 ---
 
@@ -73,10 +119,12 @@ Source: ISSUE-2904.
 Routing and use-case execution often need a more hydrated form than raw wire
 data. Two distinct objects serve these two needs:
 
-- **A — the frozen artifact**: the wire Activity exactly as received. Never
-  mutated. Stored as `CaseLedgerEntry.payloadSnapshot`. Replicated to other
-  participants via `Announce(CaseLedgerEntry)` so they can reconstruct local
-  state from the same evidence.
+- **A — the received artifact**: the wire Activity exactly as received. Its
+  evidence is the sealed body, which nothing can mutate. The ledger replicates
+  it to other participants via `Announce(CaseLedgerEntry)` so they can
+  reconstruct local state from the same evidence. Today the recorded
+  `payloadSnapshot` is still rebuilt from the object graph; recording the
+  sealed body verbatim instead is ADR-0106.
 
 - **B — the hydrated routing copy**: a separately constructed object with
   bare-string references resolved to full objects. Produced independently from
@@ -147,7 +195,10 @@ event, breaking the accountability invariant.
 ## ADR Cross-references
 
 - **ADR-0074**: wire Activity artifact immutability — the decision record for
-  this design principle (frozen=True on wire branch, A/B split, dumb-relay ports).
+  this design principle (A/B split, dumb-relay ports). Its inbound `frozen`
+  mechanism is partially superseded by ADR-0099 (see above).
+- **ADR-0106** (proposed): a case ledger entry is a postmark on the received
+  envelope; replicas resolve bare references by dereference.
 - **ADR-0017**: two-branch hierarchy (core branch strict, wire branch
   lenient). Its shared root is gone: under ADR-0099 detail 4 `as_Base` stands
   on `pydantic.BaseModel` directly and inherits nothing from core

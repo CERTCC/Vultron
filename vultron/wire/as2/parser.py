@@ -6,6 +6,7 @@ Raises domain errors; driving adapters are responsible for mapping these
 to transport-level error responses (e.g., HTTP status codes).
 """
 
+import json
 import logging
 from typing import Any, cast
 
@@ -156,7 +157,9 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             or blank.
         VultronParseUnknownTypeError: If the `type` value is not in the vocabulary.
         VultronParseValidationError: If Pydantic validation fails, including
-            when a recognised inline object fails its own class's validation.
+            when a recognised inline object fails its own class's validation,
+            or if the body cannot be re-serialized as strict JSON to seal it
+            as received evidence (VM-08-002).
     """
     logger.debug("Parsing activity from body (type=%r)", body.get("type"))
 
@@ -232,8 +235,12 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             "clock (CLP-15-004)."
         )
 
+    # Taken before anything expands or validates the body: this text is the
+    # received artifact VM-08-002 governs, and nothing downstream can alter it.
+    evidence_json = _received_evidence_json(body)
+
     try:
-        return cast(
+        activity = cast(
             as_Activity,
             cls.model_validate(
                 _expand_inline_object(body), context=_INBOUND_CONTEXT
@@ -245,3 +252,33 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         raise
     except Exception as exc:
         raise VultronParseValidationError(str(exc)) from exc
+
+    activity.seal_received_evidence(evidence_json)
+    return activity
+
+
+def _received_evidence_json(body: dict[str, Any]) -> str:
+    """Serialize *body* as the received evidence, refusing non-JSON content.
+
+    Why a class config cannot hold VM-08-002 any more: ``frozen=True`` covers
+    only the class that declares it, and since ADR-0099 detail 3 a parsed
+    activity nests *core* classes, which are mutable by design because they are
+    also the domain objects (ISSUE-3584).  Pydantic has no per-instance
+    freezing, so the guarantee moves from the object graph to a value copy taken
+    here.  Serialized text rather than a deep-copied ``dict``: a ``str`` cannot
+    be mutated in place by anyone, so no reader has to be trusted.
+
+    A body that cannot be re-serialized is refused rather than coerced into a
+    string form.  That covers a ``dict`` built in process with a non-JSON value,
+    and a JSON number such as ``1e400`` that decodes to ``inf``, which strict
+    JSON cannot carry back out.
+
+    Raises:
+        VultronParseValidationError: If *body* holds a non-JSON value.
+    """
+    try:
+        return json.dumps(body, ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise VultronParseValidationError(
+            f"Activity body is not JSON-serializable: {exc}"
+        ) from exc

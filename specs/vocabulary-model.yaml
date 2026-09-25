@@ -497,21 +497,28 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A received wire Activity MUST be treated as a frozen artifact from the moment of receipt.
-      It MUST NOT be mutated after construction. If a more hydrated form is required for routing
-      or use-case execution, it MUST be produced as a separate object; the original received
-      artifact MUST remain unmodified.
+      A received wire Activity MUST carry, as its received evidence, the JSON body that arrived,
+      as decoded and re-serialized by the parser before anything expands, validates, or hydrates
+      it, and held independently of the parsed object graph. The evidence MUST NOT change when the
+      parsed activity, any object nested in it, or the caller's body is mutated.
+      If a more hydrated form is required for routing or use-case execution, it MUST be produced
+      as a separate object, and it MUST carry the same evidence unchanged.
     rationale: >-
-      The received artifact is the evidence of what arrived. It is stored as
-      `CaseLedgerEntry.payloadSnapshot` and replicated to other participants via
-      `Announce(CaseLedgerEntry)`. Mutating before storage breaks replication fidelity.
-      Wire-branch field leniency (ARCH-12-001) and post-construction immutability are orthogonal.
+      The received artifact is the evidence of what arrived, and the ledger replicates it via
+      `Announce(CaseLedgerEntry)`. A class-level `frozen=True` cannot hold it: `frozen` does not
+      reach nested models, and since ADR-0099 detail 3 the nested objects are mutable core
+      classes. The evidence is therefore a value taken at parse, not a property of the graph.
     verification: >-
-      Inspection of the inbox pipeline confirms that received wire Activity objects are
-      constructed once and not modified before being passed to `CaseLedgerEntry.payloadSnapshot`.
-      A hydrated routing copy (B) is produced separately from the original artifact (A).
+      `test/architecture/test_wire_artifact_immutability.py` parses every example activity as a
+      sender delivers it and, for each class reachable in the parsed tree, overwrites the fields
+      of every instance of that class and asserts `received_evidence` still equals the delivered
+      body. `test/wire/as2/test_received_evidence.py` asserts the evidence is taken before the
+      parser's inline expansion and is unaffected by mutating the parsed object or the caller's
+      body. `test/adapters/driving/fastapi/test_ingress_received_evidence.py` asserts ingress
+      rehydration carries the evidence, bare references included, onto the routing copy.
     adr:
     - ADR-0074
+    - ADR-0099
     relationships:
     - rel_type: refines
       spec_id: VM-08-001

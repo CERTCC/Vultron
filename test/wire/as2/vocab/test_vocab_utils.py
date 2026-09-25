@@ -202,5 +202,22 @@ class TestVocabUtils(unittest.TestCase):
             self.assertEqual(obj["bar"], "baz")
 
 
+def test_rendered_example_keeps_an_inline_subclass_fields():
+    """A nested subclass renders with its own fields, as a sender delivers it.
+
+    ``Create.object`` is typed as a parent class, so a plain dump cut the inline
+    ``CaseProposal`` down to that parent and dropped the ``object`` and
+    ``target`` a receiver requires; the reference page showed a body no
+    receiver would parse (#3745).
+    """
+    rendered = examples.json2md(examples.create_case_proposal())
+    payload = json.loads(rendered.removeprefix("```json").removesuffix("```"))
+
+    proposal = payload["object"]
+    assert proposal["type"] == "CaseProposal"
+    assert "object" in proposal
+    assert "target" in proposal
+
+
 if __name__ == "__main__":
     unittest.main()
