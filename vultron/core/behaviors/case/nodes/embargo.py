@@ -16,8 +16,9 @@
 """
 Embargo management action nodes and helpers for case behavior trees.
 
-Provides helpers and action nodes for initializing default embargo events
-during case creation.
+Provides action nodes for initializing the embargo a case is created with.
+Eligibility and duration resolution live in the sibling
+``embargo_resolution.py``.
 
 The composite subtree assembling these leaf nodes is defined in the sibling
 ``embargo_tree.py`` module at the process-area root per BTND-07-003:
@@ -29,7 +30,7 @@ notes/protocol-event-cascades.md D5-6-EMBARGORCP.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import isodate  # type: ignore[import-untyped]
 from py_trees.common import Status
@@ -40,8 +41,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.enums import VultronObjectType
-from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.embargo_duration import InitialEmbargoDuration
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -55,60 +55,13 @@ from vultron.errors import (
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_EMBARGO_DAYS = 90
-
-
-def _preferred_embargo_duration(
-    dl: CasePersistence, node_name: str, node_logger: logging.Logger
-) -> timedelta:
-    duration = timedelta(days=_DEFAULT_EMBARGO_DAYS)
-    policies = list(dl.list_objects(VultronObjectType.EMBARGO_POLICY))
-    if not policies:
-        return duration
-
-    preferred = getattr(policies[0], "preferred_duration", None)
-    if isinstance(preferred, timedelta):
-        return preferred
-
-    node_logger.warning(
-        "%s: EmbargoPolicy preferred_duration %r is not a timedelta; "
-        "falling back to default %d days",
-        node_name,
-        preferred,
-        _DEFAULT_EMBARGO_DAYS,
-    )
-    return duration
-
-
-class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
-    """Resolve preferred embargo duration and publish it to blackboard."""
-
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "default_embargo_duration": PortInformation(
-            data_type=object, required=True
-        ),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"default_embargo_duration": "/default_embargo_duration"}
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        duration = _preferred_embargo_duration(
-            self.datalayer, self.name, self.logger
-        )
-        self._set_output("default_embargo_duration", duration)
-        return Status.SUCCESS
-
 
 class CreateEmbargoEventNode(DataLayerActionWithPorts):
-    """Create a default embargo event and publish embargo_id to blackboard."""
+    """Create the initial embargo event and publish embargo_id to blackboard.
+
+    Its duration is the ``InitialEmbargoDuration`` that
+    ``ResolveEmbargoDurationNode`` resolved (EP-04-005 through EP-04-007).
+    """
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -116,8 +69,8 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         "case_id": PortInformation(data_type=str, required=True),
-        "default_embargo_duration": PortInformation(
-            data_type=object, required=True
+        "initial_embargo_duration": PortInformation(
+            data_type=InitialEmbargoDuration, required=True
         ),
     }
 
@@ -129,15 +82,15 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             "case_id": "/case_id",
-            "default_embargo_duration": "/default_embargo_duration",
+            "initial_embargo_duration": "/initial_embargo_duration",
             "default_embargo_id": "/default_embargo_id",
         }
 
     def initialise(self) -> None:
         super().initialise()
         self.case_id_bb: str = self.get_input("case_id")
-        self.default_embargo_duration_bb = self.get_input(
-            "default_embargo_duration"
+        self.initial_embargo_duration_bb: InitialEmbargoDuration = (
+            self.get_input("initial_embargo_duration")
         )
 
     def update(self) -> Status:
@@ -149,13 +102,8 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
             self.logger.error("%s: case_id not found in blackboard", self.name)
             return Status.FAILURE
 
-        duration = self.default_embargo_duration_bb
-        if not isinstance(duration, timedelta):
-            self.logger.error(
-                "%s: default_embargo_duration missing or invalid", self.name
-            )
-            return Status.FAILURE
-
+        resolved = self.initial_embargo_duration_bb
+        duration = resolved.duration
         end_time = datetime.now(tz=timezone.utc) + duration
         embargo = EmbargoEvent(end_time=end_time, context=case_id)
         try:
@@ -169,12 +117,13 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
 
         self._set_output("default_embargo_id", embargo.id_)
         self.logger.info(
-            "Initialized default embargo '%s' for case '%s'"
-            " (end_time: %s, duration: %s)",
+            "Initialized embargo '%s' for case '%s'"
+            " (end_time: %s, duration: %s, source: %s)",
             embargo.id_,
             case_id,
             end_time.isoformat(),
             isodate.duration_isoformat(duration),
+            resolved.source.value,
         )
         return Status.SUCCESS
 

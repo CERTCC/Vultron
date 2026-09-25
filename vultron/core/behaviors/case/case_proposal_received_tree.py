@@ -280,7 +280,10 @@ def create_case_proposal_received_tree(
             ``default_case_roles`` determine the CVD roles the proposing
             (report-receiving) actor is given alongside ``CVDRole.CASE_OWNER``
             (CFG-07-002, CFG-07-004).  When ``None`` the receiver gets
-            ``CVDRole.CASE_OWNER`` only.
+            ``CVDRole.CASE_OWNER`` only.  Its
+            ``protocol_default_embargo_duration`` is the fallback embargo
+            when no actor default applies (EP-04-005); ``None`` uses the
+            ``ActorConfig`` default.
         call_out: Bundle supplying the ``EvaluateCaseProposal`` admission
             call-out point.  Defaults to ``CASE_PROPOSAL_DETERMINISTIC``, whose
             backend always succeeds, so an unconfigured deployment admits every
@@ -345,7 +348,7 @@ def create_case_proposal_received_tree(
             # ADR-0041 AC-2: add reporter at RM.ACCEPTED
             AddReporterParticipantNode(report_id=report_id),
             # ADR-0041 AC-3: initialize default embargo
-            InitializeDefaultEmbargoNode(),
+            InitializeDefaultEmbargoNode(actor_config=actor_config),
             # CM-13: seed the vendor (CASE_OWNER) as embargo SIGNATORY.
             # InitializeDefaultEmbargoNode's SeedOwnerAsSignatoryNode keys on
             # actor_id (the CaseActor), which is not a participant here, so it

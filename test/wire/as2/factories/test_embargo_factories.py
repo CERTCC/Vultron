@@ -188,6 +188,65 @@ def test_em_propose_embargo_rsvp_deadline_overrides_caller_end_time(
     assert result.end_time == rsvp
 
 
+@pytest.mark.spec("EP-07-006")
+def test_em_propose_embargo_deadline_after_embargo_end_raises():
+    """The sender refuses a deadline the receiver would clamp down."""
+    embargo = as_EmbargoEvent(
+        context=_CASE_URI,
+        end_time=datetime.now(tz=timezone.utc) + timedelta(days=10),
+    )
+    with pytest.raises(VultronActivityConstructionError, match="EP-07-006"):
+        em_propose_embargo_activity(
+            embargo=embargo,
+            rsvp_deadline=embargo.end_time + timedelta(seconds=1),
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("EP-07-002")
+@pytest.mark.spec("EP-07-006")
+def test_em_propose_embargo_minimum_is_remaining_embargo_when_shorter():
+    """Two days left: a deadline at the embargo's end is not below minimum."""
+    embargo = as_EmbargoEvent(
+        context=_CASE_URI,
+        end_time=datetime.now(tz=timezone.utc) + timedelta(days=2),
+    )
+    result = em_propose_embargo_activity(
+        embargo=embargo,
+        rsvp_deadline=embargo.end_time,
+        actor=_ACTOR_URI,
+    )
+    assert result.end_time == embargo.end_time
+
+
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_minimum_measured_from_published(sample_embargo):
+    """The 72 h minimum runs from the invite's ``published`` time."""
+    published = datetime.now(tz=timezone.utc) + timedelta(days=1)
+    with pytest.raises(VultronActivityConstructionError, match="minimum"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=published + timedelta(hours=71),
+            published=published,
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("EP-07-006")
+def test_em_propose_embargo_naive_embargo_end_is_read_as_utc():
+    """A naive embargo end is compared as UTC, not raised as ``TypeError``."""
+    aware_end = datetime.now(tz=timezone.utc) + timedelta(days=10)
+    embargo = as_EmbargoEvent(
+        context=_CASE_URI, end_time=aware_end.replace(tzinfo=None)
+    )
+    with pytest.raises(VultronActivityConstructionError, match="EP-07-006"):
+        em_propose_embargo_activity(
+            embargo=embargo,
+            rsvp_deadline=aware_end + timedelta(seconds=1),
+            actor=_ACTOR_URI,
+        )
+
+
 # ---------------------------------------------------------------------------
 # em_accept_embargo_activity
 # ---------------------------------------------------------------------------

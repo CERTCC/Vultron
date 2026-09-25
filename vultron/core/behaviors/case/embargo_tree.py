@@ -24,40 +24,67 @@ than in the ``nodes/`` subpackage, which is reserved for leaf
 
 Subtrees defined here:
 
-- ``InitializeDefaultEmbargoNode`` — composed subtree for default embargo
-  initialization on case creation.  Assembles the five leaf steps:
-  resolve duration, create event, advance EM state, attach embargo to
-  case, and seed owner as SIGNATORY.
+- ``InitializeDefaultEmbargoNode`` — composed subtree for initial embargo
+  set-up on case creation.  A case with P/X/A set gets no embargo and stays
+  EM.NONE (EP-04-008); any other case runs the five leaf steps: resolve
+  duration, create event, advance EM state, attach embargo to case, and seed
+  owner as SIGNATORY.
 
-Consumed by ``receive_report_case_tree.py``.
+Consumed by ``case_proposal_received_tree.py``.
 
 Per specs/case-management.yaml CM-02, OX-03-001, CM-14-003.
+Per specs/embargo-policy.yaml EP-04-005 through EP-04-008 (ADR-0096).
 Per specs/behavior-tree-node-design.yaml BTND-07-003.
 """
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.embargo import (
     AdvanceEMStateToActiveNode,
     AttachEmbargoToCaseNode,
     CreateEmbargoEventNode,
-    ResolveEmbargoDurationNode,
     SeedOwnerAsSignatoryNode,
+)
+from vultron.core.behaviors.case.nodes.embargo_resolution import (
+    CaseNotEmbargoEligibleNode,
+    ResolveEmbargoDurationNode,
 )
 
 
-class InitializeDefaultEmbargoNode(py_trees.composites.Sequence):
-    """Composed subtree for default embargo initialization on case creation."""
+class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
+    """Composed subtree for initial embargo set-up on case creation.
 
-    def __init__(self, name: str | None = None) -> None:
+    The first arm succeeds, creating nothing, when the case is not embargo
+    eligible (EP-04-008).  Otherwise the creation arm runs, and its failure is
+    the subtree's failure — the ineligible arm never masks it.
+
+    Args:
+        actor_config: Source of the protocol default embargo duration
+            (EP-04-005).  ``None`` uses the ``ActorConfig`` defaults.
+        name: Optional node name.
+    """
+
+    def __init__(
+        self,
+        actor_config: ActorConfig | None = None,
+        name: str | None = None,
+    ) -> None:
         super().__init__(
             name=name or self.__class__.__name__,
             memory=False,
             children=[
-                ResolveEmbargoDurationNode(),
-                CreateEmbargoEventNode(),
-                AdvanceEMStateToActiveNode(),
-                AttachEmbargoToCaseNode(),
-                SeedOwnerAsSignatoryNode(),
+                CaseNotEmbargoEligibleNode(),
+                py_trees.composites.Sequence(
+                    name="CreateInitialEmbargo",
+                    memory=False,
+                    children=[
+                        ResolveEmbargoDurationNode(actor_config=actor_config),
+                        CreateEmbargoEventNode(),
+                        AdvanceEMStateToActiveNode(),
+                        AttachEmbargoToCaseNode(),
+                        SeedOwnerAsSignatoryNode(),
+                    ],
+                ),
             ],
         )
