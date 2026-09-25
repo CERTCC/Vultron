@@ -19,6 +19,7 @@ from vultron.core.models.events.embargo import (
 )
 from vultron.core.models._helpers import _as_id, claimed_published_iso
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.predicates.addressing import is_addressed_to
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
@@ -99,7 +100,7 @@ def resolve_invitee_id(
     """
     recipients = request.to_recipients
 
-    if receiving_actor_id in recipients:
+    if is_addressed_to(receiving_actor_id, recipients):
         return receiving_actor_id
 
     if len(recipients) == 1:

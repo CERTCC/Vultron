@@ -88,6 +88,12 @@ class OfferCaseOwnershipTransferReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        # Resolve the receiver before any write: it raises when no actor owns
+        # this store, and a refusal must not leave the Offer behind (#2667).
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
+
         _idempotent_create(
             self._dl,
             request.activity_type,
@@ -95,10 +101,6 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             request.activity,
             "OfferCaseOwnershipTransfer",
             request.activity_id,
-        )
-
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
         )
 
         case_id = _as_id(request.activity.object_)
