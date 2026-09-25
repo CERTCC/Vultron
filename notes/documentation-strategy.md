@@ -344,7 +344,7 @@ it after the build in every site-building workflow, through the shared
 `check-site-publication` action. It checks the *outcome* rather
 than the `mkdocs.yml` mechanism, so a mis-anchored pattern or a plugin-emitted
 file fails the gate instead of shipping. Its declaration of what is withheld is
-the interim home for the publication axis; #3555's maturity manifest replaces it.
+the home of the publication axis; no maturity manifest replaces it (ADR-0106).
 
 ## Withholding Has Two Axes, and Only One Was Checked
 
