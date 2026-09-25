@@ -23,10 +23,10 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.base import UriString, VultronObject
+from vultron.core.models.base import UriString, CoreRecord
 
 
-class VultronPendingCaseInbox(VultronObject):
+class VultronPendingCaseInbox(CoreRecord):
     """Store deferred inbox activity IDs keyed by case ID.
 
     Tracks when the queue was created (``queued_at``) so that a bounded

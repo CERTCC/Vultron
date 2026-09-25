@@ -25,11 +25,11 @@ from typing import Any, Literal, Optional
 from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreRecord
 from vultron.core.models.wire_keys import input_keys
 
 
-class VultronReplicationState(VultronObject):
+class VultronReplicationState(CoreRecord):
     """Tracks per-peer replication state for the CaseActor log fan-out.
 
     The ``id_`` is auto-computed as

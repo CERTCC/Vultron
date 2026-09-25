@@ -13,7 +13,7 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import (
     NonEmptyString,
     ValidatedAssignmentMixin,
-    VultronObject,
+    CoreObject,
 )
 
 
@@ -102,7 +102,7 @@ class VultronEvent(ValidatedAssignmentMixin, BaseModel):
     is a Python built-in; all other field names are natural English identifiers.
 
     Produced by ``extract_intent()`` in the wire layer before dispatch.
-    All fields are plain domain types (strings or ``VultronObject`` subclasses);
+    All fields are plain domain types (strings or ``CoreObject`` subclasses);
     no AS2 wire types are present.
 
     Concrete per-semantic subclasses set ``semantic_type`` as a ``Literal``
@@ -121,15 +121,15 @@ class VultronEvent(ValidatedAssignmentMixin, BaseModel):
 
     # Rich domain objects — parallel to AS2 Activity fields.
     # ``object_`` uses a trailing underscore because ``object`` is a Python built-in.
-    object_: VultronObject | None = None
-    target: VultronObject | None = None
-    context: VultronObject | None = None
-    origin: VultronObject | None = None
+    object_: CoreObject | None = None
+    target: CoreObject | None = None
+    context: CoreObject | None = None
+    origin: CoreObject | None = None
 
     # Nested fields: activity.object.object, .target, .context
-    inner_object: VultronObject | None = None
-    inner_target: VultronObject | None = None
-    inner_context: VultronObject | None = None
+    inner_object: CoreObject | None = None
+    inner_target: CoreObject | None = None
+    inner_context: CoreObject | None = None
 
     in_reply_to: NonEmptyString | None = None
 

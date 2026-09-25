@@ -46,7 +46,7 @@ class RejectLogEntryReceivedEvent(VultronEvent):
     """Participant rejected an ``Announce(CaseLedgerEntry)`` due to hash-chain mismatch.
 
     The ``context`` field of the wire activity carries the last accepted hash
-    as a plain string.  The extractor wraps it in a minimal ``VultronObject``
+    as a plain string.  The extractor wraps it in a minimal ``CoreObject``
     whose ``id_`` is the hash string, so ``event.context_id`` returns it.
 
     Spec: SYNC-03-001, SYNC-03-002.

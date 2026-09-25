@@ -6,8 +6,8 @@ description: >
   None/unresolved fields) to "strict" (all required fields guaranteed),
   and how helpers must fail fast when strict guarantees are violated.
 related_specs:
-  - specs/architecture.yaml (ARCH-10-001, ARCH-15-001 through ARCH-15-004,
-    ARCH-21-001 through ARCH-21-005)
+  - specs/architecture.yaml (ARCH-10-001, ARCH-12-001, ARCH-12-002,
+    ARCH-15-001 through ARCH-15-004, ARCH-21-001 through ARCH-21-005)
   - specs/case-management.yaml (CM-23-012, CM-27-001 through CM-27-003)
   - specs/participant-role-management.yaml (PRM-03-003)
   - specs/error-handling.yaml (EH-05-002, EH-07-001 through EH-07-003)
@@ -258,12 +258,17 @@ existing `add_participant()` / `remove_participant()` for `case_participants`.
 | Layer | `validate_assignment` | Why |
 |---|---|---|
 | Core models (`vultron/core/models/`) | **on** (ARCH-21-001) | Core fields carry a shape guarantee that readers depend on |
-| `VultronBase` | **never** (ARCH-21-002) | Shared base of both branches; `as_Base` inherits it (ARCH-12-001/002) |
-| Wire (`vultron/wire/`) | **never** (ARCH-21-003) | Inbound data is legitimately loose; strictness belongs at the projection |
+| `CoreRecord` (core record root) | **on**, via `ValidatedAssignmentMixin` | Both core roots get it: `CoreObject` extends `CoreRecord` (ARCH-12-002) |
+| Wire (`vultron/wire/`) | **never** (ARCH-21-002, ARCH-21-003) | Inbound data is legitimately loose; strictness belongs at the projection |
 
-Setting the flag on `VultronBase` is the one-line fix that looks right and is
-not. It contradicts ARCH-12-002 and, when measured, produced the largest blast
-radius of any variant (747 failed, 423 errors).
+The wire branch stays lenient structurally, not by override: `as_Base` stands
+on `pydantic.BaseModel` directly and does not subclass `CoreRecord` or
+`CoreObject` (ARCH-12-001, ARCH-21-002), so the flag has no MRO path into it.
+Before ADR-0099 detail 4, both branches shared one root, and setting the flag
+there was the one-line fix that looked right and was not: when measured it
+produced the largest blast radius of any variant (747 failed, 423 errors). Do
+not reintroduce a shared root, or make a wire class inherit a core root, to
+reuse a field or hook — that reopens the same leak.
 
 ### Pitfall: never assign to `self` in a `mode="after"` validator
 

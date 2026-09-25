@@ -844,7 +844,7 @@ def announce_vulnerability_case_activity(
 
 def bootstrap_replay_question_activity(
     actor: str,
-    to: str,
+    to: list[str],
     case_id: str,
     **kwargs,
 ) -> as_Question:
@@ -857,8 +857,9 @@ def bootstrap_replay_question_activity(
     Args:
         actor: URI of the actor sending the Question (the one waiting for
             bootstrap).
-        to: URI of the actor that should resend the bootstrap (the case
-            creator / original report receiver).
+        to: URIs of the actors that should resend the bootstrap (the case
+            creator / original report receiver).  A list, like every other
+            factory's ``to``: delivery validates it as ``list[str]``.
         case_id: URI of the case whose bootstrap is being requested.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``name``).

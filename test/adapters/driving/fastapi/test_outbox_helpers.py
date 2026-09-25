@@ -29,6 +29,7 @@ Spec coverage:
 from types import SimpleNamespace
 
 import pytest
+from pydantic import BaseModel
 
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 
@@ -330,3 +331,96 @@ def test_load_outbound_activity_preserves_roles():
 
     assert outbound is not None
     assert outbound.roles == ["vendor", "deployer"]
+
+
+# ---------------------------------------------------------------------------
+# _load_outbound_activity accepts every wire activity (ADR-0099 detail 8)
+# ---------------------------------------------------------------------------
+
+
+def _accepted_keys(model: type[BaseModel]) -> set[str]:
+    """Every input key *model* accepts: field names plus their aliases."""
+    from pydantic import AliasChoices
+
+    keys: set[str] = set()
+    for name, info in model.model_fields.items():
+        keys.add(name)
+        for alias in (info.alias, info.validation_alias):
+            if isinstance(alias, str):
+                keys.add(alias)
+            elif isinstance(alias, AliasChoices):
+                keys.update(c for c in alias.choices if isinstance(c, str))
+    return keys
+
+
+def _wire_activity_classes() -> list[type[BaseModel]]:
+    # The factories import every activity module, filling VOCABULARY.
+    import vultron.wire.as2.factories  # noqa: F401
+    from vultron.wire.as2.vocab.base.objects.activities.base import (
+        as_Activity,
+    )
+    from vultron.wire.as2.vocab.base.registry import VOCABULARY
+
+    return sorted(
+        {cls for cls in VOCABULARY.values() if issubclass(cls, as_Activity)},
+        key=lambda cls: cls.__name__,
+    )
+
+
+@pytest.mark.parametrize(
+    "wire_cls", _wire_activity_classes(), ids=lambda cls: cls.__name__
+)
+def test_vultron_activity_accepts_every_wire_activity_key(
+    wire_cls: type[BaseModel],
+) -> None:
+    """Every key a stored wire activity dumps is a ``VultronActivity`` field.
+
+    ``VultronActivity`` inherits ``extra="forbid"`` from ``CoreObject``, and
+    ``_load_outbound_activity`` validates the stored wire dump into it, so an
+    undeclared key makes the activity undeliverable.  ``as_Question``'s
+    ``anyOf``/``oneOf``/``closed`` did exactly that to the CBT-03-004 replay
+    Question.
+    """
+    from vultron.core.models.activity import VultronActivity
+
+    dumped = {
+        info.serialization_alias or info.alias or name
+        for name, info in wire_cls.model_fields.items()
+        if not info.exclude
+    }
+    missing = dumped - _accepted_keys(VultronActivity)
+    assert not missing, (
+        f"{wire_cls.__name__} dumps keys VultronActivity forbids: "
+        f"{sorted(missing)} — declare them (ADR-0099 detail 8)"
+    )
+
+
+def test_load_outbound_activity_delivers_bootstrap_replay_question():
+    """CBT-03-004: the replay Question survives the delivery conversion."""
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.adapters.driving.fastapi.outbox_delivery import (
+        _load_outbound_activity,
+    )
+    from vultron.wire.as2.factories.case import (
+        bootstrap_replay_question_activity,
+    )
+
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    question = bootstrap_replay_question_activity(
+        actor="https://example.org/actors/v1",
+        to=["https://example.org/actors/case-actor"],
+        case_id="https://example.org/cases/c1",
+    )
+    dl.create(question)
+
+    outbound = _load_outbound_activity(
+        "https://example.org/actors/v1", question.id_, dl
+    )
+
+    assert outbound is not None
+    assert outbound.type_ == "Question"
+    assert outbound.to == ["https://example.org/actors/case-actor"]
+    assert outbound.context == "https://example.org/cases/c1"

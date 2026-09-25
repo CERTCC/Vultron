@@ -17,10 +17,10 @@
 
 from pydantic import Field
 
-from vultron.core.models.base import NonEmptyString, VultronObject
+from vultron.core.models.base import NonEmptyString, CoreObject
 
 
-class VultronNote(VultronObject):
+class VultronNote(CoreObject):
     """Domain representation of a Note.
 
     ``type_`` is ``"Note"`` to match the wire value.

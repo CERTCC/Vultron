@@ -17,16 +17,14 @@
 
 # pyright: reportGeneralTypeIssues=false
 
-# pyright: reportGeneralTypeIssues=false
-
 from typing import Any, Literal
 
 from pydantic import Field
 
-from vultron.core.models.base import NonEmptyString, VultronObject
+from vultron.core.models.base import NonEmptyString, CoreObject
 
 
-class VultronActivity(VultronObject):
+class VultronActivity(CoreObject):
     """Domain representation of an AS2 activity for DataLayer storage.
 
     ``VultronActivity`` is the domain model for an inbound or outbound AS2
@@ -46,7 +44,7 @@ class VultronActivity(VultronObject):
     ``record_to_object`` and deserialized as the appropriate AS2 activity
     subclass.  ``object_`` uses alias ``"object"`` to match the AS2 wire
     field name; callers may pass either ``object_=`` or ``object=`` thanks
-    to ``populate_by_name=True`` on ``VultronBase``.
+    to ``populate_by_name=True`` on ``CoreRecord``.
     """
 
     type_: NonEmptyString = Field(  # pyright: ignore[reportGeneralTypeIssues]
@@ -60,6 +58,16 @@ class VultronActivity(VultronObject):
     )
     target: Any | None = None
     origin: NonEmptyString | None = None
+    # AS2 Activity fields no Vultron activity uses yet.  They stay declared
+    # (ADR-0099 detail 8): ``CoreObject`` forbids extras, and a stored wire
+    # activity dumps them, even when null.
+    instrument: Any | None = None
+    result: Any | None = None
+    # ``Question`` fields (AS2 §4.1); the CBT-03-004 bootstrap-replay Question
+    # is delivered through this model.
+    any_of: Any | None = None
+    one_of: Any | None = None
+    closed: Any | None = None
     to: list[str] | None = None
     cc: list[str] | None = None
     # CM-16-003: the wire dump this model is validated from is camelCase, so

@@ -48,7 +48,6 @@ Related: issue #1503 (read-path implementation), issue #1506 (activity
 read-back migration)
 """
 
-from datetime import timedelta
 from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -57,6 +56,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from pydantic.alias_generators import to_camel
 
+from test.support.core_vocab import minimal_kwargs
 from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.registry import CORE_VOCABULARY
@@ -113,33 +113,17 @@ ACTIVITY_TYPE_EXEMPTIONS: frozenset[str] = frozenset(
 # ---------------------------------------------------------------------------
 # Known pre-existing wire escapes for CORE_VOCABULARY types.
 #
-# Each entry is a ``CORE_VOCABULARY`` key (i.e., the ``type_`` string used
-# when the object was persisted) that currently round-trips back as a wire
-# object rather than a core object.  These are actor types whose ``type_``
-# value ("Person", "Service", etc.) is intercepted by the wire VOCABULARY
-# before the core-vocabulary path can resolve them.
-#
-# Fix: ensure ``_from_row`` resolves these via ``CORE_VOCABULARY`` before
-# falling back to the wire path.  No migration issue filed yet; file one
-# when this ratchet is ready to be tightened.
-#
+# Each entry is a ``CORE_VOCABULARY`` key (a class name) whose saved instance
+# currently round-trips back as a wire object rather than a core object.
 # Remove an entry from this set when the round-trip regression is fixed.
+#
+# ``VultronNote`` is pre-existing rather than new: ``from_row`` looks up the
+# stored ``type_`` ("Note"), which never matched its class-name key, so a
+# stored note has always read back as the unpaired wire ``as_Note``.  It
+# became visible here only when ADR-0099 detail 4 moved it onto
+# ``CoreObject`` and so into ``CORE_VOCABULARY``.  Tracked by #3647.
 # ---------------------------------------------------------------------------
-KNOWN_WIRE_ESCAPES: frozenset[str] = frozenset()
-
-
-def _minimal_kwargs(cls: type[CoreObject]) -> dict:
-    """Return the minimum kwargs to construct *cls* without validation errors."""
-    kwargs: dict = {}
-    for field_name, field_info in cls.model_fields.items():
-        if not field_info.is_required():
-            continue
-        ann = str(field_info.annotation)
-        if "timedelta" in ann:
-            kwargs[field_name] = timedelta(days=90)
-        else:
-            kwargs[field_name] = f"urn:test:{field_name}:1"
-    return kwargs
+KNOWN_WIRE_ESCAPES: frozenset[str] = frozenset({"VultronNote"})
 
 
 def _collect_wire_escapes() -> frozenset[str]:
@@ -154,7 +138,7 @@ def _collect_wire_escapes() -> frozenset[str]:
         if not issubclass(base_cls, CoreObject):
             continue
         cls: type[CoreObject] = base_cls  # type: ignore[assignment]
-        kwargs = _minimal_kwargs(cls)
+        kwargs = minimal_kwargs(cls)
         kwargs["id_"] = f"urn:test:{vocab_key.lower()}:ratchet"
         try:
             obj: CoreObject = cls(**kwargs)
@@ -214,7 +198,7 @@ def _collect_wire_shaped_row_escapes() -> tuple[frozenset[str], int]:
             continue
         cls: type[CoreObject] = base_cls  # type: ignore[assignment]
         row_id = f"urn:test:{vocab_key.lower()}:wire-row-ratchet"
-        kwargs = _minimal_kwargs(cls)
+        kwargs = minimal_kwargs(cls)
         kwargs["id_"] = row_id
         try:
             core_obj: CoreObject = cls(**kwargs)

@@ -297,6 +297,14 @@ reader the moment it is closed.
   `ParticipantStatus`. This requires amending **ARCH-20-003**, which presently
   says the port MUST raise when no wire counterpart exists; under one model a
   missing counterpart is the normal case, not an error.
+
+  **Amended 2026-09-24 (#3490): `@context` comes from the core serializer, not the delivery step.**
+  As built, `As2WireRenderAdapter.render()` returns `obj.model_dump(by_alias=True, exclude_none=True, mode="json")` of the `CoreObject` itself, with nothing added at delivery.
+  `@context` is emitted by a model serializer on `CoreObject`, and only on a `by_alias=True` dump.
+  This deviates from the "delivery-supplied `@context`" above, for three reasons.
+  The namespace is supplied in exactly one place (VM-10).
+  A `by_alias` dump of any core object is then complete AS2, with no second step to forget.
+  A persistence dump, which does not use `by_alias`, still carries no context.
 - **Collapse the core root stack from three levels to two.** The middle level
   (`VultronObject`) existed only to keep timestamps optional so the wire half
   could stay lenient (ARCH-12-002); `CoreObject` then re-tightened them. With no
@@ -399,6 +407,12 @@ added: a derived display `name`, which moved onto the core class, and
 `@context`, which the delivery step supplies by existing design
 (`CoreObject.context_` is deliberately `exclude=True` because the JSON-LD
 namespace is a transmission concern).
+
+**Amended 2026-09-24 (#3490):** that description of `@context` is historical.
+`CoreObject.context_` is still `exclude=True`, but the delivery step does not supply the namespace.
+A model serializer on `CoreObject` emits `@context` on every `by_alias=True` dump, using `context_` when one was supplied and the Vultron context otherwise.
+A persistence dump without `by_alias` still omits it.
+The reasons are recorded in the amendment to "Collapse the rendering port" under Migration.
 
 The spike surfaced two things worth recording, both of which are this ADR's own
 argument appearing unprompted.

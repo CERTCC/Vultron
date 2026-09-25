@@ -16,12 +16,12 @@
 """Driven port for rendering core domain objects as wire-shaped JSON.
 
 Core code that needs wire-shaped (AS2 camelCase) JSON for a domain
-object calls this port.  The adapter translates the core object to its
-wire counterpart and returns the result of
-``model_dump(by_alias=True, exclude_none=True)``.
+object calls this port.  Under one object model (ADR-0099) a core object is
+its own wire form, so the adapter returns the object's own
+``model_dump(by_alias=True, exclude_none=True, mode="json")`` (ARCH-20-002).
 
-Raises :exc:`~vultron.errors.VultronValidationError` when no wire
-counterpart exists (ARCH-20-003).
+Raises :exc:`~vultron.errors.VultronValidationError` when the object has no
+AS2 shape, i.e. is not a ``CoreObject`` (ARCH-20-003).
 
 See also:
     - ``vultron/adapters/driven/wire_render/as2.py`` — adapter
@@ -53,14 +53,11 @@ class WireRenderPort(Protocol):
             obj: A core domain model instance.
 
         Returns:
-            A ``dict`` equivalent to
-            ``as_X.from_core(obj).model_dump(by_alias=True, exclude_none=True)``
-            — camelCase keys, ``None`` fields omitted.
+            The object's AS2 form — camelCase keys, ``None`` fields omitted,
+            ``@context`` supplied by ``CoreObject``'s serializer.
 
         Raises:
-            :exc:`~vultron.errors.VultronValidationError`: When ``obj``'s
-                core type has no wire counterpart registered in the wire
-                vocabulary, or when the wire counterpart does not implement
-                ``from_core()`` (ARCH-20-003).
+            :exc:`~vultron.errors.VultronValidationError`: When ``obj`` is not
+                a ``CoreObject`` and so has no AS2 shape (ARCH-20-003).
         """
         ...

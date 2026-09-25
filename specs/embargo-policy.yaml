@@ -409,7 +409,7 @@ groups:
       declines is the pre-case *phase*, not the *representation*.
     note: >-
       Do not confuse this field with `VultronEvent.context` in
-      `vultron/core/models/events/base.py`, which is typed `VultronObject | None` and holds the
+      `vultron/core/models/events/base.py`, which is typed `CoreObject | None` and holds the
       *inbound activity's* resolved context. The casts to `VulnerabilityCase` in
       `vultron/core/models/events/embargo.py` are on that field, for `Announce`/`Invite` events
       whose context genuinely is a case, and are unaffected by this widening.

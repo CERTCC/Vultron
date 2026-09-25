@@ -34,8 +34,10 @@ The codebase splits into three concentric responsibilities.
 
 The wire format is a separate concern from the domain, not a subset of it.
 AS2 was chosen because it maps cleanly to Vultron semantics ([ADR-0005](../adr/0005-activitystreams-vocabulary-as-vultron-message-format.md)), but that alignment does not make it a domain dependency.
-Domain objects and their wire counterparts share a common base but form two structurally distinct branches: a strict core branch and a lenient wire branch ([ADR-0017](../adr/0017-domain-wire-object-separation.md)).
-The core branch is authoritative and represents every field the wire can carry; the wire branch tolerates the loose, optional shapes that arrive over the network.
+Core domain objects and wire classes form two structurally distinct branches with no shared base: a strict core branch and a lenient wire branch ([ADR-0017](../adr/0017-domain-wire-object-separation.md), [ADR-0099](../adr/0099-one-object-model-as2-is-a-serialization.md)).
+The core branch is authoritative, and AS2 is one of its serializations: a core object dumped with its AS2 aliases *is* the wire document.
+The wire branch tolerates the loose, optional shapes that arrive over the network.
+A domain type such as a case has no separate wire class: its `as_` name is an alias of the core class.
 
 We keep this boundary for two reasons.
 Wire formats change, and the domain logic should not have to change with them.

@@ -35,11 +35,19 @@ from typing import Literal, Protocol
 
 from pydantic import Field
 
-from vultron.core.models.base import NonEmptyString, VultronBase
+from vultron.core.models.base import CoreRecord, NonEmptyString
 
 
-class OutboxDeadLetterEntry(VultronBase):
+class OutboxDeadLetterEntry(CoreRecord):
     """Record of an outbox activity that exhausted its total delivery budget.
+
+    Although it lives in the adapter layer, it extends ``CoreRecord`` and so
+    registers in ``CORE_TYPE_MAP`` when this module is imported. That is
+    deliberate: ARCH-12-010 requires every non-``CoreObject`` ``CoreRecord`` to
+    be discoverable by type string, which is what lets ``dl.read`` reconstruct
+    a stored entry typed rather than as a raw row. Because registration is an
+    import side effect, ``CORE_TYPE_MAP`` holds this key only once the outbox
+    adapters are loaded; nothing in core may rely on it being present.
 
     Attributes:
         type_: Fixed literal ``"OutboxDeadLetterEntry"`` for DataLayer type lookup.

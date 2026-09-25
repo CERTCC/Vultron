@@ -1074,4 +1074,4 @@ def test_pending_case_queue_expiry_emits_question(monkeypatch):
     assert isinstance(question, as_Question)
     assert question.context == case_id
     assert question.actor == actor_id
-    assert question.to == case_actor_id
+    assert question.to == [case_actor_id]

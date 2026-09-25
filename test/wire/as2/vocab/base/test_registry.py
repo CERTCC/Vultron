@@ -244,7 +244,7 @@ class TestCoreTypeMapFallback:
     def setup_method(self):
         # Import the objects subpackage — its _discover_modules() imports each
         # wire vocab module, which in turn imports the core model classes and
-        # triggers VultronObject.__init_subclass__ to populate CORE_TYPE_MAP.
+        # triggers CoreRecord.__init_subclass__ to populate CORE_TYPE_MAP.
         import vultron.wire.as2.vocab.objects  # noqa: F401
 
     _CORE_TYPE_NAMES = [

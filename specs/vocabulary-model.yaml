@@ -259,11 +259,28 @@ groups:
   - id: VM-05-001
     priority: MUST
     kind: project
-    statement: 'When adding a new Vultron-specific object type, the new class MUST: 1. Inherit from `VultronObject` (or an
-      AS2 base such as `as_Object`, `as_Activity`, etc.) 2. Define `type_` as a `Literal[str]` field matching
-      the wire type name (registration via `__init_subclass__` fires automatically) 3. Be placed in the vocabulary subpackage
-      that matches its category (`vocab/objects/`, `vocab/activities/`) 4. Be reachable via the dynamic discovery in the subpackage
-      `__init__.py` (i.e., exist as a `.py` file in the package directory)'
+    statement: >-
+      When adding a new Vultron-specific domain type, the new class MUST: 1. Be defined in
+      `vultron/core/models/`, inheriting from `CoreObject` if it has an AS2 shape, or from
+      `CoreRecord` if it is a non-AS2 bookkeeping record; 2. Define `type_` as a `Literal[str]`
+      field matching the wire type name, so that registration via `__init_subclass__` fires
+      automatically (`CORE_VOCABULARY` for a `CoreObject`, `CORE_TYPE_MAP` for a
+      `CoreRecord`-only type). If a wire-facing `as_` name is wanted for it, that name MUST be an
+      alias of the core class (ADR-0099 detail 3), not a separate class. A separate `as_` wire
+      class MUST be written only for unpaired AS2 vocabulary with no core counterpart; such a class
+      inherits from an AS2 base (`as_Object`, `as_Activity`, etc.), is placed in the vocabulary
+      subpackage that matches its category (`vocab/objects/`, `vocab/activities/`), and is
+      reachable via the dynamic discovery in that subpackage's `__init__.py`.
+    rationale: >-
+      ADR-0099 makes AS2 a serialization of the core model rather than a parallel hierarchy, so a
+      domain type defined as a wire class would reintroduce the second hierarchy that decision
+      removed. See ARCH-14-001 for the `as_` naming rule.
+    verification: >-
+      Code review of the new type's location and base class.
+      `test_core_record_types_in_core_type_map` and `test_all_vocabulary_are_as_base_subclasses`
+      in `test/architecture/test_hierarchy_invariants.py` check the resulting registrations.
+    adr:
+    - ADR-0099
   - id: VM-05-002
     priority: MUST
     kind: project
@@ -488,7 +505,7 @@ groups:
       The received artifact is the evidence of what arrived. It is stored as
       `CaseLedgerEntry.payloadSnapshot` and replicated to other participants via
       `Announce(CaseLedgerEntry)`. Mutating before storage breaks replication fidelity.
-      Field-type leniency (ARCH-12-002) and post-construction immutability are orthogonal.
+      Wire-branch field leniency (ARCH-12-001) and post-construction immutability are orthogonal.
     verification: >-
       Inspection of the inbox pipeline confirms that received wire Activity objects are
       constructed once and not modified before being passed to `CaseLedgerEntry.payloadSnapshot`.

@@ -30,10 +30,10 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import UriString, VultronObject
+from vultron.core.models.base import UriString, CoreRecord
 
 
-class PendingCreateCaseActivity(VultronObject):
+class PendingCreateCaseActivity(CoreRecord):
     """Durable marker recording a pending ``Create(VulnerabilityCase)`` obligation.
 
     The marker stores the minimum information needed to reconstruct and
