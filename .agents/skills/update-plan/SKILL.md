@@ -29,8 +29,8 @@ to keep open Issues aligned with the codebase.
 2. Run a gap analysis: compare `specs/` + `notes/` against `vultron/` and
    `test/`.
 3. For each gap, create a GitHub Issue, then **route it onto the epic it
-   belongs to** via the `calve-epics` skill (rather than dropping it flat at
-   Someday).
+   belongs to** via the `calve-epics` skill (rather than leaving it unrouted
+   at root).
 4. Surface any accumulated-mass observations as **calving candidates** for the
    user; do not re-shape epics on your own.
 5. Write any significant observations or open questions directly to the
@@ -125,17 +125,17 @@ applied to the PR by CI and never overwrites it (PAD-05-010).
 Do **not** add tasks to GitHub Issues outside the `manage-github-issue`
 workflow documented above.
 
-**Then route each new issue onto the forest.** Do not drop new gap issues flat
-at `Schedule=Someday`. Instead, invoke the **`calve-epics`** skill in its
+**Then route each new issue onto the forest.** Do not leave new gap issues
+unrouted at root. Instead, invoke the **`calve-epics`** skill in its
 routing mode to land each issue on the epic (glacier or iceberg) it matches:
 
-- The clear-match case is auto-parented onto its epic and inherits that epic's
-  Schedule tier.
+- The clear-match case is auto-parented onto its epic and takes that epic's
+  Schedule tier. The issue itself carries no `Schedule` value (PAD-02-001).
 - An ambiguous match (two or more plausible epics) is presented to the user to
   choose.
-- An issue with **no** plausible epic is left at root with `Schedule=Someday`
-  and recorded as a **calving candidate** for Phase 3b — do not invent an epic
-  for it on your own.
+- An issue with **no** plausible epic is left at root with no `Schedule` value
+  and recorded as a **calving candidate** for Phase 3b. It stays untriaged until
+  it is routed to an Epic (PAD-01-007). Do not invent an epic for it yourself.
 
 `calve-epics` queries the live Project #24 field/option IDs and delegates the
 board mutations, so this skill no longer hardcodes them.
@@ -185,7 +185,7 @@ specific message (e.g.,
 ## Project Board
 
 Issues created by this skill are added to Project #24 ("Vultron Planning") and
-routed onto an epic via `calve-epics`, inheriting that epic's Schedule tier.
-Only true orphans (no matching epic) stay at `Schedule=Someday` as calving
-candidates. Use `review-priorities` to re-tier items, and invoke `calve-epics`
+routed onto an epic via `calve-epics`, taking that epic's Schedule tier (the
+issue itself carries no `Schedule` value). Only true orphans (no matching epic)
+stay at root, untriaged, as calving candidates. Use `review-priorities` to re-tier items, and invoke `calve-epics`
 (Mode 2/3) when the epic structure itself needs to change.

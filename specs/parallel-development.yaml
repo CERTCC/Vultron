@@ -64,7 +64,8 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          Every open non-Epic Issue (Task, Bug, Idea, Concern) MUST have an
+          Every open non-Epic Issue (Task, Feature, Bug, Idea, Concern) MUST
+          have an
           Epic ancestor. A non-Epic Issue with no Epic ancestor is untriaged,
           and triage consists of routing it to an Epic.
         rationale: >-
@@ -156,7 +157,8 @@ groups:
           Epic Issues MUST be created using the GitHub `Epic` issue type (via
           GraphQL `createIssue` with the Epic issue type's `issueTypeId`, discovered
           via the GraphQL `issueTypes` query) and MUST be added to GitHub Project #24
-          with a `Schedule` value (Focus/Now/Next/Later/Someday) matching the work's priority.
+          with a `Schedule` value (Focus/Now/Next/Later/Someday) matching the
+          work's priority.
       - id: PAD-02-013
         priority: MUST
         kind: process
@@ -195,8 +197,9 @@ groups:
         kind: process
         statement: >-
           When the `build` skill selects a task, it MUST query GitHub
-          Project #24 for Epics with `Schedule=Now`, then select an open
-          unblocked leaf Issue that is a sub-issue of one of those Epics.
+          Project #24 for Epics with `Schedule=Focus` or `Schedule=Now`
+          (Focus first), then select an open unblocked leaf Issue that is a
+          sub-issue of one of those Epics.
 
   - id: PAD-04
     title: Task Claiming Protocol
@@ -489,9 +492,10 @@ groups:
         kind: process
         statement: >-
           The `build` skill MUST select work by querying GitHub Project #24
-          for Epics with `Schedule=Now`, then querying for open unblocked
-          leaf Issues that are sub-issues of those Epics, filtered to exclude
-          Issues with `stale-claim` or that are already assigned.
+          for Epics with `Schedule=Focus` or `Schedule=Now` (Focus first),
+          then querying for open unblocked leaf Issues that are sub-issues of
+          those Epics, filtered to exclude Issues that carry `stale-claim`,
+          `needs-info`, or `ready-for-human`, or that are already assigned.
       - id: PAD-08-002
         priority: MUST
         kind: process
@@ -674,7 +678,8 @@ groups:
         kind: process
         statement: >-
           A work bundle MUST be selected in two stages: eligibility (open,
-          unassigned, no `stale-claim`, all `blockedBy` CLOSED, leaf), then
+          unassigned, no `stale-claim`, `needs-info`, or `ready-for-human`
+          label, all `blockedBy` CLOSED, leaf), then
           fit. Clearing eligibility MUST NOT by itself make an Issue a bundle
           member.
         rationale: >-
@@ -1036,3 +1041,20 @@ groups:
         verification: >-
           A `pr-ship` run leaves its PR at `Ready to merge`, and a run paused
           at `defer-ask` or `inversion-halt` leaves it at `Needs you`.
+      - id: PAD-17-003
+        priority: MUST
+        kind: process
+        statement: >-
+          Opening a non-draft Pull Request, or marking a draft Pull Request
+          ready for review, MUST add it to GitHub Project #24 with
+          `Ship stage` set to `Awaiting ship`.
+        rationale: >-
+          PAD-17-002 covers only the stages `pr-ship` itself enters. Without
+          an entry rule, a PR nobody has shipped yet is either absent from
+          the board or has no `Ship stage`, and PAD-17-001 cannot hold.
+        verification: >-
+          Inspection: a newly opened non-draft PR appears on Project #24 at
+          `Awaiting ship` before any `pr-ship` run.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-17-001

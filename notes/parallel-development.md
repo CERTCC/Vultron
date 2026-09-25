@@ -132,7 +132,7 @@ value and `sync-epic-schedules.sh` still raises leaves to their Epic's tier.
 ## Task Claiming Protocol
 
 ```text
-1. Query Project #24 → identify first Epic in Now tier
+1. Query Project #24 → identify first Epic in the Focus tier, else the Now tier
 2. Query GitHub: open leaf Issues that are sub-issues of that Epic,
    no stale-claim, no needs-info, no ready-for-human, unassigned
 3. Apply fit (type / Epic's Schedule tier / size budget) → pick the member or bundle
@@ -272,7 +272,7 @@ field has one owner, and no item carries both.
 | Values | Someday → Later → Next → Now → Focus | Backlog → Ready → In Progress → In Review → Done |
 | Set by | A human (or `review-priorities`), deliberately | Mirrored from facts; never set by hand (PAD-16-002) |
 
-Open PRs are also board items, with a third field, `Ship stage` (PAD-17).
+Open non-draft PRs are also board items, with a third field, `Ship stage` (PAD-17).
 
 ### Status is a mirror
 
@@ -313,8 +313,10 @@ claim time is fine, since it is the value the facts produce.
 
 `pr-ship` progress is otherwise kept in gitignored `.claude/pr-*.json` files
 that no other session can see. The `Ship stage` field (`Awaiting ship`,
-`Triage`, `Execute`, `Verify`, `Needs you`, `Ready to merge`) is set by
-`pr-ship` as it enters each phase or pauses at a gate (PAD-17-002). The issue
+`Triage`, `Execute`, `Verify`, `Needs you`, `Ready to merge`) starts at
+`Awaiting ship` when a non-draft PR is opened or marked ready (PAD-17-003),
+then is set by `pr-ship` as it enters each phase or pauses at a gate
+(PAD-17-002). The issue
 stays `In Review` for the whole pipeline: pipeline detail belongs to the PR,
 because one bundle PR closes several issues.
 
