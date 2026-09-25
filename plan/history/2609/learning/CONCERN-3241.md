@@ -47,13 +47,30 @@ there: that PR changed the wire parse threshold, not the inbox pipeline's
 documented structure, and repointing eight paths plus reassessing a section is a
 docs task in its own right. Routed per the upward-reflection checklist (BW-07-009).
 
-**Resolved**: 2026-09-25 — fixed in the planning PR itself; no implementation issue created.
-The page had already been bannered "Historical design document" on 2026-09-02 (893e5bfa6) and sat outside the published nav as working record (DF-11-003), so the issue's premises ("nothing in the page signals that", "the primary reference page for the inbox pipeline") did not hold at filing.
-Reviewing whether the page earned its place at all, it did not: its design reasoning is the decision recorded in ADR-0007 (which predates the page by a week), the current pipeline is described in `docs/topics/reference_architecture.md` § "From HTTP delivery to behavior tree: the inbox pipeline", and everything else on it (a 200-OK acknowledgement, a mapping `dict`, `DispatchEvent`, handler functions) was superseded implementation detail that git history already keeps.
-Rewriting it with current detail would only have duplicated the reference-architecture section and re-created the drift.
-The page was deleted.
-So was `docs/reference/code/api/actor_inbox_handler.md`, which was in the published nav and described the layered activity-type → object-type → handler-registry routing that ADR-0007 rejected.
-No redirects were added: neither page has been on a published site, so no external link can break.
-Four `receive_report_demo.py` docstrings that cited the deleted page as "the Vultron prototype design" now point to the reference-architecture section.
+**Resolved**: 2026-09-25 — fixed in two docs PRs; no implementation issue created.
+The page had already been bannered "Historical design document" on 2026-09-02
+(893e5bfa6) and sat outside the published nav as working record (DF-11-003), so the
+issue's premises ("nothing in the page signals that", "the primary reference page
+for the inbox pipeline") did not hold at filing.
 
-Docs PR: <https://github.com/CERTCC/Vultron/pull/3703>.
+The planning PR (#3703) deleted the all-checked "Development Goals" checklist,
+linked the banner to the current pipeline section, and repointed four
+`receive_report_demo.py` docstrings that cited the page as "the Vultron prototype
+design" to `docs/topics/reference_architecture.md` § "From HTTP delivery to
+behavior tree: the inbox pipeline".
+
+The follow-up PR (#3707) then asked whether the page earned its place at all. It did
+not: its design reasoning is the decision recorded in ADR-0007 (which predates the
+page by a week), the current pipeline is described in the reference-architecture
+section above, and everything else on it (a 200-OK acknowledgement, a mapping
+`dict`, `DispatchEvent`, handler functions) was superseded implementation detail
+that git history already keeps. Rewriting it with current detail would only have
+duplicated that section and re-created the drift, so the page was deleted. So was
+`docs/reference/code/api/actor_inbox_handler.md`, which was in the published nav and
+described the layered activity-type → object-type → handler-registry routing that
+ADR-0007 rejected. No redirects were added: the production site's `publish` branch
+predates both pages, so no production link can break. Both pages are on the staging
+repository's `publish` branch, which is a preview rather than a stable link target.
+
+Docs PRs: <https://github.com/CERTCC/Vultron/pull/3703>,
+<https://github.com/CERTCC/Vultron/pull/3707>.
