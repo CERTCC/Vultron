@@ -173,8 +173,14 @@ class InboxPipeline:
                 )
                 return None
 
-            dispatch(event=event, dl=self._dl, dispatcher=self._dispatcher)
-            if is_case_bootstrap(event) and case_id is not None:
+            result = dispatch(
+                event=event, dl=self._dl, dispatcher=self._dispatcher
+            )
+            if (
+                result.took_effect
+                and is_case_bootstrap(event)
+                and case_id is not None
+            ):
                 _replay_pending_case_activities(
                     case_id=case_id,
                     dl=self._dl,

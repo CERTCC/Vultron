@@ -14,6 +14,7 @@ from vultron.core.models.events.case_participant import (
     CreateCaseParticipantReceivedEvent,
     RemoveCaseParticipantFromCaseReceivedEvent,
 )
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
@@ -31,7 +32,7 @@ class CreateCaseParticipantReceivedUseCase:
         self._dl = dl
         self._request: CreateCaseParticipantReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         _idempotent_create(
             self._dl,
@@ -41,6 +42,7 @@ class CreateCaseParticipantReceivedUseCase:
             "CaseParticipant",
             request.activity_id,
         )
+        return HandlerResult.applied()
 
 
 class AddCaseParticipantToCaseReceivedUseCase:
@@ -52,7 +54,7 @@ class AddCaseParticipantToCaseReceivedUseCase:
         self._dl = dl
         self._request: AddCaseParticipantToCaseReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         participant_id = request.participant_id
         case_id = request.case_id
@@ -60,7 +62,7 @@ class AddCaseParticipantToCaseReceivedUseCase:
             logger.warning(
                 "add_case_participant_to_case: missing participant_id or case_id"
             )
-            return
+            return HandlerResult.applied()
         tree = create_add_case_participant_received_tree(
             participant_id=participant_id,
             case_id=case_id,
@@ -89,6 +91,7 @@ class AddCaseParticipantToCaseReceivedUseCase:
             participant_id,
             case_id,
         )
+        return HandlerResult.applied()
 
 
 class RemoveCaseParticipantFromCaseReceivedUseCase:
@@ -100,7 +103,7 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
         self._dl = dl
         self._request: RemoveCaseParticipantFromCaseReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         participant_id = request.participant_id
         case_id = request.case_id
@@ -108,7 +111,7 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
             logger.warning(
                 "remove_case_participant_from_case: missing participant_id or case_id"
             )
-            return
+            return HandlerResult.applied()
         tree = create_remove_case_participant_received_tree(
             participant_id=participant_id,
             case_id=case_id,
@@ -138,3 +141,4 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
                 participant_id,
                 case_id,
             )
+        return HandlerResult.applied()

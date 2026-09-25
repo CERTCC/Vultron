@@ -10,6 +10,7 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
 from vultron.core.models.events.actor import (
     OfferActorToCaseReceivedEvent,
 )
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 
@@ -43,7 +44,7 @@ class OfferActorToCaseReceivedUseCase:
         self._request = request
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         activity_id = request.activity_id
         recommender_id = request.actor_id
@@ -57,7 +58,7 @@ class OfferActorToCaseReceivedUseCase:
                 " in event '%s' — skipping",
                 activity_id,
             )
-            return
+            return HandlerResult.applied()
 
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -95,3 +96,4 @@ class OfferActorToCaseReceivedUseCase:
         bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
         )
+        return HandlerResult.applied()

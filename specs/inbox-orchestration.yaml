@@ -2,7 +2,7 @@ id: IO
 title: Inbox Orchestration
 description: Testable requirements for the core BT-backed inbox orchestration module, covering the InboxOutcome model, BT
   sequence invariants, adapter injection rules, caller interface constraints, and error/outcome behavior.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -24,11 +24,21 @@ groups:
   - id: IO-01-002
     priority: MUST
     kind: project
-    statement: 'InboxOutcome MUST include a status field whose value is one of: processed, deferred, or rejected.'
-    rationale: 'Three distinct statuses cover the full protocol outcome space: a successfully dispatched activity, an activity
-      held for replay, and an activity that cannot be processed.'
+    statement: 'InboxOutcome MUST include a status field typed as the InboxOutcomeStatus StrEnum, whose members are processed,
+      deferred, and rejected. When dispatch ran, the status MUST be derived from the handler''s HandlerResult disposition
+      (UCORG-05-011): APPLIED and SKIPPED yield processed, DEFERRED yields deferred, and REFUSED yields rejected. It MUST NOT
+      be inferred from dispatch merely not raising.'
+    rationale: 'Three statuses cover the outcome space: dispatched, held for replay, and not processable. Deferred has two
+      producers — the pre-dispatch defer check (case not yet known) and a handler returning DEFERRED — and both keep working.
+      The mapping lives only in the pipeline''s dispatch node, so handlers never name this vocabulary (HP-01-004). A dispatch
+      where no handler ran is never processed (UCORG-05-012).'
+    verification: test/adapters/driving/fastapi/test_inbox_outcome_chain.py drives each disposition, an unroutable activity,
+      and unhandled semantics through the real dispatch adapters and process_payload, asserting the resulting status.
     tags:
     - messaging
+    relationships:
+    - rel_type: depends_on
+      spec_id: UCORG-05-011
   - id: IO-01-003
     priority: MUST
     kind: project
@@ -41,8 +51,9 @@ groups:
     priority: MUST
     kind: project
     statement: InboxOutcome MUST include a failure_reason field (nullable string) carrying a human-readable explanation when
-      status is rejected or deferred.
-    rationale: Explicit failure reasons support triage without log scraping.
+      status is rejected or deferred. When a handler returns REFUSED, failure_reason MUST be the handler's HandlerResult reason.
+    rationale: Explicit failure reasons support triage without log scraping. A REFUSED HandlerResult always carries a reason
+      (ADR-0095), so a handler refusal is always explained.
     tags:
     - messaging
     - observability
@@ -118,11 +129,16 @@ groups:
     priority: MUST
     kind: project
     statement: 'process_payload MUST accept exactly two injected adapters: an ingress payload adapter (raw input to as_Activity)
-      and a dispatch adapter (VultronEvent to use-case execution).'
+      and a dispatch adapter (VultronEvent to use-case execution). The dispatch adapter MUST return the handler''s HandlerResult
+      (UCORG-05-010), which is the only channel by which the verdict reaches InboxOutcome.'
     rationale: Two well-named adapters keep the seam explicit and prevent the adapter matrix from growing large enough to
-      make the module shallow again.
+      make the module shallow again. Returning the HandlerResult through the adapter, rather than through a blackboard key
+      a handler would have to write, keeps InboxOutcome's vocabulary out of handlers (HP-01-004).
     tags:
     - tooling
+    relationships:
+    - rel_type: depends_on
+      spec_id: UCORG-05-010
     references:
     - docs/adr/0020-inbox-bt-orchestration.md
   - id: IO-03-002

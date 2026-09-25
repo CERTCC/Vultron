@@ -15,6 +15,7 @@ from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
@@ -150,7 +151,7 @@ def _idempotent_create(
     obj: Any,
     label: str,
     activity_id: str | None = None,
-) -> None:
+) -> HandlerResult:
     """Guard against duplicate object creation.
 
     Checks whether *id_key* is already present in the DataLayer.  If so, logs
@@ -178,17 +179,26 @@ def _idempotent_create(
         obj: The domain object to persist when not already present.
         label: Human-readable label used in log messages (e.g. ``"Note"``).
         activity_id: Activity ID used in warning log when *obj* is ``None``.
+
+    Returns:
+        What this helper did, as a ``HandlerResult`` a handler can return
+        directly: ``APPLIED`` when *obj* was stored, and ``SKIPPED`` (with a
+        reason) on every exit that stored nothing.  ``SKIPPED`` describes the
+        helper's own act; whether a caller should report a missing or
+        bare-reference object as ``REFUSED`` instead is the caller's verdict
+        (#2255), not this helper's.  Callers that ignore the value are
+        unaffected.
     """
     if not type_key or not id_key:
-        return
+        return HandlerResult.skipped(f"no {label} type or id to store under")
     if dl.read(id_key) is not None:
         # Routine idempotency skip — infrastructure, not protocol story
         # (SL-04-007).  Fires on essentially every received-side activity.
         logger.debug("'%s' already stored — skipping (idempotent)", id_key)
-        return
+        return HandlerResult.skipped(f"{label} '{id_key}' already stored")
     if obj is None:
         logger.warning("no %s object for event '%s'", label, activity_id)
-        return
+        return HandlerResult.skipped(f"no {label} object to store")
     if getattr(obj, "type_", None) is None:
         logger.warning(
             "%s '%s' arrived as a bare reference with no type (activity '%s'):"
@@ -198,9 +208,12 @@ def _idempotent_create(
             id_key,
             activity_id,
         )
-        return
+        return HandlerResult.skipped(
+            f"{label} '{id_key}' arrived as a bare reference"
+        )
     dl.create(obj)
     logger.info("Stored %s '%s'", label, id_key)
+    return HandlerResult.applied()
 
 
 def resolve_case(case_id: str, dl: CasePersistence):

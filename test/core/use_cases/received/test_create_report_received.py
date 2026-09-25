@@ -25,6 +25,7 @@ from vultron.core.models.events.report import (
     SubmitReportReceivedEvent,
 )
 from vultron.core.models.report import VultronReport
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.use_cases.received.case import CreateCaseReceivedUseCase
 from vultron.core.use_cases.received.report import (
     CreateReportReceivedUseCase,
@@ -66,7 +67,7 @@ class TestUseCaseExecution:
 
         mock_dl = MagicMock()
         result = CreateReportReceivedUseCase(mock_dl, event).execute()
-        assert result is None
+        assert result == HandlerResult.applied()
 
     def test_create_case_executes_with_valid_semantics(self, make_payload):
         """CreateCaseReceivedUseCase executes when semantics match."""
@@ -80,7 +81,7 @@ class TestUseCaseExecution:
 
         mock_dl = MagicMock()
         result = CreateCaseReceivedUseCase(mock_dl, event).execute()
-        assert result is None
+        assert result == HandlerResult.applied()
 
     def test_use_case_executes_with_real_datalayer(self, make_payload):
         """CreateReportReceivedUseCase executes without raising on real DataLayer."""
@@ -96,7 +97,7 @@ class TestUseCaseExecution:
         )
         event = make_payload(create_activity)
         result = CreateReportReceivedUseCase(dl, event).execute()
-        assert result is None
+        assert result == HandlerResult.applied()
 
 
 class TestCreateReportNoStandaloneParticipantStatus:

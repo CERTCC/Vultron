@@ -13,6 +13,7 @@ from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
     CloseCaseReceivedEvent,
 )
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -35,18 +36,18 @@ class AddReportToCaseReceivedUseCase:
         self._dl = dl
         self._request: AddReportToCaseReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         report_id = request.report_id
         case_id = request.case_id
         if report_id is None or case_id is None:
             logger.warning("add_report_to_case: missing report_id or case_id")
-            return
+            return HandlerResult.applied()
         case = self._dl.read_case(case_id)
 
         if case is None:
             logger.warning("add_report_to_case: case '%s' not found", case_id)
-            return
+            return HandlerResult.applied()
 
         existing_report_ids = [_as_id(r) for r in case.vulnerability_reports]
         if report_id in existing_report_ids:
@@ -55,11 +56,12 @@ class AddReportToCaseReceivedUseCase:
                 report_id,
                 case_id,
             )
-            return
+            return HandlerResult.applied()
 
         case.vulnerability_reports.append(report_id)
         self._dl.save(case)
         logger.info("Added report '%s' to case '%s'", report_id, case_id)
+        return HandlerResult.applied()
 
 
 class CloseCaseReceivedUseCase:
@@ -82,12 +84,12 @@ class CloseCaseReceivedUseCase:
         # requires (CommitCaseActorRMClosedEntryNode, ISSUE-2505).
         self._wire_render_port = wire_render_port
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.case_id
         if case_id is None:
             logger.warning("close_case: missing case_id")
-            return
+            return HandlerResult.applied()
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -123,3 +125,4 @@ class CloseCaseReceivedUseCase:
                 case_id,
                 BTBridge.get_failure_reason(tree) or result.feedback_message,
             )
+        return HandlerResult.applied()

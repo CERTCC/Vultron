@@ -10,6 +10,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.errors import VultronProtocolViolationError
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.events import MessageSemantics, VultronEvent
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -395,7 +396,17 @@ def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
     mock_dispatcher.dispatch.assert_not_called()
 
 
-def test_inbox_handler_replays_deferred_items_after_case_announce(monkeypatch):
+@pytest.mark.parametrize(
+    ("verdict", "replays"),
+    [
+        (HandlerResult.applied(), True),
+        (HandlerResult.refused("not the case owner"), False),
+    ],
+)
+def test_inbox_handler_replays_deferred_items_after_case_announce(
+    monkeypatch: pytest.MonkeyPatch, verdict: HandlerResult, replays: bool
+) -> None:
+    """Held items replay only after a bootstrap whose verdict took effect."""
     actor_id = "https://example.org/actors/participant"
     case_id = "https://example.org/cases/case-replay"
     note_id = "https://example.org/activities/add-note-2"
@@ -440,10 +451,15 @@ def test_inbox_handler_replays_deferred_items_after_case_announce(monkeypatch):
 
     dispatched: list[str] = []
 
-    def fake_dispatch(event: VultronEvent, dl: SqliteDataLayer) -> None:
+    def fake_dispatch(
+        event: VultronEvent, dl: SqliteDataLayer
+    ) -> HandlerResult:
         dispatched.append(event.activity_id)
         if event.semantic_type == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE:
+            # Stored either way, so only the verdict decides the replay.
             dl.save(as_VulnerabilityCase(id_=case_id, name="Replica"))
+            return verdict
+        return HandlerResult.applied()
 
     async def fake_outbox_handler(*_args: object, **_kwargs: object) -> None:
         return None
@@ -459,8 +475,14 @@ def test_inbox_handler_replays_deferred_items_after_case_announce(monkeypatch):
 
     asyncio.run(ih.inbox_handler(actor_id, shared_dl, queue_dl))
 
-    assert dispatched == [announce_id, note_id]
-    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
+    pending = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
+    if replays:
+        assert dispatched == [announce_id, note_id]
+        assert pending is None
+    else:
+        assert dispatched == [announce_id]
+        assert isinstance(pending, VultronPendingCaseInbox)
+        assert pending.activity_ids == [note_id]
 
 
 # ---------------------------------------------------------------------------
