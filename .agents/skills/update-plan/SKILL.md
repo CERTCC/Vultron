@@ -28,9 +28,9 @@ to keep open Issues aligned with the codebase.
    and context); walk the remaining topics with targeted `spec-dump` loads.
 2. Run a gap analysis: compare `specs/` + `notes/` against `vultron/` and
    `test/`.
-3. For each gap, create a GitHub Issue, then **route it onto the epic it
-   belongs to** via the `calve-epics` skill (rather than dropping it flat at
-   Someday).
+3. For each gap, **choose the epic it belongs to** (via the `calve-epics`
+   skill's routing), then create the GitHub Issue as a sub-issue of that epic.
+   An issue is never created at root (PAD-13-002).
 4. Surface any accumulated-mass observations as **calving candidates** for the
    user; do not re-shape epics on your own.
 5. Write any significant observations or open questions directly to the
@@ -112,6 +112,9 @@ Governing specs: <spec/group IDs the gap violates>
 ## Reference
 
 Spec: \`specs/<topic>.yaml\`" \
+  --issue-type-id "$(bash .agents/skills/shared/board-id.sh issue-type Task)" \
+  --parent "<epic-number>" \
+  --milestone "<milestone-number>" \
   --label "size:<S|M|L>")
   # Add --blocked-by N for known blockers
 echo "Created gap issue #${ISSUE_NUMBER}"
@@ -125,17 +128,19 @@ applied to the PR by CI and never overwrites it (PAD-05-010).
 Do **not** add tasks to GitHub Issues outside the `manage-github-issue`
 workflow documented above.
 
-**Then route each new issue onto the forest.** Do not drop new gap issues flat
-at `Schedule=Someday`. Instead, invoke the **`calve-epics`** skill in its
-routing mode to land each issue on the epic (glacier or iceberg) it matches:
+**Route each gap onto the forest before creating it.** Every new issue is a
+sub-issue of an Epic (PAD-01-007, PAD-13-002), and `manage_github_issue.sh`
+refuses to create one without `--parent`. Use the **`calve-epics`** skill's
+routing mode to pick the epic (glacier or iceberg) each gap matches:
 
-- The clear-match case is auto-parented onto its epic and inherits that epic's
-  Schedule tier.
+- A clear match becomes the `--parent`. The issue takes that epic's Schedule
+  tier and carries no `Schedule` value itself (PAD-02-001).
 - An ambiguous match (two or more plausible epics) is presented to the user to
   choose.
-- An issue with **no** plausible epic is left at root with `Schedule=Someday`
-  and recorded as a **calving candidate** for Phase 3b — do not invent an epic
-  for it on your own.
+- A gap with **no** plausible epic goes under the catch-all Epic whose stated
+  scope fits it (#3712) and is recorded as a **calving candidate** for
+  Phase 3b. If no catch-all fits, ask the user which Epic to use. Do not invent
+  an epic for it yourself.
 
 `calve-epics` queries the live Project #24 field/option IDs and delegates the
 board mutations, so this skill no longer hardcodes them.
@@ -149,7 +154,7 @@ architectural act reserved for a human decision.
 
 When routing (3a) surfaces a region that has accumulated coherent mass — a set
 of new gaps that realize one design idea with no existing home, or a pile of
-root-level orphans — collect them and hand them to the user as calving
+gaps parked under a catch-all Epic — collect them and hand them to the user as calving
 candidates via the `calve-epics` skill (Mode 2). State the one-sentence design
 idea, list the issues, and let the user confirm the fracture line before any
 epic is created. Never create the epic unprompted.
@@ -184,8 +189,9 @@ specific message (e.g.,
 
 ## Project Board
 
-Issues created by this skill are added to Project #24 ("Vultron Planning") and
-routed onto an epic via `calve-epics`, inheriting that epic's Schedule tier.
-Only true orphans (no matching epic) stay at `Schedule=Someday` as calving
-candidates. Use `review-priorities` to re-tier items, and invoke `calve-epics`
+Issues created by this skill are added to Project #24 ("Vultron Planning") as
+sub-issues of the epic `calve-epics` routed them to, taking that epic's
+Schedule tier (the issue itself carries no `Schedule` value). Gaps with no
+matching epic sit under a catch-all Epic as calving candidates. Use
+`review-priorities` to re-tier Epics, and invoke `calve-epics`
 (Mode 2/3) when the epic structure itself needs to change.

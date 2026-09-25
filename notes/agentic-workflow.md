@@ -9,9 +9,11 @@ related_notes:
   - notes/append-only-file-handling.md
   - notes/agents-md-structure.md
   - notes/git-workflow-pitfalls.md
+  - notes/parallel-development.md
 related_specs:
   - specs/build-workflow.yaml
   - specs/history-management.yaml
+  - specs/parallel-development.yaml
 ---
 
 # Agentic Development Workflow
@@ -35,7 +37,7 @@ higher-priority steps before lower-priority ones.
 | `specs/*.yaml` | Authoritative requirements | Permanent |
 | `notes/*.md` | Durable design insights | Permanent |
 | `AGENTS.md` | Agent conventions and patterns | Permanent |
-| GitHub Project #24 | Authoritative priority scheduling (Now/Next/Later/Someday) | Live — updated via API |
+| GitHub Project #24 | Authoritative priority scheduling: `Schedule` on Epics (Focus/Now/Next/Later/Someday), mirrored `Status` on other issues | Live — updated via API |
 | GitHub Task/Subtask Issues | Pending + in-progress tasks | Yes — closed when PR merges |
 | `plan/incoming/learnings/` | Ephemeral build/bugfix observations (individual files) | Yes — files moved to history by `learn` |
 | `vultron/`, `test/` | Implementation | Permanent |
