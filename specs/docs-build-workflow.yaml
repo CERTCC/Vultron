@@ -7,7 +7,7 @@ description: >-
   It is distinct from `python-app.yml` (Python unit tests and linting) and
   `.github/workflows/demo-integration.yml` (demo container integration tests,
   specified in `specs/demo-ci.yaml`).
-version: 1.3.0
+version: 1.4.0
 scope:
   - prototype
   - production
@@ -38,14 +38,20 @@ groups:
         kind: project
         statement: >-
           The workflow MUST trigger on `pull_request` events whose changed
-          paths include at least one of: `docs/**`, `mkdocs.yml`,
-          `pyproject.toml`, `uv.lock`, or the workflow file itself
-          (`.github/workflows/docs-build-check.yml`).
+          paths include at least one of: `docs/**`, `overrides/**`,
+          `mkdocs.yml`, `pyproject.toml`, `uv.lock`, `vultron/**`, `specs/**`,
+          or the workflow file itself (`.github/workflows/docs-build-check.yml`).
         rationale: >-
-          These are the files that can break the site build or introduce
-          broken links. Changes limited to `plan/`, `specs/`, `notes/`, or
-          other non-site markdown do not affect the built site and MUST NOT
+          A page renders from more than its `docs/` file: mkdocstrings reads
+          `vultron/`, exec blocks print `vultron/` examples and generators, and
+          the spec reference pages render `specs/*.yaml`. Omitting those let
+          #2904 break 101 example blocks, and #3574 ship a dead link, with this
+          workflow never running (#3070). Changes limited to `plan/`, `notes/`,
+          or other non-site markdown do not affect the built site and MUST NOT
           trigger the workflow.
+        verification: >-
+          `test/ci/test_docs_build_trigger_paths.py` asserts the
+          `pull_request` paths include every path this statement lists.
       - id: DOCBW-02-002
         priority: MUST
         kind: project
@@ -58,8 +64,11 @@ groups:
         statement: >-
           The `pull_request` trigger MUST NOT use `**/*.md` as a path
           pattern, as this would cause the workflow to run on changes to
-          `plan/`, `specs/`, `notes/`, and other non-site markdown files
-          that have no effect on the published documentation.
+          `plan/`, `notes/`, and other non-site markdown files that have no
+          effect on the published documentation.
+        verification: >-
+          `test/ci/test_docs_build_trigger_paths.py` asserts `**/*.md` is not
+          among the `pull_request` paths.
 
   - id: DOCBW-03
     title: Job Structure
@@ -180,11 +189,9 @@ groups:
           to an excluded page is logged at INFO while its href is still
           rewritten. Checking *resolution* subsumes form signatures like a `.md`
           suffix. Unconditional here means no step-level `docs_changed`
-          condition, which is one of two docs-scoped filters on this workflow;
-          the `paths:` trigger of DOCBW-02-001 is the other and still omits
-          `vultron/**`, so a PR editing only a page-enumerating generator does
-          not reach this step in `docs-build-check.yml` and is first caught by
-          `deploy_site.yml` after merge. Closing that half is #3070. Other
+          condition. The other docs-scoped filter, the `paths:` trigger of
+          DOCBW-02-001, includes `vultron/**` since #3070, so a PR editing only
+          a page-enumerating generator reaches this step before merge. Other
           clauses: `notes/documentation-strategy.md`.
         verification: >-
           `uv run docs-links` (`vultron/metadata/docs/links.py`) exits non-zero,

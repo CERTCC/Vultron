@@ -24,6 +24,15 @@ def load_workflow(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def triggers(wf_data: dict[Any, Any]) -> dict[str, Any]:
+    """Return the workflow's ``on:`` block.
+
+    PyYAML reads a bare ``on:`` key as the boolean ``True``, so look there too.
+    """
+    block = wf_data.get("on", wf_data.get(True, {}))
+    return block if isinstance(block, dict) else {}
+
+
 def steps(wf_data: dict[str, Any]) -> list[dict[str, Any]]:
     """Return every step across every job, in file order."""
     return [

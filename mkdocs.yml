@@ -469,7 +469,8 @@ plugins:
       enabled: !ENV [ENABLE_MKDOCSTRINGS, true]
       handlers:
         python:
-          paths: [ 'src' ]
+          # The package lives at the repo root (vultron/); there is no src/.
+          paths: [ '.' ]
           options:
             show_bases: true
             show_root_heading: true

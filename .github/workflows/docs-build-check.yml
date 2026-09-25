@@ -8,9 +8,14 @@ on:
       - 'mkdocs.yml'
       - 'pyproject.toml'
       - 'uv.lock'
-      # The withheld-artifact declaration (DOCBW-03-005): a PR that only edits
-      # it must rerun the gate it configures.
-      - 'vultron/metadata/docs/withheld.py'
+      # Pages render from these at build time (DOCBW-02-001, #3070): the API
+      # reference is mkdocstrings over vultron/, the ActivityPub examples print
+      # vultron/wire/as2/vocab/examples/, the spec pages render specs/*.yaml,
+      # and the scenario table and What's New are vultron/metadata/ generators.
+      # vultron/** also covers the withheld-artifact declaration
+      # (vultron/metadata/docs/withheld.py, DOCBW-03-005).
+      - 'vultron/**'
+      - 'specs/**'
       - 'CONTRIBUTING.md'
       - 'ContributionInstructions.md'
       - 'LICENSE.md'

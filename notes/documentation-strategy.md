@@ -417,12 +417,12 @@ of how this one hid, not preferences:
   lives in `vultron/` or `docs/_scripts/`. A `docs/**` path filter is the wrong
   predicate for a defect that neither file has to touch — which is why the one
   gate that *could* have caught this (`linkchecker`, conditioned on
-  `docs_changed`) did not. Be precise about what DOCBW-03-007 therefore reaches:
-  dropping the step-level `docs_changed` condition (DOCBW-04-003) is one of the
-  two docs-scoped filters on this workflow. The other is the workflow's own
-  `paths:` trigger (DOCBW-02-001), which still omits `vultron/**` — so a PR that
-  edits only a generator never runs `docs-build-check.yml`, and the gate first
-  sees it in `deploy_site.yml` after merge. Closing that half is #3070.
+  `docs_changed`) did not. There were two docs-scoped filters on this workflow,
+  and each had to go: DOCBW-03-007 drops the step-level `docs_changed` condition
+  (DOCBW-04-003), and the workflow's own `paths:` trigger (DOCBW-02-001) omitted
+  `vultron/**` and `specs/**` until #3070 — so a PR that edited only a generator
+  never ran `docs-build-check.yml`, and a gate first saw it in `deploy_site.yml`
+  after merge. A trigger filter is part of every gate behind it.
 
 Deriving rather than mirroring is the complementary half, and it is cheaper
 where it applies. `whats_new.py::_unpublished_spec` reads `draft_docs` and
