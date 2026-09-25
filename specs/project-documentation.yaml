@@ -2,7 +2,7 @@ id: PD
 title: Project Documentation Structure
 description: This specification defines the purpose, scope, and maintenance requirements for key project documentation files
   that guide AI agents and human developers.
-version: 1.0.0
+version: 1.0.1
 scope:
 - prototype
 - production
@@ -155,7 +155,8 @@ groups:
     kind: process
     statement: >-
       Priority ordering is the sole responsibility of the `Schedule` field
-      (Now/Next/Later/Someday) on GitHub Project #24. GitHub Issue titles MUST NOT
+      (Focus/Now/Next/Later/Someday) on Epics in GitHub Project #24 (PAD-02-001);
+      a non-Epic issue takes its nearest Epic's tier. GitHub Issue titles MUST NOT
       encode priority information as numeric prefixes or rely on ordering to imply
       priority.
     rationale: >-
@@ -167,9 +168,10 @@ groups:
     priority: SHOULD
     kind: process
     statement: >-
-      Every issue carrying a `Schedule` value on GitHub Project #24 SHOULD also be
-      wired to the Epic it belongs to (as a sub-issue), so a priority assignment is
-      traceable to the thematic group it advances.
+      Every non-Epic issue on GitHub Project #24 SHOULD be wired to the Epic it
+      belongs to (as a sub-issue), so its priority is traceable to the thematic
+      group it advances. PAD-01-007 makes this a MUST for every open non-Epic
+      issue.
     rationale: >-
       Replaces the former requirement that `plan/PRIORITIES.md` entries cite issue
       numbers; with priorities held on the board, the equivalent linkage is the

@@ -12,6 +12,7 @@ shell: "zsh"
 commands:
   - ".github/scripts/mkdocs-build-strict.sh"
   - "uv run docs-withheld"
+  - "uv run docs-legacy-urls"
 inputs:
   - name: repo_root
     description: "Repository root where the command will be executed"
@@ -69,13 +70,19 @@ still reported and must be fixed.
 
 ```bash
 PYTHONPATH='' uv run docs-withheld
+PYTHONPATH='' uv run docs-legacy-urls
 ```
 
-   This fails when an artifact the project declared withheld produced files in
-   `site/` (DOCBW-03-005). It reads the built tree, so it only means anything
-   after step 1 succeeded. Both the pull-request workflow and `deploy_site.yml`
-   run the same check, so a failure here is a failure that would have blocked
-   the deploy.
+   `docs-withheld` fails when an artifact the project declared withheld
+   produced files in `site/` (DOCBW-03-005). `docs-legacy-urls` fails when a
+   URL an earlier publish served no longer resolves as a page or a redirect
+   (DOCBW-03-008). The fix for a moved page is a `redirect_maps` entry in
+   `mkdocs.yml`. A page withdrawn on purpose gets a declaration in
+   `vultron/metadata/docs/withheld.py` instead. Both checks read the built tree,
+   so they only mean anything after step 1 succeeded. Both the pull-request
+   workflow and `deploy_site.yml` run them through the
+   `check-site-publication` action, so a failure here is a failure that would
+   have blocked the deploy.
 
 1. Stage changes only after both commands exit cleanly with zero code.
 
@@ -90,8 +97,9 @@ PYTHONPATH='' uv run docs-withheld
   - Invalid markdown: syntax errors that prevent proper parsing
 - Validate links using `markdownlint-cli2` BEFORE running the build script
   to catch markdown syntax issues early.
-- Run `docs-withheld` AFTER the build script, never before: it reads `site/`,
-  and it fails rather than passes when that directory is absent or empty.
+- Run `docs-withheld` and `docs-legacy-urls` AFTER the build script, never
+  before: they read `site/`, and they fail rather than pass when that directory
+  is absent or empty.
 
 ## Examples
 
