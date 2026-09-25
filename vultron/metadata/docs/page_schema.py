@@ -235,7 +235,6 @@ WORKING_RECORD_PATTERNS: tuple[str, ...] = (
     "developer/**",
     "about/contributing.md",
     "reference/codebase/**",
-    "reference/inbox_handler.md",
     "reference/specs/process.md",
     "reference/specs/project.md",
     # Generated code documentation, including the rendered behavior trees.
