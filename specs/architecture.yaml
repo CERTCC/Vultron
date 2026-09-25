@@ -1325,7 +1325,11 @@ groups:
     kind: project
     statement: >-
       A serialize-then-validate round trip on a core object MUST reproduce that
-      object.  Serialization MUST omit computed fields, and MUST emit wire-facing
+      object.  Serialization MAY emit computed fields (ADR-0056's
+      `embargo_adherence` is emitted as part of the AS2 form); validation MUST
+      discard a supplied computed-field value that equals the value derived from
+      the object's own state, and MUST refuse one that contradicts it rather
+      than silently discarding it (#3547).  Serialization MUST emit wire-facing
       key names (`id`, `type`, `@context`) rather than Python field names
       (`id_`, `type_`, `context_`).  This applies to the persistence record
       round trip as well as to translation.
@@ -1345,6 +1349,14 @@ groups:
       `alias_generator=to_camel`, so it emits camelCase and makes things worse
       (measured).  Tracked by #3546 (blocked by #2938).
     rationale: >-
+      A contradicted computed value cannot come from an honest producer: the
+      value is derived, so every dump agrees with itself.  Refusing it closes
+      the last silent-drop carve-out in a boundary whose contract is that an
+      unrecognised key is rejected loudly, and `embargo_adherence` gates
+      disclosure, so a peer claiming adherence its consent state denies must
+      fail closed.  The objection recorded during #2940 triage — that
+      `as_ParticipantStatus` carried an independent settable wire field — was
+      retired when ADR-0099 detail 3 aliased that class onto core.
       `extra="forbid"` (ARCH-12-003) is only viable if the project can
       round-trip its own output.  Measured on the unit suite, the two blockers
       were `embargo_adherence` — a `@computed_field` per ADR-0056 that appears
@@ -1357,7 +1369,9 @@ groups:
     verification: >-
       A test asserts `type(obj).model_validate(dump(obj)) == obj` for every
       `CORE_VOCABULARY` entry, and that no persisted row carries a
-      trailing-underscore key.
+      trailing-underscore key.  A test asserts that a contradicted
+      `embargo_adherence` (under both its field-name and camelCase spellings)
+      raises a validation error naming every contradicted field.
     adr:
     - ADR-0056
     - ADR-0082
