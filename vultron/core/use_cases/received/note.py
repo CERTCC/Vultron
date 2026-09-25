@@ -15,6 +15,7 @@ from vultron.core.models.events.note import (
     CreateNoteReceivedEvent,
     RemoveNoteFromCaseReceivedEvent,
 )
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -37,7 +38,7 @@ class CreateNoteReceivedUseCase:
         self._dl = dl
         self._request: CreateNoteReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
 
         note = request.note
@@ -46,7 +47,7 @@ class CreateNoteReceivedUseCase:
                 "create_note: no note domain object in event for activity '%s'",
                 request.activity_id,
             )
-            return
+            return HandlerResult.applied()
 
         case_id: str | None = note.context
         # The *receiving* actor, not the sender (BT-17-005): a received Note is
@@ -68,6 +69,7 @@ class CreateNoteReceivedUseCase:
                 request.activity_id,
                 reason or result.feedback_message,
             )
+        return HandlerResult.applied()
 
 
 class AddNoteToCaseReceivedUseCase:
@@ -95,13 +97,13 @@ class AddNoteToCaseReceivedUseCase:
         self._request: AddNoteToCaseReceivedEvent = request
         self._sync_port = sync_port
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         note_id = request.note_id
         case_id = request.case_id
         if note_id is None or case_id is None:
             logger.warning("add_note_to_case: missing note_id or case_id")
-            return
+            return HandlerResult.applied()
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -125,6 +127,7 @@ class AddNoteToCaseReceivedUseCase:
                 case_id,
                 BTBridge.get_failure_reason(tree) or result.feedback_message,
             )
+        return HandlerResult.applied()
 
 
 class RemoveNoteFromCaseReceivedUseCase:
@@ -134,20 +137,20 @@ class RemoveNoteFromCaseReceivedUseCase:
         self._dl = dl
         self._request: RemoveNoteFromCaseReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         note_id = request.note_id
         case_id = request.case_id
         if note_id is None or case_id is None:
             logger.warning("remove_note_from_case: missing note_id or case_id")
-            return
+            return HandlerResult.applied()
         case = self._dl.read_case(case_id)
 
         if case is None:
             logger.warning(
                 "remove_note_from_case: case '%s' not found", case_id
             )
-            return
+            return HandlerResult.applied()
 
         existing_ids = [_as_id(n) for n in case.notes]
         if note_id not in existing_ids:
@@ -156,10 +159,11 @@ class RemoveNoteFromCaseReceivedUseCase:
                 note_id,
                 case_id,
             )
-            return
+            return HandlerResult.applied()
 
         case.notes = [  # type: ignore[assignment]
             n for n in case.notes if _as_id(n) != note_id
         ]
         self._dl.save(case)
         logger.info("Removed note '%s' from case '%s'", note_id, case_id)
+        return HandlerResult.applied()

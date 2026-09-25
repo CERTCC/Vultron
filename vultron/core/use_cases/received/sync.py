@@ -42,6 +42,7 @@ from vultron.core.models.pending_assertion import (
     get_pending_assertion_store,
 )
 from vultron.core.models.replication_state import VultronReplicationState
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
@@ -228,7 +229,7 @@ class AnnounceLedgerEntryReceivedUseCase:
         self._pending_assertions = pending_assertions
         self._gap_buffer = gap_buffer
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         entry = request.log_entry
         if entry is None:
@@ -237,7 +238,7 @@ class AnnounceLedgerEntryReceivedUseCase:
                 "with no log entry object — ignoring",
                 request.activity_id,
             )
-            return
+            return HandlerResult.applied()
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -294,6 +295,7 @@ class AnnounceLedgerEntryReceivedUseCase:
                 entry.event_type,
                 entry.log_object_id,
             )
+        return HandlerResult.applied()
 
 
 class RejectLedgerEntryReceivedUseCase:
@@ -322,7 +324,7 @@ class RejectLedgerEntryReceivedUseCase:
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         rejected_entry = request.rejected_entry
         if rejected_entry is None:
@@ -331,7 +333,7 @@ class RejectLedgerEntryReceivedUseCase:
                 "with no log entry object — ignoring",
                 request.actor_id,
             )
-            return
+            return HandlerResult.applied()
 
         logger.info(
             "sync: received Reject(CaseLedgerEntry) from peer '%s' "
@@ -357,3 +359,4 @@ class RejectLedgerEntryReceivedUseCase:
                 request.activity_id,
                 result.feedback_message,
             )
+        return HandlerResult.applied()

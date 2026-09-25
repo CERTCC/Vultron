@@ -60,6 +60,7 @@ from vultron.core.models.events.case_proposal import (
     RejectCaseProposalReceivedEvent,
 )
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -152,14 +153,14 @@ class CreateCaseProposalReceivedUseCase:
             candidate if isinstance(candidate, VulnerabilityReport) else None
         )
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         proposal_id = request.proposal_id
         if proposal_id is None:
             logger.warning(
                 "create_case_proposal_received: no proposal_id — skipping"
             )
-            return
+            return HandlerResult.applied()
 
         # The vendor who sent Create(as_CaseProposal) is the activity actor.
         vendor_uri = request.actor_id
@@ -241,6 +242,7 @@ class CreateCaseProposalReceivedUseCase:
                 " queued for proposal '%s'",
                 proposal_id,
             )
+        return HandlerResult.applied()
 
 
 class AcceptCaseProposalReceivedUseCase:
@@ -263,7 +265,7 @@ class AcceptCaseProposalReceivedUseCase:
         self._dl = dl
         self._request: AcceptCaseProposalReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         # The case-actor service that accepted the proposal is the activity actor.
         case_actor_id = request.actor_id
@@ -275,7 +277,7 @@ class AcceptCaseProposalReceivedUseCase:
                 "accept_case_proposal_received: no report_id available"
                 " — cannot update VultronReportCaseLink (CP-06-003)"
             )
-            return
+            return HandlerResult.applied()
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -304,6 +306,7 @@ class AcceptCaseProposalReceivedUseCase:
                 case_actor_id,
                 report_id,
             )
+        return HandlerResult.applied()
 
 
 class RejectCaseProposalReceivedUseCase:
@@ -326,7 +329,7 @@ class RejectCaseProposalReceivedUseCase:
         self._dl = dl
         self._request: RejectCaseProposalReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
 
         # The inner object is the VulnerabilityReport embedded in the proposal.
@@ -336,7 +339,7 @@ class RejectCaseProposalReceivedUseCase:
                 "reject_case_proposal_received: no report_id available"
                 " — cannot update VultronReportCaseLink (CP-06-004)"
             )
-            return
+            return HandlerResult.applied()
 
         # The rejection reason comes from the Reject activity's summary field.
         rejection_reason: str | None = None
@@ -371,3 +374,4 @@ class RejectCaseProposalReceivedUseCase:
                 report_id,
                 rejection_reason,
             )
+        return HandlerResult.applied()

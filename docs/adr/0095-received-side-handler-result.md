@@ -213,23 +213,17 @@ state. The boundary is not valuable enough to protect at that price.
 
 ## Validation
 
-Not yet implemented. This ADR records the decision; the work is tracked
-separately, and this section will describe realized validation once it lands.
+Implemented for the received side and the dispatcher boundary; the trigger side is #3354.
 
-Planned:
+Realized:
 
-- An architecture ratchet (UCORG-05-004) asserting that every concrete use-case
-  class in `vultron/core/use_cases/` declares an `execute()` return annotation
-  of `UseCaseResult` or a registered subtype. The ratchet excludes trigger-side
-  classes until #3354 migrates them; that exclusion is temporary and tied to
-  that issue, not open-ended.
-- mypy: the `UseCase` Protocol declares `execute() -> UseCaseResult`, so a
-  non-conforming concrete class is reported statically.
-- Behavioural tests for the two paths a ratchet cannot see: a `REFUSED`
-  disposition reaching `InboxOutcome.status == "rejected"` with a populated
-  `failure_reason`, and an unroutable or unrecognised-semantics activity **not**
-  reporting `processed` (UCORG-05-012). The return annotations can all be correct
-  while both of these still fail.
+- The architecture ratchet `test/architecture/test_use_case_execute_returns_result.py` (UCORG-05-004) asserts that every concrete use-case class in `vultron/core/use_cases/` declares an `execute()` return annotation that resolves to `UseCaseResult` or a subtype (#3372).
+  It excludes `triggers/` until #3354 migrates them, names that issue, and fails once the exclusion is no longer needed.
+- The `UseCase` Protocol declares `execute() -> UseCaseResult`.
+  No call site is yet typed against the Protocol, so mypy does not report a non-conforming class by itself; the ratchet does.
+- `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` covers the two paths a ratchet cannot see, driving the real FastAPI dispatch adapters, dispatcher, and inbox BT with only the use case stubbed (#3373).
+  A `REFUSED` disposition reaches `InboxOutcome.status == "rejected"` with the handler's reason as `failure_reason`, and an unroutable or unrecognised-semantics activity does **not** report `processed` (UCORG-05-012).
+  The same file checks that `run_inbox_pipeline` logs a rejection at WARNING (UCORG-05-013).
 
 Per this ADR's own subject matter: no Validation entry here asserts that a test
 exists until it does. ADR-0040's Validation section claimed the ratchet as

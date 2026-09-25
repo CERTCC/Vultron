@@ -21,7 +21,7 @@ inbound activity:
    :func:`is_case_bootstrap`
 
 Both the core behavior-tree inbox pipeline
-(``vultron.core.behaviors.inbox.nodes.pipeline``) and the FastAPI inbox
+(``vultron.core.behaviors.inbox.nodes``) and the FastAPI inbox
 adapters delegate here, so the deferral gate and the replay trigger cannot
 drift apart.
 

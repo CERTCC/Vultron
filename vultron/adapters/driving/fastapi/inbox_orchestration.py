@@ -38,12 +38,14 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _queue_pending_case_activity,
     _replay_pending_case_activities,
 )
-from vultron.adapters.driving.fastapi.routers.actors._inbox import (
+from vultron.adapters.driving.fastapi.inbox_storage import (
     _store_inbox_activity,
     _store_nested_inbox_object,
 )
+from vultron.core.behaviors.inbox import InboxOutcome, InboxOutcomeStatus
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.wire.as2.errors import VultronParseError
@@ -268,12 +270,12 @@ class FastAPIDispatchAdapter:
         self._actor_id = actor_id
         self._dispatcher = dispatcher
 
-    def dispatch(self, event: VultronEvent) -> None:
-        """Inject receiving actor ID and dispatch the event."""
+    def dispatch(self, event: VultronEvent) -> HandlerResult:
+        """Inject receiving actor ID, dispatch, and return the verdict."""
         scoped_event = event.model_copy(
             update={"receiving_actor_id": self._actor_id}
         )
-        dispatch(
+        return dispatch(
             event=scoped_event,
             dl=self._dl,
             dispatcher=self._dispatcher,
@@ -337,6 +339,28 @@ class FastAPIQueuePort:
         )
 
 
+def _warn_if_rejected(
+    outcome: InboxOutcome, actor_id: str, *, replayed: bool
+) -> None:
+    """Log a rejected outcome at WARNING (UCORG-05-013).
+
+    Every outcome is logged at DEBUG; a refusal is also logged here so it is
+    visible in an actor log at the default level. ``processed`` and
+    ``deferred`` stay at DEBUG — both are expected, routine outcomes.
+    """
+    if outcome.status is not InboxOutcomeStatus.REJECTED:
+        return
+    logger.warning(
+        "Inbox activity rejected (actor_id=%s activity_id=%s context_id=%s"
+        " replayed=%s): %s",
+        actor_id,
+        outcome.activity_id,
+        outcome.context_id,
+        replayed,
+        outcome.failure_reason,
+    )
+
+
 async def run_inbox_pipeline(
     payload: dict[str, Any] | bytes | str | Any,
     body: dict[str, Any] | None,
@@ -393,6 +417,7 @@ async def run_inbox_pipeline(
             outcome.status,
             outcome.context_id,
         )
+        _warn_if_rejected(outcome, actor_id, replayed=False)
 
         # Process any replayed activities (pushed back to the queue by
         # DeferCheckNode/DispatchNode replay after bootstrap).
@@ -409,5 +434,6 @@ async def run_inbox_pipeline(
                 replay_outcome.status,
                 replay_outcome.context_id,
             )
+            _warn_if_rejected(replay_outcome, actor_id, replayed=True)
 
     await outbox_handler(actor_id, actor_dl, emitter=emitter)

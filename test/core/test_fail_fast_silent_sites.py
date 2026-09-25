@@ -41,6 +41,7 @@ from vultron.core.models.events import (
     AddNoteToCaseReceivedEvent,
     MessageSemantics,
 )
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.models.vultron_types import (
     VultronCaseActor,
     VulnerabilityCase,
@@ -193,7 +194,9 @@ class TestExtractCaseIdRaisesUnroutableActivityError:
         case_id.  _extract_case_id raises UnroutableActivityError; _handle
         catches it, logs at ERROR, and returns without calling the use case.
         dispatch() completes normally (no exception propagates to the caller),
-        which prevents the inbox re-queue loop (ARCH-15-003).
+        which prevents the inbox re-queue loop (ARCH-15-003). It returns a
+        ``REFUSED`` verdict, so the drop is not reported as processed
+        (UCORG-05-012).
         """
         mock_dl = MagicMock()
         use_case_class = MagicMock()
@@ -210,8 +213,12 @@ class TestExtractCaseIdRaisesUnroutableActivityError:
         )
 
         # dispatch() must not raise — unroutable events are dropped at _handle
-        dispatcher.dispatch(event, mock_dl)
+        result = dispatcher.dispatch(event, mock_dl)
         use_case_class.assert_not_called()
+        # ...but no handler ran, so the verdict is not success (UCORG-05-012).
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "unroutable" in result.reason
 
     def test_extract_case_id_raises_unroutable_directly(self):
         """_extract_case_id raises UnroutableActivityError (not returns None).

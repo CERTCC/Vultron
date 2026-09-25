@@ -19,8 +19,12 @@ Intermediate keys (written by pipeline nodes during execution):
     inbox_context_id    — case context ID string or None
 
 Output keys (written by pipeline nodes on completion or failure):
-    inbox_outcome_status   — one of "processed", "deferred", "rejected"
+    inbox_outcome_status   — an ``InboxOutcomeStatus`` member
     inbox_failure_reason   — human-readable reason when not processed
+
+Steps 5 and 6 (dispatch and the processed outcome) live in
+:mod:`~vultron.core.behaviors.inbox.nodes.dispatch`, which also owns the
+handler-verdict-to-outcome mapping (HP-01-004).
 
 Per specs/inbox-orchestration.yaml IO-02-002.
 """
@@ -46,6 +50,7 @@ from typing import Any
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.inbox.models import InboxOutcomeStatus
 from vultron.core.models.events import (
     is_case_bootstrap,
     resolve_case_context_id,
@@ -120,13 +125,26 @@ class _InboxNodeWithPorts(BehaviourWithPorts):
             }
         )
 
-    def _reject(self, reason: str) -> Status:
-        """Write rejected outcome via typed output ports and return FAILURE."""
+    def _record_outcome(
+        self, status: InboxOutcomeStatus, reason: str
+    ) -> Status:
+        """Write a non-processed outcome via typed output ports; return FAILURE.
+
+        Logged at INFO, not WARNING: the driving adapter logs every rejected
+        ``InboxOutcome`` at WARNING with the actor and activity ids
+        (UCORG-05-013), so a node-level warning would report it twice.
+        """
         self.feedback_message = reason
-        self._set_output(KEY_OUTCOME_STATUS, "rejected")
+        self._set_output(KEY_OUTCOME_STATUS, status)
         self._set_output(KEY_FAILURE_REASON, reason)
-        self.logger.warning("%s: rejected — %s", self.name, reason)
+        self.logger.info("%s: %s — %s", self.name, status, reason)
         return Status.FAILURE
+
+    def _reject(self, reason: str) -> Status:
+        return self._record_outcome(InboxOutcomeStatus.REJECTED, reason)
+
+    def _defer(self, reason: str) -> Status:
+        return self._record_outcome(InboxOutcomeStatus.DEFERRED, reason)
 
     def update(self) -> Status:
         raise NotImplementedError
@@ -363,11 +381,7 @@ class DeferCheckNode(_InboxNodeWithPorts):
                 f"Pre-bootstrap queue for case '{context_id}' expired; "
                 "resend required after new bootstrap"
             )
-            self.feedback_message = reason
-            self._set_output(KEY_OUTCOME_STATUS, "rejected")
-            self._set_output(KEY_FAILURE_REASON, reason)
-            self.logger.warning("%s: %s", self.name, reason)
-            return Status.FAILURE
+            return self._reject(reason)
 
         # Queue for replay when bootstrap arrives.
         queue.queue(
@@ -376,89 +390,4 @@ class DeferCheckNode(_InboxNodeWithPorts):
             case_actor_id=event.actor_id,
         )
         reason = f"Deferred: case '{context_id}' not yet known locally"
-        self.feedback_message = reason
-        self._set_output(KEY_OUTCOME_STATUS, "deferred")
-        self._set_output(KEY_FAILURE_REASON, reason)
-        self.logger.info("%s: %s", self.name, reason)
-        return Status.FAILURE
-
-
-class DispatchNode(_InboxNodeWithPorts):
-    """Step 5: dispatch the domain event to the appropriate use case.
-
-    After a successful bootstrap dispatch, triggers replay of any
-    activities that were deferred pending this case's local replica.
-    """
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        KEY_EVENT: PortInformation(data_type=object, required=True),
-        KEY_DISPATCH: PortInformation(data_type=object, required=True),
-        KEY_CONTEXT_ID: PortInformation(data_type=object, required=False),
-        KEY_QUEUE: PortInformation(data_type=object, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            KEY_EVENT: f"/{KEY_EVENT}",
-            KEY_DISPATCH: f"/{KEY_DISPATCH}",
-            KEY_CONTEXT_ID: f"/{KEY_CONTEXT_ID}",
-            KEY_QUEUE: f"/{KEY_QUEUE}",
-        }
-
-    def update(self) -> Status:
-        try:
-            event = self.get_input(KEY_EVENT)
-            dispatch = self.get_input(KEY_DISPATCH)
-        except (KeyError, NoDataAvailable) as exc:
-            return self._reject(f"Missing blackboard key: {exc}")
-
-        try:
-            dispatch.dispatch(event)
-        except Exception as exc:
-            return self._reject(f"Dispatch raised exception: {exc}")
-
-        self.logger.info(
-            "%s: dispatched %s activity_id=%s",
-            self.name,
-            event.semantic_type,
-            event.activity_id,
-        )
-
-        # After bootstrap, replay any activities that were held pending
-        # this case's local replica becoming available.
-        try:
-            context_id: str | None = self.get_input(KEY_CONTEXT_ID)
-        except (NotImplementedError, NoDataAvailable):
-            context_id = None
-
-        try:
-            queue = self.get_input(KEY_QUEUE)
-        except (NotImplementedError, NoDataAvailable, KeyError):
-            queue = None
-
-        if (
-            is_case_bootstrap(event)
-            and context_id is not None
-            and queue is not None
-        ):
-            queue.replay(context_id)
-            self.logger.info(
-                "%s: triggered replay for case '%s'", self.name, context_id
-            )
-
-        return Status.SUCCESS
-
-
-class BuildOutcomeNode(_InboxNodeWithPorts):
-    """Step 6: record the processed outcome on the blackboard.
-
-    Runs only when all preceding Sequence nodes succeeded.  Writes
-    ``inbox_outcome_status = "processed"`` so that :func:`process_payload`
-    can assemble the final :class:`InboxOutcome`.
-    """
-
-    def update(self) -> Status:
-        self._set_output(KEY_OUTCOME_STATUS, "processed")
-        self.logger.debug("%s: outcome = processed", self.name)
-        return Status.SUCCESS
+        return self._defer(reason)

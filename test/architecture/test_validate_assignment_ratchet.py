@@ -109,6 +109,7 @@ _VALIDATE_ASSIGNMENT_TARGETS: frozenset[str] = frozenset(
         "PecDimension",
         "PxaDimension",
         "RmDimension",
+        "UseCaseResult",
         "ValidatedAssignmentMixin",
         "VfDimension",
         "VultronEvent",
