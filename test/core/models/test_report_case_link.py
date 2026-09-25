@@ -27,7 +27,7 @@ _COORDINATOR_ID = "https://example.org/actors/coordinator"
     reason=(
         "CBT-06-002: the link id is derived from the report alone, so a "
         "second recipient of the same report collides with the first. "
-        "Tracked by TASK_PLACEHOLDER."
+        "Tracked by #3698."
     ),
 )
 @pytest.mark.spec("CBT-06-002")

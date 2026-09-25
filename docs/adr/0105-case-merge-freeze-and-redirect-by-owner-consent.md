@@ -105,8 +105,9 @@ Review confirms that no merge path writes to a frozen Case's ledger and that no 
 ## More Information
 
 - Source: Concern [#3366](https://github.com/CERTCC/Vultron/issues/3366) (one Report becoming two Cases).
-- Reporter-side bookkeeping: CBT-06 in `specs/case-bootstrap-trust.yaml`.
+- Reporter-side bookkeeping: CBT-06 in `specs/case-bootstrap-trust.yaml`, implemented by [#3698](https://github.com/CERTCC/Vultron/issues/3698).
+- Merge requirements: [#3701](https://github.com/CERTCC/Vultron/issues/3701); merge implementation: [#3702](https://github.com/CERTCC/Vultron/issues/3702).
 - Offer-and-accept routing pattern reused here: [ADR-0053](0053-ownership-transfer-routed-via-caseactor.md).
 - Case cross-reference fields: [ADR-0017](0017-domain-wire-object-separation.md).
-- Open follow-up: what a Participant that declines to join Case1 still owes the embargo it accepted in Case2, and whether the answer depends on which Case's embargo is longer.
-- Open follow-up: keeping both Cases open, with a software participant in both that relays between them, as an alternative to merging when two Cases have good reason to stay separate (for example, different coordinators serving different communities on different timelines).
+- Open follow-up: what a Participant that declines to join Case1 still owes the embargo it accepted in Case2, and whether the answer depends on which Case's embargo is longer — Concern [#3699](https://github.com/CERTCC/Vultron/issues/3699).
+- Open follow-up: keeping both Cases open, with a software participant in both that relays between them, as an alternative to merging when two Cases have good reason to stay separate (for example, different coordinators serving different communities on different timelines) — Idea [#3700](https://github.com/CERTCC/Vultron/issues/3700).
