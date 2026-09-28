@@ -48,7 +48,7 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
         self._actor_id = actor.id_
         self._case = resolve_case(request.case_id, dl)
         self._proposal_id = _resolve_embargo_proposal(
-            self._case, request.proposal_id
+            self._case, request.proposal_id, dl
         )
         self._embargo_id = _resolve_embargo_id_from_proposal_id(
             self._case, self._proposal_id

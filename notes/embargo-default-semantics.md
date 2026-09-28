@@ -99,9 +99,12 @@ proposals: resolve earliest `end_time` first and handle the remainder as
 revisions (ADR-0100). EP-04-003 `refines` EP-08-001 accordingly. Two consequences
 for implementers:
 
-- **One comparator, not two.** #3392 builds EP-04-003's comparison and #3470
-  builds EP-08's; they MUST share a single earliest-end-date comparator rather
-  than growing separate ones that can disagree.
+- **One comparator, not two.** `earliest_ending` in
+  `vultron/core/services/embargo_ordering.py` (#3470) is the comparator:
+  `resolve_initial_embargo_duration` uses it for EP-04-003's shortest-wins and
+  `find_embargo_proposal_id` / `ReadProposedEmbargoIdNode` use it for EP-08's
+  earliest-expiring selection. #3392 extends the case-creation input; it MUST NOT
+  grow a second comparator.
 - There is **no multi-candidate poll** to reach for when more than two sets of
   terms are on the table — ADR-0100 retired `ChoosePreferredEmbargo` (#3469).
   Send one `Invite` per candidate and answer each on its own.

@@ -30,6 +30,9 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
 )
 from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.services.embargo_ordering import (
+    earliest_expiring_embargo_id,
+)
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.errors import VultronNotFoundError
 
@@ -56,18 +59,31 @@ def resolve_case(case_id: str, dl: CasePersistence) -> VulnerabilityCase:
     return case_raw
 
 
-def find_embargo_proposal_id(case: VulnerabilityCase) -> str | None:
-    """Return the first pending embargo proposal ID from core state.
+def find_embargo_proposal_id(
+    case: VulnerabilityCase, dl: CasePersistence
+) -> str | None:
+    """Return the earliest-expiring open embargo proposal ID from core state.
 
     Looks up ``case.pending_embargo_proposal_index`` (embargo_id → proposal_id)
-    and returns the first proposal ID found.  Returns None if no pending
-    proposal is recorded.  ADR-0035: no DL wire re-read.
+    and selects the entry whose ``EmbargoEvent.end_time`` is earliest
+    (EP-08-001, EP-08-002, ADR-0100) — never the first recorded, because a
+    counter-proposal is recorded *after* the terms it supersedes.  Returns
+    None when no pending proposal is recorded.  ADR-0035: no DL wire re-read;
+    the embargo records read here are core objects.
+
+    Raises:
+        VultronNotFoundError: If an indexed embargo does not resolve in *dl*.
+        VultronValidationError: If one resolves to something that cannot be
+            ordered (EP-08-002 fails closed rather than picking arbitrarily).
     """
-    index = case.pending_embargo_proposal_index
-    for proposal_id in index.values():
-        if proposal_id:
-            return proposal_id
-    return None
+    index = {
+        embargo_id: proposal_id
+        for embargo_id, proposal_id in case.pending_embargo_proposal_index.items()
+        if proposal_id
+    }
+    if not index:
+        return None
+    return index[earliest_expiring_embargo_id(dl, index)]
 
 
 def _coerce_embargo_event(raw_embargo: object, embargo_id: str) -> object:
@@ -96,13 +112,15 @@ def _is_case_owner(case: object | None, actor_id: str) -> bool:
 def _resolve_embargo_proposal(
     case: VulnerabilityCase,
     proposal_id: str | None,
+    dl: CasePersistence,
 ) -> str:
     """Return the proposal ID for a pending embargo on *case*.
 
     When *proposal_id* is provided it is used directly (after verifying it
     appears in ``case.pending_embargo_proposal_index``).  When absent, the
-    first entry in the index is used.  Raises ``VultronNotFoundError`` when
-    no pending proposal can be located.  ADR-0035: no DL wire re-read.
+    earliest-expiring open proposal is used (EP-08-002).  Raises
+    ``VultronNotFoundError`` when no pending proposal can be located.
+    ADR-0035: no DL wire re-read.
     """
     from vultron.errors import VultronNotFoundError
 
@@ -113,7 +131,7 @@ def _resolve_embargo_proposal(
             raise VultronNotFoundError("EmbargoProposal", proposal_id)
         return proposal_id
 
-    resolved = find_embargo_proposal_id(case)
+    resolved = find_embargo_proposal_id(case, dl)
     if resolved is None:
         raise VultronNotFoundError(
             "EmbargoProposal",

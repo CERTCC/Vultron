@@ -618,3 +618,74 @@ def test_reject_embargo_invite_observed_invalid_no_raise(
     )
 
     assert result.em_after == EM.NONE
+
+
+# ---------------------------------------------------------------------------
+# Tests: a decided proposal leaves the open-proposal records (EP-08-003)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("EP-08-003")
+def test_owner_accept_prunes_the_proposal_and_a_re_accept_changes_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The owner's accept decides the proposal; an idempotent re-accept is a no-op.
+
+    ``proposed_embargoes`` and ``pending_embargo_proposal_index`` both drop the
+    entry on the first accept.  The second accept finds nothing to prune and
+    reports the case unchanged apart from consent bookkeeping.
+    """
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    embargo = _make_embargo(dl, case.id_)
+    case.proposed_embargoes.append(embargo.id_)
+    case.pending_embargo_proposal_index[embargo.id_] = "urn:proposal:1"
+    dl.save(case)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    lifecycle.accept_embargo_invite(
+        case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+    )
+    first = cast(VulnerabilityCase, dl.read(case.id_))
+    assert first.current_status.em.state == EM.ACTIVE
+    assert first.proposed_embargoes == []
+    assert first.pending_embargo_proposal_index == {}
+
+    second_result = lifecycle.accept_embargo_invite(
+        case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+    )
+    second = cast(VulnerabilityCase, dl.read(case.id_))
+    assert second_result.em_after == EM.ACTIVE
+    assert second_result.case_embargo_changed is False
+    assert second.proposed_embargoes == []
+    assert second.pending_embargo_proposal_index == {}
+
+
+@pytest.mark.spec("EP-08-003")
+def test_participant_accept_is_consent_and_prunes_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A non-owner's accept records consent; the proposal stays open."""
+    owner, dl = owner_and_dl
+    participant = _make_actor(dl, "Participant")
+    case, _ = _make_case(
+        dl,
+        owner.id_,
+        extra_participant_ids=[participant.id_],
+        em_state=EM.PROPOSED,
+    )
+    embargo = _make_embargo(dl, case.id_)
+    case.proposed_embargoes.append(embargo.id_)
+    case.pending_embargo_proposal_index[embargo.id_] = "urn:proposal:1"
+    dl.save(case)
+
+    EmbargoLifecycle(persistence=dl).accept_embargo_invite(
+        case_id=case.id_, embargo_id=embargo.id_, actor_id=participant.id_
+    )
+
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.current_status.em.state == EM.PROPOSED
+    assert updated.proposed_embargoes == [embargo.id_]
+    assert updated.pending_embargo_proposal_index == {
+        embargo.id_: "urn:proposal:1"
+    }
