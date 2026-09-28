@@ -22,7 +22,7 @@ vocabulary that subtype carries (ADR-0095).
 
 The trigger-side sibling, ``TriggerResult``, is **not** defined here. It
 currently lives standalone in ``vultron/core/use_cases/triggers/results.py``;
-re-parenting it onto ``UseCaseResult`` is #3354.
+re-parenting it onto ``UseCaseResult`` is #3831.
 
 The envelope lives in ``core/models/`` rather than ``core/ports/`` because it
 is a Pydantic model, and ports avoid exposing ``BaseModel`` as their own API

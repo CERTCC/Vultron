@@ -15,15 +15,16 @@
 One data model — :class:`~vultron.demo.scenario.registry.ScenarioSpec` — feeds
 several rendered tables through :func:`render_page`, following
 :mod:`vultron.metadata.msm.render`.  Each slug is one *consumer shape*, because
-the three consumers ask for different columns of the same rows:
+each consumer asks for different columns of the same rows:
 
-============== =============================================== ==============
-Slug           Consumer                                        Delivery
-============== =============================================== ==============
-``narratives`` ``docs/topics/scenarios/index.md``               build-time
-``harnesses``  ``test/ci/README-case-log-ratchet.md``           marker block
-``subcommands`` ``vultron/demo/scenario/README.md``             marker block
-============== =============================================== ==============
+=================== =============================================== ==============
+Slug                Consumer                                        Delivery
+=================== =============================================== ==============
+``narratives``      ``docs/topics/scenarios/index.md``               build-time
+``container_demos`` ``docs/tutorials/container_demos.md``            build-time
+``harnesses``       ``test/ci/README-case-log-ratchet.md``           marker block
+``subcommands``     ``vultron/demo/scenario/README.md``              marker block
+=================== =============================================== ==============
 
 ``.github/demo-scenarios.json`` is rendered by
 :func:`scenario_matrix_json` rather than as a page, because it is JSON and its
@@ -123,6 +124,33 @@ def _narratives_table(specs: tuple[ScenarioSpec, ...]) -> str:
     )
 
 
+def _container_demos_table(specs: tuple[ScenarioSpec, ...]) -> str:
+    """The scenario chooser for ``docs/tutorials/container_demos.md``.
+
+    The ``DEMO`` column is the registry ``name`` — the value a reader exports
+    to select the scenario — so the tutorial cannot list a scenario the CLI
+    does not know, which is how its hand-written predecessor came to list only
+    a subset of the registered scenarios.
+    """
+    return _table(
+        (
+            "Scenario",
+            "`DEMO` value",
+            "Participants",
+            "Notable protocol feature",
+        ),
+        (
+            (
+                spec.label,
+                f"`{spec.name}`",
+                spec.participants,
+                spec.feature,
+            )
+            for spec in specs
+        ),
+    )
+
+
 def _harnesses_table(specs: tuple[ScenarioSpec, ...]) -> str:
     """The scenario→harness table for ``test/ci/README-case-log-ratchet.md``."""
     return _table(
@@ -162,6 +190,7 @@ def _subcommands_table(specs: tuple[ScenarioSpec, ...]) -> str:
 
 _PAGES: Mapping[str, Callable[[tuple[ScenarioSpec, ...]], str]] = {
     "narratives": _narratives_table,
+    "container_demos": _container_demos_table,
     "harnesses": _harnesses_table,
     "subcommands": _subcommands_table,
 }

@@ -127,7 +127,7 @@ decision that the boundary stays `-> None`.
 
 [ADR-0095](0095-received-side-handler-result.md) decides it for the received
 side: the dispatcher boundary returns `HandlerResult`, which carries a
-`HandlerDisposition` to `InboxOutcome`. The trigger side is #3354.
+`HandlerDisposition` to `InboxOutcome`. The trigger side is [ADR-0110](0110-trigger-dispatcher-port-over-verb-registry.md) (#3831, #3832, #3833).
 
 The rest of this ADR — the `UseCaseResult` hierarchy and the decision not to
 introduce `UseCaseRequest` — is unaffected.

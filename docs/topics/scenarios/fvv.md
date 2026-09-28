@@ -56,10 +56,10 @@ independent fix paths and must each reach the fix-ready state before disclosure.
 
 **Participants:**
 
-- **Finder** — discovers the vulnerability; submits the initial report.
+- **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **Vendor1** — receives the report; validates, engages, and initially owns the case.
 - **Vendor2** — invited by Vendor1; an additional affected party with its own fix path.
-- **CaseActor** — Vendor1's internal case-management sub-actor.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. Vendor1's platform hosts it, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 
@@ -81,7 +81,7 @@ case ledger in that order.
 
 ### 3. Participant status records are created
 
-The CaseActor records the initial participant status for Finder and Vendor1
+The Case Actor records the initial participant status for Finder and Vendor1
 as `add_participant_status_to_participant` entries.
 
 *Antecedent:* `engage_case` is present in the ledger.
