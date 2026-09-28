@@ -56,6 +56,7 @@ class TestOwnershipTransferUseCases:
             case,
             target="https://example.org/users/coordinator",
             actor="https://example.org/users/vendor",
+            to=["https://test.example/api/v2/actors/test-actor"],
         )
         event = make_payload(activity)
 
@@ -253,6 +254,7 @@ class TestOwnershipTransferUseCases:
             case,
             target=transferee_actor,
             actor=vendor_id,
+            to=[case_actor_id],
             id_="https://example.org/activities/offer_ot4",
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -344,6 +346,7 @@ class TestOwnershipTransferUseCases:
             case,
             target=as_Service(id_=transferee_id, name="Coordinator BT"),
             actor=vendor_id,
+            to=[case_actor_id],
             id_="https://example.org/activities/offer_ot6",
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -432,6 +435,7 @@ class TestOwnershipTransferUseCases:
             case,
             target=as_Service(id_=transferee_id, name="Coordinator Attr"),
             actor=case_actor_id,
+            to=[case_actor_id],
             attributed_to=vendor_id,
             id_="https://example.org/activities/offer_ot7",
         )
@@ -509,6 +513,7 @@ class TestOwnershipTransferUseCases:
             case,
             target=as_Service(id_=transferee_id, name="Coordinator Spoof"),
             actor=vendor2_id,
+            to=[case_actor_id],
             attributed_to=vendor1_id,
             id_="https://example.org/activities/offer_ot8",
         )
@@ -583,6 +588,7 @@ class TestOwnershipTransferUseCases:
             case,
             target=transferee_actor,
             actor=vendor_id,
+            to=[case_actor_id],
             id_="https://example.org/activities/offer_ot5",
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -652,6 +658,7 @@ class TestOwnershipTransferUseCases:
                 case,
                 target="https://example.org/users/transferee",
                 actor="https://example.org/users/vendor",
+                to=[actor_id],
             )
             event = make_payload(activity, receiving_actor_id=None)
 
@@ -715,3 +722,38 @@ class TestOwnershipTransferUseCases:
             )
         finally:
             py_trees.blackboard.Blackboard.storage.clear()
+
+
+class TestOwnershipOfferAtNonRecipient:
+    """A copy of Offer(ownership transfer) at an actor it does not name (#3752).
+
+    Two receivers are entitled to the Offer: the CASE_MANAGER it is addressed
+    to (CM-21-005) and the transferee the CASE_MANAGER forwards it to.  Anyone
+    else holds a misaddressed copy, refuses, and stores nothing (HP-01-005).
+    """
+
+    @pytest.mark.spec("HP-01-005")
+    def test_bystander_refuses_and_stores_nothing(self, make_payload):
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        bystander_id = "https://example.org/actors/bystander-ot"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=bystander_id)
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ot_bystander",
+            name="OT Bystander",
+        )
+        activity = offer_case_ownership_transfer_activity(
+            case,
+            target="https://example.org/users/coordinator",
+            actor="https://example.org/users/vendor",
+            to=["https://example.org/actors/case-actor"],
+        )
+        event = make_payload(activity, receiving_actor_id=bystander_id)
+
+        result = OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and bystander_id in result.reason
+        assert (
+            dl.get(activity.type_.value, activity.id_) is None
+        ), "a refused Offer must not be left behind in the bystander's store"

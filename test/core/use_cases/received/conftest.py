@@ -15,6 +15,8 @@ import pytest
 
 # noqa: F401 — imported for vocabulary registration side-effect
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
@@ -62,3 +64,50 @@ def anonymous_store() -> Callable[[SqliteDataLayer], SqliteDataLayer]:
         return cast(SqliteDataLayer, _AnonymousStore(inner))
 
     return _wrap
+
+
+def seed_case_manager_participant(
+    dl: SqliteDataLayer,
+    case: as_VulnerabilityCase,
+    manager_actor_id: str,
+) -> CaseParticipant:
+    """Give *case* a ``CVDRole.CASE_MANAGER`` participant for *manager_actor_id*.
+
+    Role gates resolve the CASE_MANAGER from the case's participant roster, so
+    a received-side test that expects the gated work to run must seed the role
+    holder as the receiving actor (BT-17-005), and a test that expects a
+    refusal seeds it as somebody else.  The participant is created in *dl*
+    and attached to *case* in memory; the caller persists *case* afterwards.
+    """
+    participant = CaseParticipant(
+        id_=f"{case.id_}/participants/case-manager",
+        attributed_to=manager_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(participant)
+    case.case_participants.append(participant.id_)
+    case.actor_participant_index[manager_actor_id] = participant.id_
+    return participant
+
+
+def seed_store_owner_as_case_manager(
+    dl: SqliteDataLayer, case: as_VulnerabilityCase
+) -> CaseParticipant:
+    """Make the store's own actor the CASE_MANAGER of *case*.
+
+    The receiving actor of a test that passes no ``receiving_actor_id`` is
+    the store's owner, so this is the seeding a CASE_MANAGER-path test needs
+    (BT-17-005, BT-05-006).
+    """
+    owner = dl.actor_id
+    assert isinstance(owner, str) and owner, "store must name its actor"
+    return seed_case_manager_participant(dl, case, owner)
+
+
+@pytest.fixture
+def seed_case_manager() -> (
+    Callable[[SqliteDataLayer, as_VulnerabilityCase, str], CaseParticipant]
+):
+    """Fixture form of :func:`seed_case_manager_participant`."""
+    return seed_case_manager_participant

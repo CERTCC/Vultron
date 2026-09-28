@@ -132,6 +132,12 @@ is nothing to invent. The two producers of `deferred` stay distinct: pre-dispatc
 This does not weaken HP-01-004. A handler reports in its own vocabulary;
 `DispatchNode` still owns the mapping onto `InboxOutcome`.
 
+`SKIPPED` is narrower than "the handler did nothing".
+A receiver that holds no role to act on a message — a CASE_MANAGER-addressed message at an actor that is not the case's CASE_MANAGER, or a copy naming the receiver in neither `to` nor `cc` — reports `REFUSED`, not `SKIPPED` (HP-01-005, #3752).
+The disposition is the receiver's own record of its own handling, and such a message was misaddressed by its sender; reporting it `processed` hid that.
+`SKIPPED` is reserved for a duplicate or otherwise idempotent re-delivery of a message the receiver was entitled to act on.
+That narrowing leaves one receipt with a new name: an addressee's first receipt of a message that is now pending its own decision, such as the Case Owner receiving `Offer(CaseParticipant)`, is `APPLIED` even though the handler wrote nothing, because it is neither a duplicate nor a refusal and the decision it awaits is the addressee's own.
+
 `SKIPPED` exists because `APPLIED` and `SKIPPED` collapse to the same
 `InboxOutcome.status` but are not the same event. Today both look identical — a
 line in a log file — and `received/status.py` already special-cases

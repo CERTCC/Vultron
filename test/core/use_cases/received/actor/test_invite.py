@@ -31,6 +31,9 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.core.models.case import VulnerabilityCase
+from test.core.use_cases.received.conftest import (
+    seed_store_owner_as_case_manager,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
@@ -381,6 +384,7 @@ class TestInviteActorUseCases:
             name="TEST-ACCEPT-INVITE",
             attributed_to="https://example.org/users/owner",
         )
+        seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
             target=as_VulnerabilityCaseStub(id_=case.id_),
@@ -437,6 +441,7 @@ class TestInviteActorUseCases:
         )
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)
+        seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
             target=as_VulnerabilityCaseStub(id_=case.id_),
@@ -496,6 +501,7 @@ class TestInviteActorUseCases:
             name="TEST-RM-LIFECYCLE",
             attributed_to=owner_id,
         )
+        seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
             target=as_VulnerabilityCaseStub(id_=case.id_),
@@ -551,9 +557,13 @@ class TestInviteActorUseCases:
         case_manager_participant_id = (
             "https://example.org/cases/caseRM002/participants/case-manager"
         )
+        # The receiving store's owner is the CASE_MANAGER: the role holder,
+        # the receiving actor and the store owner must be one actor
+        # (BT-05-006, BT-17-006).
+        store_owner_id = "https://test.example/api/v2/actors/test-actor"
         case_manager_participant = CaseParticipant(
             id_=case_manager_participant_id,
-            attributed_to=owner_id,
+            attributed_to=store_owner_id,
             context="https://example.org/cases/caseRM002",
             name="CaseManager",
             case_roles=[CVDRole.CASE_MANAGER],
@@ -563,7 +573,9 @@ class TestInviteActorUseCases:
             name="TEST-RM-AUTO-ENGAGE",
             attributed_to=owner_id,
             case_participants=[case_manager_participant_id],
-            actor_participant_index={owner_id: case_manager_participant_id},
+            actor_participant_index={
+                store_owner_id: case_manager_participant_id
+            },
         )
         invite = rm_invite_to_case_activity(
             invitee,
@@ -1233,6 +1245,7 @@ class TestAcceptInviteRolesAC4:
             name="AC-4 roles test",
             attributed_to="https://example.org/users/owner",
         )
+        seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
             target=as_VulnerabilityCaseStub(id_=case.id_),
@@ -1277,6 +1290,7 @@ class TestAcceptInviteRolesAC4:
             name="AC-4 negative",
             attributed_to="https://example.org/users/owner",
         )
+        seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
             target=as_VulnerabilityCaseStub(id_=case.id_),
@@ -1369,8 +1383,9 @@ class TestInviteDispositions:
         assert result.disposition == HandlerDisposition.REFUSED
 
     @pytest.mark.spec("HP-01-003")
-    def test_reject_invite_at_non_case_manager_is_skipped(self, make_payload):
-        """Only the CASE_MANAGER records a declined invite; others have no job."""
+    @pytest.mark.spec("HP-01-005")
+    def test_reject_invite_at_non_case_manager_is_refused(self, make_payload):
+        """Only the CASE_MANAGER records a declined invite; others refuse (#3752)."""
         case_id = "https://example.org/cases/d-rj1"
         dl = self._dl()
         self._seed_case(dl, case_id, manager_id=self._OWNER)
@@ -1382,7 +1397,36 @@ class TestInviteDispositions:
 
         result = RejectInviteActorToCaseReceivedUseCase(dl, event).execute()
 
-        assert result.disposition == HandlerDisposition.SKIPPED
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "CASE_MANAGER" in result.reason
+
+    @pytest.mark.spec("BT-17-001")
+    @pytest.mark.spec("HP-01-005")
+    def test_accept_invite_at_non_case_manager_is_refused(self, make_payload):
+        """Admitting the invitee is the CASE_MANAGER's; a copy-holder refuses.
+
+        The receiving store's owner is not the case's CASE_MANAGER, so the
+        gated effects do not run: no participant is created, nothing is
+        queued, and the handler says so (#3752).
+        """
+        case_id = "https://example.org/cases/d-ac-nm"
+        dl = self._dl()
+        case = self._seed_case(dl, case_id, manager_id=self._OWNER)
+        invite = self._invite(case_id)
+        dl.create(invite)
+        event = make_payload(
+            rm_accept_invite_to_case_activity(invite, actor=self._INVITEE)
+        )
+
+        result = AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "CASE_MANAGER" in result.reason
+        reloaded = cast(Any, dl.read(case.id_))
+        assert self._INVITEE not in reloaded.actor_participant_index
+        assert dl.outbox_list() == []
 
     @pytest.mark.spec("HP-01-003")
     def test_reject_invite_for_unknown_case_is_refused(self, make_payload):
@@ -1452,7 +1496,8 @@ class TestInviteDispositions:
         """A second Accept once the invitee has fully joined is a duplicate."""
         case_id = "https://example.org/cases/d-ac1"
         dl = self._dl()
-        self._seed_case(dl, case_id)
+        # The store owner admits the invitee: it must hold CASE_MANAGER.
+        self._seed_case(dl, case_id, manager_id=dl.actor_id)
         invite = self._invite(case_id)
         dl.create(invite)
         event = make_payload(
