@@ -1,5 +1,5 @@
 ---
-stakeholder_type: [platform-developer]
+stakeholder_type: [cvd-practitioner, platform-developer]
 level: 200
 ---
 
@@ -7,7 +7,7 @@ level: 200
 
 {% include-markdown "../includes/not_normative.md" %}
 
-This section collects guidance for potential implementations of Vultron.
+This section collects guidance for potential implementations of Vultron, and for the programs preparing to coordinate through it.
 
 A complete protocol implementation specification remains a work in progress; a few additional
 suggestions for potential implementers follow.

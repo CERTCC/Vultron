@@ -26,7 +26,7 @@ types is counted in both of their rows.
 
 | Stakeholder type | 100 | 200 | 300 | 400 | 500 |
 |---|---:|---:|---:|---:|---:|
-| `cvd-practitioner` | 1 | 15 | 15 | 5 | 0 |
+| `cvd-practitioner` | 1 | 16 | 15 | 5 | 0 |
 | `platform-developer` | 1 | 12 | 51 | 40 | 0 |
 | `process-researcher` | 1 | 7 | 2 | 13 | 15 |
 | `project-contributor` | 1 | 1 | 17 | 13 | 0 |
