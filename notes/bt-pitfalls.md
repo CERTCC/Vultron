@@ -12,6 +12,7 @@ related_specs:
   - specs/behavior-tree-node-design.yaml
   - specs/case-proposal.yaml
   - specs/code-style.yaml
+  - specs/received-status-handling.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/call-out-configuration.md
@@ -940,6 +941,30 @@ tree is role-gated, the role holder, the receiving actor and the store owner mus
 be **one** actor (BT-05-006); letting any two drift is a silent skip.
 
 Source: ISSUE-2238
+
+### The Store Is Not the Subject
+
+The two rules above pick **which store** a received-side tree runs in. They say
+nothing about **whose state** the tree writes, and conflating them produced two
+RM handlers that advance the wrong participant (CONCERN-3473, ADR-0108). The
+report-invalid and report-closed received trees pass `actor_id=receiving_actor_id`
+to `CreateParticipantStatusNode`, and the tests that pin them
+(`test/core/use_cases/received/test_report_routing_guard.py`) assert that *the
+receiving actor's* participant goes INVALID/CLOSED — reading "the tree runs as B"
+as "the write is about B". The report-valid handler beside them correctly passes
+`sender_actor_id`.
+
+The rule (RSH-08-001): a received activity is an assertion about the **sender's**
+state (HP-00-001), so the subject of every received-side RM write is
+`request.actor_id`. The receiving actor's own RM moves on receipt only when it is
+itself the mover — sender and receiver are the same actor, or CM-23-002 directs
+the CASE_MANAGER to advance its own participant on owner departure. When you make
+the subject explicit per BTND-10-005, check that the explicit value is the
+sender, not merely that it is explicit: ADR-0089 removed the blackboard fallback
+precisely so this choice would be visible, and a visibly wrong choice still
+passes that ratchet.
+
+Source: CONCERN-3473
 
 ## BT Write Nodes Must Validate Transitions at Their Own Boundary
 

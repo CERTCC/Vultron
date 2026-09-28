@@ -5,7 +5,7 @@ deciders: ahouseholder
 consulted: notes/datalayer-design.md, notes/actor-knowledge-model.md, vultron/core/ports/AGENTS.md, docs/adr/0012-per-actor-datalayer-isolation.md, docs/adr/0041-caseactor-authoritative-case-initialization.md, docs/adr/0058-causal-gating-in-demo-scenarios.md
 informed: specs/datalayer.yaml, specs/architecture.yaml, specs/case-management.yaml, specs/case-proposal.yaml, specs/behavior-tree-integration.yaml, specs/em-behavior.yaml, specs/inbox-endpoint.yaml, specs/participant-case-replica.yaml, specs/idempotency.yaml, specs/case-bootstrap-trust.yaml
 stakeholder_type: [project-contributor]
-partially_superseded_by: 0108-a-container-emits-only-as-actors-it-hosts.md
+partially_superseded_by: 0109-a-container-emits-only-as-actors-it-hosts.md
 ---
 
 # Give Each Actor Its Own Store; Delete the Unscoped DataLayer
@@ -330,7 +330,7 @@ Concretely:
   the CaseActor as `cc:`, which is the only way a remote store ever learns
   anything (CLP-10-001).
 
-  > **Amended by [ADR-0108](0108-a-container-emits-only-as-actors-it-hosts.md).**
+  > **Amended by [ADR-0109](0109-a-container-emits-only-as-actors-it-hosts.md).**
   > BT-05-005's foreign-authority exception and the `cc:` copy are retired.
   > A container emits only as actors it hosts, so a tree whose `actor_id` the store's authority does not host raises in the bridge, and `CommitLogEntryBT` fails rather than declines (CLP-10-014).
   > The rest of this decision stands.

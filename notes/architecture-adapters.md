@@ -55,7 +55,7 @@ instead of being masked (concern #1723, ADR-0042, `outbox.yaml` OX-12).
   activity addressed to a CASE_MANAGER that is the same actor, CLP-10-001) is
   delivered over **HTTP loopback**, using the same path as any other recipient.
   The CASE_MANAGER never mails itself a `cc:` copy of its own emission: the
-  emitting tree commits the ledger entry (ADR-0108).
+  emitting tree commits the ledger entry (ADR-0109).
 - **Application code MUST NOT construct `httpx.ASGITransport` directly**
   (OX-12-003). The only permitted use is FastAPI's `TestClient`, which uses
   `ASGITransport` internally to drive a single app's own endpoints.

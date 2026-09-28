@@ -1787,7 +1787,7 @@ groups:
       activity queued for delivery with no ledger entry, and the next duplicate check then takes
       the fresh path (ISSUE-1325). An earlier wording required the commit to follow the queueing;
       the code never did that, and the loopback copy that wording assumed committed the same
-      Invite a second time (#2996, ADR-0108).
+      Invite a second time (#2996, ADR-0109).
     verification: >-
       `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py` asserts the emit node
       commits before it appends to the outbox and sets no `cc`; the case-ledger invariant harness
@@ -1796,7 +1796,7 @@ groups:
     - rel_type: implements
       spec_id: CLP-10-006
     adr:
-    - ADR-0108
+    - ADR-0109
     lint_suppress:
     - missing_story_reference
   - id: CM-17-007
@@ -1817,7 +1817,7 @@ groups:
       type. This is one path for every topology: when the Case Owner's container also hosts the
       CASE_MANAGER the Offer loops back over HTTP (OX-12-001), and when it does not the Offer
       is the only way to reach the CASE_MANAGER without emitting in its name from a store that
-      is not the ledger's home (ADR-0108). The former wording had the trigger write
+      is not the ledger's home (ADR-0109). The former wording had the trigger write
       `suggested_roles` to the blackboard for a locally executed emit; the roles now travel in
       the Offer, and the CASE_MANAGER reads them from the received Offer it stored — the
       stored activity, not a value the trigger response carried, the same discipline
@@ -1828,7 +1828,7 @@ groups:
       tree as the CASE_MANAGER; `test/core/behaviors/case/test_suggest_actor_tree.py` asserts
       the CASE_OWNER branch emits the Invite with those roles and does not forward the Offer.
     adr:
-    - ADR-0108
+    - ADR-0109
   - id: CM-17-008
     priority: MUST
     kind: project
@@ -3054,7 +3054,7 @@ groups:
       participant whose container does not host it reaches the CASE_MANAGER by
       sending it the participant's own activity, and the CASE_MANAGER's received
       tree performs the delegated emit. A container MUST NOT execute a tree, or
-      enqueue an activity, as an actor it does not host (ADR-0108).
+      enqueue an activity, as an actor it does not host (ADR-0109).
     rationale: >-
       The CASE_MANAGER's outbox is the delivery path to other participants.
       Queuing a delegated Activity in the requesting actor's outbox bypasses
@@ -3088,7 +3088,7 @@ groups:
       spec_id: CM-24-001
     adr:
     - ADR-0073
-    - ADR-0108
+    - ADR-0109
   - id: CM-24-005
     priority: MUST
     kind: architecture

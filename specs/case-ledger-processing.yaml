@@ -407,9 +407,9 @@ groups:
       (`test/ci/invariants/common.py`) asserts, for every replica of every scenario,
       that no two entries carry the same `payloadSnapshot.id` — the duplicate
       observed when an emitting tree committed an Invite and a self-addressed copy of
-      it committed the same Invite again (#2996, ADR-0108).
+      it committed the same Invite again (#2996, ADR-0109).
     adr:
-    - ADR-0108
+    - ADR-0109
     stories:
     - story_2022_045
   - id: CLP-07-003
@@ -701,7 +701,7 @@ groups:
   description: Requirements for the end-to-end routing path that delivers protocol-significant
     activities to the CASE_MANAGER's inbox so the CASE_MANAGER can author canonical ledger
     entries. Covers outbound addressing rules, the rule that the CASE_MANAGER commits its
-    own emissions in the emitting tree rather than mailing itself a copy (ADR-0108), and
+    own emissions in the emitting tree rather than mailing itself a copy (ADR-0109), and
     the pre-flight guard that prevents non-CASE_MANAGER invocations from committing
     ledger entries.
   specs:
@@ -718,7 +718,7 @@ groups:
       (CLP-10-013); it MUST NOT address a copy of the activity to itself in any
       addressing field. A participant whose container does not host the CASE_MANAGER
       reaches it by sending the CASE_MANAGER the participant's own activity, never by
-      executing a tree locally as the CASE_MANAGER (CM-24-004, ADR-0108).
+      executing a tree locally as the CASE_MANAGER (CM-24-004, ADR-0109).
     rationale: 'Before ADR-0021, several trigger trees (e.g., `validate_report`, `ack_report`,
       `close_case`) emitted no activity addressed to the CASE_MANAGER. The CASE_MANAGER
       therefore had no protocol event to commit, and the canonical ledger was missing
@@ -732,7 +732,7 @@ groups:
       `cc:` so a copy looped back through its inbox. That copy compensated for the case
       owner''s container emitting the Invite in the CASE_MANAGER''s name from a store
       that was not the ledger''s home; where the two were co-hosted it also committed
-      the same Invite twice (#2996). ADR-0108 replaced the loopback with the rule that
+      the same Invite twice (#2996). ADR-0109 replaced the loopback with the rule that
       the emitting tree commits, and that only the hosting container emits as the
       CASE_MANAGER.'
     note: A tree that emits under a `CVDRole.CASE_MANAGER` gate and wraps the emit in
@@ -745,7 +745,7 @@ groups:
       after a full FV demo run.
     adr:
     - ADR-0021
-    - ADR-0108
+    - ADR-0109
     stories:
     - story_2022_045
     - story_2022_046
@@ -960,9 +960,9 @@ groups:
       store that holds that case's canonical log. `CommitLogEntryBT` MUST fail —
       raising, having written nothing — when the actor it executes as is not one the
       running container hosts, because no sanctioned path executes a tree in a store
-      other than its actor's own (BT-05-005, ADR-0108).
+      other than its actor's own (BT-05-005, ADR-0109).
     rationale: 'A log index is a claim on a position in one hash chain, so two stores
-      claiming the same position fork it irreparably. Before ADR-0108, the delegated-emit
+      claiming the same position fork it irreparably. Before ADR-0109, the delegated-emit
       path was how a second claimant arose: a trigger the case *owner* ran emitted as
       the case''s CASE_MANAGER (PCR-08-007, CM-24-001) and committed under that same
       actor id. When the owner hosted the CaseActor that was the canonical commit. After
@@ -976,7 +976,7 @@ groups:
       enrichment (`attributedTo`, `name`, the case''s `caseStatus`) that the wire copy
       did not (CM-17-002). Both then fanned out, and the case partitioned into the
       participants each reached first (#2626). The guard first answered this by
-      declining silently and relying on the `cc:` copy. ADR-0108 removed both the
+      declining silently and relying on the `cc:` copy. ADR-0109 removed both the
       exception and the copy: a participant on another container asks the
       CASE_MANAGER to act by message (CM-24-004), so a tree executing as an actor its
       store does not host is a programming error, and the guard raises.'
@@ -997,7 +997,7 @@ groups:
     - protocol
     adr:
     - ADR-0073
-    - ADR-0108
+    - ADR-0109
   - id: CLP-10-015
     priority: MUST
     kind: protocol

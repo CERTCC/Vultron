@@ -35,12 +35,12 @@ Vultron activities are direct messages and MUST have a non-empty `to:` field.
 
 | Question | Decision | Rationale |
 |---|---|---|
-| Which addressing fields are valid? | `to:` required; no exceptions | All Vultron exchanges are DMs; `cc`/`bto`/`bcc` are unsupported (OX-08-004, ADR-0108) |
+| Which addressing fields are valid? | `to:` required; no exceptions | All Vultron exchanges are DMs; `cc`/`bto`/`bcc` are unsupported (OX-08-004, ADR-0109) |
 | Where to enforce? | `handle_outbox_item` in `outbox_handler.py` | Already has the full activity; consistent with existing `VultronOutboxObjectIntegrityError` pattern |
 | Exception class? | New `VultronOutboxToFieldMissingError` | Matches project exception naming convention; distinct from object-integrity errors |
 | Scope? | All outbox activities, no exceptions | Every outbound activity must be addressed |
 | What counts as valid `to:`? | Non-empty list (or scalar) of URI strings | Empty list is as bad as `None`; format validation out of scope |
-| `cc`/`bto`/`bcc` presence? | Log WARNING, no exemption | OX-08-004: the former CASE_MANAGER self-copy exemption was retired by ADR-0108 — the emitting tree commits its own entry, so no outbound activity names its own sender |
+| `cc`/`bto`/`bcc` presence? | Log WARNING, no exemption | OX-08-004: the former CASE_MANAGER self-copy exemption was retired by ADR-0109 — the emitting tree commits its own entry, so no outbound activity names its own sender |
 
 ---
 
@@ -73,7 +73,7 @@ assert any("cc" in r.message for r in caplog.records)
 emitter.emit.assert_called_once()
 
 # Test: cc: naming the sender's own ID also logs WARNING — no self-copy
-# exemption (OX-08-004, ADR-0108); the emitting tree commits its own entry
+# exemption (OX-08-004, ADR-0109); the emitting tree commits its own entry
 activity = make_test_activity(
     actor=actor_id,
     to=["https://example.org/invitee"],
@@ -124,7 +124,7 @@ When modifying `outbox_handler.py`, add or update tests for these scenarios:
 
 3. **Activity Validation** (`handle_outbox_item`)
    - Test: reject missing or empty `to:` field (OX-08-001, OX-08-002)
-   - Test: warn on any `cc`/`bto`/`bcc` presence, including the sender's own id (OX-08-004, ADR-0108)
+   - Test: warn on any `cc`/`bto`/`bcc` presence, including the sender's own id (OX-08-004, ADR-0109)
    - Test: enforce `VultronOutboxObjectIntegrityError` for malformed activities
    - Location: `test/adapters/driving/fastapi/test_outbox_handle_item_validation.py`
 

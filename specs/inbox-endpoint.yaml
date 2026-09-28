@@ -288,7 +288,7 @@ groups:
     rationale: >-
       Refusal is about provable exclusion (IE-11-001), and an AS2 sender may name
       the recipient in any addressing field. Vultron itself sets only `to` (OX-08)
-      and never addresses a copy to its own sender (ADR-0108), but an inbound
+      and never addresses a copy to its own sender (ADR-0109), but an inbound
       Activity from another implementation that names this actor only in `cc`,
       `bto` or `bcc` has not excluded it, so checking only `to` would refuse it
       wrongly. What a handler then does with a `cc`-only address is HP-10's
@@ -300,7 +300,7 @@ groups:
       exercise this, because Vultron emits no `cc`, `bto` or `bcc`.
     adr:
     - ADR-0068
-    - ADR-0108
+    - ADR-0109
     stories:
     - story_2022_040
     - story_2022_042

@@ -133,7 +133,7 @@ groups:
       remembering a filter. There is no foreign-authority exception: an `actor_id` the store's
       authority does not host has no store to reconcile against, and the bridge MUST raise rather
       than let the tree run in the requester's store. A participant whose container does not host
-      the CASE_MANAGER reaches it by message (CM-24-004, ADR-0108); an earlier exception that kept
+      the CASE_MANAGER reaches it by message (CM-24-004, ADR-0109); an earlier exception that kept
       the requester's store for a remote CaseActor existed only to let the case owner's container
       emit in the CaseActor's name, and it made the CaseActor learn of its own emission by a
       `cc:` copy (#2996).
@@ -158,7 +158,7 @@ groups:
     - persistence
     adr:
     - ADR-0073
-    - ADR-0108
+    - ADR-0109
   - id: BT-05-006
     lint_suppress:
     - rationale_too_long

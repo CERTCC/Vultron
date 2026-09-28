@@ -173,10 +173,10 @@ groups:
       `bto:` and `bcc:` have no handler semantics (HP-10-001). The one former
       exemption — a CaseActor-originated activity carrying the CaseActor's own id in
       `cc:` so a copy looped back to its inbox for ledger authoring — was retired by
-      ADR-0108: the emitting tree commits the entry itself (CLP-10-001, CLP-10-013),
+      ADR-0109: the emitting tree commits the entry itself (CLP-10-001, CLP-10-013),
       so no outbound activity has a reason to name its own sender.
     adr:
-    - ADR-0108
+    - ADR-0109
 - id: OX-09
   title: Outbox Monitor Efficiency
   rationale: >-

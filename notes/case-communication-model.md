@@ -311,7 +311,7 @@ self._actor_id, self._attributed_to = _prepare_delegated_context(
 ```
 
 **The delegated emit runs where the CASE_MANAGER is hosted** (CM-24-004,
-ADR-0108).  A container emits only as actors it hosts, so a trigger on a
+ADR-0109).  A container emits only as actors it hosts, so a trigger on a
 container that does not host the CASE_MANAGER does not run the tree as the
 CASE_MANAGER.  It sends the requesting participant's *own* activity to the
 CASE_MANAGER — the owner's direct invite is the owner's `Offer(CaseParticipant)`

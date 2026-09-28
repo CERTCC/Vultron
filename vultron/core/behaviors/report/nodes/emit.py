@@ -206,7 +206,7 @@ def _compute_report_addressees(
     same actor holds both roles that recipient is its own inbox, reached over
     ordinary HTTP delivery (OX-12-001).  That is what triggers its received-side
     use case and fires ``GuardedCommitCaseLedgerEntryBT`` in the right inbox
-    context.  This is not the self-*copy* ADR-0108 forbids: that rule covers an
+    context.  This is not the self-*copy* ADR-0109 forbids: that rule covers an
     activity the CASE_MANAGER authors *as* CASE_MANAGER, which the emitting tree
     commits itself.  Dropping the self-address left a report activity with no
     recipients at all, which fails the emit node and surfaces as "no routable

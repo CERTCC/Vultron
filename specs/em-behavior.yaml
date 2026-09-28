@@ -2033,7 +2033,7 @@ groups:
       nobody. Nothing in this corpus governed the recipients, which is why only one half of the pair was
       updated when the gate was added — the gap is the reason this entry exists.
     note: >-
-      This is the general rule of CLP-10-001 as amended by ADR-0108, not an exception to it: the
+      This is the general rule of CLP-10-001 as amended by ADR-0109, not an exception to it: the
       CASE_MANAGER commits its own emissions in the emitting tree and never addresses a copy to itself.
       `remove_embargo_from_case_tree` wraps the announce in `create_receive_activity_tree` with a
       `case_id`, whose guarded commit is gated on `CVDRole.CASE_MANAGER` (CLP-10-013). The ledger entry
@@ -2048,7 +2048,7 @@ groups:
       `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the announce is authored by
       the CASE_MANAGER and addressed to the case's other participants.
     adr:
-    - ADR-0108
+    - ADR-0109
     stories:
     - story_2022_045
     - story_2022_046

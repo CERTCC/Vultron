@@ -701,12 +701,12 @@ added to `_ACTOR_TYPES` in
 object references (`object`, `object_`, `target`) that
 `_validate_canonical_entry` would otherwise reject.
 
-**This is the only commit for the Invite** (ADR-0108, CM-17-006). Before
+**This is the only commit for the Invite** (ADR-0109, CM-17-006). Before
 concern #2996 was planned, the emitted Invite also carried the CaseActor's own
 id in `cc:`, so a copy looped back through its inbox and
 `GuardedCommitCaseLedgerEntryBT` committed the same activity a second time when
 the CaseActor was co-hosted with the emitting owner — two canonical entries,
-log indexes 0 and 1, one activity id. ADR-0108 requires the invariant harness
+log indexes 0 and 1, one activity id. ADR-0109 requires the invariant harness
 to assert one entry per `payloadSnapshot.id` (CLP-07-002 verification; #3821
 adds the check).
 
@@ -782,7 +782,7 @@ reserving hard failure for the load-bearing genesis entry.
 The standard path for a *participant's* protocol-significant event is
 CLP-10-001: emit an activity addressed to `case_manager_id` and let the
 CASE_MANAGER's received-side tree commit it on arrival; an event the
-CASE_MANAGER itself originates is committed by its emitting tree (ADR-0108).
+CASE_MANAGER itself originates is committed by its emitting tree (ADR-0109).
 Neither fits here, because delivery runs as an outbox background task and
 CM-23-002 requires a
 specific *order* — the CASE_MANAGER's own `RM.CLOSED` penultimate,
