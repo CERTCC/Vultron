@@ -211,10 +211,11 @@ class FastAPIIngressAdapter:
             # this body's evidence would describe a different activity than
             # the one routed (VM-08-002).
             logger.info(
-                "FastAPIIngressAdapter.rehydrate: activity %s was already"
-                " stored; routing the stored copy without this delivery's"
-                " received evidence.",
+                "FastAPIIngressAdapter.rehydrate: activity %s (actor %s) was"
+                " already stored; routing the stored copy without this"
+                " delivery's received evidence.",
                 activity.id_,
+                getattr(activity.actor, "id_", activity.actor),
             )
             return result
         return _carry_received_evidence(activity, result)

@@ -503,11 +503,17 @@ groups:
       parsed activity, any object nested in it, or the caller's body is mutated.
       If a more hydrated form is required for routing or use-case execution, it MUST be produced
       as a separate object, and it MUST carry the same evidence unchanged.
+      An activity rebuilt from a stored record rather than from the delivered body (a replay of a
+      deferred activity, or a resend under an id already held) carries no received evidence, and
+      it MUST NOT be given the evidence of a different delivery.
     rationale: >-
       The received artifact is the evidence of what arrived, and the ledger replicates it via
       `Announce(CaseLedgerEntry)`. A class-level `frozen=True` cannot hold it: `frozen` does not
       reach nested models, and since ADR-0099 detail 3 the nested objects are mutable core
       classes. The evidence is therefore a value taken at parse, not a property of the graph.
+      The stored record does not keep the body, so a rebuilt activity has no evidence to carry;
+      persisting it with the record is a later step of ADR-0106. Until then, attaching a new
+      delivery's body to an earlier stored activity would record a claim about the wrong event.
     verification: >-
       `test/architecture/test_wire_artifact_immutability.py` parses every example activity as a
       sender delivers it and, for each class reachable in the parsed tree, overwrites the fields
@@ -515,10 +521,12 @@ groups:
       body. `test/wire/as2/test_received_evidence.py` asserts the evidence is taken before the
       parser's inline expansion and is unaffected by mutating the parsed object or the caller's
       body. `test/adapters/driving/fastapi/test_ingress_received_evidence.py` asserts ingress
-      rehydration carries the evidence, bare references included, onto the routing copy.
+      rehydration carries the evidence, bare references included, onto the routing copy, and that
+      a resend under an already-stored id is routed without it.
     adr:
     - ADR-0074
     - ADR-0099
+    - ADR-0106
     relationships:
     - rel_type: refines
       spec_id: VM-08-001

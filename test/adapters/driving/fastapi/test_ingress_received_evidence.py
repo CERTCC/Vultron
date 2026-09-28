@@ -22,6 +22,7 @@ bare references included — rather than the hydrated form (ISSUE-3584).
 """
 
 import copy
+import logging
 from typing import Any
 
 import pytest
@@ -29,6 +30,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
+    StoredActivityIngressAdapter,
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import announce_log_entry_activity
@@ -95,7 +97,7 @@ def test_by_id_rehydration_carries_the_evidence_as_received(
 
 @pytest.mark.spec("VM-08-002")
 def test_resend_under_a_held_id_routes_without_this_body_evidence(
-    dl: SqliteDataLayer,
+    dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
 ):
     """A second body under an id already stored does not lend it its evidence.
 
@@ -110,11 +112,30 @@ def test_resend_under_a_held_id_routes_without_this_body_evidence(
     artifact = adapter.parse(second)
     assert artifact is not None
 
-    routed = adapter.rehydrate(artifact)
+    with caplog.at_level(logging.INFO):
+        routed = adapter.rehydrate(artifact)
 
     assert routed.summary == "first", "precondition: stored copy routed"
     assert routed.received_evidence is None
     assert artifact.received_evidence == second
+    assert any(
+        r.levelno == logging.INFO
+        and first["id"] in r.getMessage()
+        and ACTOR in r.getMessage()
+        for r in caplog.records
+    )
+
+
+@pytest.mark.spec("VM-08-002")
+def test_replay_of_a_stored_activity_carries_no_evidence(dl: SqliteDataLayer):
+    """A replayed activity is rebuilt from its record, which keeps no body."""
+    body = _offer_of_stored_report(dl)
+    FastAPIIngressAdapter(dl=dl, body=body).parse(body)
+
+    replayed = StoredActivityIngressAdapter(dl=dl).parse(body["id"])
+
+    assert replayed is not None, "precondition: stored activity replayed"
+    assert replayed.received_evidence is None
 
 
 @pytest.mark.spec("VM-08-002")

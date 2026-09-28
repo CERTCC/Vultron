@@ -144,6 +144,41 @@ def test_body_that_is_not_json_is_refused(value: object):
 
 
 @pytest.mark.spec("VM-08-002")
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        pytest.param(lambda b: b.__setitem__(5, "x"), id="non-string-key"),
+        pytest.param(
+            lambda b: b.__setitem__("to", tuple(b["to"])), id="tuple-value"
+        ),
+    ],
+)
+def test_body_that_json_would_rewrite_is_refused(mutate: Any):
+    """A value ``json.dumps`` rewrites would seal a body that never arrived."""
+    body = _offer_report()
+    mutate(body)
+
+    with pytest.raises(VultronParseValidationError, match="round trip"):
+        parse_activity(body)
+
+
+@pytest.mark.spec("VM-08-002")
+def test_sealed_evidence_takes_part_in_equality():
+    """Pydantic compares private attributes, so evidence is part of ``==``.
+
+    A parsed activity therefore differs from an otherwise identical copy that
+    carries no evidence, such as one rebuilt from storage.  Two parses of the
+    same body still compare equal.
+    """
+    activity = parse_activity(_offer_report())
+    unsealed = activity.model_copy()
+    unsealed._received_evidence = None
+
+    assert activity == parse_activity(_offer_report())
+    assert activity != unsealed
+
+
+@pytest.mark.spec("VM-08-002")
 def test_an_activity_built_in_process_carries_no_evidence():
     """Only a received activity has received evidence."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (

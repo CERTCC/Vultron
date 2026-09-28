@@ -271,14 +271,24 @@ def _received_evidence_json(body: dict[str, Any]) -> str:
     A body that cannot be re-serialized is refused rather than coerced into a
     string form.  That covers a ``dict`` built in process with a non-JSON value,
     and a JSON number such as ``1e400`` that decodes to ``inf``, which strict
-    JSON cannot carry back out.
+    JSON cannot carry back out.  ``json.dumps`` would also quietly rewrite some
+    in-process values it *can* serialize (a non-string key becomes a string, a
+    tuple a list), so the text is decoded again and must equal *body*; otherwise
+    the evidence would describe a body that never arrived.
 
     Raises:
-        VultronParseValidationError: If *body* holds a non-JSON value.
+        VultronParseValidationError: If *body* holds a non-JSON value, or one
+            that does not survive a JSON round trip unchanged.
     """
     try:
-        return json.dumps(body, ensure_ascii=False, allow_nan=False)
+        evidence_json = json.dumps(body, ensure_ascii=False, allow_nan=False)
     except (TypeError, ValueError) as exc:
         raise VultronParseValidationError(
             f"Activity body is not JSON-serializable: {exc}"
         ) from exc
+    if json.loads(evidence_json) != body:
+        raise VultronParseValidationError(
+            "Activity body does not survive a JSON round trip unchanged "
+            "(a non-string key or a tuple value?); it is not a JSON body."
+        )
+    return evidence_json

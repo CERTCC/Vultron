@@ -76,7 +76,9 @@ class as_Activity(as_Object):
     #: classes.  So the received evidence is kept here as an immutable ``str``,
     #: independent of the object graph, rather than being inferred from the
     #: graph's class configuration (ISSUE-3584).  ``None`` on an activity this
-    #: process authored or rebuilt from storage.
+    #: process authored or rebuilt from storage.  Pydantic's ``==`` compares
+    #: private attributes, so a sealed activity is unequal to an otherwise
+    #: identical copy without evidence.
     _received_evidence: str | None = PrivateAttr(default=None)
 
     @property
