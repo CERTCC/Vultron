@@ -32,6 +32,7 @@ from pydantic import (
     model_validator,
 )
 from pydantic.alias_generators import to_camel
+from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
@@ -41,6 +42,7 @@ from vultron.core.models._helpers import (
     now_utc,
 )
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
+from vultron.errors import Violation, VultronProtocolViolationError
 from vultron.primitives import NonEmptyString, UriString  # noqa: F401
 
 #: The Vultron JSON-LD ``@context``.  VM-10-001 (MUST) requires it on every
@@ -256,25 +258,67 @@ class CoreObject(CoreRecord):
         exclude=True,
     )
 
-    @model_validator(mode="before")
+    @model_validator(mode="wrap")
     @classmethod
-    def _drop_computed_field_inputs(cls, data: Any) -> Any:
-        """Strip read-only computed-field values so a dump round-trips.
+    def _check_computed_field_inputs(
+        cls, data: Any, handler: ModelWrapValidatorHandler["CoreObject"]
+    ) -> "CoreObject":
+        """Strip or refuse supplied computed-field values (ARCH-23-005).
 
         A ``@computed_field`` (e.g. ``ParticipantStatus.embargo_adherence``,
-        ADR-0056) appears in ``model_dump()`` output but is not settable, so
-        ``model_validate(model_dump(x))`` would reject it as an unknown key
-        under ``extra="forbid"``.  Dropping the computed keys before field
-        validation makes the round-trip exact (ARCH-23-005).  See
-        ``notes/wire-core-boundary.md`` § "Measured Evidence".
+        ADR-0056) appears in ``model_dump()`` output but is not settable.
+        A value that matches the derived value is stripped so a dump
+        round-trips; a value that contradicts the object's own derived state
+        raises ``VultronProtocolViolationError`` carrying every contradiction
+        as a structured ``Violation``, not only the first (EH-07-001,
+        EH-07-003).  Every supplied *spelling* is checked on its own, so two
+        spellings that disagree cannot hide one another.  A supplied value
+        matches when it equals the derived Python value **or** that value's
+        ``mode="json"`` serialization, so a JSON-mode dump round-trips for a
+        computed field of any type.  See ``notes/wire-core-boundary.md``
+        § "``extra="forbid"`` Is the Boundary Contract".
         """
         computed = cls.model_computed_fields
         if not isinstance(data, dict) or not computed:
-            return data
-        drop = cls._computed_field_spellings().keys() & data.keys()
-        if drop:
-            data = {k: v for k, v in data.items() if k not in drop}
-        return data
+            return handler(data)
+
+        spellings = cls._computed_field_spellings()
+
+        # Record every supplied computed-field value under the spelling it
+        # arrived with, so that disagreeing duplicate spellings are each seen.
+        supplied: list[tuple[str, str, Any]] = [
+            (spelling, field_name, data[spelling])
+            for spelling, field_name in spellings.items()
+            if spelling in data
+        ]
+        if not supplied:
+            return handler(data)
+
+        # Strip every spelling before passing to the wrapped handler so that
+        # extra="forbid" does not reject them.
+        obj = handler({k: v for k, v in data.items() if k not in spellings})
+
+        checked = {field_name for _, field_name, _ in supplied}
+        derived_json = obj.model_dump(mode="json", include=checked)
+        violations = [
+            Violation(
+                message=(
+                    f"{field_name!r} (as {spelling!r}): supplied"
+                    f" {supplied_val!r}, derived {getattr(obj, field_name)!r}"
+                ),
+                dimensions=(field_name,),
+            )
+            for spelling, field_name, supplied_val in supplied
+            if supplied_val != getattr(obj, field_name)
+            and supplied_val != derived_json[field_name]
+        ]
+        if violations:
+            raise VultronProtocolViolationError(
+                "Supplied computed-field value(s) contradict derived state"
+                " (ARCH-23-005)",
+                violations=violations,
+            )
+        return obj
 
     @classmethod
     def _computed_field_spellings(cls) -> dict[str, str]:
@@ -289,16 +333,6 @@ class CoreObject(CoreRecord):
             if isinstance(alias, str):
                 spellings[alias] = name
         return spellings
-
-    # NOTE (#2940 triage): rejecting a *contradicted* computed-field value here
-    # instead of stripping it was considered and rejected on evidence.
-    # ``as_ParticipantStatus.embargo_adherence`` is an independent settable wire
-    # field, while core derives it from ``consent`` (ADR-0056), so a wire row
-    # carrying ``embargo_adherence: True`` with no ``consent`` legitimately
-    # disagrees with the core-derived ``False``.  Raising there breaks the
-    # wire→core read projection (it makes ``dl.read()`` return the wire object).
-    # Telling "re-reading our own dump" apart from "projecting a wire row"
-    # requires the WireParsePort (#2938).  Tracked by #3547.
 
     @model_validator(mode="before")
     @classmethod

@@ -510,12 +510,21 @@ def coerce_to_semantic_class(obj: PersistableModel) -> PersistableModel:
 def object_from_storage(
     stored_record: dict[str, Any],
 ) -> PersistableModel | None:
-    """Reconstruct a domain object from a raw stored-record dict."""
+    """Reconstruct a domain object from a raw stored-record dict.
+
+    Returns ``None`` when no reconstruction path accepts the row.  That is a
+    row which *exists* but cannot be read back as a clean object — e.g. a
+    ``ParticipantStatus`` whose stored ``embargo_adherence`` contradicts its
+    consent state (ARCH-23-005) — so the failure is logged at WARNING with the
+    record id and every path's reason rather than being indistinguishable from
+    "not found".
+    """
+    failures: list[str] = []
     try:
         record = Record.model_validate(stored_record)
         return cast(PersistableModel, record_to_object(record))
-    except (ValidationError, VultronValidationError, ValueError):
-        pass
+    except (ValidationError, VultronValidationError, ValueError) as exc:
+        failures.append(f"record: {exc}")
 
     # Both-branch lookups below: a stored record may hold any persisted type,
     # core records included, so they opt into the core fallback (VM-06-008).
@@ -526,8 +535,8 @@ def object_from_storage(
             return cast(
                 PersistableModel, vocab_cls.model_validate(stored_record)
             )
-        except (KeyError, ValidationError, VultronValidationError):
-            pass
+        except (KeyError, ValidationError, VultronValidationError) as exc:
+            failures.append(f"type={raw_type!r}: {exc}")
 
     raw_type = stored_record.get("type_")
     raw_data = stored_record.get("data_")
@@ -535,7 +544,13 @@ def object_from_storage(
         try:
             vocab_cls = find_in_vocabulary(raw_type, include_core=True)
             return cast(PersistableModel, vocab_cls.model_validate(raw_data))
-        except (KeyError, ValidationError, VultronValidationError):
-            pass
+        except (KeyError, ValidationError, VultronValidationError) as exc:
+            failures.append(f"type_={raw_type!r}: {exc}")
 
+    logger.warning(
+        "Stored record %r could not be reconstructed as a domain object;"
+        " returning None. Reasons: %s",
+        stored_record.get("id_") or stored_record.get("id"),
+        " | ".join(failures) or "no reconstruction path applies",
+    )
     return None
