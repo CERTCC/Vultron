@@ -41,6 +41,7 @@ Case Actor inbox receives Offer:
 
 The owner asks for the transfer, and the offer goes to the CASE_MANAGER — in the prototype, the Case Actor.
 The CASE_MANAGER records the offer in the ledger, so every participant learns that a transfer is being offered, and then forwards the offer to the proposed new owner.
+The forwarded `Offer` is a new activity with its own `id`: the proposed new owner never sees the original offer, whose `id` exists only in the CASE_MANAGER's store.
 
 The CASE_MANAGER sends the offer under its own identity, with the owner who asked for it named as the author (`attributed_to`).
 This is the delegated-message contract that every message the CASE_MANAGER sends on a participant's behalf follows ([CM-24-001 through CM-24-004](../../reference/specs/protocol.md#cm-24)).

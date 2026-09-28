@@ -52,8 +52,9 @@ class CVDRole(StrEnum):
         CASE_MANAGER: The ActivityStreams Actor that performs ongoing case
             replica synchronisation and manages the case on behalf of the case
             owner.  A CaseManager participant SHOULD also hold the COORDINATOR
-            role (CBT-01-003); nothing requires it.  While the demo uses a Service actor type, any
-            Actor type (e.g. Person) may hold this role.
+            role (CBT-01-003); nothing requires it.  While the demo uses a
+            Service actor type, any Actor type (e.g. Person) may hold this
+            role.
         CVE_NUMBERING_AUTHORITY: Participant that holds CVE Numbering Authority
             (CNA) status, granting authority to assign CVE IDs.  A CNA is
             orthogonal to other CVD roles — a VENDOR, COORDINATOR, or any other

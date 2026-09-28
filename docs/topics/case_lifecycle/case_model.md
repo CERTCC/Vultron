@@ -44,7 +44,7 @@ Do not confuse the `CASE_MANAGER` role (the role that authorizes ledger writes) 
 
 ## `CaseParticipant`
 
-A `CaseParticipant` binds an actor to their roles and protocol state within one case.
+A `CaseParticipant` binds an actor (its `attributed_to` field) to their roles and protocol state within one case.
 One `CaseParticipant` record exists for each actor engaged in a case.
 Because a single actor may participate in many cases and hold different roles in each, `CaseParticipant` scopes an actor's obligations and history to a single coordination context.
 

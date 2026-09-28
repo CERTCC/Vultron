@@ -1,6 +1,6 @@
 ---
 description: >
-  Every field of the case, participant, and status objects, as the reference implementation defines them.
+  The fields of the case, participant, and status objects, as the reference implementation defines them.
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
 ---
@@ -21,6 +21,7 @@ Defined in `vultron/core/models/case.py`.
 
 | Field | Description |
 |---|---|
+| `attributed_to` | The actor the case is attributed to: set when the case is created, where it is an input to `genesis_hash`, and changed to the new owner when an ownership transfer is accepted ([CM-21-002](specs/protocol.md#cm-21)) |
 | `case_participants` | `CaseParticipant` records (or their URIs) |
 | `actor_participant_index` | Fast-lookup map: actor URI → participant URI |
 | `vulnerability_reports` | Reports associated with this case (objects or URIs) |
@@ -51,6 +52,7 @@ Defined in `vultron/core/models/case_participant.py`.
 
 | Field | Description |
 |---|---|
+| `attributed_to` | The actor this record stands for; `actor_participant_index` is keyed on it |
 | `case_roles` | `list[CVDRole]` — the roles this actor holds in this case |
 | `participant_statuses` | Append-only history of `ParticipantStatus` snapshots |
 | `embargo_consent_state` | This participant's current Participant Embargo Consent (PEC) state |

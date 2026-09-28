@@ -46,6 +46,7 @@ As a result, independent agents using Behavior Trees can be composed into multi-
 Behavior Trees consist of a hierarchy of nodes represented as a Directed Acyclic Graph (DAG).
 A Behavior Tree execution always begins at the root node, and execution is passed along the tree by *ticking* each child node according to the logic built into the tree.
 When *ticked*, each node does its job and returns one of three statuses: *Success*, *Failure*, or *Running*.
+Vultron's own trees never return *Running*: a tree that needs another party's answer sends its request and returns *Success*, and the answer re-enters the tree when it arrives ([ADR-0080](../../adr/0080-protocol-asks-not-suspended-behaviors.md)).
 A full introduction to Behavior Trees can be found in Colledanchise and Ögren's book [*Behavior Trees in Robotics and AI: An Introduction*](https://arxiv.org/abs/1709.00084){:target="_blank"}.
 
 !!! info "Behavior Tree Node Types"
