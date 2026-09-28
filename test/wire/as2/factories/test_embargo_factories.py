@@ -32,14 +32,10 @@ from vultron.wire.as2.factories import (
     activate_embargo_activity,
     add_embargo_to_case_activity,
     announce_embargo_activity,
-    choose_preferred_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
     remove_embargo_from_case_activity,
-)
-from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
-    as_Question,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -362,41 +358,6 @@ def test_em_reject_embargo_plain_invite_raises(sample_embargo):
 
 
 # ---------------------------------------------------------------------------
-# choose_preferred_embargo_activity
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.spec("AF-01-002")
-def test_choose_preferred_embargo_returns_question():
-    result = choose_preferred_embargo_activity(actor=_ACTOR_URI)
-    assert isinstance(result, as_Question)
-
-
-def test_choose_preferred_embargo_any_of_is_set(sample_embargo):
-    result = choose_preferred_embargo_activity(
-        any_of=[sample_embargo], actor=_ACTOR_URI
-    )
-    assert isinstance(result, as_Question)
-    assert getattr(result, "any_of") == [sample_embargo]
-
-
-def test_choose_preferred_embargo_one_of_is_set(sample_embargo):
-    result = choose_preferred_embargo_activity(
-        one_of=[sample_embargo], actor=_ACTOR_URI
-    )
-    assert isinstance(result, as_Question)
-    assert getattr(result, "one_of") == [sample_embargo]
-
-
-def test_choose_preferred_embargo_no_options_creates_empty():
-    """Neither any_of nor one_of — should create a valid but empty Question."""
-    result = choose_preferred_embargo_activity(actor=_ACTOR_URI)
-    assert isinstance(result, as_Question)
-    assert getattr(result, "any_of") is None
-    assert getattr(result, "one_of") is None
-
-
-# ---------------------------------------------------------------------------
 # activate_embargo_activity
 # ---------------------------------------------------------------------------
 
@@ -572,7 +533,6 @@ def test_all_embargo_factories_importable_from_package():
         activate_embargo_activity,
         add_embargo_to_case_activity,
         announce_embargo_activity,
-        choose_preferred_embargo_activity,
         em_accept_embargo_activity,
         em_propose_embargo_activity,
         em_reject_embargo_activity,

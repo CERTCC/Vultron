@@ -50,8 +50,9 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 # Examples no receiver can parse, so they carry no received evidence to check.
 # Each entry names the decision or issue that owns it; the collection check below
 # keeps an entry from outliving the example it names.
-_UNPARSEABLE = {
-    "choose_preferred_embargo": "ADR-0100 — the multi-candidate embargo poll is retired, so this example is emit-only by decision; its as_Question does not validate inbound. Removed with the class by #3469",
+_UNPARSEABLE: dict[str, str] = {
+    # Empty since #3469 removed the retired ``choose_preferred_embargo`` poll
+    # (ADR-0100): every rendered example now parses inbound.
 }
 
 _TAMPERED = "urn:vultron:test:tampered"

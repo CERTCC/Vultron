@@ -95,7 +95,6 @@ from vultron.wire.as2.vocab.examples.embargo import (  # noqa: F401
     activate_embargo,
     add_embargo_to_case,
     announce_embargo,
-    choose_preferred_embargo,
     embargo_event,
     propose_embargo,
     reject_embargo,
@@ -320,11 +319,6 @@ def main(outdir=None):
 
     _propose_embargo = propose_embargo()
     obj_to_file(_propose_embargo, f"{outdir}/propose_embargo.json")
-
-    _choose_preferred_embargo = choose_preferred_embargo()
-    obj_to_file(
-        _choose_preferred_embargo, f"{outdir}/choose_preferred_embargo.json"
-    )
 
     _accept_embargo = accept_embargo()
     obj_to_file(_accept_embargo, f"{outdir}/accept_embargo.json")

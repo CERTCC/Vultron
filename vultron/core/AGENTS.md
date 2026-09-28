@@ -121,9 +121,9 @@ implementation pattern. An AST ratchet in
 When accessing an attribute that exists on a subtype but not its base type
 (pyright `[attr-defined]` error), narrow with a runtime `isinstance`
 assertion rather than suppressing the error with `# type: ignore`. Example:
-if `as_Question` does not have `one_of` but `ChoosePreferredEmbargoActivity`
-does, add `assert isinstance(activity, ChoosePreferredEmbargoActivity)`
-before accessing `activity.one_of`. This keeps the type checker accurate and
+`as_Offer.object_` is loosely typed but `_RmSubmitReportActivity.object_` is an
+`as_VulnerabilityReport`, so `assert isinstance(activity, _RmSubmitReportActivity)`
+before reading report fields off `activity.object_`. This keeps the type checker accurate and
 makes implicit subtype assumptions explicit and runtime-verified.
 
 ### Untyped Closures Are Invisible to mypy — Extract to Named Functions
