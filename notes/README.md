@@ -400,9 +400,11 @@ Source: CONCERN-2829.
 Two-gate design for received-side CaseStatus canonicalization: StatusAdoptionGate
 (in `add_participant_status_tree`) for status adoption authorization,
 EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode (in `add_case_status_tree`)
-for embargo teardown. Documents CASE_OWNER gospel-bypass rationale, self-addressed
-Add(CaseStatus) threading pattern, and migration from PublicDisclosureBranchNode.
-Derived from IDEA-1836 / ADR-0046.
+for embargo teardown. Documents CASE_OWNER gospel-bypass rationale, the direct
+`EmitCaseStatusUpdateNode` write between the gates, migration from
+PublicDisclosureBranchNode, and (ADR-0108) the per-machine act / declaration /
+ledger inventory: the pipeline, not the message, is the authority.
+Derived from IDEA-1836 / ADR-0046; extended by CONCERN-3473 / ADR-0108.
 **Load when**: implementing #1836 or any changes to received-side status handling,
 StatusAdoptionGate, EmbargoTeardownAuthorizationGate, or ThreatTerminationBranchNode;
 understanding the sentinel actor integration pattern.

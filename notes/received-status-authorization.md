@@ -15,12 +15,60 @@ related_notes:
   - notes/bt-integration.md
   - notes/call-out-configuration.md
   - notes/bt-fuzzer-rm-threat.md
+  - notes/message-type-reference.md
+  - notes/bt-pitfalls.md
 relevant_packages:
   - vultron/core/behaviors/status
+  - vultron/core/behaviors/report
+  - vultron/core/behaviors/sync
   - vultron/core/use_cases/received
 ---
 
 # Received-Side Status Authorization: Two-Gate Design
+
+## One move, one mover: the pipeline is the authority (ADR-0108)
+
+The two-gate design below governs `Add(ParticipantStatus)`. It is **not** the
+only wire form that moves participant state, and until ADR-0108 nothing said how
+the other forms relate to it. CONCERN-3473's inventory found, per state machine:
+
+| Machine | Act (activity-typed) | Declaration (status-typed) | Ledger |
+|---|---|---|---|
+| RM | `Accept`/`TentativeReject`/`Reject(Offer(Report))`, `Join`/`Ignore(Case)`, `Leave(Case)` | `Add(ParticipantStatus).rmState` | `add_participant_status_to_participant`, `close_case` |
+| EM | `Accept`/`Reject(Invite(EmbargoEvent))`, `Add`/`Remove(EmbargoEvent)` | `Add(CaseStatus).emState`, embedded `caseStatus` | `remove_embargo_event_from_case` only |
+| CS V/F/D | — | `Add(ParticipantStatus).vfdState` | `add_participant_status_to_participant` |
+| CS P/X/A | — | `Add(CaseStatus).pxaState`, embedded `caseStatus` | **none** |
+| PEC | side-effects of EM acts only (MSM-07) | derived, never asserted | via participant status |
+
+The act and the declaration are **two layers of one move**, both expected, and
+neither is "the" authoritative form (RSH-08-002). Authority is a property of the
+pipeline: the mover announces; only the CASE_MANAGER turns an announcement into
+case state, applying the state machine's acceptance rule to the *sender's*
+declaration whichever message carried it (RSH-06-006, RSH-08-001); every other
+participant applies the ledger (PCR-03-001, RSH-08-003).
+
+Three defects follow from that rule being unstated, and each is an implementation
+issue under epic #3472:
+
+- **Subject.** The report-invalid and report-closed received trees advance the
+  *receiving* actor's RM; the valid handler advances the sender's. See
+  [bt-pitfalls.md](bt-pitfalls.md) § "The Store Is Not the Subject".
+- **Acceptance rule.** The activity-typed RM handlers validate adjacency only and
+  never check the sender is a participant; `FilterParticipantStatusDimensionsNode`
+  accepts forward moves, refuses backward ones and posts the RSH-06 note. The
+  activity-typed handlers adopt the latter (RSH-06-006).
+- **Pipeline.** Every received tree gates its *commit* on `CheckIsCaseManagerNode`
+  but runs its *effects* at every inbox, so `Add(EmbargoEvent)`,
+  `Remove(EmbargoEvent)` and `Add(CaseStatus)` move a replica's state from any
+  sender. Those effects exist because the ledger does not yet carry every
+  transition — `create_announce_log_entry_tree` replays only a fixed subset of
+  event types and
+  has no node for `add_case_status_to_case`, the report verdicts, or
+  engage/defer. Order of repair is fixed: add the replay nodes (RSH-08-004), then
+  gate the effects (RSH-08-003). Gating first blinds every replica.
+
+What is **not** changed: the CS dimensions, the PEC side-effect model, the single
+`ParticipantStatus` writer, and this note's two-gate design for adoption.
 
 ## Background
 
@@ -419,10 +467,13 @@ conversation-state routing subtree, and `RequireCaseOwnerApprovalNode` is
 deleted rather than completed. See the amendment note under **StatusAdoptionGate**
 above and [protocol-asks.md](protocol-asks.md); tracked by #2885.
 
-Note: the self-addressed `Add(CaseStatus)` path arrives with the CASE_MANAGER as
-sender (CASE_MANAGER role). This means even when `EmbargoTeardownAuthorizationGate` requires
-CASE_OWNER approval, the CASE_MANAGER has already obtained that approval via
-StatusAdoptionGate before emitting the self-message. The two gates compose correctly.
+Note: on the adoption path the two gates run in one tree, in order:
+StatusAdoptionGate authorizes adoption, `EmitCaseStatusUpdateNode` writes the
+canonical `CaseStatus`, and only then does `EmbargoTeardownAuthorizationGate`
+decide whether teardown may run (RSH-01-003, RSH-01-004). Case Owner approval for
+adoption has therefore already been obtained before the teardown gate asks its
+own question, and the two gates compose without an inbox round-trip. (The former
+self-addressed `Add(CaseStatus)` loopback that threaded them is gone — ADR-0108.)
 
 ### ThreatTerminationBranchNode
 
@@ -533,18 +584,17 @@ CASE_MANAGER mutates EM/PXA state
   → Announce(CaseLedgerEntry) syncs participants
 ```
 
-**Not** the inbox-loopback pattern that `EmitAddCaseStatusToSelfNode`
-currently uses:
+**Not** the inbox-loopback pattern the former `EmitAddCaseStatusToSelfNode`
+used:
 
 ```text
-[kludge] EmitAddCaseStatusToSelf → inbox → add_case_status_tree → writes ledger
+[kludge, removed] EmitAddCaseStatusToSelf → inbox → add_case_status_tree → writes ledger
 ```
 
 The inbox gate (StatusAdoptionGate → EmbargoTeardownAuthorizationGate) exists for evaluating **external participant
 suggestions**, not for the CASE_MANAGER recording its own authoritative state
-changes. `EmitAddCaseStatusToSelfNode` is a recognized kludge; a follow-on
-issue will refactor the inbound path to use direct ledger writes as well
-(blocked by the `EmitCaseStatusUpdateNode` impl issue).
+changes. The inbound adoption path was refactored onto `EmitCaseStatusUpdateNode`
+(#2176, RSH-01-003) and the loopback node was removed (ADR-0108).
 
 ### BT nodes in scope for the emit invariant
 
