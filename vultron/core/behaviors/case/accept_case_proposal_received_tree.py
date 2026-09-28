@@ -32,7 +32,7 @@ from vultron.core.models.report_case_link import VultronReportCaseLink
 logger = logging.getLogger(__name__)
 
 
-class _RecordCaseActorAcceptanceNode(DataLayerAction):
+class RecordCaseActorAcceptanceNode(DataLayerAction):
     """Update the vendor's VultronReportCaseLink with the case-actor URI.
 
     When the case-actor service accepts the proposal, the vendor records
@@ -42,7 +42,9 @@ class _RecordCaseActorAcceptanceNode(DataLayerAction):
 
     Returns SUCCESS even when no matching link is found, because the vendor
     may not always have submitted a report offer before the proposal flow
-    (e.g. relay scenarios).  Missing-link situations are logged at WARNING.
+    (e.g. relay scenarios).  Missing-link situations are logged at WARNING,
+    and ``link_found`` stays ``False`` so the handler can report the no-op
+    (#2255).
     """
 
     def __init__(
@@ -52,6 +54,7 @@ class _RecordCaseActorAcceptanceNode(DataLayerAction):
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        self.link_found = False
         self._report_id = report_id
         self._case_actor_id = case_actor_id
 
@@ -66,6 +69,7 @@ class _RecordCaseActorAcceptanceNode(DataLayerAction):
         link_id = VultronReportCaseLink.build_id(self._report_id)
         link = self.datalayer.read(link_id)
 
+        self.link_found = isinstance(link, VultronReportCaseLink)
         if not isinstance(link, VultronReportCaseLink):
             logger.warning(
                 "%s: No VultronReportCaseLink found for report '%s'"
@@ -108,7 +112,7 @@ def create_accept_case_proposal_received_tree(
         name="AcceptCaseProposalReceivedBT",
         memory=False,
         children=[
-            _RecordCaseActorAcceptanceNode(
+            RecordCaseActorAcceptanceNode(
                 report_id=report_id,
                 case_actor_id=case_actor_id,
             ),

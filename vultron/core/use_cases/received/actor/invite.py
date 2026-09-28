@@ -3,11 +3,12 @@
 import logging
 from typing import TYPE_CHECKING
 
-from py_trees.common import Status
-
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.accept_invite_tree import (
     create_accept_invite_actor_to_case_tree,
+)
+from vultron.core.behaviors.case.nodes.invite_participant import (
+    CheckInviteeNotAlreadyParticipantNode,
 )
 from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
     create_invite_actor_to_case_received_tree,
@@ -20,7 +21,10 @@ from vultron.core.models.events.actor import (
     RejectInviteActorToCaseReceivedEvent,
 )
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -30,6 +34,11 @@ from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
     _idempotent_create,
     resolve_receiving_actor_id,
+)
+from vultron.core.use_cases.received._bt_verdict import (
+    node_failed,
+    not_case_manager,
+    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
@@ -132,7 +141,7 @@ class InviteActorToCaseReceivedUseCase:
             # they use self._dl directly (the caller's store), not an actor-scoped
             # DataLayer.  (See issue #2446 AC-2.)
             # Invitee path: store idempotently and log the case-stub reference.
-            _idempotent_create(
+            stored = _idempotent_create(
                 self._dl,
                 request.activity_type,
                 request.activity_id,
@@ -165,7 +174,7 @@ class InviteActorToCaseReceivedUseCase:
                     _record_invite_trust_anchor(
                         self._dl, case_stub_id, request.actor_id
                     )
-            return HandlerResult.applied()
+            return stored
 
         # CaseActor self-delivery path (CLP-10-001): the BT handles idempotent
         # storage via StoreActivityNode and commits the canonical CaseLedgerEntry
@@ -185,14 +194,16 @@ class InviteActorToCaseReceivedUseCase:
             activity=request,
             sync_port=self._sync_port,
         )
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "InviteActorToCaseReceivedUseCase: BT did not fully succeed"
-                " for invite '%s': %s",
+        verdict = verdict_from_bt(
+            tree, result, label="InviteActorToCaseReceivedBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "InviteActorToCaseReceivedUseCase: invite '%s' refused: %s",
                 request.activity_id,
-                BTBridge.get_failure_reason(tree) or result.feedback_message,
+                verdict.reason,
             )
-        return HandlerResult.applied()
+        return verdict
 
 
 class AcceptInviteActorToCaseReceivedUseCase:
@@ -227,7 +238,9 @@ class AcceptInviteActorToCaseReceivedUseCase:
             logger.warning(
                 "accept_invite_actor_to_case: missing case_id or invitee_id"
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Accept(Invite) is missing its case id or invitee id"
+            )
 
         # Resolve the CaseActor ID to use as the BT actor.
         # receiving_actor_id is set by the inbox adapter to the CaseActor's ID.
@@ -249,28 +262,42 @@ class AcceptInviteActorToCaseReceivedUseCase:
                 actor_id,
             )
 
+        tree = create_accept_invite_actor_to_case_tree(
+            case_id=case_id,
+            invitee_id=invitee_id,
+        )
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
         ).execute_with_setup(
-            tree=create_accept_invite_actor_to_case_tree(
-                case_id=case_id,
-                invitee_id=invitee_id,
-            ),
+            tree=tree,
             actor_id=actor_id,
             activity=request,
             sync_port=self._sync_port,
         )
 
-        if result.status == Status.FAILURE:
-            logger.debug(
-                "accept_invite_actor_to_case: BT returned FAILURE for"
-                " invitee '%s' case '%s': %s",
+        # The idempotency guard fails both for a fully joined invitee (a
+        # duplicate, CLP-13-001) and for a case this actor does not hold.
+        if node_failed(tree, CheckInviteeNotAlreadyParticipantNode):
+            if self._dl.read(case_id) is None:
+                verdict = HandlerResult.refused(f"unknown case '{case_id}'")
+            else:
+                return HandlerResult.skipped(
+                    f"'{invitee_id}' already joined case '{case_id}'"
+                )
+        else:
+            verdict = verdict_from_bt(
+                tree, result, label="AcceptInviteActorToCaseBT"
+            )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "accept_invite_actor_to_case: refused invitee '%s' case"
+                " '%s': %s",
                 invitee_id,
                 case_id,
-                result.feedback_message,
+                verdict.reason,
             )
-        return HandlerResult.applied()
+        return verdict
 
 
 class RejectInviteActorToCaseReceivedUseCase:
@@ -304,10 +331,12 @@ class RejectInviteActorToCaseReceivedUseCase:
         if not case_id:
             logger.warning(
                 "RejectInviteActorToCase: missing case_id for invite '%s'"
-                " — skipping ledger commit",
+                " — refusing",
                 request.invite_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Reject(Invite) is missing its case id"
+            )
 
         # The store we hold *is* the receiving actor's, so this resolves
         # without scanning for an actor object (ADR-0073).
@@ -327,11 +356,23 @@ class RejectInviteActorToCaseReceivedUseCase:
             activity=request,
             sync_port=self._sync_port,
         )
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "RejectInviteActorToCaseReceivedUseCase: BT did not fully"
-                " succeed for invite '%s': %s",
+        verdict = verdict_from_bt(
+            tree, result, label="RejectInviteActorToCaseReceivedBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "RejectInviteActorToCaseReceivedUseCase: invite '%s' refused:"
+                " %s",
                 request.invite_id,
-                BTBridge.get_failure_reason(tree) or result.feedback_message,
+                verdict.reason,
             )
-        return HandlerResult.applied()
+            return verdict
+        if not_case_manager(tree):
+            # The gate also reads a case we do not hold as "not the manager".
+            if self._dl.read(case_id) is None:
+                return HandlerResult.refused(f"unknown case '{case_id}'")
+            # Recording the decline is the CASE_MANAGER's job alone.
+            return HandlerResult.skipped(
+                f"not the CASE_MANAGER of case '{case_id}'"
+            )
+        return verdict

@@ -294,8 +294,9 @@ def create_close_report_received_tree(
 
     Steps 2–3 return FAILURE when the case is not in this actor's store.  They
     used to soft-pass with SUCCESS, which reported a state transition that never
-    happened (ARCH-15-001, ISSUE-2548).  The stored activity in step 1 is what
-    makes a later retry possible.
+    happened (ARCH-15-001, ISSUE-2548).  The handler reports the failure as a
+    refusal of an activity about an unknown case (#2255); the activity stored
+    in step 1 still records that it arrived.
 
     Args:
         request: The parsed inbound domain event.

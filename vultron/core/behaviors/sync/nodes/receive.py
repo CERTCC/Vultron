@@ -31,7 +31,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.errors import VultronError
+from vultron.errors import VultronError, VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -312,7 +312,7 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
 
         sender_id = getattr(self.activity, "actor_id", None)
         if self._sync_port is None:
-            raise VultronError(
+            raise VultronWiringError(
                 f"{self.name}: sync_port must be injected to send rejection"
             )
         if not sender_id:

@@ -14,11 +14,13 @@
 
 import json
 from typing import cast
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.status import (
@@ -72,10 +74,11 @@ class TestStatusUseCases:
 
         event = make_payload(activity)
 
-        CreateCaseStatusReceivedUseCase(dl, event).execute()
+        result = CreateCaseStatusReceivedUseCase(dl, event).execute()
 
         stored = dl.get(status.type_, status.id_)
         assert stored is not None
+        assert result.disposition == HandlerDisposition.APPLIED
 
     def test_create_case_status_idempotent(self, monkeypatch, make_payload):
         """create_case_status skips storing a duplicate as_CaseStatus."""
@@ -99,10 +102,11 @@ class TestStatusUseCases:
         )
         event = make_payload(activity)
 
-        CreateCaseStatusReceivedUseCase(dl, event).execute()
+        result = CreateCaseStatusReceivedUseCase(dl, event).execute()
 
         stored = dl.get(status.type_, status.id_)
         assert stored is not None
+        assert result.disposition == HandlerDisposition.SKIPPED
 
     def test_add_case_status_to_case_appends_status(
         self, monkeypatch, make_payload
@@ -128,13 +132,19 @@ class TestStatusUseCases:
         )
         event = make_payload(activity)
 
-        AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+        result = AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.id_)
         assert case is not None
         case = cast(as_VulnerabilityCase, case)
         status_ids = [getattr(s, "id_", s) for s in case.case_statuses]
         assert status.id_ in status_ids
+        assert result.disposition == HandlerDisposition.APPLIED
+
+        # HP-01-003: a redelivered Add of a status already present is a
+        # no-op, not a refusal.
+        again = AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+        assert again.disposition == HandlerDisposition.SKIPPED
 
     def test_add_case_status_blocks_invalid_em_transition(
         self, monkeypatch, make_payload
@@ -171,7 +181,7 @@ class TestStatusUseCases:
         )
         event = make_payload(activity)
 
-        AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+        result = AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
         updated_case = dl.read(case.id_)
         assert updated_case is not None
@@ -180,6 +190,8 @@ class TestStatusUseCases:
         assert (
             bad_status.id_ not in status_ids
         ), "Bad status should not have been appended"
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason
 
     def test_refused_case_status_emits_processing_fault(self, make_payload):
         """On genuine BT FAILURE, emit_processing_fault is called toward the sender (ASK-07-001)."""
@@ -321,35 +333,28 @@ class TestStatusUseCases:
         mock_trigger = MagicMock()
         mock_trigger.emit_processing_fault.return_value = "urn:uuid:fault-2"
 
-        import pytest
-
-        from vultron.errors import VultronStatusAssertionRefusedError
-
-        with pytest.raises(VultronStatusAssertionRefusedError):
-            AddParticipantStatusToParticipantReceivedUseCase(
-                dl, event, trigger_activity=mock_trigger
-            ).execute()
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event, trigger_activity=mock_trigger
+        ).execute()
+        assert result.disposition == HandlerDisposition.REFUSED
 
         mock_trigger.emit_processing_fault.assert_called_once()
         call_kwargs = mock_trigger.emit_processing_fault.call_args
         to_arg = call_kwargs.kwargs.get("to") or call_kwargs.args[3]
         assert sender_id in to_arg
 
-    def test_wholly_refused_participant_status_raises_assertion_refused(
+    @pytest.mark.spec("HP-01-003")
+    def test_wholly_refused_participant_status_returns_refused(
         self, make_payload
     ):
-        """Wholly-refused BT raises VultronStatusAssertionRefusedError (AC-2, ISSUE-3199).
+        """Wholly-refused BT returns REFUSED (AC-2, ISSUE-3199, #2255).
 
         When FilterParticipantStatusDimensionsNode refuses every dimension (the
         filtered status is indistinguishable from the current state), execute()
-        must raise VultronStatusAssertionRefusedError so that the inbox
-        DispatchNode can write "rejected" to KEY_OUTCOME_STATUS and surface a
-        rejected InboxOutcome rather than a silent 202 Accepted / processed.
+        returns ``HandlerResult.refused`` so that the inbox DispatchNode writes
+        "rejected" to KEY_OUTCOME_STATUS and surfaces a rejected InboxOutcome
+        rather than a silent 202 Accepted / processed (HP-01-003).
         """
-        import pytest
-
-        from vultron.errors import VultronStatusAssertionRefusedError
-
         receiver_id = "https://example.org/users/vendor-ps-ac2"
         sender_id = "https://example.org/users/vendor-ps-ac2"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
@@ -394,10 +399,13 @@ class TestStatusUseCases:
         )
         event = make_payload(activity, receiving_actor_id=receiver_id)
 
-        with pytest.raises(VultronStatusAssertionRefusedError):
-            AddParticipantStatusToParticipantReceivedUseCase(
-                dl, event
-            ).execute()
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "wholly refused" in result.reason
 
     def test_add_case_status_allows_valid_em_transition(
         self, monkeypatch, make_payload
@@ -509,7 +517,15 @@ class TestStatusUseCases:
             receiving_actor_id="https://example.org/users/vendor",
         )
 
-        AddParticipantStatusToParticipantReceivedUseCase(dl, event).execute()
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event
+        ).execute()
+        # The default call-out withholds adoption of a non-owner's claim
+        # (RSH-07-001).  The append lands, and a withheld adoption is not a
+        # refusal of the assertion (RSH-05-022), so it is SKIPPED (#2255).
+        assert result.disposition == HandlerDisposition.SKIPPED
+        assert result.reason is not None
+        assert "CASE_OWNER approval required" in result.reason
 
         participant = dl.read(participant.id_)
         assert participant is not None
@@ -596,12 +612,12 @@ class TestStatusUseCases:
         mock_event.receiving_actor_id = None
 
         with caplog.at_level(logging.WARNING):
-            try:
-                AddCaseStatusToCaseReceivedUseCase(dl, mock_event).execute()
-            except Exception:
-                pass  # pre-fix: guard misses "" and BT setup fails
+            result = AddCaseStatusToCaseReceivedUseCase(
+                dl, mock_event
+            ).execute()
 
         assert "missing status_id or case_id" in caplog.text
+        assert result.disposition == HandlerDisposition.REFUSED
 
     def test_add_participant_status_to_participant_rejects_empty_status_id(
         self, caplog
@@ -622,14 +638,12 @@ class TestStatusUseCases:
         mock_event.receiving_actor_id = None
 
         with caplog.at_level(logging.WARNING):
-            try:
-                AddParticipantStatusToParticipantReceivedUseCase(
-                    dl, mock_event
-                ).execute()
-            except Exception:
-                pass  # pre-fix: guard misses "" and BT setup fails
+            result = AddParticipantStatusToParticipantReceivedUseCase(
+                dl, mock_event
+            ).execute()
 
         assert "missing status_id" in caplog.text
+        assert result.disposition == HandlerDisposition.REFUSED
 
 
 # ---------------------------------------------------------------------------
@@ -826,14 +840,10 @@ class TestParticipantStatusLogEntryCascade:
         sync_port = SyncActivityAdapter(dl)
 
         before_count = len(participant.participant_statuses)
-        import pytest
-
-        from vultron.errors import VultronStatusAssertionRefusedError
-
-        with pytest.raises(VultronStatusAssertionRefusedError):
-            AddParticipantStatusToParticipantReceivedUseCase(
-                dl, event, sync_port=sync_port
-            ).execute()
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
+        assert result.disposition == HandlerDisposition.REFUSED
 
         entries = [
             obj

@@ -18,6 +18,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from vultron.core.models.use_case_result import HandlerDisposition
+
+
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
@@ -56,10 +59,15 @@ class TestOwnershipTransferUseCases:
         )
         event = make_payload(activity)
 
-        OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+        result = OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 
         stored = dl.get(activity.type_.value, activity.id_)
         assert stored is not None
+        assert result.disposition == HandlerDisposition.APPLIED
+
+        # HP-01-003: a redelivered Offer stores nothing new.
+        again = OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+        assert again.disposition == HandlerDisposition.SKIPPED
 
     def test_offer_ownership_unresolvable_receiver_writes_nothing(
         self, make_payload, anonymous_store
@@ -134,7 +142,9 @@ class TestOwnershipTransferUseCases:
         # received the Accept — here the coordinator (future CASE_OWNER).
         event = make_payload(activity, receiving_actor_id=coordinator_id)
 
-        AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+        result = AcceptCaseOwnershipTransferReceivedUseCase(
+            dl, event
+        ).execute()
 
         updated_record = dl.get(case.type_, case.id_)
         assert updated_record is not None
@@ -143,6 +153,53 @@ class TestOwnershipTransferUseCases:
             data.get("attributed_to")
             == "https://example.org/users/coordinator"
         )
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_accept_ownership_transfer_for_unknown_case_is_refused(
+        self, make_payload
+    ):
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        coordinator_id = "https://example.org/users/coordinator"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=coordinator_id)
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ot_missing", name="Missing"
+        )
+        offer = offer_case_ownership_transfer_activity(
+            case,
+            target=coordinator_id,
+            actor="https://example.org/users/vendor",
+            id_="https://example.org/activities/offer_ot_missing",
+        )
+        event = make_payload(
+            accept_case_ownership_transfer_activity(
+                offer, actor=coordinator_id
+            ),
+            receiving_actor_id=coordinator_id,
+        )
+
+        result = AcceptCaseOwnershipTransferReceivedUseCase(
+            dl, event
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_accept_ownership_transfer_without_case_is_refused(self):
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/users/coordinator",
+        )
+        event = MagicMock(case_id=None, receiving_actor_id=None)
+
+        result = AcceptCaseOwnershipTransferReceivedUseCase(
+            dl, event
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
 
     def test_offer_cascade_forwards_to_transferee_via_case_actor_outbox(
         self, make_payload
@@ -563,11 +620,13 @@ class TestOwnershipTransferUseCases:
         event = make_payload(activity)
 
         with caplog.at_level(logging.INFO):
-            RejectCaseOwnershipTransferReceivedUseCase(
+            result = RejectCaseOwnershipTransferReceivedUseCase(
                 MagicMock(), event
             ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
+        # Nothing changes on a declined transfer (HP-01-003).
+        assert result.disposition == HandlerDisposition.SKIPPED
 
     def test_offer_case_ownership_transfer_uses_store_owner_when_no_receiving_actor(
         self, make_payload

@@ -31,6 +31,7 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.report import AckReportReceivedEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.enums.roles import CVDRole
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.report import AckReportReceivedUseCase
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
@@ -165,12 +166,13 @@ class TestAckReportLedgerRouting:
         when it receives an AckReport activity.
         """
         dl = _make_case_store(CASE_ACTOR_ID)
-        AckReportReceivedUseCase(
+        result = AckReportReceivedUseCase(
             dl=dl,
             request=_make_ack_event(receiving_actor_id=CASE_ACTOR_ID),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         event_types = _ledger_event_types(dl)
         assert "ack_report" in event_types, (

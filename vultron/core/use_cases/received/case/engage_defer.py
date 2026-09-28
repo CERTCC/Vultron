@@ -3,14 +3,16 @@
 import logging
 from typing import TYPE_CHECKING
 
-from py_trees.common import Status
-
 from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 
@@ -50,7 +52,7 @@ class EngageCaseReceivedUseCase:
         case_id = request.case_id
         if case_id is None:
             logger.warning("engage_case: missing case_id on request")
-            return HandlerResult.applied()
+            return HandlerResult.refused("Engage activity has no case id")
 
         # The BT must execute under the receiving actor's identity so that
         # CheckIsCaseManagerNode in GuardedCommitCaseLedgerEntryBT can match
@@ -89,14 +91,15 @@ class EngageCaseReceivedUseCase:
             case_id=case_id,
         )
 
-        if result.status != Status.SUCCESS:
+        verdict = verdict_from_bt(tree, result, label="EngageCaseBT")
+        if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "EngageCaseBT did not succeed for actor '%s' / case '%s': %s",
                 actor_id,
                 case_id,
-                BTBridge.get_failure_reason(tree),
+                verdict.reason,
             )
-        return HandlerResult.applied()
+        return verdict
 
 
 class DeferCaseReceivedUseCase:
@@ -123,7 +126,7 @@ class DeferCaseReceivedUseCase:
         case_id = request.case_id
         if case_id is None:
             logger.warning("defer_case: missing case_id on request")
-            return HandlerResult.applied()
+            return HandlerResult.refused("Defer activity has no case id")
 
         # The BT must execute under the receiving actor's identity so that
         # CheckIsCaseManagerNode in GuardedCommitCaseLedgerEntryBT can match
@@ -153,11 +156,12 @@ class DeferCaseReceivedUseCase:
             case_id=case_id,
         )
 
-        if result.status != Status.SUCCESS:
+        verdict = verdict_from_bt(tree, result, label="DeferCaseBT")
+        if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "DeferCaseBT did not succeed for actor '%s' / case '%s': %s",
                 actor_id,
                 case_id,
-                BTBridge.get_failure_reason(tree),
+                verdict.reason,
             )
-        return HandlerResult.applied()
+        return verdict

@@ -18,7 +18,11 @@ from vultron.core.models.events.embargo import (
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
 from vultron.core.models._helpers import _as_id, claimed_published_iso
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.participant_status import coerce_em_consent_state
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.predicates.addressing import is_addressed_to
 from vultron.core.ports.case_persistence import (
     CasePersistence,
@@ -36,13 +40,17 @@ from vultron.core.services.embargo_lifecycle import (
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
+from vultron.core.use_cases.received._bt_verdict import (
+    applied_or_raise,
+    verdict_from_bt,
+)
 from vultron.core.states.cs import (
     is_pxa_attacks_observed,
     is_pxa_exploit_public,
     is_pxa_public_aware,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC_Trigger
+from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -66,6 +74,24 @@ def _pxa_embargo_ineligible(dl: CasePersistence, case_id: str) -> bool:
         or is_pxa_exploit_public(pxa_state)
         or is_pxa_attacks_observed(pxa_state)
     )
+
+
+def _participant_pec(
+    dl: CasePersistence, case_id: str, actor_id: str | None
+) -> PEC | None:
+    """Return *actor_id*'s embargo consent state in *case_id*, if known.
+
+    Read after a failed PEC transition to tell a duplicate (the participant is
+    already where the message would put it) from a refusal (#2255).
+    """
+    case = dl.read_case(case_id)
+    if case is None or not actor_id:
+        return None
+    participant_id = case.actor_participant_index.get(actor_id)
+    participant = dl.read(participant_id) if participant_id else None
+    if not isinstance(participant, CaseParticipant):
+        return None
+    return coerce_em_consent_state(participant.embargo_consent_state)
 
 
 def resolve_invitee_id(
@@ -189,7 +215,7 @@ class CreateEmbargoEventReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        _idempotent_create(
+        return _idempotent_create(
             self._dl,
             request.object_type,
             request.embargo_id,
@@ -197,7 +223,6 @@ class CreateEmbargoEventReceivedUseCase:
             "EmbargoEvent",
             request.activity_id,
         )
-        return HandlerResult.applied()
 
 
 class AddEmbargoEventToCaseReceivedUseCase:
@@ -212,8 +237,6 @@ class AddEmbargoEventToCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> HandlerResult:
-        from py_trees.common import Status
-
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.embargo.announce_teardown_tree import (
             add_embargo_to_case_tree,
@@ -226,7 +249,9 @@ class AddEmbargoEventToCaseReceivedUseCase:
             logger.warning(
                 "add_embargo_event_to_case: missing embargo_id or case_id"
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Add(EmbargoEvent) is missing its embargo id or case id"
+            )
 
         tree = add_embargo_to_case_tree(
             case_id=case_id,
@@ -245,15 +270,15 @@ class AddEmbargoEventToCaseReceivedUseCase:
             sync_port=self._sync_port,
         )
 
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "add_embargo_event_to_case: BT did not fully succeed for"
-                " embargo '%s' on case '%s' (msg: '%s')",
+        verdict = verdict_from_bt(tree, result, label="AddEmbargoToCaseBT")
+        if verdict.disposition is not HandlerDisposition.APPLIED:
+            logger.warning(
+                "%s (embargo '%s', case '%s')",
+                verdict.reason,
                 embargo_id,
                 case_id,
-                result.feedback_message,
             )
-        return HandlerResult.applied()
+        return verdict
 
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:
@@ -268,8 +293,6 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> HandlerResult:
-        from py_trees.common import Status
-
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.embargo.announce_teardown_tree import (
             remove_embargo_from_case_tree,
@@ -282,7 +305,9 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             logger.warning(
                 "remove_embargo_from_case: missing embargo_id or case_id"
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Remove(EmbargoEvent) is missing its embargo id or case id"
+            )
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -303,15 +328,17 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             sync_port=self._sync_port,
         )
 
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "remove_embargo_from_case: BT did not succeed for"
-                " embargo '%s' on case '%s' (msg: '%s')",
+        verdict = verdict_from_bt(
+            tree, result, label="RemoveEmbargoFromCaseBT"
+        )
+        if verdict.disposition is not HandlerDisposition.APPLIED:
+            logger.warning(
+                "%s (embargo '%s', case '%s')",
+                verdict.reason,
                 embargo_id,
                 case_id,
-                result.feedback_message,
             )
-        return HandlerResult.applied()
+        return verdict
 
 
 class AnnounceEmbargoEventToCaseReceivedUseCase:
@@ -329,7 +356,7 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
             " change required",
             self._request.activity_id,
         )
-        return HandlerResult.applied()
+        return HandlerResult.skipped("no receiver-side state change")
 
 
 class InviteToEmbargoOnCaseReceivedUseCase:
@@ -346,8 +373,6 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
-        from py_trees.common import Status
-
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.embargo.announce_teardown_tree import (
             invite_to_embargo_on_case_tree,
@@ -359,7 +384,9 @@ class InviteToEmbargoOnCaseReceivedUseCase:
 
         if not invite_id:
             logger.warning("invite_to_embargo_on_case: missing activity_id")
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Invite(EmbargoEvent) is missing its activity id"
+            )
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -395,7 +422,10 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                     invite_id,
                     case_id,
                 )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                f"EMB-01-002: P/X/A set on case '{case_id}'; embargo"
+                " proposal rejected"
+            )
 
         # The invitee is a subject the message names, not the actor whose
         # replica this is (ADR-0022).  Resolving it from `to:` is what keeps
@@ -426,13 +456,19 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             sync_port=self._sync_port,
         )
 
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "invite_to_embargo_on_case: BT did not fully succeed for"
-                " invite '%s' (msg: '%s')",
-                invite_id,
-                result.feedback_message,
+        verdict = verdict_from_bt(
+            tree, result, label="InviteToEmbargoOnCaseBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED and (
+            _participant_pec(self._dl, case_id, invitee_id) is PEC.INVITED
+        ):
+            # INVITE is not a legal trigger from INVITED: a repeat (#2255).
+            verdict = HandlerResult.skipped(
+                f"'{invitee_id}' is already invited on case '{case_id}'"
             )
+        if verdict.disposition is not HandlerDisposition.APPLIED:
+            logger.warning("%s (invite '%s')", verdict.reason, invite_id)
+            return verdict
 
         # Record embargo_id → invite_id in core state so accept/reject
         # trigger use cases can correlate without re-reading the Invite wire
@@ -450,7 +486,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             _store_invite_deadline(
                 self._dl, case_id, invitee_id, request.rsvp_deadline
             )
-        return HandlerResult.applied()
+        return verdict
 
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
@@ -506,11 +542,14 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 },
             },
         )
-        BTBridge(datalayer=self._dl).execute_with_setup(
+        result = BTBridge(datalayer=self._dl).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             sync_port=self._sync_port,
         )
+        # The lapse is already applied to the replica; an unrecorded lapse
+        # would diverge the replicas silently (CM-28-009).
+        applied_or_raise(tree, result, label="CommitLapseLedgerEntryBT")
 
     def _handle_emb17_routing(
         self,
@@ -629,8 +668,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             )
 
     def execute(self) -> HandlerResult:
-        from py_trees.common import Status
-
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.embargo.announce_teardown_tree import (
             accept_invite_to_embargo_tree,
@@ -642,7 +679,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             logger.error(
                 "accept_invite_to_embargo_on_case: missing embargo_id on request"
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Accept(Invite(EmbargoEvent)) is missing its embargo id"
+            )
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -651,7 +690,10 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         _case = _resolve_case_for_embargo_acceptance(self._dl, request)
         if _case is None:
             logger.error("accept_invite_to_embargo_on_case: case not found")
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                f"Accept(Invite(EmbargoEvent)) names an unknown case"
+                f" '{request.case_id}'"
+            )
 
         case_id = _case.id_
         accepting_actor_id = request.actor_id
@@ -680,7 +722,10 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                     " for EA on case '%s'",
                     case_id,
                 )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                f"EMB-02-002: P/X/A set on case '{case_id}'; embargo"
+                " acceptance rejected"
+            )
 
         # Lazy lapse detection (AC-2 of #2212, CM-28, EP-07-001).
         now = datetime.now(tz=timezone.utc)
@@ -733,15 +778,17 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             sync_port=self._sync_port,
         )
 
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "accept_invite_to_embargo_on_case: BT did not fully succeed for"
-                " embargo '%s' on case '%s' (msg: '%s')",
+        verdict = verdict_from_bt(
+            tree, result, label="AcceptInviteToEmbargoBT"
+        )
+        if verdict.disposition is not HandlerDisposition.APPLIED:
+            logger.warning(
+                "%s (embargo '%s', case '%s')",
+                verdict.reason,
                 embargo_id,
                 case_id,
-                result.feedback_message,
             )
-        return HandlerResult.applied()
+        return verdict
 
 
 class RejectInviteToEmbargoOnCaseReceivedUseCase:
@@ -756,8 +803,6 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> HandlerResult:
-        from py_trees.common import Status
-
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.embargo.announce_teardown_tree import (
             reject_invite_to_embargo_tree,
@@ -780,7 +825,9 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             logger.warning(
                 "reject_invite_to_embargo_on_case: cannot resolve case_id"
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Reject(Invite(EmbargoEvent)) does not name a case"
+            )
 
         tree = reject_invite_to_embargo_tree(
             case_id=case_id,
@@ -800,12 +847,22 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             activity=request,
         )
 
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "reject_invite_to_embargo_on_case: BT did not fully succeed for"
-                " invite '%s' on case '%s' (msg: '%s')",
+        verdict = verdict_from_bt(
+            tree, result, label="RejectInviteToEmbargoBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED and (
+            _participant_pec(self._dl, case_id, rejecting_actor_id)
+            is PEC.DECLINED
+        ):
+            # DECLINE is not a legal trigger from DECLINED: a repeat (#2255).
+            verdict = HandlerResult.skipped(
+                f"'{rejecting_actor_id}' already declined on case '{case_id}'"
+            )
+        if verdict.disposition is not HandlerDisposition.APPLIED:
+            logger.warning(
+                "%s (invite '%s', case '%s')",
+                verdict.reason,
                 invite_id,
                 case_id,
-                result.feedback_message,
             )
-        return HandlerResult.applied()
+        return verdict

@@ -35,6 +35,7 @@ from vultron.core.models.events.report import (
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.report import (
     AckReportReceivedUseCase,
     SubmitReportReceivedUseCase,
@@ -275,7 +276,11 @@ class TestFullReportFlow:
         ValidateReportReceivedUseCase must not create an additional case.
         """
         dl = self._setup_dl()
-        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+        SubmitReportReceivedUseCase(
+            dl,
+            self._make_submit_event(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
         cases_after_submit = set(dl.by_type("VulnerabilityCase").keys())
 
         ValidateReportReceivedUseCase(
@@ -302,17 +307,28 @@ class TestFullReportFlow:
         from vultron.core.states.rm import RM
 
         dl = self._setup_dl()
-        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+        SubmitReportReceivedUseCase(
+            dl,
+            self._make_submit_event(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
         self._deliver_case_replica(dl, make_payload)
-        ValidateReportReceivedUseCase(
+        result = ValidateReportReceivedUseCase(
             dl, self._make_validate_event()
         ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
         assert (
             isinstance(link, VultronReportCaseLink)
             and link.rm_state == RM.VALID
         ), f"Vendor {self.VENDOR_ID} must have RM.VALID after validate-report"
+
+        # ID-04-004: a redelivered validate is an idempotent no-op (#2255).
+        again = ValidateReportReceivedUseCase(
+            dl, self._make_validate_event()
+        ).execute()
+        assert again.disposition == HandlerDisposition.SKIPPED
 
         participant = cast(
             CaseParticipant, dl.read(f"{self.CASE_ID}/participants/vendor")
@@ -342,10 +358,16 @@ class TestFullReportFlow:
         from vultron.core.states.rm import RM
 
         dl = self._setup_dl()
-        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
-        ValidateReportReceivedUseCase(
+        SubmitReportReceivedUseCase(
+            dl,
+            self._make_submit_event(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+        result = ValidateReportReceivedUseCase(
             dl, self._make_validate_event()
         ).execute()
+        # No local case yet: refused, not reported as applied (#2255).
+        assert result.disposition == HandlerDisposition.REFUSED
 
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
         assert not (
@@ -656,3 +678,23 @@ class TestValidateReportReceivedGuardedCommit:
             f"Expected guarded commit called for case {CASE_ID!r}, "
             f"got {commit_tree_calls[0]!r}"
         )
+
+
+class TestValidateReportMalformed:
+    @pytest.mark.spec("HP-01-003")
+    def test_missing_offer_id_is_refused(self):
+        """A malformed validate is refused, not raised (#2255)."""
+        # The event model rejects a missing offer at construction, so bypass
+        # validation to reach the handler's own guard.
+        event = ValidateReportReceivedEvent.model_construct(
+            semantic_type=MessageSemantics.VALIDATE_REPORT,
+            activity_id="https://example.org/activities/accept-malformed",
+            actor_id="https://example.org/actors/vendor",
+            object_=None,
+            receiving_actor_id="https://example.org/actors/vendor",
+        )
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id="https://example.org/actors/vendor"
+        )
+        result = ValidateReportReceivedUseCase(dl, event).execute()
+        assert result.disposition == HandlerDisposition.REFUSED

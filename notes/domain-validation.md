@@ -396,9 +396,9 @@ does not let them through.
 
 Both gaps are now closed (ISSUE-3199):
 
-- *Sender-feedback*: a wholly-refused receive BT now raises
-  `VultronStatusAssertionRefusedError`, which the inbox `DispatchNode` catches
-  and writes as a `rejected` `InboxOutcome`.  Senders can distinguish
+- *Sender-feedback*: a wholly-refused receive BT now returns
+  `HandlerResult.refused`, which the inbox `DispatchNode` writes as a
+  `rejected` `InboxOutcome` (ADR-0095, #2255).  Senders can distinguish
   partial-accept (`"processed"`) from total refusal (`"rejected"`).
 - *Emit-side object-level validation*: `ParticipantStatus` carries optional
   `previous_rm_state` / `force_rm_state` constructor fields; when

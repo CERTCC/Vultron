@@ -28,6 +28,7 @@ from vultron.core.models.events.case import (
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.case.engage_defer import (
     DeferCaseReceivedUseCase,
@@ -86,6 +87,20 @@ class TestEngageDeferCaseBTFailureReason:
             semantic_type=MessageSemantics.DEFER_CASE,
         )
 
+    @pytest.mark.parametrize(
+        "use_case", [EngageCaseReceivedUseCase, DeferCaseReceivedUseCase]
+    )
+    def test_missing_case_id_is_refused(self, dl, use_case):
+        """HP-01-003: an Engage/Defer with no case id is malformed."""
+        from unittest.mock import MagicMock
+
+        event = MagicMock()
+        event.case_id = None
+
+        result = use_case(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+
     def test_engage_case_failure_reason_is_nonempty(
         self, dl, actor_id, case_id, caplog
     ):
@@ -97,7 +112,11 @@ class TestEngageDeferCaseBTFailureReason:
         event = self._engage_event(actor_id, case_id)
 
         with caplog.at_level(logging.WARNING):
-            EngageCaseReceivedUseCase(dl, event).execute()
+            result = EngageCaseReceivedUseCase(dl, event).execute()
+
+        # HP-01-003: an actor with no participant record is refused.
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason
 
         records = [
             r
@@ -122,7 +141,11 @@ class TestEngageDeferCaseBTFailureReason:
         event = self._defer_event(actor_id, case_id)
 
         with caplog.at_level(logging.WARNING):
-            DeferCaseReceivedUseCase(dl, event).execute()
+            result = DeferCaseReceivedUseCase(dl, event).execute()
+
+        # HP-01-003: an actor with no participant record is refused.
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason
 
         records = [
             r
@@ -406,7 +429,10 @@ class TestEngageCaseLedgerCommit:
         Verifies that fixing the receiving_actor_id does not break the RM
         transition for the sending actor (the actor who engaged the case).
         """
-        EngageCaseReceivedUseCase(seeded_dl, self._engage_event()).execute()
+        result = EngageCaseReceivedUseCase(
+            seeded_dl, self._engage_event()
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         updated = seeded_dl.read(self._VENDOR_PARTICIPANT_ID)
         assert isinstance(updated, CaseParticipant)
@@ -536,7 +562,10 @@ class TestDeferCaseLedgerCommit:
 
     def test_defer_case_transitions_vendor_rm_to_deferred(self, seeded_dl):
         """DeferCaseReceivedUseCase still transitions the deferring actor's RM to DEFERRED."""
-        DeferCaseReceivedUseCase(seeded_dl, self._defer_event()).execute()
+        result = DeferCaseReceivedUseCase(
+            seeded_dl, self._defer_event()
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         updated = seeded_dl.read(self._VENDOR_PARTICIPANT_ID)
         assert isinstance(updated, CaseParticipant)

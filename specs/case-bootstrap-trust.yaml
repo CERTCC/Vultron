@@ -409,8 +409,8 @@ groups:
     statement: >-
       When a receiver processes a bootstrap `Create(VulnerabilityCase)` and
       finds that required participant data is absent or arrives as a bare URI
-      reference (in violation of CBT-01-007), the receiver MUST raise a
-      protocol error and reject the bootstrap. The receiver MUST NOT silently
+      reference (in violation of CBT-01-007), the receiver MUST reject the
+      bootstrap as a protocol error. The receiver MUST NOT silently
       skip the missing participant, infer participant state from domain
       knowledge, or synthesize a participant record from information not
       present in the bootstrap payload.
@@ -426,8 +426,9 @@ groups:
     verification: >-
       Tests confirm that when a bootstrap `Create(VulnerabilityCase)` arrives
       with a participant listed as a bare URI string rather than an inline
-      typed object, the receiver raises `VultronProtocolViolationError` and
-      does not accept the bootstrap. The validation step runs before any
+      typed object, the handler returns `HandlerResult.refused` with a reason
+      citing CBT-05-008, which the inbox records as rejected, and does not
+      accept the bootstrap. The validation step runs before any
       DataLayer writes so bootstrap is atomic: either the full payload is
       valid and committed, or nothing is written.
     relationships:

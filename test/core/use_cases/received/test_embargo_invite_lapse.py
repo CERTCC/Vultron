@@ -21,6 +21,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.use_cases.received.embargo import (
@@ -722,7 +723,10 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(reject, receiving_actor_id=_COORD)
 
-        RejectInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         # Invitee's consent withdrawal is recorded as DECLINED.
         invitee = self._read_participant(dl, invitee_p_id)
@@ -730,6 +734,72 @@ class TestInviteeIsTheAddressee:
         # CASE_MANAGER's own PEC is unaffected.
         coord = self._read_participant(dl, coord_p_id)
         assert coord.embargo_consent_state == PEC.UNBOUND
+
+    @pytest.mark.spec("HP-01-003")
+    def test_reject_from_declined_is_skipped(self, make_payload):
+        """A second Reject from an already-DECLINED invitee changes nothing.
+
+        DECLINE is not a legal PEC trigger from DECLINED, so the tree fails.
+        That failure is a duplicate, not a refusal of the message (#2255).
+        """
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/addressee9"
+        embargo_id = "https://example.org/cases/addressee9/embargos/e9"
+        case, embargo, _, invitee_p_id = self._seed_case(
+            dl, case_id, embargo_id, invitee_pec=PEC.DECLINED
+        )
+
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            to=[_INVITEE],
+            id_=f"{case_id}/proposals/p1",
+        )
+        dl.create(proposal)
+        reject = em_reject_embargo_activity(
+            proposal=proposal, context=case.id_, actor=_INVITEE, to=[_COORD]
+        )
+        event = make_payload(reject, receiving_actor_id=_COORD)
+
+        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.SKIPPED
+        assert "already declined" in (result.reason or "")
+        invitee = self._read_participant(dl, invitee_p_id)
+        assert invitee.embargo_consent_state == PEC.DECLINED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_invite_to_already_invited_is_skipped(self, make_payload):
+        """A repeated Invite to an already-INVITED invitee changes nothing.
+
+        INVITE is not a legal PEC trigger from INVITED, so the tree fails.
+        That failure is a duplicate, not a refusal of the message (#2255).
+        """
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/addressee10"
+        embargo_id = "https://example.org/cases/addressee10/embargos/e10"
+        case, embargo, _, invitee_p_id = self._seed_case(
+            dl, case_id, embargo_id, invitee_pec=PEC.INVITED
+        )
+
+        invite = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            to=[_INVITEE],
+            rsvp_deadline=_FUTURE,
+        )
+        event = make_payload(invite, receiving_actor_id=_COORD)
+
+        result = InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition is HandlerDisposition.SKIPPED
+        assert "already invited" in (result.reason or "")
+        invitee = self._read_participant(dl, invitee_p_id)
+        assert invitee.embargo_consent_state == PEC.INVITED
 
 
 class TestInviteeIdProperty:

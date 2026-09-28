@@ -7,10 +7,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import (
-    VultronAlreadyExistsError,
-    VultronProtocolViolationError,
-)
+from vultron.errors import VultronAlreadyExistsError
 
 from vultron.core.participants.authority import resolve_case_manager_id
 
@@ -54,40 +51,71 @@ class CreateCaseReceivedUseCase:
                 "case '%s'",
                 case_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Create(VulnerabilityCase) carries no case object"
+            )
 
         if case_id is None:
             logger.warning(
-                "create_case_received: case_id missing in event — skipping"
+                "create_case_received: case_id missing in event — refusing"
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Create(VulnerabilityCase) case object has no id"
+            )
 
         case_obj = request.case
-        if case_obj is None:
-            logger.warning(
-                "create_case_received: case object for case '%s' is None"
-                " — skipping",
-                case_id,
-            )
-            return HandlerResult.applied()
         link = _find_report_case_link(actor_id, self._dl)
 
         if link is not None:
             # Bootstrap trust path — CBT-01-005 / CBT-01-006
-            self._handle_bootstrap(actor_id, case_id, case_obj, link)
-        else:
-            # Non-vendor participant path (ADR-0041 AC-5)
-            self._handle_direct_participant_bootstrap(
-                actor_id, case_id, case_obj
+            return self._handle_bootstrap(actor_id, case_id, case_obj, link)
+        if self._already_bootstrapped(actor_id, case_id):
+            # Redelivery of a bootstrap already accepted (CBT-01-006).
+            return HandlerResult.skipped(
+                f"bootstrap of case '{case_id}' already accepted"
             )
-        return HandlerResult.applied()
+        # Non-vendor participant path (ADR-0041 AC-5)
+        return self._handle_direct_participant_bootstrap(
+            actor_id, case_id, case_obj
+        )
+
+    def _already_bootstrapped(self, actor_id: str, case_id: str) -> bool:
+        """True if a ReportCaseLink already binds *case_id* to *actor_id*."""
+        return any(
+            isinstance(obj, VultronReportCaseLink)
+            and obj.case_id == case_id
+            and obj.trusted_case_creator_id == actor_id
+            for obj in self._dl.list_objects("ReportCaseLink")
+        )
+
+    def _store_replica(
+        self, case_id: str, case_obj: VulnerabilityCase
+    ) -> bool:
+        """Persist *case_obj* unless a replica exists; True if it was stored."""
+        if self._dl.read_case(case_id) is not None:
+            logger.info(
+                "create_case_received: case '%s' already exists as replica "
+                "— skipping re-seed",
+                case_id,
+            )
+            return False
+        try:
+            self._dl.create(case_obj)
+        except VultronAlreadyExistsError:
+            logger.info(
+                "create_case_received: case '%s' persisted concurrently "
+                "— idempotent",
+                case_id,
+            )
+            return False
+        return True
 
     def _handle_direct_participant_bootstrap(
         self,
         actor_id: str,
         case_id: str,
         case_obj: VulnerabilityCase,
-    ) -> None:
+    ) -> HandlerResult:
         """Seed the case replica when receiver is a non-vendor participant.
 
         Under ADR-0041 AC-5, CaseActor bootstraps reporters/finders directly by
@@ -98,32 +126,29 @@ class CreateCaseReceivedUseCase:
         actor ID matches the CASE_MANAGER participant in the snapshot.
         """
         case_manager_id = resolve_case_manager_id(case_obj, self._dl)
-        if case_manager_id is not None and case_manager_id == actor_id:
-            existing = self._dl.read_case(case_id)
-            if existing is None:
-                try:
-                    self._dl.create(case_obj)
-                    logger.info(
-                        "create_case_received: stored case '%s' replica for "
-                        "non-vendor participant from CaseActor '%s' (ADR-0041 AC-5)",
-                        case_id,
-                        actor_id,
-                    )
-                except VultronAlreadyExistsError:
-                    logger.info(
-                        "create_case_received: case '%s' persisted concurrently"
-                        " — idempotent",
-                        case_id,
-                    )
-            _store_embedded_participants(case_obj, self._dl, case_id)
-            _store_embedded_embargo(case_obj, self._dl, case_id)
-        else:
-            logger.info(
+        if case_manager_id is None or case_manager_id != actor_id:
+            logger.warning(
                 "create_case_received: no ReportCaseLink for case '%s' and "
-                "sender '%s' is not the CaseActor — skipping",
+                "sender '%s' is not the CaseActor — refusing",
                 case_id,
                 actor_id,
             )
+            return HandlerResult.refused(
+                f"untrusted Create of case '{case_id}': no ReportCaseLink and"
+                f" sender '{actor_id}' is not its CASE_MANAGER (ADR-0041 AC-5)"
+            )
+        stored = self._store_replica(case_id, case_obj)
+        _store_embedded_participants(case_obj, self._dl, case_id)
+        _store_embedded_embargo(case_obj, self._dl, case_id)
+        if not stored:
+            return HandlerResult.skipped(f"case '{case_id}' already seeded")
+        logger.info(
+            "create_case_received: stored case '%s' replica for non-vendor"
+            " participant from CaseActor '%s' (ADR-0041 AC-5)",
+            case_id,
+            actor_id,
+        )
+        return HandlerResult.applied()
 
     def _handle_bootstrap(
         self,
@@ -131,7 +156,7 @@ class CreateCaseReceivedUseCase:
         case_id: str,
         case_obj: VulnerabilityCase,
         link: VultronReportCaseLink,
-    ) -> None:
+    ) -> HandlerResult:
         """Validate trust and seed the case replica."""
         # CBT-01-005: sender must match the actor we sent the report to
         if link.trusted_case_creator_id is not None:
@@ -142,7 +167,11 @@ class CreateCaseReceivedUseCase:
                     "(CBT-01-005)",
                     case_id,
                 )
-                return
+                return HandlerResult.refused(
+                    f"bootstrap of case '{case_id}' rejected: sender"
+                    f" '{actor_id}' is not the trusted case creator"
+                    " (CBT-01-005)"
+                )
         else:
             logger.warning(
                 "create_case_received: no trusted_case_creator_id in link "
@@ -161,17 +190,19 @@ class CreateCaseReceivedUseCase:
             )
 
         # CBT-05-008 / CBT-01-007: all participants MUST be inline typed objects.
-        # Raise before persisting anything so bootstrap is atomic: the full
+        # Refuse before persisting anything so bootstrap is atomic: the full
         # payload must be valid before any state is committed ("examine the
         # shipment before shelving its contents").
         participants = getattr(case_obj, "case_participants", []) or []
         bare = [p for p in participants if isinstance(p, str)]
         if bare:
-            raise VultronProtocolViolationError(
+            reason = (
                 f"Bootstrap Create(VulnerabilityCase) for case '{case_id}'"
                 f" contains {len(bare)} bare-URI participant reference(s);"
                 f" inline typed objects required (CBT-01-007, CBT-05-008)"
             )
+            logger.warning("create_case_received: %s", reason)
+            return HandlerResult.refused(reason)
 
         logger.info(
             "create_case_received: bootstrap accepted for case '%s' from "
@@ -182,26 +213,11 @@ class CreateCaseReceivedUseCase:
 
         # Seed the local case replica
         # Idempotency guard (CBT-01-006, ID-04-004)
-        existing = self._dl.read_case(case_id)
-        if existing is not None:
+        stored = self._store_replica(case_id, case_obj)
+        if stored:
             logger.info(
-                "create_case_received: case '%s' already exists as replica "
-                "— skipping re-seed",
-                case_id,
+                "create_case_received: replica case '%s' persisted", case_id
             )
-        else:
-            try:
-                self._dl.create(case_obj)
-                logger.info(
-                    "create_case_received: replica case '%s' persisted",
-                    case_id,
-                )
-            except VultronAlreadyExistsError:
-                logger.info(
-                    "create_case_received: case '%s' persisted concurrently "
-                    "— idempotent",
-                    case_id,
-                )
 
         # CBT-01-006: persist trust anchors in the link
         link.case_id = case_id
@@ -221,3 +237,8 @@ class CreateCaseReceivedUseCase:
         # the inbox router may have already seeded the case before dispatch.
         _store_embedded_participants(case_obj, self._dl, case_id)
         _store_embedded_embargo(case_obj, self._dl, case_id)
+        if not stored:
+            # The trust anchors and embedded objects above are re-applied
+            # idempotently; only the replica itself already existed.
+            return HandlerResult.skipped(f"case '{case_id}' already seeded")
+        return HandlerResult.applied()

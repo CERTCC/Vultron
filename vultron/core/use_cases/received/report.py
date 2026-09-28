@@ -3,8 +3,6 @@
 import logging
 from typing import TYPE_CHECKING
 
-from py_trees.common import Status
-
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
@@ -15,15 +13,24 @@ from vultron.core.models.events.report import (
     ValidateReportReceivedEvent,
 )
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.predicates.addressing import is_addressed_to
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import (
     VultronAlreadyExistsError,
-    VultronValidationError,
+    VultronBTInternalError,
 )
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
+)
+from vultron.core.use_cases.received._bt_verdict import (
+    applied_or_raise,
+    node_failed,
+    node_succeeded,
+    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
@@ -107,21 +114,27 @@ def _store_submit_report_dependencies(
         )
 
 
-def _is_primary_submit_report_recipient(
+def _not_primary_recipient_reason(
     request: SubmitReportReceivedEvent, receiving_actor_id: str
-) -> bool:
+) -> str | None:
+    """Why *receiving_actor_id* must not act on this Offer, or ``None``.
+
+    Only a ``to`` recipient acts on an ``Offer(Report)`` (HP-09-001,
+    HP-09-002).  Anyone else received a copy that is not addressed to it,
+    which is a correct no-op rather than a refusal (HP-01-003).
+    """
     to_list = (request.activity.to or []) if request.activity else []
     cc_list = (request.activity.cc or []) if request.activity else []
 
     if is_addressed_to(receiving_actor_id, to_list):
-        return True
+        return None
     if is_addressed_to(receiving_actor_id, cc_list):
         logger.warning(
             "SubmitReportReceivedUseCase: cc addressing not supported for "
             "Offer(Report) — discarding activity for report '%s'",
             request.report_id,
         )
-        return False
+        return "receiving actor is only in cc; cc addressing not supported"
 
     logger.warning(
         "SubmitReportReceivedUseCase: receiving actor '%s' in neither to nor "
@@ -129,7 +142,7 @@ def _is_primary_submit_report_recipient(
         receiving_actor_id,
         request.report_id,
     )
-    return False
+    return "receiving actor is not a recipient of the Offer"
 
 
 def _run_submit_report_case_creation(
@@ -140,12 +153,19 @@ def _run_submit_report_case_creation(
     trigger_activity: "TriggerActivityPort | None" = None,
     sync_port: "SyncActivityPort | None" = None,
     actor_config: "ActorConfig | None" = None,
-) -> None:
-    from py_trees.common import Status
+) -> HandlerResult:
+    """Run the vendor-side proposal BT and classify its outcome (#2255).
 
+    The report is already stored, so nothing in this BT judges the sender's
+    message: a disabled ``auto_create_case`` gate and an already-sent proposal
+    are no-ops, and any other failure is this actor's own (a missing port, a
+    CaseActor that cannot be hosted), so it raises rather than refuses.
+    """
     from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.case.receive_report_case_tree import (
-        create_receive_report_case_tree,
+    from vultron.core.behaviors.case import receive_report_case_tree
+    from vultron.core.behaviors.case.nodes import (
+        CheckAutoCaseCreationEnabledNode,
+        CheckPendingProposalExistsForReport,
     )
 
     logger.info(
@@ -159,7 +179,7 @@ def _run_submit_report_case_creation(
         trigger_activity=trigger_activity,
         sync_port=sync_port,
     )
-    tree = create_receive_report_case_tree(
+    tree = receive_report_case_tree.create_receive_report_case_tree(
         report_id=report_id,
         offer_id=request.activity_id,
         reporter_actor_id=request.actor_id,
@@ -171,27 +191,33 @@ def _run_submit_report_case_creation(
         activity=request,
     )
 
-    if result.status == Status.SUCCESS:
+    if node_failed(tree, CheckAutoCaseCreationEnabledNode):
+        return HandlerResult.skipped("auto_create_case disabled")
+    verdict = verdict_from_bt(tree, result, label="ReceiveReportCaseBT")
+    if verdict.disposition is HandlerDisposition.REFUSED:
+        for err in result.errors or []:
+            logger.error("  - %s", err)
+        raise VultronBTInternalError(
+            f"case proposal for report '{report_id}' failed: {verdict.reason}"
+        )
+    if node_succeeded(tree, CheckPendingProposalExistsForReport):
+        return HandlerResult.skipped(
+            f"case proposal for report '{report_id}' already sent"
+        )
+    if verdict.disposition is HandlerDisposition.APPLIED:
         logger.info(
             "✓ Case creation at RM.RECEIVED succeeded for report: %s",
             request.report_id,
         )
-        return
-    if result.status == Status.FAILURE:
-        logger.error(
-            "✗ Case creation at RM.RECEIVED failed for report: %s — %s",
-            request.report_id,
-            result.feedback_message,
-        )
-        for err in result.errors or []:
-            logger.error("  - %s", err)
-        return
+    return verdict
 
-    logger.warning(
-        "⚠ Case creation at RM.RECEIVED incomplete for report: %s (status=%s)",
-        request.report_id,
-        result.status,
-    )
+
+def _log_refusal(verdict: HandlerResult, activity_id: str) -> HandlerResult:
+    if verdict.disposition is HandlerDisposition.REFUSED:
+        logger.warning(
+            "Refused activity '%s': %s", activity_id, verdict.reason
+        )
+    return verdict
 
 
 class CreateReportReceivedUseCase:
@@ -202,15 +228,11 @@ class CreateReportReceivedUseCase:
         self._request: CreateReportReceivedEvent = request
 
     def execute(self) -> HandlerResult:
-        from py_trees.common import Status
-
         from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.report.received_report_trees import (
-            create_report_received_tree,
-        )
+        from vultron.core.behaviors.report import received_report_trees
 
         request = self._request
-        tree = create_report_received_tree(request)
+        tree = received_report_trees.create_report_received_tree(request)
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
@@ -222,14 +244,9 @@ class CreateReportReceivedUseCase:
             ),
             activity=request,
         )
-        if result.status != Status.SUCCESS:
-            reason = BTBridge.get_failure_reason(tree)
-            logger.warning(
-                "CreateReportReceivedBT did not succeed for activity '%s': %s",
-                request.activity_id,
-                reason or result.feedback_message or "",
-            )
-        return HandlerResult.applied()
+        # The tree only stores the report and the activity; each store step is
+        # idempotent and fails only when the DataLayer does.
+        return applied_or_raise(tree, result, label="CreateReportReceivedBT")
 
 
 class SubmitReportReceivedUseCase:
@@ -261,12 +278,15 @@ class SubmitReportReceivedUseCase:
         # explicit accept/reject decision (CM-15-001).
         _store_submit_report_dependencies(self._dl, request)
         if not request.report_id:
-            return HandlerResult.applied()
+            return HandlerResult.skipped(
+                "Offer carries no report id; nothing to propose a case for"
+            )
 
-        if not _is_primary_submit_report_recipient(
+        skip_reason = _not_primary_recipient_reason(
             request, receiving_actor_id
-        ):
-            return HandlerResult.applied()
+        )
+        if skip_reason is not None:
+            return HandlerResult.skipped(skip_reason)
 
         # Routing-level policy short-circuit: when the receiver opts out of
         # automatic case creation, do not even invoke the case-creation BT.
@@ -286,9 +306,9 @@ class SubmitReportReceivedUseCase:
                 receiving_actor_id,
                 request.report_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.skipped("auto_create_case disabled")
 
-        _run_submit_report_case_creation(
+        return _run_submit_report_case_creation(
             self._dl,
             request,
             receiving_actor_id,
@@ -297,7 +317,6 @@ class SubmitReportReceivedUseCase:
             sync_port=self._sync_port,
             actor_config=self._actor_config,
         )
-        return HandlerResult.applied()
 
 
 class ValidateReportReceivedUseCase:
@@ -319,8 +338,13 @@ class ValidateReportReceivedUseCase:
         report_id = request.report_id
         offer_id = request.offer_id
         if report_id is None or offer_id is None:
-            raise VultronValidationError(
-                "ValidateReportReceivedEvent requires report_id and offer_id"
+            logger.warning(
+                "ValidateReportReceivedUseCase: activity '%s' is missing its"
+                " report id or offer id — refusing",
+                request.activity_id,
+            )
+            return HandlerResult.refused(
+                "Accept(Offer(Report)) is missing its report id or offer id"
             )
 
         receiving_actor_id = resolve_receiving_actor_id(
@@ -365,15 +389,26 @@ class ValidateReportReceivedUseCase:
             activity=request,
         )
 
-        if result.status != Status.SUCCESS:
-            reason = BTBridge.get_failure_reason(tree)
+        verdict = verdict_from_bt(
+            tree, result, label="ValidateReportReceivedBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
-                "ValidateReportReceivedUseCase: BT did not succeed for"
-                " report '%s': %s",
+                "ValidateReportReceivedUseCase: refused for report '%s': %s",
                 report_id,
-                reason or result.feedback_message or "",
+                verdict.reason,
             )
-        return HandlerResult.applied()
+            return verdict
+        from vultron.core.behaviors.report.nodes.conditions import (
+            CheckRMStateValid,
+        )
+
+        if node_succeeded(tree, CheckRMStateValid):
+            # The Selector's idempotency exit (ID-04-004): already VALID.
+            return HandlerResult.skipped(
+                f"report '{report_id}' already validated for this sender"
+            )
+        return verdict
 
 
 class InvalidateReportReceivedUseCase:
@@ -384,9 +419,6 @@ class InvalidateReportReceivedUseCase:
         self._request: InvalidateReportReceivedEvent = request
 
     def execute(self) -> HandlerResult:
-        from py_trees.common import Status
-
-        from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.report.received_report_trees import (
             create_invalidate_report_received_tree,
         )
@@ -409,15 +441,10 @@ class InvalidateReportReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
-        if result.status != Status.SUCCESS:
-            reason = BTBridge.get_failure_reason(tree)
-            logger.warning(
-                "InvalidateReportReceivedBT did not succeed for activity"
-                " '%s': %s",
-                request.activity_id,
-                reason or result.feedback_message or "",
-            )
-        return HandlerResult.applied()
+        return _log_refusal(
+            verdict_from_bt(tree, result, label="InvalidateReportReceivedBT"),
+            request.activity_id,
+        )
 
 
 class AckReportReceivedUseCase:
@@ -462,14 +489,10 @@ class AckReportReceivedUseCase:
             activity=request,
             sync_port=self._sync_port,
         )
-        if result.status != Status.SUCCESS:
-            reason = BTBridge.get_failure_reason(tree)
-            logger.warning(
-                "AckReportReceivedBT did not succeed for activity '%s': %s",
-                request.activity_id,
-                reason or result.feedback_message or "",
-            )
-        return HandlerResult.applied()
+        return _log_refusal(
+            verdict_from_bt(tree, result, label="AckReportReceivedBT"),
+            request.activity_id,
+        )
 
 
 class CloseReportReceivedUseCase:
@@ -480,9 +503,6 @@ class CloseReportReceivedUseCase:
         self._request: CloseReportReceivedEvent = request
 
     def execute(self) -> HandlerResult:
-        from py_trees.common import Status
-
-        from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.report.received_report_trees import (
             create_close_report_received_tree,
         )
@@ -505,11 +525,7 @@ class CloseReportReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
-        if result.status != Status.SUCCESS:
-            reason = BTBridge.get_failure_reason(tree)
-            logger.warning(
-                "CloseReportReceivedBT did not succeed for activity '%s': %s",
-                request.activity_id,
-                reason or result.feedback_message or "",
-            )
-        return HandlerResult.applied()
+        return _log_refusal(
+            verdict_from_bt(tree, result, label="CloseReportReceivedBT"),
+            request.activity_id,
+        )

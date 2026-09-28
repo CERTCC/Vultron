@@ -22,6 +22,7 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
@@ -278,6 +279,34 @@ class TestAnnounceFirstContactTrustGap:
             for r in caplog.records
             if r.levelno == logging.WARNING
         ), "Expected WARNING log citing the PCR spec reference"
+
+    @pytest.mark.spec("HP-01-003")
+    def test_announce_from_untrusted_sender_is_refused(self, dl, event):
+        """#2255: a rejected Announce is REFUSED, not reported as applied.
+
+        APPLIED reads as "processed" in the InboxOutcome and gates the
+        post-bootstrap replay, so a refused seed must not look applied.
+        """
+        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "untrusted" in result.reason
+
+    @pytest.mark.spec("HP-01-003")
+    def test_admitted_announce_is_applied(self, dl, event):
+        _anchor_expected_authority(dl)
+
+        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_announce_without_activity_is_refused(self, dl, event):
+        event = event.model_copy(update={"activity": None})
+
+        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
 
     def test_admits_announce_after_invite_trust_anchor(self, dl, event, case):
         """AC-5b / PCR-03-004: Announce from the invite sender is admitted once

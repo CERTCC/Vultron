@@ -3,8 +3,6 @@
 import logging
 from typing import cast
 
-from py_trees.common import Status
-
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.announce_case_received_tree import (
     create_announce_vulnerability_case_received_tree,
@@ -17,7 +15,10 @@ from vultron.core.models.ledger_gap_buffer import (
     get_ledger_gap_buffer,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -29,6 +30,7 @@ from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
     resolve_receiving_actor_id,
 )
+from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 from vultron.core.use_cases.received.sync import drain_gap_buffer
 
 logger = logging.getLogger(__name__)
@@ -111,38 +113,41 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         activity = request.activity
         if activity is None:
             logger.warning(
-                "AnnounceVulnerabilityCase: no activity on event '%s' — skipping",
+                "AnnounceVulnerabilityCase: no activity on event '%s' — refusing",
                 request.activity_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused("Announce carries no activity")
 
         # The case object is the object_ field of the announce activity.
         case_obj = getattr(activity, "object_", None)
         if case_obj is None:
             logger.warning(
                 "AnnounceVulnerabilityCase: no case object in activity '%s'"
-                " — skipping",
+                " — refusing",
                 request.activity_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused("Announce carries no case object")
 
         if getattr(case_obj, "type_", None) != "VulnerabilityCase":
             logger.warning(
                 "AnnounceVulnerabilityCase: object in activity '%s' is not a"
-                " VulnerabilityCase (%s) — skipping",
+                " VulnerabilityCase (%s) — refusing",
                 request.activity_id,
                 type(case_obj).__name__,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                f"Announce object is not a VulnerabilityCase"
+                f" ({type(case_obj).__name__})"
+            )
 
         case_id = _as_id(case_obj)
         if case_id is None:
             logger.warning(
                 "AnnounceVulnerabilityCase: case object has no id in"
-                " activity '%s' — skipping",
+                " activity '%s' — refusing",
                 request.activity_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused("Announced case object has no id")
 
         if not _sender_is_trusted(self._dl, case_id, request.actor_id):
             logger.warning(
@@ -152,7 +157,10 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 request.actor_id,
                 case_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                f"untrusted sender '{request.actor_id}' for case '{case_id}'"
+                " (PCR-03-004)"
+            )
 
         tree = create_announce_vulnerability_case_received_tree(
             case_id=case_id,
@@ -170,14 +178,12 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             ),
             activity=request,
         )
-        if result.status != Status.SUCCESS:
-            logger.warning(
-                "AnnounceVulnerabilityCaseReceivedBT did not succeed"
-                " for case '%s': %s",
-                case_id,
-                BTBridge.get_failure_reason(tree),
-            )
-            return HandlerResult.applied()
+        verdict = verdict_from_bt(
+            tree, result, label="AnnounceVulnerabilityCaseReceivedBT"
+        )
+        if verdict.disposition is not HandlerDisposition.APPLIED:
+            logger.warning("%s (case '%s')", verdict.reason, case_id)
+            return verdict
 
         # The case (and therefore its deterministic per-case genesis hash) is
         # now seeded locally.  Any Announce(CaseLedgerEntry) that arrived during

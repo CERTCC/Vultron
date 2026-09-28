@@ -37,7 +37,7 @@ class AcceptCaseParticipantRoleReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        _idempotent_create(
+        stored = _idempotent_create(
             self._dl,
             request.activity_type,
             request.activity_id,
@@ -51,7 +51,7 @@ class AcceptCaseParticipantRoleReceivedUseCase:
             request.actor_id,
             request.object_id,
         )
-        return HandlerResult.applied()
+        return stored
 
 
 class RejectCaseParticipantRoleReceivedUseCase:
@@ -78,4 +78,6 @@ class RejectCaseParticipantRoleReceivedUseCase:
             request.actor_id,
             request.object_id,
         )
-        return HandlerResult.applied()
+        return HandlerResult.skipped(
+            "role delegation offer declined; nothing to undo"
+        )

@@ -16,9 +16,13 @@ from typing import cast
 
 import pytest
 
-from vultron.core.models.use_case_result import HandlerResult
+from unittest.mock import MagicMock
+
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.case_participant import (
     AddCaseParticipantToCaseReceivedUseCase,
+    CreateCaseParticipantReceivedUseCase,
     RemoveCaseParticipantFromCaseReceivedUseCase,
 )
 
@@ -118,9 +122,8 @@ class TestCaseParticipantUseCases:
         result = RemoveCaseParticipantFromCaseReceivedUseCase(
             dl, event
         ).execute()
-        # An idempotent re-removal is a no-op: APPLIED only until #2255 assigns
-        # per-site dispositions (it may then become SKIPPED).
-        assert result == HandlerResult.applied()
+        # HP-01-003: an idempotent re-removal is a no-op.
+        assert result.disposition == HandlerDisposition.SKIPPED
 
     def test_add_case_participant_updates_index(
         self, monkeypatch, make_payload
@@ -162,23 +165,21 @@ class TestCaseParticipantUseCases:
 
         event = make_payload(add_activity)
 
-        AddCaseParticipantToCaseReceivedUseCase(dl, event).execute()
+        result = AddCaseParticipantToCaseReceivedUseCase(dl, event).execute()
 
+        assert result.disposition == HandlerDisposition.APPLIED
         case = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert case is not None
         assert actor_id in case.actor_participant_index
         assert case.actor_participant_index[actor_id] == participant.id_
 
-    def test_add_case_participant_bt_failure_raises(
-        self, monkeypatch, make_payload
-    ):
-        """AddCaseParticipantToCaseReceivedUseCase must raise when the BT fails."""
-        from unittest.mock import MagicMock, patch
+    @pytest.mark.spec("HP-01-003")
+    def test_add_unknown_participant_is_refused(self, make_payload):
+        """A participant the receiver has no record of cannot be added.
 
-        from py_trees.common import Status
-
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.errors import VultronValidationError
+        This used to raise ``VultronValidationError``; it is a rejection of
+        the message, so it is now reported as REFUSED (#2255).
+        """
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Add,
         )
@@ -202,8 +203,7 @@ class TestCaseParticipantUseCases:
             attributed_to="https://example.org/users/coordinator",
             context=case.id_,
         )
-        dl.create(case)
-        dl.create(participant)
+        dl.create(case)  # participant deliberately not stored
 
         add_activity = as_Add(
             actor="https://example.org/users/owner",
@@ -212,18 +212,92 @@ class TestCaseParticipantUseCases:
         )
         event = make_payload(add_activity)
 
-        failure_result = MagicMock()
-        failure_result.status = Status.FAILURE
+        result = AddCaseParticipantToCaseReceivedUseCase(dl, event).execute()
 
-        with patch(
-            "vultron.core.use_cases.received.case_participant.BTBridge"
-        ) as MockBridge:
-            bridge_instance = MockBridge.return_value
-            bridge_instance.execute_with_setup.return_value = failure_result
-            MockBridge.get_failure_reason.return_value = "tree failed"
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "not found" in result.reason
 
-            with pytest.raises(VultronValidationError):
-                AddCaseParticipantToCaseReceivedUseCase(dl, event).execute()
+    @pytest.mark.spec("HP-01-003")
+    def test_remove_participant_from_unknown_case_is_refused(
+        self, make_payload
+    ):
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Remove,
+        )
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case_id = "https://example.org/cases/no-such-case"
+        participant = as_CaseParticipant(
+            id_=f"{case_id}/participants/coord",
+            attributed_to="https://example.org/users/coordinator",
+            context=case_id,
+        )
+        event = make_payload(
+            as_Remove(
+                actor="https://example.org/users/owner",
+                object_=participant,
+                target=case_id,
+            )
+        )
+
+        result = RemoveCaseParticipantFromCaseReceivedUseCase(
+            dl, event
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.parametrize(
+        "use_case",
+        [
+            AddCaseParticipantToCaseReceivedUseCase,
+            RemoveCaseParticipantFromCaseReceivedUseCase,
+        ],
+    )
+    def test_membership_change_without_ids_is_refused(self, use_case):
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        event = MagicMock()
+        event.participant_id = None
+        event.case_id = "https://example.org/cases/c"
+
+        result = use_case(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_create_participant_redelivery_is_skipped(self):
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        participant = as_CaseParticipant(
+            id_="https://example.org/cases/caseCP/participants/coord",
+            attributed_to="https://example.org/users/coordinator",
+            context="https://example.org/cases/caseCP",
+        )
+        event = MagicMock()
+        event.object_type = participant.type_
+        event.participant_id = participant.id_
+        event.participant = participant
+
+        first = CreateCaseParticipantReceivedUseCase(dl, event).execute()
+        again = CreateCaseParticipantReceivedUseCase(dl, event).execute()
+
+        assert first.disposition == HandlerDisposition.APPLIED
+        assert again.disposition == HandlerDisposition.SKIPPED
 
     def test_remove_case_participant_clears_index(
         self, monkeypatch, make_payload

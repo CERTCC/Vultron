@@ -3,6 +3,7 @@
 import logging
 from typing import TYPE_CHECKING
 
+import py_trees
 from py_trees.common import Status
 
 from vultron.core.models.events.status import (
@@ -11,7 +12,10 @@ from vultron.core.models.events.status import (
     CreateCaseStatusReceivedEvent,
     CreateParticipantStatusReceivedEvent,
 )
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -19,6 +23,11 @@ from vultron.core.ports.case_persistence import (
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     resolve_receiving_actor_id,
+)
+from vultron.core.use_cases.received._bt_verdict import (
+    find_named,
+    node_failed,
+    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
@@ -31,7 +40,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _filter_node_wholly_refused(tree: object) -> bool:
+def _filter_node_wholly_refused(tree: py_trees.behaviour.Behaviour) -> bool:
     """Return True if FilterParticipantStatusDimensionsNode returned FAILURE.
 
     Used by AddParticipantStatusToParticipantReceivedUseCase to distinguish a
@@ -44,14 +53,13 @@ def _filter_node_wholly_refused(tree: object) -> bool:
         FilterParticipantStatusDimensionsNode,
     )
 
-    root = getattr(tree, "root", tree)
-    iterate = getattr(root, "iterate", None)
-    if iterate is None:
-        return False
-    for node in iterate():
-        if isinstance(node, FilterParticipantStatusDimensionsNode):
-            return node.status == Status.FAILURE
-    return False
+    return node_failed(tree, FilterParticipantStatusDimensionsNode)
+
+
+def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
+    """Return True if the StatusAdoptionGate Selector returned FAILURE."""
+    gate = find_named(tree, "StatusAdoptionGate")
+    return gate is not None and gate.status == Status.FAILURE
 
 
 class CreateCaseStatusReceivedUseCase:
@@ -63,7 +71,7 @@ class CreateCaseStatusReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        _idempotent_create(
+        return _idempotent_create(
             self._dl,
             request.object_type,
             request.status_id,
@@ -71,7 +79,6 @@ class CreateCaseStatusReceivedUseCase:
             "CaseStatus",
             request.activity_id,
         )
-        return HandlerResult.applied()
 
 
 class AddCaseStatusToCaseReceivedUseCase:
@@ -95,7 +102,9 @@ class AddCaseStatusToCaseReceivedUseCase:
             logger.warning(
                 "add_case_status_to_case: missing status_id or case_id"
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Add(CaseStatus) is missing its status id or case id"
+            )
 
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.status.add_case_status_tree import (
@@ -124,38 +133,41 @@ class AddCaseStatusToCaseReceivedUseCase:
             activity=request,
         )
 
-        if result.status != Status.SUCCESS:
-            reason = BTBridge.get_failure_reason(tree)
-            reason_str = reason or result.feedback_message or ""
-            if reason_str == CASE_STATUS_ALREADY_PRESENT:
-                logger.info(
-                    "CaseStatus '%s' already in case '%s'"
-                    " — skipping (idempotent)",
-                    status_id,
-                    case_id,
+        if (
+            result.status != Status.SUCCESS
+            and BTBridge.get_failure_reason(tree)
+            == CASE_STATUS_ALREADY_PRESENT
+        ):
+            logger.info(
+                "CaseStatus '%s' already in case '%s' — skipping (idempotent)",
+                status_id,
+                case_id,
+            )
+            return HandlerResult.skipped(
+                f"CaseStatus '{status_id}' already in case '{case_id}'"
+            )
+        verdict = verdict_from_bt(tree, result, label="AddCaseStatusToCaseBT")
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "AddCaseStatusToCaseBT refused activity '%s': %s",
+                request.activity_id,
+                verdict.reason,
+            )
+            if self._trigger_activity is not None and request.actor_id:
+                from vultron.core.models.fault_classes import (
+                    VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
                 )
-            else:
-                logger.warning(
-                    "AddCaseStatusToCaseBT did not succeed for activity"
-                    " '%s': %s",
-                    request.activity_id,
-                    reason_str,
-                )
-                if self._trigger_activity is not None and request.actor_id:
-                    from vultron.core.models.fault_classes import (
-                        VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
-                    )
 
-                    self._trigger_activity.emit_processing_fault(
-                        actor=resolve_receiving_actor_id(
-                            self._dl, request.receiving_actor_id
-                        ),
-                        failed_activity_id=request.activity_id,
-                        failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
-                        to=[request.actor_id],
-                        case_id=case_id,
-                    )
-        return HandlerResult.applied()
+                self._trigger_activity.emit_processing_fault(
+                    actor=resolve_receiving_actor_id(
+                        self._dl, request.receiving_actor_id
+                    ),
+                    failed_activity_id=request.activity_id,
+                    failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+                    to=[request.actor_id],
+                    case_id=case_id,
+                )
+        return verdict
 
 
 class CreateParticipantStatusReceivedUseCase:
@@ -169,7 +181,7 @@ class CreateParticipantStatusReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        _idempotent_create(
+        return _idempotent_create(
             self._dl,
             request.object_type,
             request.status_id,
@@ -177,7 +189,6 @@ class CreateParticipantStatusReceivedUseCase:
             "ParticipantStatus",
             request.activity_id,
         )
-        return HandlerResult.applied()
 
 
 class AddParticipantStatusToParticipantReceivedUseCase:
@@ -222,7 +233,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 "add_participant_status_to_participant: missing status_id"
                 " or participant_id"
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Add(ParticipantStatus) is missing its status id or"
+                " participant id"
+            )
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -255,13 +269,22 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             sync_port=self._sync_port,
         )
 
-        if result.status != Status.SUCCESS:
-            reason = BTBridge.get_failure_reason(tree)
-            reason_str = reason or result.feedback_message or ""
+        verdict = verdict_from_bt(tree, result, label="AddParticipantStatusBT")
+        if verdict.disposition is HandlerDisposition.REFUSED and (
+            _adoption_gate_blocked(tree)
+        ):
+            # The raw claim is on the participant record; only its adoption as
+            # canonical was withheld (RSH-01-001, RSH-01-002).  That is not a
+            # refusal of the assertion's content (RSH-05-022), so no fault.
+            return HandlerResult.skipped(
+                f"ParticipantStatus '{request.status_id}' recorded but not"
+                " adopted: CASE_OWNER approval required (RSH-01-002)"
+            )
+        if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
-                "AddParticipantStatusBT did not succeed for activity '%s': %s",
+                "AddParticipantStatusBT refused activity '%s': %s",
                 request.activity_id,
-                reason_str,
+                verdict.reason,
             )
             if self._trigger_activity is not None and request.actor_id:
                 from vultron.core.models.fault_classes import (
@@ -276,13 +299,11 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                     case_id=case_id,
                 )
             if _filter_node_wholly_refused(tree):
-                from vultron.errors import VultronStatusAssertionRefusedError
-
-                raise VultronStatusAssertionRefusedError(
+                return HandlerResult.refused(
                     f"ParticipantStatus assertion wholly refused for activity"
-                    f" '{request.activity_id}': {reason_str}"
+                    f" '{request.activity_id}': {verdict.reason}"
                 )
-        return HandlerResult.applied()
+        return verdict
 
     def _resolve_case_id_for_log_cascade(self) -> str | None:
         request = self._request

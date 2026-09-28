@@ -36,6 +36,7 @@ from vultron.core.models.events.actor import (
     OfferCaseParticipantReceivedEvent,
     RejectOfferCaseParticipantReceivedEvent,
 )
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.offer_case_participant import (
     AcceptOfferCaseParticipantReceivedUseCase,
     OfferCaseParticipantReceivedUseCase,
@@ -139,10 +140,12 @@ class TestOfferCaseParticipantReceivedUseCase:
     def test_executes_without_error(self):
         dl, _ = _seed_dl_for_case_owner()
         event = self._event()
-        # Should not raise
-        OfferCaseParticipantReceivedUseCase(
+        # The receiver is not the case's CASE_MANAGER, so the CM-gated
+        # ledger commit — the tree's only work — is correctly not done.
+        result = OfferCaseParticipantReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
+        assert result.disposition is HandlerDisposition.SKIPPED
 
     def test_never_fabricates_the_local_actor(self, caplog):
         """There is no "no local actor" case to skip for (ADR-0073).
@@ -160,7 +163,9 @@ class TestOfferCaseParticipantReceivedUseCase:
         )
         event = self._event()
         with caplog.at_level(logging.WARNING):
-            OfferCaseParticipantReceivedUseCase(dl, event).execute()
+            result = OfferCaseParticipantReceivedUseCase(dl, event).execute()
+        # The store holds no such case (RSH rule 3).
+        assert result.disposition is HandlerDisposition.REFUSED
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
         assert "unknown" not in messages
@@ -172,8 +177,11 @@ class TestOfferCaseParticipantReceivedUseCase:
         mock_event.target_id = None
         mock_event.activity = None
         with caplog.at_level(logging.WARNING):
-            OfferCaseParticipantReceivedUseCase(dl, mock_event).execute()
+            result = OfferCaseParticipantReceivedUseCase(
+                dl, mock_event
+            ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
+        assert result.disposition is HandlerDisposition.REFUSED
 
 
 # ---------------------------------------------------------------------------
@@ -203,9 +211,10 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
     def test_executes_without_error(self):
         dl, _ = _seed_dl_for_case_actor()
         event = self._event()
-        AcceptOfferCaseParticipantReceivedUseCase(
+        result = AcceptOfferCaseParticipantReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
     def test_never_fabricates_the_local_actor(self, caplog):
         """There is no "no local actor" case to skip for (ADR-0073).
@@ -221,7 +230,9 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         )
         event = self._event()
         with caplog.at_level(logging.WARNING):
-            AcceptOfferCaseParticipantReceivedUseCase(dl, event).execute()
+            AcceptOfferCaseParticipantReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
         assert "unknown" not in messages
@@ -233,8 +244,11 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         mock_event.target_id = None
         mock_event.activity = None
         with caplog.at_level(logging.WARNING):
-            AcceptOfferCaseParticipantReceivedUseCase(dl, mock_event).execute()
+            result = AcceptOfferCaseParticipantReceivedUseCase(
+                dl, mock_event
+            ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
+        assert result.disposition is HandlerDisposition.REFUSED
 
     def test_skips_when_missing_invitee_id(self, caplog):
         dl, _ = _seed_dl_for_case_actor()
@@ -248,8 +262,11 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         inner_offer.origin = None
         mock_event.activity.object_ = inner_offer
         with caplog.at_level(logging.WARNING):
-            AcceptOfferCaseParticipantReceivedUseCase(dl, mock_event).execute()
+            result = AcceptOfferCaseParticipantReceivedUseCase(
+                dl, mock_event
+            ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
+        assert result.disposition is HandlerDisposition.REFUSED
 
     def test_recommender_notified_via_core_state(self):
         """AC-5: recommender notification emitted; recommender read from core state.
@@ -275,9 +292,10 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         dl.save(case)
 
         event = self._event()
-        AcceptOfferCaseParticipantReceivedUseCase(
+        result = AcceptOfferCaseParticipantReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         outbox = dl.outbox_list()
         assert len(outbox) >= 2, (
@@ -323,9 +341,10 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
     def test_executes_without_error(self):
         dl, _ = _seed_dl_for_case_actor()
         event = self._event()
-        RejectOfferCaseParticipantReceivedUseCase(
+        result = RejectOfferCaseParticipantReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
     def test_never_fabricates_the_local_actor(self, caplog):
         """There is no "no local actor" case to skip for (ADR-0073).
@@ -341,7 +360,9 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         )
         event = self._event()
         with caplog.at_level(logging.WARNING):
-            RejectOfferCaseParticipantReceivedUseCase(dl, event).execute()
+            RejectOfferCaseParticipantReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
         assert "unknown" not in messages
@@ -353,8 +374,11 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         mock_event.target_id = None
         mock_event.activity = None
         with caplog.at_level(logging.WARNING):
-            RejectOfferCaseParticipantReceivedUseCase(dl, mock_event).execute()
+            result = RejectOfferCaseParticipantReceivedUseCase(
+                dl, mock_event
+            ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
+        assert result.disposition is HandlerDisposition.REFUSED
 
     def test_recommender_notified_via_core_state(self):
         """AC-5: recommender notification emitted on reject; recommender from core state.
@@ -376,9 +400,10 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         dl.save(case)
 
         event = self._event()
-        RejectOfferCaseParticipantReceivedUseCase(
+        result = RejectOfferCaseParticipantReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         outbox = dl.outbox_list()
         assert len(outbox) >= 1, (

@@ -20,11 +20,22 @@ Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-04-001, SYNC-04-002.
 import logging
 from typing import cast
 
+import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
+)
+from vultron.core.behaviors.sync.nodes import (
+    BufferOutOfOrderEntryNode,
+    BufferPreGenesisEntryNode,
+    CheckHashMatchesNode,
+    CheckLedgerEntryAlreadyStoredNode,
+    ReconstructChainTailNode,
+    SendRejectLogEntryNode,
+    VerifySenderIsCaseActorNode,
+    VerifySenderIsOwnIdNode,
 )
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
@@ -33,6 +44,7 @@ from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import (
     LedgerGapBuffer,
     get_ledger_gap_buffer,
@@ -42,7 +54,10 @@ from vultron.core.models.pending_assertion import (
     get_pending_assertion_store,
 )
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
@@ -51,6 +66,11 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.sync_helpers import _reconstruct_tail_hash
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import (
+    node_failed,
+    node_succeeded,
+    verdict_from_bt,
+)
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -62,15 +82,89 @@ def _run_announce_bt(
     receiving_actor_id: str,
     gap_buffer: LedgerGapBuffer | None,
     sync_port: SyncActivityPort | None,
-) -> BTExecutionResult:
-    """Run the announce receive BT for *request* with the gap buffer wired."""
-    return BTBridge(datalayer=dl).execute_with_setup(
-        tree=create_announce_log_entry_tree(),
+) -> tuple[py_trees.behaviour.Behaviour, BTExecutionResult]:
+    """Run the announce receive BT for *request* with the gap buffer wired.
+
+    Returns the tree along with the result so the caller can tell which
+    branch decided the outcome (#2255).
+    """
+    tree = create_announce_log_entry_tree()
+    result = BTBridge(datalayer=dl).execute_with_setup(
+        tree=tree,
         actor_id=receiving_actor_id,
         activity=request,
         sync_port=sync_port,
         gap_buffer=gap_buffer,
     )
+    return tree, result
+
+
+def _announce_verdict(
+    tree: py_trees.behaviour.Behaviour,
+    result: BTExecutionResult,
+    request: AnnounceLogEntryReceivedEvent,
+    entry: CaseLedgerEntry,
+) -> HandlerResult:
+    """Classify a finished ``AnnounceLogEntryReceivedBT`` run (HP-01-003).
+
+    ``SendRejectLogEntryNode`` always returns ``FAILURE`` after it sends, so a
+    completed reject marks an entry this replica answered with ``Reject``.
+    """
+    verdict = verdict_from_bt(tree, result, label="AnnounceLogEntryReceivedBT")
+    if verdict.disposition is HandlerDisposition.APPLIED:
+        if node_succeeded(tree, VerifySenderIsOwnIdNode):
+            return HandlerResult.skipped(
+                f"own announcement of ledger entry '{entry.id_}' echoed back;"
+                " delivery confirmed"
+            )
+        if node_succeeded(tree, CheckLedgerEntryAlreadyStoredNode):
+            return HandlerResult.skipped(
+                f"ledger entry '{entry.id_}' already stored"
+            )
+        return verdict
+    if verdict.disposition is not HandlerDisposition.REFUSED:
+        return verdict
+    return _refused_announce_verdict(tree, request, entry) or verdict
+
+
+def _refused_announce_verdict(
+    tree: py_trees.behaviour.Behaviour,
+    request: AnnounceLogEntryReceivedEvent,
+    entry: CaseLedgerEntry,
+) -> HandlerResult | None:
+    """Name why a failed announce run failed, or ``None`` for the default."""
+    if node_succeeded(tree, BufferOutOfOrderEntryNode):
+        return HandlerResult.deferred(
+            f"ledger entry '{entry.id_}' (log_index={entry.log_index})"
+            " buffered until its predecessor arrives (SYNC-14-001)"
+        )
+    if node_succeeded(tree, BufferPreGenesisEntryNode):
+        return HandlerResult.deferred(
+            f"ledger entry '{entry.id_}' buffered until case"
+            f" '{entry.case_id}' is seeded (SYNC-15-004)"
+        )
+    if node_failed(tree, VerifySenderIsOwnIdNode):
+        return HandlerResult.refused(
+            f"CASE_MANAGER does not accept an announcement of ledger entry"
+            f" '{entry.id_}' from '{request.actor_id}'"
+        )
+    if node_failed(tree, VerifySenderIsCaseActorNode):
+        return HandlerResult.refused(
+            f"sender '{request.actor_id}' is not the CaseActor for case"
+            f" '{entry.case_id}' (SYNC-13-006)"
+        )
+    if node_failed(tree, SendRejectLogEntryNode):
+        if node_failed(tree, ReconstructChainTailNode):
+            return HandlerResult.refused(
+                f"case '{entry.case_id}' is not seeded here; Reject sent for"
+                " replay from genesis (SYNC-15-001)"
+            )
+        if node_failed(tree, CheckHashMatchesNode):
+            return HandlerResult.refused(
+                f"ledger entry '{entry.id_}' does not extend the local chain"
+                " tail; Reject sent (SYNC-03-001)"
+            )
+    return None
 
 
 def drain_gap_buffer(
@@ -132,7 +226,7 @@ def drain_gap_buffer(
         # (CONCERN-3019), so the FAILURE branch below owns re-buffering.  A raise
         # here would be an unclassified bridge-contract violation and must
         # surface loudly rather than be absorbed (CS-23-001).
-        result = _run_announce_bt(
+        _, result = _run_announce_bt(
             dl, drain_event, receiving_actor_id, gap_buffer, sync_port
         )
         if result.status == Status.FAILURE and dl.read(successor.id_) is None:
@@ -235,10 +329,12 @@ class AnnounceLedgerEntryReceivedUseCase:
         if entry is None:
             logger.warning(
                 "sync: received ANNOUNCE_CASE_LEDGER_ENTRY activity '%s' "
-                "with no log entry object — ignoring",
+                "with no log entry object — refusing",
                 request.activity_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Announce(CaseLedgerEntry) carries no log entry"
+            )
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -255,7 +351,7 @@ class AnnounceLedgerEntryReceivedUseCase:
             request.actor_id,
             entry.log_index,
         )
-        result = _run_announce_bt(
+        tree, result = _run_announce_bt(
             self._dl,
             request,
             receiving_actor_id,
@@ -276,11 +372,18 @@ class AnnounceLedgerEntryReceivedUseCase:
                 self._sync_port,
             )
 
-        if result.status == Status.FAILURE:
-            logger.debug(
-                "sync: announce BT returned FAILURE for '%s': %s",
+        verdict = _announce_verdict(tree, result, request, entry)
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "sync: refused log-entry announcement '%s': %s",
                 request.activity_id,
-                result.feedback_message,
+                verdict.reason,
+            )
+        elif verdict.disposition is HandlerDisposition.DEFERRED:
+            logger.info(
+                "sync: deferred log-entry announcement '%s': %s",
+                request.activity_id,
+                verdict.reason,
             )
 
         # Clear pending assertion for this entry regardless of BT outcome
@@ -295,7 +398,7 @@ class AnnounceLedgerEntryReceivedUseCase:
                 entry.event_type,
                 entry.log_object_id,
             )
-        return HandlerResult.applied()
+        return verdict
 
 
 class RejectLedgerEntryReceivedUseCase:
@@ -330,10 +433,12 @@ class RejectLedgerEntryReceivedUseCase:
         if rejected_entry is None:
             logger.warning(
                 "sync: received REJECT_CASE_LEDGER_ENTRY from '%s' "
-                "with no log entry object — ignoring",
+                "with no log entry object — refusing",
                 request.actor_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Reject(CaseLedgerEntry) carries no log entry"
+            )
 
         logger.info(
             "sync: received Reject(CaseLedgerEntry) from peer '%s' "
@@ -342,21 +447,25 @@ class RejectLedgerEntryReceivedUseCase:
             rejected_entry.case_id,
             request.last_accepted_hash,
         )
+        tree = create_reject_log_entry_tree()
         result = BTBridge(
             datalayer=self._dl,
             sync_port=self._sync_port,
             trigger_activity=self._trigger_activity,
         ).execute_with_setup(
-            tree=create_reject_log_entry_tree(),
+            tree=tree,
             actor_id=resolve_receiving_actor_id(
                 self._dl, request.receiving_actor_id
             ),
             activity=request,
         )
-        if result.status == Status.FAILURE:
-            logger.debug(
-                "sync: reject BT returned FAILURE for '%s': %s",
+        verdict = verdict_from_bt(
+            tree, result, label="RejectLogEntryReceivedBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "sync: could not act on Reject(CaseLedgerEntry) '%s': %s",
                 request.activity_id,
-                result.feedback_message,
+                verdict.reason,
             )
-        return HandlerResult.applied()
+        return verdict

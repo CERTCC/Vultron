@@ -27,6 +27,7 @@ from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import SubmitReportReceivedEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.report import SubmitReportReceivedUseCase
 
@@ -729,3 +730,99 @@ class TestSubmitReportUnresolvableReceiver:
         assert inner.read(self.REPORT_ID) is None
         assert inner.read(self.OFFER_ID) is None
         assert inner.read(VultronOfferRecord.build_id(self.OFFER_ID)) is None
+
+
+class TestSubmitReportDisposition:
+    """Each SubmitReportReceivedUseCase exit reports what it did (#2255)."""
+
+    VENDOR_ID = "https://example.org/actors/vendor"
+    OTHER_ID = "https://example.org/actors/other"
+    FINDER_ID = "https://example.org/users/finder"
+    REPORT_ID = "https://example.org/reports/r-disp-1"
+    OFFER_ID = "https://example.org/activities/offer-disp-1"
+
+    def _run(self, to=None, cc=None, report=True, actor_config=None, dl=None):
+        from vultron.core.models.case_actor import CaseActor
+
+        report_obj = VulnerabilityReport(id_=self.REPORT_ID) if report else None
+        activity = VultronActivity(
+            id_=self.OFFER_ID,
+            type_="Offer",
+            actor=self.FINDER_ID,
+            to=to,
+            cc=cc,
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=self.OFFER_ID,
+            actor_id=self.FINDER_ID,
+            object_=report_obj,
+            activity=activity,
+            receiving_actor_id=self.VENDOR_ID,
+        )
+        if dl is None:
+            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
+            dl.save(CaseActor(id_=self.VENDOR_ID))
+        result = SubmitReportReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            actor_config=actor_config,
+        ).execute()
+        return result, dl
+
+    @pytest.mark.spec("HP-01-003")
+    def test_primary_recipient_is_applied(self):
+        result, _ = self._run(to=[self.VENDOR_ID])
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_redelivery_after_proposal_is_skipped(self):
+        _, dl = self._run(to=[self.VENDOR_ID])
+        result, _ = self._run(to=[self.VENDOR_ID], dl=dl)
+        assert result.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_cc_only_is_skipped(self):
+        result, _ = self._run(cc=[self.VENDOR_ID])
+        assert result.disposition == HandlerDisposition.SKIPPED
+        assert result.reason and "cc" in result.reason
+
+    @pytest.mark.spec("HP-01-003")
+    def test_not_a_recipient_is_skipped(self):
+        result, _ = self._run(to=[self.OTHER_ID])
+        assert result.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_auto_create_disabled_is_skipped(self):
+        from vultron.config.actor import ActorConfig
+
+        result, _ = self._run(
+            to=[self.VENDOR_ID],
+            actor_config=ActorConfig(auto_create_case=False),
+        )
+        assert result.disposition == HandlerDisposition.SKIPPED
+        assert result.reason and "auto_create_case" in result.reason
+
+    @pytest.mark.spec("HP-01-003")
+    def test_no_report_id_is_skipped(self):
+        result, _ = self._run(to=[self.VENDOR_ID], report=False)
+        assert result.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_proposal_flow_failure_raises(self, monkeypatch):
+        """A failed proposal flow is this actor's fault, not the sender's."""
+        import py_trees
+
+        from vultron.core.behaviors.case import receive_report_case_tree
+        from vultron.errors import VultronBTInternalError
+
+        monkeypatch.setattr(
+            receive_report_case_tree,
+            "create_receive_report_case_tree",
+            lambda **_: py_trees.behaviours.Failure(name="ProposeFailed"),
+        )
+        with pytest.raises(
+            VultronBTInternalError, match="ReceiveReportCaseBT"
+        ):
+            self._run(to=[self.VENDOR_ID])

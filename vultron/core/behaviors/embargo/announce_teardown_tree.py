@@ -25,14 +25,15 @@ activity (protocol ET message).  Sequence:
     ├─ ValidateCaseExistsNode             # case must exist as VulnerabilityCase
     ├─ GuardedCommitCaseLedgerEntryBT     # record receipt before effects (CLP-10-006)
     ├─ RemoveFromProposedEmbargoesNode    # idempotent proposed-list cleanup
-    └─ TeardownIfActive (Selector)        # run teardown if active; skip silently
-       ├─ ActiveTeardown (Sequence)
-       │  ├─ IsActiveEmbargoNode          # guard: is this the active embargo?
-       │  ├─ HasEmbargoActiveNode         # guard: EM state not already EXITED
-       │  ├─ ClearActiveEmbargoNode       # ACTIVE/REVISE→EXITED + clear active_embargo
-       │  ├─ ResetParticipantConsentNode  # reset all participant PEC to UNBOUND
-       │  └─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
-       └─ Success                         # embargo was only in proposed — not an error
+    └─ TeardownIfActive (Selector)        # skip when there is nothing to tear down
+       ├─ EmbargoWasNotActive (Inverter)  # not the active embargo (only proposed)
+       │  └─ IsActiveEmbargoNode
+       ├─ EmbargoAlreadyExited (Inverter) # EM state already EXITED
+       │  └─ HasEmbargoActiveNode
+       └─ ActiveTeardown (Sequence)       # its FAILURE is the tree's FAILURE
+          ├─ ClearActiveEmbargoNode       # ACTIVE/REVISE→EXITED + clear active_embargo
+          ├─ ResetParticipantConsentNode  # reset all participant PEC to UNBOUND
+          └─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
@@ -78,13 +79,16 @@ def remove_embargo_from_case_tree(
     Always commits a canonical ledger entry when the executing actor holds
     the ``CASE_MANAGER`` role (via the guarded commit subtree).
 
-    The inner ``TeardownIfActive`` Selector absorbs the FAILURE that occurs
-    when the embargo was only in ``proposed_embargoes`` (not the active
-    embargo), so the outer Sequence always reaches the guarded commit step.
+    The inner ``TeardownIfActive`` Selector skips the teardown when there is
+    nothing to tear down: the embargo was only in ``proposed_embargoes`` (not
+    the active embargo), or the EM state is already EXITED.  Only those two
+    guards fall back.  A teardown step that fails fails the tree, so the
+    handler can report it instead of mistaking it for "was not active"
+    (#2255).
 
-    BT returns SUCCESS when the outer Sequence completes (including when the
-    embargo was only proposed and no teardown was needed).
-    BT returns FAILURE only when the case is not found.
+    BT returns SUCCESS when the outer Sequence completes (including when no
+    teardown was needed).  BT returns FAILURE when the case is not found or a
+    teardown step fails.
 
     Args:
         case_id: ID of the VulnerabilityCase to update.
@@ -97,14 +101,20 @@ def remove_embargo_from_case_tree(
         name="TeardownIfActive",
         memory=False,
         children=[
+            py_trees.decorators.Inverter(
+                name="EmbargoWasNotActive",
+                child=IsActiveEmbargoNode(
+                    case_id=case_id, embargo_id=embargo_id
+                ),
+            ),
+            py_trees.decorators.Inverter(
+                name="EmbargoAlreadyExited",
+                child=HasEmbargoActiveNode(case_id=case_id),
+            ),
             py_trees.composites.Sequence(
                 name="ActiveTeardown",
                 memory=False,
                 children=[
-                    IsActiveEmbargoNode(
-                        case_id=case_id, embargo_id=embargo_id
-                    ),
-                    HasEmbargoActiveNode(case_id=case_id),
                     ClearActiveEmbargoNode(case_id=case_id),
                     ResetParticipantConsentNode(case_id=case_id),
                     SendAnnounceEmbargoEventNode(
@@ -112,7 +122,6 @@ def remove_embargo_from_case_tree(
                     ),
                 ],
             ),
-            py_trees.behaviours.Success(name="EmbargoWasNotActive"),
         ],
     )
     root = create_receive_activity_tree(
