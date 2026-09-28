@@ -1,7 +1,7 @@
 ---
 description: >
   Explore case initialization, actor management, embargo negotiation,
-  acknowledgement, status updates, and the full Report Management (RM) case
+  acknowledgment, status updates, and the full Report Management (RM) case
   lifecycle using the remaining `vultron-demo` sub-commands.
 stakeholder_type: [platform-developer]
 level: 300
@@ -16,7 +16,7 @@ have explored:
 - case initialization and participant management,
 - actor invitation, suggestion, and ownership transfer,
 - embargo establishment and lifecycle management,
-- acknowledgement, status updates, and notes, and
+- acknowledgment, status updates, and notes, and
 - the full Report Management (RM) case lifecycle.
 
 !!! info "What we will learn"
@@ -300,7 +300,7 @@ for details.
 
 ---
 
-## Step 5 — Acknowledgement, status, and notes
+## Step 5 — Acknowledgment, status, and notes
 
 ### acknowledge
 

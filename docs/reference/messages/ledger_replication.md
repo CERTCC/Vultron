@@ -15,8 +15,8 @@ These messages are **infrastructure**, not protocol messages in the
 rather than being a Vultron protocol step in their own right (see
 [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
 
-For the acknowledgement semantics see
-[Faults and Acknowledgements](faults_and_acknowledgements.md).
+For the acknowledgment semantics see
+[Faults and Acknowledgments](faults_and_acknowledgements.md).
 
 ## How replication works
 
@@ -24,7 +24,7 @@ For the acknowledgement semantics see
    `Announce(CaseLedgerEntry)` → each participant.
 2. A participant whose local `prev_log_hash` matches the incoming entry's
    `prev_log_hash` silently accepts — hash-chain continuity is the implicit
-   positive acknowledgement (MSM-05-002).
+   positive acknowledgment (MSM-05-002).
 3. A participant whose hashes do not match rejects: `Reject(CaseLedgerEntry)`
    with `context` = its last accepted hash, so the CASE_MANAGER can replay the
    gap (SYNC-03-001, SYNC-03-002).

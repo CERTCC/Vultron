@@ -121,7 +121,7 @@ recorded.
 
 ### 6. Coordinator suggests Vendor2
 
-The Coordinator recognises that Vendor2 is affected and submits an
+The Coordinator recognizes that Vendor2 is affected and submits an
 `offer_case_participant` entry proposing Vendor2 for membership (ADR-0026).
 
 *Antecedent:* Coordinator's `accept_invite_actor_to_case` entry is in the ledger.

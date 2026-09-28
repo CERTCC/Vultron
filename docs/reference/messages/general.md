@@ -90,11 +90,11 @@ This handshake is a `GI` inquiry rather than a role offer.
 For the `CVDRole` delegation that uses a dedicated object type, see
 [Case Management Messages](case_management.md).
 
-## GK — General Acknowledgement
+## GK — General Acknowledgment
 
 - **Protocol role:** Acknowledges receipt of a `GI` message.
 - **Triggering transition:** any valid `GI` message.
-- **Wire activity:** none dedicated. Acknowledgement of ledger-replicated state
+- **Wire activity:** none dedicated. Acknowledgment of ledger-replicated state
   is cumulative and implicit through hash-chain continuity
   ([ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#other-message-types).

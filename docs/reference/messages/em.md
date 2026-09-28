@@ -193,11 +193,11 @@ from vultron.wire.as2.vocab.examples.vocab_examples import remove_embargo, json2
 print(json2md(remove_embargo()))
 ```
 
-## EK — Embargo Acknowledgement
+## EK — Embargo Acknowledgment
 
 - **Protocol role:** Acknowledges receipt of an EM message.
 - **Triggering transition:** any valid EM message.
-- **Wire activity:** none dedicated. Acknowledgement of ledger-replicated state
+- **Wire activity:** none dedicated. Acknowledgment of ledger-replicated state
   is cumulative and implicit through hash-chain continuity; a per-message `EK`
   would be redundant
   ([ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
