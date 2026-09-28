@@ -37,10 +37,10 @@ In this section, you will find:
 
 <!-- markdownlint-disable MD007 -->
 - [Adopt Vultron in Your CVD Program](adopt_vultron.md) — Take a Coordinated Vulnerability Disclosure program from its current practice to one that can coordinate cases through Vultron: name your roles, choose a conformance claim, map your intake to the report states, publish your embargo defaults, and decide which judgment calls stay yours.
-- [Vultron ActivityPub](activitypub/index.md) — Represent Vultron Protocol message types as ActivityPub messages using the ActivityStreams vocabulary.
+- [Process Implementation](process_implementation.md) — Where an existing ticketing, embargo, or threat-monitoring workflow emits Vultron messages, milestone by milestone.
+- [Vultron ActivityPub](activitypub/index.md) — The shape of a Vultron activity on the wire: ActivityStreams 2.0 verbs, Vultron objects, and the fields a receiver reads to tell activities apart.
 - **Demo How-Tos**
     - [FVV Demo](demos/fvv-demo.md) — Run the three-actor Finder, Vendor, Vendor (FVV) demo, in which two vendors each advance an independent fix path with no coordinator.
-- [Process Implementation](process_implementation.md) — Integrate the Report Management (RM), Embargo Management (EM), and Case State (CS) state machines into an existing workflow management system.
 - [Wiring a Capability](wire_capability.md) — Wire a capability into the reference implementation, replacing a call-out stub with real backend logic.
 <!-- markdownlint-enable MD007 -->
 

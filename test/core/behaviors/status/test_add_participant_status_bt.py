@@ -62,7 +62,6 @@ from vultron.core.behaviors.status.nodes import (
     AppendStatusAndSaveParticipantNode,
     CheckStatusNotAlreadyAppendedNode,
     CloseNotYetEmittedConditionNode,
-    EmitAddCaseStatusToSelfNode,
     EmitCaseStatusUpdateNode,
     EmitRMGapNoteNode,
     LoadParticipantNode,
@@ -1082,7 +1081,7 @@ class TestAddParticipantStatusTree:
         # Execute as the vendor (ACTOR_ID) — not CASE_MANAGER → ledger commit skipped
         result = bridge.execute_with_setup(tree=cm_tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
-        # Outbox must be empty: guard blocked before EmitAddCaseStatusToSelfNode
+        # Outbox must be empty: guard blocked before EmitCaseStatusUpdateNode
         outbox = populated_dl.outbox_list()
         assert (
             len(outbox) == 0
@@ -1145,16 +1144,18 @@ class TestAddParticipantStatusTree:
             len(outbox) == 0
         ), "RequireCaseOwnerApproval blocked — no Add(CaseStatus) must be in outbox"
 
-    @pytest.mark.spec("RSH-01-004")
+    @pytest.mark.spec("RSH-03-001")
     @pytest.mark.spec("RSH-03-003")
-    def test_no_side_effects_execute_directly_rsh_01_004(
+    def test_legacy_public_disclosure_branch_absent(
         self,
         populated_dl,
         make_payload,
     ):
-        """add_participant_status_tree must NOT execute embargo teardown
-        directly (RSH-01-004).  After SUCCESS the tree has no PublicDisclosureBranchNode
-        in its children."""
+        """The legacy ``PublicDisclosureBranchNode`` is not in the tree.
+
+        Teardown runs in ``add_participant_status_tree`` only through the
+        ``TeardownEffects`` sequence (gate → ``ThreatTerminationBranchNode``,
+        RSH-01-004, RSH-03-001); the CS.P-only predecessor must be gone."""
         activity = add_status_to_participant_activity(
             status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
             target=as_CaseParticipant(
@@ -1177,7 +1178,8 @@ class TestAddParticipantStatusTree:
         node_types = [type(n).__name__ for n in all_nodes]
         assert "PublicDisclosureBranchNode" not in node_types, (
             "PublicDisclosureBranchNode must NOT be in add_participant_status_tree "
-            "(RSH-01-004: side-effects belong in add_case_status_tree)"
+            "(RSH-03-001: ThreatTerminationBranchNode under TeardownEffects "
+            "replaced it)"
         )
 
     @pytest.mark.spec("RSH-01-001")
@@ -1354,96 +1356,6 @@ class TestCheckIsCaseOwnerNode:
         )
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
-
-
-# ---------------------------------------------------------------------------
-# StatusAdoptionGate: EmitAddCaseStatusToSelfNode (RSH-01-003)
-# ---------------------------------------------------------------------------
-
-
-class TestEmitAddCaseStatusToSelfNode:
-    def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
-        return BTBridge(
-            datalayer=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-        )
-
-    @pytest.mark.spec("RSH-01-003")
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_emits_activity_and_queues_in_outbox(self, dl):
-        """With a factory and embedded case_status: activity queued in outbox."""
-        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
-
-        cs = as_CaseStatus(id_=f"{STATUS_ID}/cs", context=CASE_ID)
-        status_with_cs = as_ParticipantStatus(
-            id_=f"{STATUS_ID}/with-cs",
-            context=CASE_ID,
-            case_status=cs,
-        )
-        case = as_VulnerabilityCase(id_=CASE_ID, name="Test")
-        dl.create(case)
-        dl.create(status_with_cs)
-
-        bridge = self._bridge_with_factory(dl)
-        node = EmitAddCaseStatusToSelfNode(
-            participant_status_id=status_with_cs.id_,
-            case_id=CASE_ID,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
-        assert result.status == Status.SUCCESS
-
-        outbox = dl.outbox_list()
-        assert len(outbox) > 0, "Activity should be queued in outbox"
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_fails_without_factory(self, populated_bridge):
-        """No TriggerActivityPort → FAILURE (BT-14-001)."""
-        node = EmitAddCaseStatusToSelfNode(
-            participant_status_id=STATUS_ID,
-            case_id=CASE_ID,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        )
-        assert result.status == Status.FAILURE
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_fails_when_participant_status_id_empty(self, populated_dl):
-        """Empty participant_status_id → FAILURE."""
-        bridge = self._bridge_with_factory(populated_dl)
-        node = EmitAddCaseStatusToSelfNode(
-            participant_status_id="", case_id=CASE_ID
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
-        assert result.status == Status.FAILURE
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_fails_when_case_id_none(self, populated_dl):
-        """None case_id → FAILURE."""
-        bridge = self._bridge_with_factory(populated_dl)
-        node = EmitAddCaseStatusToSelfNode(
-            participant_status_id=STATUS_ID, case_id=None
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
-        assert result.status == Status.FAILURE
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_returns_success_when_status_has_no_case_status(
-        self, populated_dl
-    ):
-        """ParticipantStatus with no embedded case_status → SUCCESS (soft skip).
-
-        No canonical update to emit; the Sequence must continue to
-        AutoCloseIfCaseManager (DEMOMA-07-003 step 5), so the node returns
-        SUCCESS rather than blocking the sequence with FAILURE.
-        """
-        bridge = self._bridge_with_factory(populated_dl)
-        # STATUS_ID in the fixture has no embedded case_status
-        node = EmitAddCaseStatusToSelfNode(
-            participant_status_id=STATUS_ID, case_id=CASE_ID
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
-        assert result.status == Status.SUCCESS
 
 
 # ---------------------------------------------------------------------------
@@ -1941,3 +1853,35 @@ class TestAddParticipantStatusTeardownWiring:
         assert (
             node_types_map["TeardownEffectsOrSkip"] == "FailureIsSuccess"
         ), "TeardownEffectsOrSkip must be a FailureIsSuccess decorator"
+
+    @pytest.mark.spec("RSH-01-004")
+    @pytest.mark.spec("RSH-02-001")
+    def test_teardown_effects_begin_with_authorization_gate(
+        self, make_payload
+    ):
+        """``TeardownEffects`` is a Sequence whose first child is the gate.
+
+        RSH-01-004: side-effects run only after the canonical write and pass
+        through ``EmbargoTeardownAuthorizationGate`` before executing, so the
+        gate must be the first child of the ``TeardownEffects`` Sequence.
+        """
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        all_nodes = self._collect_nodes(tree)
+        teardown = [n for n in all_nodes if n.name == "TeardownEffects"]
+        assert len(teardown) == 1, "exactly one TeardownEffects Sequence"
+        children = list(getattr(teardown[0], "children", []))
+        assert children, "TeardownEffects must have children"
+        assert children[0].name == "EmbargoTeardownAuthorizationGate", (
+            "TeardownEffects must begin with EmbargoTeardownAuthorizationGate"
+            " (RSH-01-004, RSH-02-001)"
+        )

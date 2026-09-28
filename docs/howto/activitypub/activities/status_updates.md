@@ -17,6 +17,7 @@ You finish with the update committed to the case ledger and replicated to every 
 
 - A case you are seated on, and your own `CaseParticipant` record.
 - For a participant status, the dimension you are reporting: `vf_state` and `d_state` apply only to a Vendor or a Deployer.
+  The letters in these fields are the substates of the [CVD Case State Model](../../../topics/process_models/cs/cs_model.md#cvd-case-substates).
 
 ---
 
