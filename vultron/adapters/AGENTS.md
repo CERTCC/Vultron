@@ -123,6 +123,43 @@ object is now only a URI pointer to the collection endpoint.
 
 ---
 
+### The Inbox Has No Read Surface; `inbox_list()` Is a Processing Queue, Not a Mailbox
+
+The inbox path accepts POST only and answers every other method with 405
+(IE-02-003, IE-02-004). Do not add a GET that renders "what this actor
+received", and do not add receipt bookkeeping to the actor record to feed one:
+
+- **`inbox_list()` is not a record of receipt.** The POST route hands the
+  activity straight to `run_inbox_pipeline`; the DataLayer `inbox` queue holds
+  only deferred or re-queued deliveries — activities replayed by
+  `inbox_pending_queue.py` after a case bootstrap, or retried after a failed
+  attempt — and the pipeline drains it as it processes them. A read over it
+  reports an empty inbox after every successful delivery — that was the stub
+  #3141 removed.
+- **Removing the GET does not produce the 405.** `actors_get` is declared as
+  `@router.get("/{actor_id:path}")`, so an unrouted GET on `/inbox` or
+  `/inbox/` falls into the profile route and answers 404. The inbox path needs
+  an explicit method refusal declared ahead of that catch-all.
+- **`CoreActor.inbox` is a URI string** (ARCH-12-006), so any helper that
+  reaches for `actor.inbox.items` is a no-op in production. The old
+  `_record_inbox_receipt` / `_activity_already_received` pair passed its tests
+  only because the tests supplied an inbox with an `.items` list: a wire
+  `as_Organization` in `routers/actors/test_inbox.py`, and a hand-rolled
+  `_StubActor` in `test_inbox_route_log_levels.py`.
+- **The activity itself is already stored.** Ingress writes the received
+  activity into the actor's store under its activity type; ingress storage is
+  also where redelivery is detected (IE-10-001).
+- **Who may look, and where.** Reading an actor's received mail is an operator
+  concern, served by the datalayer router over that actor's own store
+  (`/actors/{id}/datalayer/...`). A sender learns what became of what it posted
+  from the reply activities delivered to *its* inbox — never by reading the
+  recipient's. Trigger-side outcome observability is a separate question
+  (#2369, #2886).
+
+<!-- Source: CONCERN-3141 -->
+
+---
+
 ### URL-Keyed IDs in FastAPI Path Segments
 
 When an endpoint accepts an object ID that may be a full HTTP URL (e.g.,

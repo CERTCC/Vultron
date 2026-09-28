@@ -17,15 +17,20 @@ Each step builds on the one before it.
 
 1. [What Is Vultron?](../topics/background/what-is-vultron.md) — what kind of thing Vultron is, and what it leaves to your organization.
 2. [What Does *Success* Mean in CVD?](../topics/background/cvd_success.md) — the outcomes a case is trying to reach, stated independently of any tool.
-3. [Terms and Definitions](../reference/terms.md) — the vocabulary the rest of the site uses for participants, reports and cases.
+3. [CVD Roles and Participants](../reference/glossary.md#cvd-roles-and-participants) — the vocabulary the rest of the site uses for participants, reports and cases.
 
 ## See how a case moves
 
-1. [Vultron Process Models](../topics/process_models/index.md) — the three processes a case runs: report handling, embargo, and case state.
-2. [Embargo Principles](../topics/process_models/em/principles.md) — what an embargo is for and what it asks of each participant.
-3. [Negotiating Embargoes](../topics/process_models/em/negotiating.md) — how participants propose, accept and revise an embargo.
-4. [Adding Participants to an Embargoed Case](../topics/process_models/em/working_with_others.md) — what happens when another party joins mid-case.
-5. [Early Termination](../topics/process_models/em/early_termination.md) — when and how an embargo ends before its planned date.
+1. [A Case Under Vultron](../topics/case_lifecycle/a_case_under_vultron.md) — the case from your seat: who owns it, what you see and control, and what an embargo invitation asks of you.
+2. [Vultron Process Models](../topics/process_models/index.md) — the three processes a case runs: report handling, embargo, and case state.
+3. [Embargo Principles](../topics/process_models/em/principles.md) — what an embargo is for and what it asks of each participant.
+4. [Negotiating Embargoes](../topics/process_models/em/negotiating.md) — how participants propose, accept and revise an embargo.
+5. [Adding Participants to an Embargoed Case](../topics/process_models/em/working_with_others.md) — what happens when another party joins mid-case.
+6. [Early Termination](../topics/process_models/em/early_termination.md) — when and how an embargo ends before its planned date.
+
+## Prepare your program
+
+1. [How to Adopt Vultron in Your CVD Program](../howto/adopt_vultron.md) — name your roles, choose a conformance claim, map your intake to the report states, publish your embargo defaults, and decide which judgment calls stay yours.
 
 ## Map it onto what you already do
 
@@ -33,6 +38,7 @@ Each step builds on the one before it.
 - [User Stories](../reference/user_stories/index.md) — the practitioner needs the protocol was designed against.
 - [Interactions Between the Vultron Protocol and SSVC](../reference/ssvc_crosswalk.md) — where a Stakeholder-Specific Vulnerability Categorization (SSVC) decision enters a case.
 - [Capability Model](../topics/capability_model/index.md) — every decision Vultron leaves to your organization, and where your answer plugs in.
+- [How to Measure Your CVD Program](../howto/measure_your_cvd_program.md) — score your own cases against the chance baseline, and read the result as a skill indicator you can act on.
 
 ## Watch a case run
 

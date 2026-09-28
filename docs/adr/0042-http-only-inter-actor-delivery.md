@@ -5,6 +5,7 @@ deciders: Vultron maintainers
 consulted: CERT/CC CVD research team
 informed: Vultron contributors
 stakeholder_type: [project-contributor]
+partially_superseded_by: 0109-a-container-emits-only-as-actors-it-hosts.md
 ---
 
 # Deliver All Inter-Actor Communication over HTTP; Retire the In-Process ASGI Delivery Shortcut
@@ -73,6 +74,11 @@ The CaseActor's canonical-ledger self-delivery (adding its own URI to `cc:`
 so a copy loops back to its own inbox) is delivered over **HTTP loopback** to
 its own inbox — the same code path as every other recipient.
 
+> **Amended by [ADR-0109](0109-a-container-emits-only-as-actors-it-hosts.md).**
+> The CaseActor no longer addresses a copy of its own emission to itself; the emitting tree commits the ledger entry, and OX-12-004 is retired.
+> A participant-role activity whose CASE_MANAGER recipient is the same actor still arrives over HTTP loopback like any other recipient (OX-12-001).
+> The HTTP-only decision itself stands.
+
 **Application code MUST NOT construct `httpx.ASGITransport` directly.** The
 sole exception is FastAPI's `TestClient`, which uses `ASGITransport`
 internally to drive a *single* application's own endpoints; that is the
@@ -113,7 +119,8 @@ ARCH-17 (ASGIEmitter Base URL / reentrancy guard). Affected specs and notes:
 Source concern: #1723. Related bugs originally caused by the in-process
 shortcut: #531, #534, #557, #558.
 
-Generated spec requirements: `outbox.yaml` OX-12-001 through OX-12-004
+Generated spec requirements: `outbox.yaml` OX-12-001 through OX-12-003
 (uniform HTTP delivery, ASGIEmitter removal, no direct `ASGITransport` in
-application code, HTTP loopback self-delivery). Supersedes
+application code). OX-12-004 (HTTP loopback self-delivery) was retired by
+ADR-0109: the CaseActor no longer addresses a copy to itself. Supersedes
 `architecture.yaml` ARCH-17-001 and ARCH-17-002.
