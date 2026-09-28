@@ -115,7 +115,7 @@ The following is **non-normative guidance for later**, not a rule this ADR impos
 - Good, because a dependent watches only the version of the interface it uses, and a bump always means that interface changed incompatibly.
 - Good, because behavior changes become visible as requirement-ID additions and removals, which release notes can list mechanically.
 - Good, because existing case ledgers stay verifiable across a hash-format change.
-- Good, because `GET /version` will stop disclosing the exact build.
+- Good, because `GET /version` will report derived compatibility versions instead of today's hand-typed string, and a rule now forbids it from ever reporting the exact build.
 - Bad, because there are several version numbers to keep track of instead of one.
 - Bad, because a behavior change carries no version at all until negotiation exists; a peer learns of it only from the release notes.
 - Neutral, because a stored-data mismatch forces a wipe, which is acceptable only while no deployment holds data it cannot lose.
@@ -136,6 +136,12 @@ None of the carriers above exist yet; each is delivered by its own issue, and ea
 The ADR's status will advance to `accepted` once those carriers are built and tested.
 
 ## Pros and Cons of the Options
+
+### Version each machine-facing interface on its own
+
+- Good, because every version has a reader, and a bump tells that reader exactly which interface changed incompatibly.
+- Good, because it reuses rules that already hold (MS-04-003, MS-04-005, CLP-08-001) instead of adding a new version to keep in step with them.
+- Bad, because there are several version numbers instead of one; the full list of consequences is under Consequences above.
 
 ### One combined wire-and-behavior version
 
