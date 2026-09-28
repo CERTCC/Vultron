@@ -18,6 +18,7 @@ from vultron.core.models.events import (
     MessageSemantics,
     VultronEvent,
 )
+from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.core.models.rsvp_deadline import (
     DEFAULT_MIN_RSVP_WINDOW,
     DEFAULT_RSVP_WINDOW,
@@ -28,6 +29,7 @@ from vultron.wire.as2.extractor._builders import (
     _build_object_kwargs,
     _get_id,
     _to_domain_obj,
+    proposed_embargo_from,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
@@ -96,6 +98,15 @@ def extract_intent(
     if "rsvp_deadline" in event_class.model_fields:
         extra_kwargs["rsvp_deadline"] = _effective_rsvp_deadline(
             activity, actor_id, obj, min_rsvp_window, default_rsvp_window
+        )
+    if "proposed_embargo" in event_class.model_fields:
+        # Offer(VulnerabilityReport) carries it itself; Create(CaseProposal)
+        # carries it on the Offer inlined in the proposal (EP-04-004,
+        # CP-01-008).  Surfaced here so no use case re-reads the wire
+        # activity for it (ADR-0035).
+        carrier = activity if _obj_type != str(VOtype.CASE_PROPOSAL) else obj
+        extra_kwargs["proposed_embargo"] = proposed_embargo_from(
+            carrier, activity_id=activity.id_
         )
 
     return cast(

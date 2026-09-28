@@ -21,6 +21,7 @@ Covers the three CaseProposal message flows:
 
 from typing import Literal
 
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 
@@ -35,6 +36,10 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_CASE_PROPOSAL] = (
         MessageSemantics.CREATE_CASE_PROPOSAL
     )
+    # The Reporter's proposed terms, read from the Offer the proposal carries
+    # inline (CP-01-008, EP-04-004); ``context`` is still the report until the
+    # CASE_MANAGER rewrites it at case creation (EP-04-009).
+    proposed_embargo: EmbargoEvent | None = None
 
     @property
     def proposal_id(self) -> str | None:

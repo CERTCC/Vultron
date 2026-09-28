@@ -30,6 +30,9 @@ print(render_page("case_proposal", heading=False))
 
 ## Create Case Proposal
 
+When the vendor still holds the `Offer(VulnerabilityReport)` that brought it the report, the proposal carries that Offer whole as `inReplyTo`, alongside the bare `offerId` and `offerActorId` provenance.
+That is how a Reporter's proposed embargo terms reach the case-actor (EP-04-004).
+
 - **Protocol role:** An actor submits a `CaseProposal` to a case-actor
   service requesting that a case be opened for the attached report (CP-04-001).
 - **Triggering transition:** none — initiates the proposal sub-protocol.

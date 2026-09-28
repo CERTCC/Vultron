@@ -223,8 +223,25 @@ for "eligible": a missing case or unreadable store *raises*, because FAILURE
 there would run creation, which persists an `EmbargoEvent` before anything
 re-checks P/X/A (`notes/bt-pitfalls.md` § "A Refusal Arm in a Selector Fails
 Toward 'Admit'"). The sender-proposal input
-(`sender_proposed_embargo_duration`) is wired but unwritten until the embedded
-proposal lands (#3392).
+(`sender_proposed_embargo_duration`) is written by the case-proposal use case
+from the `EmbargoEvent` the Reporter embedded on the report Offer, which the
+vendor's `CaseProposal` carries whole as `inReplyTo` (#3392, CP-01-008); the
+winning sender event keeps its identity with its context rewritten to the case,
+and the loser is registered as a pending revision. Keeping the identity means one
+URI denotes a report-scoped event on the Reporter's side and a case-scoped one on
+the case-actor's side; a replica holding both sees a `context` that changed, which
+is the rewrite EP-04-004 prescribes, not a conflict to reconcile. An exact tie
+between the sender's terms and the actor default registers no revision — there is
+nothing contested.
+
+The revision is registered inside `InitializeDefaultEmbargoNode`, *before* the
+case-proposal tree seeds the vendor and the reporter as SIGNATORY. So a contested
+creation leaves the case at `EM.REVISE` with two SIGNATORY participants who never
+saw the revision. That is deliberate: CM-14-005 seeds consent to the *active*
+embargo, whose terms are still in force under REVISE, and the alternative —
+registering after the seeds — would lapse everyone and demand a re-accept round
+that no node drives. Whether the pending revision should also be announced to
+peers as an `Invite(EmbargoEvent)` is an open question the #3392 PR names.
 
 ### There was a third implicit duration, and it was the quietest
 

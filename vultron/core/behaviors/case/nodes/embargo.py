@@ -40,7 +40,10 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.services.embargo_duration import InitialEmbargoDuration
+from vultron.core.services.embargo_duration import (
+    EmbargoDurationSource,
+    InitialEmbargoDuration,
+)
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -60,6 +63,11 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
 
     Its duration is the ``InitialEmbargoDuration`` that
     ``ResolveEmbargoDurationNode`` resolved (EP-04-005 through EP-04-007).
+    When the sender's proposal won, the event is the sender's own
+    ``EmbargoEvent`` with its ``context`` rewritten from the report to the
+    case — the same terms and identity the Reporter stated, now about the case
+    (EP-04-004, EP-04-009).  Otherwise a fresh event is minted for the
+    resolved duration.
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -70,6 +78,9 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
         "case_id": PortInformation(data_type=str, required=True),
         "initial_embargo_duration": PortInformation(
             data_type=InitialEmbargoDuration, required=True
+        ),
+        "sender_proposed_embargo": PortInformation(
+            data_type=object, required=False
         ),
     }
 
@@ -82,6 +93,7 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
         return {
             "case_id": "/case_id",
             "initial_embargo_duration": "/initial_embargo_duration",
+            "sender_proposed_embargo": "/sender_proposed_embargo",
             "default_embargo_id": "/default_embargo_id",
         }
 
@@ -103,8 +115,18 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
 
         resolved = self.initial_embargo_duration_bb
         duration = resolved.duration
-        end_time = from_now_utc(duration)
-        embargo = EmbargoEvent(end_time=end_time, context=case_id)
+        sender_event = self._try_get_input("sender_proposed_embargo")
+        if (
+            resolved.source is EmbargoDurationSource.SENDER_PROPOSAL
+            and isinstance(sender_event, EmbargoEvent)
+        ):
+            # The Reporter's terms carry over whole; only the subject changes
+            # from the report to the case (EP-04-004).
+            embargo = sender_event.with_subject(case_id)
+            end_time = embargo.end_time
+        else:
+            end_time = from_now_utc(duration)
+            embargo = EmbargoEvent(end_time=end_time, context=case_id)
         try:
             self.datalayer.create(embargo)
         except VultronAlreadyExistsError:

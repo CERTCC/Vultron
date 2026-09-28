@@ -210,7 +210,12 @@ def test_initial_embargo_resolution_table(
         assert _em_state(bt_scenario) == EM.NONE
     else:
         _assert_duration(_active_embargo(bt_scenario), expected, before, after)
-        assert _em_state(bt_scenario) == EM.ACTIVE
+        # Both parties proposed: the shorter is active and the longer is a
+        # pending revision, so the EM state observed is REVISE (EP-04-003).
+        contested = has_sender and has_actor_default
+        assert _em_state(bt_scenario) == (
+            EM.REVISE if contested else EM.ACTIVE
+        )
 
 
 @pytest.mark.spec("EP-04-005")
@@ -398,3 +403,22 @@ def test_non_positive_sender_proposal_creates_no_embargo(
 
     assert status == Status.FAILURE
     assert _active_embargo(bt_scenario) is None
+
+
+@pytest.mark.spec("EP-04-003")
+def test_a_tie_between_sender_and_actor_default_registers_no_revision(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """Equal terms leave nothing contested: ACTIVE, and no pending revision."""
+    _publish_policy(bt_scenario, ACTOR_DEFAULT, f"{ACTOR_ID}/policy")
+
+    status, before, after = _run(bt_scenario, sender_proposal=ACTOR_DEFAULT)
+
+    assert status == Status.SUCCESS
+    _assert_duration(
+        _active_embargo(bt_scenario), ACTOR_DEFAULT, before, after
+    )
+    assert _em_state(bt_scenario) == EM.ACTIVE
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    assert case.proposed_embargoes == []

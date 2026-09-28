@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import model_validator
 
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 if TYPE_CHECKING:
@@ -31,11 +32,18 @@ class CreateReportReceivedEvent(VultronEvent):
 
 
 class SubmitReportReceivedEvent(VultronEvent):
-    """Actor submitted (offered) a VulnerabilityReport for validation."""
+    """Actor submitted (offered) a VulnerabilityReport for validation.
+
+    ``proposed_embargo`` is the Reporter's proposed terms for this report,
+    when the Offer carried them (EP-04-004); its ``context`` is the report
+    (EP-04-009).  Extraction surfaces it here so no use case re-reads the
+    stored wire activity for it (ADR-0035, DL-06-002).
+    """
 
     semantic_type: Literal[MessageSemantics.SUBMIT_REPORT] = (
         MessageSemantics.SUBMIT_REPORT
     )
+    proposed_embargo: EmbargoEvent | None = None
 
     @property
     def report_id(self) -> str | None:

@@ -244,10 +244,18 @@ groups:
       the contested portion. This is strictly better than rejecting outright: both parties
       secure the overlap they both wanted. See docs/topics/process_models/em/formal_model.md
       § "Why the shortest proposal wins" for the full vector-agreement derivation.
+    note: >-
+      An exact tie between the sender's terms and the actor default leaves nothing contested,
+      so no revision is registered and the case stays at `EM.ACTIVE`. The comparison is of the
+      time remaining at creation: the actor default is a duration from creation, and the
+      sender's remaining time is `end_time` minus now, so comparing them is comparing end dates.
     verification: >-
-      A unit test confirms that `InitializeDefaultEmbargoNode` sets `em_state` to
-      `EM.ACTIVE` for the shorter duration and records the longer as `EM.REVISE`
-      when both parties carry a proposal at case creation.
+      `test/core/behaviors/case/test_case_proposal_received_tree.py`
+      (`TestEP04SenderProposalAtCaseCreation`) confirms that when both parties carry a
+      proposal at case creation the shorter is the active embargo and the longer is registered
+      through `EmbargoLifecycle.propose_embargo`, leaving `em_state` at `EM.REVISE` with the
+      loser in `proposed_embargoes`; `test/core/behaviors/case/nodes/test_embargo_resolution.py`
+      pins the duration table.
     relationships:
     - rel_type: refines
       spec_id: EP-08-001
@@ -265,7 +273,9 @@ groups:
     rationale: >-
       This discharges the contingency this requirement previously recorded. Until ADR-0096 no
       sender-proposal mechanism existed, so EP-04-003 was unreachable and only the
-      no-sender-proposal path applied.
+      no-sender-proposal path applied. Implemented by #3392: the Offer carries the proposal as
+      `proposedEmbargo`; the vendor's `CaseProposal` carries the Offer whole (CP-01-008); the
+      case-actor's `CreateEmbargoEventNode` keeps the Reporter's event and rewrites its context.
     note: >-
       Embedding the proposal on the report offer was chosen over two alternatives. An
       activity-level `end_time` on the `Offer` would add a third meaning to a field CM-28-001
@@ -273,9 +283,11 @@ groups:
       a standing preference, not terms for this report — "I generally prefer 30 days" is not
       "for this report I propose 30 days". Amended by ADR-0096.
     verification: >-
-      A unit test confirms that `Offer(VulnerabilityReport)` carrying a proposed `EmbargoEvent`
-      is extracted with the proposal intact, and that the context is rewritten from the report
-      URI to the case URI when the case is created.
+      `test/wire/as2/test_report_offer_proposed_embargo.py` confirms that `Offer(VulnerabilityReport)`
+      carrying a proposed `EmbargoEvent` is extracted with the proposal intact, on the Offer and on the
+      `CaseProposal` that carries it; `test/core/behaviors/case/test_case_proposal_received_tree.py`
+      (`TestEP04SenderProposalAtCaseCreation`) confirms the context is rewritten from the report URI to
+      the case URI when the case is created, with the event's identity kept.
     relationships:
     - rel_type: refines
       spec_id: EP-04-003
@@ -413,9 +425,10 @@ groups:
       `vultron/core/models/events/embargo.py` are on that field, for `Announce`/`Invite` events
       whose context genuinely is a case, and are unaffected by this widening.
     verification: >-
-      A unit test confirms an `EmbargoEvent` constructed with a report URI context validates, and
-      that every consumer of `EmbargoEvent.context` resolves the referent type rather than
-      assuming a case.
+      `test/wire/as2/test_report_offer_proposed_embargo.py` confirms an `EmbargoEvent` constructed with
+      a report URI context validates and travels on the Offer; `CreateEmbargoEventPattern` admits both
+      subjects (VAM-05-001). No consumer of `EmbargoEvent.context` casts it to a case: the field is read
+      as an identifier only.
     adr:
     - ADR-0096
     stories:

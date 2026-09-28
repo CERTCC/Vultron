@@ -31,6 +31,7 @@ Three use cases covering the full CP message flow (ADR-0023):
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
@@ -55,6 +56,7 @@ from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
     RecordCaseProposalRejectionNode,
     create_reject_case_proposal_received_tree,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.events.case_proposal import (
     AcceptCaseProposalReceivedEvent,
     CreateCaseProposalReceivedEvent,
@@ -183,6 +185,39 @@ class CreateCaseProposalReceivedUseCase:
             candidate if isinstance(candidate, VulnerabilityReport) else None
         )
 
+    @staticmethod
+    def _sender_embargo_proposal(
+        request: CreateCaseProposalReceivedEvent,
+    ) -> dict[str, Any]:
+        """Blackboard inputs for the Reporter's proposed terms (EP-04-004).
+
+        The duration is what the shortest-wins comparison reads (EP-04-003),
+        measured from now because that is when the embargo it competes with
+        would start; the event itself is what ``CreateEmbargoEventNode`` keeps
+        when the proposal wins.  Terms that have already run out are no
+        proposal at all: they are logged and left off the blackboard, so the
+        case is still created under the owner's default (receive side,
+        Postel's maxim) rather than refused over a stale end date.
+        """
+        proposal = request.proposed_embargo
+        if proposal is None:
+            return {}
+        remaining = proposal.end_time - now_utc()
+        if remaining <= timedelta(0):
+            logger.warning(
+                "create_case_proposal_received: the Reporter's proposed"
+                " embargo '%s' for proposal '%s' ends at %s, already in the"
+                " past; creating the case without it (EP-04-004)",
+                proposal.id_,
+                request.proposal_id,
+                proposal.end_time.isoformat(),
+            )
+            return {}
+        return {
+            "sender_proposed_embargo_duration": remaining,
+            "sender_proposed_embargo": proposal,
+        }
+
     def execute(self) -> HandlerResult:
         request = self._request
         proposal_id = request.proposal_id
@@ -260,6 +295,7 @@ class CreateCaseProposalReceivedUseCase:
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
+            **self._sender_embargo_proposal(request),
         )
         verdict = verdict_from_bt(
             tree, result, label="CreateCaseProposalReceivedBT"
