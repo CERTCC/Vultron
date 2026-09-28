@@ -134,8 +134,8 @@ received", and do not add receipt bookkeeping to the actor record to feed one:
   only deferred or re-queued deliveries — activities replayed by
   `inbox_pending_queue.py` after a case bootstrap, or retried after a failed
   attempt — and the pipeline drains it as it processes them. A read over it
-  reports an empty inbox after every successful delivery — that was the stub
-  #3141 removed.
+  reports an empty inbox after every successful delivery — the stub #3141
+  reported and #3844 removed.
 - **Removing the GET does not produce the 405.** `actors_get` is declared as
   `@router.get("/{actor_id:path}")`, so an unrouted GET on `/inbox` or
   `/inbox/` falls into the profile route and answers 404. The inbox path needs
