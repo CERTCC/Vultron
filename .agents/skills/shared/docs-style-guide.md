@@ -109,7 +109,10 @@ above its own level (DF-11-002).
 **SG-10 — Within a page, no forward references.** No section may use a concept
 the page has not yet introduced, defined, or linked out for. Ordering sections
 so that each depends only on what precedes it is the page's primary structural
-obligation.
+obligation. This is the within-page half of the dependency rule whose cross-page
+half is the level rule in `notes/site-information-architecture.md` § "Levels
+100–500: a rule, not a label" (DF-11-002): a concept the page cannot introduce in
+order is linked out (SG-11), never assumed from a neighbor.
 
 **SG-11 — Across pages, the edge is a hyperlink.** First use of a glossary or
 taxonomy term on a page links to its canonical introduction — the glossary
