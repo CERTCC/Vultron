@@ -31,7 +31,7 @@ The scan is two-stage:
 
 **Exclusion (UCORG-05-004b):** ``vultron/core/use_cases/triggers/`` is not
 scanned. Trigger ``execute()`` methods still return a ``dict`` or a
-``TriggerResult`` that does not yet inherit ``UseCaseResult``; #3354 migrates
+``TriggerResult`` that does not yet inherit ``UseCaseResult``; #3831 migrates
 them and MUST delete ``_EXCLUDED_DIRS`` when it lands.
 """
 
@@ -48,7 +48,7 @@ from vultron.core.models.use_case_result import UseCaseResult
 
 _USE_CASES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "use_cases"
 
-# Retired by #3354 (trigger-side result types, UCORG-05-004b). Do not add to
+# Retired by #3831 (trigger-side result types, UCORG-05-004b). Do not add to
 # this tuple: a new directory of use cases conforms from the start.
 _EXCLUDED_DIRS: tuple[Path, ...] = (_USE_CASES_ROOT / "triggers",)
 
@@ -168,7 +168,7 @@ def test_every_use_case_execute_returns_a_use_case_result() -> None:
 def test_triggers_exclusion_is_still_needed() -> None:
     """UCORG-05-004b: the exclusion stays only while triggers fail the rule.
 
-    When #3354 migrates the trigger side, this fails and ``_EXCLUDED_DIRS``
+    When #3831 migrates the trigger side, this fails and ``_EXCLUDED_DIRS``
     MUST be deleted rather than left as a silent, unexplained carve-out.
     """
     still_failing = []
@@ -180,7 +180,7 @@ def test_triggers_exclusion_is_still_needed() -> None:
                 still_failing.append(path)
     assert still_failing, (
         "every use case under the excluded directories now conforms; delete "
-        "_EXCLUDED_DIRS (#3354)"
+        "_EXCLUDED_DIRS (#3831)"
     )
 
 
