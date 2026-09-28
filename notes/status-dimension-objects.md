@@ -195,10 +195,13 @@ Two consequences worth carrying:
   side. A reader that handles only the older two silently reports `None`, which is
   the issue #2262 / #2232 failure shape.
 
-Projection still lives on the wire classes (`from_core` / `to_core`) for now.
-ADR-0099 supersedes ARCH-12-005's relocation of it: there is no pairing registry
-and no adapter-side translator to move it to, because the second hierarchy is being
-removed rather than reconciled. See
+There is no projection step for these types any more. ADR-0099 detail 3
+aliased `as_CaseStatus` and `as_ParticipantStatus` onto the core classes and
+deleted `from_core` / `to_core` with the paired classes; a `by_alias` dump of
+the core object is its AS2 form (ARCH-12-003). ARCH-12-005's relocation of
+projection into a pairing registry and adapter-side translator never happened,
+and SDO-04-001 — which required the translators to move with the model — was
+removed with #3840 because there is no second shape to keep in step. See
 [notes/wire-core-boundary.md](wire-core-boundary.md).
 
 ---

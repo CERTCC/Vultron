@@ -1214,13 +1214,14 @@ groups:
       note: Import-time registration is why the verification must force population before comparing the registries.
     adr:
     - ADR-0082
+    - ADR-0099
   - id: ARCH-23-003
     priority: MUST_NOT
     kind: project
     statement: >-
-      Serialized AS2 output MUST NOT change as a result of any pairing-registry
-      or vocabulary-key change.  The wire `"type"` value emitted on the wire is
-      independent of the registry key under which a wire class is registered.
+      Serialized AS2 output MUST NOT change as a result of a vocabulary-key
+      change.  The wire `"type"` value emitted on the wire is independent of
+      the registry key under which a wire class is registered.
     rationale: >-
       The registry key is an internal lookup concern; the `type` field value is
       an external protocol commitment that receivers match on.  Conflating them
@@ -1232,6 +1233,7 @@ groups:
       byte-identical to its pre-change output.
     adr:
     - ADR-0082
+    - ADR-0099
   - id: ARCH-23-004
     priority: MUST
     kind: project
@@ -1253,6 +1255,7 @@ groups:
       for every wire class.
     adr:
     - ADR-0082
+    - ADR-0099
   - id: ARCH-23-005
     priority: MUST
     kind: project
@@ -1296,6 +1299,7 @@ groups:
     adr:
     - ADR-0056
     - ADR-0082
+    - ADR-0099
   - id: ARCH-23-006
     priority: MUST
     kind: project

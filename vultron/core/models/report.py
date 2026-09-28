@@ -30,10 +30,10 @@ class VulnerabilityReport(CoreObject):
     auto-register this class in :data:`CORE_VOCABULARY`.
 
     Policy implementations receive this type when evaluating credibility
-    and validity.  The wire-layer class in
-    ``vultron.wire.as2.vocab.objects.vulnerability_report`` re-exports
-    this type and adds AS2-specific serialization via :meth:`from_core`
-    and :meth:`to_core`.
+    and validity.  The wire name ``as_VulnerabilityReport`` in
+    ``vultron.wire.as2.vocab.objects.vulnerability_report`` is an alias of
+    this class (ADR-0099 detail 3): a ``by_alias`` dump is its AS2 form
+    (ARCH-12-003), and there is no separate wire class or projection step.
     """
 
     type_: Literal["VulnerabilityReport"] = Field(

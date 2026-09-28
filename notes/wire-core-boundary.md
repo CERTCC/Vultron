@@ -1,5 +1,5 @@
 ---
-title: "Wire/Core Boundary — Pairing Registry, Translator, and Unknown-Key Rejection"
+title: "Wire/Core Boundary — The Four Duplications and Why One Object Model Replaced the Pairing Registry"
 status: active
 tags: [wire, core, boundary, vocabulary, pairing, translation, pydantic]
 description: >
@@ -9,7 +9,8 @@ description: >
   extra="forbid" on the core branch) is superseded by ADR-0099, which removes the
   second hierarchy instead. Read it for the problem, not the mechanism.
 related_specs:
-  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-23-005)
+  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-20-008, ARCH-20-009,
+    ARCH-22-001, ARCH-23-005)
   - specs/error-handling.yaml (EH-07-001, EH-07-003)
   - specs/vocabulary-model.yaml
 related_notes:
@@ -459,4 +460,6 @@ Ratchet: `test/architecture/test_core_extra_forbid.py` (every `CoreObject`
 forbids extras with no exemption list; a dump round-trips exactly; the retired
 mechanisms cannot be reintroduced). Deliberate wire→core snapshot
 reconstruction in core nodes projects camelCase spellings via
-`project_wire_snapshot_to_core` until the `WireParsePort` (#2938) owns it.
+`project_wire_snapshot_to_core`, which ARCH-20-008 names as the one seam core
+has for a snapshot `dict`; the `WireParsePort` (#2938) that was to own it was
+rejected by ADR-0099, so the helper is not interim.

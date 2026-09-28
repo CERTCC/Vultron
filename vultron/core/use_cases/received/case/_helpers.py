@@ -122,10 +122,12 @@ def _store_embedded_participants(
 
     Idempotent: ``dl.save()`` upserts so repeated calls are safe.
 
-    Each embedded participant is projected to the canonical core shape first
-    (see :func:`_project_to_core_participant`) — a received snapshot arrives in
-    the wire shape, and both the regression check below and every later reader
-    of the stored row require the core shape (issue #2232).
+    Each embedded participant is checked to be a core :class:`CaseParticipant`
+    first (see :func:`_project_to_core_participant`) — under ADR-0099 detail 3
+    a received snapshot deserialises straight into core objects, and both the
+    regression check below and every later reader of the stored row require
+    that canonical shape (issue #2232).  Bare ID strings carry no ``id_`` and
+    are skipped here; they are not participant records to store.
 
     A received snapshot is a remote point-in-time view, so it must never
     regress local RM progress.  Bootstrap and Announce activities are built

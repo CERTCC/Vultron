@@ -206,14 +206,19 @@ legitimate absence and callers must handle it (check `participant_statuses`
 before calling); a status that exists but exposes no usable dimension is a shape
 mismatch and must raise (ARCH-15-001, ARCH-15-002).
 
-**Where a raise is wrong.** At a wire→core ingress boundary, a wire-shaped
-status is *legitimate inbound data*, not a corrupt row. Those sites must
-**project** before reading — `as_ParticipantStatus.to_core()`, or
+**Where a raise is wrong.** At a wire→core ingress boundary, an embedded
+object that is not a core participant is *the sender's defect*, not this
+actor's corrupt row, and it must not cost the receiver the whole case.
 `_project_to_core_participant()` in
-`vultron/core/use_cases/received/case/_helpers.py` — rather than let the reader
-raise. Making the reader strict without projecting at ingress first aborted the
-entire received-case behavior tree on every inbound `Announce`, which is how the
-first fix for #2232 regressed.
+`vultron/core/use_cases/received/case/_helpers.py` therefore skips such an
+object with an ERROR rather than raising, and only what passes that check
+reaches the strict reader. Under ADR-0099 detail 3 there is no projection
+step — a received status *is* the core `ParticipantStatus`, and a flat
+`rm_state` is refused at parse (ARCH-12-003) — so the check is an
+`isinstance`, never a duck-typed `to_core()` (ARCH-20-008). Making the reader
+strict without that ingress guard aborted the entire received-case behavior
+tree on every inbound `Announce`, which is how the first fix for #2232
+regressed.
 
 The mirror-image concern is a core type validated against a wire-spelled
 payload. Pydantic v2 ignores unknown keys by default, so every snake-only key

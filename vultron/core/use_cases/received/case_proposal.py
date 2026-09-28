@@ -153,7 +153,8 @@ class CreateCaseProposalReceivedUseCase:
         (ARCH-20-008).  Anything else in the slot (a bare IRI the parser could
         not dereference, or a foreign object) is not a report the tree can
         seed from; ``None`` tells ``StoreProposalReportNode`` to rebuild the
-        report from the proposal dict instead.
+        report from the proposal dict instead, and that node owns the WARNING
+        when the rebuild has nothing to work with.
         """
         raw_report = getattr(
             getattr(activity_obj, "object_", None), "object_", None
@@ -161,7 +162,10 @@ class CreateCaseProposalReceivedUseCase:
         if isinstance(raw_report, VulnerabilityReport):
             return raw_report
         if raw_report is not None:
-            logger.warning(
+            # ``StoreProposalReportNode._report_from_proposal_dict`` warns on
+            # the same condition with the CP-01-004 remedy, so keep this at
+            # DEBUG rather than doubling the WARNING.
+            logger.debug(
                 "create_case_proposal_received: proposal '%s' carries a %s"
                 " where an inline report was expected — falling back to the"
                 " proposal dict",

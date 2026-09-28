@@ -125,17 +125,18 @@ class StoreProposalReportNode(DataLayerAction):
     CaseActor has its own, and the report only reaches it inline on the proposal
     (CP-01-004) — so it has to be written here.
 
-    Prefers *inline_report*, a report already converted to the core shape by the
-    caller. The fallback — validating the proposal's serialised ``object`` — can
+    Prefers *inline_report*, the ``VulnerabilityReport`` the wire parser
+    validated on the proposal — under ADR-0099 detail 3 that object already
+    *is* the core class, so the caller hands it down unchanged (ARCH-20-008).
+    The fallback — rebuilding from the proposal's serialised ``object`` — can
     only be as good as that dict's spelling, and the dict the received-side use
     case has is a ``by_alias=True`` wire dump, because the ``Accept`` must carry
     the proposal inline on the wire (CP-05-003, AKM-03-001). In wire spelling the
-    reporter is ``attributedTo``; this core model declares ``attributed_to`` and
-    sets ``extra="ignore"``, so validating that dict quietly produced a report
-    with no reporter, and the complaint surfaced three nodes later as "has no
-    attributed_to" (#2482). Converting is the wire layer's job — it owns
-    ``to_core()`` — and core MUST NOT import wire to do it itself (ARCH-03-001),
-    so the caller converts and passes the result down.
+    reporter is ``attributedTo``; before the core model carried the AS2 alias,
+    validating that dict quietly produced a report with no reporter, and the
+    complaint surfaced three nodes later as "has no attributed_to" (#2482). The
+    rebuild therefore goes through ``project_wire_snapshot_to_core``, the one
+    seam core has for a snapshot dict (ARCH-20-008).
     """
 
     def __init__(

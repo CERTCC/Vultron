@@ -22,6 +22,7 @@ Spec: specs/case-proposal.yaml CP-05 through CP-07.
 """
 
 import logging
+from types import SimpleNamespace
 
 import py_trees
 import pytest
@@ -38,6 +39,7 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CaseProposalCallOutBundle,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.case_proposal import (
@@ -900,3 +902,64 @@ class TestCaseProposalDisposition:
         )
         result = RejectCaseProposalReceivedUseCase(dl, event).execute()
         assert result.disposition == HandlerDisposition.REFUSED
+
+
+@pytest.mark.spec("ARCH-20-008")
+@pytest.mark.spec("CP-05-003")
+class TestCoreInlineReport:
+    """``_core_inline_report`` hands the parsed report down unchanged.
+
+    Under ADR-0099 detail 3 the ``as_VulnerabilityReport`` the wire parser
+    validated *is* the core ``VulnerabilityReport``, so there is no projection
+    step and none is duck-typed (#3840).  Anything else in the slot yields
+    ``None`` so ``StoreProposalReportNode`` rebuilds from the proposal dict.
+    """
+
+    _LOGGER = "vultron.core.use_cases.received.case_proposal"
+
+    def test_inline_report_is_returned_as_the_core_object(self):
+        proposal = _make_proposal()
+        activity = as_Create(
+            actor=_VENDOR_URI, object_=proposal, to=[_CASE_ACTOR_URI]
+        )
+
+        report = CreateCaseProposalReceivedUseCase._core_inline_report(
+            activity, "proposal-1"
+        )
+
+        assert isinstance(report, VulnerabilityReport)
+        assert report is proposal.object_
+
+    def test_bare_iri_in_report_slot_yields_none_and_is_logged(self, caplog):
+        """A reference the parser could not dereference is not a report."""
+        activity = SimpleNamespace(
+            object_=SimpleNamespace(object_="https://example.org/reports/r1")
+        )
+
+        with caplog.at_level(logging.DEBUG, logger=self._LOGGER):
+            report = CreateCaseProposalReceivedUseCase._core_inline_report(
+                activity, "proposal-1"
+            )
+
+        assert report is None
+        assert any(
+            "carries a str" in record.message
+            and record.levelno == logging.DEBUG
+            for record in caplog.records
+        ), caplog.text
+        # The node that rebuilds from the dict owns the WARNING (CP-01-004);
+        # the use case must not double it.
+        assert not [
+            r for r in caplog.records if r.levelno >= logging.WARNING
+        ], caplog.text
+
+    def test_missing_report_yields_none_silently(self, caplog):
+        activity = SimpleNamespace(object_=SimpleNamespace(object_=None))
+
+        with caplog.at_level(logging.DEBUG, logger=self._LOGGER):
+            report = CreateCaseProposalReceivedUseCase._core_inline_report(
+                activity, "proposal-1"
+            )
+
+        assert report is None
+        assert not caplog.records
