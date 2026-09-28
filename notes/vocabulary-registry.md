@@ -18,6 +18,8 @@ related_notes:
   - notes/documentation-strategy.md
 relevant_packages:
   - vultron/wire/as2/vocab
+  - vultron/adapters/driven/wire_render
+  - vultron/adapters/driven/trigger_activity_adapter
 ---
 
 # Vocabulary Registry — Design and Migration Notes
@@ -408,12 +410,24 @@ here — a count drifts the moment a key is renamed.
 
 **Never resolve a core type's wire counterpart by name coincidence.** Use
 `WIRE_TYPE_MAP` for `type` values and `VOCABULARY` for wire class-name lookups.
-The last such lookup was `As2WireRenderAdapter.render()`'s
-`WIRE_TYPE_MAP.get(type(obj).__name__)` — a *core* class name against a wire
-`type`-value index, which resolved only where the two strings coincided and never
-for the five actor types. #3490 removed it: under ADR-0099 there is no
-counterpart to resolve, so `render()` is the object's own `model_dump`
-(ARCH-20-002), and the pairing registry that would have replaced the lookup
-(ARCH-23-001) is **cancelled** — see § "Cancelled: Declarative Pairing Registry"
-above. Do not reintroduce a class-name lookup to find "the wire class" for a core
-object; there is none (#3571).
+There were two such lookups, both a *core* class name against a wire
+`type`-value index that resolved only where the two strings coincided.
+`As2WireRenderAdapter.render()`'s `WIRE_TYPE_MAP.get(type(obj).__name__)` never
+resolved the five actor types; #3490 removed it. The trigger adapter's
+`_to_wire_object()` (`trigger_activity_adapter/_base.py`) called
+`find_in_vocabulary(type(core_obj).__name__)`, whose answer was always the
+object's own class; #3565 removed it, and #3694 added the ratchet. Under
+ADR-0099 there is no counterpart to resolve: `render()` is the object's own
+`model_dump` (ARCH-20-002), `_to_wire_object()` returns a `CoreObject` unchanged
+after refusing an abstract class, and the pairing registry that would have
+replaced the lookup (ARCH-23-001) is **cancelled** — see § "Cancelled:
+Declarative Pairing Registry" above. Do not reintroduce a class-name lookup to
+find "the wire class" for a core object; there is none (#3571). Two ratchets
+refuse every registry and lookup name in `REGISTRY_LOOKUP_NAMES`
+(`test/support/source_names.py`) in the source they scan:
+`test_render_adapter_does_not_resolve_a_wire_counterpart`
+(`test/adapters/driven/test_wire_render_adapter.py`, the render module) and
+`test_package_does_not_resolve_a_wire_counterpart`
+(`test/adapters/driven/trigger_activity_adapter/test_cases.py`, every module in
+the trigger adapter package). They match direct name references only; a registry
+reached by string or through an outside helper is not caught.
