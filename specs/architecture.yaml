@@ -1334,11 +1334,12 @@ groups:
       (`id_`, `type_`, `context_`).  This applies to the persistence record
       round trip as well as to translation.
     note: >-
-      The *translation* half of this requirement is met (#2940) except for the
-      refusal clause: `_to_core_data()` emits wire-facing names and a round-trip
-      test covers every `CORE_VOCABULARY` entry, but computed fields are still
-      stripped *unconditionally*, so a contradicted value is not yet refused.
-      That clause is knowingly unmet and tracked by #3695.  The *persistence* half is
+      The *translation* half of this requirement is met (#2940, #3695):
+      `_to_core_data()` emits wire-facing names, a round-trip test covers every
+      `CORE_VOCABULARY` entry, and `CoreObject._check_computed_field_inputs`
+      strips a supplied computed-field value that matches the derived one and
+      refuses a contradicted one with a `VultronProtocolViolationError` that
+      names every contradicted spelling.  The *persistence* half is
       knowingly not met and must not be read as satisfied: `Record.from_obj()`
       still calls `model_dump(mode="json", serialize_as_any=True)` with no
       `by_alias`, so rows remain keyed `id_`/`type_`, and no test asserts the

@@ -212,6 +212,29 @@ def _dispose_actor_stores_between_tests():
     reset_store_claimants()
 
 
+@pytest.fixture
+def isolated_vocab():
+    """Snapshot the core class registries around a test, restoring them after.
+
+    ``CoreObject.__init_subclass__`` registers every concrete subclass in the
+    process-global ``CORE_VOCABULARY`` and ``CORE_TYPE_MAP``.  A test that
+    defines a local ``CoreObject`` subclass therefore leaks it into every later
+    registry-iterating test in the session unless both maps are restored.
+    Request this fixture from any test that defines such a class.
+    """
+    from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
+
+    vocab_snapshot = dict(CORE_VOCABULARY)
+    type_map_snapshot = dict(CORE_TYPE_MAP)
+    try:
+        yield
+    finally:
+        CORE_VOCABULARY.clear()
+        CORE_VOCABULARY.update(vocab_snapshot)
+        CORE_TYPE_MAP.clear()
+        CORE_TYPE_MAP.update(type_map_snapshot)
+
+
 def seed_case_actor_replica(dl, case_actor_id, case, *extra):
     """Give the CaseActor its own replica of *case*, and return its store.
 

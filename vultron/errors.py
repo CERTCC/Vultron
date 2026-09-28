@@ -61,6 +61,26 @@ class VultronError(Exception):
     """Base class for all Vultron exceptions"""
 
 
+class CarriesViolations:
+    """Mixin: structured multi-violation carriage for a ``VultronError``.
+
+    EH-07-003 requires an exception raised for more than one violation to keep
+    them as structured data and to render the whole set in ``str()``, so no
+    caller parses a joined message.  Subclasses set ``self.violations`` in
+    ``__init__``; this mixin owns the rendering.  It must precede
+    :class:`VultronError` in the bases so its ``__str__`` wraps
+    ``Exception.__str__``.
+    """
+
+    violations: tuple[Violation, ...] = ()
+
+    def __str__(self) -> str:
+        summary = super().__str__()
+        if not self.violations:
+            return summary
+        return _render_violations(summary, self.violations)
+
+
 class VultronNotFoundError(VultronError):
     """Raised when a requested resource cannot be found."""
 
@@ -106,15 +126,15 @@ class VultronInvalidStateTransitionError(VultronError):
 VultronConflictError = VultronInvalidStateTransitionError
 
 
-class VultronValidationError(VultronError, ValueError):
+class VultronValidationError(CarriesViolations, VultronError, ValueError):
     """Raised when domain validation of a resource or request fails.
 
     When the boundary recognised more than one violation, pass them as
     ``violations``: they are kept as structured data on the exception and
-    ``str()`` renders the whole set, so no caller has to parse the joined
-    message to recover the individual rules (EH-07-003).  This follows
-    :exc:`DemoFailureError`'s shape, the house pattern for
-    accumulate-all-then-fail (DEMOCI-01-003).
+    ``str()`` renders the whole set (via :class:`CarriesViolations`), so no
+    caller has to parse the joined message to recover the individual rules
+    (EH-07-003).  This follows :exc:`DemoFailureError`'s shape, the house
+    pattern for accumulate-all-then-fail (DEMOCI-01-003).
 
     ``ValueError`` is in the base classes for the same reason as
     :exc:`VultronProtocolViolationError` and
@@ -142,14 +162,8 @@ class VultronValidationError(VultronError, ValueError):
         violations: Iterable[Violation] | None = None,
     ):
         self.activity_id = activity_id
-        self.violations: tuple[Violation, ...] = tuple(violations or ())
+        self.violations = tuple(violations or ())
         super().__init__(message)
-
-    def __str__(self) -> str:
-        summary = super().__str__()
-        if not self.violations:
-            return summary
-        return _render_violations(summary, self.violations)
 
 
 class VultronCanonicalEntryError(VultronError):
@@ -202,7 +216,9 @@ class VultronOutboxObjectIntegrityError(VultronError):
         super().__init__(message)
 
 
-class VultronProtocolViolationError(VultronError, ValueError):
+class VultronProtocolViolationError(
+    CarriesViolations, VultronError, ValueError
+):
     """Raised when an inbound protocol message violates a mandatory requirement.
 
     The inbound mirror of :exc:`VultronOutboxObjectIntegrityError`.  While
@@ -221,7 +237,19 @@ class VultronProtocolViolationError(VultronError, ValueError):
     letting it escape the ``model_validate()`` call.  Callers that need to
     distinguish a protocol violation from an ordinary validation failure can
     inspect ``ValidationError.errors()[0]['ctx']['error']``.
+
+    A boundary that recognised more than one violation passes them as
+    ``violations`` (EH-07-003) — first use: ``CoreObject``'s computed-field
+    contradiction check (ARCH-23-005), which names every contradicted field.
     """
+
+    def __init__(
+        self,
+        message: str,
+        violations: Iterable[Violation] | None = None,
+    ):
+        self.violations = tuple(violations or ())
+        super().__init__(message)
 
 
 class VultronReferenceResolutionError(VultronError, ValueError):

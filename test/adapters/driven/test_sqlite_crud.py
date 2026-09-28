@@ -218,14 +218,19 @@ def test_update_wire_shaped_storable_record_reads_back_as_core(dl):
 
 
 def test_contradicted_embargo_adherence_row_does_not_read_back_as_clean_core(
-    dl,
+    dl, caplog
 ):
     """A stored row whose embargo_adherence contradicts its consent state
     does not read back as a clean core ParticipantStatus (AC-3, ARCH-23-005).
 
     Pins the observed dl.read() behaviour for a self-contradicting row so
-    that a future change to the read path cannot silently change it.
+    that a future change to the read path cannot silently change it, and
+    that the row is not *silently* dark: hydration logs a WARNING naming the
+    row and the cause, so an unreadable row stays distinguishable from a
+    missing one.
     """
+    import logging
+
     from vultron.core.ports.datalayer import StorableRecord
 
     # No consent field → embargo_adherence derives as False; stored True
@@ -243,10 +248,21 @@ def test_contradicted_embargo_adherence_row_does_not_read_back_as_clean_core(
     )
     dl.create(storable)
 
-    result = dl.read("urn:uuid:ps-contradict-001")
+    with caplog.at_level(
+        logging.WARNING, logger="vultron.adapters.driven.datalayer_sqlite"
+    ):
+        result = dl.read("urn:uuid:ps-contradict-001")
     # A self-contradicting row cannot be reconstructed as a clean core object;
     # the read path returns None rather than handing back a lying object.
     assert result is None
+    warnings = [
+        r
+        for r in caplog.records
+        if "urn:uuid:ps-contradict-001" in r.getMessage()
+    ]
+    assert warnings, caplog.text
+    assert all(r.levelno == logging.WARNING for r in warnings)
+    assert "ARCH-23-005" in warnings[0].getMessage()
 
 
 def test_save_inserts_new_object(dl):

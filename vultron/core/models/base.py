@@ -42,7 +42,7 @@ from vultron.core.models._helpers import (
     now_utc,
 )
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
-from vultron.errors import VultronProtocolViolationError
+from vultron.errors import Violation, VultronProtocolViolationError
 from vultron.primitives import NonEmptyString, UriString  # noqa: F401
 
 #: The Vultron JSON-LD ``@context``.  VM-10-001 (MUST) requires it on every
@@ -269,9 +269,14 @@ class CoreObject(CoreRecord):
         ADR-0056) appears in ``model_dump()`` output but is not settable.
         A value that matches the derived value is stripped so a dump
         round-trips; a value that contradicts the object's own derived state
-        raises ``VultronProtocolViolationError`` naming every contradiction,
-        not only the first (EH-07-001).  See
-        ``notes/wire-core-boundary.md`` § "Measured Evidence".
+        raises ``VultronProtocolViolationError`` carrying every contradiction
+        as a structured ``Violation``, not only the first (EH-07-001,
+        EH-07-003).  Every supplied *spelling* is checked on its own, so two
+        spellings that disagree cannot hide one another.  A supplied value
+        matches when it equals the derived Python value **or** that value's
+        ``mode="json"`` serialization, so a JSON-mode dump round-trips for a
+        computed field of any type.  See ``notes/wire-core-boundary.md``
+        § "``extra="forbid"`` Is the Boundary Contract".
         """
         computed = cls.model_computed_fields
         if not isinstance(data, dict) or not computed:
@@ -279,34 +284,40 @@ class CoreObject(CoreRecord):
 
         spellings = cls._computed_field_spellings()
 
-        # Record every supplied computed-field value, keyed by canonical name.
-        supplied: dict[str, Any] = {}
-        for spelling, field_name in spellings.items():
-            if spelling in data:
-                supplied[field_name] = data[spelling]
+        # Record every supplied computed-field value under the spelling it
+        # arrived with, so that disagreeing duplicate spellings are each seen.
+        supplied: list[tuple[str, str, Any]] = [
+            (spelling, field_name, data[spelling])
+            for spelling, field_name in spellings.items()
+            if spelling in data
+        ]
+        if not supplied:
+            return handler(data)
 
         # Strip every spelling before passing to the wrapped handler so that
         # extra="forbid" does not reject them.
-        if supplied:
-            data = {k: v for k, v in data.items() if k not in spellings}
+        obj = handler({k: v for k, v in data.items() if k not in spellings})
 
-        obj = handler(data)
-
-        if supplied:
-            contradictions: list[str] = []
-            for field_name, supplied_val in supplied.items():
-                derived_val = getattr(obj, field_name, None)
-                if supplied_val != derived_val:
-                    contradictions.append(
-                        f"{field_name!r}: supplied {supplied_val!r},"
-                        f" derived {derived_val!r}"
-                    )
-            if contradictions:
-                raise VultronProtocolViolationError(
-                    "Supplied computed-field value(s) contradict derived"
-                    " state (ARCH-23-005): " + "; ".join(contradictions)
-                )
-
+        checked = {field_name for _, field_name, _ in supplied}
+        derived_json = obj.model_dump(mode="json", include=checked)
+        violations = [
+            Violation(
+                message=(
+                    f"{field_name!r} (as {spelling!r}): supplied"
+                    f" {supplied_val!r}, derived {getattr(obj, field_name)!r}"
+                ),
+                dimensions=(field_name,),
+            )
+            for spelling, field_name, supplied_val in supplied
+            if supplied_val != getattr(obj, field_name)
+            and supplied_val != derived_json[field_name]
+        ]
+        if violations:
+            raise VultronProtocolViolationError(
+                "Supplied computed-field value(s) contradict derived state"
+                " (ARCH-23-005)",
+                violations=violations,
+            )
         return obj
 
     @classmethod
