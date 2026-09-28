@@ -33,6 +33,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.services.embargo_duration import (
@@ -110,6 +111,12 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
     (EP-04-010), and the resolved ``InitialEmbargoDuration`` — duration plus
     source — for ``CreateEmbargoEventNode``.
 
+    The actor default comes only from policies the case owner
+    (``attributed_to``) published: at creation the owner and the reporter are
+    the case's only actors, and the reporter's terms arrive as the sender
+    proposal, so a policy some other actor published is never a candidate
+    (EP-04-010).
+
     ``sender_proposed_embargo_duration`` is the seam for EP-04-004's embedded
     sender proposal; nothing writes it until that mechanism lands (#3392).
     """
@@ -124,6 +131,7 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
         "sender_proposed_embargo_duration": PortInformation(
             data_type=object, required=False
         ),
@@ -146,6 +154,7 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
         return {
             key: f"/{key}"
             for key in (
+                "case_id",
                 "sender_proposed_embargo_duration",
                 "actor_default_embargo_duration",
                 "protocol_default_embargo_duration",
@@ -172,12 +181,27 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
+        case_id = self._try_get_input("case_id")
+        case, failure = self._require_case(
+            case_id if isinstance(case_id, str) else None
+        )
+        if failure is not None:
+            return failure
+        owner_id = _as_id(case.attributed_to)
+        if owner_id is None:
+            self.feedback_message = (
+                f"case '{case_id}' has no owner; cannot select its actor"
+                " default embargo"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
         policies = [
             p
             for p in self.datalayer.list_objects(
                 VultronObjectType.EMBARGO_POLICY
             )
-            if isinstance(p, EmbargoPolicy)
+            if isinstance(p, EmbargoPolicy) and p.actor_id == owner_id
         ]
         actor_default = select_actor_default(policies)
         protocol_default = self._actor_config.protocol_default_embargo_duration

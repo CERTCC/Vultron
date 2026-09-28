@@ -199,8 +199,18 @@ What replaced it:
 | Configured fallback, refused outside `[72h, 5d]` (EP-04-005) | `ActorConfig.protocol_default_embargo_duration` (`vultron/config/actor.py`) |
 | Shortest-wins over candidates only, fallback when none (EP-04-006/007) | `resolve_initial_embargo_duration()` (`vultron/core/services/embargo_duration.py`) |
 | Deterministic actor default: shortest, ties by policy id (EP-04-010) | `select_actor_default()` (same module) |
+| Actor default is the case owner's own policy (EP-04-010) | `ResolveEmbargoDurationNode` filters on `EmbargoPolicy.actor_id == case.attributed_to` |
 | Distinct blackboard names (EP-04-010) | `actor_default_embargo_duration`, `protocol_default_embargo_duration`, and the resolved `initial_embargo_duration` (duration plus source) |
 | P/X/A refusal before anything is created (EP-04-008) | `CaseNotEmbargoEligibleNode`, the first arm of the `InitializeDefaultEmbargoNode` Selector |
+
+**Whose policy is the actor default.** At creation the case has two actors:
+the case owner and the reporter. The reporter's terms arrive as the sender
+proposal, so the actor default is the case owner's published policy and no one
+else's. The creation tree runs as the CASE_MANAGER, but that is not a third
+opinion: the CASE_MANAGER acts as the case owner's proxy here, so "what the
+owner's policy says" and "what the CASE_MANAGER applies" are the same thing. A
+policy some other actor published and that happens to be in the store is never
+a candidate.
 
 The refusal arm is a *negative* condition — SUCCESS means "not eligible, stop" —
 rather than a Success fallback after the creation sequence. A fallback would turn

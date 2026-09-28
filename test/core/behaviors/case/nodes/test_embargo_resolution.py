@@ -64,13 +64,16 @@ def case_obj(bt_scenario: BTTestScenario) -> VulnerabilityCase:
 
 
 def _publish_policy(
-    bt_scenario: BTTestScenario, duration: timedelta, policy_id: str
+    bt_scenario: BTTestScenario,
+    duration: timedelta,
+    policy_id: str,
+    actor_id: str = ACTOR_ID,
 ) -> None:
     bt_scenario.dl.create(
         EmbargoPolicy(
             id_=policy_id,
-            actor_id=ACTOR_ID,
-            inbox=f"{ACTOR_ID}/inbox",
+            actor_id=actor_id,
+            inbox=f"{actor_id}/inbox",
             preferred_duration=duration,
         )
     )
@@ -147,6 +150,36 @@ _RESOLUTION_TABLE = [
 
 @pytest.mark.spec("EP-04-005")
 @pytest.mark.spec("EP-04-006")
+@pytest.mark.spec("EP-04-010")
+def test_only_the_case_owners_policy_is_the_actor_default(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """A shorter policy published by another actor is not a candidate."""
+    other = "https://example.org/actors/other"
+    _publish_policy(bt_scenario, ACTOR_DEFAULT, f"{ACTOR_ID}/policy")
+    _publish_policy(bt_scenario, timedelta(days=5), f"{other}/policy", other)
+
+    _, before, after = _run(bt_scenario)
+
+    _assert_duration(
+        _active_embargo(bt_scenario), ACTOR_DEFAULT, before, after
+    )
+
+
+@pytest.mark.spec("EP-04-010")
+def test_foreign_policy_alone_falls_back_to_protocol_default(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    other = "https://example.org/actors/other"
+    _publish_policy(bt_scenario, timedelta(days=5), f"{other}/policy", other)
+
+    _, before, after = _run(bt_scenario)
+
+    _assert_duration(
+        _active_embargo(bt_scenario), PROTOCOL_DEFAULT, before, after
+    )
+
+
 @pytest.mark.spec("EP-04-008")
 @pytest.mark.parametrize(
     ("has_sender", "has_actor_default", "pxa_set", "expected"),
