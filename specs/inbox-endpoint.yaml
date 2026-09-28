@@ -40,17 +40,17 @@ groups:
     kind: protocol
     statement: The endpoint MUST reject non-POST requests with HTTP 405
     rationale: >-
-      The inbox is a delivery target, not a mailbox other actors may read. ActivityPub
-      gives an inbox read to one party only — the actor's own owner, authenticated
-      through the client-to-server side — and Vultron has neither that surface nor
-      any authentication on its routes, so a GET on the inbox path would be an open
-      window into another actor's mail. The 405 applies to the inbox path in both
-      trailing-slash forms; a read route that survives on the slash-less form alone
-      violates this requirement.
+      The inbox is a delivery target, not a mailbox other actors may read: ActivityPub
+      grants an inbox read only to the actor's own authenticated owner, and Vultron
+      has no authentication, so a GET here would open another actor's mail. The 405
+      covers both trailing-slash forms, and it does not fall out of having no GET
+      route: the profile route is a path catch-all (`/{actor_id:path}`) that answers
+      404 to an unrouted GET, so the inbox path needs its own method refusal declared
+      ahead of it.
     verification: >-
-      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that a GET on
-      the inbox path returns HTTP 405 for both trailing-slash forms; integration
-      tests in `test/demo/` cover PUT, DELETE, and PATCH.
+      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that GET, PUT,
+      PATCH, and DELETE on the inbox path each return HTTP 405, for both
+      trailing-slash forms (`/inbox` and `/inbox/`).
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001
@@ -67,15 +67,18 @@ groups:
       reply activities delivered to its own inbox, never by reading the recipient's.
     rationale: >-
       Ingress already stores the received activity under its type, so refusing a read
-      loses nothing. The DataLayer `inbox` queue holds only re-queued deliveries and
-      is drained as they are processed — a retry queue, not a record of receipt — and
-      the core actor's `inbox` is a URI string (ARCH-12-006), so no receipt
-      bookkeeping may hang off the actor record. A stub read over the drained queue
-      reported an empty inbox after every successful delivery (#3141).
+      loses nothing. The DataLayer `inbox` queue holds only deferred or re-queued
+      deliveries (bootstrap replay, retries) and is drained as they are processed: a
+      processing queue, not a record of receipt. The core actor's
+      `inbox` is a URI string (ARCH-12-006), so no receipt bookkeeping may hang off
+      the actor record. A stub read over the drained queue reported an empty inbox
+      after each successful delivery (#3141).
     verification: >-
       Inspection of `vultron/adapters/driving/fastapi/routers/actors/` confirms no
-      GET route on the inbox path and no receipt bookkeeping on the actor record;
-      `test/adapters/driving/fastapi/routers/test_actors.py` confirms the 405.
+      GET route on the inbox path, an explicit method refusal on that path ahead of
+      the `/{actor_id:path}` profile catch-all, and no receipt bookkeeping on the
+      actor record; `test/adapters/driving/fastapi/routers/test_actors.py` confirms
+      the 405 for both trailing-slash forms.
     relationships:
     - rel_type: depends_on
       spec_id: IE-02-003
@@ -266,11 +269,11 @@ groups:
       copy is routed and the redelivered body is not re-stored.
     rationale: >-
       Ingress storage is the first point at which the receiver holds durable evidence
-      of a prior delivery, so the check lives there rather than in the HTTP route.
-      An earlier route-level check keyed on the actor record's inbox collection was a
-      no-op in production, because the core actor's `inbox` is a URI string
-      (ARCH-12-006); it gave the appearance of early duplicate detection without
-      providing any (#3141).
+      of a prior delivery, so the HTTP adapter realises the early filtering ID-05-002
+      permits there, in the background task rather than the route handler. An earlier
+      route-level check keyed on the actor record's inbox collection was a no-op in
+      production, because the core actor's `inbox` is a URI string (ARCH-12-006); it
+      gave the appearance of early duplicate detection without providing any (#3141).
     verification: >-
       `vultron/adapters/driving/fastapi/inbox_storage.py` reports whether ingress
       wrote the activity or found the id already held, and
