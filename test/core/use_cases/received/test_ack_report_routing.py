@@ -114,8 +114,9 @@ def _make_case_store(owner_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
 
 def _make_ack_event(
     receiving_actor_id: str | None = CASE_ACTOR_ID,
+    sender_id: str = VENDOR_ID,
 ) -> AckReportReceivedEvent:
-    """Construct an AckReportReceivedEvent (Read(Offer(Report)))."""
+    """Construct an AckReportReceivedEvent (Read(Offer(Report))) from *sender_id*."""
     report_obj = VultronReport(id_=REPORT_ID)
     offer_obj = VultronActivity(
         id_=OFFER_ID,
@@ -127,14 +128,14 @@ def _make_ack_event(
     read_activity = VultronActivity(
         id_="https://example.org/activities/read-ack",
         type_="Read",
-        actor=VENDOR_ID,
+        actor=sender_id,
         object_=offer_obj,
         context=CASE_ID,
     )
     return AckReportReceivedEvent(
         semantic_type=MessageSemantics.ACK_REPORT,
         activity_id=read_activity.id_,
-        actor_id=VENDOR_ID,
+        actor_id=sender_id,
         object_=offer_obj,
         inner_object=report_obj,
         activity=read_activity,
@@ -270,6 +271,26 @@ class TestAckReportEcho:
         AckReportReceivedUseCase(
             dl=dl,
             request=_make_ack_event(receiving_actor_id=CASE_ACTOR_ID),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert "ack_report" in _ledger_event_types(dl)
+        assert _queued_reads(dl) == []
+
+    def test_case_manager_own_ack_is_not_forwarded_to_itself(self):
+        """The CM's own ``Read`` in its own inbox commits and is not echoed.
+
+        Sender, receiver and CASE_MANAGER are one actor, so the foreign-sender
+        skip does not apply; only ``SkipIfCaseManager`` stops the forward that
+        would address the CM itself and loop via loopback delivery (#2667).
+        """
+        dl = _make_case_store(CASE_ACTOR_ID)
+        AckReportReceivedUseCase(
+            dl=dl,
+            request=_make_ack_event(
+                receiving_actor_id=CASE_ACTOR_ID, sender_id=CASE_ACTOR_ID
+            ),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()

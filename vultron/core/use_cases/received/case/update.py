@@ -5,6 +5,7 @@ import logging
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,6 @@ class UpdateCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        actor_id = request.actor_id
         case_id = request.case_id
         if case_id is None:
             logger.warning("update_case: missing case_id on request")
@@ -31,18 +31,21 @@ class UpdateCaseReceivedUseCase:
             create_update_case_received_tree,
         )
 
-        tree = create_update_case_received_tree(
-            case_id=case_id,
-            actor_id=request.receiving_actor_id or actor_id,
-            request=request,
-        )
-        # The tree now contains a CheckIsCaseManagerNode gate, so it MUST run
+        # The tree contains a CheckIsCaseManagerNode gate, so it MUST run
         # under the *receiving* actor's identity, not the sender's (BT-17-005).
         # Passing request.actor_id would compare the sender against the case's
         # CASE_MANAGER: on the normal path a participant sends the update to the
         # CaseActor, so the gate would never match and the CM-06-001 broadcast
-        # would silently never fire.
-        executing_actor_id = request.receiving_actor_id or actor_id
+        # would silently never fire.  Absent receiving_actor_id the answer is
+        # the store's owner, never the sender (BT-17-006, #2667).
+        executing_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
+        tree = create_update_case_received_tree(
+            case_id=case_id,
+            actor_id=executing_actor_id,
+            request=request,
+        )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,

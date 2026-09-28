@@ -33,8 +33,9 @@ Structure:
     ├─ CheckParticipantExists                        # Precondition: actor has a participant record
     ├─ GuardedCommitCaseLedgerEntryBT                  # Record receipt before effects (CLP-10-006)
     ├─ TransitionParticipantRMtoAccepted             # Update RM state to ACCEPTED
-    ├─ CaptureCaseUpdateBroadcastExclusionsNode      # Resolve embargo-based exclusions
-    └─ BroadcastCaseUpdateNode                       # Announce(VulnerabilityCase) → all participants
+    └─ GuardedBroadcastEngageCaseBT                  # CASE_MANAGER only (CM-06-001)
+       ├─ CaptureCaseUpdateBroadcastExclusionsNode   # Resolve embargo-based exclusions
+       └─ BroadcastCaseUpdateNode                    # Announce(VulnerabilityCase) → all participants
 
     DeferCaseBT (Sequence)
     ├─ CheckParticipantExists              # Precondition: actor has a participant record
