@@ -104,8 +104,11 @@ exclude = ["test*"]  # exclude packages matching these glob patterns (empty by d
 #namespaces = false  # to disable scanning PEP 420 namespaces (true by default)
 
 [tool.setuptools_scm]
-# Only consider tags that capture a version string like 1.2.3 or v1.2.3
-tag_regex = "^(?:v)?(?P<version>\\d+\\.\\d+\\.\\d+(?:[.-]rc\\d+)?)$"
+# Only consider three-component release tags like 2026.9.0 or v2026.9.0
+# (ADR-0006). No alpha/beta/rc suffix is recognized: pre-release labels are
+# rejected by policy, and a two-component tag yields fallback_version.
+# test/metadata/docs/test_tag_regex.py holds this pattern to the policy.
+tag_regex = "^(?:v)?(?P<version>\\d+\\.\\d+\\.\\d+)$"
 version_file = "vultron/_version.py"
 # Fallback when no valid version tag is reachable (e.g. nearest tag is a
 # non-semver snapshot or branch tag).  Prevents vcs_versioning AssertionError

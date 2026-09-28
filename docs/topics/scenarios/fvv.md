@@ -1,6 +1,5 @@
 ---
 title: "FVV Scenario: Finder + Vendor1 + Vendor2"
-status: stable
 causal_edges:
   - antecedent: validate_report
     consequent: engage_case

@@ -6,7 +6,7 @@ introduces: [Case Ownership Transfer]
 
 # Case Ownership Transfer
 
-A case has at most one owner at a time: the participant holding the `CASE_OWNER` role, who makes decisions for the case ([CM-21-001](../../reference/specs/protocol.md#cm-21)).
+A case has at most one owner at a time: the participant holding the `CASE_OWNER` role, who makes decisions for the case ([CM-21-001](../../reference/specs/protocol.md#cm-21-001)).
 Ownership can move from one participant to another — for example, when a vendor hands a case to a coordinator.
 This page explains how that transfer works and why every step of it goes through the [CASE_MANAGER](case_manager_and_ledger.md).
 
@@ -62,10 +62,10 @@ Case Actor inbox receives Accept:
 The proposed owner answers the CASE_MANAGER, not the participant who made the offer.
 On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the case never has two owners or none ([CM-21-001 through CM-21-004](../../reference/specs/protocol.md#cm-21)).
 The previous owner keeps any other roles it held and stays a participant in the case ([CM-21-008, CM-21-009](../../reference/specs/protocol.md#cm-21)).
-The CASE_MANAGER then records the completed transfer in the ledger and sends the entry to every participant ([CM-21-007](../../reference/specs/protocol.md#cm-21)).
+The CASE_MANAGER then records the completed transfer in the ledger and sends the entry to every participant ([CM-21-007](../../reference/specs/protocol.md#cm-21-007)).
 The new owner's own copy of the case is updated by that same entry; nothing is delivered to it separately.
 
-A refusal is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/protocol.md#cm-21)), and ownership stays where it was.
+A refusal is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/protocol.md#cm-21-010)), and ownership stays where it was.
 What the CASE_MANAGER does after a refusal is not yet specified.
 Today it only logs the refusal: no ledger entry records it, and the participant who made the offer is not told.
 Whether a refusal should be recorded, how the offerer learns of it, and whether the case can be offered again are tracked in [#3748](https://github.com/CERTCC/Vultron/issues/3748).

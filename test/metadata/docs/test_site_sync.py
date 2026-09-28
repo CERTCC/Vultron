@@ -174,6 +174,38 @@ class TestLandingPageGeneration:
         (page,) = discover_landing_pages(_repo(tmp_path, files, nav))
         assert render_listing(page) == "- [Real Heading](a.md) — D."
 
+    def test_unlabelled_page_h1_skips_a_hash_inside_an_admonition_fence(
+        self, tmp_path
+    ):
+        """A ``# comment`` in a shell block nested under ``!!! note`` is not
+        the H1, even though the fence sits four spaces deep (#3685)."""
+        text = (
+            "---\ndescription: D.\n---\n\n"
+            "!!! note\n\n    ```bash\n    # install\n    ```\n\n"
+            "# Real Heading\n"
+        )
+        files = {"docs/guides/index.md": _LANDING, "docs/guides/a.md": text}
+        nav: list[object] = [{"Guides": ["guides/index.md", "guides/a.md"]}]
+        (page,) = discover_landing_pages(_repo(tmp_path, files, nav))
+        assert render_listing(page) == "- [Real Heading](a.md) — D."
+
+    @pytest.mark.parametrize("inner", ["```", "~~~~"])
+    def test_unlabelled_page_h1_ignores_a_fence_that_does_not_close(
+        self, tmp_path, inner
+    ):
+        """A shorter run, or the other fence character, inside a longer fence
+        is content and does not end the block, so a ``#`` line after it is
+        still fenced (#3685)."""
+        text = (
+            "---\ndescription: D.\n---\n\n"
+            f"````markdown\n{inner}\n# Not The Heading\n````\n\n"
+            "# Real Heading\n"
+        )
+        files = {"docs/guides/index.md": _LANDING, "docs/guides/a.md": text}
+        nav: list[object] = [{"Guides": ["guides/index.md", "guides/a.md"]}]
+        (page,) = discover_landing_pages(_repo(tmp_path, files, nav))
+        assert render_listing(page) == "- [Real Heading](a.md) — D."
+
     def test_non_http_scheme_is_an_external_link(self, tmp_path):
         files = {"docs/guides/index.md": _LANDING}
         nav: list[object] = [

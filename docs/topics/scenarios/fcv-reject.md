@@ -1,6 +1,5 @@
 ---
 title: "FCV-reject Scenario: Finder + Coordinator + Vendor (Vendor Rejects)"
-status: stable
 causal_edges:
   - antecedent: validate_report
     consequent: engage_case
