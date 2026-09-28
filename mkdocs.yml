@@ -103,6 +103,7 @@ nav:
             - How to Revise or Terminate an Embargo: 'howto/activitypub/activities/manage_embargo.md'
             - How to Report a Protocol Fault: 'howto/activitypub/activities/error.md'
       - Wiring a Capability: 'howto/wire_capability.md'
+      - Measuring Your CVD Program: 'howto/measure_your_cvd_program.md'
       - Demo How-Tos:
           - FVV Demo: 'howto/demos/fvv-demo.md'
   - Reference:
@@ -161,7 +162,6 @@ nav:
       - Benchmarking CVD: 'topics/measuring_cvd/benchmarking.md'
       - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
       - Reward Functions: 'topics/measuring_cvd/reward_functions.md'
-      - Modeling and Simulation: 'topics/measuring_cvd/mod_sim.md'
       - State Space Size: 'topics/measuring_cvd/state_space_size.md'
     - Other Uses of Vultron:
       - 'topics/other_uses/index.md'
@@ -171,7 +171,6 @@ nav:
       - Situation Awareness: 'topics/other_uses/situation_awareness.md'
       - VEP: 'topics/other_uses/vep.md'
       - CVD Action Rules: 'topics/other_uses/action_rules.md'
-      - CVD Directory: 'topics/other_uses/cvd_directory.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Working on This Implementation: 'about/project_record.md'
@@ -351,13 +350,15 @@ plugins:
         topics/formal_protocol/index.md: reference/formal_protocol/index.md
         topics/formal_protocol/worked_example.md: tutorials/worked_example.md
         topics/future_work/cs_model_limitations.md: topics/process_models/cs/cs_model_limitations.md
-        topics/future_work/cvd_directory.md: topics/other_uses/cvd_directory.md
-        topics/future_work/mod_sim.md: topics/measuring_cvd/mod_sim.md
+        topics/future_work/cvd_directory.md: topics/future_work/open_questions.md
+        topics/future_work/mod_sim.md: topics/measuring_cvd/reward_functions.md
         # The old page speculated about an OWL ontology; its target now records
         # what became of that ontology (kept in the repo, not published), which
         # is the answer a reader following the old URL is after.
         topics/future_work/ontology.md: reference/ontology/index.md
         topics/future_work/reward_functions.md: topics/measuring_cvd/reward_functions.md
+        topics/measuring_cvd/mod_sim.md: topics/measuring_cvd/reward_functions.md
+        topics/other_uses/cvd_directory.md: topics/future_work/open_questions.md
         topics/process_models/cs/events.md: topics/process_models/cs/cs_model.md
         topics/process_models/cs/model_definition.md: topics/process_models/cs/transitions.md
         topics/process_models/em/participant-embargo-consent.md: topics/behavior_logic/use-cases/embargo-lifecycle.md

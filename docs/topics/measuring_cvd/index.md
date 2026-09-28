@@ -5,24 +5,34 @@ level: 200
 
 # Measuring CVD
 
-!!! abstract "Measuring CVD"
+Coordinated Vulnerability Disclosure (CVD) is the consensus response to the persistent fact of vulnerable software, yet few performance indicators have been proposed to measure how well it works at the broadest scales.
+This section fills that gap.
+It derives every possible history a CVD case can have from the [Case State (CS) model](../process_models/cs/index.md), orders those histories by a set of desired outcomes, computes how often each outcome would occur by chance, and turns the difference between chance and observation into a measure of skill.
+The pages are research material for people who study the CVD process, and none of them is normative.
 
-    CVD stands as a consensus response to the persistent fact of vulnerable 
-    software, yet few performance indicators have been proposed to measure its 
-    efficacy at the broadest scales. In this section, we seek to fill that gap. 
-    We begin by deriving a model of all possible CVD histories from first 
-    principles, organizing those histories into a partial ordering based on a 
-    set of desired criteria. We then compute a baseline expectation for the 
-    frequency of each desired criteria and propose a new set of performance 
-    indicators to measure the efficacy of CVD practices based on the 
-    differentiation of skill and luck in observation data. As a proof of
-    concept, we apply these indicators to a variety of longitudinal observations of
-    CVD practice and find evidence of significant skill to be prevalent. We 
-    conclude with reflections on how this model and its accompanying performance
-    indicators could be used by various stakeholders (vendors, system
-    owners, coordinators, and governments) to interpret the quality of their
-    CVD practices.
+The section is derived from the report [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771){:target="_blank"} by Allen Householder and Jonathan Spring.
+The twelve desired outcomes it measures against are stated in plain terms on [What Does *Success* Mean in CVD?](../background/cvd_success.md), which is the place to start if the state notation is new to you.
 
-This section is derived from the following paper:
-*A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure
-(MPCVD)* by Allen Householder and Jonathan Spring
+## Pages in this section
+
+The pages build on one another in the order shown.
+The first four construct the model, the next two measure against it, and the remaining four apply the measure or extend the model.
+
+| Page | What it covers |
+|---|---|
+| [Sequences of Events and Possible Histories in CVD](possible_histories.md) | The 70 histories a case can have, derived from the six CS events and their ordering constraints |
+| [On the Desirability of Possible Histories](desirable_histories.md) | The twelve desired orderings and the partial order they induce over the histories |
+| [A Random Walk through CVD States](random_walk.md) | A baseline in which every allowed transition is equally likely, from the principle of indifference |
+| [Reasoning over Possible Histories](reasoning_over_histories.md) | How often each history and each desired ordering occurs under that baseline |
+| [Discriminating Skill and Luck in Observations](discriminating_skill_and_luck.md) | The skill coefficient $\alpha_d$, which normalizes an observed frequency against the baseline |
+| [Observing CVD in the Wild](observing_skill.md) | The skill coefficient applied to Microsoft security updates and to commodity exploit data |
+| [Benchmarking CVD](benchmarking.md) | What a reasonable benchmark for $\alpha_d$ is, and why the naive benchmark of zero is a low bar |
+| [Measuring and Benchmarking MPCVD](benchmarking_mpcvd.md) | Extending the measure to a case in which every affected vendor and product has its own history |
+| [Reward Functions](reward_functions.md) | Criteria for reward functions over Report Management and Embargo Management histories, and the simulation work they would enable |
+| [About the Size of the Protocol State Space](state_space_size.md) | How many states a participant and a whole case can occupy, and why coordination keeps that tractable |
+
+## Where the section connects
+
+The report closes with reflections on how vendors, system owners, coordinators, and governments could each use these indicators.
+Those reflections are on [CVD Roles and Their Influence](../other_uses/roles_influence.md), in the [Other Uses](../other_uses/index.md) section, because they are about who acts on the model rather than about measuring it.
+A CVD program owner who wants to apply the measure to their own cases, without the derivation, can follow [How to Measure Your CVD Program](../../howto/measure_your_cvd_program.md).
