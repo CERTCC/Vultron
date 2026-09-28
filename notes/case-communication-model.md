@@ -20,6 +20,7 @@ related_notes:
   - notes/event-driven-control-flow.md
   - notes/participant-case-replica.md
   - notes/fv-demo.md
+  - notes/outbox.md
   - notes/use-case-protocol.md
 relevant_packages:
   - vultron/core/use_cases/triggers
@@ -315,18 +316,26 @@ Recipient receives Activity:
 
 Use `_prepare_delegated_context()` (`triggers/_helpers.py`) as the canonical
 implementation.  All delegated-emit trigger use cases MUST call this helper
-(CM-24-005).  When the BT tree also needs `case_actor_id` separately (e.g.
-for the `cc:` routing in the invite flow), resolve it with a second
-`_find_case_actor_id()` call after the helper:
+(CM-24-005):
 
 ```python
 # Delegated-message contract (CM-24-001..003)
 self._actor_id, self._attributed_to = _prepare_delegated_context(
     self._dl, self._case.id_, requesting_actor_id
 )
-# case_actor_id needed separately when BT tree requires it (e.g. invite cc:)
-self._case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
 ```
+
+**The delegated emit runs where the CASE_MANAGER is hosted** (CM-24-004,
+ADR-0109).  A container emits only as actors it hosts, so a trigger on a
+container that does not host the CASE_MANAGER does not run the tree as the
+CASE_MANAGER.  It sends the requesting participant's *own* activity to the
+CASE_MANAGER — the owner's direct invite is the owner's `Offer(CaseParticipant)`
+(CM-17-007) — and the CASE_MANAGER's received tree performs the delegated emit
+and commits the entry in that tree.  The CASE_MANAGER never addresses a `cc:`
+copy of its own emission to itself; the former self-copy compensated for a
+foreign-container emit and committed the same Invite twice when the two were
+co-hosted (#2996).  #3821 and #3822 land the code; until they do, the invite
+and ownership-transfer triggers still run the delegated emit locally.
 
 ### Delegated Flows (Exhaustive)
 

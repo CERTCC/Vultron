@@ -5,6 +5,11 @@ level: 500
 
 # Measuring and Benchmarking MPCVD
 
+{% include-markdown "../../includes/not_normative.md" %}
+
+This page extends the skill measure and the benchmarks of the preceding pages to a case with more than one affected vendor or product.
+It assumes the set of desiderata $\mathbb{D}$ from [Desirable Histories](./desirable_histories.md), the skill coefficient $\alpha_d$ from [Discriminating Skill and Luck](./discriminating_skill_and_luck.md), and the benchmark constant $c_d$ from [Benchmarking CVD](./benchmarking.md).
+
 Multiparty Coordinated Vulnerability Disclosure (MPCVD) is the
 process of coordinating the creation, release, publication, and
 potentially the deployment of fixes for vulnerabilities across a number
@@ -95,20 +100,13 @@ behaving independently of all the others. Therefore:
 
     where $N_{vprod}$ represents the number of vendor-product pairs.
 
-This is undesirable, as it would result in a wide distribution
-of realized histories that more closely resemble the randomness
-assumptions outlined above than a skillful, coordinated effort. Further
-discussion of measuring MPCVD skill can be found below.
+This is undesirable, as it would result in a wide distribution of realized histories that more closely resemble the randomness assumptions of [A Random Walk through CVD States](./random_walk.md) than a skillful, coordinated effort.
+Further discussion of measuring MPCVD skill can be found in [MPCVD Benchmarks](#mpcvd-benchmarks) below.
 
 !!! tip "Reducing Dimensionality of MPCVD Cases is a good thing"
 
-    For now, we posit that the goal of a good MPCVD
-    process is to reduce the dimensionality of a given MPCVD case as
-    much as is possible (i.e., to the 5 dimensions of a single vendor
-    CVD case we have presented above).
-    Experience shows that a full dimension reduction is
-    unlikely in most cases, but that does not detract from the value of
-    having the goal.
+    For now, we posit that the goal of a good MPCVD process is to reduce the dimensionality of a given MPCVD case as much as is possible (i.e., to the dimensions of the single-vendor CVD case described in [CS States](../process_models/cs/cs_model.md)).
+    Experience shows that a full dimension reduction is unlikely in most cases, but that does not detract from the value of having the goal.
 
 !!! tip "Reducing Complexity within a Vendor Organization"
 
