@@ -317,8 +317,8 @@ linked file before touching that area. New pitfalls MUST be routed per
   ([notes/agentic-workflow.md](notes/agentic-workflow.md)); **MkDocs `not_in_nav` ≠
   `exclude_docs`, and neither is a lint-scope class** — nav exclusion says nothing
   about whether a file is prose, so `_*.md` include fragments MUST be linted as source
-  while page-scoped rules go to the assembled page (DF-09-007, ADR-0092; `lint-docs`
-  does not do this yet — #3318); **withholding a page does not unlink it** —
+  while page-scoped rules go to the assembled page, and a zero-target lint gate fails,
+  never passes (DF-09-007/009, ADR-0092); **withholding a page does not unlink it** —
   `draft_docs` suppresses the build, not the generators that enumerate pages, and
   `--strict` never sees an exec-block link, so the gate is *resolution* over every
   built `site/` file (`docs-links`), not link form (`.md` suffix) and not a crawl from

@@ -210,15 +210,18 @@ Design decisions for the `UseCaseResult` type hierarchy (`HandlerResult` /
 `TriggerResult`), the `HandlerDisposition` vocabulary
 (`APPLIED`/`SKIPPED`/`DEFERRED`/`REFUSED`) and how it reaches `InboxOutcome` across the
 dispatcher boundary, the two semantically distinct request paths (`VultronEvent`
-vs `TriggerRequest`), why `UseCaseRequest` was not introduced, the planned
-`TriggerService`/`TriggerServicePort` migration from `dict` to `TriggerResult`,
-and the ratchet test design. **None of it is implemented yet** — handlers are
-`-> None`, triggers return `dict`. ADRs:
-`docs/adr/0040-use-case-result-envelope.md` (original) and
-`docs/adr/0095-received-side-handler-result.md` (received-side half).
+vs `TriggerRequest`), why `UseCaseRequest` was not introduced, the trigger-side
+collapse to a one-method `TriggerDispatcher` port over a verb registry with a
+typed result hierarchy, and the ratchet test design. Received side and
+dispatcher chain are implemented; the trigger side is decided (ADR-0110) and
+planned as staged tasks, none yet built. ADRs:
+`docs/adr/0040-use-case-result-envelope.md` (original),
+`docs/adr/0095-received-side-handler-result.md` (received-side half), and
+`docs/adr/0110-trigger-dispatcher-port-over-verb-registry.md` (trigger-side half).
 **Load when**: implementing a new use case, reviewing the `execute()` contract,
-working on `UseCase` Protocol or `TriggerServicePort` signatures, threading a
-handler verdict to `InboxOutcome`, or debugging return-type ratchet failures.
+working on the `UseCase` or trigger driving port, adding a trigger verb,
+threading a handler verdict to `InboxOutcome`, or debugging return-type ratchet
+failures.
 
 **`inbox-orchestration.md`**
 Design decisions for the core BT-backed inbox orchestration module: why
@@ -984,7 +987,7 @@ behavior simulator reference, Do Work behaviors, and ISO crosswalks. Also the
 fragment/assembly-unit model for `{% include-markdown %}` pages: why nav
 exclusion (`not_in_nav`) is not a lint-scope class, which style rules are
 page-scoped vs. per-sentence, and why the include graph is not a tree
-(DF-09-007 through DF-09-009, ADR-0092) — plus the planned `codespell`
+(DF-09-007 through DF-09-009, ADR-0092) — plus the `codespell`
 configuration and its three silent hazards (ADR-0092, #3318).
 **Load when**: evaluating where new documentation belongs, cross-referencing
 Vultron docs to ISO/CVD process standards, or changing the target set, exemption
@@ -996,8 +999,9 @@ new context" insight, the two witness sessions (#3342 over `specs/`, #3002 over
 `docs/`), and what agents must do when moving or republishing content (verify
 every claim against its authority; prefer `{% include-markdown %}` over copying).
 Records the three fragment mechanics that bite — placement beside the host pages,
-include paths relative to the including file, and the fact that extraction moves
-prose out of `lint-docs`' target set until #3318 lands.
+include paths relative to the including file, and the fact that a fragment is a
+`lint-docs` target in its own right (DF-09-007) while its claims still need
+verifying at the move.
 Normative anchors: DF-10-001, DF-10-002.
 **Load when**: performing any documentation sweep (naming, Diátaxis extraction,
 page split), or deciding how to share content across two docs/ locations.

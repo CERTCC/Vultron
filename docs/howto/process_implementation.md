@@ -38,7 +38,7 @@ The change that is needed is at the milestones: intercept each one and emit the 
 
 | When your workflow records that… | Emit | How |
 |---|---|---|
-| a report has arrived | Report Acknowledgement (RK) | [How to Acknowledge a Report](activitypub/activities/acknowledge.md) |
+| a report has arrived | Report Acknowledgment (RK) | [How to Acknowledge a Report](activitypub/activities/acknowledge.md) |
 | validation is complete | Report Valid (RV) or Report Invalid (RI) | [How to Report a Vulnerability](activitypub/activities/report_vulnerability.md) |
 | prioritization is complete | Report/Case Accepted (RA) or Report/Case Deferred (RD) | [How to Advance a Case Through Report Management](activitypub/activities/manage_case.md) |
 | the report or case is closed | Report Closed (RC), or the case closure | [How to Advance a Case Through Report Management](activitypub/activities/manage_case.md) |
@@ -49,7 +49,7 @@ If your workflow has a validation step but no explicit prioritization step, trea
 
 Participants in a multi-party case often share advisory drafts during the embargo.
 The protocol does not prescribe that exchange, because the case can complete without it.
-If your workflow has a draft-review step, carry it as case notes: the General Inquiry (GI) and General Acknowledgement (GK) [messages](../reference/formal_protocol/messages.md#other-message-types) are enough, and [How to Post a Status Update or a Case Note](activitypub/activities/status_updates.md) shows the activity.
+If your workflow has a draft-review step, carry it as case notes: the General Inquiry (GI) and General Acknowledgment (GK) [messages](../reference/formal_protocol/messages.md#other-message-types) are enough, and [How to Post a Status Update or a Case Note](activitypub/activities/status_updates.md) shows the activity.
 The [ISO/IEC 29147:2018 crosswalk](../reference/iso_crosswalks/iso_29147_2018.md) maps that standard's advisory-publication clauses onto the same messages.
 
 ---

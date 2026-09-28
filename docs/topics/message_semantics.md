@@ -62,7 +62,7 @@ implementation decides *what to do about it*.
 The alternative — command-based messages — connects senders to receivers. A
 sender would need to know what the receiver must do. The receiver would be
 required to obey. In a multi-party protocol where participants span different
-organisations with different systems and policies, those connections will not
+organizations with different systems and policies, those connections will not
 work.
 
 Announcement-based messages let each actor maintain its own state
@@ -171,4 +171,4 @@ into a single null value.
 
 - [Protocol Event Flow](protocol_flow.md) — how messages cause chains of consequences
 - [The Case Model](case_lifecycle/case_model.md) — the shared record that messages coordinate around
-- [Capability Model](capability_model/index.md) — external services that supply judgements actors cannot make alone
+- [Capability Model](capability_model/index.md) — external services that supply judgments actors cannot make alone

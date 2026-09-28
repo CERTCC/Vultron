@@ -147,7 +147,7 @@ Both paths end in an `Accept` of an `Invite`
 ([§11.2](index.md#112-invitation-and-acceptance-n)).
 
 **Fault reporting.** The three failure modes of
-[§4.6](index.md#46-error-and-acknowledgement-messages) have these wire forms:
+[§4.6](index.md#46-error-and-acknowledgment-messages) have these wire forms:
 
 | Failure mode | Wire form |
 |---|---|
@@ -339,7 +339,7 @@ types of [§5.2](index.md#52-object-types).
 | `ER`, `EJ` | `Reject` of that `Invite` |
 | `ET` | `Remove` of the `EmbargoEvent` |
 | `CV`–`CA` | `Add` of a status record to the case — see below |
-| `RE`, `EE`, `CE`, `EK`, `CK` | *none* ([§4.6](index.md#46-error-and-acknowledgement-messages)) |
+| `RE`, `EE`, `CE`, `EK`, `CK` | *none* ([§4.6](index.md#46-error-and-acknowledgment-messages)) |
 
 **The status messages depend on who is sending.** The six case state shorthands do
 not have one wire form; they have two, and which applies is determined by the

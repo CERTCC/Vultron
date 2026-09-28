@@ -7,7 +7,7 @@ level: 400
 
 A *case proposal* is a pre-case bootstrap message flow described in
 [ADR-0023](../../adr/0023-case-proposal-protocol.md). It allows an actor
-(typically a finder or coordinator) to request case initialisation from a
+(typically a finder or coordinator) to request case initialization from a
 case-actor service **before a case exists**. No case URI is in scope; the
 proposal itself is the shared object.
 

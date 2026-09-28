@@ -130,7 +130,7 @@ rather than a retraction of the earlier deferral.
 - **Triggering transition:** Invalid, Deferred, or Accepted → Closed
   ({I,D,A} → C).
 - **Wire activity:** `Reject(Offer(VulnerabilityReport))`. This activity also
-  appears as an ordinary refusal in the fault-and-acknowledgement mapping
+  appears as an ordinary refusal in the fault-and-acknowledgment mapping
   (MSM-05-003).
 - **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
@@ -142,7 +142,7 @@ from vultron.wire.as2.vocab.examples.vocab_examples import close_report, json2md
 print(json2md(close_report()))
 ```
 
-## RK — Report Acknowledgement
+## RK — Report Acknowledgment
 
 - **Protocol role:** Acknowledges receipt of an RM message.
 - **Triggering transition:** any valid RM message.

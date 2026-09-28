@@ -5,7 +5,7 @@ stakeholder_type: [project-contributor]
 # Project Specifications
 
 Specific to this Python codebase. Covers Python paths, Behavior Tree nodes,
-py_trees, pydantic models, factory names, module organisation, and endpoint
+py_trees, pydantic models, factory names, module organization, and endpoint
 conventions.
 
 ```python exec="true" idprefix=""

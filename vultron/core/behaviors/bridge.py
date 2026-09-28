@@ -667,7 +667,7 @@ class BTBridge:
             result = bridge.execute_with_setup(
                 tree=ValidateReportBT(...),
                 actor_id=actor_id,
-                activity=dispatchable.payload
+                activity=request,
             )
 
         Args:

@@ -45,9 +45,9 @@ ActivityStreams offers three verbs for consuming a piece of content: `as:Read`, 
 Most Coordinated Vulnerability Disclosure (CVD) cases are text-centric, so `as:Read` is the verb Vultron uses.
 `as:View` and `as:Listen` remain available to an implementation whose participants consume a video recording or an audio recording as part of a case, and neither is forbidden.
 
-The acknowledgement is `Read(Offer(VulnerabilityReport))`: an `as:Read` whose object is the report's original `Offer` rather than the report itself.
+The acknowledgment is `Read(Offer(VulnerabilityReport))`: an `as:Read` whose object is the report's original `Offer` rather than the report itself.
 Naming a dedicated form rather than reusing a bare `Read(VulnerabilityReport)` lets a recipient acknowledge that a report arrived without committing to anything further.
-That separation is the point: it leaves `Accept(Offer(VulnerabilityReport))` and `TentativeReject(Offer(VulnerabilityReport))` free to carry the judgment, so acknowledgement and validity are distinct claims on the wire.
+That separation is the point: it leaves `Accept(Offer(VulnerabilityReport))` and `TentativeReject(Offer(VulnerabilityReport))` free to carry the judgment, so acknowledgment and validity are distinct claims on the wire.
 
 ```mermaid
 ---
@@ -57,7 +57,7 @@ flowchart LR
     subgraph RM:RECEIVED
         a{Accept?}
         subgraph as:Read
-            RmReadReport["Report Acknowledgement (RK)<br/>Read(Offer(VulnerabilityReport))"]
+            RmReadReport["Report Acknowledgment (RK)<br/>Read(Offer(VulnerabilityReport))"]
         end
     end
     subgraph RM:START
@@ -84,10 +84,10 @@ flowchart LR
 The diagram shows the three ways a recipient can answer a submitted report.
 `Read(Offer(VulnerabilityReport))` is the answer available while the recipient is still undecided; the other two arms carry a verdict.
 
-An acknowledgement is therefore optional whenever a verdict follows.
+An acknowledgment is therefore optional whenever a verdict follows.
 An `Accept(Offer(VulnerabilityReport))` sent as a reply to `Offer(VulnerabilityReport)` already implies the report was read, because validating it required reading it.
 Sending a separate `Read(Offer(VulnerabilityReport))` in that case adds a message without adding information.
-[Faults and Acknowledgements](../reference/messages/faults_and_acknowledgements.md) gives the acknowledgement activities that can serve this role.
+[Faults and Acknowledgments](../reference/messages/faults_and_acknowledgements.md) gives the acknowledgment activities that can serve this role.
 
 ---
 
@@ -319,7 +319,7 @@ Adding an object type was necessary, because nothing in the existing vocabulary 
 
 ---
 
-## Faults and acknowledgements took different axes
+## Faults and acknowledgments took different axes
 
 The formal protocol partitions faults by which state machine the bad message belonged to, giving one error shorthand per machine: `RE`, `EE`, `CE`, and `GE`.
 The wire vocabulary partitions faults by *why* the message failed instead.
@@ -328,12 +328,12 @@ The three modes are received but not understood, received and understood but dec
 We consider failure mode the better axis for a receiver.
 Knowing that a message was not understood tells a sender to check its serialization; knowing that a message was declined tells a sender to check the protocol state it assumed.
 Knowing which state machine the message belonged to tells a sender something it already knew.
-The same reasoning moved acknowledgement.
+The same reasoning moved acknowledgment.
 For ledger-replicated state, a matching hash chain acknowledges the entire log prefix at once, so a per-message `EK` or `CK` would repeat what the chain already proves (MSM-05-002).
 
 Neither mechanism is missing from the implementation.
 Both are shaped differently from the formal set, which is why the mapping specification records them as *evolved* rather than as absent.
-The mechanisms themselves — which activity conveys which failure mode, and how the hash chain carries an acknowledgement — are described in [Faults and Acknowledgements](../reference/messages/faults_and_acknowledgements.md).
+The mechanisms themselves — which activity conveys which failure mode, and how the hash chain carries an acknowledgment — are described in [Faults and Acknowledgments](../reference/messages/faults_and_acknowledgements.md).
 
 ---
 
@@ -343,7 +343,7 @@ The mechanisms themselves — which activity conveys which failure mode, and how
 |---|---|
 | Verb reuse | Use an existing ActivityStreams type where one expresses the act. |
 | Unambiguous combinations | No two activity types share a verb, object, and target. |
-| Verb selection | `as:Read` for text-centric acknowledgement; `as:View` and `as:Listen` stay available. |
+| Verb selection | `as:Read` for text-centric acknowledgment; `as:View` and `as:Listen` stay available. |
 | Unused verbs | `as:Like`, `as:Dislike`, `as:Flag` carry no protocol meaning; `as:Undo` misdescribes a forward transition. |
 | Create and Add | A wire expansion with no formal counterpart, and still two distinct messages on the wire. Inline the object to send fewer activities; do not merge the two verbs. |
 | Invite and Add | `as:Invite` asks; `as:Add` asserts. Late arrivals are invited. |

@@ -75,7 +75,7 @@ _PAGE_TITLES: dict[str, str] = {
     "em": "Embargo Management (EM) Messages",
     "cs": "Case State (CS) Messages",
     "general": "General (GI) Messages",
-    "faults_and_acknowledgements": "Fault and Acknowledgement Mechanisms",
+    "faults_and_acknowledgements": "Fault and Acknowledgment Mechanisms",
     "case_management": "Case Management Wire Activities",
     "case_proposal": "Case Proposal Wire Activities",
     "ledger_replication": "Ledger Replication Wire Activities",

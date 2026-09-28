@@ -12,6 +12,8 @@ description: >
 related_specs:
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
+  - specs/triggerable-behaviors.yaml
+  - specs/testability.yaml
 related_notes:
   - notes/specs-vs-adrs.md
   - notes/behavioral-conformance-specs.md
@@ -382,6 +384,29 @@ or describe the one that does.
 Source: ISSUE-2982
 
 ## Audit Passes
+
+### A Resolving Citation Is Not a Correct Citation — Scope `Implements:` by Topic
+
+Every `Implements:` docstring under `vultron/` resolves to *some* requirement,
+so an existence-only traceability check cannot see a wrong-topic citation. The
+trigger routers cited `TB-01-001` ("the system MUST use pytest") 236 times as
+the requirement they implement, because the Testability topic shares the `TB`
+prefix a trigger spec once used; `trigger_embargo.py` had 52 `TB-` and zero
+`TRIG-` citations and every one of them resolved (#3354).
+
+**How to apply:**
+
+- `TB` (Testability) requirements govern tests. No module under `vultron/` may
+  cite one in an `Implements:` docstring; the ratchet that enforces this is
+  topic-scoped, not resolution-scoped.
+- Repointing is per-file judgment, not a prefix swap. `TRIG-02` splits by
+  domain (`-001` report, `-002` embargo, `-004` case, `-005` participant,
+  `-006` demo-only), so a blind `TB-02-001` → `TRIG-02-001` mints fresh
+  wrong-but-resolving citations in four of five routers.
+- Once a registry row carries `spec_ids`, the check becomes an import-time
+  assertion over the table rather than a docstring scan.
+
+Source: ISSUE-3354
 
 ### Retiring a File or Label Requires Auditing All Specs for Bare-Filename References
 

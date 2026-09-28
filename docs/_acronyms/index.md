@@ -42,7 +42,7 @@ sense the docs actually use.
 *[CF]: Fix Readiness (CS message)
 *[CI]: Continuous Integration
 *[CISA]: Cybersecurity and Infrastructure Security Agency, a part of the U.S. Department of Homeland Security
-*[CK]: CS Acknowledgement (CS message)
+*[CK]: CS Acknowledgment (CS message)
 *[CLI]: Command Line Interface
 *[CMU]: Carnegie Mellon University
 *[CNA]: CVE Numbering Authority
@@ -82,7 +82,7 @@ sense the docs actually use.
 *[EE]: Embargo Error (EM message)
 *[EFF]: Electronic Frontier Foundation
 *[EJ]: Embargo Revision Rejection (EM message)
-*[EK]: Embargo Acknowledgement (EM message)
+*[EK]: Embargo Acknowledgment (EM message)
 *[EM]: Embargo Management
 *[EMB]: Embargo Management Behavioral Requirements (spec family)
 *[ENISA]: European Union Agency for Cybersecurity
@@ -109,7 +109,7 @@ sense the docs actually use.
 
 *[GE]: General Error (general message)
 *[GI]: General Inquiry (general message)
-*[GK]: General Acknowledgement (general message)
+*[GK]: General Acknowledgment (general message)
 *[GnuPG]: GNU Privacy Guard, an implementation of the OpenPGP standard
 *[GPG]: GNU Privacy Guard, an implementation of the OpenPGP standard
 
@@ -189,7 +189,7 @@ sense the docs actually use.
 *[RFCs]: Requests for Comments
 *[RFID]: Radio Frequency Identification
 *[RI]: Report Invalid (RM message)
-*[RK]: Report Acknowledgement (RM message)
+*[RK]: Report Acknowledgment (RM message)
 *[RM]: Report Management
 *[RMB]: Report Management Behavioral Requirements (spec family)
 *[RMM]: The CERT Resilience Management Model

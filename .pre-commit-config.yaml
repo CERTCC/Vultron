@@ -6,6 +6,26 @@ repos:
         language_version: py313
         args: ["."]
 
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.3
+    hooks:
+      # Mechanical floor for SG-37 (American spelling) over docs/ prose
+      # (ADR-0092, DF-09-001). Dictionary and exclusions come from
+      # [tool.codespell] in pyproject.toml. Two guards are load-bearing and
+      # both must stay:
+      #  - `--write-changes` lives HERE, not in pyproject.toml, so a manual
+      #    `codespell docs/` is read-only (as markdownlint carries `--fix`).
+      #  - `files:` restricts the hook to docs/*.md. Run over the repo root with
+      #    write-changes, codespell "corrects" the ignore-regex in its own
+      #    config and destroys the pattern protecting py_trees.behaviour.
+      #    pyproject.toml is also in the config's `skip` for the same reason.
+      # codespell cannot see a code fence, an inline code span, or a link or
+      # include target: protect such a token with ignore-regex, never by
+      # editing around the hook.
+      - id: codespell
+        args: ["--write-changes"]
+        files: ^docs/.*\.md$
+
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.7
     hooks:
