@@ -26,7 +26,7 @@ protocol with other related standards and protocols, including:
 
 <!-- markdownlint-disable MD007 -->
 - [Terms and Definitions](terms.md) — The Coordinated Vulnerability Disclosure (CVD) stakeholder roles and case terms used throughout this documentation.
-- [Versioning](versioning.md) — The version-numbering scheme for the Vultron Protocol.
+- [Versioning](versioning.md) — The release versioning scheme for the Vultron repository.
 - [ISO Crosswalk](iso_crosswalks/index.md) — A crosswalk of the Vultron Protocol against the ISO/IEC standards on vulnerability handling and disclosure.
 - [User Stories](user_stories/index.md) — Requirements captured as user stories.
 - **Protocol Architecture**

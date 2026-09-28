@@ -502,7 +502,7 @@ current value.
 | `reference/ssvc_crosswalk.md` | 400 | cvd-practitioner | revise | 6 | Renders a visible '{== TODO merge with SSVC section of Situation Awareness ==}' marker and pins SSVC v2.1 PDF links; the mappings themselves are formal and coherent. | — |
 | `reference/trigger-api.md` | 400 | platform-developer | ok | 7 | Generated endpoint reference with a short orientation and a link to wire_capability background. The prose hard-codes '23 endpoints'. | — |
 | `reference/user_stories/index.md` | 200 | cvd-practitioner, process-researcher | revise | 3 | Support levels are defined against 'Vultron Protocol v0.4.0' (pre-CalVer), and the page never links traceability.md, which carries the story-to-spec mapping. | No forward link to the Traceability Matrix, its nav sibling. |
-| `reference/versioning.md` | 200 | cvd-practitioner, platform-developer | ok | 1 | Short CalVer definition with examples; self-contained. | — |
+| `reference/versioning.md` | 200 | cvd-practitioner, platform-developer | ok | 1 | Rewritten in #3771: tag names the repository snapshot, three-component CalVer always, no compatibility claim; links ADR-0106 for interface versioning. | — |
 | `reference/vultron-spec/index.md` | 400 | platform-developer | ok | 220 | ~2,840-line include-assembled normative spec (220 inbound) written for implementers and conformance reviewers. It states its audience and N/I markers. | — |
 
 ### #3626 (R8) — Research: measuring, other uses, future work

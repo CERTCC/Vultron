@@ -125,14 +125,26 @@ succeed with the same payload; burning four retry attempts with backoff and then
 requeueing indefinitely is a positive-feedback loop (more load → more 422s →
 more retries → more load).
 
-### Per-activity abort scope (OX-13-006)
+### Per-activity abort scope (OX-13-006, OX-13-010, OX-13-011)
 
 `outbox_handler`'s per-pass error handling is restructured so that `err_count` is
 reset after each activity (not per-pass). When an activity hits the per-pass cap:
 
-- The current pass **continues** (`continue`, not `break`) — other activities in
-  the queue are unaffected.
-- The activity is re-appended to the queue tail for the next drain pass.
+- The current pass **continues** — other activities in the queue are unaffected.
+- The activity stays in the persistent queue (it was re-queued immediately on
+  failure) and is recorded in an in-memory `capped_this_pass` set.
+- Whenever the loop pops an activity that is in `capped_this_pass`, it re-queues it
+  **without attempting delivery** and without incrementing the attempt counter.
+  This ensures the activity is deferred to the next drain pass without being lost
+  on a crash (OX-13-011).
+- The pass ends when every remaining queued item is in `capped_this_pass`.
+
+> **Implementation note:** The queue tail belongs to the *current* pass, not the
+> next one — the drain loop is `while outbox_list()`, so any item appended during
+> the loop is popped in the same pass.
+> Holding capped activities in memory and re-queuing after the loop would widen the
+> crash-loss window (activities in memory are gone on a crash mid-pass), so they
+> are kept in the persistent queue throughout and skipped via the set.
 
 The per-pass cap is retained as a backstop against a single activity consuming all
 delivery bandwidth in one pass; it is now per-activity rather than per-drain.
