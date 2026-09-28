@@ -418,10 +418,10 @@ def bt_scenario_factory() -> Callable[..., BTTestScenario]:
 def shared_dl_actors() -> tuple[BTTestScenario, BTTestScenario]:
     """Return two BTTestScenario instances (vendor + reporter) sharing one DL.
 
-    Both ``VultronCaseActor`` objects are persisted in the shared DataLayer
+    Both ``CaseActor`` objects are persisted in the shared DataLayer
     so BT nodes that look up actor records can find them.
     """
-    from vultron.core.models.case_actor import VultronCaseActor
+    from vultron.core.models.case_actor import CaseActor
 
     dl = SqliteDataLayer(
         "sqlite:///:memory:",
@@ -430,8 +430,8 @@ def shared_dl_actors() -> tuple[BTTestScenario, BTTestScenario]:
     vendor_id = "https://example.org/actors/vendor"
     reporter_id = "https://example.org/actors/reporter"
 
-    vendor_actor = VultronCaseActor(id_=vendor_id, name="Vendor Co")
-    reporter_actor = VultronCaseActor(id_=reporter_id, name="Reporter Co")
+    vendor_actor = CaseActor(id_=vendor_id, name="Vendor Co")
+    reporter_actor = CaseActor(id_=reporter_id, name="Reporter Co")
     dl.create(vendor_actor)
     dl.create(reporter_actor)
 

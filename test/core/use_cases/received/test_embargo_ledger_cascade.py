@@ -16,7 +16,7 @@ from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
@@ -45,9 +45,7 @@ def _make_embargo_case_with_actor(
     author_id: str,
     extra_participants: list[str] | None = None,
     case_manager_actor_id: str | None = None,
-) -> tuple[
-    SqliteDataLayer, VultronCaseActor, as_VulnerabilityCase, as_EmbargoEvent
-]:
+) -> tuple[SqliteDataLayer, CaseActor, as_VulnerabilityCase, as_EmbargoEvent]:
     """Return (dl, case_actor, case, embargo) ready for cascade tests.
 
     Also creates ``as_CaseParticipant`` objects so actor → participant lookups
@@ -66,7 +64,7 @@ def _make_embargo_case_with_actor(
     ledger_holder_id = case_manager_actor_id or case_actor_id
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ledger_holder_id)
 
-    case_actor = VultronCaseActor(
+    case_actor = CaseActor(
         id_=case_actor_id,
         name=f"CaseActor for {case_id}",
         attributed_to=author_id,

@@ -4,6 +4,8 @@ status: active
 description: Implementation guidance for outbox addressing requirements.
 related_specs:
   - specs/outbox.yaml
+related_notes:
+  - notes/outbox-delivery-reliability.md
 relevant_packages:
   - fastapi
   - vultron/adapters/driving/fastapi

@@ -16,7 +16,7 @@ Agent guidance for suggest-actor BT nodes in this package.
 `suggested_roles` blackboard key. `EmitInviteActorToCaseNode` reads this key
 via `_read_suggested_roles()`, gets a `KeyError`, and passes `roles=None` to
 `factory.invite_actor_to_case()`. The resulting `Invite` carries `roles=None`,
-so after `Accept(Invite)` the new `VultronParticipant.case_roles` is `[]`.
+so after `Accept(Invite)` the new `CaseParticipant.case_roles` is `[]`.
 
 This is documented behavior (ADR-0032, BT-HELPER-01: no silent default
 substitution), not a bug.

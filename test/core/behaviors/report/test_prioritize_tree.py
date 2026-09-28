@@ -34,12 +34,10 @@ from vultron.core.models.events.case import (
 )
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronCaseActor,
-    VultronParticipant,
-    VultronReport,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
@@ -52,13 +50,13 @@ from vultron.enums.roles import CVDRole
 
 def _make_participant_in_valid_state(
     id_: str, attributed_to: str, context: str
-) -> VultronParticipant:
-    """Create a VultronParticipant pre-seeded with RM.VALID status.
+) -> CaseParticipant:
+    """Create a CaseParticipant pre-seeded with RM.VALID status.
 
     engage_case and defer_case require the participant to be in VALID state
     (the precondition for VALID → ACCEPTED or VALID → DEFERRED transitions).
     """
-    participant = VultronParticipant(
+    participant = CaseParticipant(
         id_=id_,
         attributed_to=attributed_to,
         context=context,
@@ -138,14 +136,14 @@ def case_manager_datalayer(case_manager_actor_id):
 
 @pytest.fixture
 def actor(datalayer, actor_id):
-    obj = VultronCaseActor(id_=actor_id, name="Vendor Co")
+    obj = CaseActor(id_=actor_id, name="Vendor Co")
     datalayer.create(obj)
     return obj
 
 
 @pytest.fixture
 def report(datalayer):
-    obj = VultronReport(
+    obj = VulnerabilityReport(
         id_="https://example.org/reports/CVE-2024-001",
         name="Test Report",
         content="Buffer overflow",
@@ -244,10 +242,10 @@ def case_with_manager(
     )
     datalayer.create(vendor_participant)
 
-    cm_actor = VultronCaseActor(id_=case_manager_actor_id, name="Coordinator")
+    cm_actor = CaseActor(id_=case_manager_actor_id, name="Coordinator")
     datalayer.create(cm_actor)
 
-    cm_participant = VultronParticipant(
+    cm_participant = CaseParticipant(
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=case_manager_actor_id,
         context="https://example.org/cases/case-manager-001",
@@ -290,10 +288,10 @@ def case_with_manager_in_cm_store(
     )
     case_manager_datalayer.create(vendor_participant)
 
-    cm_actor = VultronCaseActor(id_=case_manager_actor_id, name="Coordinator")
+    cm_actor = CaseActor(id_=case_manager_actor_id, name="Coordinator")
     case_manager_datalayer.create(cm_actor)
 
-    cm_participant = VultronParticipant(
+    cm_participant = CaseParticipant(
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=case_manager_actor_id,
         context="https://example.org/cases/case-manager-001",

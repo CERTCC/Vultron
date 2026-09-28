@@ -2,13 +2,13 @@
 title: Participant Role Management Design Notes
 status: active
 description: >
-  Design decisions and implementation guidance for the VultronParticipant and
-  CaseParticipant role-management API (add_role, remove_role, has_role, roles
+  Design decisions and implementation guidance for the CaseParticipant
+  role-management API (add_role, remove_role, has_role, roles
   property). Source: IDEA-26050401.
 related_specs:
   - specs/participant-role-management.yaml
 relevant_packages:
-  - vultron/core/models/participant.py
+  - vultron/core/models/case_participant.py
   - vultron/wire/as2/vocab/objects/case_participant.py
   - vultron/core/use_cases/query/action_rules.py
   - vultron/core/predicates/participants.py
@@ -26,7 +26,7 @@ relevant_packages:
 | Where do new tests go? | New `test/core/models/test_participant.py` | Mirrors source layout; keeps `test_base.py` focused on the base model contract |
 | Should core code read `case_roles` directly? | No — use `roles` property | Decouples callers from storage field; allows future representation changes |
 | What does the `roles` property return? | `list[CVDRole]` | Keeps callers working with domain types; `.value` extraction stays at call sites |
-| Should `CaseParticipant` match the `VultronParticipant` interface? | Yes — full parity | Callers should not need to know which class they hold to manage roles |
+| Should the wire participant match the core participant interface? | Yes — they are one class (`as_CaseParticipant` is `CaseParticipant`, ADR-0099) | Callers should not need to know which layer they hold to manage roles |
 | Should wire-layer `model_validator` role inits use `add_role()`? | Yes | Routes all role mutations through the single invariant-check point |
 | Should an architecture test enforce the no-direct-mutation rule? | Yes, with ≤1 s budget | Machine-checkable enforcement; targeted scan stays fast |
 | Should an architecture test enforce the no-direct-read rule (`getattr(*, "case_roles")`)? | Yes — `test_no_getattr_case_roles_read_in_core()` added in PR #1443 | Complements the mutation ratchet; enforces PRM-01-003 |

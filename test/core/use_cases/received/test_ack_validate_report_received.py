@@ -33,7 +33,7 @@ from vultron.core.models.events.report import (
     SubmitReportReceivedEvent,
     ValidateReportReceivedEvent,
 )
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases.received.report import (
     AckReportReceivedUseCase,
@@ -70,7 +70,7 @@ def configure_case_actor_url(monkeypatch):
 class TestAckReportNoStandaloneStatus:
     """AckReportReceivedUseCase must NOT create standalone ParticipantStatus.
 
-    Per IDEA-260408-01-6: RM history lives in VultronParticipant.participant_statuses.
+    Per IDEA-260408-01-6: RM history lives in CaseParticipant.participant_statuses.
     """
 
     def test_ack_report_does_not_persist_participant_status(self):
@@ -84,10 +84,10 @@ class TestAckReportNoStandaloneStatus:
             semantic_type=MessageSemantics.ACK_REPORT,
             activity_id="https://example.org/activities/accept-ack-1",
             actor_id="https://example.org/actors/vendor",
-            object_=VultronReport(
+            object_=VulnerabilityReport(
                 id_="https://example.org/activities/offer-ack-1"
             ),
-            inner_object=VultronReport(
+            inner_object=VulnerabilityReport(
                 id_="https://example.org/reports/r-ack-1"
             ),
             activity=offer_activity,
@@ -127,14 +127,14 @@ class TestFullReportFlow:
     def _setup_dl(self):
         """Create a DataLayer pre-seeded with the report, vendor, and offer."""
         from vultron.core.models.activity import VultronOffer
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,
         )
-        report = VultronReport(id_=self.REPORT_ID)
-        vendor = VultronCaseActor(id_=self.VENDOR_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
+        vendor = CaseActor(id_=self.VENDOR_ID)
         offer = VultronOffer(
             id_=self.OFFER_ID,
             actor=self.FINDER_ID,
@@ -218,7 +218,7 @@ class TestFullReportFlow:
             actor=self.FINDER_ID,
             to=[self.VENDOR_ID],
         )
-        report = VultronReport(id_=self.REPORT_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         return SubmitReportReceivedEvent(
             semantic_type=MessageSemantics.SUBMIT_REPORT,
             activity_id=self.OFFER_ID,
@@ -236,7 +236,7 @@ class TestFullReportFlow:
             actor=self.VENDOR_ID,
         )
         offer = CoreObject(id_=self.OFFER_ID, type_="Offer")
-        report = VultronReport(id_=self.REPORT_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         return ValidateReportReceivedEvent(
             semantic_type=MessageSemantics.VALIDATE_REPORT,
             activity_id=self.ACCEPT_ID,
@@ -441,7 +441,7 @@ class TestValidateReportReceivedGuardedCommit:
             actor=self.VENDOR_ID,
         )
         offer = CoreObject(id_=offer_id, type_="Offer")
-        report = VultronReport(id_=report_id)
+        report = VulnerabilityReport(id_=report_id)
         return ValidateReportReceivedEvent(
             semantic_type=MessageSemantics.VALIDATE_REPORT,
             activity_id=self.OFFER_ID,
@@ -517,7 +517,7 @@ class TestValidateReportReceivedGuardedCommit:
         )
 
         # Create a report and link it to a case with CaseActor
-        report = VultronReport(id_=self.REPORT_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         dl.save(report)
 
         case = as_VulnerabilityCase(
@@ -589,7 +589,7 @@ class TestValidateReportReceivedGuardedCommit:
             actor_id=self.CASE_ACTOR_ID,
         )
 
-        report = VultronReport(id_=self.REPORT_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         dl.save(report)
 
         case = as_VulnerabilityCase(

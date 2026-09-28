@@ -7,10 +7,10 @@ from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
-    from vultron.core.models.report import VultronReport
+    from vultron.core.models.report import VulnerabilityReport
 else:
     VulnerabilityCase = object
-    VultronReport = object
+    VulnerabilityReport = object
 
 
 class CreateCaseReceivedEvent(VultronEvent):
@@ -90,8 +90,8 @@ class AddReportToCaseReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def report(self) -> "VultronReport | None":
-        return cast("VultronReport | None", self.object_)
+    def report(self) -> "VulnerabilityReport | None":
+        return cast("VulnerabilityReport | None", self.object_)
 
     @property
     def case_id(self) -> str | None:

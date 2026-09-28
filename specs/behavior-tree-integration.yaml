@@ -633,10 +633,10 @@ groups:
     priority: MUST
     kind: project
     statement: Tests for a received-side use case that exercises a BT guarded-commit path MUST pass `receiving_actor_id` equal
-      to the actor holding `CVDRole.CASE_MANAGER` in `actor_participant_index`, not the `VultronCaseActor` service entity
+      to the actor holding `CVDRole.CASE_MANAGER` in `actor_participant_index`, not the `CaseActor` service entity
       ID.
     rationale: '`CheckIsCaseManagerNode` compares `actor_id` against the participant registered with `CVDRole.CASE_MANAGER`
-      in `actor_participant_index`, not against the `VultronCaseActor` service resource ID. Passing the service entity ID
+      in `actor_participant_index`, not against the `CaseActor` service resource ID. Passing the service entity ID
       causes the role check to fail silently: the guarded commit never fires, the RM state falls through to the deferred path,
       and the test may pass for the wrong reason. Issue #1050 discovered this after migrating `AcceptInviteToEmbargoOnCaseReceivedUseCase`
       to the single-BT pattern.'

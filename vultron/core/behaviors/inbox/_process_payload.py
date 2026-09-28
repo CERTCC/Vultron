@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any
 import py_trees
 from py_trees.common import Status
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.blackboard_scope import (
     KeyState,
     restore_keys,
@@ -96,9 +97,9 @@ def _write_inbox_inputs(
     setup_bb.inbox_queue = queue_port
 
 
-def _run_bt_pipeline() -> Status:
+def _run_bt_pipeline(actor_config: ActorConfig | None = None) -> Status:
     """Instantiate the inbox BT, tick to completion, and return the status."""
-    tree = create_inbox_bt()
+    tree = create_inbox_bt(actor_config=actor_config)
     bt = py_trees.trees.BehaviourTree(root=tree)
     bt.setup()
 
@@ -181,6 +182,7 @@ def process_payload(
     ingress_adapter: IngressPayloadAdapter,
     dispatch_adapter: DispatchAdapter,
     queue_port: PendingCaseQueuePort | None = None,
+    actor_config: ActorConfig | None = None,
 ) -> InboxOutcome:
     """Process one inbox payload through the BT pipeline.
 
@@ -200,6 +202,9 @@ def process_payload(
             activities whose case context is not yet locally available
             are queued for later replay instead of being rejected
             (IO-03-002).
+        actor_config: The receiving actor's configuration; its RSVP
+            windows govern inbound embargo invites (EP-07-001, EP-07-002).
+            ``None`` applies the protocol defaults.
 
     Returns:
         :class:`InboxOutcome` whose ``status`` is an
@@ -220,7 +225,7 @@ def process_payload(
             _write_inbox_inputs(
                 payload, ingress_adapter, dispatch_adapter, queue_port
             )
-            _run_bt_pipeline()
+            _run_bt_pipeline(actor_config)
             outcome = _read_inbox_outcome()
         finally:
             _restore_inbox_keys(storage, saved)

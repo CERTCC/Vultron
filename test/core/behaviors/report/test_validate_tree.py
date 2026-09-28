@@ -28,11 +28,9 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.vultron_types import (
-    VultronCaseActor,
-    VultronOffer,
-    VultronReport,
-)
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.activity import VultronOffer
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
@@ -81,7 +79,7 @@ def reporter_actor_id():
 @pytest.fixture
 def report(datalayer, actor_id):
     """Create test VulnerabilityReport."""
-    report_obj = VultronReport(
+    report_obj = VulnerabilityReport(
         id_="https://example.org/reports/CVE-2024-001",
         name="Test Vulnerability Report",
         content="Test vulnerability description",
@@ -108,7 +106,7 @@ def offer(datalayer, report, actor_id, reporter_actor_id):
 @pytest.fixture
 def actor(datalayer, actor_id):
     """Create test vendor actor in the DataLayer."""
-    actor_obj = VultronCaseActor(
+    actor_obj = CaseActor(
         id_=actor_id,
         name="Vendor Co",
     )
@@ -119,7 +117,7 @@ def actor(datalayer, actor_id):
 @pytest.fixture
 def reporter_actor(datalayer, reporter_actor_id):
     """Create test reporter actor in the DataLayer."""
-    actor_obj = VultronCaseActor(
+    actor_obj = CaseActor(
         id_=reporter_actor_id,
         name="Reporter Co",
     )
@@ -716,7 +714,7 @@ def test_tree_execution_actor_isolation():
     ) -> tuple[SqliteDataLayer, BTBridge]:
         """A fully seeded, actor-scoped store — the ADR-0073 unit of isolation."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        dl.create(VultronReport(id_=report_id, name="R", content="c"))
+        dl.create(VulnerabilityReport(id_=report_id, name="R", content="c"))
         dl.create(
             VultronOffer(
                 id_=offer_id,
@@ -725,7 +723,7 @@ def test_tree_execution_actor_isolation():
                 target=actor_id,
             )
         )
-        dl.create(VultronCaseActor(id_=actor_id, name=f"Actor {slug}"))
+        dl.create(CaseActor(id_=actor_id, name=f"Actor {slug}"))
         case_obj = VulnerabilityCase(
             id_=f"{actor_id}/cases/test-case-validate",
             name="Validate-tree isolation case",

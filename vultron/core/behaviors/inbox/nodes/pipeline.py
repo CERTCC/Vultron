@@ -50,6 +50,7 @@ from typing import Any
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.inbox.models import InboxOutcomeStatus
 from vultron.core.models.events import (
     is_case_bootstrap,
@@ -262,7 +263,19 @@ class ExtractSemanticsNode(_InboxNodeWithPorts):
 
     Reads ``inbox_activity``; writes ``inbox_event`` and
     ``inbox_context_id``.
+
+    Args:
+        name: Node name.
+        actor_config: The receiving actor's configuration.  Its RSVP
+            windows govern inbound embargo invites (EP-07-001, EP-07-002);
+            ``None`` applies the protocol defaults.
     """
+
+    def __init__(
+        self, name: str, actor_config: ActorConfig | None = None
+    ) -> None:
+        super().__init__(name=name)
+        self._actor_config = actor_config
 
     INPUT_PORTS: dict[str, PortInformation] = {
         KEY_ACTIVITY: PortInformation(data_type=object, required=True),
@@ -289,7 +302,12 @@ class ExtractSemanticsNode(_InboxNodeWithPorts):
             return self._reject(f"Missing blackboard key: {exc}")
 
         try:
-            event = extract_event(activity)
+            cfg = self._actor_config
+            event = extract_event(
+                activity,
+                min_rsvp_window=cfg.min_rsvp_window if cfg else None,
+                default_rsvp_window=cfg.default_rsvp_window if cfg else None,
+            )
         except Exception as exc:
             return self._reject(f"extract_event raised exception: {exc}")
 

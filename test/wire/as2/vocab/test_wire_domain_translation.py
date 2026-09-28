@@ -19,14 +19,14 @@ import pytest
 from pydantic import ValidationError
 
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
-from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     ParticipantStatus as CoreParticipantStatus,
 )
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.dimensions import (
     EmDimension,
     PecDimension,
@@ -52,9 +52,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 def test_vulnerability_report_round_trips_between_core_and_wire():
     """ADR-0099 detail 3: as_VulnerabilityReport is VulnerabilityReport (identity)."""
-    assert as_VulnerabilityReport is VultronReport
+    assert as_VulnerabilityReport is VulnerabilityReport
 
-    core = VultronReport(
+    core = VulnerabilityReport(
         id_="https://example.org/reports/1",
         attributed_to="https://example.org/actors/finder",
         context="https://example.org/cases/1",
@@ -155,7 +155,7 @@ def test_participant_status_embargo_adherence_survives_wire_round_trip():
 
 
 def test_case_participant_round_trips_between_core_and_wire():
-    core = VultronParticipant(
+    core = CaseParticipant(
         id_="https://example.org/cases/1/participants/vendor",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
@@ -196,7 +196,7 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
         context="https://example.org/cases/1",
         em=EmDimension(state=EM.PROPOSED),
     )
-    participant = VultronParticipant(
+    participant = CaseParticipant(
         id_="https://example.org/cases/1/participants/vendor",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
@@ -267,9 +267,9 @@ def test_case_ledger_entry_to_core_returns_domain_model():
 
 def test_case_actor_round_trips_between_core_and_wire():
     """ADR-0099 detail 3: as_CaseActor is CaseActor (identity)."""
-    assert as_CaseActor is VultronCaseActor
+    assert as_CaseActor is CaseActor
 
-    core = VultronCaseActor(
+    core = CaseActor(
         id_="https://example.org/actors/case-actor",
         name="Case Actor",
         attributed_to="https://example.org/actors/vendor",

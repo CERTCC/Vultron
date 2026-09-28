@@ -29,7 +29,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
     compute_genesis_hash,
@@ -69,7 +69,7 @@ def bridge(dl):
 
 @pytest.fixture
 def new_owner_case_actor(dl):
-    actor = VultronCaseActor(
+    actor = CaseActor(
         name="New Owner",
         attributed_to=NEW_OWNER_ACTOR_ID,
         context=CASE_ID,

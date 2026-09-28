@@ -13,7 +13,7 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.embargo_event import VultronEmbargoEvent
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
@@ -62,9 +62,9 @@ from vultron.core.models.events.status import (
     CreateParticipantStatusReceivedEvent,
 )
 from vultron.core.models.note import VultronNote
-from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 
 # Shared required fields for all VultronEvent instances.
 _ACT_ID = "https://example.org/activities/act-1"
@@ -74,13 +74,13 @@ _ACTOR_ID = "https://example.org/actors/alice"
 _CASE_URI = "https://example.org/cases/c1"
 _ACTOR_URI = "https://example.org/actors/alice"
 
-_report = VultronReport(id_="https://example.org/reports/r1")
+_report = VulnerabilityReport(id_="https://example.org/reports/r1")
 _case = VulnerabilityCase(id_=_CASE_URI)
 _note = VultronNote(
     id_="https://example.org/notes/n1",
     content="test note",
 )
-_participant = VultronParticipant(
+_participant = CaseParticipant(
     id_="https://example.org/participants/p1",
     context=_CASE_URI,
     attributed_to=_ACTOR_URI,
@@ -94,7 +94,7 @@ _participant_status = ParticipantStatus(
     id_="https://example.org/statuses/ps1",
     context=_CASE_URI,
 )
-_embargo = VultronEmbargoEvent(
+_embargo = EmbargoEvent(
     id_="https://example.org/embargoes/e1",
     context=_CASE_URI,
 )

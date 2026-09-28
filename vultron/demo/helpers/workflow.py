@@ -128,7 +128,8 @@ def reporter_submits_report(
     **Default embargo — no explicit negotiation required.**
     When the receiver processes the submitted report,
     ``InitializeDefaultEmbargoNode`` automatically initializes the embargo
-    using the receiver's published default policy.  Because the reporter
+    using the receiver's published default policy, or the configured
+    protocol default when none is published (EP-04-005).  Because the reporter
     submits without a counter-proposal, this constitutes *tacit acceptance*
     of the receiver's default (EP-04-001), and the case reaches ``EM.ACTIVE``
     immediately — no ``ProposeEmbargo`` / ``AcceptEmbargo`` message exchange

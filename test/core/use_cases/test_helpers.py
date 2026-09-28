@@ -42,7 +42,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.enums.roles import CVDRole
@@ -456,7 +456,7 @@ class TestFindCaseActorId:
         )
         cm_dl.create(participant)
         # Present but context-less, exactly as ADR-0041 writes it.
-        cm_dl.create(VultronCaseActor(id_=case_actor_id, name="CaseActor"))
+        cm_dl.create(CaseActor(id_=case_actor_id, name="CaseActor"))
         case = VulnerabilityCase(id_=_CM_CASE_ID, name="Role Is The Marker")
         case.add_participant(participant)
         cm_dl.create(case)
@@ -525,7 +525,7 @@ class TestFindCaseActorId:
         """
         service_id = "https://example.org/actors/case-actor-legacy"
         cm_dl.create(
-            VultronCaseActor(
+            CaseActor(
                 id_=service_id, name="Legacy CaseActor", context=_CM_CASE_ID
             )
         )

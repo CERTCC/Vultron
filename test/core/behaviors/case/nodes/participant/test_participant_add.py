@@ -35,10 +35,8 @@ from vultron.core.behaviors.case.nodes.participant import (
     SeedParticipantAsSignatoryNode,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronCaseActor,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
@@ -57,7 +55,7 @@ class TestCreateCaseParticipantNode:
     def test_creates_and_attaches_participant(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
         finder_actor_id: str,
@@ -77,7 +75,7 @@ class TestCreateCaseParticipantNode:
     def test_records_participant_added_event(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
         finder_actor_id: str,
@@ -129,7 +127,7 @@ class TestCreateCaseParticipantNode:
     def test_emits_add_participant_activity(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
         finder_actor_id: str,
@@ -161,7 +159,7 @@ class TestCreateCaseParticipantNode:
     def test_seeds_participant_as_signatory_when_embargo_active(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
         finder_actor_id: str,

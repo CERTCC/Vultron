@@ -43,11 +43,9 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.report.nodes import (
     UpdateActorOutbox as UpdateActorOutboxReport,
 )
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronCaseActor,
-    VultronReport,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.report import VulnerabilityReport
 from test.core.behaviors.bt_harness import BTTestScenario
 
 # The URL used by tests as the CaseActor service base URL (CP-08-001).
@@ -82,22 +80,24 @@ def actor_id() -> str:
 
 
 @pytest.fixture
-def actor(bt_scenario: BTTestScenario, actor_id: str) -> VultronCaseActor:
-    obj = VultronCaseActor(id_=actor_id, name="Vendor Co")
+def actor(bt_scenario: BTTestScenario, actor_id: str) -> CaseActor:
+    obj = CaseActor(id_=actor_id, name="Vendor Co")
     bt_scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
-def report(bt_scenario: BTTestScenario) -> VultronReport:
-    obj = VultronReport(name="TEST-001", content="Test vulnerability report")
+def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
+    obj = VulnerabilityReport(
+        name="TEST-001", content="Test vulnerability report"
+    )
     bt_scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
 def case_obj(
-    bt_scenario: BTTestScenario, report: VultronReport
+    bt_scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_="https://example.org/cases/case-001",
@@ -155,7 +155,7 @@ class TestRecordCaseCreationEvents:
     def test_record_offer_received_leaf_stages_case(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
@@ -173,7 +173,7 @@ class TestRecordCaseCreationEvents:
     def test_record_case_created_leaf_persists_event(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
@@ -195,7 +195,7 @@ class TestRecordCaseCreationEvents:
     def test_record_offer_received_leaf_fails_without_case_id(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
     ) -> None:
         result = bt_scenario.run(
@@ -213,7 +213,7 @@ class TestRecordCaseCreationEvents:
     def test_record_case_created_leaf_fails_without_staged_case(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
@@ -235,7 +235,7 @@ class TestRecordCaseCreationEvents:
     def test_activity_key_optional_node_succeeds_without_it(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
@@ -256,7 +256,7 @@ class TestRecordCaseCreationEvents:
     def test_records_case_created_event_without_activity(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
@@ -276,9 +276,9 @@ class TestRecordCaseCreationEvents:
     def test_records_offer_received_event_when_activity_has_in_reply_to(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
-        report: VultronReport,
+        report: VulnerabilityReport,
         actor_id: str,
     ) -> None:
         """RecordCaseCreationEvents succeeds when activity.in_reply_to is set.
@@ -303,7 +303,7 @@ class TestRecordCaseCreationEvents:
     def test_no_offer_received_when_activity_lacks_in_reply_to(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
@@ -390,9 +390,9 @@ class TestProposeCaseToActorNode:
     def test_succeeds_and_queues_proposal_to_outbox(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
-        report: VultronReport,
+        report: VulnerabilityReport,
         case_obj: VulnerabilityCase,
     ) -> None:
         """Happy path: node returns SUCCESS and enqueues a Create activity."""
@@ -417,9 +417,9 @@ class TestProposeCaseToActorNode:
     def test_persists_create_activity_in_datalayer(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
-        report: VultronReport,
+        report: VulnerabilityReport,
         case_obj: VulnerabilityCase,
     ) -> None:
         """Create(as_CaseProposal) activity is persisted to the DataLayer."""
@@ -443,7 +443,7 @@ class TestProposeCaseToActorNode:
     def test_fails_without_case_id(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
     ) -> None:
         """Node returns FAILURE when case_id is missing from the blackboard."""
@@ -462,7 +462,7 @@ class TestProposeCaseToActorNode:
     def test_fails_without_case_actor_id(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:
@@ -482,7 +482,7 @@ class TestProposeCaseToActorNode:
     def test_fails_when_case_has_no_reports(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
     ) -> None:
         """Node returns FAILURE when the case has no linked VulnerabilityReport."""
@@ -508,7 +508,7 @@ class TestProposeCaseToActorNode:
     def test_fails_when_report_not_in_datalayer(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
     ) -> None:
         """Node returns FAILURE when the linked report is absent from DataLayer."""
@@ -534,7 +534,7 @@ class TestProposeCaseToActorNode:
     def test_fails_when_case_not_in_datalayer(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
     ) -> None:
         """Node returns FAILURE when the case record is absent from DataLayer."""
@@ -552,9 +552,9 @@ class TestProposeCaseToActorNode:
 
     def test_fails_when_no_trigger_activity_factory(
         self,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
-        report: VultronReport,
+        report: VulnerabilityReport,
         case_obj: VulnerabilityCase,
     ) -> None:
         """Node returns FAILURE when trigger_activity_factory is absent."""

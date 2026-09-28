@@ -141,9 +141,9 @@ def test_store_inbox_activity_persists_activity(datalayer):
 def test_store_inbox_activity_is_idempotent(datalayer):
     note = as_Note(content="test")
     activity = as_Create(actor=_ACTOR_URI, object_=note)
-    # Second call must not raise
-    _store_inbox_activity(datalayer, activity)
-    _store_inbox_activity(datalayer, activity)
+    # Second call must not raise, and reports that it wrote nothing
+    assert _store_inbox_activity(datalayer, activity) is True
+    assert _store_inbox_activity(datalayer, activity) is False
 
 
 # ---------------------------------------------------------------------------

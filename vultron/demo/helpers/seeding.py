@@ -1330,7 +1330,7 @@ def seed_case_participants_for_demo(
             replica?" is exactly the question a shared DataLayer let callers skip,
             and the participants seeded here are per-replica state.
     """
-    from vultron.core.models.vultron_types import VulnerabilityCase
+    from vultron.core.models.case import VulnerabilityCase
 
     case_obj = dl.read(case_id)
     if not isinstance(case_obj, VulnerabilityCase):

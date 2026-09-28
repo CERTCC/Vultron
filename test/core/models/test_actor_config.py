@@ -24,8 +24,11 @@ Spec coverage:
 - CFG-07-007: LocalActorConfig must not extend ActorConfig.
 """
 
+from datetime import timedelta
+
 import yaml
 import pytest
+from pydantic import ValidationError
 
 from vultron.config.actor import ActorConfig
 from vultron.config.app import load_actor_config, reload_config
@@ -191,6 +194,50 @@ def test_local_actor_config_identity_fields_only():
     assert cfg.name == "Coordinator"
     assert cfg.actor_type == "Service"
     assert cfg.id_ == "http://coordinator:7999/api/v2/actors/coordinator"
+
+
+# ============================================================================
+# protocol_default_embargo_duration (EP-04-005, ADR-0096)
+# ============================================================================
+
+
+def test_protocol_default_embargo_duration_defaults_to_72_hours():
+    assert ActorConfig().protocol_default_embargo_duration == timedelta(
+        hours=72
+    )
+
+
+@pytest.mark.spec("EP-04-005")
+@pytest.mark.parametrize(
+    "value", [timedelta(hours=72), timedelta(days=4), timedelta(days=5)]
+)
+def test_protocol_default_embargo_duration_accepts_range(value):
+    cfg = ActorConfig(protocol_default_embargo_duration=value)
+    assert cfg.protocol_default_embargo_duration == value
+
+
+@pytest.mark.spec("EP-04-005")
+@pytest.mark.parametrize(
+    "value",
+    [
+        timedelta(hours=71, minutes=59),
+        timedelta(days=5, seconds=1),
+        timedelta(days=90),
+        timedelta(0),
+    ],
+)
+def test_protocol_default_embargo_duration_refuses_out_of_range(value):
+    with pytest.raises(ValidationError, match="EP-04-005"):
+        ActorConfig(protocol_default_embargo_duration=value)
+
+
+def test_load_actor_config_reads_protocol_default_from_env(monkeypatch):
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__PROTOCOL_DEFAULT_EMBARGO_DURATION", "P4D"
+    )
+    reload_config()
+    cfg = load_actor_config()
+    assert cfg.protocol_default_embargo_duration == timedelta(days=4)
 
 
 # ============================================================================

@@ -41,7 +41,7 @@ from vultron.core.behaviors.case.nodes.case_setup import (
     RecordCaseCreatedEventNode,
     RecordOfferReceivedEventNode,
 )
-from vultron.core.models.vultron_types import VulnerabilityCase
+from vultron.core.models.case import VulnerabilityCase
 
 
 class RecordCaseCreationEvents(py_trees.composites.Sequence):

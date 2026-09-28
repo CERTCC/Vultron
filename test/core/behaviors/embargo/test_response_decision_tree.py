@@ -44,10 +44,8 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
 )
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronParticipant,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.demo.fuzzer.bundles.embargo import EMBARGO_STOCHASTIC
 from vultron.demo.fuzzer.embargo import (
     CaseOwnerApprovesEmbargoResponse,
@@ -395,9 +393,9 @@ def _make_participant(
     actor_id: str,
     role: CVDRole,
     case_id: str = _INT_CASE_ID,
-) -> VultronParticipant:
+) -> CaseParticipant:
     slug = actor_id.rsplit("/", 1)[-1]
-    return VultronParticipant(
+    return CaseParticipant(
         id_=f"{case_id}/participants/{slug}",
         attributed_to=actor_id,
         context=case_id,
@@ -407,7 +405,7 @@ def _make_participant(
 
 def _make_case_with_participants(
     scenario: BTTestScenario,
-    *participants: VultronParticipant,
+    *participants: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_=_INT_CASE_ID,

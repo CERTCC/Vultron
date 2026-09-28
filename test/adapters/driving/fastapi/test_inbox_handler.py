@@ -987,9 +987,9 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
     from vultron.config.actor import ActorConfig
     from vultron.core.models.activity import VultronActivity
-    from vultron.core.models.case_actor import VultronCaseActor
+    from vultron.core.models.case_actor import CaseActor
     from vultron.core.models.events.report import SubmitReportReceivedEvent
-    from vultron.core.models.report import VultronReport
+    from vultron.core.models.report import VulnerabilityReport
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
     VENDOR_ID = "https://example.org/actors/vendor-ac2"
@@ -1012,9 +1012,9 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    dl.save(VultronCaseActor(id_=VENDOR_ID))
+    dl.save(CaseActor(id_=VENDOR_ID))
 
-    report = VultronReport(id_=REPORT_ID)
+    report = VulnerabilityReport(id_=REPORT_ID)
     activity = VultronActivity(
         id_=OFFER_ID,
         type_="Offer",
@@ -1097,3 +1097,36 @@ def test_pending_case_queue_expiry_emits_question(monkeypatch):
     assert question.context == case_id
     assert question.actor == actor_id
     assert question.to == [case_actor_id]
+
+
+@pytest.mark.spec("EP-07-001")
+def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
+    """The local actor's default RSVP window reaches extraction (#3737)."""
+    from datetime import datetime, timedelta, timezone
+
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.config.actor import ActorConfig
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Invite,
+    )
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    monkeypatch.setattr(
+        pf,
+        "_resolve_actor_config",
+        lambda: ActorConfig(default_rsvp_window=timedelta(days=14)),
+    )
+    published = datetime.now(tz=timezone.utc)
+    case_id = "https://example.org/cases/rsvp"
+    invite = as_Invite(
+        object_=as_EmbargoEvent(
+            context=case_id, end_time=published + timedelta(days=90)
+        ),
+        context=as_VulnerabilityCase(id_=case_id),
+        actor="https://example.org/alice",
+        published=published,
+    )
+
+    event = ih.prepare_for_dispatch(invite)
+
+    assert getattr(event, "rsvp_deadline") == published + timedelta(days=14)

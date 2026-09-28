@@ -24,7 +24,7 @@ from vultron.core.models.events.report import (
     CreateReportReceivedEvent,
     SubmitReportReceivedEvent,
 )
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.use_cases.received.case import CreateCaseReceivedUseCase
 from vultron.core.use_cases.received.report import (
@@ -103,13 +103,15 @@ class TestUseCaseExecution:
 class TestCreateReportNoStandaloneParticipantStatus:
     """CreateReportReceivedUseCase must NOT create standalone ParticipantStatus.
 
-    Per IDEA-260408-01-6: RM history lives in VultronParticipant.participant_statuses
+    Per IDEA-260408-01-6: RM history lives in CaseParticipant.participant_statuses
     within case objects, not in standalone ParticipantStatus records.
     """
 
     def test_create_report_does_not_persist_participant_status(self):
         """CreateReportReceivedUseCase stores the report and activity only."""
-        report = VultronReport(id_="https://example.org/reports/r-persist-1")
+        report = VulnerabilityReport(
+            id_="https://example.org/reports/r-persist-1"
+        )
         activity = VultronActivity(
             id_="https://example.org/activities/create-p1",
             type_="Create",
@@ -137,7 +139,9 @@ class TestCreateReportNoStandaloneParticipantStatus:
 
     def test_create_report_still_stores_report_and_activity(self):
         """CreateReportReceivedUseCase still stores the report and activity."""
-        report = VultronReport(id_="https://example.org/reports/r-store-1")
+        report = VulnerabilityReport(
+            id_="https://example.org/reports/r-store-1"
+        )
         activity = VultronActivity(
             id_="https://example.org/activities/create-store-1",
             type_="Create",
@@ -178,7 +182,7 @@ class TestDuplicateReportHandling:
         activity_id: str,
         vendor_id: str = "https://example.org/actors/vendor",
     ):
-        report = VultronReport(id_=report_id)
+        report = VulnerabilityReport(id_=report_id)
         activity = VultronActivity(
             id_=activity_id,
             type_="Offer",
@@ -206,7 +210,7 @@ class TestDuplicateReportHandling:
         """
         import logging
 
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
         from vultron.core.use_cases.received import report as report_use_cases
 
         monkeypatch.setattr(
@@ -226,7 +230,7 @@ class TestDuplicateReportHandling:
         # Simulate inbox pre-storage of the nested objects.
         dl.save(report)
         # CreateCaseParticipantNode reads the vendor actor from DataLayer.
-        dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
+        dl.save(CaseActor(id_="https://example.org/actors/vendor"))
 
         with caplog.at_level(logging.WARNING):
             SubmitReportReceivedUseCase(
@@ -248,7 +252,7 @@ class TestDuplicateReportHandling:
         """
         import logging
 
-        report = VultronReport(
+        report = VulnerabilityReport(
             id_="https://example.org/reports/r-dup-create-1"
         )
         activity = VultronActivity(

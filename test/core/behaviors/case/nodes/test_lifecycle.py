@@ -28,7 +28,7 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
     BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
 )
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.vultron_types import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _FACTORY_PATH = (
@@ -63,7 +63,7 @@ def datalayer():
         "sqlite:///:memory:",
         actor_id=ACTOR_ID,
     )
-    actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor Co")
+    actor = CaseActor(id_=ACTOR_ID, name="Vendor Co")
     dl.create(actor)
     return dl
 

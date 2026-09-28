@@ -32,7 +32,6 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)
@@ -85,7 +84,7 @@ class PersistInviteeParticipantNode(DataLayerActionWithPorts):
 
         participant = self.new_invite_participant
         case = self.invitee_case
-        if not isinstance(participant, VultronParticipant) or not isinstance(
+        if not isinstance(participant, CaseParticipant) or not isinstance(
             case, VulnerabilityCase
         ):
             self.logger.error(

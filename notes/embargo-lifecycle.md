@@ -47,7 +47,7 @@ The embargo lifecycle involves three interacting state machines:
    `notes/participant-embargo-consent.md` for the full transition table and
    the direct-assignment pitfall (CM-18-005).
 3. **`VulnerabilityCase.active_embargo`** — the pointer to the currently
-   active `VultronEmbargoEvent` object
+   active `EmbargoEvent` object
 
 A correct embargo lifecycle transition must update **all three** consistently.
 

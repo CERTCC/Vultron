@@ -274,6 +274,7 @@ def extract_event(
     activity: as_Activity,
     *,
     min_rsvp_window: timedelta | None = None,
+    default_rsvp_window: timedelta | None = None,
 ) -> AnyReceivedEvent:
     """Extract a typed ``AnyReceivedEvent`` from an AS2 activity.
 
@@ -289,17 +290,24 @@ def extract_event(
             Pass ``ActorConfig.min_rsvp_window`` to apply actor-configured
             floor enforcement.  Omit (or pass ``None``) to use the 72 h
             protocol default.
+        default_rsvp_window: When supplied, overrides the default 7-day
+            policy window applied to an inbound invite with no
+            ``Invite.end_time`` (EP-07-001).  Pass
+            ``ActorConfig.default_rsvp_window``.
 
     Returns:
         A concrete ``VultronEvent`` subclass populated with domain fields.
     """
     semantics = find_matching_semantics(activity)
     entry = lookup_entry(semantics)
-    extra: dict[str, Any] = (
-        {"min_rsvp_window": min_rsvp_window}
-        if min_rsvp_window is not None
-        else {}
-    )
+    extra: dict[str, Any] = {
+        key: value
+        for key, value in (
+            ("min_rsvp_window", min_rsvp_window),
+            ("default_rsvp_window", default_rsvp_window),
+        )
+        if value is not None
+    }
     return _extract_intent(
         activity,
         semantics=semantics,

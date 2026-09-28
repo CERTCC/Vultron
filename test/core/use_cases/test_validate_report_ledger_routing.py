@@ -47,7 +47,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.report import ValidateReportReceivedEvent
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -330,13 +330,13 @@ class TestCaseActorReceivedWritesLedgerEntry:
 
     def _make_case_actor_dl(self) -> SqliteDataLayer:
         """DataLayer as seen by the CaseActor: case + CASE_MANAGER + Service link."""
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
         dl = _make_dl(self.CASE_ACTOR_ID)
 
         # The CaseActor Service must have context=case_id so that
         # _find_case_actor_id resolves it via the Service scan.
-        case_actor_svc = VultronCaseActor(
+        case_actor_svc = CaseActor(
             id_=self.CASE_ACTOR_ID,
             context=self.CASE_ID,
         )
@@ -387,7 +387,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
             receiving_actor_id = self.CASE_ACTOR_ID
 
         # The inner Offer carries the as_VulnerabilityReport.
-        report_obj = VultronReport(id_=self.REPORT_ID)
+        report_obj = VulnerabilityReport(id_=self.REPORT_ID)
         offer_obj = VultronActivity(
             id_=self.OFFER_ID,
             type_="Offer",
@@ -483,9 +483,9 @@ class TestCaseActorReceivedWritesLedgerEntry:
         # persist the status record.
         case = dl.read(self.CASE_ID)
         assert isinstance(case, VulnerabilityCase)
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
-        vendor_svc = VultronCaseActor(id_=self.VENDOR_ID)
+        vendor_svc = CaseActor(id_=self.VENDOR_ID)
         dl.save(vendor_svc)
         # RM.RECEIVED is the state the sender holds before validate-report;
         # RECEIVED -> VALID is a legal move, START -> VALID is not (ISSUE-2548).
@@ -544,7 +544,7 @@ class TestFullValidateReportLedgerChain:
 
     def test_case_actor_ledger_contains_validate_report_after_trigger(self):
         """CaseActor ledger has 'validate_report' after vendor triggers validate."""
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
         from vultron.core.use_cases._helpers import outbox_ids
 
         # ── Step 1: vendor_dl — case at RM.RECEIVED ──────────────────────────
@@ -597,7 +597,7 @@ class TestFullValidateReportLedgerChain:
         case_actor_dl = _make_dl(case_actor_id)
 
         # The CaseActor Service needs context=case.id_ for _find_case_actor_id.
-        ca_svc = VultronCaseActor(id_=case_actor_id, context=case.id_)
+        ca_svc = CaseActor(id_=case_actor_id, context=case.id_)
         case_actor_dl.save(ca_svc)
 
         ca_case = as_VulnerabilityCase(
@@ -624,7 +624,7 @@ class TestFullValidateReportLedgerChain:
                 report_id=self.REPORT_ID, rm_state=RM.RECEIVED
             )
         )
-        report_obj = VultronReport(id_=self.REPORT_ID)
+        report_obj = VulnerabilityReport(id_=self.REPORT_ID)
         offer_obj = VultronActivity(
             id_=offer.id_,
             type_="Offer",

@@ -24,10 +24,8 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronParticipant,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
@@ -37,8 +35,8 @@ NON_MANAGER_ACTOR_ID = "https://example.org/actors/vendor"
 
 
 @pytest.fixture
-def case_manager_participant() -> VultronParticipant:
-    return VultronParticipant(
+def case_manager_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=MANAGER_ACTOR_ID,
         context=CASE_ID,
@@ -47,8 +45,8 @@ def case_manager_participant() -> VultronParticipant:
 
 
 @pytest.fixture
-def vendor_participant() -> VultronParticipant:
-    return VultronParticipant(
+def vendor_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/vendor-cp-001",
         attributed_to=NON_MANAGER_ACTOR_ID,
         context=CASE_ID,
@@ -59,8 +57,8 @@ def vendor_participant() -> VultronParticipant:
 @pytest.fixture
 def case_with_manager(
     bt_scenario: BTTestScenario,
-    case_manager_participant: VultronParticipant,
-    vendor_participant: VultronParticipant,
+    case_manager_participant: CaseParticipant,
+    vendor_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_=CASE_ID,
@@ -112,7 +110,7 @@ def test_returns_failure_when_case_is_missing(
 
 @pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_returns_failure_when_case_has_no_case_manager(
-    bt_scenario: BTTestScenario, vendor_participant: VultronParticipant
+    bt_scenario: BTTestScenario, vendor_participant: CaseParticipant
 ) -> None:
     case = VulnerabilityCase(
         id_=CASE_ID,

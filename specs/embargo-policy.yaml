@@ -438,17 +438,20 @@ groups:
       from an unordered list, making the applicable policy arbitrary when an actor's store
       holds more than one. See ADR-0096.
     note: >-
-      Three implicit durations exist today, not one: `_DEFAULT_EMBARGO_DAYS = 90` in
-      `vultron/core/behaviors/case/nodes/embargo.py`, the blackboard key that carries both
-      meanings, and `EmbargoEvent.end_time`'s `default_factory=_45_days_hence` in
-      `vultron/core/models/embargo_event.py`. The 45-day default is the quietest of the three —
-      any `EmbargoEvent` built without an explicit `end_time` silently acquires it, nine times the
-      5-day ceiling EP-04-005 sets. All three must resolve to the configured protocol default or
-      be made explicit at every construction site.
+      The 90-day constant and the shared blackboard key are gone (#3390): the fallback is
+      `ActorConfig.protocol_default_embargo_duration`, published as
+      `protocol_default_embargo_duration` beside `actor_default_embargo_duration`, and the
+      actor default is the shortest published policy, ties broken by policy id. One implicit
+      duration remains: `EmbargoEvent.end_time`'s `default_factory=_45_days_hence` in
+      `vultron/core/models/embargo_event.py` — any `EmbargoEvent` built without an explicit
+      `end_time` silently acquires it, nine times the 5-day ceiling EP-04-005 sets. It must
+      resolve to the configured protocol default or be made explicit at every construction
+      site (#3404).
     verification: >-
-      Inspection of `vultron/core/behaviors/case/nodes/embargo.py` confirms the actor default
-      and the protocol default are resolved under distinct names, and that actor-default
-      selection is deterministic rather than positional. Inspection of
+      Inspection of `vultron/core/behaviors/case/nodes/embargo_resolution.py` and
+      `vultron/core/services/embargo_duration.py` confirms the actor default and the protocol
+      default are resolved under distinct names, and that actor-default selection is
+      deterministic rather than positional. Inspection of
       `vultron/core/models/embargo_event.py` confirms no independent default embargo duration
       remains on `EmbargoEvent.end_time`.
     adr:

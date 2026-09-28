@@ -125,7 +125,7 @@ class TestPublishesTheIdentity:
     ) -> None:
         """Provisioning belongs to whoever hosts the CaseActor (CP-04-004).
 
-        ``ResolveCaseActorUrlsNode`` also created a per-case ``VultronCaseActor``
+        ``ResolveCaseActorUrlsNode`` also created a per-case ``CaseActor``
         Service object. Writing one here would put it in the *sending* actor's
         store, which is the wrong store for an identity that has to answer an
         inbox POST.

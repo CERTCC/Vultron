@@ -33,6 +33,7 @@ import logging
 from typing import Any, cast
 
 from vultron.adapters.driving.fastapi.inbox_handler import dispatch
+from vultron.adapters.driving.fastapi import inbox_port_factories
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _expire_pending_case_activities,
     _queue_pending_case_activity,
@@ -84,6 +85,23 @@ def _is_inline_ledger_entry_announce(activity: as_Activity) -> bool:
     return getattr(nested, "type_", None) == "CaseLedgerEntry"
 
 
+def _carry_received_evidence(
+    artifact: as_Activity, routing_copy: as_Activity
+) -> as_Activity:
+    """Give the hydrated routing copy (B) its artifact's (A) received evidence.
+
+    The by-ID re-read builds B from storage, which never kept the body, so
+    without this the evidence sealed at parse would stop at the first pipeline
+    step and core would only ever see the rebuilt form (VM-08-002, ISSUE-3584).
+    The evidence is the artifact's; B only carries it, which is why the text is
+    copied rather than re-derived from B.
+    """
+    evidence = artifact.received_evidence_json
+    if evidence is not None:
+        routing_copy.seal_received_evidence(evidence)
+    return routing_copy
+
+
 class FastAPIIngressAdapter:
     """Ingress adapter for the FastAPI driving adapter.
 
@@ -113,6 +131,8 @@ class FastAPIIngressAdapter:
     ) -> None:
         self._dl = dl
         self._body = body or {}
+        # Whether ``parse`` wrote this delivery, or found the id already held.
+        self._stored_this_delivery = False
 
     def parse(
         self,
@@ -125,7 +145,9 @@ class FastAPIIngressAdapter:
         if isinstance(payload, as_Activity):
             # Already parsed (e.g., passed directly from the router DI).
             _store_nested_inbox_object(self._dl, payload, self._body)
-            _store_inbox_activity(self._dl, payload)
+            self._stored_this_delivery = _store_inbox_activity(
+                self._dl, payload
+            )
             return payload
 
         if not isinstance(payload, dict):
@@ -144,7 +166,7 @@ class FastAPIIngressAdapter:
             return None
 
         _store_nested_inbox_object(self._dl, activity, payload)
-        _store_inbox_activity(self._dl, activity)
+        self._stored_this_delivery = _store_inbox_activity(self._dl, activity)
         return activity
 
     def rehydrate(self, activity: as_Activity) -> as_Activity:
@@ -178,12 +200,26 @@ class FastAPIIngressAdapter:
         the read.
         """
         if _is_inline_ledger_entry_announce(activity):
-            return self._hydrate_in_place(activity)
+            return _carry_received_evidence(
+                activity, self._hydrate_in_place(activity)
+            )
 
         result = rehydrate(activity.id_, dl=self._dl)
-        if isinstance(result, as_Activity):
+        if not isinstance(result, as_Activity):
+            return activity
+        if not self._stored_this_delivery:
+            # The by-id read rebuilt an *earlier* delivery under this id, so
+            # this body's evidence would describe a different activity than
+            # the one routed (VM-08-002).
+            logger.info(
+                "FastAPIIngressAdapter.rehydrate: activity %s (actor %s) was"
+                " already stored; routing the stored copy without this"
+                " delivery's received evidence.",
+                activity.id_,
+                getattr(activity.actor, "id_", activity.actor),
+            )
             return result
-        return activity
+        return _carry_received_evidence(activity, result)
 
     def _hydrate_in_place(self, activity: as_Activity) -> as_Activity:
         """Expand reference fields on the *parsed* activity, without a re-read."""
@@ -410,8 +446,14 @@ async def run_inbox_pipeline(
     # stored.  Without this lock, two HTTP POSTs that arrive close together
     # create two asyncio Tasks that can run in any order; if entry N+1's
     # task runs first, the hash-chain check fails → spurious Reject (issue #1525).
+    # The receiving actor's RSVP windows govern inbound embargo invites
+    # (EP-07-001, EP-07-002); None applies the protocol defaults.
+    actor_config = inbox_port_factories._resolve_actor_config()
+
     async with _get_actor_lock(actor_id):
-        outcome = process_payload(payload, ingress, dispatch_adp, queue)
+        outcome = process_payload(
+            payload, ingress, dispatch_adp, queue, actor_config=actor_config
+        )
         logger.debug(
             "run_inbox_pipeline: status=%s context_id=%s",
             outcome.status,
@@ -427,7 +469,11 @@ async def run_inbox_pipeline(
             if item_id is None:
                 break
             replay_outcome = process_payload(
-                item_id, stored_ingress, dispatch_adp, queue
+                item_id,
+                stored_ingress,
+                dispatch_adp,
+                queue,
+                actor_config=actor_config,
             )
             logger.debug(
                 "run_inbox_pipeline: replayed status=%s context_id=%s",
