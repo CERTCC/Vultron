@@ -286,14 +286,21 @@ groups:
       bto, bcc — when determining whether the receiving actor is named as a
       recipient. A match on any one field is sufficient.
     rationale: >-
-      Several protocol flows rely on cc-to-self loopback delivery. Checking
-      only the to field would incorrectly refuse legitimately addressed Activities.
+      Refusal is about provable exclusion (IE-11-001), and an AS2 sender may name
+      the recipient in any addressing field. Vultron itself sets only `to` (OX-08)
+      and never addresses a copy to its own sender (ADR-0109), but an inbound
+      Activity from another implementation that names this actor only in `cc`,
+      `bto` or `bcc` has not excluded it, so checking only `to` would refuse it
+      wrongly. What a handler then does with a `cc`-only address is HP-10's
+      question, not the endpoint's.
     verification: >-
-      Integration tests in `test/demo/` confirm that Activities addressed
-      exclusively via `cc`, `bto`, or `bcc` to the receiving actor are accepted
-      with HTTP 202, not refused.
+      `test/adapters/driving/fastapi/routers/actors/test_inbox.py` asserts that an
+      Activity naming the receiving actor only in `cc`, `bto`, or `bcc` passes the
+      addressing check and is accepted rather than refused. No demo scenario can
+      exercise this, because Vultron emits no `cc`, `bto` or `bcc`.
     adr:
     - ADR-0068
+    - ADR-0109
     stories:
     - story_2022_040
     - story_2022_042
