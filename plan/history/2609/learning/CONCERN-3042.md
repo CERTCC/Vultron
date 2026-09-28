@@ -37,16 +37,19 @@ a chained exchange is handled inside `participant_adds_note_to_case`, which
 gates on the note arriving at the watching container.
 
 AC-2 was the real defect: the phase body was copied into every scenario module,
-and the same read-tail-then-poll-replicas loop was copied a second time into
-every `_phase_case_closure`, with literal timeouts that drifted (15 s
-everywhere except fcvcv at 30 s after #2337) and the same unit test repeated in
-every scenario test file. The concern was recharacterised as a DEMOMA-17-001
-extraction: one shared coverage-wait helper and one shared sync-verification
-phase helper in `vultron/demo/helpers/sync.py`, migration of all scenario
-modules, collapse of the duplicated tests, and an architecture ratchet that
-forbids scenario modules from calling the coverage primitive directly.
+and the same read-tail-then-poll-replicas block was copied a second time into
+every `_phase_case_closure`, with timeouts that drifted (literals of 15 s or
+45 s by replica label in most modules, 30 s or 45 s in fcvcv after #2337, and
+no timeout at all — the primitive's default — in fv, fvv and fcv-reject) and
+the same unit test repeated in every scenario test file except fcv-reject's.
+The concern was recharacterised as a DEMOMA-17-001 extraction: one shared
+coverage-wait helper and one shared sync-verification phase helper in
+`vultron/demo/helpers/sync.py`, migration of all scenario modules, collapse of
+the duplicated tests, and an architecture ratchet that forbids scenario modules
+from calling the coverage primitive directly.
 
 **Resolved**: 2026-09-28 — implementation tracked in #3846.
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3845>.
-Spec: `specs/multi-actor-demo.yaml` (DEMOMA-23-005).
+Spec: `specs/multi-actor-demo.yaml` (DEMOMA-23-005, DEMOMA-23-006,
+DEMOMA-23-007).
 Notes: `notes/demo-scenario-authoring.md`.

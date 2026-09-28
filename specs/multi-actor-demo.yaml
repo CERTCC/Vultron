@@ -3679,33 +3679,54 @@ groups:
       the temporal check after case closure — MUST be performed through a shared
       helper in `vultron/demo/helpers/sync.py` that reads the authority tail,
       iterates the replicas, applies the named late-joiner and cross-container
-      timeout constants, and wraps each per-replica wait in a demo context
-      internally. A scenario module under `vultron/demo/scenario/` MUST NOT call
-      `wait_for_contiguous_ledger_coverage` or `_get_log_entries_for_case`
-      directly, and a replica sync-verification phase MUST be a thin call to a
-      shared phase helper that declares only the scenario's authority, replicas,
-      late joiners, expected participant set, and the replica pairs to
-      state-check.
+      timeout constants from `vultron/demo/helpers/polling.py`, and wraps each
+      per-replica wait in a demo context internally.
     rationale: >-
-      The pre-notes sync-verification body and the post-closure coverage loop
-      were each copied into every scenario module — two copies per module of the
-      same read-tail-then-poll-replicas loop, with literal timeouts that drifted
-      independently (15 s everywhere except fcvcv, which moved to 30 s after
-      #2337) and a gate-versus-check choice that had to be fixed module by
-      module in one pull request (#2756). The race guard itself was already
-      present everywhere the concern that filed this requirement feared it was
-      missing (#3042); what was missing was the single place to fix it. Keeping
-      the scenario's facts in the scenario and the loop in the helper puts each
-      fact in one place, exactly as DEMOMA-23-002 does for the ledger dump.
+      The same read-tail-then-poll-replicas block was repeated in every scenario
+      module, once before the notes phase and once after closure. Its timeouts
+      were literals that drifted independently — by module, by replica label,
+      and in some modules by being omitted so the primitive's default applied —
+      and the gate-versus-check choice had to be fixed module by module in one
+      pull request (#2756). One helper puts the loop, the named constants, and
+      the demo-context wrap in one place.
     verification: >-
-      An architecture test under `test/architecture/` parses every module under
-      `vultron/demo/scenario/` and fails if it calls
-      `wait_for_contiguous_ledger_coverage` or `_get_log_entries_for_case`
-      directly. Unit tests for the shared helper assert that the per-replica wait
-      is skipped when the authority-tail read yields nothing, that a late joiner
+      Unit tests for the shared helper assert that the per-replica wait is
+      skipped when the authority-tail read yields nothing, that a late joiner
       receives the late-joiner replica timeout, and that a raising per-replica
       timeout is recorded by the failure accumulator rather than propagating.
     relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: refines
+      spec_id: DEMOCI-01-011
+      note: >-
+        DEMOCI-01-011 requires a shared helper that encapsulates polling to
+        perform the demo-context wrap itself; the coverage helper is such a
+        helper.
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-23-006
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A scenario module under `vultron/demo/scenario/` MUST NOT call
+      `wait_for_contiguous_ledger_coverage` or `_get_log_entries_for_case`
+      directly.
+    rationale: >-
+      The race guard that the concern behind this requirement (#3042) feared was
+      missing was in fact present in every scenario module; what was missing was
+      the single place to fix it. Forbidding the direct call is what stops the
+      coverage loop from being copied back into the next scenario written from a
+      neighbour, which is how the copies arose.
+    verification: >-
+      An architecture test under `test/architecture/` parses every module under
+      `vultron/demo/scenario/` and fails if one calls
+      `wait_for_contiguous_ledger_coverage` or `_get_log_entries_for_case`
+      directly.
+    relationships:
+    - rel_type: depends_on
+      spec_id: DEMOMA-23-005
     - rel_type: refines
       spec_id: DEMOMA-17-001
     - rel_type: refines
@@ -3714,12 +3735,36 @@ groups:
         DEMOMA-22-002 places causal gate predicates in `vultron/demo/helpers/`;
         this requirement names the specific predicate that every scenario needs
         and forbids the scenario-local copy of it.
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-23-007
+    priority: MUST
+    kind: project
+    statement: >-
+      A scenario's replica sync-verification phase MUST be a thin call to a
+      shared phase helper in `vultron/demo/helpers/sync.py`, declaring only the
+      scenario's authority, replicas, late joiners, expected participant set, and
+      the replica pairs to state-check.
+    rationale: >-
+      Keeping the scenario's facts in the scenario and the mechanics in the
+      helper puts each fact in one place, exactly as DEMOMA-23-002 does for the
+      ledger dump. A scenario-specific extra — the fv scenario's check that its
+      dedicated case-actor container stayed unused — follows the helper call as
+      a separate step rather than becoming a per-scenario variant of the phase
+      body.
+    verification: >-
+      Unit tests for the shared phase helper assert that it composes the
+      Finder-case gate, the coverage wait (DEMOMA-23-005), the participant-index
+      wait, and the declared replica state checks, in that order. The
+      DEMOMA-23-006 architecture test covers the scenario side.
+    relationships:
+    - rel_type: depends_on
+      spec_id: DEMOMA-23-005
     - rel_type: refines
-      spec_id: DEMOCI-01-011
-      note: >-
-        DEMOCI-01-011 requires a shared helper that encapsulates polling to
-        perform the demo-context wrap itself; the coverage helper is such a
-        helper.
+      spec_id: DEMOMA-17-001
+    - rel_type: refines
+      spec_id: DEMOMA-23-002
     tags:
     - demo
     - testing
