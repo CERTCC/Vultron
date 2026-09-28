@@ -60,10 +60,10 @@ This scenario validates the rejection path of the invite protocol (CLP-13).
 
 **Participants:**
 
-- **Finder** — discovers and reports the vulnerability.
+- **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **Coordinator** — receives the report; validates, engages, and owns the case.
 - **Vendor** — receives an invitation; **rejects** it and does not join.
-- **CaseActor** — Coordinator's internal case-management sub-actor.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. The Coordinator's platform hosts it, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 
@@ -83,7 +83,7 @@ The Coordinator reviews the report and accepts it.  `validate_report` then
 
 ### 3. Participant status records are created
 
-The CaseActor records `add_participant_status_to_participant` for each initial
+The Case Actor records `add_participant_status_to_participant` for each initial
 participant.
 
 *Antecedent:* `engage_case` is in the ledger.
@@ -108,7 +108,7 @@ The Coordinator identifies the Vendor and sends an `invite_actor_to_case` entry.
 
 ### 7. Vendor rejects the invitation
 
-The Vendor declines to participate.  The CaseActor records the rejection as a
+The Vendor declines to participate.  The Case Actor records the rejection as a
 `reject_invite_actor_to_case` entry.  **The Vendor is not added as a participant.**
 
 *Antecedent:* The Vendor's `invite_actor_to_case` entry is in the ledger.

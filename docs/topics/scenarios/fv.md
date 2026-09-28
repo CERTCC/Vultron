@@ -52,10 +52,9 @@ directly with no coordinator.
 
 **Participants:**
 
-- **Finder** — discovers the vulnerability; submits the initial report.
+- **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **Vendor** — receives the report; validates, engages, and owns the case.
-- **CaseActor** — the Vendor's internal case-management sub-actor; commits
-  canonical ledger entries on the Vendor's behalf.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. The Vendor's platform hosts it, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 
@@ -87,7 +86,7 @@ state to ACCEPTED and records an `engage_case` entry in the ledger.
 
 ### 4. Participant status records are created
 
-Once the case is active, the CaseActor records the initial participant status
+Once the case is active, the Case Actor records the initial participant status
 for each actor — Finder and Vendor — capturing their RM state and CVD role.
 Each such record appears in the ledger as an `add_participant_status_to_participant`
 entry.
@@ -110,12 +109,14 @@ participant status updates reflect the new VFD state.
 
 *Antecedent:* `engage_case` is present in the ledger.
 
-### 7. Fix is deployed and vulnerability is publicly disclosed
+### 7. Vulnerability is publicly disclosed
 
 The Vendor publishes a security advisory.  The Finder also publishes.  These
-publication events advance the CS PXA state towards *publicly known* and trigger
+publication events advance the CS PXA state to *publicly known* and trigger
 embargo teardown (EM exits ACTIVE).  Each publication notification is recorded
-as a participant status update in the ledger.
+as a participant status update in the ledger.  No participant deploys a fix in
+this scenario: deployment is a Deployer's step, so the Vendor's VFD state stays
+at fix-ready (VFd).
 
 *Antecedent:* The fix-ready participant status entry is in the ledger.
 
@@ -124,7 +125,7 @@ as a participant status update in the ledger.
 Both the Finder and the Vendor indicate that their participation in the case
 is complete.  Each closure is recorded as a `close_case` entry in the ledger.
 The Vendor is the case owner, so its departure also closes the case: the
-CaseActor records its own closure as a participant status entry, then records
+Case Actor records its own closure as a participant status entry, then records
 `case_fully_closed`.
 
 *Antecedent:* `validate_report` and `engage_case` are both present in the ledger.

@@ -56,11 +56,11 @@ carries out the fix; the Coordinator and Finder manage communication.
 
 **Participants:**
 
-- **Finder** — discovers and reports the vulnerability.
+- **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **Coordinator** — receives the report; validates, engages, and owns the case;
   invites the Finder and Vendor.
 - **Vendor** — receives an invitation; develops and ships the fix.
-- **CaseActor** — Coordinator's internal case-management sub-actor.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. The Coordinator's platform hosts it, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 
@@ -81,7 +81,7 @@ Coordinator accepts responsibility.
 
 ### 3. Participant status records are created
 
-The CaseActor records the initial participant status for the Coordinator as an
+The Case Actor records the initial participant status for the Coordinator as an
 `add_participant_status_to_participant` entry.
 
 *Antecedent:* `engage_case` is in the ledger.
@@ -124,7 +124,8 @@ note is an `add_note_to_case` entry.
 ### 9. Vendor develops and ships a fix
 
 The Vendor progresses through the fix lifecycle.  Participant status updates
-reflect the Vendor reaching fix-ready (VFd) and fix-deployed (VFD) states.
+reflect the Vendor reaching the fix-ready (VFd) state.  No participant deploys a
+fix in this scenario, so the VFD state stays at VFd.
 
 *Antecedent:* `engage_case` is in the ledger.
 

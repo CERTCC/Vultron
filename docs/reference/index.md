@@ -36,7 +36,7 @@ protocol with other related standards and protocols, including:
 - [Notation](notation.md) — Notation conventions used throughout the documentation.
 - **ActivityPub**
     - [Vultron AS Objects](activitypub/objects.md) — The Vultron ActivityStreams objects that extend the ActivityStreams vocabulary.
-- [FV Demo Protocol](fv-demo-protocol.md) — The message-level protocol interactions of the Finder + Vendor (FV) demo, for developers building interoperable actors.
+- [FV Demo Protocol](fv-demo-protocol.md) — The message-level protocol trace of the Finder + Vendor (FV) demo: every ActivityStreams activity exchanged, the trigger that causes it, and the case ledger entries it produces.
 - [Trigger API](trigger-api.md) — The `POST /actors/{actor_id}/trigger/{behavior}` endpoints, each of which starts a protocol behavior on an actor's behalf.
 - [Protocol Quick Reference](quick_reference.md) — A single-page summary of the protocol's state machines, message types, and how they interact.
 - [Formal Protocol](formal_protocol/index.md) — The Multi-Party Coordinated Vulnerability Disclosure (MPCVD) process defined as a communicating hierarchical state machine.

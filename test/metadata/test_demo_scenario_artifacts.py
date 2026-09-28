@@ -439,6 +439,7 @@ def test_index_page_commits_no_scenario_table() -> None:
 #: ``label`` — so a renderer that dropped a whole column still passed.
 _REQUIRED_CELL = {
     "narratives": lambda spec: f"[{spec.label}]",
+    "container_demos": lambda spec: f"`{spec.name}`",
     "harnesses": lambda spec: f"`{spec.harness_path}`",
     "subcommands": lambda spec: f"`{spec.demo_filename}`",
 }

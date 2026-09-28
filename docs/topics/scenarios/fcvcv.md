@@ -70,19 +70,19 @@ The FCVCV scenario exercises the **actor-suggestion flow** (ADR-0026).  A
 Finder reports to Coordinator 1 (C1), who creates the case and directly invites
 Vendor 1 (V1) and Coordinator 2 (C2).  After C2 joins, C2 *suggests* Vendor 2
 (V2) to the case; C1, as the case owner, approves the recommendation and the
-CaseActor sends V2 a formal invitation.
+Case Actor sends V2 a formal invitation.
 
 This five-actor scenario validates the indirect participant onboarding path
 where C2 acts as a broker for V2 rather than C1 inviting V2 directly.
 
 **Participants:**
 
-- **Finder** — discovers the vulnerability; submits the initial report.
+- **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **C1 (Coordinator 1)** — receives the report; validates, engages, and owns the case; invites V1 and C2.
 - **V1 (Vendor 1)** — receives a direct invite from C1; develops a fix (reaches VFd, not VFD).
 - **C2 (Coordinator 2)** — receives a direct invite from C1; suggests V2 to the case.
 - **V2 (Vendor 2 / Deployer)** — joins via the actor-suggestion path; develops and deploys a fix (VFD).
-- **CaseActor** — C1's internal case-management sub-actor.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. C1's platform hosts it, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 
@@ -102,7 +102,7 @@ entries appear in the ledger.
 
 ### 3. Participant status records are created
 
-The CaseActor records initial participant status entries.
+The Case Actor records initial participant status entries.
 
 *Antecedent:* `engage_case` is in the ledger.
 
@@ -132,19 +132,19 @@ C1, as case owner, reviews the suggestion and approves it.  An
 
 *Antecedent:* `offer_case_participant` is in the ledger.
 
-### 8. CaseActor sends V2 a formal invitation
+### 8. Case Actor sends V2 a formal invitation
 
-The CaseActor, acting on C1's approval, sends V2 an `invite_actor_to_case`
+The Case Actor, acting on C1's approval, sends V2 an `invite_actor_to_case`
 entry.  This follows the ADR-0026 suggest-actor path.
 
 *Antecedent:* `accept_actor_recommendation` is in the ledger.
 
-### 9. V2 accepts the CaseActor invitation
+### 9. V2 accepts the Case Actor invitation
 
 V2 reviews and accepts the invitation.  An `accept_invite_actor_to_case` entry
 is recorded for V2.
 
-*Antecedent:* The CaseActor's `invite_actor_to_case` entry is in the ledger.
+*Antecedent:* The Case Actor's `invite_actor_to_case` entry is in the ledger.
 
 ### 10. Participants exchange notes
 
