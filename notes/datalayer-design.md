@@ -143,11 +143,13 @@ Two caveats worth knowing before touching this path:
   `rm_state`/`rmState` on `ParticipantStatus` or `CaseStatus`, because those
   spellings are declared `AliasChoices` on the field and are therefore
   *interpreted*, not dropped. Removing those aliases is #2288/#2289.
-- Persisted rows are still keyed by Python field name (`id_`, `type_`), not the
-  wire-facing names ARCH-23-005 asks for. Re-keying was deliberately **not** done
-  in #2940 — it would mask the `CaseLedgerEntry` alias-injection bug — and is
-  sequenced behind the `WireParsePort` (#2938). See
-  [notes/wire-core-boundary.md](wire-core-boundary.md).
+- Persisted rows now use wire-facing identity keys (`id`, `type`, `@context`).
+  `Record.from_obj()` applies `_rekey_wire_identity()` after `_dehydrate_data()`
+  to rename the three identity keys before storage (#3546, ARCH-23-005).
+  Existing rows keyed `id_`/`type_` continue to round-trip correctly via
+  `populate_by_name=True` / `validate_by_name=True` on model roots.
+  The refusal clause of ARCH-23-005 (computed-field contradiction, #3695) is still
+  tracked separately.
 
 ## Activity Read-Back: Semantic Content vs. Envelope Reconstitution (ADR-0035, DL-06)
 

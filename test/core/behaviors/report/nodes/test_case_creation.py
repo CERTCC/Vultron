@@ -98,7 +98,9 @@ def test_create_case_activity(
     activity_id = next(iter(create_activities))
     activity_data = create_activities[activity_id]
 
-    assert activity_data.get("type_") == "Create"
+    assert (
+        activity_data.get("type") == "Create"
+    )  # wire-facing key (ARCH-23-005)
     assert activity_data.get("to"), "CreateCaseActivity should have recipients"
     assert (
         actor.id_ not in activity_data["to"]
