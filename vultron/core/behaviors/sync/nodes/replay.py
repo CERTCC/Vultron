@@ -48,7 +48,7 @@ from vultron.core.ports.case_persistence import (
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
-from vultron.errors import VultronError
+from vultron.errors import VultronError, VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -295,7 +295,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         if self._sync_port is None:
-            raise VultronError(
+            raise VultronWiringError(
                 f"{self.name}: sync_port must be injected to replay entries"
             )
 

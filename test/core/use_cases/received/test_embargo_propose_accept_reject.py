@@ -25,6 +25,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
@@ -85,7 +86,8 @@ class TestEmbargoProposalLifecycle:
 
         event = make_payload(activity)
 
-        CreateEmbargoEventReceivedUseCase(dl, event).execute()
+        result = CreateEmbargoEventReceivedUseCase(dl, event).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         stored = dl.get(embargo.type_, embargo.id_)
         assert stored is not None
@@ -125,9 +127,10 @@ class TestEmbargoProposalLifecycle:
         event = make_payload(activity)
 
         CreateEmbargoEventReceivedUseCase(dl, event).execute()
-        CreateEmbargoEventReceivedUseCase(
+        result = CreateEmbargoEventReceivedUseCase(
             dl, event
         ).execute()  # second call no-op
+        assert result.disposition is HandlerDisposition.SKIPPED
 
         stored = dl.get(embargo.type_, embargo.id_)
         assert stored is not None
@@ -162,7 +165,8 @@ class TestEmbargoProposalLifecycle:
             proposal, receiving_actor_id="https://example.org/users/vendor"
         )
 
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         stored = dl.get(proposal.type_.value, proposal.id_)
         assert stored is not None
@@ -211,7 +215,10 @@ class TestEmbargoProposalLifecycle:
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id)
 
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         case = dl.read(case.id_)
         assert case is not None
@@ -322,7 +329,10 @@ class TestEmbargoProposalLifecycle:
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id)
 
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         updated_participant = dl.get(id_=participant.id_)
         assert updated_participant is not None
@@ -379,7 +389,10 @@ class TestEmbargoProposalLifecycle:
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id)
 
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         case = dl.read(case.id_)
         assert case is not None
@@ -601,7 +614,9 @@ class TestInviteToEmbargoReceivedPxaGuard:
         )
 
         event = make_payload(proposal, receiving_actor_id=self.COORD_ID)
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "EMB-01-002" in (result.reason or "")
 
         # BT was not run: EM state must remain NONE (no PROPOSED transition)
         updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -632,9 +647,11 @@ class TestInviteToEmbargoReceivedPxaGuard:
 
         trigger_activity = TriggerActivityAdapter(dl)
         event = make_payload(proposal, receiving_actor_id=self.COORD_ID)
-        InviteToEmbargoOnCaseReceivedUseCase(
+        result = InviteToEmbargoOnCaseReceivedUseCase(
             dl, event, trigger_activity=trigger_activity
         ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "EMB-01-002" in (result.reason or "")
 
         # ER activity must be in the outbox
         _sole_queued_reject(dl)
@@ -676,7 +693,8 @@ class TestInviteToEmbargoReceivedPxaGuard:
         dl.create(proposal)
 
         event = make_payload(proposal, receiving_actor_id=coordinator_id)
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         # Proposal must be stored (BT ran CreateAndStoreInviteNode)
         stored = dl.read(proposal.id_)
@@ -713,7 +731,11 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             proposal, context=case.id_, actor=self.COORD_ID
         )
         event = make_payload(accept, receiving_actor_id=self.COORD_ID)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event
+        ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "EMB-02-002" in (result.reason or "")
 
         # BT was not run: EM state must remain PROPOSED (not ACTIVE)
         updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -747,9 +769,11 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         )
         trigger_activity = TriggerActivityAdapter(dl)
         event = make_payload(accept, receiving_actor_id=self.COORD_ID)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl, event, trigger_activity=trigger_activity
         ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "EMB-02-002" in (result.reason or "")
 
         # ER activity must be in the outbox
         _sole_queued_reject(dl)
@@ -792,7 +816,10 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             proposal, context=case.id_, actor=coordinator_id
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         # Embargo should be activated (BT ran SetEmbargoActiveNode)
         updated = cast(VulnerabilityCase, dl.read(case.id_))

@@ -225,6 +225,8 @@ Realized:
 - `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` covers the two paths a ratchet cannot see, driving the real FastAPI dispatch adapters, dispatcher, and inbox BT with only the use case stubbed (#3373).
   A `REFUSED` disposition reaches `InboxOutcome.status == "rejected"` with the handler's reason as `failure_reason`, and an unroutable or unrecognised-semantics activity does **not** report `processed` (UCORG-05-012).
   The same file checks that `run_inbox_pipeline` logs a rejection at WARNING (UCORG-05-013).
+- `test_real_handler_refusal_reaches_inbox_outcome` in that file drives a real handler, not a stub. An untrusted sender's `Announce(VulnerabilityCase)` is refused, and the refusal reaches `InboxOutcome` as `rejected` (#2255).
+- `test/core/use_cases/received/test_bt_verdict.py` covers the default reading of a BT run (`verdict_from_bt`, `applied_or_raise`). In particular, an internal error or missing wiring raises rather than refusing. The per-handler disposition tests sit beside each handler's tests under `test/core/use_cases/received/` (#2255).
 
 Per this ADR's own subject matter: no Validation entry here asserts that a test
 exists until it does. ADR-0040's Validation section claimed the ratchet as

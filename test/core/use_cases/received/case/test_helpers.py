@@ -17,7 +17,7 @@
 Covers:
   CBT-05-007  Bootstrap Create stores the reporter participant at RM.ACCEPTED
               when a fully inline participant object is provided (CBT-01-008).
-  CBT-05-008  Bootstrap Create MUST raise VultronProtocolViolationError when
+  CBT-05-008  Bootstrap Create is refused with a protocol-error reason when
               a participant arrives as a bare URI string (#2736, #2808).
 """
 
@@ -26,8 +26,8 @@ from typing import Any, cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.errors import VultronProtocolViolationError
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.models.dimensions import (
     RmDimension,
 )
@@ -383,8 +383,8 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
 
 
 @pytest.mark.spec("CBT-05-008")
-def test_bootstrap_bare_uri_participant_raises_protocol_error(make_payload):
-    """Bootstrap with a bare-URI participant MUST raise VultronProtocolViolationError."""
+def test_bootstrap_bare_uri_participant_is_refused(make_payload):
+    """Bootstrap with a bare-URI participant is refused (CBT-05-008)."""
     _VENDOR_ID = "https://vendor.example.org/actors/vendor-cbt05008"
     _FINDER_ID = "https://finder.example.org/actors/finder-cbt05008"
     _CASE_ID = "https://example.org/cases/case-cbt05008"
@@ -418,5 +418,9 @@ def test_bootstrap_bare_uri_participant_raises_protocol_error(make_payload):
     case.actor_participant_index[_FINDER_ID] = _FINDER_PARTICIPANT_ID
     activity = create_case_activity(case, actor=_VENDOR_ID)
     event = make_payload(activity, receiving_actor_id=_FINDER_ID)
-    with pytest.raises(VultronProtocolViolationError):
-        CreateCaseReceivedUseCase(dl, event).execute()
+    result = CreateCaseReceivedUseCase(dl, event).execute()
+
+    # Rejected before any write, as a refusal the inbox reports (#2255).
+    assert result.disposition == HandlerDisposition.REFUSED
+    assert result.reason is not None and "CBT-05-008" in result.reason
+    assert dl.read(_CASE_ID) is None

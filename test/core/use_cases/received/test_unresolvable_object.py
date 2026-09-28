@@ -17,6 +17,7 @@ from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events import MessageSemantics
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.models.events.unknown import UnresolvableObjectReceivedEvent
 from vultron.core.use_cases.received.unknown import UnresolvableObjectUseCase
 from vultron.semantic_registry import extract_event
@@ -50,7 +51,12 @@ class TestUnresolvableObjectUseCase:
         )
         event = _make_unresolvable_event()
 
-        UnresolvableObjectUseCase(dl, event).execute()
+        result = UnresolvableObjectUseCase(dl, event).execute()
+
+        # HP-01-003: the activity could not be processed; the dead-letter
+        # record is bookkeeping, not an application of the activity (#2255).
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "dead-lettered" in result.reason
 
         # by_type("DeadLetterRecord") returns only records of that type;
         # a non-empty result confirms the record was stored correctly.

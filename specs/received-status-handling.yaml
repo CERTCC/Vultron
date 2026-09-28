@@ -859,17 +859,18 @@ groups:
       This is the sender-feedback diagnostic gap identified in ISSUE-2255.
     verification: >
       Unit tests confirm that `AddParticipantStatusToParticipantReceivedUseCase.execute()`
-      raises `VultronStatusAssertionRefusedError` when `FilterParticipantStatusDimensionsNode`
-      returns FAILURE, and that this exception is caught by `DispatchNode` to
-      produce a `rejected` `InboxOutcome`.
+      returns `HandlerResult.refused` when `FilterParticipantStatusDimensionsNode`
+      returns FAILURE, which `DispatchNode` maps to a `rejected` `InboxOutcome`
+      (HP-01-003, ADR-0095).
     note: >
-      Only `FilterParticipantStatusDimensionsNode`'s total-refusal FAILURE path
-      triggers this diagnostic; other BT failure modes (sender not a participant,
-      authorization failures at `StatusAdoptionGate`) do NOT produce `rejected`
-      because they are not strictly "refusals of the assertion content." This
-      distinction is enforced by `_filter_node_wholly_refused()` in
-      `vultron/core/use_cases/received/status.py`, which walks the tree to check
-      the filter node's status after execution.
+      A withheld adoption at `StatusAdoptionGate` does NOT produce `rejected`:
+      the claim is recorded on the participant and only its adoption as
+      canonical is withheld, which is not a refusal of the assertion content,
+      so the handler returns `SKIPPED` and emits no fault. A sender that is not
+      a case participant is refused like any other untrusted sender
+      (HP-01-003). `_filter_node_wholly_refused()` and `_adoption_gate_blocked()`
+      in `vultron/core/use_cases/received/status.py` tell these cases apart by
+      walking the tree after execution.
     relationships:
     - rel_type: extends
       spec_id: RSH-05-005

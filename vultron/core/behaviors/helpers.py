@@ -63,6 +63,19 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Feedback a node sets when it was composed without a dependency it needs.
+# A received handler raises on these rather than refusing the sender (#2255).
+DATALAYER_UNAVAILABLE = "DataLayer not available"
+DATALAYER_OR_ACTOR_UNAVAILABLE = "DataLayer or actor_id not available"
+TRIGGER_FACTORY_UNAVAILABLE = "trigger_activity_factory not available"
+WIRING_UNAVAILABLE_MESSAGES = frozenset(
+    {
+        DATALAYER_UNAVAILABLE,
+        DATALAYER_OR_ACTOR_UNAVAILABLE,
+        TRIGGER_FACTORY_UNAVAILABLE,
+    }
+)
+
 
 @overload
 def read_rm_states(
@@ -190,7 +203,7 @@ def require_case(
     """
     datalayer = getattr(node, "datalayer", None)
     if datalayer is None:
-        node.feedback_message = "DataLayer not available"
+        node.feedback_message = DATALAYER_UNAVAILABLE
         node.logger.error(f"{node.name}: {node.feedback_message}")
         return None, Status.FAILURE  # type: ignore[return-value]
     if not case_id:
@@ -306,14 +319,14 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
     def _require_datalayer(self) -> Status | None:
         """Return FAILURE if ``self.datalayer`` is not set, else None."""
         if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
+            self.feedback_message = DATALAYER_UNAVAILABLE
             return Status.FAILURE
         return None
 
     def _require_datalayer_and_actor(self) -> Status | None:
         """Return FAILURE if ``datalayer`` or ``actor_id`` is not set, else None."""
         if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
+            self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
             return Status.FAILURE
         return None
 
@@ -422,14 +435,14 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
     def _require_datalayer(self) -> Status | None:
         """Return FAILURE if ``self.datalayer`` is not set, else None."""
         if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
+            self.feedback_message = DATALAYER_UNAVAILABLE
             return Status.FAILURE
         return None
 
     def _require_datalayer_and_actor(self) -> Status | None:
         """Return FAILURE if ``datalayer`` or ``actor_id`` is not set, else None."""
         if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
+            self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
             return Status.FAILURE
         return None
 
@@ -448,7 +461,7 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
     def _require_factory(self) -> Status | None:
         """Return FAILURE if ``trigger_activity_factory`` is not set, else None."""
         if self.trigger_activity_factory is None:
-            self.feedback_message = "trigger_activity_factory not available"
+            self.feedback_message = TRIGGER_FACTORY_UNAVAILABLE
             return Status.FAILURE
         return None
 
@@ -550,13 +563,13 @@ class DataLayerConditionWithPorts(BehaviourWithPorts):
 
     def _require_datalayer(self) -> Status | None:
         if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
+            self.feedback_message = DATALAYER_UNAVAILABLE
             return Status.FAILURE
         return None
 
     def _require_datalayer_and_actor(self) -> Status | None:
         if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
+            self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
             return Status.FAILURE
         return None
 
@@ -660,13 +673,13 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
 
     def _require_datalayer(self) -> Status | None:
         if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
+            self.feedback_message = DATALAYER_UNAVAILABLE
             return Status.FAILURE
         return None
 
     def _require_datalayer_and_actor(self) -> Status | None:
         if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
+            self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
             return Status.FAILURE
         return None
 
@@ -684,7 +697,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
 
     def _require_factory(self) -> Status | None:
         if self.trigger_activity_factory is None:
-            self.feedback_message = "trigger_activity_factory not available"
+            self.feedback_message = TRIGGER_FACTORY_UNAVAILABLE
             return Status.FAILURE
         return None
 

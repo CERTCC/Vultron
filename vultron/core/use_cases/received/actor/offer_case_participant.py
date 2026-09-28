@@ -37,9 +37,16 @@ from vultron.core.models.events.actor import (
     OfferCaseParticipantReceivedEvent,
     RejectOfferCaseParticipantReceivedEvent,
 )
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import (
+    not_case_manager,
+    verdict_from_bt,
+)
 from vultron.enums.roles import serialize_roles
 
 if TYPE_CHECKING:
@@ -73,10 +80,12 @@ class OfferCaseParticipantReceivedUseCase:
         if not case_id:
             logger.warning(
                 "OfferCaseParticipantReceived: missing case_id in event '%s'"
-                " — skipping",
+                " — refusing",
                 activity_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Offer(CaseParticipant) names no case"
+            )
 
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -88,10 +97,28 @@ class OfferCaseParticipantReceivedUseCase:
         bridge = BTBridge(
             datalayer=self._dl, trigger_activity=self._trigger_activity
         )
-        bridge.execute_with_setup(
+        result = bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
         )
-        return HandlerResult.applied()
+        verdict = verdict_from_bt(
+            tree, result, label="ReceiveOfferCaseParticipantBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "ReceiveOfferCaseParticipantBT refused '%s': %s",
+                activity_id,
+                verdict.reason,
+            )
+            return verdict
+        if not_case_manager(tree):
+            # The ledger commit is this tree's only work, and it is the
+            # CASE_MANAGER's; a missing case also fails that gate (rule 3).
+            if self._dl.read(case_id) is None:
+                return HandlerResult.refused(f"unknown case '{case_id}'")
+            return HandlerResult.skipped(
+                f"not the CASE_MANAGER of case '{case_id}'"
+            )
+        return verdict
 
 
 class AcceptOfferCaseParticipantReceivedUseCase:
@@ -153,10 +180,13 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         if not case_id or not invitee_id:
             logger.warning(
                 "AcceptOfferCaseParticipantReceived: missing case_id or"
-                " invitee_id in event '%s' — skipping",
+                " invitee_id in event '%s' — refusing",
                 activity_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Accept(Offer(CaseParticipant)) is missing its case id or"
+                " invitee id"
+            )
 
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -172,10 +202,20 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         bridge = BTBridge(
             datalayer=self._dl, trigger_activity=self._trigger_activity
         )
-        bridge.execute_with_setup(
+        result = bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
         )
-        return HandlerResult.applied()
+        verdict = verdict_from_bt(
+            tree, result, label="AcceptActorRecommendationBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "AcceptActorRecommendationBT refused '%s': %s",
+                activity_id,
+                verdict.reason,
+            )
+            return verdict
+        return verdict
 
 
 class RejectOfferCaseParticipantReceivedUseCase:
@@ -219,10 +259,12 @@ class RejectOfferCaseParticipantReceivedUseCase:
         if not case_id:
             logger.warning(
                 "RejectOfferCaseParticipantReceived: missing case_id in"
-                " event '%s' — skipping",
+                " event '%s' — refusing",
                 activity_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Reject(Offer(CaseParticipant)) names no case"
+            )
 
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -237,7 +279,17 @@ class RejectOfferCaseParticipantReceivedUseCase:
         bridge = BTBridge(
             datalayer=self._dl, trigger_activity=self._trigger_activity
         )
-        bridge.execute_with_setup(
+        result = bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
         )
-        return HandlerResult.applied()
+        verdict = verdict_from_bt(
+            tree, result, label="RejectActorRecommendationBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "RejectActorRecommendationBT refused '%s': %s",
+                activity_id,
+                verdict.reason,
+            )
+            return verdict
+        return verdict

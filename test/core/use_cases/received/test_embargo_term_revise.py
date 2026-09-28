@@ -15,6 +15,7 @@
 from typing import cast
 
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AddEmbargoEventToCaseReceivedUseCase,
@@ -67,7 +68,8 @@ class TestEmbargoTermRevise:
         )
         event = make_payload(activity)
 
-        AddEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+        result = AddEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         case = dl.read(case.id_)
         assert case is not None
@@ -155,7 +157,8 @@ class TestEmbargoTermRevise:
             activity, receiving_actor_id="https://example.org/users/coord"
         )
 
-        RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         updated = dl.read(case.id_)
         assert updated is not None
@@ -204,7 +207,8 @@ class TestEmbargoTermRevise:
             activity, receiving_actor_id="https://example.org/users/coord"
         )
 
-        RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         updated = dl.read(case.id_)
         assert updated is not None
@@ -251,7 +255,8 @@ class TestEmbargoTermRevise:
             activity, receiving_actor_id="https://example.org/users/coord"
         )
 
-        RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         updated = dl.read(case.id_)
         assert updated is not None

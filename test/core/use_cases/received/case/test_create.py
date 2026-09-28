@@ -36,6 +36,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.models.events import CreateCaseReceivedEvent, VultronEvent
 from vultron.core.use_cases.received.actor import _find_case_actor_id
 from vultron.core.use_cases.received.actor.announce import (
@@ -159,12 +160,25 @@ class TestBootstrapCreateAccepted:
         link = _build_link()
         dl.save(link)
 
-        CreateCaseReceivedUseCase(dl, create_event).execute()
+        result = CreateCaseReceivedUseCase(dl, create_event).execute()
 
         stored = dl.read(_CASE_ID)
         assert (
             stored is not None
         ), "Case should be seeded after valid bootstrap"
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_redelivered_bootstrap_is_skipped(
+        self, dl, create_event, case_with_participant
+    ):
+        """A second bootstrap for a replica already seeded is a no-op."""
+        dl.save(_build_link())
+        CreateCaseReceivedUseCase(dl, create_event).execute()
+
+        again = CreateCaseReceivedUseCase(dl, create_event).execute()
+
+        assert again.disposition == HandlerDisposition.SKIPPED
 
     def test_report_case_link_updated_with_case_id(
         self, dl, create_event, case_with_participant
@@ -216,12 +230,15 @@ class TestBootstrapCreateRejectedBadSender:
         link = _build_link(trusted_case_creator_id=_CREATOR_ID)
         dl.save(link)
 
-        CreateCaseReceivedUseCase(dl, imposter_event).execute()
+        result = CreateCaseReceivedUseCase(dl, imposter_event).execute()
 
         stored = dl.read(_CASE_ID)
         assert (
             stored is None
         ), "Case must not be seeded when sender is not trusted creator"
+        # HP-01-003: an untrusted sender is refused, not "processed".
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and _IMPOSTER_ID in result.reason
 
     def test_link_not_updated(self, dl, imposter_event, case_with_participant):
         """ReportCaseLink must NOT be updated when bootstrap is rejected."""
@@ -250,12 +267,23 @@ class TestBootstrapCreateNoLink:
         """Without a ReportCaseLink, CreateCaseReceivedUseCase is a no-op."""
         # Do NOT create a VultronReportCaseLink
 
-        CreateCaseReceivedUseCase(dl, create_event).execute()
+        result = CreateCaseReceivedUseCase(dl, create_event).execute()
 
         stored = dl.read(_CASE_ID)
         assert (
             stored is None
         ), "Case should not be seeded when receiver has no matching ReportCaseLink"
+        # The sender is not this case's CASE_MANAGER either, so nothing
+        # vouches for it: an untrusted sender is REFUSED (HP-01-003).
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_create_without_case_object_is_refused(self, dl, create_event):
+        event = create_event.model_copy(update={"object_": None})
+
+        result = CreateCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
 
 
 # ---------------------------------------------------------------------------

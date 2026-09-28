@@ -13,12 +13,15 @@
 """Tests for note-related use-case classes."""
 
 from typing import cast
+from unittest.mock import MagicMock
+
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
     CreateNoteReceivedUseCase,
@@ -56,7 +59,8 @@ class TestNoteUseCases:
 
         event = make_payload(activity)
 
-        CreateNoteReceivedUseCase(dl, event).execute()
+        result = CreateNoteReceivedUseCase(dl, event).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         stored = dl.get(note.type_.value, note.id_)
         assert stored is not None
@@ -167,9 +171,12 @@ class TestNoteUseCases:
         )
         dl.create(case_actor)
 
+        # attributed_to anchors the per-case ledger genesis, without which
+        # the CaseActor's receipt commit fails (CLP-08-005).
         case = as_VulnerabilityCase(
             id_=case_id,
             name="Note Case",
+            attributed_to="https://example.org/users/vendor",
         )
         case_mgr_participant = as_CaseParticipant(
             id_=f"{case_id}/participants/case-actor-p",
@@ -207,12 +214,13 @@ class TestNoteUseCases:
             receiving_actor_id=case_actor_id,
         )
 
-        AddNoteToCaseReceivedUseCase(dl, event).execute()
+        result = AddNoteToCaseReceivedUseCase(dl, event).execute()
 
         refreshed = dl.read(case_id)
         assert refreshed is not None
         refreshed = cast(as_VulnerabilityCase, refreshed)
         assert note.id_ in refreshed.notes
+        assert result.disposition == HandlerDisposition.APPLIED
 
     def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
         """CaseActor skips adding a note already in the case (idempotent)."""
@@ -281,12 +289,14 @@ class TestNoteUseCases:
             receiving_actor_id="https://example.org/actors/non-manager",
         )
 
-        AddNoteToCaseReceivedUseCase(dl, event).execute()
+        result = AddNoteToCaseReceivedUseCase(dl, event).execute()
 
         refreshed = dl.read(case.id_)
         assert refreshed is not None
         refreshed = cast(as_VulnerabilityCase, refreshed)
         assert note.id_ not in refreshed.notes
+        # HP-01-003: not the CASE_MANAGER is "not my job", not a refusal.
+        assert result.disposition == HandlerDisposition.SKIPPED
 
     def test_remove_note_from_case_removes_note(
         self, monkeypatch, make_payload
@@ -315,12 +325,13 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.id_)
         assert case is not None
         case = cast(as_VulnerabilityCase, case)
         assert note.id_ not in case.notes
+        assert result.disposition == HandlerDisposition.APPLIED
 
     def test_remove_note_from_case_idempotent(self, monkeypatch, make_payload):
         """remove_note_from_case is idempotent when note not in case."""
@@ -347,9 +358,101 @@ class TestNoteUseCases:
         event = make_payload(activity)
 
         result = RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
-        # An idempotent re-removal is a no-op: APPLIED only until #2255 assigns
-        # per-site dispositions (it may then become SKIPPED).
-        assert result == HandlerResult.applied()
+        # HP-01-003: an idempotent re-removal is a no-op.
+        assert result.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_remove_note_from_unknown_case_is_refused(self, make_payload):
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        note = as_Note(id_="https://example.org/notes/note7", content="x")
+        activity = as_Remove(
+            actor="https://example.org/users/finder",
+            object_=note,
+            target="https://example.org/cases/no-such-case",
+        )
+        event = make_payload(activity)
+
+        result = RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "not found" in result.reason
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.parametrize(
+        "use_case",
+        [AddNoteToCaseReceivedUseCase, RemoveNoteFromCaseReceivedUseCase],
+    )
+    def test_note_membership_change_without_ids_is_refused(self, use_case):
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        event = MagicMock()
+        event.note_id = None
+        event.case_id = "https://example.org/cases/c"
+
+        result = use_case(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_create_note_without_note_object_is_refused(self):
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        event = MagicMock()
+        event.note = None
+
+        result = CreateNoteReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_create_note_for_unknown_case_is_refused(self, make_payload):
+        """A note whose context names a case this actor lacks is refused."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        note = as_Note(
+            id_="https://example.org/notes/note8",
+            content="x",
+            context="https://example.org/cases/no-such-case",
+        )
+        activity = as_Create(
+            actor="https://example.org/users/finder", object_=note
+        )
+        event = make_payload(activity)
+
+        result = CreateNoteReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_add_note_to_unknown_case_is_refused(self, make_payload):
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/actors/non-manager",
+        )
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/never-stored", name="x"
+        )
+        note = as_Note(id_="https://example.org/notes/note9", content="x")
+        activity = add_note_to_case_activity(
+            note, target=case, actor="https://example.org/users/finder"
+        )
+        event = make_payload(
+            activity,
+            receiving_actor_id="https://example.org/actors/non-manager",
+        )
+
+        result = AddNoteToCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
 
     # ------------------------------------------------------------------
     # CaseLedgerEntry cascade tests (PCR-08-003, PCR-08-004) — AC-1

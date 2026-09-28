@@ -8,8 +8,6 @@ introduced by ADR-0039 as the replacement for the deprecated
 import logging
 from typing import TYPE_CHECKING
 
-from py_trees.common import Status
-
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.offer_case_participant_role_received_tree import (
     create_offer_case_participant_role_received_tree,
@@ -18,10 +16,14 @@ from vultron.core.models.events.actor import (
     OfferCaseParticipantRoleReceivedEvent,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
@@ -89,11 +91,14 @@ class OfferCaseParticipantRoleReceivedUseCase:
             activity=request,
             sync_port=self._sync_port,
         )
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "OfferCaseParticipantRoleReceivedUseCase: BT did not fully"
-                " succeed for offer '%s': %s",
+        verdict = verdict_from_bt(
+            tree, result, label="OfferCaseParticipantRoleReceivedBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "OfferCaseParticipantRoleReceivedUseCase: refused offer"
+                " '%s': %s",
                 offer_id,
-                BTBridge.get_failure_reason(tree) or result.feedback_message,
+                verdict.reason,
             )
-        return HandlerResult.applied()
+        return verdict

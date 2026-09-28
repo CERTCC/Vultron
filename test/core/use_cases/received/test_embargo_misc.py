@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AnnounceEmbargoEventToCaseReceivedUseCase,
@@ -65,7 +66,8 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         )
         event = make_payload(activity)
 
-        AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+        result = AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+        assert result.disposition is HandlerDisposition.SKIPPED
 
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated is not None

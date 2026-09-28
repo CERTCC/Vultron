@@ -26,6 +26,7 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.replication_state import VultronReplicationState
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
@@ -354,7 +355,10 @@ class TestRejectLedgerEntryReceivedUseCase:
             actor_id=PARTICIPANT_URI,
         )
         uc = RejectLedgerEntryReceivedUseCase(dl, event)
-        uc.execute()  # should not raise
+        result = uc.execute()  # should not raise
+
+        # HP-01-003: a Reject naming no entry is malformed, not a no-op.
+        assert result.disposition == HandlerDisposition.REFUSED
 
     @pytest.mark.spec("SYNC-03-002")
     @pytest.mark.spec("CM-02-011")
@@ -395,9 +399,10 @@ class TestRejectLedgerEntryReceivedUseCase:
         # Participant says they only have up to entry0
         event = self._make_event(entry1, entry0.entry_hash)
         sync_port = SyncActivityAdapter(dl)
-        RejectLedgerEntryReceivedUseCase(
+        result = RejectLedgerEntryReceivedUseCase(
             dl, event, sync_port=sync_port
         ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         # Should have queued one replay Announce (for entry1).
         # announce saved to DataLayer; outbox queue uses actor-scoped table.

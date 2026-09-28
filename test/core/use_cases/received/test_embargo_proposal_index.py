@@ -33,6 +33,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.models.events.embargo import (
     InviteToEmbargoOnCaseReceivedEvent,
@@ -426,12 +427,15 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         dl_read_calls = []
         original_read = dl.read
 
-        def spy_read(obj_id):
+        def spy_read(obj_id, **kwargs):
             dl_read_calls.append(obj_id)
-            return original_read(obj_id)
+            return original_read(obj_id, **kwargs)
 
         with patch.object(dl, "read", side_effect=spy_read):
-            RejectInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+            result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl, event
+            ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         # dl.read must NOT have been called with the proposal/invite ID
         assert (

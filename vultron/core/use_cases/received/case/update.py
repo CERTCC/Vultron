@@ -3,9 +3,13 @@
 import logging
 
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +26,9 @@ class UpdateCaseReceivedUseCase:
         case_id = request.case_id
         if case_id is None:
             logger.warning("update_case: missing case_id on request")
-            return HandlerResult.applied()
-
-        from py_trees.common import Status
+            return HandlerResult.refused(
+                "Update(VulnerabilityCase) has no case id"
+            )
 
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.case.update_tree import (
@@ -52,11 +56,14 @@ class UpdateCaseReceivedUseCase:
             actor_id=executing_actor_id,
             activity=request,
         )
-        if result.status != Status.SUCCESS:
+        # A non-manager applies the update and skips only the broadcast, so the
+        # tree still succeeds: that is APPLIED, not a skip (CM-06-001).
+        verdict = verdict_from_bt(tree, result, label="UpdateCaseBT")
+        if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
-                "UpdateCaseBT did not succeed for actor '%s' / case '%s': %s",
+                "UpdateCaseBT refused for actor '%s' / case '%s': %s",
                 executing_actor_id,
                 case_id,
-                BTBridge.get_failure_reason(tree),
+                verdict.reason,
             )
-        return HandlerResult.applied()
+        return verdict

@@ -240,3 +240,47 @@ def test_pipeline_does_not_warn_for_routine_outcomes(
         _run_pipeline(dl, body, verdict)
 
     assert _orchestration_warnings(caplog) == []
+
+
+@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("UCORG-05-011")
+def test_real_handler_refusal_reaches_inbox_outcome(dl):
+    """#2255: a real received handler's refusal is not reported as processed.
+
+    Every link above is exercised with a stub use case; this drives the real
+    ``AnnounceVulnerabilityCaseReceivedUseCase``, whose trust check used to log
+    "rejected" and then return ``applied()`` — so the outcome said
+    ``processed`` and the bootstrap replay ran for a case never seeded.
+    """
+    from vultron.core.use_cases.received.actor.announce import (
+        AnnounceVulnerabilityCaseReceivedUseCase,
+    )
+    from vultron.wire.as2.factories import (
+        announce_vulnerability_case_activity,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(
+        id_="https://example.org/cases/c-chain-untrusted", name="untrusted"
+    )
+    announce = announce_vulnerability_case_activity(
+        case, actor=_SENDER_ID, to=[_RECEIVER_ID], context=case.id_
+    )
+    announce_body = announce.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    dispatcher = DirectActivityDispatcher(
+        use_case_map={
+            MessageSemantics.ANNOUNCE_VULNERABILITY_CASE: (
+                AnnounceVulnerabilityCaseReceivedUseCase
+            )
+        }
+    )
+
+    outcome = _process(dl, announce_body, dispatcher)
+
+    assert outcome.status == InboxOutcomeStatus.REJECTED
+    assert outcome.failure_reason is not None
+    assert "untrusted sender" in outcome.failure_reason

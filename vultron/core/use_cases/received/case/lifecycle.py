@@ -3,6 +3,7 @@
 import logging
 from typing import TYPE_CHECKING
 
+import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
@@ -13,13 +14,20 @@ from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
     CloseCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import (
+    find_named,
+    verdict_from_bt,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -42,12 +50,14 @@ class AddReportToCaseReceivedUseCase:
         case_id = request.case_id
         if report_id is None or case_id is None:
             logger.warning("add_report_to_case: missing report_id or case_id")
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Add(Report, Case) is missing its report id or case id"
+            )
         case = self._dl.read_case(case_id)
 
         if case is None:
             logger.warning("add_report_to_case: case '%s' not found", case_id)
-            return HandlerResult.applied()
+            return HandlerResult.refused(f"unknown case '{case_id}'")
 
         existing_report_ids = [_as_id(r) for r in case.vulnerability_reports]
         if report_id in existing_report_ids:
@@ -56,7 +66,9 @@ class AddReportToCaseReceivedUseCase:
                 report_id,
                 case_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.skipped(
+                f"report '{report_id}' already in case '{case_id}'"
+            )
 
         case.vulnerability_reports.append(report_id)
         self._dl.save(case)
@@ -89,7 +101,9 @@ class CloseCaseReceivedUseCase:
         case_id = request.case_id
         if case_id is None:
             logger.warning("close_case: missing case_id")
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Leave(VulnerabilityCase) has no case id"
+            )
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -118,11 +132,44 @@ class CloseCaseReceivedUseCase:
             activity=request,
             sync_port=self._sync_port,
         )
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "CloseCaseReceivedUseCase: BT did not fully succeed for"
-                " case '%s': %s",
+        if _close_declined(tree):
+            # The decline arm ran: the case was left open and the owner was
+            # answered with an as:Reject (CM-23-011).  That is a refusal of the
+            # close whether or not the Reject itself could be emitted.
+            reason = f"close of case '{case_id}' declined: embargo active"
+            logger.info("CloseCaseReceivedUseCase: %s (CM-23-011)", reason)
+            return HandlerResult.refused(f"{reason} (CM-23-011)")
+        verdict = verdict_from_bt(
+            _close_arm(tree) or tree, result, label="CloseCaseBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "CloseCaseReceivedUseCase: close of case '%s' refused: %s",
                 case_id,
-                BTBridge.get_failure_reason(tree) or result.feedback_message,
+                verdict.reason,
             )
-        return HandlerResult.applied()
+        return verdict
+
+
+def _close_declined(tree: py_trees.behaviour.Behaviour) -> bool:
+    """True when the CM-23-011 decline arm decided to decline the close.
+
+    The arm's guards all passing is the decision; the as:Reject emit that
+    follows may still fail (no trigger port), which leaves the case just as
+    unclosed.
+    """
+    arm = find_named(tree, "DeclineOwnerCloseIfEmbargoed")
+    guard = find_named(arm, "IsCloseBlockedByActiveEmbargo") if arm else None
+    return guard is not None and guard.status == Status.SUCCESS
+
+
+def _close_arm(
+    tree: py_trees.behaviour.Behaviour,
+) -> py_trees.behaviour.Behaviour | None:
+    """The close arm, whose failure names why a non-declined close failed.
+
+    The root Selector tries the decline arm last, so on a plain failure the
+    decline arm's "not declining" guard is the last failed child; the cause is
+    in the close arm (BT-13-001).
+    """
+    return find_named(tree, "ReceiveAndCloseUnlessDeclined")

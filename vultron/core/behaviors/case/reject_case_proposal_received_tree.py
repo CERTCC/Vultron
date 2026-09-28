@@ -31,7 +31,7 @@ from vultron.core.models.report_case_link import VultronReportCaseLink
 logger = logging.getLogger(__name__)
 
 
-class _RecordCaseProposalRejectionNode(DataLayerAction):
+class RecordCaseProposalRejectionNode(DataLayerAction):
     """Mark the vendor's VultronReportCaseLink as rejected.
 
     When the case-actor service rejects the proposal, the vendor records
@@ -40,7 +40,9 @@ class _RecordCaseProposalRejectionNode(DataLayerAction):
 
     Returns SUCCESS even when no matching link is found, because the vendor
     may not always have submitted a report offer before the proposal flow
-    (e.g. relay scenarios).  Missing-link situations are logged at WARNING.
+    (e.g. relay scenarios).  Missing-link situations are logged at WARNING,
+    and ``link_found`` stays ``False`` so the handler can report the no-op
+    (#2255).
     """
 
     def __init__(
@@ -50,6 +52,7 @@ class _RecordCaseProposalRejectionNode(DataLayerAction):
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        self.link_found = False
         self._report_id = report_id
         self._rejection_reason = rejection_reason
 
@@ -64,6 +67,7 @@ class _RecordCaseProposalRejectionNode(DataLayerAction):
         link_id = VultronReportCaseLink.build_id(self._report_id)
         link = self.datalayer.read(link_id)
 
+        self.link_found = isinstance(link, VultronReportCaseLink)
         if not isinstance(link, VultronReportCaseLink):
             logger.warning(
                 "%s: No VultronReportCaseLink found for report '%s'"
@@ -109,7 +113,7 @@ def create_reject_case_proposal_received_tree(
         name="RejectCaseProposalReceivedBT",
         memory=False,
         children=[
-            _RecordCaseProposalRejectionNode(
+            RecordCaseProposalRejectionNode(
                 report_id=report_id,
                 rejection_reason=rejection_reason,
             ),

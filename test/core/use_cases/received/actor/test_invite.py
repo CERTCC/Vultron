@@ -15,6 +15,10 @@
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+import pytest
+
+from vultron.core.models.use_case_result import HandlerDisposition
+
 from vultron.core.use_cases.received.actor.invite import (
     AcceptInviteActorToCaseReceivedUseCase,
     InviteActorToCaseReceivedUseCase,
@@ -1296,3 +1300,171 @@ class TestAcceptInviteRolesAC4:
         assert (
             participant.case_roles == []
         ), "Participant with no-roles invite must have empty case_roles"
+
+
+class TestInviteDispositions:
+    """#2255: each invite exit reports what it did (HP-01-003)."""
+
+    _OWNER = "https://example.org/users/owner"
+    _INVITEE = "https://example.org/users/coordinator"
+
+    def _dl(
+        self, actor_id: str = "https://test.example/api/v2/actors/test-actor"
+    ):
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+
+    def _invite(self, case_id: str):
+        return rm_invite_to_case_activity(
+            as_Actor(id_=self._INVITEE),
+            target=as_VulnerabilityCaseStub(id_=case_id),
+            actor=self._OWNER,
+            id_=f"{case_id}/invitations/1",
+        )
+
+    def _seed_case(self, dl, case_id: str, manager_id: str | None = None):
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case = as_VulnerabilityCase(
+            id_=case_id, name="DISPOSITION", attributed_to=self._OWNER
+        )
+        if manager_id is not None:
+            manager = as_CaseParticipant(
+                id_=f"{case_id}/participants/manager",
+                attributed_to=manager_id,
+                context=case_id,
+                case_roles=[CVDRole.CASE_MANAGER],
+            )
+            case.case_participants.append(manager.id_)
+            case.actor_participant_index[manager_id] = manager.id_
+            dl.create(manager)
+        dl.create(case)
+        return case
+
+    @pytest.mark.spec("HP-01-003")
+    def test_invitee_path_redelivery_is_skipped(self, make_payload):
+        dl = self._dl()
+        event = make_payload(self._invite("https://example.org/cases/d-inv1"))
+
+        first = InviteActorToCaseReceivedUseCase(dl, event).execute()
+        second = InviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        assert first.disposition == HandlerDisposition.APPLIED
+        assert second.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_reject_invite_without_case_is_refused(self):
+        dl = self._dl()
+        event = MagicMock(case_id=None, receiving_actor_id=None)
+
+        result = RejectInviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_reject_invite_at_non_case_manager_is_skipped(self, make_payload):
+        """Only the CASE_MANAGER records a declined invite; others have no job."""
+        case_id = "https://example.org/cases/d-rj1"
+        dl = self._dl()
+        self._seed_case(dl, case_id, manager_id=self._OWNER)
+        event = make_payload(
+            rm_reject_invite_to_case_activity(
+                self._invite(case_id), actor=self._INVITEE
+            )
+        )
+
+        result = RejectInviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_reject_invite_for_unknown_case_is_refused(self, make_payload):
+        dl = self._dl()
+        event = make_payload(
+            rm_reject_invite_to_case_activity(
+                self._invite("https://example.org/cases/d-rj-missing"),
+                actor=self._INVITEE,
+            )
+        )
+
+        result = RejectInviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "unknown case" in result.reason
+
+    @pytest.mark.spec("HP-01-003")
+    def test_reject_invite_at_case_manager_is_applied(self, make_payload):
+        case_id = "https://example.org/cases/d-rj2"
+        dl = self._dl(actor_id=self._OWNER)
+        self._seed_case(dl, case_id, manager_id=self._OWNER)
+        event = make_payload(
+            rm_reject_invite_to_case_activity(
+                self._invite(case_id), actor=self._INVITEE
+            ),
+            receiving_actor_id=self._OWNER,
+        )
+
+        result = RejectInviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_accept_invite_without_invitee_is_refused(self):
+        dl = self._dl()
+        event = MagicMock(
+            case_id="https://example.org/cases/d-ac0",
+            invitee_id=None,
+            receiving_actor_id=None,
+        )
+
+        result = AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_accept_invite_for_unknown_case_is_refused(self, make_payload):
+        dl = self._dl()
+        event = make_payload(
+            rm_accept_invite_to_case_activity(
+                self._invite("https://example.org/cases/d-ac-missing"),
+                actor=self._INVITEE,
+            )
+        )
+
+        result = AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "unknown case" in result.reason
+
+    @pytest.mark.spec("HP-01-003")
+    def test_accept_invite_redelivery_is_skipped(self, make_payload):
+        """A second Accept once the invitee has fully joined is a duplicate."""
+        case_id = "https://example.org/cases/d-ac1"
+        dl = self._dl()
+        self._seed_case(dl, case_id)
+        invite = self._invite(case_id)
+        dl.create(invite)
+        event = make_payload(
+            rm_accept_invite_to_case_activity(invite, actor=self._INVITEE)
+        )
+
+        first = AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
+        second = AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
+
+        assert first.disposition == HandlerDisposition.APPLIED
+        assert second.disposition == HandlerDisposition.SKIPPED

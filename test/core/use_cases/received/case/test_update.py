@@ -25,6 +25,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.case.update import (
     UpdateCaseReceivedUseCase,
 )
@@ -116,13 +117,14 @@ class TestCaseUseCases:
         )
 
         with caplog.at_level(logging.INFO):
-            UpdateCaseReceivedUseCase(dl, event).execute()
+            result = UpdateCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(case.id_)
         assert stored is not None
         stored = cast(as_VulnerabilityCase, stored)
         assert stored.name == "Updated Name"
         assert stored.content == "New content"
+        assert result.disposition == HandlerDisposition.APPLIED
 
     def test_update_case_rejects_non_owner(
         self, monkeypatch, caplog, make_payload
@@ -150,13 +152,28 @@ class TestCaseUseCases:
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         with caplog.at_level(logging.WARNING):
-            UpdateCaseReceivedUseCase(dl, event).execute()
+            result = UpdateCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(case.id_)
         assert stored is not None
         stored = cast(as_VulnerabilityCase, stored)
         assert stored.name == "Original Name"
         assert any("not the owner" in r.message for r in caplog.records)
+        # HP-01-003: a non-owner update is refused, not reported as applied.
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "not the owner" in result.reason
+
+    def test_update_case_without_case_id_is_refused(self, make_payload):
+        """HP-01-003: an Update with no case id is malformed, so REFUSED."""
+        from unittest.mock import MagicMock
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=RECEIVER_ID)
+        event = MagicMock()
+        event.case_id = None
+
+        result = UpdateCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
 
     def test_update_case_idempotent(self, monkeypatch, make_payload):
         """update_case with same data produces the same result (last-write-wins)."""

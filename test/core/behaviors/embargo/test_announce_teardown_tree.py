@@ -184,3 +184,61 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         assert result.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
+
+
+class TestRemoveEmbargoTeardownFailuresSurface:
+    """Only "nothing to tear down" falls back; a failed teardown fails (#2255)."""
+
+    @pytest.mark.spec("HP-01-003")
+    def test_failed_teardown_step_fails_the_tree(self, monkeypatch):
+        """A teardown step that fails is not absorbed as "was not active"."""
+        from vultron.core.behaviors.embargo.nodes import ClearActiveEmbargoNode
+
+        def _fail(self):
+            self.feedback_message = "could not clear active embargo"
+            return py_trees.common.Status.FAILURE
+
+        monkeypatch.setattr(ClearActiveEmbargoNode, "update", _fail)
+        case, _, dl = make_case_with_manager("atrt4", em_state=EM.ACTIVE)
+        _, embargo = make_case_and_embargo("atrt4")
+        dl.create(embargo)
+        factory = _make_factory()
+
+        tree = remove_embargo_from_case_tree(
+            case_id=case.id_, embargo_id=embargo.id_
+        )
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        activity = _make_remove_event(
+            case, embargo, "https://example.org/activities/remove4"
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
+        )
+
+        assert result.status == py_trees.common.Status.FAILURE
+        assert (
+            BTBridge.get_failure_reason(tree)
+            == "could not clear active embargo"
+        )
+        factory.announce_embargo.assert_not_called()
+
+    def test_already_exited_embargo_is_not_torn_down_again(self):
+        """An active_embargo left on an EXITED case falls back to success."""
+        case, _, dl = make_case_with_manager("atrt5", em_state=EM.EXITED)
+        _, embargo = make_case_and_embargo("atrt5")
+        dl.create(embargo)
+        factory = _make_factory()
+
+        tree = remove_embargo_from_case_tree(
+            case_id=case.id_, embargo_id=embargo.id_
+        )
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        activity = _make_remove_event(
+            case, embargo, "https://example.org/activities/remove5"
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
+        )
+
+        assert result.status == py_trees.common.Status.SUCCESS
+        factory.announce_embargo.assert_not_called()
