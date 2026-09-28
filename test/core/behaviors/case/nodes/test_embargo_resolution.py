@@ -37,10 +37,8 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
-from vultron.core.models.vultron_types import (
-    VulnerabilityCase,
-    VultronCaseActor,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.errors import BtNodePreconditionError
@@ -57,7 +55,7 @@ PROTOCOL_DEFAULT = timedelta(hours=96)
 
 @pytest.fixture
 def case_obj(bt_scenario: BTTestScenario) -> VulnerabilityCase:
-    bt_scenario.dl.create(VultronCaseActor(id_=ACTOR_ID, name="Vendor Co"))
+    bt_scenario.dl.create(CaseActor(id_=ACTOR_ID, name="Vendor Co"))
     case = VulnerabilityCase(id_=CASE_ID, name="Case", attributed_to=ACTOR_ID)
     bt_scenario.dl.create(case)
     return case
