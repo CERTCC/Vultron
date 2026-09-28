@@ -1819,7 +1819,9 @@ groups:
       is the only way to reach the CASE_MANAGER without emitting in its name from a store that
       is not the ledger's home (ADR-0108). The former wording had the trigger write
       `suggested_roles` to the blackboard for a locally executed emit; the roles now travel in
-      the Offer and are read from the stored Offer on the CASE_MANAGER side (CM-16-018).
+      the Offer, and the CASE_MANAGER reads them from the received Offer it stored — the
+      stored activity, not a value the trigger response carried, the same discipline
+      CM-16-018 applies to the CASE_MANAGER's own outgoing Offer on `Accept`.
     verification: >-
       `test/core/use_cases/triggers/test_actor_triggers.py` asserts the trigger enqueues an
       `Offer(CaseParticipant)` addressed to the CASE_MANAGER with the offered roles and runs no
@@ -3086,6 +3088,7 @@ groups:
       spec_id: CM-24-001
     adr:
     - ADR-0073
+    - ADR-0108
   - id: CM-24-005
     priority: MUST
     kind: architecture

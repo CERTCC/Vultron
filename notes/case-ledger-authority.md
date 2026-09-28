@@ -706,8 +706,9 @@ concern #2996 was planned, the emitted Invite also carried the CaseActor's own
 id in `cc:`, so a copy looped back through its inbox and
 `GuardedCommitCaseLedgerEntryBT` committed the same activity a second time when
 the CaseActor was co-hosted with the emitting owner — two canonical entries,
-log indexes 0 and 1, one activity id. The invariant harness now asserts one
-entry per `payloadSnapshot.id` (CLP-07-002).
+log indexes 0 and 1, one activity id. ADR-0108 requires the invariant harness
+to assert one entry per `payloadSnapshot.id` (CLP-07-002 verification; #3821
+adds the check).
 
 ---
 

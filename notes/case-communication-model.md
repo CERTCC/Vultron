@@ -18,6 +18,7 @@ related_notes:
   - notes/event-driven-control-flow.md
   - notes/participant-case-replica.md
   - notes/fv-demo.md
+  - notes/outbox.md
 relevant_packages:
   - vultron/core/use_cases/triggers
   - vultron/core/use_cases/received
@@ -318,7 +319,8 @@ CASE_MANAGER — the owner's direct invite is the owner's `Offer(CaseParticipant
 and commits the entry in that tree.  The CASE_MANAGER never addresses a `cc:`
 copy of its own emission to itself; the former self-copy compensated for a
 foreign-container emit and committed the same Invite twice when the two were
-co-hosted (#2996).
+co-hosted (#2996).  #3821 and #3822 land the code; until they do, the invite
+and ownership-transfer triggers still run the delegated emit locally.
 
 ### Delegated Flows (Exhaustive)
 

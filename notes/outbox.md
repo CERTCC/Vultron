@@ -7,6 +7,7 @@ related_specs:
 related_notes:
   - notes/outbox-delivery-reliability.md
   - notes/case-communication-model.md
+  - notes/architecture-adapters.md
 relevant_packages:
   - fastapi
   - vultron/adapters/driving/fastapi
@@ -71,15 +72,16 @@ with caplog.at_level(logging.WARNING):
 assert any("cc" in r.message for r in caplog.records)
 emitter.emit.assert_called_once()
 
-# Test: purposeful CASE_MANAGER self-copy (cc: = own ID) does NOT log WARNING
+# Test: cc: naming the sender's own ID also logs WARNING — no self-copy
+# exemption (OX-08-004, ADR-0108); the emitting tree commits its own entry
 activity = make_test_activity(
     actor=actor_id,
     to=["https://example.org/invitee"],
-    cc=[actor_id],  # self-copy: actor's own ID only → no WARNING
+    cc=[actor_id],  # sender's own ID → WARNING fires like any other cc
 )
 with caplog.at_level(logging.WARNING):
     await handle_outbox_item(actor_id, activity.id_, dl, emitter)
-assert not any("cc" in r.message for r in caplog.records)
+assert any("cc" in r.message for r in caplog.records)
 emitter.emit.assert_called_once()
 ```
 
@@ -111,20 +113,20 @@ When modifying `outbox_handler.py`, add or update tests for these scenarios:
    - Test: extract from `to` field
    - Test: deduplicate across multiple recipients
    - Test: handle missing/None fields gracefully
-   - Location: `test/adapters/driving/fastapi/test_outbox.py`
+   - Location: `test/adapters/driving/fastapi/test_outbox_helpers.py`
 
 2. **Object Dehydration** (`_dehydrate_references`)
    - Test: collapse reference fields to URI strings
    - Test: preserve inline objects in `object` field (OX-09-001)
    - Test: preserve minimal stub dicts for selective disclosure (MV-10-001)
    - Test: handle mixed dict and string values in lists
-   - Location: `test/adapters/driving/fastapi/test_outbox.py`
+   - Location: `test/adapters/driving/fastapi/test_outbox_helpers.py`
 
 3. **Activity Validation** (`handle_outbox_item`)
    - Test: reject missing or empty `to:` field (OX-08-001, OX-08-002)
    - Test: warn on any `cc`/`bto`/`bcc` presence, including the sender's own id (OX-08-004, ADR-0108)
    - Test: enforce `VultronOutboxObjectIntegrityError` for malformed activities
-   - Location: `test/adapters/driving/fastapi/test_outbox.py`
+   - Location: `test/adapters/driving/fastapi/test_outbox_handle_item_validation.py`
 
 ### Test Philosophy
 
@@ -151,7 +153,8 @@ delivery validation.
 - `specs/outbox.yaml` — OX-08-*, OX-09-*, MV-10-* requirements
 - `vultron/adapters/driving/fastapi/outbox_handler.py` — enforcement point
 - `vultron/errors.py` — exception hierarchy
-- `test/adapters/driving/fastapi/test_outbox.py` — test location
+- `test/adapters/driving/fastapi/test_outbox_helpers.py`,
+  `test_outbox_handle_item_validation.py` — test locations
 - GitHub Concern #653 — high-churn analysis and test-coverage commitment
 
 ---

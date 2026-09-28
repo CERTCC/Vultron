@@ -408,6 +408,8 @@ groups:
       that no two entries carry the same `payloadSnapshot.id` — the duplicate
       observed when an emitting tree committed an Invite and a self-addressed copy of
       it committed the same Invite again (#2996, ADR-0108).
+    adr:
+    - ADR-0108
     stories:
     - story_2022_045
   - id: CLP-07-003
@@ -720,9 +722,9 @@ groups:
     rationale: 'Before ADR-0021, several trigger trees (e.g., `validate_report`, `ack_report`,
       `close_case`) emitted no activity addressed to the CASE_MANAGER. The CASE_MANAGER
       therefore had no protocol event to commit, and the canonical ledger was missing
-      those event types entirely. The HTTP loopback self-delivery mechanism (OX-12-004)
-      already handles routing when the target actor ID is the CASE_MANAGER''s own inbox;
-      the missing piece was the emit node itself. The self-routing requirement also
+      those event types entirely. Delivery to the CASE_MANAGER''s own inbox already ran
+      over the uniform HTTP path like any other recipient (OX-12-001); the missing piece
+      was the emit node itself. The self-routing requirement also
       applies when the CASE_MANAGER is the originator: `invite_actor_to_case_trigger_bt`
       emitted an `Invite` addressed only to the invitee — the CASE_MANAGER never received
       its own activity and the canonical ledger had no `invite_actor_to_case` entry.
@@ -743,6 +745,7 @@ groups:
       after a full FV demo run.
     adr:
     - ADR-0021
+    - ADR-0108
     stories:
     - story_2022_045
     - story_2022_046
@@ -959,13 +962,13 @@ groups:
       running container hosts, because no sanctioned path executes a tree in a store
       other than its actor's own (BT-05-005, ADR-0108).
     rationale: 'A log index is a claim on a position in one hash chain, so two stores
-      claiming the same position fork it irreparably. The delegated-emit path is how
-      a second claimant arises: a trigger the case *owner* runs emits as the case''s
-      CASE_MANAGER (PCR-08-007, CM-24-001) and commits under that same actor id. When
-      the owner hosts the CaseActor this is the canonical commit. After an ownership
-      handoff it is not — the CaseActor stays on the container that first received
-      the report while the owner is elsewhere — and, before ADR-0108, BT-05-005 carried
-      an exception that left the tree running in the *requester''s* store so the
+      claiming the same position fork it irreparably. Before ADR-0108, the delegated-emit
+      path was how a second claimant arose: a trigger the case *owner* ran emitted as
+      the case''s CASE_MANAGER (PCR-08-007, CM-24-001) and committed under that same
+      actor id. When the owner hosted the CaseActor that was the canonical commit. After
+      an ownership handoff it was not — the CaseActor remained on the container that
+      created the case while the owner was elsewhere — and BT-05-005 carried an
+      exception that left the tree running in the *requester''s* store so the
       activity was created and outboxed where it could be delivered. The commit rode
       along on that exception and minted index N in the owner''s replica while the real
       CASE_MANAGER minted its own index N from a `cc:` copy of the activity. The two
@@ -994,6 +997,7 @@ groups:
     - protocol
     adr:
     - ADR-0073
+    - ADR-0108
   - id: CLP-10-015
     priority: MUST
     kind: protocol

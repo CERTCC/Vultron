@@ -2047,6 +2047,8 @@ groups:
     verification: >-
       `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the announce is authored by
       the CASE_MANAGER and addressed to the case's other participants.
+    adr:
+    - ADR-0108
     stories:
     - story_2022_045
     - story_2022_046

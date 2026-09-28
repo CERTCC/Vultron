@@ -294,11 +294,13 @@ groups:
       wrongly. What a handler then does with a `cc`-only address is HP-10's
       question, not the endpoint's.
     verification: >-
-      Integration tests in `test/demo/` confirm that Activities addressed
-      exclusively via `cc`, `bto`, or `bcc` to the receiving actor are accepted
-      with HTTP 202, not refused.
+      `test/adapters/driving/fastapi/routers/actors/test_inbox.py` asserts that an
+      Activity naming the receiving actor only in `cc`, `bto`, or `bcc` passes the
+      addressing check and is accepted rather than refused. No demo scenario can
+      exercise this, because Vultron emits no `cc`, `bto` or `bcc`.
     adr:
     - ADR-0068
+    - ADR-0108
     stories:
     - story_2022_040
     - story_2022_042

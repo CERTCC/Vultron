@@ -5,8 +5,11 @@ description: >
   Adapter category details, outbound activity construction via driven ports,
   DataLayer scope boundaries, and the uniform-HTTP inter-actor delivery model
   (ADR-0042).
+related_specs:
+  - specs/outbox.yaml
 related_notes:
   - notes/architecture-hexagonal.md
+  - notes/outbox.md
   - vultron/core/ports/AGENTS.md
   - vultron/adapters/driven/AGENTS.md
 relevant_packages:
