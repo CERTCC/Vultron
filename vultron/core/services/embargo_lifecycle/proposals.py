@@ -118,9 +118,10 @@ class _ProposalOperationsMixin(_PecEffectsMixin):
             case.current_status.em = EmDimension(state=em_after)
             case_mutated = True
 
-        # Idempotent append
+        # Idempotent append, by validated assignment (the pruner
+        # ``discard_proposed_embargo`` writes the same record the same way).
         if embargo_id not in case.proposed_embargo_ids:
-            case.proposed_embargoes.append(embargo_id)
+            case.proposed_embargoes = [*case.proposed_embargoes, embargo_id]
             case_mutated = True
 
         if case_mutated or participant_changes:

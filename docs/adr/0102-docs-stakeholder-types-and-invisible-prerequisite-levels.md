@@ -287,6 +287,9 @@ varies from case to case; a type is ontological, identity-formed, and slow to
 change. `docs/reference/terms.md` defines roles held in a case and is not a
 register of reader types.
 
+**Amended 2026-09-28 (#3624):** `docs/reference/terms.md` was merged into the glossary's "CVD Roles and Participants" section and retired.
+That section defines roles held in a case and is not a register of reader types; the distinction above stands, and stakeholder-type descriptions must not be added to it.
+
 This decision makes the stakeholder-type enumeration authoritative and retires
 the competing audience lists in `docs/index.md` and in #607/#3511.
 

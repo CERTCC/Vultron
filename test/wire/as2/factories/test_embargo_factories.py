@@ -262,6 +262,31 @@ def test_em_propose_embargo_string_published_is_measured_from(
         )
 
 
+@pytest.mark.spec("EP-07-002")
+@pytest.mark.spec("CS-13-001")
+def test_em_propose_embargo_naive_published_datetime_is_read_as_utc(
+    sample_embargo,
+):
+    """A naive ``published`` datetime object is normalised at this edge.
+
+    ``resolve_rsvp_deadline`` no longer guards its inputs (#3784), so the one
+    input not read from a validated object is normalised here — the result
+    is the EP-07-002 refusal, not a ``TypeError`` from comparing naive and
+    aware values.
+    """
+    published = (datetime.now(tz=timezone.utc) + timedelta(days=1)).replace(
+        tzinfo=None
+    )
+    with pytest.raises(VultronActivityConstructionError, match="minimum"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=published.replace(tzinfo=timezone.utc)
+            + timedelta(hours=71),
+            published=published,
+            actor=_ACTOR_URI,
+        )
+
+
 def test_em_propose_embargo_unparseable_published_raises(sample_embargo):
     with pytest.raises(VultronActivityConstructionError, match="ISO 8601"):
         em_propose_embargo_activity(

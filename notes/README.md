@@ -398,9 +398,11 @@ Source: CONCERN-2829.
 Two-gate design for received-side CaseStatus canonicalization: StatusAdoptionGate
 (in `add_participant_status_tree`) for status adoption authorization,
 EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode (in `add_case_status_tree`)
-for embargo teardown. Documents CASE_OWNER gospel-bypass rationale, self-addressed
-Add(CaseStatus) threading pattern, and migration from PublicDisclosureBranchNode.
-Derived from IDEA-1836 / ADR-0046.
+for embargo teardown. Documents CASE_OWNER gospel-bypass rationale, the direct
+`EmitCaseStatusUpdateNode` write between the gates, migration from
+PublicDisclosureBranchNode, and (ADR-0108) the per-machine act / declaration /
+ledger inventory: the pipeline, not the message, is the authority.
+Derived from IDEA-1836 / ADR-0046; extended by CONCERN-3473 / ADR-0108.
 **Load when**: implementing #1836 or any changes to received-side status handling,
 StatusAdoptionGate, EmbargoTeardownAuthorizationGate, or ThreatTerminationBranchNode;
 understanding the sentinel actor integration pattern.
@@ -613,14 +615,14 @@ embargo consent state machine in `vultron/core/states/`, writing any PEC state
 change, or debugging `embargo_adherence` / `emConsentState` semantics.
 
 **`embargo-lifecycle.md`**
-Target architecture for EM state management: the inline-`EMAdapter`
-instantiation anti-pattern, the current fragmentation across trigger use cases,
-received use cases, and BT behaviors, and the planned `EmbargoLifecycle`
-service (#538) that will consolidate all EM + PEC transitions.
+Architecture of EM state management: the `EmbargoLifecycle` service
+(`vultron/core/services/embargo_lifecycle/`, a per-responsibility package
+since #3760) that owns every EM + PEC transition (#538), the inline-`EMAdapter`
+instantiation anti-pattern it replaced, the P/X/A embargo-eligibility guards,
+and the earliest-expiration resolution order for open proposals (EP-08).
 **Load when**: implementing any embargo state transition in trigger or received
-use cases, designing the `EmbargoLifecycle` service (#538), auditing inline
-`create_em_machine()` instantiations, or working on the post-#538
-`triggers/embargo.py` cleanup (#516).
+use cases or BT nodes, changing or extending `EmbargoLifecycle`, or auditing
+inline `create_em_machine()` instantiations.
 
 ---
 

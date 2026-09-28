@@ -442,11 +442,14 @@ class VulnerabilityCase(CoreObject):
 
     @property
     def proposed_embargo_ids(self) -> list[str]:
-        """The ids of the open proposals, whichever shape the entries hold.
+        """The ids of the open proposals — the one place they are derived.
 
-        ``proposed_embargoes`` is declared ``list[str]`` but a received case may
-        carry inline objects (see :attr:`active_embargo`), so readers go through
-        ``_as_id`` here rather than each deriving the ids themselves.
+        The lifecycle's idempotent append, the pruner and the public-disclosure
+        cascade each used to derive these ids themselves; one derivation keeps
+        them from disagreeing.  It goes through ``_as_id`` for the same
+        reference contract :attr:`active_embargo_id` honours, not because an
+        inline object can appear here (``proposed_embargoes`` is ``list[str]``
+        and validated on assignment).
         """
         return [i for i in (_as_id(e) for e in self.proposed_embargoes) if i]
 

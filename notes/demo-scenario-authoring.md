@@ -289,6 +289,57 @@ Source: CONCERN-3384 (generalising the #1772/#1802 fix)
 
 ---
 
+## Replica Sync Verification Is One Shared Helper, Not a Per-Scenario Phase Body
+
+Every multi-actor scenario needs the same guard between its report-submission
+and notes phases: the Finder must hold the case replica, and every replica must
+have contiguous ledger coverage up to the authority's tail. All but the
+fcv-reject scenario then go on to wait for every replica's participant index and
+to compare a couple of replicas against the authority's state. Every scenario
+also needs the coverage half of that again after case closure, before the
+ledger dump.
+
+**Why this matters:** the concern that filed #3042 believed the pre-notes race
+guard existed in fcv-reject only. It was in fact present everywhere — as one
+copy per scenario module of the `_phase_sync_verification` body, plus one copy
+per module of the post-closure coverage wait. That is why the race-window fix
+in #2756 had to touch most of those modules, why the timeouts drifted (literals
+of 15 s or 45 s by replica label in most modules, 30 s or 45 s in fcvcv
+after #2337, and no timeout at all — so the primitive's own default — in fv,
+fvv and fcv-reject), and why every scenario test file except fcv-reject's
+carries the same "skip the coverage wait when the Finder case never arrives"
+unit test. The guard was never missing; the single place to fix it was.
+
+**How to apply:**
+
+1. The read-authority-tail-then-poll-each-replica loop lives once in
+   `vultron/demo/helpers/sync.py`. It takes the authority client, an ordered
+   list of replica clients with labels, and the late-joiner clients; it applies
+   the named timeout constants from `vultron/demo/helpers/polling.py` and wraps
+   each per-replica wait in a demo context itself, the same way
+   `wait_for_participants_on_replicas` and `drain_phase1_ledger` do.
+2. A scenario's `_phase_sync_verification` is a thin call to the shared phase
+   helper, declaring only its authority, replicas, late joiners, expected
+   participant set, and which replica pairs to state-check. Scenario-specific
+   extras — the two-actor fv scenario's check that the dedicated case-actor
+   container stayed unused — follow the helper call as separate steps.
+3. A scenario module never calls `wait_for_contiguous_ledger_coverage` or
+   `_get_log_entries_for_case` directly (DEMOMA-23-006). The architecture
+   ratchet fails if one does.
+4. Timeouts are named constants passed as parameters, never literals in a
+   scenario file. A scenario that needs a wider budget (fcvcv's non-late-joiner
+   replicas, #2337) passes a different constant and its regression test asserts
+   the parameter, not a literal.
+
+Normative: `specs/multi-actor-demo.yaml` DEMOMA-23-005 (the shared coverage
+helper), DEMOMA-23-006 (no direct primitive call from a scenario module), and
+DEMOMA-23-007 (the thin phase), refining DEMOMA-17-001, DEMOMA-22-002, and
+DEMOCI-01-011.
+
+Source: CONCERN-3042
+
+---
+
 ## Use ActorSession Typed Methods, Not `post_to_trigger` Directly (DEMOMA-26)
 
 Once `ActorSession` is available (#3398), demo scripts under

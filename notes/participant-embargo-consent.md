@@ -12,6 +12,7 @@ related_specs:
 related_notes:
   - notes/stub-objects.md
   - notes/embargo-lifecycle.md
+  - notes/embargo-default-semantics.md
   - notes/message-type-reference.md
 relevant_packages:
   - transitions

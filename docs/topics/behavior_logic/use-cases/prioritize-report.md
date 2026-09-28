@@ -90,14 +90,14 @@ Departing a case is a different step with a different message.
 
 | Requirement | Obligation |
 |---|---|
-| [RMB-10-001](../../../reference/specs/protocol.md#rmb-10) | A Participant entering `RM.VALID` MUST start a prioritization evaluation |
-| [RMB-12-001](../../../reference/specs/protocol.md#rmb-12) | A Participant entering `RM.DEFERRED` SHOULD emit RD |
-| [RMB-12-002](../../../reference/specs/protocol.md#rmb-12) | A Participant in `RM.DEFERRED` SHOULD watch for information justifying reprioritization |
-| [RMB-12-003](../../../reference/specs/protocol.md#rmb-12) | A Participant in `RM.DEFERRED` MAY close the report after a policy period of inactivity |
-| [RMB-13-001](../../../reference/specs/protocol.md#rmb-13) | A Participant MUST be in `RM.ACCEPTED` before sending Report Status (RS) to another Participant |
-| [RMB-13-002](../../../reference/specs/protocol.md#rmb-13) | A Participant entering `RM.ACCEPTED` SHOULD emit RA |
-| [RMB-13-003](../../../reference/specs/protocol.md#rmb-13) | A Participant in `RM.ACCEPTED` SHOULD perform active work on the report |
-| [RMB-15-001](../../../reference/specs/protocol.md#rmb-15) | An RM write MUST validate the transition before persisting |
+| [RMB-10-001](../../../reference/specs/protocol.md#rmb-10-001) | A Participant entering `RM.VALID` MUST start a prioritization evaluation |
+| [RMB-12-001](../../../reference/specs/protocol.md#rmb-12-001) | A Participant entering `RM.DEFERRED` SHOULD emit RD |
+| [RMB-12-002](../../../reference/specs/protocol.md#rmb-12-002) | A Participant in `RM.DEFERRED` SHOULD watch for information justifying reprioritization |
+| [RMB-12-003](../../../reference/specs/protocol.md#rmb-12-003) | A Participant in `RM.DEFERRED` MAY close the report after a policy period of inactivity |
+| [RMB-13-001](../../../reference/specs/protocol.md#rmb-13-001) | A Participant MUST be in `RM.ACCEPTED` before sending Report Status (RS) to another Participant |
+| [RMB-13-002](../../../reference/specs/protocol.md#rmb-13-002) | A Participant entering `RM.ACCEPTED` SHOULD emit RA |
+| [RMB-13-003](../../../reference/specs/protocol.md#rmb-13-003) | A Participant in `RM.ACCEPTED` SHOULD perform active work on the report |
+| [RMB-15-001](../../../reference/specs/protocol.md#rmb-15-001) | An RM write MUST validate the transition before persisting |
 
 RMB-13-001 is the constraint with the longest reach.
 Only a Participant in `RM.ACCEPTED` may submit the report onward to another party, so engaging is the gate on the entire multi-party expansion of a case.

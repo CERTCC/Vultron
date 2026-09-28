@@ -6,9 +6,10 @@ description: >
   two-tier timeout guardrail and why the timeout *method* matters more than the
   ceiling, measuring effective markers rather than declarations,
   `filterwarnings` precedence, fixture and blackboard isolation, py_trees test
-  patterns, assertion-quality traps (vacuous asserts, "falls back to" tests,
-  bare MagicMock), and test layout rules for module splits. `test/AGENTS.md`
-  keeps the short index and the rules you need on every run.
+  patterns, CoreObject subclass isolation, assertion-quality traps (vacuous
+  asserts, "falls back to" tests, bare MagicMock), and test layout rules for
+  module splits. `test/AGENTS.md` keeps the short index and the rules you need
+  on every run.
 related_specs:
   - specs/testability.yaml
   - specs/behavior-tree-integration.yaml
@@ -353,6 +354,46 @@ level, prefixed with `_` to mark them as non-public:
 functions or fixtures. See also [notes/bt-pitfalls.md](bt-pitfalls.md).
 
 Source: CONCERN-2321
+
+### CoreObject and CoreRecord Subclasses in Tests: Use `isolated_core_registries`
+
+`CoreObject.__init_subclass__` and `CoreRecord.__init_subclass__` register every
+concrete subclass in `CORE_VOCABULARY` and `CORE_TYPE_MAP` at class-definition
+time.
+These are module-level dicts — pollution is visible to every test that runs
+in the same process after the class is first defined.
+
+There is also a second, irrecoverable side-effect: the class permanently joins
+Python's `CoreObject.__subclasses__()` graph.
+Unlike the dicts, that graph cannot be restored by any fixture.
+Architecture ratchets that walk `__subclasses__()` (e.g.
+`test_every_core_object_forbids_extra_with_no_exemption_list`) will see the
+test-local class for the rest of the session, but because `CoreObject`
+subclasses inherit `extra="forbid"` those ratchets still pass.
+The dict pollution is the actionable risk.
+
+**Rule**: any test that defines a local `CoreObject` or `CoreRecord` subclass
+MUST request the `isolated_core_registries` fixture.
+It snapshots and restores both `CORE_VOCABULARY` and `CORE_TYPE_MAP`:
+
+```python
+def test_something(isolated_core_registries):
+    class _Probe(CoreObject):
+        type_: Literal["_Probe"] = "_Probe"
+    ...
+```
+
+The fixture lives in `test/core/conftest.py` and is available to all tests
+under `test/core/`.
+
+This mirrors the py_trees rule (see `### py_trees BT Subclasses in Tests MUST
+Be Defined at Module Level` above): both patterns protect process-global
+registries from test-local class definitions.
+The key difference is that py_trees requires module-level definitions; the
+CoreObject rule allows function-local definitions as long as the fixture is
+present, because the dict registries can be fully restored.
+
+Source: CONCERN-3789
 
 ### BT Factory Determinism
 

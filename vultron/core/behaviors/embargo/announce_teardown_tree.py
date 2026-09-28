@@ -286,7 +286,11 @@ def reject_invite_to_embargo_tree(
     Optionally looks up the rejecting participant (skips silently if
     case/participant not found), removes any stale embargo acceptance
     (pocket-veto), advances their PEC state to DECLINED, and commits
-    a canonical ledger entry.
+    a canonical ledger entry.  When the rejecting actor is the case owner
+    the Reject *decides* the proposal, so this replica also forgets it as
+    an open proposal (EP-08-003) — the received Accept path prunes through
+    ``accept_embargo_invite`` and the Reject path must not lag it, or a
+    later default selection here would still see the rejected terms.
 
     BT always returns SUCCESS (best-effort operations).
     Always commits the ledger entry regardless of BT result.
@@ -314,6 +318,16 @@ def reject_invite_to_embargo_tree(
         # Only attempt pocket-veto removal when we know which embargo to check.
         effect_nodes.insert(
             1, RemoveStaleAcceptanceNode(embargo_id=embargo_id)
+        )
+        # The owner's Reject decides the proposal; a participant's is consent
+        # and prunes nothing (EP-08-003, #3470).  Last, so the DECLINE above
+        # is recorded whatever this node finds.
+        effect_nodes.append(
+            RemoveFromProposedEmbargoesNode(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                decided_by=rejecting_actor_id,
+            )
         )
     root = create_receive_activity_tree(
         name="RejectInviteToEmbargoBT",

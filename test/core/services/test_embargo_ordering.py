@@ -96,6 +96,33 @@ def test_earliest_expiring_embargo_id_reads_the_store(
 
 
 @pytest.mark.spec("EP-08-002")
+def test_earliest_expiring_embargo_id_tie_keeps_the_first_listed(
+    dl: SqliteDataLayer,
+) -> None:
+    """Two records ending at the same instant: the first id listed wins.
+
+    Equal ends are indistinguishable in the dimension EP-08 orders on, so this
+    is the one place position may decide — and only between equals.
+    """
+    twin_a = _embargo(30)
+    twin_b = EmbargoEvent(
+        id_=f"{_CASE}/embargo_events/30d-twin",
+        context=_CASE,
+        start_time=_START,
+        end_time=twin_a.end_time,
+    )
+    dl.create(twin_a)
+    dl.create(twin_b)
+
+    assert earliest_expiring_embargo_id(dl, [twin_a.id_, twin_b.id_]) == (
+        twin_a.id_
+    )
+    assert earliest_expiring_embargo_id(dl, [twin_b.id_, twin_a.id_]) == (
+        twin_b.id_
+    )
+
+
+@pytest.mark.spec("EP-08-002")
 def test_earliest_expiring_embargo_id_fails_closed_on_a_missing_record(
     dl: SqliteDataLayer,
 ) -> None:

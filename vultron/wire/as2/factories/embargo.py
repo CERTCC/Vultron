@@ -67,6 +67,29 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 logger = logging.getLogger(__name__)
 
 
+def _published_instant(published: object) -> datetime | None:
+    """Read a caller-supplied ``published`` as an aware instant.
+
+    This is the one input to the RSVP-deadline check not read from a
+    validated object, so it is normalised at this edge (ADR-0032, CS-13-001)
+    whether it arrived as an ISO 8601 string or a naive ``datetime``;
+    ``resolve_rsvp_deadline`` expects aware inputs (#3784).  Anything else
+    yields ``None``, which the deadline check measures from now.
+
+    Raises:
+        VultronActivityConstructionError: If a string is not ISO 8601.
+    """
+    if isinstance(published, str):
+        try:
+            published = datetime.fromisoformat(published)
+        except ValueError as exc:
+            raise VultronActivityConstructionError(
+                f"em_propose_embargo_activity: published {published!r}"
+                " is not an ISO 8601 datetime"
+            ) from exc
+    return as_utc(published) if isinstance(published, datetime) else None
+
+
 def em_propose_embargo_activity(
     embargo: as_EmbargoEvent,
     context: as_VulnerabilityCaseRef | None = None,
@@ -111,18 +134,11 @@ def em_propose_embargo_activity(
             )
         # Fix ``published`` before measuring from it, so the window the
         # sender checks is the one the receiver measures (EP-07-002).
-        published = kwargs.setdefault("published", now_utc())
-        if isinstance(published, str):
-            try:
-                published = as_utc(datetime.fromisoformat(published))
-            except ValueError as exc:
-                raise VultronActivityConstructionError(
-                    f"em_propose_embargo_activity: published {published!r}"
-                    " is not an ISO 8601 datetime"
-                ) from exc
         deadline = resolve_rsvp_deadline(
             requested=rsvp_deadline,
-            published=published if isinstance(published, datetime) else None,
+            published=_published_instant(
+                kwargs.setdefault("published", now_utc())
+            ),
             embargo_end=embargo.end_time,
             min_window=min_rsvp_window,
         )
