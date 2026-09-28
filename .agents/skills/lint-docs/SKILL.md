@@ -91,7 +91,7 @@ against them (DF-09-007, ADR-0092):
   located in the assembled page is one a maintainer cannot act on, so findings
   always cite the fragment.
 - **Page-scoped rules are never evaluated against a fragment**: SG-07, SG-09,
-  SG-10, SG-11, SG-12, SG-21, SG-32, SG-33, SG-39, SG-41. Applied to a fragment
+  SG-10, SG-11, SG-12, SG-21, SG-32, SG-33, SG-39, SG-41, SG-44. Applied to a fragment
   they yield artifacts of the split, not prose defects — twelve expansions of
   "VFD" on one rendered specification page, or a missing H1 that
   `heading-offset` demotes on purpose. `.markdownlint-cli2.yaml` set the
@@ -161,6 +161,45 @@ with both fixes: link the use to the named page, or re-level the page. The tool
 sees only terms some page declares under `introduces:`, so the concept-order
 and first-use checks below still need judgment for every other term.
 
+The cross-page checks are read against `notes/site-information-architecture.md`
+(ADR-0102), not re-derived per page. They are all page-scoped, so a fragment is
+assessed only through its assembly unit (Phase 1 § "Fragments and assembly
+units"), and they are all judgment findings — reported with a recommendation,
+never applied:
+
+- **Level dependency** (DF-11-002; SG-10, SG-11, SG-40) — the page uses a concept
+  introduced by a page whose `level` is higher than its own, without introducing,
+  defining, or linking it. `docs-level-order` catches the declared terms; for any
+  other term, check the introducing page's frontmatter by hand. Recommend the
+  link, or the re-level, and say which and why. A page whose every dependency
+  is linked is compliant at any level: the rule is about unlinked use, not about
+  citing higher pages.
+- **Self-sufficiency on arrival** (SG-44, DF-11-007) — read the assembly unit as
+  a reader who arrived by deep link and has read none of its nav neighbors. It
+  fails if the orientation paragraph does not say what the page covers (SG-41),
+  if a prerequisite is assumed rather than stated and linked (SG-12), or if an
+  acronym is used unexpanded because "the previous page expands it" (SG-07).
+  **An opening, a restated prerequisite, or a re-expanded acronym that also
+  appears on an adjacent page is compliant** — report nothing, and never fold it
+  into an SG-43 verbatim-copy finding. That repetition is the rule working, and
+  a recommendation to remove it so neighbors "read as a sequence" is itself a
+  defect in the review (DF-11-007). SG-43 is for one authority's content that
+  drifted into two places, not for a page introducing itself.
+- **Rendered level or audience** (DF-11-004, DF-11-009; SG-40) — the page's own
+  `level` or `stakeholder_type` appears in its prose, a heading, an admonition,
+  or the nav label ("this 300-level page", "for platform developers").
+  Recommend restating who the page is for in the reader's situation, or
+  deleting the sentence. Documenting the ladder or the vocabulary itself (the
+  glossary, an ADR, `docs/includes/stakeholder_types.md`) is not this finding.
+- **Role written for type** (DF-11-001; SG-40) — `stakeholder_type` names a
+  CVDRole (`vendor`, `coordinator`, `reporter`, …) or the prose addresses a role
+  as if it were the audience ("this page is for vendors"). `docs-frontmatter`
+  already rejects the frontmatter form; the recommendation is always the
+  stakeholder type the page addresses, never a new enum member, because no
+  value may appear in both vocabularies
+  (`notes/site-information-architecture.md` § "Stakeholder type is not CVD
+  role").
+
 - **Concept order** (SG-10) — a section using a concept the page has not
   introduced. Name the forward reference and the section order that fixes it.
 - **Unlinked first use** (SG-11) — a glossary or taxonomy term used without a
@@ -192,7 +231,9 @@ and first-use checks below still need judgment for every other term.
   § "Fragments and assembly units"), so extraction does not trade away lint
   coverage. Do not auto-fix — this is a judgment call requiring the author to
   decide whether the duplication is intentional and whether verification has
-  occurred.
+  occurred. A page's opening, its stated prerequisites, and its acronym
+  expansions are exempt even when a neighbor repeats them word for word (SG-44,
+  DF-11-007) — see "Self-sufficiency on arrival" above.
 
 ### Quadrant misclassification
 
@@ -242,6 +283,9 @@ Output, in this order:
 - Never evaluate a page-scoped rule against a fragment, and never drop a
   fragment from the target set because its name is `_`-prefixed or excluded
   from nav (DF-09-007).
+- Never report a repeated opening, restated prerequisite, or re-expanded acronym
+  on adjacent pages as duplication (SG-44, DF-11-007); never recommend removing
+  one.
 - Never report success on an empty target set (DF-09-009).
 - Do not duplicate `format-markdown` or `build-docs` checks. Line length, list
   markers, emphasis style, and link validity belong to those tools; MD013 is
