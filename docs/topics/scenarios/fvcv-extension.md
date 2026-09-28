@@ -1,6 +1,5 @@
 ---
 title: "FVCV-extension Scenario: Finder + Vendor1 + Coordinator + Vendor2"
-status: stable
 causal_edges:
   - antecedent: validate_report
     consequent: engage_case
