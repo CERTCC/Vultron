@@ -22,6 +22,7 @@ Per specs/inbox-orchestration.yaml IO-02-002.
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.inbox.nodes import (
     BuildOutcomeNode,
     DeferCheckNode,
@@ -32,8 +33,14 @@ from vultron.core.behaviors.inbox.nodes import (
 )
 
 
-def create_inbox_bt() -> py_trees.behaviour.Behaviour:
+def create_inbox_bt(
+    actor_config: ActorConfig | None = None,
+) -> py_trees.behaviour.Behaviour:
     """Return a fresh BT Sequence for one inbox pipeline execution.
+
+    *actor_config* is the receiving actor's configuration, passed to
+    ``ExtractSemanticsNode`` for its RSVP windows; ``None`` applies the
+    protocol defaults.
 
     The Sequence enforces that each step succeeds before the next runs.
     On any failure the remaining steps are skipped and the failure step
@@ -58,7 +65,9 @@ def create_inbox_bt() -> py_trees.behaviour.Behaviour:
         children=[
             ParsePayloadNode(name="ParsePayload"),
             RehydrateActivityNode(name="RehydrateActivity"),
-            ExtractSemanticsNode(name="ExtractSemantics"),
+            ExtractSemanticsNode(
+                name="ExtractSemantics", actor_config=actor_config
+            ),
             DeferCheckNode(name="DeferCheck"),
             DispatchNode(name="Dispatch"),
             BuildOutcomeNode(name="BuildOutcome"),

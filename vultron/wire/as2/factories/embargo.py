@@ -28,6 +28,7 @@ from typing import Sequence, cast
 
 from pydantic import ValidationError
 
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.rsvp_deadline import (
     DEFAULT_MIN_RSVP_WINDOW,
     RsvpDeadlineClamp,
@@ -108,7 +109,17 @@ def em_propose_embargo_activity(
                 "em_propose_embargo_activity: rsvp_deadline must be"
                 " timezone-aware (naive datetime rejected per EP-07-002)"
             )
-        published = kwargs.get("published")
+        # Fix ``published`` before measuring from it, so the window the
+        # sender checks is the one the receiver measures (EP-07-002).
+        published = kwargs.setdefault("published", now_utc())
+        if isinstance(published, str):
+            try:
+                published = datetime.fromisoformat(published)
+            except ValueError as exc:
+                raise VultronActivityConstructionError(
+                    f"em_propose_embargo_activity: published {published!r}"
+                    " is not an ISO 8601 datetime"
+                ) from exc
         deadline = resolve_rsvp_deadline(
             requested=rsvp_deadline,
             published=published if isinstance(published, datetime) else None,

@@ -232,6 +232,45 @@ def test_em_propose_embargo_minimum_measured_from_published(sample_embargo):
         )
 
 
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_minimum_measured_from_stamped_published(
+    sample_embargo,
+):
+    """The ``published`` the sender measures from is the one it stamps."""
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        rsvp_deadline=datetime.now(tz=timezone.utc) + timedelta(days=5),
+        actor=_ACTOR_URI,
+    )
+    assert result.published is not None and result.end_time is not None
+    assert result.end_time - result.published >= timedelta(hours=72)
+
+
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_string_published_is_measured_from(
+    sample_embargo,
+):
+    """An ISO 8601 ``published`` string is honored, not replaced by now."""
+    published = datetime.now(tz=timezone.utc) + timedelta(days=1)
+    with pytest.raises(VultronActivityConstructionError, match="minimum"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=published + timedelta(hours=71),
+            published=published.isoformat(),
+            actor=_ACTOR_URI,
+        )
+
+
+def test_em_propose_embargo_unparseable_published_raises(sample_embargo):
+    with pytest.raises(VultronActivityConstructionError, match="ISO 8601"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=datetime.now(tz=timezone.utc) + timedelta(days=5),
+            published="not-a-date",
+            actor=_ACTOR_URI,
+        )
+
+
 @pytest.mark.spec("EP-07-006")
 def test_em_propose_embargo_naive_embargo_end_is_read_as_utc():
     """A naive embargo end is compared as UTC, not raised as ``TypeError``."""

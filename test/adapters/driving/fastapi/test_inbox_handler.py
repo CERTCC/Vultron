@@ -1097,3 +1097,36 @@ def test_pending_case_queue_expiry_emits_question(monkeypatch):
     assert question.context == case_id
     assert question.actor == actor_id
     assert question.to == [case_actor_id]
+
+
+@pytest.mark.spec("EP-07-001")
+def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
+    """The local actor's default RSVP window reaches extraction (#3737)."""
+    from datetime import datetime, timedelta, timezone
+
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.config.actor import ActorConfig
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Invite,
+    )
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    monkeypatch.setattr(
+        pf,
+        "_resolve_actor_config",
+        lambda: ActorConfig(default_rsvp_window=timedelta(days=14)),
+    )
+    published = datetime.now(tz=timezone.utc)
+    case_id = "https://example.org/cases/rsvp"
+    invite = as_Invite(
+        object_=as_EmbargoEvent(
+            context=case_id, end_time=published + timedelta(days=90)
+        ),
+        context=as_VulnerabilityCase(id_=case_id),
+        actor="https://example.org/alice",
+        published=published,
+    )
+
+    event = ih.prepare_for_dispatch(invite)
+
+    assert getattr(event, "rsvp_deadline") == published + timedelta(days=14)

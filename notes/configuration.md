@@ -230,7 +230,10 @@ actor-policy defaults used by BT nodes and the production adapter:
   minimum and the CM-18-002 policy window for an embargo invitation's RSVP
   deadline. Both are measured from the invite's `published` time and bounded
   by the embargo's end (EP-07-006); see
-  [notes/embargo-default-semantics.md](embargo-default-semantics.md).
+  [notes/embargo-default-semantics.md](embargo-default-semantics.md). Inbound
+  extraction reads them through `_resolve_actor_config()` on both inbox paths
+  (`process_payload(actor_config=...)` and `prepare_for_dispatch()`); when no
+  `ActorConfig` loads, the protocol defaults apply.
 - `protocol_default_embargo_duration` (72 h): the embargo applied at case
   creation when no proposal and no actor default applies (EP-04-005). A value
   outside `[72 hours, 5 days]` is refused at load. It never competes under

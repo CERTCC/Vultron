@@ -33,6 +33,7 @@ import logging
 from typing import Any, cast
 
 from vultron.adapters.driving.fastapi.inbox_handler import dispatch
+from vultron.adapters.driving.fastapi import inbox_port_factories
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _expire_pending_case_activities,
     _queue_pending_case_activity,
@@ -410,8 +411,14 @@ async def run_inbox_pipeline(
     # stored.  Without this lock, two HTTP POSTs that arrive close together
     # create two asyncio Tasks that can run in any order; if entry N+1's
     # task runs first, the hash-chain check fails → spurious Reject (issue #1525).
+    # The receiving actor's RSVP windows govern inbound embargo invites
+    # (EP-07-001, EP-07-002); None applies the protocol defaults.
+    actor_config = inbox_port_factories._resolve_actor_config()
+
     async with _get_actor_lock(actor_id):
-        outcome = process_payload(payload, ingress, dispatch_adp, queue)
+        outcome = process_payload(
+            payload, ingress, dispatch_adp, queue, actor_config=actor_config
+        )
         logger.debug(
             "run_inbox_pipeline: status=%s context_id=%s",
             outcome.status,
@@ -427,7 +434,11 @@ async def run_inbox_pipeline(
             if item_id is None:
                 break
             replay_outcome = process_payload(
-                item_id, stored_ingress, dispatch_adp, queue
+                item_id,
+                stored_ingress,
+                dispatch_adp,
+                queue,
+                actor_config=actor_config,
             )
             logger.debug(
                 "run_inbox_pipeline: replayed status=%s context_id=%s",

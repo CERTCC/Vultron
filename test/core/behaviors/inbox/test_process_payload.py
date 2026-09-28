@@ -19,12 +19,14 @@ BT node helpers (IO-04-002).
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.inbox import (
     InboxOutcome,
     InboxOutcomeStatus,
@@ -610,3 +612,68 @@ class TestDispatchNodeFaults:
         assert len(raised) == 1
         assert raised[0].exc_info is not None
         assert raised[0].exc_info[0] is RuntimeError
+
+
+class TestInboundRsvpWindows:
+    """The receiving actor's RSVP windows reach extraction (EP-07-001/002)."""
+
+    @staticmethod
+    def _invite(published: datetime, end_time: datetime | None = None) -> Any:
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Invite,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+
+        kwargs: dict[str, Any] = {
+            "object_": as_EmbargoEvent(
+                context=CASE_ID, end_time=published + timedelta(days=90)
+            ),
+            "context": as_VulnerabilityCase(id_=CASE_ID),
+            "actor": SENDER_ID,
+            "published": published,
+        }
+        if end_time is not None:
+            kwargs["end_time"] = end_time
+        return as_Invite(**kwargs)
+
+    def _deadline(
+        self, activity: Any, actor_config: ActorConfig | None
+    ) -> datetime:
+        dispatch = _StubDispatchAdapter()
+        outcome = process_payload(
+            {},
+            _StubIngressAdapter(activity=activity),
+            dispatch,
+            _StubQueuePort(case_known=True),
+            actor_config=actor_config,
+        )
+        assert outcome.status == "processed", outcome.failure_reason
+        deadline = cast(Any, dispatch.dispatched[0]).rsvp_deadline
+        assert isinstance(deadline, datetime)
+        return deadline
+
+    @pytest.mark.spec("EP-07-001")
+    def test_configured_default_window_applies(self) -> None:
+        published = datetime.now(tz=timezone.utc)
+        config = ActorConfig(default_rsvp_window=timedelta(days=14))
+        assert self._deadline(self._invite(published), config) == (
+            published + timedelta(days=14)
+        )
+
+    @pytest.mark.spec("EP-07-001")
+    def test_no_config_applies_the_protocol_default(self) -> None:
+        published = datetime.now(tz=timezone.utc)
+        assert self._deadline(self._invite(published), None) == (
+            published + timedelta(days=7)
+        )
+
+    @pytest.mark.spec("EP-07-002")
+    def test_configured_minimum_window_applies(self) -> None:
+        published = datetime.now(tz=timezone.utc)
+        config = ActorConfig(min_rsvp_window=timedelta(days=4))
+        invite = self._invite(
+            published, end_time=published + timedelta(days=1)
+        )
+        assert self._deadline(invite, config) == published + timedelta(days=4)

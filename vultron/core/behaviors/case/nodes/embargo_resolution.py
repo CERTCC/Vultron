@@ -41,7 +41,10 @@ from vultron.core.services.embargo_duration import (
     select_actor_default,
 )
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.errors import (
+    BtNodePreconditionError,
+    VultronInvalidStateTransitionError,
+)
 
 
 class CaseNotEmbargoEligibleNode(DataLayerConditionWithPorts):
@@ -72,9 +75,11 @@ class CaseNotEmbargoEligibleNode(DataLayerConditionWithPorts):
         return {"case_id": "/case_id"}
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
+        if self.datalayer is None:
+            raise BtNodePreconditionError(
+                f"{self.name}: DataLayer not available; cannot decide"
+                " embargo eligibility"
+            )
         case_id = self._try_get_input("case_id")
         if not isinstance(case_id, str):
             raise TypeError(
@@ -156,12 +161,13 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
         sender_proposal = self._try_get_input(
             "sender_proposed_embargo_duration"
         )
-        if sender_proposal is not None and not isinstance(
-            sender_proposal, timedelta
+        if sender_proposal is not None and (
+            not isinstance(sender_proposal, timedelta)
+            or sender_proposal <= timedelta(0)
         ):
             self.feedback_message = (
                 f"sender_proposed_embargo_duration {sender_proposal!r}"
-                " is not a timedelta"
+                " is not a positive timedelta"
             )
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

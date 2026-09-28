@@ -26,7 +26,7 @@ normalised to UTC here, so a naive timestamp on a nested object — which the
 wire edge does not normalise — cannot make the comparison raise.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 
 from pydantic import ConfigDict
@@ -39,6 +39,12 @@ DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
 
 DEFAULT_RSVP_WINDOW = timedelta(days=7)
 """Default policy RSVP window when an invite names no deadline (EP-07-001)."""
+
+
+def _to_utc(value: datetime | None) -> datetime | None:
+    """Return *value* in UTC; naive values are taken to be UTC already."""
+    aware = as_utc(value)
+    return aware.astimezone(timezone.utc) if aware is not None else None
 
 
 class RsvpDeadlineClamp(StrEnum):
@@ -94,16 +100,16 @@ def resolve_rsvp_deadline(
         default_window: Configured policy window used when *requested* is
             ``None`` (EP-07-001, CM-18-002).
 
-    Naive datetimes are taken to be UTC (:func:`as_utc`); every returned
-    datetime is UTC-aware.
+    Naive datetimes are taken to be UTC (:func:`as_utc`) and aware ones are
+    converted to it, so every returned datetime is in UTC.
 
     Returns:
         The resolved deadline.  ``effective`` never falls after
         *embargo_end* (EP-07-006, CM-28-011) and never before ``minimum``.
     """
-    requested = as_utc(requested)
-    published = as_utc(published) or now_utc()
-    embargo_end = as_utc(embargo_end)
+    requested = _to_utc(requested)
+    published = _to_utc(published) or now_utc()
+    embargo_end = _to_utc(embargo_end)
     computed = (
         requested if requested is not None else published + default_window
     )

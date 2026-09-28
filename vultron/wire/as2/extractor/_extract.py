@@ -95,7 +95,7 @@ def extract_intent(
 
     if "rsvp_deadline" in event_class.model_fields:
         extra_kwargs["rsvp_deadline"] = _effective_rsvp_deadline(
-            activity, obj, min_rsvp_window, default_rsvp_window
+            activity, actor_id, obj, min_rsvp_window, default_rsvp_window
         )
 
     return cast(
@@ -122,6 +122,7 @@ def extract_intent(
 
 def _effective_rsvp_deadline(
     activity: as_Activity,
+    actor_id: str,
     embargo: object,
     min_window: timedelta,
     default_window: timedelta,
@@ -153,27 +154,32 @@ def _effective_rsvp_deadline(
     source = "Invite.end_time" if requested is not None else "policy window"
     if deadline.clamp is RsvpDeadlineClamp.RAISED_TO_MINIMUM:
         logger.info(
-            "extract_intent: activity '%s' rsvp_deadline %s (%s) is below the"
-            " applicable minimum; clamped up to %s (EP-07-003)",
+            "extract_intent: activity '%s' from actor '%s' rsvp_deadline %s"
+            " (%s) is below the applicable minimum; clamped up to %s"
+            " (EP-07-003)",
             activity.id_,
+            actor_id,
             deadline.computed.isoformat(),
             source,
             deadline.effective.isoformat(),
         )
     elif deadline.clamp is RsvpDeadlineClamp.LOWERED_TO_EMBARGO_END:
         logger.info(
-            "extract_intent: activity '%s' rsvp_deadline %s (%s) is after the"
-            " embargo end; clamped down to %s (EP-07-006)",
+            "extract_intent: activity '%s' from actor '%s' rsvp_deadline %s"
+            " (%s) is after the embargo end; clamped down to %s (EP-07-006)",
             activity.id_,
+            actor_id,
             deadline.computed.isoformat(),
             source,
             deadline.effective.isoformat(),
         )
     if deadline.effective <= datetime.now(tz=timezone.utc):
         logger.warning(
-            "extract_intent: activity '%s' rsvp_deadline %s is already past"
-            " (published %s); the invitation lapses on the next check",
+            "extract_intent: activity '%s' from actor '%s' rsvp_deadline %s"
+            " is already past (published %s); the invitation lapses on the"
+            " next check",
             activity.id_,
+            actor_id,
             deadline.effective.isoformat(),
             published.isoformat() if published is not None else "absent",
         )

@@ -128,6 +128,25 @@ def test_naive_inputs_are_read_as_utc() -> None:
     assert deadline.effective.tzinfo is not None
 
 
+def test_non_utc_offsets_are_returned_in_utc() -> None:
+    """An aware non-UTC input comes back converted, not merely compared."""
+    plus_five = timezone(timedelta(hours=5))
+    deadline = resolve_rsvp_deadline(
+        requested=(PUBLISHED + 5 * DAYS).astimezone(plus_five),
+        published=PUBLISHED.astimezone(plus_five),
+        embargo_end=(PUBLISHED + 30 * DAYS).astimezone(plus_five),
+    )
+    assert deadline.effective == PUBLISHED + 5 * DAYS
+    for value in (
+        deadline.requested,
+        deadline.computed,
+        deadline.minimum,
+        deadline.effective,
+    ):
+        assert value is not None
+        assert value.utcoffset() == timedelta(0)
+
+
 def test_absent_published_measures_from_now() -> None:
     before = datetime.now(tz=timezone.utc).replace(microsecond=0)
     deadline = resolve_rsvp_deadline(

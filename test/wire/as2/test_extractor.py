@@ -545,7 +545,12 @@ def test_explicit_deadline_after_embargo_end_is_clamped_down(caplog):
 
     assert cast(Any, event).rsvp_deadline == embargo_end
     messages = [r.getMessage() for r in caplog.records]
-    assert any("EP-07-006" in m and "Invite.end_time" in m for m in messages)
+    assert any(
+        "EP-07-006" in m
+        and "Invite.end_time" in m
+        and "https://example.org/alice" in m
+        for m in messages
+    )
 
 
 @pytest.mark.spec("EP-07-002")

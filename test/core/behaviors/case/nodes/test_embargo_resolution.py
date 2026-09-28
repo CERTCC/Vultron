@@ -43,6 +43,7 @@ from vultron.core.models.vultron_types import (
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.errors import BtNodePreconditionError
 from test.core.behaviors.bt_harness import BTTestScenario
 
 ACTOR_ID = "https://example.org/actors/vendor"
@@ -306,6 +307,13 @@ class TestCaseNotEmbargoEligibleNode:
         assert result.status == Status.FAILURE
         assert "VultronNotFoundError" in result.feedback_message
 
+    def test_missing_datalayer_raises_rather_than_admitting(self) -> None:
+        """No store to read is an unanswerable guard, not "eligible"."""
+        node = CaseNotEmbargoEligibleNode()
+        assert node.datalayer is None
+        with pytest.raises(BtNodePreconditionError, match="DataLayer"):
+            node.update()
+
     def test_missing_case_fails_the_whole_subtree(
         self, bt_scenario: BTTestScenario
     ) -> None:
@@ -340,3 +348,19 @@ class TestCaseNotEmbargoEligibleNode:
         assert result.status == Status.FAILURE
         assert list(bt_scenario.dl.list_objects("EmbargoEvent")) == []
         assert _active_embargo(bt_scenario) is None
+
+
+@pytest.mark.spec("EP-04-003")
+@pytest.mark.parametrize(
+    "proposal", [timedelta(0), timedelta(days=-1)], ids=["zero", "negative"]
+)
+def test_non_positive_sender_proposal_creates_no_embargo(
+    bt_scenario: BTTestScenario,
+    case_obj: VulnerabilityCase,
+    proposal: timedelta,
+) -> None:
+    """A proposal that would end the embargo on arrival is refused."""
+    status, _, _ = _run(bt_scenario, sender_proposal=proposal)
+
+    assert status == Status.FAILURE
+    assert _active_embargo(bt_scenario) is None
