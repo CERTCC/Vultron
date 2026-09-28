@@ -130,7 +130,7 @@ groups:
       Vultron extension fields.
     rationale: >-
       A key that is no object's `type` value is unreachable from the wire, and it lets a caller
-      holding a *class* name resolve a wire class by name coincidence, which ARCH-23-001 forbids
+      holding a *class* name resolve a wire class by name coincidence, which ARCH-23-002 forbids
       — `as_VultronPerson` formerly registered under `VultronPerson`, which is also a core type's
       name.  Deriving the key from the emitted value removes both hazards and puts the registry
       key and the generated JSON-LD term (VM-10-002) on one rule instead of two.

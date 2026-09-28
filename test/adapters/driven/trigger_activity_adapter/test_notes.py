@@ -155,7 +155,7 @@ class TestStoredNoteCarriedAsWireNote:
     the core note to its wire form rather than cast it.
     """
 
-    @pytest.mark.spec("DL-05-004", "ARCH-12-005")
+    @pytest.mark.spec("DL-05-004", "ARCH-20-001")
     def test_add_carries_stored_core_note_as_wire_note(self, adapter, dl):
         note_id, _ = adapter.create_note(
             name="Note",
@@ -174,7 +174,7 @@ class TestStoredNoteCarriedAsWireNote:
         assert carried["type"] == "Note"
         assert carried["content"] == "the content"
 
-    @pytest.mark.spec("DL-05-004", "ARCH-12-005")
+    @pytest.mark.spec("DL-05-004", "ARCH-20-001")
     def test_create_activity_carries_stored_core_note(self, adapter, dl):
         note_id, _ = adapter.create_note(
             name="Note",

@@ -511,8 +511,7 @@ groups:
     statement: Core snapshot-construction code MUST NOT special-case individual field
       names to reach the wire spelling (e.g. moving a nested `consent.state` to a
       flat `emConsentState`). Structural differences between the core and wire shapes
-      are the responsibility of the adapter-side translator for that pairing
-      (ARCH-12-005), reached through the rendering port.
+      are the responsibility of the rendering port (ARCH-20-001).
     rationale: A per-field patch in core is a partial reimplementation of the translator
       that drifts as either shape evolves, and it is invisible to the adapter layer's
       own round-trip tests. Each such patch also silently defines the canonical shape
@@ -522,9 +521,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-07-009
-    - rel_type: depends_on
-      spec_id: ARCH-12-005
-      note: ARCH-12-005 names the adapter-side translator as the sole owner of the structural projection.
     adr:
     - ADR-0063
     - ADR-0082

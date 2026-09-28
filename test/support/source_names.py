@@ -16,7 +16,7 @@
 """Name-level source scans for the "no wire counterpart lookup" ratchets.
 
 Shared by the render-adapter and trigger-adapter ratchets, so the set of names
-that constitute a class-name counterpart lookup lives in one place (ARCH-23-001,
+that constitute a class-name counterpart lookup lives in one place (ARCH-23-002,
 ISSUE-3694).
 
 The scan sees direct name references only: a registry reached by string

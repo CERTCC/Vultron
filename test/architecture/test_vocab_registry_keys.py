@@ -8,7 +8,7 @@ what keeps ``VOCABULARY`` disjoint from ``CORE_VOCABULARY`` (ARCH-23-002).
 
 A ``WIRE_TYPE_MAP`` key that is not a ``type`` value any object carries is
 unreachable from the wire, and it lets a caller holding a *class* name resolve a
-wire class by name coincidence, which ARCH-23-001 forbids. Both were true of six
+wire class by name coincidence, which ARCH-23-002 forbids. Both were true of six
 keys before #2982: the five ``as_Vultron*`` actor classes registered under their
 stripped class names (``VultronPerson`` — also the name of a core type) as well as
 their ``type`` values (``Person``), and ``as_VulnerabilityCaseStub`` registered

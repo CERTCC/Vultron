@@ -229,8 +229,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Wire→core normalisation on the persistence write path MUST be performed by the adapter-side
-      translator resolved through the pairing registry (ARCH-23-001), not by a hand-maintained
+      Wire→core normalisation on the persistence write path MUST use `CORE_VOCABULARY` lookup
+      (DL-05-006, ARCH-23-002), not a hand-maintained
       `_NORMALIZE_WIRE_TO_CORE` list in `vultron/adapters/driven/db_record.py`. Once wire and core
       registry keys are disjoint (ARCH-23-002) no wire class shadows a `CORE_VOCABULARY` entry, so
       the subject set of the former grow-only ratchet is permanently empty; that list and its
