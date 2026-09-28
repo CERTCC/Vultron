@@ -7,11 +7,9 @@ level: 400
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-Some terms surrounding CVD and VM have been ambiguously defined in common
-usage. One benefit of the definition of events, states, and possible CVD
-histories presented in this whitepaper is an opportunity to clarify
-definitions of related terms. In this section we will use our model to
-formally define their meaning.
+Some terms surrounding Coordinated Vulnerability Disclosure (CVD) and Vulnerability Management (VM) have been ambiguously defined in common usage.
+One benefit of the definition of events, states, and possible CVD histories presented in [Measuring CVD](../measuring_cvd/index.md) is an opportunity to clarify definitions of related terms.
+On this page we use the [Case State model](../process_models/cs/index.md) to formally define their meaning.
 
 ## Zero Day
 
@@ -28,9 +26,9 @@ formally using our model.
 
 !!! example "What does *zero day* mean to you?"
 
-    As an example, a reviewer stated that they prefer to define "zero day vulnerability" as
+    As an example, one reviewer of the report that introduced this model preferred to define "zero day vulnerability" as
     **X** $\prec$ **V** and not **P** $\prec$ **F** or **A** $\prec$ **F**.
-    We should seek these precise definitions
+    Precise definitions matter
     because sometimes both **X** $\prec$ **V** and
     **P** $\prec$ **F** are true, in which case two people might
     agree that an instance is a "zero day" without realizing that they
