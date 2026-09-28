@@ -192,7 +192,7 @@ Consent-write sites (all ten route through `apply_pec_transition()`):
 | `case/nodes/invite_embargo_consent.py` | yes | yes |
 | `embargo/nodes/proposal.py` | yes | yes |
 | `use_cases/_helpers.py` | yes | yes |
-| `services/embargo_lifecycle.py` (6 sites) | yes | yes |
+| `services/embargo_lifecycle/` (6 sites) | yes | yes |
 
 All ten sites now use `apply_pec_transition()` as the single authoritative
 consent-write path (CM-18-005). `EmbargoLifecycle` is the intended long-term

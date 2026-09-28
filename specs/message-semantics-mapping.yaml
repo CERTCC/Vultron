@@ -757,7 +757,7 @@ groups:
       inside the InviteToEmbargoOnCaseReceivedUseCase received-side handler.
     verification: >-
       Inspection of vultron/core/use_cases/received/embargo.py and
-      vultron/core/services/embargo_lifecycle.py confirms that processing
+      vultron/core/services/embargo_lifecycle/ confirms that processing
       INVITE_TO_EMBARGO_ON_CASE applies PEC_Trigger.INVITE to each named invitee
       via record_participant_consent().
     relationships:
@@ -841,10 +841,10 @@ groups:
       revised terms, which they have not. The REVISE cascade is performed by
       EmbargoLifecycle._cascade_pec_revise() inside propose_embargo().
     verification: >-
-      Inspection of vultron/core/services/embargo_lifecycle.py confirms that
+      Inspection of vultron/core/services/embargo_lifecycle/ confirms that
       propose_embargo() calls _cascade_pec_revise() and that SIGNATORY
       participants are transitioned to LAPSED before the EM REVISE transition
-      is persisted. Unit tests in test/core/services/test_embargo_lifecycle.py
+      is persisted. Unit tests in test/core/services/embargo_lifecycle/
       assert the cascade.
     relationships:
     - rel_type: derives_from
@@ -870,10 +870,10 @@ groups:
       cascade is performed by EmbargoLifecycle._cascade_pec_reset() inside
       terminate_active_embargo().
     verification: >-
-      Inspection of vultron/core/services/embargo_lifecycle.py confirms that
+      Inspection of vultron/core/services/embargo_lifecycle/ confirms that
       terminate_active_embargo() calls _cascade_pec_reset() and that all
       participants reach UNBOUND. Unit tests in
-      test/core/services/test_embargo_lifecycle.py assert the cascade.
+      test/core/services/embargo_lifecycle/ assert the cascade.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
@@ -899,7 +899,7 @@ groups:
       speak on behalf of a participant who has said nothing, which contradicts the
       Actor Knowledge Model (AKM).
     verification: >-
-      Inspection of vultron/core/services/embargo_lifecycle.py confirms
+      Inspection of vultron/core/services/embargo_lifecycle/ confirms
       detect_and_apply_lapse() applies PEC_Trigger.DECLINE without emitting
       an outbound wire activity, and that a CASE_MANAGER-authored ledger entry
       is written per CM-28-005.

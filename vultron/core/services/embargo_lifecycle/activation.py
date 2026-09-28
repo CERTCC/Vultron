@@ -1,0 +1,183 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Active-embargo EM operations: activate and terminate.
+
+Both operate on ``case.active_embargo`` directly rather than answering an
+invite — activation is the owner's atomic accept at case creation
+(EP-04-002), termination is the ``ET`` teardown that also resets every
+participant's consent.
+"""
+
+import logging
+
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.dimensions import EmDimension
+from vultron.core.services.embargo_lifecycle.pec import (
+    _PecEffectsMixin,
+)
+from vultron.core.services.embargo_lifecycle.results import (
+    EmbargoLifecycleResult,
+    TransitionMode,
+)
+from vultron.core.states.em import EM, EM_Trigger
+from vultron.errors import VultronInvalidStateTransitionError
+
+logger = logging.getLogger(__name__)
+
+
+class _ActivationOperationsMixin(_PecEffectsMixin):
+    """``terminate_active_embargo`` and ``activate_embargo``."""
+
+    def terminate_active_embargo(
+        self,
+        *,
+        case_id: str,
+        actor_id: str | None = None,
+        transition_mode: TransitionMode = TransitionMode.STRICT,
+        em_before: EM | None = None,
+    ) -> EmbargoLifecycleResult:
+        """Terminate the active embargo on a case.
+
+        Drives ``ACTIVE → EXITED`` (or ``REVISE → EXITED``), clears
+        ``case.active_embargo``, and resets all participants' PEC state to
+        ``UNBOUND`` via :meth:`_cascade_pec_reset`.
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase`` to update.
+            actor_id: Optional ID of the terminating actor (logging only).
+            transition_mode: ``STRICT`` (default) or ``OBSERVED``.
+            em_before: When provided, the service uses this value directly
+                instead of reading it from the case.
+
+        Returns:
+            :class:`EmbargoLifecycleResult` describing what changed.
+            ``pec_reset`` is always ``True`` when this method succeeds.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+            VultronInvalidStateTransitionError: In ``STRICT`` mode, if the EM
+                state does not allow TERMINATE or ``active_embargo`` is
+                ``None``.
+        """
+        case = self._read_case(case_id)
+
+        if em_before is None:
+            em_before = case.current_status.em.state
+        assert em_before is not None
+
+        # In STRICT mode, require an active embargo to be identified
+        embargo_id = _as_id(case.active_embargo)
+        if transition_mode == TransitionMode.STRICT and embargo_id is None:
+            raise VultronInvalidStateTransitionError(
+                f"Case '{case_id}' has no active embargo to terminate."
+            )
+
+        em_after = self._drive_em_transition(
+            case_id=case_id,
+            em_before=em_before,
+            trigger=EM_Trigger.TERMINATE,
+            transition_mode=transition_mode,
+            fallback_dest=EM.EXITED,
+            actor_id=actor_id,
+        )
+
+        case.current_status.em = EmDimension(state=em_after)
+        case.active_embargo = None
+
+        participant_changes = self._cascade_pec_reset(case)
+
+        self._persistence.save(case)
+
+        logger.info(
+            "Actor '%s' terminated embargo '%s' on case '%s' (EM %s → %s)",
+            actor_id,
+            embargo_id,
+            case_id,
+            em_before,
+            em_after,
+        )
+
+        return EmbargoLifecycleResult(
+            em_before=em_before,
+            em_after=em_after,
+            case_changed=True,
+            case_embargo_changed=True,
+            pec_reset=True,
+            participant_changes=participant_changes,
+        )
+
+    def activate_embargo(
+        self,
+        *,
+        case_id: str,
+        embargo_id: str,
+        actor_id: str | None = None,
+        transition_mode: TransitionMode = TransitionMode.STRICT,
+    ) -> EmbargoLifecycleResult:
+        """Activate an embargo on a case, driving EM state to ACTIVE.
+
+        Drives ``PROPOSED → ACTIVE`` (or ``REVISE → ACTIVE``) via the ACCEPT
+        trigger and sets ``case.active_embargo`` to *embargo_id*.  In ``STRICT``
+        mode only PROPOSED and REVISE are valid sources.  In ``OBSERVED`` mode
+        the transition is applied unconditionally (state-sync override).
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase`` to update.
+            embargo_id: ID of the ``EmbargoEvent`` to set as active.
+            actor_id: Optional ID of the activating actor (logging only).
+            transition_mode: ``STRICT`` (default) or ``OBSERVED``.
+
+        Returns:
+            :class:`EmbargoLifecycleResult` describing what changed.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+            VultronInvalidStateTransitionError: In ``STRICT`` mode, if the EM
+                state does not allow an ACCEPT trigger (valid sources: PROPOSED,
+                REVISE).
+        """
+        case = self._read_case(case_id)
+
+        em_before = case.current_status.em.state
+
+        em_after = self._drive_em_transition(
+            case_id=case_id,
+            em_before=em_before,
+            trigger=EM_Trigger.ACCEPT,
+            transition_mode=transition_mode,
+            fallback_dest=EM.ACTIVE,
+            actor_id=actor_id,
+        )
+
+        case.current_status.em = EmDimension(state=em_after)
+
+        case.set_embargo(embargo_id)
+        self._persistence.save(case)
+
+        logger.info(
+            "Actor '%s' activated embargo '%s' on case '%s' (EM %s → %s)",
+            actor_id,
+            embargo_id,
+            case_id,
+            em_before,
+            em_after,
+        )
+
+        return EmbargoLifecycleResult(
+            em_before=em_before,
+            em_after=em_after,
+            case_changed=True,
+            case_embargo_changed=True,
+            pec_reset=False,
+        )
