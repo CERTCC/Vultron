@@ -21,7 +21,7 @@ Defined in `vultron/core/models/case.py`.
 
 | Field | Description |
 |---|---|
-| `attributed_to` | The actor the case is attributed to: set when the case is created, where it is an input to `genesis_hash`, and changed to the new owner when an ownership transfer is accepted ([CM-21-002](specs/protocol.md#cm-21)) |
+| `attributed_to` | The actor the case is attributed to: set when the case is created, where it is an input to `genesis_hash`, and changed to the new owner when an ownership transfer is accepted ([CM-21-002](specs/protocol.md#cm-21-002)) |
 | `case_participants` | `CaseParticipant` records (or their URIs) |
 | `actor_participant_index` | Fast-lookup map: actor URI → participant URI |
 | `vulnerability_reports` | Reports associated with this case (objects or URIs) |

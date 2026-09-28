@@ -130,12 +130,19 @@ def test_a_root_relative_link_is_not_a_docs_page():
     assert scan_page("[a](/topics/b.md)\n", "topics/a.md").links == ()
 
 
-def test_nested_fences_are_tracked_only_when_asked():
-    """A four-space fence is code inside an admonition, not plain Markdown."""
-    text = "!!! note\n\n    ```\n    # x\n    ```\nafter\n"
+def test_fences_are_tracked_at_any_indentation():
+    """One rule: a four-space fence under an admonition is a fence.
 
-    assert fenced_lines(text) == frozenset()
-    assert fenced_lines(text, nested=True) == {3, 4, 5}
+    There is no per-caller switch (#3685): the strict CommonMark reading, which
+    would take the block for indented code, is wrong for admonitions, content
+    tabs, and nested list items alike, and a switch is a choice every new
+    caller would have to get right.
+    """
+    text = "!!! note\n\n    ```\n    # x\n    ```\nafter\n"
+    nested_list = "- item\n\n        ```\n        # y\n        ```\n"
+
+    assert fenced_lines(text) == {3, 4, 5}
+    assert fenced_lines(nested_list) == {3, 4, 5}
 
 
 def test_a_shorter_run_does_not_close_a_longer_fence():
