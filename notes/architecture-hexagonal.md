@@ -8,6 +8,7 @@ related_notes:
   - vultron/core/ports/AGENTS.md
   - notes/architecture-adapters.md
   - notes/domain-validation.md
+  - notes/use-case-protocol.md
 relevant_packages:
   - vultron/core
   - vultron/wire/as2
@@ -107,7 +108,13 @@ Key enforced principle: core has no FastAPI, wire, or transport imports.
 6. Driven adapters are injected via ports.
 7. Connectors translate at the boundary only.
 8. Wire layer is replaceable as a unit.
-9. Port interfaces must not use `BaseModel` as boundary type hints.
+9. Port interfaces must not use wire-layer or adapter-layer models as boundary
+    type hints. A core-owned domain model (`VultronEvent`, `TriggerRequest`,
+    `UseCaseResult`) is the correct boundary type even though it is a Pydantic
+    `BaseModel`; the rule targets the layer a type belongs to, not the library
+    it is built with. Driving ports are O(1) in the behaviors behind them: one
+    `dispatch()`/`trigger()` method over a registry, never one method per verb
+    (ADR-0108).
 10. Edge adapters promote loose wire objects to strict core types before
     calling core functions. Core helpers raise a descriptive exception on
     failure; they never return `None` as a failure signal. See ADR-0032.

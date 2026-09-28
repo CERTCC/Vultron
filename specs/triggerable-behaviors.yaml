@@ -238,9 +238,10 @@ groups:
     statement: General-purpose triggers MUST be exposed under the path prefix `/actors/{actor_id}/trigger/{behavior-name}`
       (TRIG-01-001)
     verification: >-
-      Inspection of `vultron/adapters/driving/fastapi/` confirms that all
-      general-purpose trigger handlers are mounted under the
-      `/actors/{actor_id}/trigger/` path prefix.
+      Every row of the trigger registry (TRIG-12-004) declares its exposure; the
+      route-to-registry test asserts that each general-purpose row is mounted
+      under `/actors/{actor_id}/trigger/` and that no route under that prefix
+      lacks a general-purpose row.
     lint_suppress:
     - missing_story_reference
   - id: TRIG-08-004
@@ -248,9 +249,10 @@ groups:
     kind: protocol
     statement: Demo-only triggers MUST be exposed under the path prefix `/actors/{actor_id}/demo/{behavior-name}` (see TRIG-09-001)
     verification: >-
-      Inspection of `vultron/adapters/driving/fastapi/` confirms that all
-      demo-only trigger handlers are mounted under the
-      `/actors/{actor_id}/demo/` path prefix.
+      Every row of the trigger registry (TRIG-12-004) declares its exposure; the
+      route-to-registry test asserts that each demo-only row is mounted under
+      `/actors/{actor_id}/demo/` and that no route under that prefix lacks a
+      demo-only row.
     lint_suppress:
     - missing_story_reference
   - id: TRIG-08-005
@@ -432,3 +434,90 @@ groups:
       spec_id: TRIG-11-002
     lint_suppress:
     - missing_story_reference
+- id: TRIG-12
+  title: Trigger API Contract Stability and Dispatch Registry
+  specs:
+  - id: TRIG-12-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Every trigger endpoint (`/trigger/` and `/demo/`) MUST declare a
+      `response_model` naming the `TriggerResult` subtype its verb returns, so
+      the OpenAPI document describes the real response body of each verb.
+    rationale: >-
+      Trigger routes returned bare `dict` for the whole prototype period, so
+      OpenAPI documented no response body and five distinct body shapes were
+      invisible to clients and to review.
+    verification: >-
+      A test iterates the FastAPI app's routes under `/actors/{actor_id}/trigger/`
+      and `/actors/{actor_id}/demo/` and fails on any whose `response_model` is
+      `None`.
+    adr:
+    - ADR-0108
+  - id: TRIG-12-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The response body of every trigger verb MUST be pinned to an exact key
+      set by a test parametrized over the trigger registry (TRIG-12-004), and
+      `response_model` serialization MUST keep FastAPI's defaults for
+      `response_model_exclude_none`, `_exclude_unset`, `_exclude_defaults`, and
+      `_by_alias`, so a key whose value is `null` is still emitted.
+    rationale: >-
+      `activity` is `null` whenever the BT captured nothing; excluding `None`
+      would silently drop a key clients receive today. Pinning the exact set,
+      rather than asserting one key is present, is what turns a body change
+      into a failing test.
+    verification: >-
+      The parametrized test asserts `set(response.json()) == expected_keys` for
+      each registry row; a route that adds or drops a key fails it.
+    adr:
+    - ADR-0108
+  - id: TRIG-12-003
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The trigger API contract — paths, `operation_id`s, status codes, summaries,
+      descriptions, and request schemas — MUST NOT change without a deliberate
+      update to a committed golden OpenAPI snapshot. The snapshot MUST be
+      captured before any trigger route is rewritten, so it freezes the shipped
+      contract rather than whatever a rewrite happened to emit.
+    rationale: >-
+      Adding `response_model` and collapsing the route bodies touches every
+      trigger endpoint at once. A snapshot taken first is the only mechanical
+      evidence the client-visible contract did not move; one taken afterwards
+      proves nothing.
+    verification: >-
+      A test compares `app.openapi()` for the trigger and demo paths against
+      the committed snapshot and fails on any difference; the snapshot's commit
+      predates the first route change in history.
+    adr:
+    - ADR-0108
+  - id: TRIG-12-004
+    priority: MUST
+    kind: project
+    statement: >-
+      A single verb-keyed trigger registry MUST be the sole source mapping each
+      trigger verb to its request model, use-case class, result type, and
+      exposure (general-purpose or demo-only). Every trigger route MUST
+      correspond to exactly one registry row and every row to exactly one
+      route; every `Svc*UseCase` class under `vultron/core/use_cases/triggers/`
+      MUST appear in exactly one row. The registry holds data and a lookup
+      only; it MUST NOT contain per-verb behavior.
+    rationale: >-
+      The registry exists for enumeration, not routing — a route already knows
+      its verb. Enumeration is what lets TRIG-08-003/004, TRIG-12-001, and
+      TRIG-12-002 be asserted as tests instead of by inspection, and what
+      catches an unrouted use case (`SvcAddOnBehalfStatusUseCase` was reachable
+      only from its own tests). Keeping behavior out of it is what keeps it
+      from becoming the per-verb facade it replaces (ADR-0108).
+    verification: >-
+      Architecture tests assert the route-to-registry bijection and the
+      use-case-to-row bijection, both as exact set equalities (ARCH-18-001).
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-08-003
+    - rel_type: refines
+      spec_id: TRIG-08-004
+    adr:
+    - ADR-0108

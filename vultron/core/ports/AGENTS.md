@@ -65,7 +65,22 @@ buffering layer.
 ## Port Interface Hygiene
 
 - Port and adapter signatures should use explicit domain types.
-- Do not expose `pydantic.BaseModel` directly as cross-layer API shape.
+- Do not expose wire-layer (`as_*`) or adapter-layer models as cross-layer API
+  shape. A core-owned domain model (`VultronEvent`, `TriggerRequest`,
+  `UseCaseResult`) **is** an explicit domain type and is the right boundary
+  type, even though it is a Pydantic `BaseModel` — the accepted
+  `ActivityDispatcher.dispatch(event: VultronEvent)` port is the precedent
+  (ADR-0009, ADR-0108). Reading this rule as "no `BaseModel` anywhere" is what
+  produced a 27-method port that flattened typed requests into `Any` scalars.
+- **A driving port is O(1) in the behaviors behind it.** Routing from a
+  discriminator (semantics, trigger verb) to a use case is data in a registry,
+  not a method per verb. A port whose method count grows with the use-case
+  count hides nothing and is a duplicated declaration, not an abstraction.
+- **Never `Mock(spec=<driving port>)`.** A driving port is a seam for the code
+  *in front of* it (routers, CLI). Tests of that code run the real dispatcher
+  over a real in-memory store; tests of use cases construct them directly.
+  A mock of the driving port asserts only that a method was called, which is
+  the one thing the port's callers do not need verified.
 - Keep port contracts minimal, typed, and semantically named.
 
 ## DataLayer Operating Rules

@@ -5,11 +5,13 @@ description: >
   Design decisions for the UseCaseResult type hierarchy, the HandlerDisposition
   vocabulary and its route to InboxOutcome, the two semantically distinct request
   paths (VultronEvent vs TriggerRequest), and why a shared UseCaseRequest base
-  was not introduced. Received side and dispatcher chain migrated; trigger side not.
+  was not introduced. Received side and dispatcher chain migrated; trigger side
+  decided (ADR-0108: one dispatcher method over a verb registry) and being built.
 related_specs:
   - specs/use-case-organization.yaml
   - specs/handler-protocol.yaml
   - specs/inbox-orchestration.yaml
+  - specs/triggerable-behaviors.yaml
 related_notes:
   - notes/use-case-behavior-trees.md
   - notes/architecture-hexagonal.md
@@ -196,20 +198,34 @@ See ADR-0040 for the full decision record.
 
 ---
 
-## TriggerService and TriggerServicePort Migration
+## Trigger Side: One Dispatcher Method over a Verb Registry
 
-Not yet done; tracked by #3354. `TriggerService` methods return `dict[str, Any]`
-today because `SvcBTTriggerBase.execute()` returns a raw `dict`. After the
-result-envelope migration:
+Decided in ADR-0108, planned from concern #3354, not yet built. The trigger
+half does **not** get the mechanical "type the 27 methods" migration this note
+once described. The driving port collapses to one method and the two request
+families become one:
 
-- `SvcBTTriggerBase.execute()` returns `TriggerResult`
-- `TriggerService.*` methods return `TriggerResult`
-- `TriggerServicePort` Protocol method signatures declare `TriggerResult`
-- Routers access typed fields (`result.activity`, `result.emitting_actor_id`)
-  instead of dict keys
+- `TriggerResult` becomes a fieldless `UseCaseResult` subtype in
+  `vultron/core/models/`; the required fields move down to `ActivityResult`
+  (`activity`, `emitting_actor_id`), with sibling subtypes for the verbs whose
+  live bodies differ (`NoteResult`, `StatusResult`, `OfferResult`,
+  `RoleOfferResult`). Every subtype forbids extra keys (UCORG-05-005).
+- Each `TriggerRequest` subclass is generic in its result type, so the port is
+  one method — `TriggerDispatcher.trigger(request, dl) -> ResultT` — and mypy
+  and pyright resolve the verb's result at the call site (UCORG-05-006).
+- A verb-keyed registry under `vultron/trigger_registry/` (mirroring
+  `vultron/semantic_registry/`) maps verb → request model, use case, result
+  type, exposure. It is a data table with a lookup; the ratchets iterate it
+  (TRIG-12-004). It exists for enumeration, not routing.
+- Routes stay hand-written; each body becomes one call into a shared
+  `run_trigger(...)` helper and declares `response_model` (TRIG-12-001).
+- `TriggerService`, `TriggerServicePort`, and the adapter-layer duplicate
+  request models are deleted at the end, behind a golden OpenAPI snapshot and
+  exact-key-set tests (TRIG-12-002, TRIG-12-003).
 
-This propagation is mechanical: the only semantic change is that callers use
-attribute access instead of dict-key access.
+The response bodies stay byte-identical throughout; the typed conversion is one
+layer above `SvcBTTriggerBase`, which keeps returning what it returns today.
+Migration order and the reasons for it are in the ADR.
 
 ---
 
