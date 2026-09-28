@@ -2,6 +2,7 @@
 
 import importlib.util
 import pathlib
+import re
 import tokenize
 from typing import Literal
 
@@ -326,25 +327,46 @@ def test_retired_core_model_shim_modules_are_gone(module_name):
     assert importlib.util.find_spec(module_name) is None
 
 
+_RETIRED_CORE_ALIAS_WORD = re.compile(
+    r"\b(?:" + "|".join(sorted(_RETIRED_CORE_ALIASES)) + r")\b"
+)
+
+
 def test_no_source_module_names_a_retired_core_alias():
-    """No identifier anywhere under ``vultron/`` spells a retired alias.
+    """No identifier, string or comment under ``vultron/`` names a retired alias.
 
     The per-module checks above catch a re-added definition in its old home;
-    this catches one re-introduced anywhere else, or a stale reference.
+    this catches one re-introduced anywhere else, or a stale reference. String
+    and comment tokens are scanned too, because the retired names mostly lived
+    in string annotations (``cast("VultronReport | None", ...)``) and
+    docstrings, where neither an import nor a NAME scan would see them. The
+    word-boundary match keeps longer legitimate names such as
+    ``VultronReportCaseLink`` from being flagged.
     """
     package_root = pathlib.Path(vultron.__file__).parent
     offenders = []
     for path in sorted(package_root.rglob("*.py")):
         with path.open("rb") as handle:
             for token in tokenize.tokenize(handle.readline):
-                if (
-                    token.type == tokenize.NAME
-                    and token.string in _RETIRED_CORE_ALIASES
-                ):
+                if token.type == tokenize.NAME:
+                    hit = token.string in _RETIRED_CORE_ALIASES
+                elif token.type in (tokenize.STRING, tokenize.COMMENT):
+                    hit = bool(_RETIRED_CORE_ALIAS_WORD.search(token.string))
+                else:
+                    continue
+                if hit:
                     offenders.append(
                         f"{path}:{token.start[0]}: {token.string}"
                     )
     assert offenders == []
+
+
+def test_retired_core_alias_word_match_spares_longer_names():
+    """The string/comment scan matches whole words only (guards the scan above)."""
+    assert _RETIRED_CORE_ALIAS_WORD.search('cast("VultronReport | None", x)')
+    assert _RETIRED_CORE_ALIAS_WORD.search("# see VultronParticipant")
+    assert not _RETIRED_CORE_ALIAS_WORD.search("VultronReportCaseLink")
+    assert not _RETIRED_CORE_ALIAS_WORD.search("as_VultronCase")
 
 
 # ---------------------------------------------------------------------------
