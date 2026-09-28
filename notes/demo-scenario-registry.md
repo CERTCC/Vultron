@@ -227,6 +227,7 @@ checking it. Route each consumer by what it is:
 | Consumer | Treatment | Why |
 |---|---|---|
 | `docs/topics/scenarios/index.md` | build-time render (DEMOCI-11-009) | Inside the mkdocs tree, so `markdown-exec` can call the renderer; no table is committed and drift is impossible. Mind the link form — see above |
+| `docs/tutorials/container_demos.md` | build-time render (`container_demos` slug) | Same mechanism; its `DEMO` column is the registry `name`, so the tutorial can only offer values the demo CLI accepts (#3622 replaced a hand table that had drifted to a subset) |
 | `.github/demo-scenarios.json` | generate + `--check` | CI needs it before Python exists |
 | `test/ci/README-case-log-ratchet.md` | generate + `--check` | Outside the mkdocs tree — read raw on GitHub and by agents, so an include directive would render literally |
 | `vultron/demo/scenario/README.md` | generate + `--check` | Same |
@@ -238,6 +239,7 @@ checking it. Route each consumer by what it is:
 | `.github/workflows/demo-integration.yml` header comment | delete the prose enumeration | It restated both scenario sets in a comment above the code that computes them; nothing is lost by removing it, so there is no copy left to generate or check |
 | `specs/` DEMOCI-06-002/003 and the per-scenario DEMOMA-16 requirements | check only | Prose requirements; see below |
 | `mkdocs.yml` nav | check completeness | Hand-written short labels |
+| `docs/topics/scenarios/*.md` narrative pages | check the page set and the frontmatter (DEMOCI-11-012) | Hand-written prose; see below for what the two checks refuse and why |
 | Any consumer's prose count | check absence (DEMOCI-11-008) | A count is another copy; the table is the count |
 
 **The `notes/` tables are checked in place, not column-generated.** ADR-0098's
@@ -285,6 +287,21 @@ scenario has a citable spec ID. Check that the enumerations agree with the
 registry; do not rewrite them into pointers. The precedent is
 `vultron/metadata/adr/index_gen.py`, which generates `docs/adr/index.md` but only
 checks the mkdocs nav, because the nav's labels are hand-written prose.
+
+**The narrative pages are checked two ways, and neither reads the page's
+prose.** `narrative_pages.py` (DEMOCI-11-012) refuses a page under
+`docs/topics/scenarios/` whose stem names no registered scenario, and refuses a
+`status:` or `maturity:` frontmatter key on any narrative page or the index. The
+first exists because every *registered* scenario is in the full-suite CI matrix
+on `main` (DEMOCI-06-003), so a page for an unregistered one describes something
+no CI run exercises and the reader cannot tell. The second exists because all
+ten pages declared `status: stable` — a template default nothing gated — while
+two of their scenarios were failing (ISSUE-3555). A page cannot know whether its
+scenario passes; the live answer is the demo-integration workflow, so the page
+carries no claim at all rather than a claim a test could hold (MS-16-002). The
+converse direction — a registered scenario whose page is missing — stays with
+`missing_derived_paths` (DEMOCI-11-003), and a page that does not exist is
+skipped by the frontmatter check for that reason: one repair, one finding.
 
 **Do not select the per-scenario DEMOMA-16 requirements by ID range.** "DEMOMA-16-002
 through DEMOMA-16-011" looks like the set and is not: DEMOMA-16-008 inside that

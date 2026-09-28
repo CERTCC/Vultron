@@ -47,8 +47,7 @@ The format is `vYYYY.M.P`, where:
 - `P` is the patch number, starting at `0` for the first release in a given month
 
 The patch component is **always present**.
-The shorthand `v2026.9` (patch omitted) silently yields the `0.0.0+dev` fallback because
-`pyproject.toml`'s `tag_regex` (`^(?:v)?(?P<version>\d+\.\d+\.\d+(?:[.-]rc\d+)?)$`) requires three components.
+The shorthand `v2026.9` (patch omitted) silently yields the `0.0.0+dev` fallback because `pyproject.toml`'s `tag_regex` (`^(?:v)?(?P<version>\d+\.\d+\.\d+)$`) requires three components.
 Do not use two-component tags.
 
 ### Monotonicity: tags MUST be monotonically increasing
@@ -63,7 +62,7 @@ A SemVer revert is therefore structurally blocked; this is recorded so it is not
 Pre-release labels (`alpha`, `beta`, `rc`) are cycle markers that presuppose an imminent final release.
 Vultron is pre-stable as a standing condition with no `1.0` target.
 Use a `snapshot-YYYYQn` tag for intermediate checkpoints that are not releases.
-Note: `pyproject.toml`'s `tag_regex` currently includes an `(?:[.-]rc\d+)?` branch as a legacy artifact; it should be updated to `^(?:v)?(\d+\.\d+\.\d+)$` to match this policy.
+`pyproject.toml`'s `tag_regex` admits no pre-release suffix, so a tag carrying one is never read as a version.
 
 ### One GitHub Release per CalVer tag, not Pre-release
 
@@ -71,13 +70,10 @@ A GitHub Release is created for exactly one CalVer tag, covering the whole repos
 The **Pre-release checkbox MUST be unticked** so the repository has a Latest release.
 `snapshot-YYYYQn` tags never receive a GitHub Release.
 
-Note: existing GitHub Releases in this repository were created with the Pre-release box ticked; they should be updated to untick Pre-release to restore the Latest release pointer.
-
 ### Consequences
 
 - Good, because CalVer communicates when something shipped without implying compatibility.
 - Good, because three-component tags match `pyproject.toml`'s `tag_regex`, so built packages always carry a real version.
-- Bad, because existing GitHub Releases must have the Pre-release box unticked before the repository shows a Latest release.
 - Neutral, because CalVer is less universally recognized than SemVer, but it is common for documentation-heavy projects.
 
 ## Pros and Cons of the Options

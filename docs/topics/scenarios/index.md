@@ -1,30 +1,23 @@
 ---
 title: Demo Scenario Narratives
-status: stable
-stakeholder_type: [project-contributor]
+stakeholder_type: [platform-developer, project-contributor]
 level: 300
 ---
 
 # Demo Scenario Narratives
 
-This section contains Explanation-style narratives for the multi-actor CVD
-workflow scenarios exercised by the Vultron demo suite.  Each narrative
-describes a complete case lifecycle in domain terms — the who, what, and why of
-each protocol step — without reference to implementation details such as
-container names, API endpoints, or helper function signatures.
-
-Together these narratives serve as a **conformance oracle**: the declared causal
-edges are machine-readable, version-controlled statements of what the protocol
-is *supposed* to produce.  Because they are written independently of the code,
-they can contradict the implementation, which is precisely what makes them
-useful for catching regressions (see [ADR-0058](../../adr/0058-causal-gating-in-demo-scenarios.md)
-and [ADR-0079](../../adr/0079-case-ledger-causal-ordering.md)).
+Each multi-actor demo scenario has a narrative page that describes one case's progress through the Coordinated Vulnerability Disclosure (CVD) process in domain terms: who acts, what they do, and why each step can only happen after the one before it.
+The narratives name no container, endpoint, or helper function.
+A narrative is the same case the demo runs, told from the participants' point of view.
+The tutorials tell you how to run that case, and the protocol reference tells you which messages it produces.
 
 ## Scenarios
 
-The table below is rendered at build time from the scenario registry — each
-scenario declares itself in its own demo module (ADR-0098, DEMOCI-11-009), so no
-copy of it is committed here and it cannot drift.
+The table below is rendered at build time from the scenario registry.
+Each scenario declares itself in its own demo module (ADR-0098, DEMOCI-11-009), so no copy of the table is committed here and it cannot drift.
+
+These pages carry no status or maturity claim, because a page cannot know whether its scenario currently passes (DEMOCI-11-012).
+The live answer is the [Demo Integration workflow](https://github.com/CERTCC/Vultron/actions/workflows/demo-integration.yml), which runs every registered scenario on each push to `main` and files an issue when one fails.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.demo_scenarios.render import render_page
@@ -32,60 +25,17 @@ from vultron.metadata.demo_scenarios.render import render_page
 print(render_page("narratives"))
 ```
 
-## Machine-readable causal edge schema
+## How to use these pages
 
-Each narrative page carries a `causal_edges:` list in its YAML front-matter.
-Every entry declares one protocol causal relationship that must be observable in
-the case ledger.
+- **To run a scenario**, follow [Running the Multi-Actor Container Demos](../../tutorials/container_demos.md), which selects any scenario by name.
+  [Run the FV Demo](../../tutorials/fv-demo.md) walks the baseline scenario milestone by milestone.
+- **To see the messages behind a step**, read the [FV Demo Protocol Reference](../../reference/fv-demo-protocol.md), which lists every activity the baseline scenario exchanges and the ledger entries it produces.
+- **To understand the ledger entries each step names**, read [The CASE_MANAGER and the Case Ledger](../case_lifecycle/case_manager_and_ledger.md).
+  Every narrative step names the entry it produces, and only the Case Actor writes them.
 
-```yaml
-causal_edges:
-  - antecedent: <event_type>     # string — eventType in the case ledger
-    consequent: <event_type>     # string — eventType in the case ledger
-    consequent_actor: <name>     # human label for the committing actor
-    note: <text>                 # optional human-readable explanation
-    observable: true             # optional; false marks unobservable edges
-```
+## The narratives are a conformance oracle
 
-**Fields:**
-
-- `antecedent` — the `eventType` string of the causally-earlier ledger entry.
-- `consequent` — the `eventType` string of the causally-later ledger entry.
-- `consequent_actor` — documentary label identifying which participant commits
-  the consequent event; used in diagnostic output when a check fails.
-- `note` — optional prose explanation of the causal relationship.
-- `observable` — defaults to `true`.  Set to `false` for edges whose antecedent
-  or consequent is not directly captured as a case-ledger entry (for example,
-  the reporter submitting a report to the receiver's API is not itself a ledger
-  event).  Unobservable edges are documented here for completeness but are
-  excluded from the automated ordering check.
-
-## Invariant check (DEMOMA-22-005)
-
-The CI harness at `test/ci/invariants/` reads each narrative's `causal_edges:`
-list and asserts that for every observable edge `(A, B)` there exist ledger
-entries `a` with `eventType == A` and `b` with `eventType == B` such that
-`a.log_index < b.log_index`.  The check uses the case-actor's authoritative
-replica, which is the canonical causal order (ADR-0079).
-
-Diagnostic output on failure names the unsatisfied edge and the log indices
-that were observed, so the failure message is self-explanatory.
-
-Unobservable edges (`observable: false`) are skipped during ordering checks
-and never cause a failure.
-
-## Update-together rule (DEMOMA-22-006)
-
-The causal edges declared in a narrative page and the scenario's invariant test
-file (`test/ci/invariants/test_<name>_invariants.py`) are a **matched pair**.
-
-A change to a scenario's causal flow — adding a protocol step, reordering steps,
-or removing a participant — requires updating **both** the narrative's
-`causal_edges:` list and, where the change adds a new `eventType` that should
-always be present, the scenario's `_XXX_EXPECTED_EVENT_TYPES` list in its
-invariant file (DEMOMA-22-006).  Changing one without the other leaves the
-conformance oracle out of date.
-
-The invariant that reads the narrative (test 16) will catch a stale edge list
-once devlogs exist; the `_XXX_EXPECTED_EVENT_TYPES` list will catch a missing
-event type immediately.  Neither check substitutes for the other.
+Each narrative's front matter declares the causal edges the protocol must produce: for every declared pair, the antecedent's ledger entry must appear before the consequent's.
+Because the narratives are written independently of the code, they can contradict the implementation, which is what makes them useful for catching regressions ([ADR-0058](../../adr/0058-causal-gating-in-demo-scenarios.md), [ADR-0079](../../adr/0079-case-ledger-causal-ordering.md)).
+The demo integration workflow's invariant harness checks every declared edge against the case ledger each scenario run produces (DEMOMA-22-005).
+A step the ledger does not record, such as the initial report submission, is declared as unobservable and excluded from that check.

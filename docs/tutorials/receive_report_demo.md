@@ -18,11 +18,10 @@ using Docker Compose. By the end of this tutorial, we will have:
 
 !!! info "What we will learn"
 
-    This tutorial focuses on the *receive-report* workflow: a finder submits
-    a vulnerability report to a vendor, and the vendor decides what to do with
-    it. We will run all three outcomes — accept (validate), hold
-    (invalidate), and reject-and-close — and read the structured log output
-    to understand what happened at each step.
+    This tutorial focuses on the *receive-report* workflow: a finder submits a vulnerability report to a vendor, and the vendor decides what to do with it.
+    We will run all three outcomes — accept (validate), hold (invalidate), and reject-and-close — and read the structured log output to understand what happened at each step.
+    The vendor's decision is a move in the [Report Management (RM)](../topics/process_models/rm/index.md) state machine, and each move has a formal message name and an ActivityStreams wire form.
+    The demo log prints the wire form; this page names both.
 
 ---
 
@@ -88,15 +87,17 @@ Inside the container shell, run:
 vultron-demo receive-report
 ```
 
-The demo runs three separate workflows in sequence. Each workflow begins with
-a `🚥` marker and ends with either `🟢` (success) or `🔴` (failure).
-Verification checks are marked with `📋` (start) and `✅` (pass).
+The demo runs three separate workflows in sequence.
+Each step begins with a `🚥` marker and ends with either `🟢` (success) or `🔴` (failure).
+Verification checks are marked with `📋` (start) and `✅` (pass) or `❌` (fail).
 
-A successful run ends with:
+Each workflow ends with its own completion line, for example:
 
 ```text
-✓ All 3 demos completed successfully!
+✅ DEMO 1 COMPLETE: Report validated, case created, and finder notified via inbox.
 ```
+
+If any step or check failed, the demo prints a failure summary after the last workflow.
 
 ---
 
@@ -110,29 +111,28 @@ Let's look at what happened in each workflow.
 DEMO 1: Validate Report and Create Case
 ```
 
-1. **Step 1** — The *finder* actor creates a `VulnerabilityReport` object and
-   posts an `RmSubmitReport` (Offer) activity to the *vendor*'s inbox.
-   Notice the log lines showing the offer and the report are both stored in
-   the DataLayer.
+1. **Step 1** — The *finder* actor creates a `VulnerabilityReport` object and posts a Report Submission (RS), `Offer(VulnerabilityReport)`, to the *vendor*'s inbox.
+   Notice the log lines showing that the offer and the report are both stored in the DataLayer.
 
-2. **Step 2** — The *vendor* posts an `RmValidateReport` (Accept) activity
-   to its own inbox, which triggers the validation behavior tree. Notice the
-   log line confirming the activity was stored.
+2. **Step 2** — The *vendor* posts a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, to its own inbox, which runs the validation behavior tree and moves the report to `RM.VALID`.
+   Notice the log line confirming the activity was stored.
 
-3. **Step 3** — The vendor creates a `CreateCase` activity and posts it to
-   the *finder*'s inbox to notify them a case has been opened.
+3. **Step 3** — The vendor looks up the case that was opened for the report and posts a Create Case, `Create(VulnerabilityCase)`, to the *finder*'s inbox to tell the finder that a case now exists.
    Notice the final ✅ confirming the activity appears in the finder's inbox.
 
 ```mermaid
+---
+title: Demo 1 — validate the report
+---
 sequenceDiagram
     participant F as Finder
     participant V as Vendor
 
-    F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
+    F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
     Note over V: Stores offer and report
-    V->>V: RmValidateReport (Accept)
-    Note over V: Validation BT runs<br/>case created
-    V->>F: CreateCase notification
+    V->>V: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
+    Note over V: Validation BT runs<br/>RM.VALID
+    V->>F: Create Case<br/>Create(VulnerabilityCase)
 ```
 
 ### Demo 2: Invalidate Report
@@ -141,36 +141,43 @@ sequenceDiagram
 DEMO 2: Invalidate Report (Hold for Reconsideration)
 ```
 
-The finder submits a second, separate report. The vendor responds with an
-`RmInvalidateReport` (TentativeReject), meaning the report is held open for
-further investigation rather than closed outright. Notice that no case is
-created this time.
+The finder submits a second, separate report.
+The vendor responds with a Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`, meaning the report is held open for further investigation rather than closed outright.
+The report sits at `RM.INVALID`, and the vendor sends the same activity to the finder so the finder learns the decision.
+Notice that no case is created this time: in this demo the vendor opens a case only for a report it has found valid (Demo 1, Step 3).
 
 ```mermaid
+---
+title: Demo 2 — hold the report as invalid
+---
 sequenceDiagram
     participant F as Finder
     participant V as Vendor
 
-    F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
-    V->>F: RmInvalidateReport (TentativeReject)
-    Note over V: Case created<br/>report held in RM.INVALID
+    F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
+    V->>V: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
+    Note over V: Report held at RM.INVALID<br/>no case created
+    V->>F: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
 ```
 
 ### Demo 3: Invalidate and Close Report
 
-A third report is submitted. The vendor first invalidates it
-(`RmInvalidateReport`) and then closes it (`RmCloseReport`), corresponding
-to a full rejection. Notice two separate activities appear in the finder's
-inbox at the end.
+A third report is submitted.
+The vendor first invalidates it with a Report Invalid (RI) and then closes it with a Report Closed (RC), `Reject(Offer(VulnerabilityReport))`, which is a full rejection.
+`RM.CLOSED` is terminal, so this report is finished.
+Notice that two separate activities appear in the finder's inbox at the end.
 
 ```mermaid
+---
+title: Demo 3 — invalidate and close the report
+---
 sequenceDiagram
     participant F as Finder
     participant V as Vendor
 
-    F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
-    V->>F: RmInvalidateReport (TentativeReject)
-    V->>F: RmCloseReport
+    F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
+    V->>F: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
+    V->>F: Report Closed (RC)<br/>Reject(Offer(VulnerabilityReport))
     Note over V: Report closed<br/>no case created
     Note over F: Two activities in finder's inbox
 ```
@@ -202,7 +209,7 @@ We have:
 - started the Vultron API server and demo container with a single
   `docker compose run` command,
 - run three vulnerability-report workflows covering the three main outcomes
-  defined in the Vultron Report Management state machine, and
+  defined in the Report Management (RM) state machine, and
 - read structured log output showing each step and verification check.
 
 ---
@@ -214,9 +221,11 @@ We have:
   initialization, embargo management, actor invitation, and more.
 - **Understand the protocol** — read
   [How to Report a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
-  for a detailed walkthrough of the activities we just observed.
+  for a detailed walkthrough of the activities we observed.
 - **Explore the demo scripts** — the source for this demo is in
-  `vultron/demo/receive_report_demo.py`; the shared utilities are in
+  `vultron/demo/exchange/receive_report_demo.py`; the shared utilities are in
   `vultron/demo/utils.py`.
+- **See the formal names** — [Report Management (RM) Messages](../reference/messages/rm.md)
+  maps each RM message to its ActivityStreams wire form.
 - **Run all demos at once** — inside the demo container, run
   `vultron-demo all` to execute every demo in sequence.

@@ -217,8 +217,8 @@ def create_ack_report_received_tree(
 
     - another actor's ack must not be re-emitted under this actor's name;
     - the CASE_MANAGER has just committed the ack, and a forward would be
-      addressed to itself and loop back through loopback delivery
-      (OX-12-004) under a fresh id, forever (#2667).
+      addressed to itself and loop back through HTTP delivery to its own
+      inbox (OX-12-001) under a fresh id, forever (#2667).
 
     ``NoEmitFallback`` still absorbs an emit failure (no routable recipient,
     or no port in a caller that did not wire one).

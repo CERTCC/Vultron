@@ -22,10 +22,11 @@ def test_tagged_version_is_release(version: str) -> None:
     assert f"built from release **{version}**" in describe_build(version)
 
 
-def test_release_candidate_is_labelled_pre_release() -> None:
-    # setuptools_scm normalizes a v2026.9.0-rc1 tag to 2026.9.0rc1.
-    assert is_release("2026.9.0rc1")
-    assert "pre-release **2026.9.0rc1**" in describe_build("2026.9.0rc1")
+def test_no_build_is_described_as_a_pre_release() -> None:
+    # ADR-0006 rejects alpha/beta/rc tags and tag_regex admits none, so the
+    # renderer has no pre-release wording to fall into for any input.
+    for version in ("2026.9.0", "2026.9.0rc1", FALLBACK_VERSION, "junk"):
+        assert "pre-release" not in describe_build(version)
 
 
 def test_fallback_matches_pyproject() -> None:

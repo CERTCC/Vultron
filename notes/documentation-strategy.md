@@ -461,19 +461,28 @@ format wrong", tries variants, and settles for the nearest heading — which is 
 every requirement citation in `docs/` came to point at its group rather than its
 requirement (#3243).
 
-Two consequences to keep apart:
+Two consequences to keep apart, each with its own gate since #3735:
 
-- **Targets.** Registering the ids found in each page's rendered HTML with the
-  page's `present_anchor_ids` (in an `on_page_content` hook, which runs as each
-  page renders; every page renders before any anchor is validated) makes
-  exec-emitted ids linkable. A fabricated anchor still fails, because the id must
-  be in the HTML.
+- **Targets.** `vultron/metadata/docs/anchor_ids.py`, registered under `hooks:`
+  in `mkdocs.yml`, is an `on_page_content` hook that adds every id in each
+  page's rendered HTML to the page's `present_anchor_ids`. It runs as each page
+  renders, and every page renders before any anchor is validated, so
+  exec-emitted ids are linkable in time. Its collection rule is MkDocs' own
+  (`id` on any tag, `name` on `<a>` only), so the hook widens the set without
+  ever disagreeing with the collector it extends. A fabricated anchor still
+  fails, because the id must be in the HTML. Prose may therefore cite a
+  requirement by its own anchor; `scripts/relink_requirement_anchors.py` is
+  the one-shot rewrite that moved the existing group-anchor citations over.
 - **Links.** A hook that fixes targets does nothing for links *printed by* an
   exec block — those are still never validated (see above), and the
   DOCBW-03-007 `docs-links` gate checks path resolution only, stripping fragments
   by design (#3634 AC-1). A generator that emits `#fragment` links needs
-  its own test that each fragment exists on its target page; for the spec pages
-  that is the `_cross_link` "Related" column.
+  its own test that each fragment exists on its target page. For the spec
+  pages that is `test_render_for_kind_cross_links_resolve` in
+  `test/metadata/specs/test_docs_render.py`, which renders all four kind pages
+  from the real registry and checks every `_cross_link` "Related" fragment
+  against the ids on its target kind page, failing on zero collected links
+  (DF-09-009).
 
 ## The Third Axis Is Time: a URL Once Served Must Keep Answering
 

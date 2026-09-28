@@ -5,9 +5,12 @@ cross-kind relationship links, ValueError for unknown/empty kind,
 and SpecTag.BEHAVIORAL detection.
 """
 
+import re
+
 import yaml
 import pytest
 
+from vultron.metadata.docs.anchor_ids import anchor_ids_in
 from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.schema import SpecKind, SpecTag
 from vultron.metadata.specs.docs_render import render_for_kind
@@ -251,6 +254,68 @@ def test_render_for_kind_anchors_present(general_registry):
 # ---------------------------------------------------------------------------
 # Cross-kind relationship links
 # ---------------------------------------------------------------------------
+
+#: A ``_cross_link`` as rendered: ``[ID](#id)`` on the same kind page or
+#: ``[ID](../<slug>/#id)`` on another. Requirement IDs are upper-case with
+#: two-digit group and three-digit item parts.
+_CROSS_LINK_RE = re.compile(
+    r"\[(?P<id>[A-Z][A-Z0-9]{1,7}-\d{2}-\d{3})\]"
+    r"\((?:\.\./(?P<slug>[a-z]+)/)?#(?P<fragment>[a-z0-9-]+)\)"
+)
+
+
+def test_render_for_kind_cross_links_resolve():
+    """Every ``#fragment`` the Related column prints exists on its target page.
+
+    The ``anchor_ids`` hook makes exec-emitted ids *linkable*, but MkDocs
+    never sees a link an exec block prints, so nothing in the build validates
+    the Related column (``notes/documentation-strategy.md`` § "Exec-Block
+    Anchors Are Invisible to --strict, Too"). This test is that check, over
+    the real ``specs/`` registry and all four kind pages. SR-09-002 routes a
+    requirement to its own kind's page only, so a same-page ``#x`` must be an
+    id on this page and a ``../slug/#x`` an id on that slug's page. Zero
+    collected links is a failure, not a pass (DF-09-009).
+    """
+    registry = load_registry()
+    pages = {
+        kind.value: render_for_kind(kind.value, registry) for kind in SpecKind
+    }
+    # The hook's own collector, so the test and the build agree on what an
+    # id is; ids here are raw HTML in the markdown the exec block prints.
+    ids = {slug: anchor_ids_in(md) for slug, md in pages.items()}
+
+    links = 0
+    dangling: list[str] = []
+    for slug, md in pages.items():
+        for match in _CROSS_LINK_RE.finditer(md):
+            links += 1
+            target = match.group("slug") or slug
+            fragment = match.group("fragment")
+            if target not in ids:
+                dangling.append(f"{slug}: {match.group(0)} -> unknown page")
+            elif fragment not in ids[target]:
+                dangling.append(
+                    f"{slug}: {match.group(0)} -> no id on {target}"
+                )
+
+    assert links > 0, "no _cross_link links collected; the pattern is stale"
+    assert not dangling, "\n".join(dangling)
+
+
+def test_cross_link_pattern_matches_both_forms(cross_kind_registry):
+    """Guard the regex above against drift in ``_cross_link``'s output."""
+    same = render_for_kind("protocol", cross_kind_registry)
+    other = render_for_kind("architecture", cross_kind_registry)
+    same_hits = [m.groupdict() for m in _CROSS_LINK_RE.finditer(same)]
+    other_hits = [m.groupdict() for m in _CROSS_LINK_RE.finditer(other)]
+    assert {"id": "GEN-01-001", "slug": None, "fragment": "gen-01-001"} in (
+        same_hits
+    )
+    assert {
+        "id": "GEN-01-001",
+        "slug": "protocol",
+        "fragment": "gen-01-001",
+    } in other_hits
 
 
 def test_render_for_kind_same_kind_link(cross_kind_registry):

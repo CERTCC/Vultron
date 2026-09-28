@@ -36,8 +36,18 @@ groups:
   - id: HP-01-001
     priority: MUST
     kind: project
-    statement: 'All handler use-case classes MUST accept `(dl: DataLayer, request: VultronEvent)` as `__init__` parameters,
-      and their `execute()` method MUST take no arguments'
+    statement: >-
+      All handler use-case classes MUST accept `(dl, request)` as `__init__`
+      parameters — `dl` a narrow persistence port (`CasePersistence` or
+      `CaseOutboxPersistence`, DL-07) and `request` the handler's concrete
+      `VultronEvent` subclass — and their `execute()` method MUST take no arguments
+    verification: >-
+      `test/architecture/test_use_case_execute_returns_result.py` reads every
+      `execute()` under `vultron/core/use_cases/` and fails on one that lacks a
+      `UseCaseResult` return annotation; the `(dl, request)` constructor and the
+      argument-free `execute()` are declared by the `UseCase` Protocol in
+      `vultron/core/ports/use_case.py`. No ratchet yet rejects an `execute()`
+      that takes arguments.
   - id: HP-01-002
     priority: MUST
     kind: project
@@ -45,12 +55,16 @@ groups:
       Handler use-case `execute` methods MUST return `HandlerResult`; `None` is not a
       permitted return type
     rationale: >-
-      Previously MAY (None or HandlerResult), which directly contradicted UCORG-05-002's
-      MUST. The permissive form also made `-> None` ambiguous between "nothing to report"
-      and "not yet migrated". Resolved in favour of MUST by ADR-0095, which gives the
-      return value a consumer: the handler's `HandlerDisposition` is the only thing that
-      can tell `InboxOutcome` whether an inbound assertion was applied, skipped, or
-      refused. See CONCERN-1769.
+      The return value has a consumer: the handler's `HandlerDisposition` is the
+      only thing that can tell `InboxOutcome` whether an inbound assertion was
+      applied, skipped, deferred, or refused (ADR-0095). A permitted `-> None`
+      would be ambiguous between "nothing to report" and "not yet migrated" and
+      would contradict UCORG-05-002.
+    verification: >-
+      `test/architecture/test_use_case_execute_returns_result.py` resolves every
+      received-side `execute()` return annotation and fails unless it is
+      `UseCaseResult` or a subtype; `DispatcherBase._handle()` raises when a
+      handler returns anything other than a `HandlerResult`.
     relationships:
     - rel_type: implements
       spec_id: UCORG-05-002
@@ -131,12 +145,34 @@ groups:
   - id: HP-04-001
     priority: MUST
     kind: project
-    statement: Handlers MUST access activity data via `dispatchable.payload`
-    rationale: Encapsulation; payload may be validated/transformed by dispatcher
-  - id: HP-04-002
-    priority: MUST
-    kind: architecture
-    statement: Handlers MUST use schema validation for type-safe payload access
+    statement: >-
+      Handlers MUST read activity data as typed fields of their `VultronEvent`
+      subclass — including the core `VultronActivity` carried on `activity` when
+      the semantic entry sets `include_activity` — and MUST NOT re-parse,
+      re-extract, or otherwise re-read the inbound wire activity. Extraction and
+      validation happen once, in the wire layer, before dispatch.
+    rationale: >-
+      The dispatcher hands a handler a fully validated domain event, so every
+      field the handler needs is already typed, and required where the subclass
+      declares it required. Reading the wire payload again would duplicate the
+      single extraction seam (ARCH-03-001, ARCH-07-001) and reintroduce the
+      optional-field guards that validate-at-edge removed (ADR-0032); core does
+      not re-read wire activities for semantics (ADR-0035).
+    verification: >-
+      `test/architecture/test_core_no_wire_imports.py` (ARCH-01-001) confirms no
+      module under `vultron/core/` imports the wire layer, so a handler cannot
+      reach the AS2 parser or the semantic extractor; `VultronEvent.activity` in
+      `vultron/core/models/events/base.py` is typed as the core `VultronActivity`
+      (optional on the base, narrowed to required by subclasses that always carry
+      one), never a wire class.
+    adr:
+    - ADR-0032
+    - ADR-0035
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-07-001
+    - rel_type: depends_on
+      spec_id: ARCH-08-002
 - id: HP-05
   title: Error Handling
   specs:
@@ -197,11 +233,40 @@ groups:
   - id: HP-08-001
     priority: MUST
     kind: project
-    statement: Handlers MUST use helper functions when persisting Pydantic models to the data layer
+    statement: >-
+      Persistence writes made on a handler's behalf MUST go through the
+      persistence port's typed object methods — `dl.save(obj)` (upsert) or
+      `dl.create(obj)` (insert) with a domain object — which validate and
+      dehydrate the model; they MUST NOT build records by hand
+      (`object_to_record()`) or call the record-level `update(id_, record)`
+      compatibility method.
+    rationale: >-
+      `save()` and `create()` are the write paths that keep the stored record
+      consistent with the domain model and that `dl.read()` can rehydrate
+      (ADR-0034). The record-level method is retained only as a compatibility
+      shim for the adapter layer and for one legacy generic-update BT node.
+    verification: >-
+      `grep -rn "object_to_record\|\.update(" vultron/core/use_cases/` matches
+      nothing; every write under `vultron/core/use_cases/` is `dl.save(...)` or
+      `dl.create(...)` with a domain object.
   - id: HP-08-002
-    priority: MUST
+    priority: MUST_NOT
     kind: project
-    statement: Handlers MUST call `DataLayer.update()` with all required parameters
+    statement: >-
+      A handler's `execute()` MUST NOT mutate the DataLayer directly (`save`,
+      `create`, `update`, `delete`); the write runs inside a BT leaf node reached
+      through `BTBridge`, so it sits on the audited ledger-commit path
+      (CLP-10-005, BT-15-001).
+    verification: >-
+      `test/architecture/test_no_dl_mutations_in_execute.py` scans every
+      `execute()` under `vultron/core/use_cases/` for a DataLayer mutation call
+      and pins the pre-existing sites in an exact `KNOWN_VIOLATIONS` set
+      (ARCH-18-001).
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-005
+    - rel_type: refines
+      spec_id: BT-15-001
   - id: HP-08-003
     priority: MUST_NOT
     kind: project

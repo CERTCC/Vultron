@@ -210,15 +210,18 @@ Design decisions for the `UseCaseResult` type hierarchy (`HandlerResult` /
 `TriggerResult`), the `HandlerDisposition` vocabulary
 (`APPLIED`/`SKIPPED`/`DEFERRED`/`REFUSED`) and how it reaches `InboxOutcome` across the
 dispatcher boundary, the two semantically distinct request paths (`VultronEvent`
-vs `TriggerRequest`), why `UseCaseRequest` was not introduced, the planned
-`TriggerService`/`TriggerServicePort` migration from `dict` to `TriggerResult`,
-and the ratchet test design. **None of it is implemented yet** — handlers are
-`-> None`, triggers return `dict`. ADRs:
-`docs/adr/0040-use-case-result-envelope.md` (original) and
-`docs/adr/0095-received-side-handler-result.md` (received-side half).
+vs `TriggerRequest`), why `UseCaseRequest` was not introduced, the trigger-side
+collapse to a one-method `TriggerDispatcher` port over a verb registry with a
+typed result hierarchy, and the ratchet test design. Received side and
+dispatcher chain are implemented; the trigger side is decided (ADR-0110) and
+planned as staged tasks, none yet built. ADRs:
+`docs/adr/0040-use-case-result-envelope.md` (original),
+`docs/adr/0095-received-side-handler-result.md` (received-side half), and
+`docs/adr/0110-trigger-dispatcher-port-over-verb-registry.md` (trigger-side half).
 **Load when**: implementing a new use case, reviewing the `execute()` contract,
-working on `UseCase` Protocol or `TriggerServicePort` signatures, threading a
-handler verdict to `InboxOutcome`, or debugging return-type ratchet failures.
+working on the `UseCase` or trigger driving port, adding a trigger verb,
+threading a handler verdict to `InboxOutcome`, or debugging return-type ratchet
+failures.
 
 **`inbox-orchestration.md`**
 Design decisions for the core BT-backed inbox orchestration module: why
@@ -398,9 +401,11 @@ Source: CONCERN-2829.
 Two-gate design for received-side CaseStatus canonicalization: StatusAdoptionGate
 (in `add_participant_status_tree`) for status adoption authorization,
 EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode (in `add_case_status_tree`)
-for embargo teardown. Documents CASE_OWNER gospel-bypass rationale, self-addressed
-Add(CaseStatus) threading pattern, and migration from PublicDisclosureBranchNode.
-Derived from IDEA-1836 / ADR-0046.
+for embargo teardown. Documents CASE_OWNER gospel-bypass rationale, the direct
+`EmitCaseStatusUpdateNode` write between the gates, migration from
+PublicDisclosureBranchNode, and (ADR-0108) the per-machine act / declaration /
+ledger inventory: the pipeline, not the message, is the authority.
+Derived from IDEA-1836 / ADR-0046; extended by CONCERN-3473 / ADR-0108.
 **Load when**: implementing #1836 or any changes to received-side status handling,
 StatusAdoptionGate, EmbargoTeardownAuthorizationGate, or ThreatTerminationBranchNode;
 understanding the sentinel actor integration pattern.

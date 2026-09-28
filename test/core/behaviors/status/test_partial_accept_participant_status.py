@@ -24,7 +24,8 @@ several independent state machines (``rm``, ``vfd``, ``em``, ``pxa``,
 ``rm`` or a status for a participant already at terminal ``RM.CLOSED`` —
 caused the receiving Case Actor to discard the entire snapshot and abort the
 ``AddParticipantStatusBT`` Sequence, which also killed the StatusAdoptionGate → EmbargoTeardownAuthorizationGate
-emit (``EmitAddCaseStatusToSelfNode``) and therefore embargo teardown
+emit (then ``EmitAddCaseStatusToSelfNode``, since replaced by
+``EmitCaseStatusUpdateNode`` and removed) and therefore embargo teardown
 (ADR-0046, RSH-01-003).
 
 The fix accepts each dimension independently: refused dimensions carry

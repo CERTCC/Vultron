@@ -194,8 +194,7 @@ state. The boundary is not valuable enough to protect at that price.
 - Good: the skip-vs-deferral-vs-refusal distinction becomes a typed fact rather
   than something a reader infers from log phrasing. A ledger entry parked pending
   its predecessor stops reporting as `processed`.
-- Good: `UseCaseResult` gains a real definition, which #3354 needs as
-  `TriggerResult`'s parent.
+- Good: `UseCaseResult` gains a real definition, which the trigger side (#3831) needs as `TriggerResult`'s parent.
 - Good: HP-01-002 and UCORG-05-002 stop contradicting each other.
 - Bad: the migration is mostly judgment, not a mechanical pass. Of the 51
   handlers, 34 carry at least one early-return guard clause and 9 more log a
@@ -214,12 +213,12 @@ state. The boundary is not valuable enough to protect at that price.
 
 ## Validation
 
-Implemented for the received side and the dispatcher boundary; the trigger side is #3354.
+Implemented for the received side and the dispatcher boundary; the trigger side is [ADR-0110](0110-trigger-dispatcher-port-over-verb-registry.md) (#3831, #3832, #3833).
 
 Realized:
 
 - The architecture ratchet `test/architecture/test_use_case_execute_returns_result.py` (UCORG-05-004) asserts that every concrete use-case class in `vultron/core/use_cases/` declares an `execute()` return annotation that resolves to `UseCaseResult` or a subtype (#3372).
-  It excludes `triggers/` until #3354 migrates them, names that issue, and fails once the exclusion is no longer needed.
+  It excludes `triggers/` until #3831 migrates them, names that issue, and fails once the exclusion is no longer needed.
 - The `UseCase` Protocol declares `execute() -> UseCaseResult`.
   No call site is yet typed against the Protocol, so mypy does not report a non-conforming class by itself; the ratchet does.
 - `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` covers the two paths a ratchet cannot see, driving the real FastAPI dispatch adapters, dispatcher, and inbox BT with only the use case stubbed (#3373).
@@ -241,7 +240,7 @@ stands unchanged; it gains only a pointer here.
 
 Design note: `notes/use-case-protocol.md`.
 
-Source concern: #1769. Consumer: #2255. Trigger-side counterpart: #3354.
+Source concern: #1769. Consumer: #2255. Trigger-side counterpart: ADR-0110, planned from concern #3354 (#3831, #3832, #3833).
 Related: #2369 and #2682 (surfacing outcomes to the *sender*, which this ADR
 does not address — the 202 is already sent before a handler runs).
 

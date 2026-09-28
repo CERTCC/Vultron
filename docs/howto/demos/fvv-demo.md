@@ -11,10 +11,9 @@ level: 300
 The **FVV demo** exercises the three-actor CVD workflow:
 **Finder → Vendor1 → Vendor2** with no coordinator.
 
-Vendor1 creates the case, invites the Finder and Vendor2, and each vendor
-advances through an independent fix path (`CS_vf` + `CS_d`).
-Both Finder and Vendor2 DataLayers are verified as LedgerFanout replicas of the
-authoritative Vendor1 state.
+The Finder reports to Vendor1, whose Case Actor creates the case and seats the Finder.
+Vendor1 invites Vendor2, and each vendor advances its own fix path to fix ready.
+The Finder's and Vendor2's copies of the case are verified as [Ledger Fanout](../../topics/case_lifecycle/case_manager_and_ledger.md) replicas of the authoritative state held by the Case Actor, which the Vendor1 container hosts.
 
 ---
 
@@ -63,11 +62,14 @@ use the cache.
     FVV DEMO COMPLETE ✓  (VFDPxa full lifecycle)
     ```
 
+    The banner names the lifecycle the scenario walks; the case state the checks verify ends at `VFdPxa`, because no participant deploys a fix (see Phase 4).
+
 ---
 
-## What happens: the seven phases
+## What happens: six phases, six milestones
 
-The FVV demo progresses through **seven phases**, verified by milestones M1–M7.
+The FVV demo progresses through **six phases**.
+Milestones M1, M2, and M4 through M7 verify them; the notes exchange (Phase 3) logs a completion line instead of a numbered milestone, so no `M3` appears in the output.
 
 ### Sequence diagram
 
@@ -79,11 +81,11 @@ sequenceDiagram
 
     note over F,V2: Phase 1 — Report Submission & Case Activation
 
-    F->>V1: submits vulnerability report
-    note right of V1: report validated,<br/>case created,<br/>Case Actor spawned,<br/>participants established,<br/>embargo activated (EM.ACTIVE)
-    V1-->>F: case replica delivered (trust bootstrap)
-    V1->>V2: invite-actor (Offer)
-    V2->>V1: accepts invite
+    F->>V1: Report Submission (RS)<br/>Offer(VulnerabilityReport)
+    note right of V1: case created by the Case Actor,<br/>participants seated,<br/>embargo activated (EM.ACTIVE),<br/>report validated, case engaged
+    V1-->>F: case replica delivered<br/>Create(VulnerabilityCase)
+    V1->>V2: Invite Actor to Case<br/>Invite(Actor)
+    V2->>V1: Accept Invite to Case<br/>Accept(Invite)
     note right of V1: 4 participants: Finder, Vendor1, Vendor2, CaseActor
     V1-->>V2: case replica delivered
 
@@ -97,28 +99,26 @@ sequenceDiagram
 
     note over F,V2: Phase 3 — Notes Exchange
 
-    F->>V1: Add(Note) — question from Finder
+    F->>V1: Add(Note, target=Case) — question from Finder
     note right of V1: note committed to case ledger
     V1-->>F: ledger entry replicated (add_note_to_case)
     V1-->>V2: ledger entry replicated (add_note_to_case)
-    V1->>F: Add(Note) — Vendor1 reply
+    V1->>V1: Add(Note, target=Case) — Vendor1 reply
     note right of V1: reply note committed to case ledger
 
     note over F,V2: Phase 4 — Fix Lifecycle (both vendors, independent paths)
 
     note right of V1: trigger: notify-fix-ready
-    note over F,V2: ✅ M4 — All replicas: both vendors CS includes F (fix ready)
-
-    note right of V1: trigger: notify-fix-deployed
-    note right of V2: trigger: notify-fix-ready, notify-fix-deployed
-    note over F,V2: ✅ M5 — All replicas: both vendors CS includes D (fix deployed)
+    note right of V2: trigger: notify-fix-ready
+    note over F,V2: ✅ M4 — Finder replica: both vendors CS includes F (fix ready)
+    note over F,V2: ✅ M5 — Finder replica: both vendors still at VFd (no Deployer in this scenario)
 
     note over F,V2: Phase 5 — Publication & Embargo Teardown
 
-    note right of V1: trigger: notify-published → CS.VFDPxa, EM.EXITED
+    note right of V1: trigger: notify-published → CS.VFdPxa, EM.EXITED
     note right of F: trigger: notify-published
     note right of V2: trigger: notify-published
-    note over F,V2: ✅ M6 — All replicas: CS.VFDPxa · EM.EXITED
+    note over F,V2: ✅ M6 — All replicas: CS.VFdPxa · EM.EXITED
 
     note over F,V2: Phase 6 — Case Closure
 
@@ -131,11 +131,10 @@ sequenceDiagram
 ### Phase 1 — Report submission and case activation (M1)
 
 The Finder submits a vulnerability report to Vendor1.
-Vendor1 validates the report, creates a `VulnerabilityCase`, spawns a
-Case Actor, and activates the default embargo (EM → ACTIVE).
+Vendor1 proposes a case to its Case Actor, which creates the case, seats Vendor1 as Case Owner and the Finder as Reporter, and activates Vendor1's default embargo (EM → ACTIVE).
+Vendor1 validates the report and engages the case.
 Vendor1 then invites Vendor2; Vendor2 accepts and receives a case replica.
-All four participants (Finder, Vendor1, Vendor2, CaseActor) are present with
-EM.ACTIVE.
+All four participants (Finder, Vendor1, Vendor2, Case Actor) are present with EM.ACTIVE.
 
 **M1 verified when:**
 Each replica holds ≥ 4 participants and an active embargo, and both Finder
@@ -143,10 +142,7 @@ and Vendor2 have a local case record.
 
 ### Phase 2 — Replica synchronization verification (M2)
 
-The demo runner waits for both Finder and Vendor2 to receive the Vendor1
-ledger tail entry (LedgerFanout replication), then calls `verify_replica_state`
-for each — asserting that the `actor_participant_index`, active embargo ID,
-and log tail hash all match the authoritative Vendor1 state.
+The demo runner waits for both Finder and Vendor2 to hold every ledger entry the Vendor1 container holds, then compares each replica with it: the participant index, the active embargo id, and the ledger tail hash must all match.
 
 **M2 verified when:**
 Both Finder and Vendor2 DataLayers are synchronized with Vendor1.
@@ -154,34 +150,30 @@ Both Finder and Vendor2 DataLayers are synchronized with Vendor1.
 ### Phase 3 — Notes exchange
 
 The Finder adds a question note to the case; Vendor1 replies.
-Each note generates an `add_note_to_case` event committed to the case ledger
-and fanned out to all participants (Finder, Vendor2) via
-`Announce(CaseLedgerEntry)`.
+Each note is sent to the Case Actor, which commits an `add_note_to_case` entry to the case ledger and fans it out to every participant via `Announce(CaseLedgerEntry)`.
+This phase ends with a `✓ Notes exchange complete` line rather than a numbered milestone.
 
 ### Phase 4 — Fix lifecycle (M4–M5)
 
-Vendor1 reports fix-ready and fix-deployed.
-Vendor2 independently reports fix-ready and fix-deployed on its own
-participant record.
-Both transitions are replicated to Finder and Vendor2 and verified.
+Vendor1 reports fix ready with a Fix Readiness (CF), `Add(ParticipantStatus)`, and Vendor2 does the same on its own participant record.
+Neither vendor reports a deployed fix: deployment is a Deployer's step, and this scenario has none, so both vendors stop at `VFd`.
+Both transitions are replicated to the Finder and verified.
 
-**M4 verified when:** All replicas show both vendors' CS includes `F` (fix ready).
+**M4 verified when:** the Finder's replica shows both vendors' CS includes `F` (fix ready).
 
-**M5 verified when:** All replicas show both vendors' CS includes `D` (fix deployed).
+**M5 verified when:** the Finder's replica still shows both vendors at `VFd`, their final vendor-path state.
 
 ### Phase 5 — Publication and embargo teardown (M6)
 
-All three actors (Vendor1, Finder, Vendor2) trigger `notify-published`,
-setting CS to `VFDPxa`.
-The Case Actor detects the publication event from the Case Owner and
-auto-terminates the embargo (EM → EXITED).
+All three actors (Vendor1, Finder, Vendor2) trigger `notify-published`, each reporting Public Awareness (CP) with `Add(ParticipantStatus)`.
+The Case Actor sees the publication report from the Case Owner and terminates the embargo (EM → EXITED).
 
-**M6 verified when:** All replicas show `CS.VFDPxa` and `EM.EXITED`.
+**M6 verified when:** all replicas show `CS.VFdPxa` and `EM.EXITED`, and every participant is public-aware.
 
 ### Phase 6 — Case closure (M7)
 
-Each actor closes its own case record (RM → CLOSED).
-The Case Actor auto-closes when all participants are closed.
+Each actor closes its participation with `Leave(VulnerabilityCase)` (RM → CLOSED).
+Vendor1 is the Case Owner, so its closure also closes the case: the Case Actor advances itself to `RM.CLOSED` and records that the case is fully closed.
 
 **M7 verified when:** All participants on all replicas are `RM.CLOSED`.
 
@@ -192,11 +184,11 @@ The Case Actor auto-closes when all participants are closed.
 | Marker | What it means |
 |:-------|:--------------|
 | `✅ M1:` | ≥4 participants, EM.ACTIVE, Finder and Vendor2 have replicas |
-| `✓ M2:` | Finder and Vendor2 DataLayers synchronized (LedgerFanout verified) |
-| `✓ Phase 3:` | Notes exchange complete (question + reply committed to case ledger) |
-| `✅ M4:` | All replicas: both vendors CS includes F (fix ready) |
-| `✅ M5:` | All replicas: both vendors CS includes D (fix deployed) |
-| `✅ M6:` | All replicas: CS.VFDPxa and EM.EXITED |
+| `✓ M2:` | Finder and Vendor2 DataLayers synchronized (Ledger Fanout verified) |
+| `✓ Notes exchange complete` | Question and replies committed to the case ledger (no numbered milestone) |
+| `✅ M4:` | Finder replica: both vendors CS includes F (fix ready) |
+| `✅ M5:` | Finder replica: both vendors still at VFd |
+| `✅ M6:` | All replicas: CS.VFdPxa and EM.EXITED; all participants public-aware |
 | `✅ M7:` | All participants RM.CLOSED on all replicas |
 
 Between milestones, look for these prefixes:
@@ -228,10 +220,11 @@ Actor containers may not have finished starting. Verify all services are healthy
 
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml \
-    ps finder vendor vendor2 case-actor
+    ps finder vendor actor5 case-actor
 ```
 
-All four should show `healthy` status.
+All of them should show `healthy` status.
+The `actor5` service plays Vendor2 in this scenario.
 
 ### A milestone check fails with `❌`
 
@@ -241,7 +234,7 @@ Read the failure message and check the logs:
 docker compose -f docker/docker-compose-multi-actor.yml logs demo-runner
 docker compose -f docker/docker-compose-multi-actor.yml logs vendor
 docker compose -f docker/docker-compose-multi-actor.yml logs finder
-docker compose -f docker/docker-compose-multi-actor.yml logs vendor2
+docker compose -f docker/docker-compose-multi-actor.yml logs actor5
 ```
 
 Look for `ERROR` or `500` status lines corresponding to the failing step.
@@ -278,6 +271,9 @@ docker compose -f docker/docker-compose-multi-actor.yml down -v
 - **Run the FV demo first** — see
   [Tutorial: Run the FV Demo](../../tutorials/fv-demo.md) for
   a simpler scenario that introduces the core patterns.
+- **Read the scenario narrative** — the
+  [FVV scenario narrative](../../topics/scenarios/fvv.md) explains each step
+  in CVD terms and names the ledger entry it produces.
 - **Read the scenario source** — the FVV demo script is at
   `vultron/demo/scenario/fvv_demo.py`; shared helpers are in
   `vultron/demo/helpers/`.

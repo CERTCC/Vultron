@@ -147,16 +147,16 @@ Bringing in a vendor or a coordinator is a separate flow.
 
 | Requirement | Obligation |
 |---|---|
-| [CP-04-001](../../../reference/specs/protocol.md#cp-04) | A proposer MUST send `Create(as_CaseProposal)` to the case actor service's inbox |
-| [CP-04-003](../../../reference/specs/protocol.md#cp-04) | The proposal MUST be addressed to the service's container identity, not a per-case one |
-| [CP-05-002](../../../reference/specs/protocol.md#cp-05) | The service MUST evaluate the proposal and either accept or reject it |
-| [CP-05-003](../../../reference/specs/protocol.md#cp-05) | On acceptance it MUST send `Accept` and then `Create(VulnerabilityCase)`, in that order |
-| [CP-05-004](../../../reference/specs/protocol.md#cp-05) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal inline |
-| [CP-05-005](../../../reference/specs/protocol.md#cp-05) | A failed `Create` MUST be retried without resending the `Accept` |
-| [CP-05-006](../../../reference/specs/protocol.md#cp-05) | A duplicate proposal MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case |
-| [CP-05-007](../../../reference/specs/protocol.md#cp-05) | A proposer MUST treat an unanswered proposal as expired at its deadline |
-| [CP-06-003](../../../reference/specs/protocol.md#cp-06) | The proposer MUST record the acceptance and await the replica |
-| [CP-06-004](../../../reference/specs/protocol.md#cp-06) | The proposer MUST record a refusal and surface its reason where one is given |
+| [CP-04-001](../../../reference/specs/protocol.md#cp-04-001) | A proposer MUST send `Create(as_CaseProposal)` to the case actor service's inbox |
+| [CP-04-003](../../../reference/specs/protocol.md#cp-04-003) | The proposal MUST be addressed to the service's container identity, not a per-case one |
+| [CP-05-002](../../../reference/specs/protocol.md#cp-05-002) | The service MUST evaluate the proposal and either accept or reject it |
+| [CP-05-003](../../../reference/specs/protocol.md#cp-05-003) | On acceptance it MUST send `Accept` and then `Create(VulnerabilityCase)`, in that order |
+| [CP-05-004](../../../reference/specs/protocol.md#cp-05-004) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal inline |
+| [CP-05-005](../../../reference/specs/protocol.md#cp-05-005) | A failed `Create` MUST be retried without resending the `Accept` |
+| [CP-05-006](../../../reference/specs/protocol.md#cp-05-006) | A duplicate proposal MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case |
+| [CP-05-007](../../../reference/specs/protocol.md#cp-05-007) | A proposer MUST treat an unanswered proposal as expired at its deadline |
+| [CP-06-003](../../../reference/specs/protocol.md#cp-06-003) | The proposer MUST record the acceptance and await the replica |
+| [CP-06-004](../../../reference/specs/protocol.md#cp-06-004) | The proposer MUST record a refusal and surface its reason where one is given |
 
 The requirement most often read too loosely is CP-05-002.
 "Evaluate and either accept or reject" is not satisfied by a service that always accepts.

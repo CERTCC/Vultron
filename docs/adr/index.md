@@ -96,7 +96,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0017 Domain/Wire Object Separation: Shared-Base, Two-Branch Hierarchy](0017-domain-wire-object-separation.md) — partially superseded by 0099-one-object-model-as2-is-a-serialization.md
 - [ADR-0018 Canonical Case History Convergence on `CaseLogEntry`](0018-canonical-case-history-convergence.md)
 - [ADR-0019 Separate the Case Ledger from the Per-Actor Process Log](0019-separate-case-ledger-from-process-log.md)
-- [ADR-0021 CaseActor Inbox Routing as the Sole Path to Canonical Ledger Entries](0021-caseactor-inbox-routing-canonical-ledger.md)
+- [ADR-0021 CaseActor Inbox Routing as the Sole Path to Canonical Ledger Entries](0021-caseactor-inbox-routing-canonical-ledger.md) — partially superseded by 0109-a-container-emits-only-as-actors-it-hosts.md
 - [ADR-0022 Single BT Execution Per Inbox Delivery for Received-Side CaseActor Routing](0022-single-bt-execution-for-received-side-case-actor-routing.md)
 - [ADR-0023 Introduce `CaseProposal` for Distributed Case Actor Initialization](0023-case-proposal-protocol.md)
 - [ADR-0024 Capability Shape Taxonomy](0024-coordination-agent-taxonomy.md) — partially superseded by docs/adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md
@@ -117,7 +117,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0039 Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](0039-offer-case-participant-role-wire-type.md)
 - [ADR-0040 Introduce UseCaseResult Envelope; Do Not Introduce UseCaseRequest](0040-use-case-result-envelope.md)
 - [ADR-0041 CASE_MANAGER-Authoritative Case Initialization](0041-caseactor-authoritative-case-initialization.md)
-- [ADR-0042 Deliver All Inter-Actor Communication over HTTP; Retire the In-Process ASGI Delivery Shortcut](0042-http-only-inter-actor-delivery.md)
+- [ADR-0042 Deliver All Inter-Actor Communication over HTTP; Retire the In-Process ASGI Delivery Shortcut](0042-http-only-inter-actor-delivery.md) — partially superseded by 0109-a-container-emits-only-as-actors-it-hosts.md
 - [ADR-0043 Use the ADR `status` Field as the Confidence Signal (Extend Its Vocabulary Rather Than Add a New Field)](0043-adr-status-as-confidence-signal.md)
 - [ADR-0044 Adopt py_trees Typed Ports for BT Node Blackboard Contracts](0044-py-trees-typed-ports-adoption.md)
 - [ADR-0045 Correct Field Assignment on `Create(VulnerabilityCase)` — `context` to Case URI, `inReplyTo` to Accept URI](0045-create-vulnerability-case-field-assignment.md)
@@ -147,7 +147,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0070 Reuse `validate-report` for Invited Actors; Derive `VultronOfferRecord` from Ledger Backfill](0070-invited-actor-rm-triage-via-ledger-backfill.md)
 - [ADR-0071 CVE Eligibility: Reference Baseline over Normative Citation or Implementation-Defined](0071-cna-eligibility-reference-baseline.md)
 - [ADR-0072 Use a Dedicated `stories:` Field for Spec-to-Story Traceability (Not `relationships:`)](0072-stories-field-for-spec-to-story-traceability.md)
-- [ADR-0073 Give Each Actor Its Own Store; Delete the Unscoped DataLayer](0073-per-actor-storage-isolation.md)
+- [ADR-0073 Give Each Actor Its Own Store; Delete the Unscoped DataLayer](0073-per-actor-storage-isolation.md) — partially superseded by 0109-a-container-emits-only-as-actors-it-hosts.md
 - [ADR-0074 Treat Wire Activities as Immutable Artifacts; Freeze at Receipt and at Factory Seal](0074-wire-activity-artifact-immutability.md) — partially superseded by 0099-one-object-model-as2-is-a-serialization.md
 - [ADR-0075 Split Per-Participant VFD Tracking into Separate Vendor-Path and Deployer-Path Sub-Machines](0075-split-vfd-state-machine.md)
 - [ADR-0076 Security-Significant Call-Out Gates Default to `RequireCaseOwnerApproval`](0076-security-significant-gates-default-require-case-owner-approval.md)
@@ -180,6 +180,9 @@ General information about architectural decision records is available at <https:
 - [ADR-0103 An Object's Time Is Carried, Never Minted by the Receiver](0103-object-time-is-carried-never-minted.md)
 - [ADR-0104 The Interactive Demo UI Is a React/ReactFlow Operator-Side Ledger Watcher, Fed by a Prototype-Only SSE Stream](0104-interactive-demo-ui-live-ledger-watcher.md)
 - [ADR-0106 Version Each Machine-Facing Interface Independently of the Release Tag](0106-versioning-machine-facing-interfaces.md) *(provisional)*
+- [ADR-0108 One Move, One Mover: Case State Flows Through the Case Manager and the Ledger, Whatever Message Carried It](0108-one-move-one-mover-case-state-flows-through-the-case-manager-and-the-ledger.md)
+- [ADR-0109 A Container Emits Only as Actors It Hosts; a Participant Asks the CaseActor to Act](0109-a-container-emits-only-as-actors-it-hosts.md)
+- [ADR-0110 The Trigger Driving Port Is One `trigger()` Method over a Verb Registry, Returning a Typed Result Bound to the Request](0110-trigger-dispatcher-port-over-verb-registry.md) *(provisional)*
 
 ## Proposed ADRs
 

@@ -5,8 +5,11 @@ description: >
   Adapter category details, outbound activity construction via driven ports,
   DataLayer scope boundaries, and the uniform-HTTP inter-actor delivery model
   (ADR-0042).
+related_specs:
+  - specs/outbox.yaml
 related_notes:
   - notes/architecture-hexagonal.md
+  - notes/outbox.md
   - vultron/core/ports/AGENTS.md
   - vultron/adapters/driven/AGENTS.md
 relevant_packages:
@@ -48,9 +51,11 @@ model autonomous peers and inter-actor delivery bugs surface in-process
 instead of being masked (concern #1723, ADR-0042, `outbox.yaml` OX-12).
 
 - The production default `ActivityEmitter` is the HTTP delivery adapter.
-- CASE_MANAGER canonical-ledger self-delivery (the `cc:`-to-self copy that loops
-  a ledger-authoring entry back to its own inbox, CLP-10-001) is delivered
-  over **HTTP loopback**, using the same path as any other recipient.
+- An activity whose recipient is the sender's own inbox (a participant-role
+  activity addressed to a CASE_MANAGER that is the same actor, CLP-10-001) is
+  delivered over **HTTP loopback**, using the same path as any other recipient.
+  The CASE_MANAGER never mails itself a `cc:` copy of its own emission: the
+  emitting tree commits the ledger entry (ADR-0109).
 - **Application code MUST NOT construct `httpx.ASGITransport` directly**
   (OX-12-003). The only permitted use is FastAPI's `TestClient`, which uses
   `ASGITransport` internally to drive a single app's own endpoints.

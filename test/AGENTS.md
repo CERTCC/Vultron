@@ -171,9 +171,11 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
   (`assert_failure(result, reason=...)`), not just the status, and note that
   `allow_internal=True` requires a `reason`.
 - **Process-global state** — the `py_trees` blackboard *and* its class registry
-  (define test BT subclasses at module level); `SUBFAILED` in `unittest` subtests
-  does not fail pytest; `caplog.set_level()` in a fixture captures other
-  fixtures' setup.
+  (define test BT subclasses at module level); test-local `CoreObject`/`CoreRecord`
+  subclasses pollute `CORE_VOCABULARY` and `CORE_TYPE_MAP` (use
+  `isolated_core_registries` from `test/core/conftest.py`); `SUBFAILED` in
+  `unittest` subtests does not fail pytest; `caplog.set_level()` in a fixture
+  captures other fixtures' setup.
 - **BT test patterns** — pass a deterministic factory when the default is
   probabilistic; contract-test wrappers inherit the *production* node class; stub
   every probabilistic node *except* the one under test;
