@@ -38,6 +38,13 @@ causal_edges:
     consequent_actor: vendor
     note: >
       Notes require an active case.
+  - antecedent: offer_case_ownership_transfer
+    consequent: accept_case_ownership_transfer
+    consequent_actor: coordinator
+    note: >
+      The Case Actor records Vendor1's ownership offer before forwarding it to
+      the Coordinator (ADR-0053); the Coordinator's acceptance follows the
+      recorded offer.
   - antecedent: report_submitted
     consequent: validate_report
     consequent_actor: vendor
@@ -61,11 +68,11 @@ vendors develop fixes before joint disclosure.
 
 **Participants:**
 
-- **Finder** — discovers the vulnerability; submits the initial report.
+- **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **Vendor1** — receives the report; validates and engages the case; holds initial ownership; transfers ownership to the Coordinator.
 - **Coordinator** — joins via Vendor1's invitation; receives case ownership; invites Vendor2.
 - **Vendor2** — joins via the Coordinator's invitation; develops and ships a fix.
-- **CaseActor** — Vendor1's internal case-management sub-actor (remains the same sub-actor after the handoff).
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. Vendor1's platform hosts it, but its authority comes from the role, not from where it runs; the same Case Actor keeps the role after the ownership handoff.
 
 ## Protocol narrative
 
@@ -84,7 +91,7 @@ entries appear in the ledger.
 
 ### 3. Participant status records are created
 
-The CaseActor records initial `add_participant_status_to_participant` entries.
+The Case Actor records initial `add_participant_status_to_participant` entries.
 
 *Antecedent:* `engage_case` is in the ledger.
 
@@ -103,11 +110,9 @@ recorded.
 
 ### 6. Vendor1 offers case ownership to the Coordinator
 
-Vendor1 decides that the Coordinator is better positioned to manage the case and
-initiates a case-ownership transfer.  The offer is addressed to the **Case
-Actor**, not to the Coordinator (ADR-0053): the Case Actor records it and then
-forwards an offer of its own to the Coordinator, so the offer the Coordinator
-receives is a new activity with its own identity.
+Vendor1 decides that the Coordinator is better positioned to manage the case and initiates a case-ownership transfer.
+The offer is addressed to the **Case Actor**, not to the Coordinator (ADR-0053): the Case Actor records it as an `offer_case_ownership_transfer` entry, so every participant learns that a transfer is on offer, and then forwards an offer of its own to the Coordinator.
+The offer the Coordinator receives is therefore a new activity with its own identity.
 
 *Antecedent:* Coordinator's `accept_invite_actor_to_case` entry is in the ledger.
 
@@ -167,4 +172,6 @@ current case owner, commits the final close entry.
 | Unobservable step | Why not in ledger |
 |---|---|
 | Finder submits report to Vendor1 | Report submission precedes the case. |
-| Vendor1 offers ownership transfer | The offer itself is a protocol message, not a case-ledger entry; only the Coordinator's `accept_case_ownership_transfer` appears in the ledger in the FCCV-handoff variant. In this scenario the ownership acceptance step may also produce an `accept_case_ownership_transfer` entry; the causal edge from the acceptance to the Coordinator's subsequent invite is captured via the `accept_invite_actor_to_case → invite_actor_to_case` edge above. |
+
+The ownership offer is not an unobservable step.
+The Case Actor records it as `offer_case_ownership_transfer` before it forwards the offer, and the Coordinator's `accept_case_ownership_transfer` follows it, which is the edge declared above.

@@ -923,10 +923,14 @@ class TestAnnounceLogEntryAppliesCloseCase:
         )
 
     def test_close_case_not_applied_for_other_event_types(
-        self, bridge, datalayer, case_actor, case_obj
+        self, bridge, datalayer, case_actor
     ):
         """CloseCaseEffects Selector short-circuits for unrelated event_types."""
-        _make_case_with_departing_participant(datalayer)
+        # Use the helper's case, not the ``case_obj`` fixture: the helper saves
+        # a fresh case over the same id, and ``genesis_hash`` is derived from
+        # the second-resolution ``published`` stamp, so the fixture's hash is
+        # stale whenever the two constructions straddle a second boundary.
+        case_obj = _make_case_with_departing_participant(datalayer)
         entry = _make_entry(
             0, case_obj.genesis_hash
         )  # event_type="test_event"
