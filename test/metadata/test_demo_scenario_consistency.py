@@ -26,7 +26,7 @@ are exactly the checks nobody will notice are inert: they pass on a correct
 repository, which is the state the repository is normally in.
 
 Requirements: ``specs/demo-ci.yaml`` DEMOCI-11-006 through DEMOCI-11-008,
-DEMOCI-11-010; ``specs/meta-specifications.yaml`` MS-13-003.
+DEMOCI-11-010, DEMOCI-11-012; ``specs/meta-specifications.yaml`` MS-13-003.
 """
 
 from __future__ import annotations
@@ -49,16 +49,22 @@ from vultron.metadata.demo_scenarios.event_types import (
     additional_event_types,
     harness_event_types,
 )
+from vultron.metadata.demo_scenarios.narrative_pages import (
+    NARRATIVE_DIR,
+    NARRATIVE_INDEX,
+)
 from vultron.metadata.demo_scenarios.prose_checks import (
     SCENARIO_TABLES,
     SCENARIO_TABLE_CONSUMERS,
     consistency_problems,
     missing_event_type_requirements,
     missing_narrative_nav_entries,
+    narrative_status_claims,
     restated_counts,
     scenario_set_statement_problems,
     scenario_table_problems,
     stray_scenario_includes,
+    unregistered_narrative_pages,
 )
 from vultron.metadata.demo_scenarios.scenario_groups import (
     PLANNED_REGISTER,
@@ -116,6 +122,11 @@ def prose_root(tmp_path: Path) -> Path:
     # finds no file, returns ``None``, and both checks skip every row — so a
     # fixture missing them would make those mutations look unreported.
     paths.update(spec.harness_path for spec in discover_scenarios())
+    # Each scenario's narrative page and the index, because DEMOCI-11-012 checks
+    # the pages under ``docs/topics/scenarios/`` and a missing directory there is
+    # a structural failure rather than an empty result.
+    paths.update(spec.narrative_path for spec in discover_scenarios())
+    paths.add(NARRATIVE_INDEX)
     for relative in sorted(paths):
         source = _REPO_ROOT / relative
         # Every declared path must exist. Skipping a missing one would hide the
@@ -508,6 +519,107 @@ def test_nav_check_reports_an_unnavved_scenario() -> None:
     """A scenario whose narrative page is not in the nav is reported."""
     missing = missing_narrative_nav_entries(specs=(_FAKE,))
     assert missing == ["zz-fake: docs/topics/scenarios/zz-fake.md"]
+
+
+# ---------------------------------------------------------------------------
+# the scenario narrative pages (DEMOCI-11-012)
+# ---------------------------------------------------------------------------
+
+
+def test_every_narrative_page_names_a_registered_scenario() -> None:
+    """No page under ``docs/topics/scenarios/`` describes an unregistered scenario.
+
+    A registered scenario is in the full-suite CI matrix (DEMOCI-06-003), so a
+    page for an unregistered one describes something no CI run exercises.
+    """
+    assert unregistered_narrative_pages() == []
+
+
+def test_narrative_page_check_reports_a_stray_page(prose_root: Path) -> None:
+    """A page whose stem is no registered scenario is reported by path."""
+    stray = prose_root / NARRATIVE_DIR / "zz-fake.md"
+    stray.write_text("---\nstakeholder_type: ALL\nlevel: 300\n---\n# ZZ\n")
+    assert unregistered_narrative_pages(prose_root) == [
+        f"{NARRATIVE_DIR}/zz-fake.md"
+    ]
+
+
+def test_narrative_page_check_exempts_the_index(prose_root: Path) -> None:
+    """The index renders the registry's table; it is not a scenario's page."""
+    assert (prose_root / NARRATIVE_INDEX).is_file()
+    assert unregistered_narrative_pages(prose_root) == []
+
+
+def test_narrative_page_check_fails_when_the_directory_moved(
+    tmp_path: Path,
+) -> None:
+    """A missing narrative directory is an error, not zero findings.
+
+    Reporting success over an absent directory would drop every page out of
+    DEMOCI-11-012 coverage at once, which is the vacuous pass DF-09-009 forbids.
+    """
+    with pytest.raises(FileNotFoundError, match=NARRATIVE_DIR):
+        unregistered_narrative_pages(tmp_path)
+
+
+def test_no_narrative_page_declares_a_maturity_claim() -> None:
+    """No narrative page carries ``status:`` or ``maturity:`` (ISSUE-3555 AC-1).
+
+    All ten pages declared ``status: stable`` before this check existed,
+    including the two whose scenarios were failing in CI at the time.
+    """
+    assert narrative_status_claims() == []
+
+
+@pytest.mark.parametrize("key", ["status", "maturity"])
+def test_status_claim_check_reports_each_maturity_key(
+    prose_root: Path, key: str
+) -> None:
+    """Either spelling of a maturity claim on a narrative page is reported."""
+    spec = sorted(discover_scenarios(), key=lambda s: s.name)[0]
+    target = prose_root / spec.narrative_path
+    text = target.read_text()
+    assert text.startswith("---\n")
+    target.write_text(text.replace("---\n", f"---\n{key}: stable\n", 1))
+    assert narrative_status_claims(prose_root) == [
+        f"{spec.narrative_path}: {key}"
+    ]
+
+
+def test_status_claim_check_covers_the_index(prose_root: Path) -> None:
+    """The index page is held to the same rule as the narrative pages."""
+    target = prose_root / NARRATIVE_INDEX
+    text = target.read_text()
+    target.write_text(text.replace("---\n", "---\nstatus: stable\n", 1))
+    assert narrative_status_claims(prose_root) == [
+        f"{NARRATIVE_INDEX}: status"
+    ]
+
+
+def test_status_claim_check_skips_a_page_that_does_not_exist(
+    prose_root: Path,
+) -> None:
+    """A registered scenario with no page is DEMOCI-11-003's finding, not this.
+
+    ``missing_derived_paths`` already reports the absent page; reporting it here
+    too would name one repair under two requirements.
+    """
+    assert narrative_status_claims(prose_root, specs=(_FAKE,)) == []
+
+
+def test_status_claim_check_reports_malformed_frontmatter_by_file(
+    prose_root: Path,
+) -> None:
+    """Unparseable frontmatter names the page rather than ``<unicode string>``.
+
+    The loader goes through ``file_loading`` (MS-17), so the aggregate turns the
+    error into a problem line that still says which page to open.
+    """
+    spec = sorted(discover_scenarios(), key=lambda s: s.name)[0]
+    target = prose_root / spec.narrative_path
+    target.write_text("---\nstatus: [unclosed\n---\n# Broken\n")
+    with pytest.raises(ValueError, match=spec.narrative_path):
+        narrative_status_claims(prose_root)
 
 
 # ---------------------------------------------------------------------------
@@ -1089,6 +1201,23 @@ def _mutate_tick(root: Path) -> str:
     return "harness constant says otherwise"
 
 
+def _mutate_stray_narrative_page(root: Path) -> str:
+    """Add a narrative page for a scenario the registry does not hold."""
+    stray = root / NARRATIVE_DIR / "zz-fake.md"
+    stray.write_text("---\nstakeholder_type: ALL\nlevel: 300\n---\n# ZZ\n")
+    return "names no registered scenario"
+
+
+def _mutate_status_claim(root: Path) -> str:
+    """Restore the ``status: stable`` template default on one narrative page."""
+    spec = sorted(discover_scenarios(), key=lambda s: s.name)[0]
+    target = root / spec.narrative_path
+    target.write_text(
+        target.read_text().replace("---\n", "---\nstatus: stable\n", 1)
+    )
+    return "declares a maturity claim"
+
+
 @pytest.mark.parametrize(
     "mutate",
     [
@@ -1099,6 +1228,8 @@ def _mutate_tick(root: Path) -> str:
         _mutate_stray_include,
         _mutate_planned_register,
         _mutate_tick,
+        _mutate_stray_narrative_page,
+        _mutate_status_claim,
     ],
     ids=lambda fn: fn.__name__.removeprefix("_mutate_"),
 )

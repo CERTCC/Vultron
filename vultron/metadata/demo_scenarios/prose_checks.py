@@ -24,14 +24,15 @@ CLI calls:
 - :func:`consistency_problems`, which composes those with
   :mod:`.prose_tables` (the ``notes/`` scenario tables), :mod:`.prose_counts`
   (restated counts and stray include directives), :mod:`.scenario_groups` (the
-  two-register partition) and the DEMOCI-06 spec enumerations.
+  two-register partition), :mod:`.narrative_pages` (the scenario narrative
+  pages under ``docs/topics/scenarios/``) and the DEMOCI-06 spec enumerations.
 
 The table and prose halves live in sibling modules because one module holding
 both grew past the size CS-18-001 asks a multi-responsibility module to stay
 under, and they share nothing but the markdown reader.
 
 Requirements: ``specs/demo-ci.yaml`` DEMOCI-06-002, DEMOCI-06-003,
-DEMOCI-11-006 through DEMOCI-11-010.
+DEMOCI-11-006 through DEMOCI-11-010, DEMOCI-11-012.
 Guidance: ``notes/demo-scenario-registry.md``.
 """
 
@@ -45,6 +46,10 @@ from vultron.demo.scenario.registry import (
     is_scenario_name,
 )
 from vultron.metadata.base import nav_paths, repo_root
+from vultron.metadata.demo_scenarios.narrative_pages import (
+    narrative_status_claims,
+    unregistered_narrative_pages,
+)
 from vultron.metadata.demo_scenarios.prose_counts import (
     SCENARIO_TABLE_CONSUMERS,
     restated_counts,
@@ -199,7 +204,8 @@ def consistency_problems(
     # raises it deliberately: a renamed *column* is as much a structural failure
     # as a renamed heading, and catching only ValueError let it reach the hook as
     # a traceback while this comment claimed otherwise. FileNotFoundError covers
-    # a declared consumer that moved.
+    # a declared consumer that moved, and MetadataLoadError (a ValueError) a
+    # narrative page whose frontmatter will not parse.
     for check in (
         lambda: scenario_set_statement_problems(base, resolved, registry),
         lambda: undeclared_scenario_tables(base, resolved),
@@ -207,6 +213,17 @@ def consistency_problems(
         lambda: restated_counts(base),
         lambda: stray_scenario_includes(base),
         lambda: partition_problems(base, registry, resolved),
+        lambda: [
+            f"scenario narrative page {page} names no registered scenario, so "
+            "no CI run exercises what it describes (DEMOCI-11-012)."
+            for page in unregistered_narrative_pages(base, resolved)
+        ],
+        lambda: [
+            f"scenario narrative page declares a maturity claim — {claim}; "
+            "the live answer is the demo-integration workflow, not the page "
+            "(DEMOCI-11-012, MS-16-002)."
+            for claim in narrative_status_claims(base, resolved)
+        ],
     ):
         try:
             problems.extend(check())
@@ -222,9 +239,11 @@ __all__ = [
     "consistency_problems",
     "missing_event_type_requirements",
     "missing_narrative_nav_entries",
+    "narrative_status_claims",
     "restated_counts",
     "scenario_set_statement_problems",
     "scenario_table_problems",
     "stray_scenario_includes",
     "undeclared_scenario_tables",
+    "unregistered_narrative_pages",
 ]
