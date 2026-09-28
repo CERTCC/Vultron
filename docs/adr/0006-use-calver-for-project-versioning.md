@@ -48,7 +48,7 @@ The format is `vYYYY.M.P`, where:
 
 The patch component is **always present**.
 The shorthand `v2026.9` (patch omitted) silently yields the `0.0.0+dev` fallback because
-`pyproject.toml`'s `tag_regex` (`^(?:v)?(\d+\.\d+\.\d+(?:[.-]rc\d+)?)$`) requires three components.
+`pyproject.toml`'s `tag_regex` (`^(?:v)?(?P<version>\d+\.\d+\.\d+(?:[.-]rc\d+)?)$`) requires three components.
 Do not use two-component tags.
 
 ### Monotonicity: tags MUST be monotonically increasing
