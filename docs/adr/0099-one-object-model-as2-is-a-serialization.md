@@ -400,9 +400,12 @@ reader the moment it is closed.
   spec rationales.~~ **Done (#3492).** Both carry `status: superseded` and live
   in `docs/adr/archived/`; their old URLs redirect. The notes and glossary named
   here already described ADR-0082's remedy as cancelled; the spec rationales
-  that still presented it as current were reworded, and #3840 tracks the
-  requirements whose *normative* text still names the cancelled mechanisms.
-  (The ratchet test that also cited them was deleted with detail 6.)
+  that still presented it as current were reworded, and the requirements whose
+  *normative* text still named the cancelled mechanisms were rewritten or
+  removed (#3840: ARCH-20-008, ARCH-20-009, CM-18-015, UCORG-05-014 and
+  AF-01-005 rewritten; SDO-04-001 removed — with one class there is no second
+  shape to keep in step). (The ratchet test that also cited them was deleted
+  with detail 6.)
 
 ## Validation
 

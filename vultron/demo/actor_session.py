@@ -62,10 +62,9 @@ class ActivityResult(TriggerResult):
     :class:`as_TransitiveActivity`.  Built by ``model_validate``-ing the raw
     trigger response, so the ``activity`` key is coerced from its wire ``dict``
     into the typed object.  It lives here in the demo layer rather than in
-    ``vultron/core/`` because core trigger use cases capture ``activity`` as a
-    ``dict`` from the blackboard and no core-layer activity type is typed for
-    it; the ``WireParsePort`` seam UCORG-05-014 waits on was rejected by
-    ADR-0099 (see #3840 for the requirement's rewrite).
+    ``vultron/core/`` because :class:`as_TransitiveActivity` is a wire-only
+    class and core MUST NOT import wire (ARCH-01-001); core trigger use cases
+    capture ``activity`` as a ``dict`` from the blackboard.
     """
 
     activity: as_TransitiveActivity  # type: ignore[assignment]

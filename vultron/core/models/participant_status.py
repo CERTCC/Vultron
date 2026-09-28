@@ -388,10 +388,10 @@ def participant_status_rm_state(status: object) -> RM:
         raise VultronValidationError(
             f"ParticipantStatus {getattr(status, 'id_', status)!r} has no 'rm'"
             f" dimension (got a {type(status).__name__}). Core"
-            " ParticipantStatus uses a nested 'rm: RmDimension'; the wire"
-            " shape uses a flat 'rm_state'. Convert at the wire→core boundary"
-            " (as_ParticipantStatus.to_core()) instead of reading the wire"
-            " shape here. See issue #2232."
+            " ParticipantStatus carries a nested 'rm: RmDimension', and a"
+            " flat 'rm_state' key is refused at parse (ARCH-12-003), so a"
+            " value with no 'rm' was never a validated status. See issue"
+            " #2232."
         )
     state = getattr(rm, "state", None)
     if not isinstance(state, RM):

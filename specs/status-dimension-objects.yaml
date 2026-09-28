@@ -226,23 +226,6 @@ groups:
 - id: SDO-04
   title: Wire Projection and Migration Scope
   specs:
-  - id: SDO-04-001
-    priority: MUST
-    kind: protocol
-    statement: The wire-layer shapes as_CaseStatus and as_ParticipantStatus, and the adapter-side translators that pair them
-      with their core counterparts, MUST be updated in the same implementation as the core model changes so that translation
-      in both directions correctly handles the dimension-object field shape.
-    rationale: Deferring wire changes creates an extended period of core/wire divergence requiring shim adapters. Both layers
-      are in scope per ADR-0036, and per ADR-0082 the translation itself is a third artifact on the adapter side that must
-      move with them.
-    verification: Inspection confirms the adapter-side `CaseStatus` and `ParticipantStatus` translators project the dimension-object
-      field shape in both directions without accessing flat enum fields.
-    adr:
-    - ADR-0036
-    - ADR-0082
-    stories:
-    - story_2022_062
-    - story_2022_088
   - id: SDO-04-002
     priority: MUST
     kind: project
