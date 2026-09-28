@@ -4,10 +4,16 @@ date: 2026-08-21
 deciders: Allen D. Householder
 consulted: Vultron maintainers
 informed: Vultron implementers
+partially_superseded_by: 0106-versioning-machine-facing-interfaces.md
 stakeholder_type: [project-contributor]
 ---
 
 # Adopt certcc.github.io/Vultron as the Initial Vultron Vocabulary Namespace Host
+
+> **Partially superseded by [ADR-0106](0106-versioning-machine-facing-interfaces.md).**
+> The namespace host and the namespace IRI chosen here stand.
+> What changes is the context document's path, which will carry the wire version (for example `…/ns/v1/context.jsonld`).
+> ADR-0106's Validation section tracks the change.
 
 ## Context and Problem Statement
 
