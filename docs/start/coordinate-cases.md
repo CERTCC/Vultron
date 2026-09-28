@@ -38,6 +38,7 @@ Each step builds on the one before it.
 - [User Stories](../reference/user_stories/index.md) — the practitioner needs the protocol was designed against.
 - [Interactions Between the Vultron Protocol and SSVC](../reference/ssvc_crosswalk.md) — where a Stakeholder-Specific Vulnerability Categorization (SSVC) decision enters a case.
 - [Capability Model](../topics/capability_model/index.md) — every decision Vultron leaves to your organization, and where your answer plugs in.
+- [How to Measure Your CVD Program](../howto/measure_your_cvd_program.md) — score your own cases against the chance baseline, and read the result as a skill indicator you can act on.
 
 ## Watch a case run
 
