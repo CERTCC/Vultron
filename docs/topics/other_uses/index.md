@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [process-researcher]
 level: 200
+contents: generated
 ---
 
 # Other Uses of the Vultron Case State Model
@@ -15,14 +16,16 @@ They build on the notation of [Measuring CVD](../measuring_cvd/index.md), which 
 The first two pages ask who acts on the model and how a policy can be written against it.
 The remaining four apply the model to a vocabulary problem, to situation awareness, to a government process, and to the actions a case calls for.
 
-| Page | What it covers |
-|---|---|
-| [CVD Roles and Their Influence](roles_influence.md) | Which events each role can cause, and how vendors, system owners, coordinators, and governments each rank the ordering preferences |
-| [Policy Formalization](policy_formalization.md) | Expressing a disclosure policy as timers between state transitions |
-| [Improving Definitions of Common Terms](zero_day.md) | Formal definitions of *zero day* and *forever day* in terms of case states |
-| [Vulnerability Response Situation Awareness](situation_awareness.md) | Inferring the likely state of a case from incomplete information |
-| [Vulnerability Equities Process](vep.md) | Mapping the definitions in the United States Vulnerability Equities Process onto state subsets |
-| [Recommended Action Rules for CVD](action_rules.md) | Actions a role can take from each subset of states, and the transition each action causes |
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+
+- [Defining Zero Days](zero_day.md) — Formal definitions of zero day and forever day in terms of case states.
+- [Policy Formalization](policy_formalization.md) — Expressing a disclosure policy as timers between state transitions.
+- [VEP](vep.md) — Mapping the definitions in the United States Vulnerability Equities Process onto state subsets.
+- [CVD Action Rules](action_rules.md) — Actions a role can take from each subset of states, and the transition each action causes.
+- [Stakeholder Roles](roles_influence.md) — Which events each role can cause, and how vendors, system owners, coordinators, and governments each rank the ordering preferences.
+- [Situation Awareness](situation_awareness.md) — Inferring the likely state of a case from incomplete information.
+
+<!-- END GENERATED SECTION CONTENTS -->
 
 ## Where the section connects
 

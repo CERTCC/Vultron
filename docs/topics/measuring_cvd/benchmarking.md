@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+description: >
+  What a reasonable benchmark for the skill coefficient is, and why the naive benchmark of zero is a low bar.
 ---
 
 # Benchmarking CVD

@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+description: >
+  The message types that Participants exchange.
 ---
 
 # Message Types

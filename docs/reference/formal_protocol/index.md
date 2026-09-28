@@ -5,6 +5,7 @@ description: >
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
 introduces: [Deterministic Finite Automaton (DFA), Global State, Communicating Hierarchical State Machine]
+contents: generated
 ---
 
 # A Formal Protocol Definition for MPCVD
@@ -20,11 +21,15 @@ It is for implementers and researchers who already know the [Report Management (
 
 The pages follow the order of the protocol definition, one element at a time:
 
-- [Protocol Definition](protocol_definition.md) — the protocol quadruple, the global state of a protocol, and the number of processes in a case.
-- [States](states.md) — the set of states $S_i$ of each Participant and its start state $o_i$.
-- [Messages](messages.md) — the message types $M_{i,j}$ that Participants exchange.
-- [Transitions](transitions.md) — the transition function $succ$ for sending and receiving each message type.
-- [Protocol Summary](conclusion.md) — a recap of the definition with summary diagrams of each process model.
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+
+- [Protocol Definition](protocol_definition.md) — The formal definition of the Vultron protocol as a Brand-Zafiropulo communication protocol, its global state, and its number of processes.
+- [States](states.md) — The set of states of each Participant and its start state.
+- [Messages](messages.md) — The message types that Participants exchange.
+- [Transitions](transitions.md) — The transition function for sending and receiving each message type.
+- [Protocol Summary](conclusion.md) — A recap of the definition with summary diagrams of each process model.
+
+<!-- END GENERATED SECTION CONTENTS -->
 
 ## Relationship to the specification
 

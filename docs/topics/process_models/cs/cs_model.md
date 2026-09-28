@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
+description: >
+  The six substates a case tracks, the Vendor fix path that constrains them, and the resulting set of case states.
 ---
 
 # CVD Case State Model

@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
+description: >
+  When embargoes are negotiated relative to report validation and prioritization, and what report closure means while an embargo is active.
 ---
 
 # Interactions Between the RM and EM Models

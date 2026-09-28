@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
+description: >
+  How each CS event, such as Vendor notification, fix readiness, or public awareness, constrains the RM and EM processes, and which parts of the CS model are global to a case.
 ---
 
 # CVD Case State Interactions with the RM and EM Process Models

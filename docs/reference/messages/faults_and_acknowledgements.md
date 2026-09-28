@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
+description: >
+  The fault trichotomy and the cumulative hash-chain acknowledgment.
 ---
 
 # Faults and Acknowledgments
