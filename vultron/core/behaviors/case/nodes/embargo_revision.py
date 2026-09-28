@@ -26,6 +26,9 @@ from datetime import timedelta
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.embargo import (
+    persist_creation_time_embargo,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -37,7 +40,7 @@ from vultron.core.services.embargo_duration import (
     InitialEmbargoDuration,
 )
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
-from vultron.errors import VultronAlreadyExistsError, VultronError
+from vultron.errors import BtNodePreconditionError, VultronError
 
 logger = logging.getLogger(__name__)
 
@@ -114,13 +117,21 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
             return None
         if resolved.source is EmbargoDurationSource.ACTOR_DEFAULT:
             if (
-                isinstance(sender_duration, timedelta)
-                and sender_duration > resolved.duration
-                and isinstance(sender_event, EmbargoEvent)
+                not isinstance(sender_duration, timedelta)
+                or sender_duration <= resolved.duration
             ):
-                # The sender's terms, now about the case (EP-04-004).
-                return sender_event.with_subject(case_id)
-            return None
+                return None
+            if not isinstance(sender_event, EmbargoEvent):
+                # The duration was compared but the event it was read from is
+                # missing: registering nothing here would report SUCCESS for a
+                # revision that never happened (BT-HELPER-01).
+                raise BtNodePreconditionError(
+                    f"{self.name}: sender_proposed_embargo_duration is on the"
+                    " blackboard but sender_proposed_embargo is not; the"
+                    " losing proposal cannot be registered (EP-04-003)"
+                )
+            # The sender's terms, now about the case (EP-04-004).
+            return sender_event.with_subject(case_id)
         return None
 
     def update(self) -> Status:
@@ -141,18 +152,15 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
             self.logger.error(self.feedback_message)
             return Status.FAILURE
 
-        loser = self._losing_candidate(case_id, resolved)
-        if loser is None:
-            return Status.SUCCESS
-
         try:
+            loser = self._losing_candidate(case_id, resolved)
+            if loser is None:
+                return Status.SUCCESS
             # ``propose_embargo`` requires the event to exist first; should the
             # proposal then be refused, the stored event is an orphan the
-            # FAILURE below names, not a silent leftover.
-            try:
-                self.datalayer.create(loser)
-            except VultronAlreadyExistsError:
-                pass
+            # FAILURE below names, not a silent leftover.  A stored twin under
+            # the sender's id that is not this embargo is refused outright.
+            persist_creation_time_embargo(self.datalayer, loser, case_id)
             result = EmbargoLifecycle(
                 persistence=self.datalayer
             ).propose_embargo(

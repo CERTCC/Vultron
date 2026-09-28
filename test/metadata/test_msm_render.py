@@ -72,6 +72,19 @@ def test_format_pattern_with_target_qualifier():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("VAM-05-001")
+def test_format_pattern_tuple_context_renders_the_alternatives():
+    """A tuple ``context_`` renders as ``a|b``, not as enum reprs."""
+    entry = lookup_entry(MessageSemantics.CREATE_EMBARGO_EVENT)
+    assert entry is not None and entry.pattern is not None
+    result = _format_pattern(entry.pattern)
+    assert (
+        result
+        == "Create(Event)[context=VulnerabilityCase|VulnerabilityReport]"
+    )
+    assert "VultronObjectType" not in result
+
+
 def test_collapse_row_shorthand_cell():
     """Collapse rows show all shorthands separated by spaces."""
     row = SEMANTICS_TO_ROW[MessageSemantics.ADD_CASE_STATUS_TO_CASE]

@@ -198,6 +198,19 @@ class as_CaseProposal(as_VultronObject):
                 f" not name the inline Offer's actor {offer_actor!r}"
                 " (CP-01-008)"
             )
+        # The Offer must be the one that brought *this* report: otherwise the
+        # case-actor would read another report's proposed terms (EP-04-009).
+        offered_report = getattr(offer.object_, "id_", offer.object_)
+        proposed_report = getattr(self.object_, "id_", self.object_)
+        if (
+            offered_report is not None
+            and proposed_report is not None
+            and offered_report != proposed_report
+        ):
+            raise ValueError(
+                f"as_CaseProposal object {proposed_report!r} is not the report"
+                f" the inline Offer submitted ({offered_report!r}) (CP-01-008)"
+            )
         return self
 
 

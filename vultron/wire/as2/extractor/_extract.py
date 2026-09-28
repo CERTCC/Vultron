@@ -18,13 +18,13 @@ from vultron.core.models.events import (
     MessageSemantics,
     VultronEvent,
 )
-from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.core.models.rsvp_deadline import (
     DEFAULT_MIN_RSVP_WINDOW,
     DEFAULT_RSVP_WINDOW,
     RsvpDeadlineClamp,
     resolve_rsvp_deadline,
 )
+from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.wire.as2.extractor._builders import (
     _build_object_kwargs,
     _get_id,

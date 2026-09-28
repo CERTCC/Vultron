@@ -12,11 +12,13 @@ description: >
   earliest-expiration ordering for N open proposals.
 related_specs:
   - specs/case-management.yaml
+  - specs/case-proposal.yaml
   - specs/embargo-policy.yaml
   - specs/vultron-as2-mapping.yaml
 related_notes:
   - notes/participant-embargo-consent.md
   - notes/embargo-lifecycle.md
+  - notes/case-proposal.md
   - notes/configuration.md
   - notes/bt-pitfalls.md
 relevant_packages:
@@ -241,7 +243,17 @@ saw the revision. That is deliberate: CM-14-005 seeds consent to the *active*
 embargo, whose terms are still in force under REVISE, and the alternative —
 registering after the seeds — would lapse everyone and demand a re-accept round
 that no node drives. Whether the pending revision should also be announced to
-peers as an `Invite(EmbargoEvent)` is an open question the #3392 PR names.
+peers as an `Invite(EmbargoEvent)` — and so re-derive those consent states — is
+the decision tracked as #3863.
+
+The sender's event arrives under the sender's id, and an id is a sender-supplied
+value. `persist_creation_time_embargo` (`nodes/embargo.py`) therefore refuses a
+stored twin under that id that is not this embargo — about this case, ending when
+this one ends — instead of swallowing `VultronAlreadyExistsError` as a replay the
+way a freshly minted id allowed; otherwise a colliding id would bind the case to a
+foreign embargo while shortest-wins compared the terms the sender stated. On the
+receive side a proposal whose `context` is not the proposal's report is read as no
+proposal (EP-04-009), the same way an expired one is.
 
 ### There was a third implicit duration, and it was the quietest
 

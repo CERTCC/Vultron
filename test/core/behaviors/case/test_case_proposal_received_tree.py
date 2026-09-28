@@ -2372,7 +2372,13 @@ class TestEP04SenderProposalAtCaseCreation:
     _SENDER_END_DAYS = 10
     _ACTOR_DEFAULT = timedelta(days=30)
 
-    def _event_with_terms(self, make_payload, *, sender_days: int):
+    def _event_with_terms(
+        self,
+        make_payload,
+        *,
+        sender_days: int,
+        terms_context: str = _REPORT_URI,
+    ):
         from datetime import datetime, timezone
 
         from vultron.core.models.embargo_event import EmbargoEvent
@@ -2389,13 +2395,23 @@ class TestEP04SenderProposalAtCaseCreation:
         )
         terms = EmbargoEvent(
             id_=f"{_REPORT_URI}/embargo_proposals/1",
-            context=_REPORT_URI,
+            context=terms_context,
             end_time=datetime.now(tz=timezone.utc)
             + timedelta(days=sender_days),
         )
-        offer = rm_submit_report_activity(
-            report, to=_VENDOR_URI, actor=_REPORTER_URI, proposed_embargo=terms
-        )
+        if terms_context == _REPORT_URI:
+            offer = rm_submit_report_activity(
+                report,
+                to=_VENDOR_URI,
+                actor=_REPORTER_URI,
+                proposed_embargo=terms,
+            )
+        else:
+            # The factory refuses terms about another subject on the sending
+            # side (EP-04-009); a non-conforming sender is simulated past it.
+            offer = rm_submit_report_activity(
+                report, to=_VENDOR_URI, actor=_REPORTER_URI
+            ).model_copy(update={"proposed_embargo": terms})
         proposal = as_CaseProposal(
             id_=_PROPOSAL_URI,
             attributed_to=_VENDOR_URI,
@@ -2425,13 +2441,20 @@ class TestEP04SenderProposalAtCaseCreation:
             )
         )
 
-    def _run(self, make_payload, dl: SqliteDataLayer, *, sender_days: int):
+    def _run(
+        self,
+        make_payload,
+        dl: SqliteDataLayer,
+        *,
+        sender_days: int,
+        **terms_kwargs,
+    ):
         from vultron.core.use_cases.received.case_proposal import (
             CreateCaseProposalReceivedUseCase,
         )
 
         event, terms = self._event_with_terms(
-            make_payload, sender_days=sender_days
+            make_payload, sender_days=sender_days, **terms_kwargs
         )
         CreateCaseProposalReceivedUseCase(
             dl, event, wire_render_port=As2WireRenderAdapter()
@@ -2556,3 +2579,29 @@ class TestEP04SenderProposalAtCaseCreation:
             _VENDOR_URI: PEC.SIGNATORY.value,
             _REPORTER_URI: PEC.SIGNATORY.value,
         }
+
+    @pytest.mark.spec("EP-04-009")
+    def test_terms_about_another_subject_are_no_proposal(
+        self, make_payload, caplog
+    ):
+        """A proposal whose context is not this report is not terms for it:
+        the case is created under the owner's default and nothing is
+        registered, with the reason logged."""
+        import logging
+
+        dl = self._store()
+        with caplog.at_level(logging.WARNING):
+            case, terms = self._run(
+                make_payload,
+                dl,
+                sender_days=self._SENDER_END_DAYS,
+                terms_context="https://example.org/reports/someone-elses",
+            )
+
+        assert case.current_status.em.state == EM.ACTIVE
+        assert case.active_embargo_id != terms.id_
+        assert case.proposed_embargoes == []
+        assert any(
+            "not the proposal's report" in r.getMessage()
+            for r in caplog.records
+        )

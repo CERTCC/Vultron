@@ -280,3 +280,49 @@ def test_case_proposal_refuses_a_sender_that_is_not_the_inline_offers_actor():
             offer_actor_id="https://example.org/actors/someone-else",
             in_reply_to=offer,
         )
+
+
+@pytest.mark.spec("EP-04-004")
+def test_a_generic_event_shaped_proposal_is_projected_to_embargo_terms() -> (
+    None
+):
+    """A sender that types the proposal as a plain AS2 ``Event`` is read the
+    same way an ``Invite(Event)``'s object is: end and context become an
+    ``EmbargoEvent``."""
+    report = _report()
+    body = _wire(_offer(report))
+    body["proposedEmbargo"] = {
+        "type": "Event",
+        "id": f"{report.id_}/embargo_proposals/generic",
+        "context": report.id_,
+        "endTime": _END.isoformat(),
+    }
+    event = extract_event(parse_activity(body))
+    assert isinstance(event, SubmitReportReceivedEvent)
+    terms = event.proposed_embargo
+    assert isinstance(terms, EmbargoEvent)
+    assert terms.id_ == f"{report.id_}/embargo_proposals/generic"
+    assert terms.context == report.id_
+    assert terms.end_time == _END
+
+
+@pytest.mark.spec("CP-01-008")
+@pytest.mark.spec("EP-04-009")
+def test_case_proposal_refuses_an_offer_for_a_different_report():
+    """The inline Offer must be the one that brought *this* report; otherwise
+    the case-actor would read another report's proposed terms."""
+    other = as_VulnerabilityReport(
+        id_="https://example.org/reports/r-999",
+        attributed_to=_FINDER,
+        content="A different report.",
+    )
+    offer = _offer(other)
+    with pytest.raises(ValueError, match="not the report"):
+        as_CaseProposal(
+            attributed_to=_VENDOR,
+            object_=_report(),
+            target=_CASE_ACTOR,
+            offer_id=offer.id_,
+            offer_actor_id=_FINDER,
+            in_reply_to=offer,
+        )
