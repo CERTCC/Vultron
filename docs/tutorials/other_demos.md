@@ -1,7 +1,7 @@
 ---
 description: >
   Explore case initialization, actor management, embargo negotiation,
-  acknowledgement, status updates, trigger endpoints, and the full Report
+  acknowledgment, status updates, trigger endpoints, and the full Report
   Management (RM) case lifecycle using the remaining `vultron-demo`
   sub-commands.
 stakeholder_type: [platform-developer]
@@ -16,7 +16,7 @@ By the end of this tutorial, we will have explored:
 - case initialization and participant management,
 - actor invitation, suggestion, and ownership transfer,
 - embargo establishment and lifecycle management,
-- acknowledgement, status updates, and notes,
+- acknowledgment, status updates, and notes,
 - the full Report Management (RM) case lifecycle, and
 - the trigger endpoints an actor uses to act on its own initiative.
 
@@ -300,7 +300,7 @@ See [How to Revise or Terminate an Embargo](../howto/activitypub/activities/mana
 
 ---
 
-## Step 5 — Acknowledgement, status, and notes
+## Step 5 — Acknowledgment, status, and notes
 
 ### acknowledge
 
@@ -308,7 +308,7 @@ See [How to Revise or Terminate an Embargo](../howto/activitypub/activities/mana
 vultron-demo acknowledge
 ```
 
-This demo shows how a vendor acknowledges receipt of a report without committing to an outcome, using a Report Acknowledgement (RK), `Read(Offer(VulnerabilityReport))`.
+This demo shows how a vendor acknowledges receipt of a report without committing to an outcome, using a Report Acknowledgment (RK), `Read(Offer(VulnerabilityReport))`.
 Three paths are demonstrated:
 
 1. **Acknowledge only** — acknowledge, then notify the finder.
@@ -324,7 +324,7 @@ sequenceDiagram
     participant V as Vendor
 
     F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
-    V->>V: Report Acknowledgement (RK)<br/>Read(Offer(VulnerabilityReport))
+    V->>V: Report Acknowledgment (RK)<br/>Read(Offer(VulnerabilityReport))
     alt Path 1 — Acknowledge only
         V-->>F: Notify finder (acknowledged)
     else Path 2 — Acknowledge then validate

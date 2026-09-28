@@ -98,9 +98,9 @@ participants' states to be. Different events update each one.
 
 - **Receiving a VFD message** (`CV`, `CF`, `CD`) updates the receiver's model of
   the **sender's** VFD state. The receiver's own VFD state does not change. No
-  acknowledgement is sent: a participant confirms it has the case history by the
+  acknowledgment is sent: a participant confirms it has the case history by the
   fact that its ledger replica is unbroken, not by acknowledging each entry
-  ([§4.6](index.md#46-error-and-acknowledgement-messages)).
+  ([§4.6](index.md#46-error-and-acknowledgment-messages)).
 - **Driving one's own VFD transition** happens locally, subject to the role
   requirements of
   [§12.4.1](index.md#1241-participant-specific-cs-transitions-vfd), and is then

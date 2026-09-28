@@ -42,7 +42,7 @@ that conveys it, any discriminating payload field, and a rendered example.
 | [Embargo Management (EM)](em.md) | `EP ER EA EV EJ EC ET EK EE` |
 | [Case State (CS)](cs.md) | `CV CF CD CP CX CA CK CE` |
 | [General (GI)](general.md) | `GI GK GE` |
-| [Faults and Acknowledgements](faults_and_acknowledgements.md) | fault trichotomy; cumulative hash-chain ACK |
+| [Faults and Acknowledgments](faults_and_acknowledgements.md) | fault trichotomy; cumulative hash-chain ACK |
 | [Case Management](case_management.md) | case lifecycle, participant roster, ownership transfer |
 | [Case Proposal](case_proposal.md) | pre-case bootstrap (ADR-0023) |
 | [Ledger Replication](ledger_replication.md) | SYNC substrate (ADR-0077) |
@@ -57,7 +57,7 @@ The **Status** column states the kind of relationship:
 | `direct` | One shorthand maps to exactly one wire activity. |
 | `collapse` | Several shorthands share one wire activity. Multiple shorthands appear in a single row; the **Discriminator** column names the payload field (or context) that distinguishes them. |
 | `expansion` | One shorthand is realized by several wire activities. The same shorthand appears in more than one row. |
-| `evolved` | The shorthand's purpose is served by a mechanism partitioned on a different axis (fault reporting or cumulative acknowledgement), not by a dedicated wire activity. |
+| `evolved` | The shorthand's purpose is served by a mechanism partitioned on a different axis (fault reporting or cumulative acknowledgment), not by a dedicated wire activity. |
 | `—` | The wire activity has no formal shorthand counterpart. |
 
 Reading the many-to-many relationship from a table:
@@ -69,7 +69,7 @@ Reading the many-to-many relationship from a table:
 
 The `evolved` shorthands (`RE`, `EE`, `CE`, `GE`, `EK`, `CK`, `GK`) have no
 dedicated wire activity. Faults are conveyed by `Create(ProcessingFault)`,
-`as:Reject`, or `Create(Note)`, partitioned by failure mode. Acknowledgement of
+`as:Reject`, or `Create(Note)`, partitioned by failure mode. Acknowledgment of
 ledger-replicated state is cumulative and implicit through hash-chain continuity;
 `RK` survives as a real wire activity because report submission is not
 ledger-replicated. See

@@ -70,7 +70,7 @@ flowchart LR
 ```
 
 We are still working through the children of [Receive Messages](msg_intro_bt.md) behavior tree.
-And as we've come to expect, a precondition check leads to a fallback node in which CS acknowledgement
+And as we've come to expect, a precondition check leads to a fallback node in which CS acknowledgment
 messages (*CK*) receive no further attention and return *Success*.
 
 The main CS message-handling sequence comes next, with all matching incoming messages resulting in emission of an

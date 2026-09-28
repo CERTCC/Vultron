@@ -17,7 +17,7 @@ sender has made one, or that the sender has observed something
 
 Six of the message types the formal protocol defines have **no wire
 representation** in this version. Each table below marks them, and
-[§4.6](index.md#46-error-and-acknowledgement-messages) explains why they are
+[§4.6](index.md#46-error-and-acknowledgment-messages) explains why they are
 absent rather than merely unimplemented.
 
 ### 4.1 Report Management Messages
@@ -34,8 +34,8 @@ change to the **sender's** report management state
 | `RD` | Report/Case Deferred | The sender is deferring further action; a case-participation decision | yes |
 | `RA` | Report/Case Accepted | The sender accepted the report/case for active work; a case-participation decision | yes |
 | `RC` | Report Closed | The sender closed the report | yes |
-| `RK` | Report Acknowledgement | The sender received the report submission | yes |
-| `RE` | Report Error | The sender received an unexpected report message | **no** ([§4.6](index.md#46-error-and-acknowledgement-messages)) |
+| `RK` | Report Acknowledgment | The sender received the report submission | yes |
+| `RE` | Report Error | The sender received an unexpected report message | **no** ([§4.6](index.md#46-error-and-acknowledgment-messages)) |
 
 Only `RS` drives a state change in its **receiver**: receiving a report moves the
 receiver to Received. The other seven tell the receiver something about the sender
@@ -66,8 +66,8 @@ groups: proposing an embargo, revising one already in force, and ending one.
 | `EJ` | Embargo Revision Rejection | The sender rejects a proposed revision | yes |
 | `EC` | Embargo Revision Acceptance | The sender accepts a proposed revision | yes |
 | `ET` | Embargo Termination | The sender ends the embargo, effective immediately | yes |
-| `EK` | Embargo Acknowledgement | The sender received an embargo message | **no** ([§4.6](index.md#46-error-and-acknowledgement-messages)) |
-| `EE` | Embargo Error | The sender received an unexpected embargo message | **no** ([§4.6](index.md#46-error-and-acknowledgement-messages)) |
+| `EK` | Embargo Acknowledgment | The sender received an embargo message | **no** ([§4.6](index.md#46-error-and-acknowledgment-messages)) |
+| `EE` | Embargo Error | The sender received an unexpected embargo message | **no** ([§4.6](index.md#46-error-and-acknowledgment-messages)) |
 
 The initial-proposal group (`EP`, `ER`, `EA`) and the revision group (`EV`, `EJ`,
 `EC`) are distinct meanings. The distinction matters because the outcome of a
@@ -112,8 +112,8 @@ specific participant has done; the next three concern the state of the world.
 | `CP` | Public Awareness | PXA | The vulnerability is publicly known | yes |
 | `CX` | Exploit Public | PXA | An exploit has been published | yes |
 | `CA` | Attacks Observed | PXA | Attacks exploiting the vulnerability have been seen | yes |
-| `CK` | Case State Acknowledgement | — | The sender received a case state message | **no** ([§4.6](index.md#46-error-and-acknowledgement-messages)) |
-| `CE` | Case State Error | — | The sender received an unexpected case state message | **no** ([§4.6](index.md#46-error-and-acknowledgement-messages)) |
+| `CK` | Case State Acknowledgment | — | The sender received a case state message | **no** ([§4.6](index.md#46-error-and-acknowledgment-messages)) |
+| `CE` | Case State Error | — | The sender received an unexpected case state message | **no** ([§4.6](index.md#46-error-and-acknowledgment-messages)) |
 
 All six reporting shorthands share a single wire form. Which fact is being reported
 travels in the message's payload rather than in its type, so an implementation that
@@ -179,9 +179,9 @@ case state from a message whose context was never established.
 The threat model, identity verification, and the limits of this trust chain are
 covered at [§14.1](index.md#141-trust-model).
 
-### 4.6 Error and Acknowledgement Messages
+### 4.6 Error and Acknowledgment Messages
 
-The formal protocol defines an acknowledgement and an error message for each of the
+The formal protocol defines an acknowledgment and an error message for each of the
 three state machines: `RK`, `EK`, `CK` and `RE`, `EE`, `CE`. Their status here is
 **not uniform**, and an implementation MUST NOT assume symmetry across the three.
 
@@ -193,7 +193,7 @@ The two absences have different reasons.
 
 **`EK` and `CK` are redundant.** Embargo and case state changes are replicated
 through the case ledger, and a participant establishes that it received them by
-holding an unbroken hash chain. A per-message acknowledgement would restate what
+holding an unbroken hash chain. A per-message acknowledgment would restate what
 the chain already shows. `RK` survives because report submission happens before the
 case exists, so there is no ledger to carry it.
 

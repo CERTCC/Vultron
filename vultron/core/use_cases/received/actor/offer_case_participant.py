@@ -11,16 +11,21 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Use cases for Case Owner and CaseActor Offer(CaseParticipant) round-trip.
+"""Use cases for the Case Owner / CASE_MANAGER Offer(CaseParticipant) round-trip.
 
 Covers the three new semantics defined in ISSUE-1332:
 
 - :class:`OfferCaseParticipantReceivedUseCase` — Case Owner received
-  ``Offer(CaseParticipant)`` from the CaseActor (CM-16-003/CM-16-004).
-- :class:`AcceptOfferCaseParticipantReceivedUseCase` — CaseActor received
-  ``Accept(Offer(CaseParticipant))`` from the Case Owner (CM-16-006).
-- :class:`RejectOfferCaseParticipantReceivedUseCase` — CaseActor received
-  ``Reject(Offer(CaseParticipant))`` from the Case Owner (CM-16-007).
+  ``Offer(CaseParticipant)`` from the CASE_MANAGER (CM-16-003/CM-16-004).
+- :class:`AcceptOfferCaseParticipantReceivedUseCase` — the CASE_MANAGER
+  received ``Accept(Offer(CaseParticipant))`` from the Case Owner (CM-16-006).
+- :class:`RejectOfferCaseParticipantReceivedUseCase` — the CASE_MANAGER
+  received ``Reject(Offer(CaseParticipant))`` from the Case Owner (CM-16-007).
+
+Who may act is decided in the tree (BT-17-001) and reported by the handler
+(HP-01-005): the Accept and Reject effects are the CASE_MANAGER's, and an
+``Offer(CaseParticipant)`` is for the addressee it names.  Any other receiver
+of a copy refuses (#3752).
 """
 
 import logging
@@ -42,9 +47,13 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases._helpers import (
+    is_recipient,
+    resolve_receiving_actor_id,
+)
 from vultron.core.use_cases.received._bt_verdict import (
     not_case_manager,
+    not_case_manager_refusal,
     verdict_from_bt,
 )
 from vultron.enums.roles import serialize_roles
@@ -56,10 +65,20 @@ logger = logging.getLogger(__name__)
 
 
 class OfferCaseParticipantReceivedUseCase:
-    """Case Owner received Offer(CaseParticipant) from the CaseActor.
+    """Case Owner received Offer(CaseParticipant) from the CASE_MANAGER.
 
     Commits a canonical ``CaseLedgerEntry`` for the received Offer
-    (CM-16-003/CM-16-004, ADR-0026) via BTBridge.
+    (CM-16-003/CM-16-004, ADR-0026) via BTBridge.  That commit is the
+    CASE_MANAGER's and runs only where the receiving actor holds the role —
+    a Case Owner that also manages its case receives the Offer in ``to``
+    over the ordinary delivery path (ADR-0109; the former self-``cc:``
+    copy is retired).
+
+    The Case Owner is the addressee: the Offer is now pending its decision,
+    which it makes as a separate outbound Accept or Reject, so its receipt is
+    ``APPLIED`` with nothing more to do here.  A receiver that is neither the
+    CASE_MANAGER nor an addressee holds a misaddressed copy and refuses
+    (HP-01-005, #3752).
     """
 
     def __init__(
@@ -115,18 +134,30 @@ class OfferCaseParticipantReceivedUseCase:
             # CASE_MANAGER's; a missing case also fails that gate (rule 3).
             if self._dl.read(case_id) is None:
                 return HandlerResult.refused(f"unknown case '{case_id}'")
-            return HandlerResult.skipped(
-                f"not the CASE_MANAGER of case '{case_id}'"
+            if is_recipient(local_actor_id, request.activity):
+                # The addressee (the Case Owner): the Offer is now theirs
+                # to decide, by a separate outbound Accept or Reject.
+                return HandlerResult.applied()
+            verdict = HandlerResult.refused(
+                f"'{local_actor_id}' is neither the CASE_MANAGER nor an"
+                f" addressee of Offer(CaseParticipant) for case '{case_id}'"
+            )
+            logger.warning(
+                "ReceiveOfferCaseParticipantBT refused '%s': %s",
+                activity_id,
+                verdict.reason,
             )
         return verdict
 
 
 class AcceptOfferCaseParticipantReceivedUseCase:
-    """CaseActor received Accept(Offer(CaseParticipant)) from the Case Owner.
+    """The CASE_MANAGER received Accept(Offer(CaseParticipant)) from the Case Owner.
 
     Delegates to :func:`create_accept_actor_recommendation_received_tree` via
     BTBridge to commit the ledger entry, notify the recommender, and invite the
-    recommended actor (CM-16-006, ADR-0026).
+    recommended actor (CM-16-006, ADR-0026).  Those effects are gated on the
+    receiving actor holding ``CVDRole.CASE_MANAGER`` (BT-17-001); any other
+    receiver refuses (HP-01-005, #3752).
     """
 
     def __init__(
@@ -208,22 +239,27 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="AcceptActorRecommendationBT"
         )
+        if verdict.disposition is not HandlerDisposition.REFUSED:
+            refusal = not_case_manager_refusal(tree, self._dl, case_id)
+            if refusal is not None:
+                verdict = refusal
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "AcceptActorRecommendationBT refused '%s': %s",
                 activity_id,
                 verdict.reason,
             )
-            return verdict
         return verdict
 
 
 class RejectOfferCaseParticipantReceivedUseCase:
-    """CaseActor received Reject(Offer(CaseParticipant)) from the Case Owner.
+    """The CASE_MANAGER received Reject(Offer(CaseParticipant)) from the Case Owner.
 
     Delegates to :func:`create_reject_actor_recommendation_received_tree` via
     BTBridge to commit the ledger entry and notify the original recommender
-    (CM-16-007, ADR-0026).
+    (CM-16-007, ADR-0026).  The notification is gated on the receiving actor
+    holding ``CVDRole.CASE_MANAGER`` (BT-17-001); any other receiver refuses
+    (HP-01-005, #3752).
     """
 
     def __init__(
@@ -285,11 +321,14 @@ class RejectOfferCaseParticipantReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="RejectActorRecommendationBT"
         )
+        if verdict.disposition is not HandlerDisposition.REFUSED:
+            refusal = not_case_manager_refusal(tree, self._dl, case_id)
+            if refusal is not None:
+                verdict = refusal
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "RejectActorRecommendationBT refused '%s': %s",
                 activity_id,
                 verdict.reason,
             )
-            return verdict
         return verdict

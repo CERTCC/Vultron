@@ -635,3 +635,58 @@ def test_advance_invitee_resume_leaves_already_advanced_participant(
     assert (
         len(after_second.participant_statuses) == rungs_after_first
     ), "genuine backfill-resume must not append a redundant RM.RECEIVED rung"
+
+
+# ---------------------------------------------------------------------------
+# #3752: admitting the invitee is gated on CASE_MANAGER (BT-17-001)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("BT-17-001")
+def test_every_accept_invite_effect_is_inside_the_case_manager_gate():
+    """No participant write, emit, or backfill is reachable without the gate.
+
+    The gate is the sanctioned composite (BTND-07-005) and follows the receipt
+    commit (CLP-10-006), so a receiver that is not the CASE_MANAGER admits
+    nobody and queues nothing (#3752, PCR-08-009).
+    """
+    from vultron.core.behaviors.case.accept_invite_tree import (
+        create_accept_invite_actor_to_case_tree,
+    )
+    from vultron.core.behaviors.case.nodes.conditions import (
+        CheckIsCaseManagerNode,
+    )
+
+    tree = create_accept_invite_actor_to_case_tree(
+        case_id="https://example.org/cases/gate",
+        invitee_id="https://example.org/actors/invitee",
+    )
+    gates = [
+        n
+        for n in tree.iterate()
+        if isinstance(n, py_trees.composites.Selector)
+        and n.name == "AcceptInviteIfCaseManager"
+    ]
+    assert len(gates) == 1
+    gate = gates[0]
+    inside = {id(n) for n in gate.iterate()} - {id(gate)}
+    assert any(isinstance(n, CheckIsCaseManagerNode) for n in gate.iterate())
+
+    effect_prefixes = ("Create", "Persist", "Advance", "Emit", "Backfill")
+    effects = [
+        n
+        for n in tree.iterate()
+        if type(n).__name__.startswith(effect_prefixes)
+        and not isinstance(n, py_trees.composites.Composite)
+    ]
+    assert effects, "the tree must have effect nodes to gate"
+    outside = [type(n).__name__ for n in effects if id(n) not in inside]
+    assert outside == [], f"effect nodes outside the gate: {outside}"
+
+    children = list(tree.children)
+    commit_index = next(
+        i
+        for i, c in enumerate(children)
+        if c.name == "GuardedCommitCaseLedgerEntryBT"
+    )
+    assert children.index(gate) > commit_index

@@ -199,6 +199,7 @@ profile = "black"
 [dependency-groups]
 dev = [
     "black>=26.5.1",
+    "codespell>=2.4.3",
     "flake8>=7.3.0",
     "graphifyy>=0.9.43",
     "isort>=7.0.0",
@@ -212,3 +213,28 @@ dev = [
     "types-networkx>=3.6.1.20260728",
     "types-pyyaml>=6.0.12.20260724",
 ]
+
+[tool.codespell]
+# SG-37 mechanical floor (ADR-0092, DF-09-001). `builtin` REPLACES the default
+# dictionaries: only en-GB spellings are checked, so `ignore-words-list` entries
+# for `cna`/`ot` are defensive against a later widening of `builtin`.
+# `write-changes` is deliberately NOT set here — it lives in the pre-commit hook
+# args, so a manual `codespell docs/` is read-only and the hook's `files:` filter
+# keeps codespell from rewriting this very config (see notes/documentation-strategy.md
+# § "codespell is the mechanical floor for spelling").
+builtin = "en-GB_to_en-US"
+ignore-words-list = "cna,ot,dialogues"
+# Tokens that must stay as written, because codespell has no notion of a code
+# fence, an inline code span, a citation, or an include/link target:
+#   py_trees.behaviour.Behaviour   third-party API name, in fences and inline code
+#   Analysing an Email Corpus      cited paper title
+#   6.2.5 Report Acknowledgement   ISO/IEC 29147:2018 clause title (cited)
+#   National Cyber Security Centre proper noun (UK NCSC)
+#   ../../Acknowledgements.md      include-markdown target (repo-root file)
+ignore-regex = "py_trees\\.behaviour\\.Behaviour|Analysing an Email Corpus|6\\.2\\.5 Report Acknowledgement|National Cyber Security Centre|Acknowledgements\\.md"
+# Paths as codespell sees them — no `./` prefix. Each directory pattern ends in
+# `*` because codespell matches skip globs with fnmatch against the full path,
+# and it sees two shapes: `docs/adr` while walking `codespell docs/`, and
+# `docs/adr/0092-x.md` when the pre-commit hook passes staged filenames. A bare
+# `docs/adr` matches only the first, and the hook then rewrites ADR prose.
+skip = "docs/adr*,docs/reference/code*,docs/reference/case_states*,docs/reference/codebase*,docs/reference/draft-vultron-replication-spec.md,pyproject.toml"

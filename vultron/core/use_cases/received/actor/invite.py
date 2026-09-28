@@ -31,13 +31,12 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import (
-    _find_case_actor_id,
     _idempotent_create,
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
     node_failed,
-    not_case_manager,
+    not_case_manager_refusal,
     verdict_from_bt,
 )
 
@@ -207,12 +206,14 @@ class InviteActorToCaseReceivedUseCase:
 
 
 class AcceptInviteActorToCaseReceivedUseCase:
-    """CaseActor processes ``Accept(Invite(actor, case))`` from the invitee.
+    """The CASE_MANAGER processes ``Accept(Invite(actor, case))`` from the invitee.
 
     Delegates all protocol-significant work to
     ``AcceptInviteActorToCaseBT`` via BTBridge.  The BT runs as the
-    CaseActor (not the invitee), recording the invitee's participation in
-    the CaseActor's own DataLayer without identity spoofing (PCR-08-010).
+    receiving actor (not the invitee), recording the invitee's participation
+    in its own DataLayer without identity spoofing (PCR-08-010).  Those
+    effects are the CASE_MANAGER's (PCR-08-009) and sit behind a role gate
+    (BT-17-001); any other receiver of a copy refuses (HP-01-005, #3752).
 
     BT-06-001, BT-15-001: all RM transitions, participant creation, case
     events, and outbox work live in leaf nodes of the BT.
@@ -242,25 +243,15 @@ class AcceptInviteActorToCaseReceivedUseCase:
                 "Accept(Invite) is missing its case id or invitee id"
             )
 
-        # Resolve the CaseActor ID to use as the BT actor.
-        # receiving_actor_id is set by the inbox adapter to the CaseActor's ID.
-        # Fall back to _find_case_actor_id when dispatched outside the inbox
-        # path (e.g. CLI, tests that do not set receiving_actor_id).
-        actor_id = request.receiving_actor_id or _find_case_actor_id(
-            self._dl, case_id
+        # The BT runs as the *receiving* actor: the inbox-stamped
+        # receiving_actor_id, else the owner of the store we hold (BT-17-006).
+        # It used to fall back to the case's CASE_MANAGER address instead,
+        # which ran the tree under a foreign identity whenever the stamp was
+        # absent and let the role gate pass for a store that is not the
+        # manager's (#3752; the antipattern in notes/case-communication-model.md).
+        actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
         )
-        if actor_id is None:
-            # Not a failure: no dedicated CaseActor is a legitimate topology
-            # (ADR-0021), and the store we hold is the receiving actor's own.
-            actor_id = resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            )
-            logger.debug(
-                "accept_invite_actor_to_case: no CaseActor for case '%s' —"
-                " running as the store's own actor '%s'",
-                case_id,
-                actor_id,
-            )
 
         tree = create_accept_invite_actor_to_case_tree(
             case_id=case_id,
@@ -289,6 +280,11 @@ class AcceptInviteActorToCaseReceivedUseCase:
             verdict = verdict_from_bt(
                 tree, result, label="AcceptInviteActorToCaseBT"
             )
+            if verdict.disposition is not HandlerDisposition.REFUSED:
+                # Admitting the invitee is the CASE_MANAGER's job alone.
+                refusal = not_case_manager_refusal(tree, self._dl, case_id)
+                if refusal is not None:
+                    verdict = refusal
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "accept_invite_actor_to_case: refused invitee '%s' case"
@@ -301,11 +297,12 @@ class AcceptInviteActorToCaseReceivedUseCase:
 
 
 class RejectInviteActorToCaseReceivedUseCase:
-    """CaseActor processes ``Reject(Invite(actor, case))`` from an invitee.
+    """The CASE_MANAGER processes ``Reject(Invite(actor, case))`` from an invitee.
 
     Commits a canonical ``CaseLedgerEntry`` for the received rejection
     (``("Reject", "Invite")`` in ``_CANONICAL_PAYLOAD_SIGNATURES``) via BTBridge.
-    The CaseActor records that the invitee declined the invitation.
+    The CASE_MANAGER records that the invitee declined the invitation; any
+    other receiver of a copy refuses (HP-01-005).
     """
 
     def __init__(
@@ -359,20 +356,17 @@ class RejectInviteActorToCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="RejectInviteActorToCaseReceivedBT"
         )
+        if verdict.disposition is not HandlerDisposition.REFUSED:
+            # Recording the decline is the CASE_MANAGER's job alone; the gate
+            # also reads a case we do not hold as "not the manager".
+            refusal = not_case_manager_refusal(tree, self._dl, case_id)
+            if refusal is not None:
+                verdict = refusal
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "RejectInviteActorToCaseReceivedUseCase: invite '%s' refused:"
                 " %s",
                 request.invite_id,
                 verdict.reason,
-            )
-            return verdict
-        if not_case_manager(tree):
-            # The gate also reads a case we do not hold as "not the manager".
-            if self._dl.read(case_id) is None:
-                return HandlerResult.refused(f"unknown case '{case_id}'")
-            # Recording the decline is the CASE_MANAGER's job alone.
-            return HandlerResult.skipped(
-                f"not the CASE_MANAGER of case '{case_id}'"
             )
         return verdict

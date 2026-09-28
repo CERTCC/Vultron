@@ -26,7 +26,7 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
-    not_case_manager,
+    not_case_manager_refusal,
     verdict_from_bt,
 )
 
@@ -80,16 +80,17 @@ class CreateNoteReceivedUseCase:
 class AddNoteToCaseReceivedUseCase:
     """Attach a received note to the case and commit a canonical ledger entry.
 
-    Only the CaseActor (actor holding ``CVDRole.CASE_MANAGER``) attaches the
-    note to ``VulnerabilityCase.notes`` and commits a ``CaseLedgerEntry``.
-    Non-CaseActor receivers MUST NOT update their case replica directly from
+    Only the actor holding ``CVDRole.CASE_MANAGER`` attaches the note to
+    ``VulnerabilityCase.notes`` and commits a ``CaseLedgerEntry``.  Other
+    receivers MUST NOT update their case replica directly from
     ``Add(Note, Case)`` messages — they receive note attachment notifications
-    exclusively via ``Announce(CaseLedgerEntry)`` fan-out from the CaseActor
-    (SYNC-02-002).
+    exclusively via ``Announce(CaseLedgerEntry)`` fan-out from the
+    CASE_MANAGER (SYNC-02-002).
 
-    The ``CheckIsCaseManagerNode`` guard inside the BT enforces this: non-
-    CaseActors take the ``Success`` fallback and skip both attach and commit
-    (CLP-10-003).
+    The ``CheckIsCaseManagerNode`` guard inside the BT enforces this: a
+    non-manager takes the skip arm and neither attaches nor commits
+    (CLP-10-003).  The handler reports that as a refusal (HP-01-005): the
+    note was addressed to the wrong party.
     """
 
     def __init__(
@@ -135,6 +136,12 @@ class AddNoteToCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="GuardedAttachAndCommitBT"
         )
+        if verdict.disposition is HandlerDisposition.APPLIED:
+            # Only the CASE_MANAGER attaches; others learn of the note through
+            # Announce(CaseLedgerEntry) fan-out (SYNC-02-002).
+            refusal = not_case_manager_refusal(tree, self._dl, case_id)
+            if refusal is not None:
+                verdict = refusal
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "add_note_to_case: note '%s' in case '%s' refused: %s",
@@ -142,13 +149,6 @@ class AddNoteToCaseReceivedUseCase:
                 case_id,
                 verdict.reason,
             )
-            return verdict
-        if verdict.disposition is HandlerDisposition.APPLIED and (
-            not_case_manager(tree)
-        ):
-            # Only the CaseActor attaches; others learn of the note through
-            # Announce(CaseLedgerEntry) fan-out (SYNC-02-002).
-            return HandlerResult.skipped("not the case's CASE_MANAGER")
         return verdict
 
 

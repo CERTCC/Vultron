@@ -62,7 +62,7 @@ Every message is emitted by the Participant whose state changed; the "Response E
 | `RD` | Report/Case Deferred | RM | `{V,A}` $\xrightarrow{d}$ `D` | `RK` |
 | `RA` | Report/Case Accepted | RM | `{V,D}` $\xrightarrow{a}$ `A` | `RK` |
 | `RC` | Report Closed | RM | `{I,D,A}` $\xrightarrow{c}$ `C` | `RK` |
-| `RK` | Report Acknowledgement | RM | Any valid RM message received | — |
+| `RK` | Report Acknowledgment | RM | Any valid RM message received | — |
 | `RE` | Report Error | RM | Any unexpected RM message received | `RK` + `GI` |
 | `EP` | Embargo Proposal | EM | `{N,P}` $\xrightarrow{p}$ `P` | `EK` (or `ER` if embargo not viable) |
 | `ER` | Embargo Proposal Rejection | EM | `P` $\xrightarrow{r}$ `N` | `EK` |
@@ -71,7 +71,7 @@ Every message is emitted by the Participant whose state changed; the "Response E
 | `EJ` | Embargo Revision Rejection | EM | `R` $\xrightarrow{r}$ `A` | `EK` |
 | `EC` | Embargo Revision Acceptance | EM | `R` $\xrightarrow{a}$ `A` | `EK` |
 | `ET` | Embargo Termination | EM | `{A,R}` $\xrightarrow{t}$ `X` | `EK` |
-| `EK` | Embargo Acknowledgement | EM | Any valid EM message received | — |
+| `EK` | Embargo Acknowledgment | EM | Any valid EM message received | — |
 | `EE` | Embargo Error | EM | Any unexpected EM message received | `EK` + `GI` |
 | `CV` | Vendor Awareness | CS | $vfd\cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd\cdot\cdot\cdot$ | `CK` |
 | `CF` | Fix Readiness | CS | $Vfd\cdot\cdot\cdot \xrightarrow{\mathbf{F}} VFd\cdot\cdot\cdot$ | `CK` |
@@ -79,10 +79,10 @@ Every message is emitted by the Participant whose state changed; the "Response E
 | `CP` | Public Awareness | CS | $\cdot\cdot\cdot p\cdot\cdot \xrightarrow{\mathbf{P}} \cdot\cdot\cdot P\cdot\cdot$ | `CK` |
 | `CX` | Exploit Public | CS | $\cdot\cdot\cdot\cdot x\cdot \xrightarrow{\mathbf{X}} \cdot\cdot\cdot\cdot X\cdot$ | `CK` |
 | `CA` | Attacks Observed | CS | $\cdot\cdot\cdot\cdot\cdot a \xrightarrow{\mathbf{A}} \cdot\cdot\cdot\cdot\cdot A$ | `CK` |
-| `CK` | CS Acknowledgement | CS | Any valid CS message received | — |
+| `CK` | CS Acknowledgment | CS | Any valid CS message received | — |
 | `CE` | CS Error | CS | Any unexpected CS message received | `CK` + `GI` |
 | `GI` | General Inquiry | General | Any time (non-state-change information) | `GK` |
-| `GK` | General Acknowledgement | General | Any valid GI message received | — |
+| `GK` | General Acknowledgment | General | Any valid GI message received | — |
 | `GE` | General Error | General | Any unexpected GI message received | `GI` |
 
 !!! note "AS2 wire-format collapse"
@@ -159,8 +159,8 @@ Finder is not a protocol role: an actor that discovers a vulnerability and repor
 | **Reporter** | `A` (Accepted) | `RS` (the initial report), embargo proposals (`EP`/`EV`), observations (`CP`/`CX`/`CA`) | `RK`, `CV`, RM status, embargo negotiation |
 | **Vendor** | `S` (Start) | `CV` (own awareness), `CF` (fix ready), own RM status (`RV`/`RA`/`RC`…), embargo messages | `RS`, `RK`, embargo negotiation, CS updates |
 | **Coordinator** | `S` (Start) | `RS` (forwarding reports), `GI`, embargo proposals, `CP` | reports and effectively any message type — a Coordinator facilitates across Participants |
-| **Deployer** | `S` (Start) | `CD` (fix deployed), acknowledgements | `CV`, `CF`, `RS` |
-| **Observer** | `S` (Start) | observations (`CP`/`CX`/`CA`), acknowledgements, embargo consent | every case-scoped message; an Observer tracks state but drives no VFD transition |
+| **Deployer** | `S` (Start) | `CD` (fix deployed), acknowledgments | `CV`, `CF`, `RS` |
+| **Observer** | `S` (Start) | observations (`CP`/`CX`/`CA`), acknowledgments, embargo consent | every case-scoped message; an Observer tracks state but drives no VFD transition |
 
 !!! note "Who may send what"
 

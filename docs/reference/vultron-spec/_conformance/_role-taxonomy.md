@@ -40,7 +40,7 @@ machinery, not what it does in the world.
 | Role | Protocol authority |
 |---|---|
 | Case Owner | Authoritative decision-maker for a case; status updates are treated as authoritative without requiring approval; drives shared EM transitions |
-| Case Manager | AS actor performing case replica synchronization and case management on behalf of the case owner; always co-held with Coordinator |
+| Case Manager | Holds the case's single-writer authority ([§5.4.1](../index.md#541-single-writer-authority)): writes the canonical case ledger, relays case-scoped messages, and manages the roster on the Case Owner's behalf ([§2.2](../index.md#22-roles)). Authority follows the role, not the actor that holds it; the role is commonly co-held with Coordinator but need not be ([§12.3.3](../index.md#1233-roles-and-capability-sets-are-independent)) |
 
 **Delegation scenarios**: Protocol responsibilities may transfer during a case
 lifecycle. For example, a Reporter who initially creates a case may delegate
