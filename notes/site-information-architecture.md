@@ -461,6 +461,9 @@ cheap.
 The pages are hand-written, not generated. Each is a curated reading path, not
 an enumeration of a section's children, so DF-11-005's generate-and-gate rule
 does not apply to them (#3524 AC-11).
+They also sit in the nav as a *Start Here* section, labelled by situation, so
+a reader who lands mid-site reaches an entry path without going back to the
+home page (#3627).
 
 ### The coverage matrix is generated too
 

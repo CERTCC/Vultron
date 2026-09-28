@@ -26,11 +26,12 @@ This section provides an overview of the Vultron Protocol, including:
 - [Background](background/index.md) — What Vultron is, the coordination problem it addresses, and the outcomes a Coordinated Vulnerability Disclosure case is trying to reach.
 - [Case Lifecycle](case_lifecycle/index.md)
 - [Process Models](process_models/index.md)
+- [Capability Model](capability_model/index.md) — The answer to "Vultron doesn't do X": every decision the protocol leaves to your organization is a call-out point where your own system plugs in.
 - [Protocol Event Flow](protocol_flow.md)
+- [Worked Example](../tutorials/worked_example.md) — Sequence diagrams of a few usage scenarios, from a finder becoming a reporter through embargo negotiation, coordination, publication, and case closure.
 - [Message Semantics](message_semantics.md)
 - [Actor Knowledge Model](actor-knowledge-model.md)
 - [Behavior Logic](behavior_logic/index.md)
-- [Capability Model](capability_model/index.md) — The answer to "Vultron doesn't do X": every decision the protocol leaves to your organization is a call-out point where your own system plugs in.
 - [Demo Scenarios](scenarios/index.md)
 - [Future Work](future_work/index.md)
 - [Activity Vocabulary Design](activity_vocabulary_design.md)

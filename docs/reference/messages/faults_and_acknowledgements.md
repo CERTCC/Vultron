@@ -11,8 +11,8 @@ acknowledgments). In the AS2 wire vocabulary, both concerns are served by
 mechanisms partitioned on **different axes** from the formal set. Neither is
 unimplemented; both are shaped differently.
 
-This page is the primary reference for the ledger negative acknowledgement (`Reject(CaseLedgerEntry)`) and for `close_report` as an ordinary `as:Reject` on the fault axis.
-The normative mapping is the [Fault and Acknowledgement Mechanism Evolution](../specs/protocol.md#msm-05) requirements group; the design rationale is in [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) and [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md).
+This page is the primary reference for the ledger negative acknowledgment (`Reject(CaseLedgerEntry)`) and for `close_report` as an ordinary `as:Reject` on the fault axis.
+The normative mapping is the [Fault and Acknowledgment Mechanism Evolution](../specs/protocol.md#msm-05) requirements group; the design rationale is in [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) and [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md).
 
 ---
 
