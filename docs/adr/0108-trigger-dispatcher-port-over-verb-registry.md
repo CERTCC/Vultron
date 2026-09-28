@@ -47,7 +47,7 @@ This ADR narrows the rule to what it meant.
 - Response bodies are a client-visible contract.
   Five distinct body shapes exist, no route declares a `response_model`, and no test pins an exact key set, so the shapes are invisible to OpenAPI and to review.
 - `SvcBTTriggerBase` and everything below it is already correct and is the floor of this change.
-  It keeps returning `dict`; typed conversion happens one layer above.
+  Its template (`_prepare` / `_build_tree` / `_handle_result`, `BTBridge` construction, the port and failure guards) does not move; only its final `return {...}` becomes the typed `ActivityResult`, so the use case itself satisfies UCORG-05-007.
 - A second driving adapter (CLI beyond the demo, MCP) is not on the current priority list.
   If one were imminent and needed a per-verb typed method surface, that would weigh the other way.
 

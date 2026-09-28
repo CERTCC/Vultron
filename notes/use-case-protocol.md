@@ -49,7 +49,7 @@ and `docs/adr/0095-received-side-handler-result.md` for the received-side half.
 > (#3398), plus a demo-layer `ActivityResult` subtype, introduced only so
 > `ActorSession` can type demo trigger responses at the HTTP boundary; it does
 > not yet inherit `UseCaseResult`, and trigger `execute()` methods still return
-> `dict` (#3354). Earlier revisions of this note described the whole migration
+> `dict` (#3831). Earlier revisions of this note described the whole migration
 > in the past tense while no part of it had been written — that drift is what
 > concern #1769 was filed to correct.
 
@@ -224,7 +224,9 @@ families become one:
   exact-key-set tests (TRIG-12-002, TRIG-12-003).
 
 The response bodies stay byte-identical throughout; the typed conversion is one
-layer above `SvcBTTriggerBase`, which keeps returning what it returns today.
+layer above the BT: `SvcBTTriggerBase`'s template (`_prepare` / `_build_tree` /
+`_handle_result`, `BTBridge` construction, the guards) does not change; only its
+final `return {...}` becomes the typed `ActivityResult`.
 Migration order and the reasons for it are in the ADR.
 
 ---
@@ -364,8 +366,8 @@ of mypy configuration (UCORG-05-004). "Registered subtype" is the subclass
 relation itself, resolved with `typing.get_type_hints`, so a new result type
 needs no list edit.
 
-It excludes `triggers/` until #3354 migrates those classes from `dict`
-(UCORG-05-004b). The exclusion names #3354 in the test, and a companion test
+It excludes `triggers/` until #3831 migrates those classes from `dict`
+(UCORG-05-004b). The exclusion names #3831 in the test, and a companion test
 fails once every trigger conforms, so the carve-out cannot outlive its reason.
 
 Nothing yet types a call site against the `UseCase` Protocol — the dispatcher's

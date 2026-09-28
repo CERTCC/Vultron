@@ -137,7 +137,7 @@ groups:
       exclusion MUST name the tracking issue in the test and MUST be removed when that
       issue closes
     rationale: >-
-      The received and trigger halves migrate independently (#1769 and #3354), so the
+      The received and trigger halves migrate independently (#1769 and #3831), so the
       ratchet has to be landable while one half still returns `dict`. Naming the issue
       keeps the carve-out from reading as permanent — an unattributed exclusion list is
       indistinguishable from a deliberate design choice a year later.
