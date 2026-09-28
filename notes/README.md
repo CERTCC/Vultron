@@ -613,14 +613,14 @@ embargo consent state machine in `vultron/core/states/`, writing any PEC state
 change, or debugging `embargo_adherence` / `emConsentState` semantics.
 
 **`embargo-lifecycle.md`**
-Target architecture for EM state management: the inline-`EMAdapter`
-instantiation anti-pattern, the current fragmentation across trigger use cases,
-received use cases, and BT behaviors, and the planned `EmbargoLifecycle`
-service (#538) that will consolidate all EM + PEC transitions.
+Architecture of EM state management: the `EmbargoLifecycle` service
+(`vultron/core/services/embargo_lifecycle/`, a per-responsibility package
+since #3760) that owns every EM + PEC transition (#538), the inline-`EMAdapter`
+instantiation anti-pattern it replaced, the P/X/A embargo-eligibility guards,
+and the earliest-expiration resolution order for open proposals (EP-08).
 **Load when**: implementing any embargo state transition in trigger or received
-use cases, designing the `EmbargoLifecycle` service (#538), auditing inline
-`create_em_machine()` instantiations, or working on the post-#538
-`triggers/embargo.py` cleanup (#516).
+use cases or BT nodes, changing or extending `EmbargoLifecycle`, or auditing
+inline `create_em_machine()` instantiations.
 
 ---
 
