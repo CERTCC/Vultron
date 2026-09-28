@@ -201,18 +201,18 @@ The embargo is over for everyone at once, which is the one thing about the EM sc
 
 | Requirement | Obligation |
 |---|---|
-| [EMB-01-002](../../../reference/specs/protocol.md#emb-01) | A proposal MUST be refused with ER when the case is public, exploited, or attacked |
-| [EMB-02-002](../../../reference/specs/protocol.md#emb-02) | An EA MUST NOT activate an embargo on a public case; emit ER |
-| [EMB-03-001](../../../reference/specs/protocol.md#emb-03) | An EV in `EM.ACTIVE` MUST move to `EM.REVISE`, leaving the active embargo in force |
-| [EMB-06-001](../../../reference/specs/protocol.md#emb-06) | An ER in `EM.PROPOSED` MUST return the case to `EM.NONE` |
-| [EMB-13-002](../../../reference/specs/protocol.md#emb-13) | An actor at `EM.EXITED` MUST NOT accept a new embargo for a public case |
-| [EMB-15-002](../../../reference/specs/protocol.md#emb-15) | The response seam MUST bypass approval when the deciding actor is the case owner |
-| [EMB-16-001](../../../reference/specs/protocol.md#emb-16) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal and emit ER |
-| [EMB-17-001](../../../reference/specs/protocol.md#emb-17) | A late `Accept` MUST NOT be refused solely because the deadline passed |
-| [EMB-18-001](../../../reference/specs/architecture.md#emb-18) | Every EM transition MUST route through the embargo lifecycle service |
-| [EMB-19-001](../../../reference/specs/protocol.md#emb-19) | A teardown announcement MUST be authored by the case manager and exclude it from the recipients |
-| [EP-04-001](../../../reference/specs/protocol.md#ep-04) | A default embargo applied at case creation MUST produce `EM.ACTIVE`, not `EM.PROPOSED` |
-| [EP-07-003](../../../reference/specs/protocol.md#ep-07) | A sub-minimum RSVP deadline MUST be clamped up, not rejected |
+| [EMB-01-002](../../../reference/specs/protocol.md#emb-01-002) | A proposal MUST be refused with ER when the case is public, exploited, or attacked |
+| [EMB-02-002](../../../reference/specs/protocol.md#emb-02-002) | An EA MUST NOT activate an embargo on a public case; emit ER |
+| [EMB-03-001](../../../reference/specs/protocol.md#emb-03-001) | An EV in `EM.ACTIVE` MUST move to `EM.REVISE`, leaving the active embargo in force |
+| [EMB-06-001](../../../reference/specs/protocol.md#emb-06-001) | An ER in `EM.PROPOSED` MUST return the case to `EM.NONE` |
+| [EMB-13-002](../../../reference/specs/protocol.md#emb-13-002) | An actor at `EM.EXITED` MUST NOT accept a new embargo for a public case |
+| [EMB-15-002](../../../reference/specs/protocol.md#emb-15-002) | The response seam MUST bypass approval when the deciding actor is the case owner |
+| [EMB-16-001](../../../reference/specs/protocol.md#emb-16-001) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal and emit ER |
+| [EMB-17-001](../../../reference/specs/protocol.md#emb-17-001) | A late `Accept` MUST NOT be refused solely because the deadline passed |
+| [EMB-18-001](../../../reference/specs/architecture.md#emb-18-001) | Every EM transition MUST route through the embargo lifecycle service |
+| [EMB-19-001](../../../reference/specs/protocol.md#emb-19-001) | A teardown announcement MUST be authored by the case manager and exclude it from the recipients |
+| [EP-04-001](../../../reference/specs/protocol.md#ep-04-001) | A default embargo applied at case creation MUST produce `EM.ACTIVE`, not `EM.PROPOSED` |
+| [EP-07-003](../../../reference/specs/protocol.md#ep-07-003) | A sub-minimum RSVP deadline MUST be clamped up, not rejected |
 
 ---
 
