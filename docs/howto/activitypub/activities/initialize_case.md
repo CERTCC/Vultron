@@ -101,4 +101,5 @@ Every one of these is committed to the case ledger by the CASE_MANAGER and fanne
 
 - [Case Management Messages](../../../reference/messages/case_management.md) — the wire format and a rendered example for each activity above
 - [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why creation and attachment are separate verbs, and when inlining an object is worth having
-- [Case Ledger Synchronization](../../../topics/case_lifecycle/case_ledger_sync.md) — how the activities above reach every participant's replica
+- [The CASE_MANAGER and the Case Ledger](../../../topics/case_lifecycle/case_manager_and_ledger.md) — who commits the activities above and how they reach every participant's replica
+- [Case Ledger Synchronization](../../../topics/case_lifecycle/case_ledger_sync.md) — the replication protocol in detail
