@@ -17,6 +17,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import CaseActor
@@ -255,15 +258,16 @@ class TestNoteUseCases:
         refreshed = cast(as_VulnerabilityCase, refreshed)
         assert refreshed.notes.count(note.id_) == 1
 
-    def test_add_note_noop_for_non_case_manager(
+    @pytest.mark.spec("HP-01-005")
+    def test_add_note_refused_for_non_case_manager(
         self, monkeypatch, make_payload
     ):
-        """Non-CaseActor receiving Add(Note, Case) must not update case replica.
+        """A non-manager receiving Add(Note, Case) neither attaches nor commits.
 
         Case replica updates arrive exclusively via Announce(CaseLedgerEntry)
-        fan-out (SYNC-02-002). The BT CheckIsCaseManagerNode guard ensures
-        the non-CaseActor takes the Success fallback and skips both attach
-        and commit.
+        fan-out (SYNC-02-002). The BT CheckIsCaseManagerNode guard keeps the
+        non-manager from attaching or committing, and the handler reports the
+        misaddressed note as a refusal (#3752).
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -272,6 +276,11 @@ class TestNoteUseCases:
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_n3_noop",
             name="Noop Case",
+        )
+        # Somebody else holds CASE_MANAGER, so the gate fails on "this actor
+        # is not the manager" rather than on "no role holder" (BT-17-005).
+        seed_case_manager_participant(
+            dl, case, "https://example.org/actors/case-manager"
         )
         note = as_Note(
             id_="https://example.org/notes/note_noop",
@@ -283,7 +292,6 @@ class TestNoteUseCases:
         activity = add_note_to_case_activity(
             note, target=case, actor="https://example.org/users/finder"
         )
-        # Non-CaseActor: no CASE_MANAGER participant registered
         event = make_payload(
             activity,
             receiving_actor_id="https://example.org/actors/non-manager",
@@ -295,8 +303,10 @@ class TestNoteUseCases:
         assert refreshed is not None
         refreshed = cast(as_VulnerabilityCase, refreshed)
         assert note.id_ not in refreshed.notes
-        # HP-01-003: not the CASE_MANAGER is "not my job", not a refusal.
-        assert result.disposition == HandlerDisposition.SKIPPED
+        # HP-01-005: a note addressed to the wrong party is refused, not
+        # reported as a processed no-op.
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "CASE_MANAGER" in result.reason
 
     def test_remove_note_from_case_removes_note(
         self, monkeypatch, make_payload

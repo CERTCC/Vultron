@@ -19,6 +19,10 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+)
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTExecutionResult
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received._bt_verdict import (
@@ -28,9 +32,13 @@ from vultron.core.use_cases.received._bt_verdict import (
     find_node,
     node_failed,
     node_succeeded,
+    not_case_manager_refusal,
     verdict_from_bt,
 )
 from vultron.errors import VultronBTInternalError
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 class _Fixed(py_trees.behaviour.Behaviour):
@@ -179,3 +187,101 @@ def test_applied_or_raise_passes_success_through():
         tree, BTExecutionResult(status=Status.SUCCESS), label="TestBT"
     )
     assert verdict.disposition == HandlerDisposition.APPLIED
+
+
+# ---------------------------------------------------------------------------
+# not_case_manager_refusal (HP-01-005, #3752)
+# ---------------------------------------------------------------------------
+
+
+_CASE_ID = "https://example.org/cases/gate-verdict"
+_STORE_OWNER = "https://example.org/actors/store-owner"
+_OTHER_MANAGER = "https://example.org/actors/other-manager"
+
+
+def _store(
+    holds_case: bool = True, manager_id: str | None = _OTHER_MANAGER
+) -> SqliteDataLayer:
+    """The store-owner's own store, holding (or not) the case.
+
+    *manager_id* names who holds ``CVDRole.CASE_MANAGER`` on the case; ``None``
+    seeds a case with no role holder at all.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_OWNER)
+    if holds_case:
+        case = as_VulnerabilityCase(id_=_CASE_ID, name="Gate verdict")
+        if manager_id is not None:
+            seed_case_manager_participant(dl, case, manager_id)
+        dl.create(case)
+    return dl
+
+
+def _gated_run(gate_status: Status) -> py_trees.behaviour.Behaviour:
+    """A tree whose CASE_MANAGER check reports *gate_status*.
+
+    The check is the real node, so the helper's type lookup finds it; its
+    status is set directly rather than ticked, since ticking needs the BT
+    bridge's ports and store.
+    """
+    from vultron.core.behaviors.case.nodes.conditions import (
+        CheckIsCaseManagerNode,
+    )
+
+    check = CheckIsCaseManagerNode(case_id=_CASE_ID)
+    check.status = gate_status
+    root = py_trees.composites.Selector(name="Root", memory=False)
+    root.add_children(
+        [
+            py_trees.decorators.Inverter(name="Inv", child=check),
+            _Fixed("Work", Status.SUCCESS),
+        ]
+    )
+    return root
+
+
+@pytest.mark.spec("HP-01-005")
+def test_not_case_manager_refusal_is_none_when_the_gate_passed():
+    tree = _gated_run(Status.SUCCESS)
+    assert not_case_manager_refusal(tree, _store(), _CASE_ID) is None
+
+
+@pytest.mark.spec("HP-01-005")
+def test_not_case_manager_refusal_is_none_without_a_gate():
+    tree = _ran(_Fixed("Ok", Status.SUCCESS))
+    assert not_case_manager_refusal(tree, _store(), _CASE_ID) is None
+
+
+@pytest.mark.spec("HP-01-005")
+def test_not_case_manager_refusal_names_the_missing_role():
+    """Somebody else holds CASE_MANAGER: this actor is not it."""
+    tree = _gated_run(Status.FAILURE)
+    verdict = not_case_manager_refusal(tree, _store(), _CASE_ID)
+    assert verdict is not None
+    assert verdict.disposition == HandlerDisposition.REFUSED
+    assert verdict.reason == f"not the CASE_MANAGER of case '{_CASE_ID}'"
+
+
+@pytest.mark.spec("HP-01-005")
+def test_not_case_manager_refusal_names_the_unknown_case():
+    tree = _gated_run(Status.FAILURE)
+    verdict = not_case_manager_refusal(
+        tree, _store(holds_case=False), _CASE_ID
+    )
+    assert verdict is not None
+    assert verdict.disposition == HandlerDisposition.REFUSED
+    assert verdict.reason == f"unknown case '{_CASE_ID}'"
+
+
+@pytest.mark.spec("HP-01-005")
+def test_not_case_manager_refusal_names_a_case_with_no_manager():
+    """The gate also fails when no participant holds the role at all.
+
+    That is a distinct state from "somebody else is the manager", and the
+    reason says which, because at such a case nobody can pass the gate
+    (CM-02-014, CM-02-015).
+    """
+    tree = _gated_run(Status.FAILURE)
+    verdict = not_case_manager_refusal(tree, _store(manager_id=None), _CASE_ID)
+    assert verdict is not None
+    assert verdict.disposition == HandlerDisposition.REFUSED
+    assert verdict.reason == f"case '{_CASE_ID}' has no CASE_MANAGER"

@@ -24,6 +24,9 @@ are normalised to full URIs before use.
 
 import logging
 from test.conftest import seed_case_actor_replica
+from test.core.use_cases.received.conftest import (
+    seed_store_owner_as_case_manager,
+)
 from typing import cast
 
 import pytest
@@ -577,6 +580,9 @@ class TestRolesThreadingIntegration:
         case = as_VulnerabilityCase(
             attributed_to=owner.id_, name="Roles Round-Trip Test"
         )
+        # The receiving store admits the invitee, so its owner must hold
+        # CASE_MANAGER for the case (BT-17-001, BT-17-005).
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
 
         from vultron.adapters.driven.datalayer_sqlite import reset_datalayer

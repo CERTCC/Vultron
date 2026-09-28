@@ -9,6 +9,7 @@ import logging
 from typing import Any
 
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
@@ -26,6 +27,7 @@ from vultron.core.states.participant_embargo_consent import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.predicates.addressing import is_addressed_to
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -142,6 +144,29 @@ def resolve_receiving_actor_id(
         " receiving_actor_id and the DataLayer reports no actor of its own,"
         " so there is no store this message could be applied to (CM-01-001)"
     )
+
+
+def is_recipient(
+    receiving_actor_id: str, activity: VultronActivity | None
+) -> bool:
+    """True when *receiving_actor_id* is in *activity*'s ``to`` or ``cc``.
+
+    A received-side handler that acts for an addressee (the Case Owner
+    deciding an ``Offer(CaseParticipant)``, the transferee of a forwarded
+    ownership Offer) uses this to tell that addressee from an actor that
+    merely holds a copy.  The copy-holder refuses (HP-01-005): the sender
+    addressed the wrong party, and the receiver's own record says so.
+
+    The extractor has already normalised ``to``/``cc`` to id lists, so this
+    reads them as such.  Matching is by
+    :func:`~vultron.core.predicates.addressing.is_addressed_to`, so a
+    recipient written with a trailing slash still counts.  An event without
+    an activity names no recipient at all.
+    """
+    if activity is None:
+        return False
+    recipients = [*(activity.to or []), *(activity.cc or [])]
+    return is_addressed_to(receiving_actor_id, recipients)
 
 
 def _idempotent_create(
