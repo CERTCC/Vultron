@@ -648,7 +648,8 @@ Its scope cannot be widened. `behaviour` appears in `vultron/` and `test/` as
 across more than two hundred files. `notes/` and `specs/` are outside SG-37's
 scope by the style guide's own scope table.
 
-Three hazards, all silent, all found by measurement rather than anticipated:
+Five hazards, all silent, all found by measurement rather than anticipated. The
+first three were found while planning; the last two while landing #3318:
 
 - **`codespell` has no notion of a code fence.** `docs/howto/wire_capability.md`
   uses `py_trees.behaviour.Behaviour` on ten lines, in fences and inline code
@@ -663,6 +664,17 @@ Three hazards, all silent, all found by measurement rather than anticipated:
 - **`skip` patterns must match the path as `codespell` sees it.** A
   `./`-prefixed pattern silently fails to match when the target is passed as
   `docs/`, more than doubling the finding count with no error.
+- **`skip` sees two path shapes, and a bare directory matches only one.**
+  Patterns are `fnmatch`ed against the full path. Walking `codespell docs/`
+  presents the directory `docs/adr`; the pre-commit hook presents the staged
+  file `docs/adr/0092-x.md`. A bare `docs/adr` matches the first and not the
+  second, so the very first commit under the hook rewrote ADR prose. End each
+  directory pattern in `*` (`docs/adr*`) so both shapes match.
+- **A hyphenated compound is one token.** `codespell`'s word regex includes
+  `-`, so `negative-acknowledgement`, `fault-and-acknowledgement` and any other
+  compound is looked up whole and never matches the dictionary. The hook is the
+  floor, not the ceiling: `lint-docs` still reads for SG-37, and a grep for the
+  bare British stem catches what the tokenizer hides.
 
 The generalizable rule: what makes `--write-changes` safe is not the dictionary
 but an audit that no finding sits inside a code fence, an inline code span, an
