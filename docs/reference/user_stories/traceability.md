@@ -23,10 +23,11 @@ Source specifications: `specs/*.yaml`
      the table (table -> thead/tbody -> tr, then markdown="span" on each td).
      Drop it from any level and that subtree's links silently render as raw
      text — and broken anchors in raw text are NOT caught by the strict build.
-  2. Spec IDs link to the requirement's GROUP anchor on its tier page, e.g.
-     `../specs/protocol.md#vp-02` for VP-02-001. The strict link check only
-     knows heading anchors, so never link a per-requirement `#vp-02-001` (see
-     mkdocs.yml `validation.links.anchors`). The tier page (protocol /
+  2. Spec IDs link to the requirement's OWN anchor on its tier page, e.g.
+     `../specs/protocol.md#vp-02-001` for VP-02-001. The strict link check
+     accepts it because the `vultron/metadata/docs/anchor_ids.py` hook (see
+     mkdocs.yml `hooks:`) registers the ids the spec renderer prints (#3735);
+     a fabricated id still fails the build. The tier page (protocol /
      architecture / project / process) is the requirement's `kind` in the
      spec registry, not its source `.yaml` file. -->
 
