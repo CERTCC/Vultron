@@ -24,6 +24,10 @@ It also carries the provenance of the report — which `Offer(VulnerabilityRepor
 
 The proposal is addressed to the service's container identity, never to an identity derived per case or per report (CP-04-003).
 The service does not exist yet as a per-case actor; that is what is being asked for.
+That identity is `{case_actor_service_url}/actors/case-actor`: one per container, holding many cases (BT-10-002).
+Which case an activity concerns travels in its `context`, not in the address.
+An address derived from the report could not be provisioned before the report arrived, so the proposal would meet a permanent 404 and the round-trip would never start.
+The service URL comes from the actor's configuration — `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` in a container deployment — and not from the server's own base URL, which happens to work when both actors share a container and sends the proposal back to the proposer when they do not.
 
 !!! note "Why creation is delegated rather than done locally"
 
@@ -163,7 +167,8 @@ A case actor service that cannot decline is an open relay: any actor able to rea
 
 ## Further reading
 
-- [Case Initialization](../../case_lifecycle/case_initialization.md) — the wider bootstrap sequence this use case starts
+- [Case Initialization](../../case_lifecycle/case_initialization.md) — why the proposer does not create the case itself
+- [Case Proposal Messages](../../../reference/messages/case_proposal.md) — the `Create`, `Accept`, and `Reject` activities on the wire
 - [Validate report](validate-report.md) — what the owner does once the case replica arrives
 - [Embargo lifecycle](embargo-lifecycle.md) — the default embargo this use case creates, and how it is renegotiated
 - [Capability Model](../../capability_model/index.md#case-admission) — the service contract for the admission call-out point
