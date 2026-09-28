@@ -15,25 +15,45 @@ machines, message types, and their interactions. It is intended for
 implementers who want a consolidated view before diving into the
 detailed, normative pages.
 
-The authoritative sources for everything summarized here are the
+The authoritative source for everything summarized here is the
+[Vultron Protocol Specification](vultron-spec/index.md), with the
 [Formal Protocol](formal_protocol/index.md) pages —
 [States](formal_protocol/states.md),
 [Messages](formal_protocol/messages.md), and
-[Transitions](formal_protocol/transitions.md) — together with the
-[Protocol Specification](specs/protocol.md). Where this page and a
-formal page disagree, the formal page wins.
+[Transitions](formal_protocol/transitions.md) — carrying the formal
+treatment and the [protocol requirements](specs/protocol.md) the
+normative statements. Where this page and any of those disagree, the
+specification wins.
 
 ## State Machines at a Glance
 
-A Participant's state is the triple
-$S_i = (q^{cs}, q^{rm}, q^{em})$ — one state from each of the three
-process models below.
+Every Participant tracks five state machines
+([§12.2](vultron-spec/index.md#122-capability-sets)). Two of them, the
+vendor fix path (VFD) and the public state (PXA), together make up the
+Case State (CS), which the formal protocol pages write as one six-letter
+string.
 
-| Process Model | States | Initial | Terminal |
-| --- | --- | --- | --- |
-| **RM** — Report Management | Start (`S`), Received (`R`), Invalid (`I`), Valid (`V`), Deferred (`D`), Accepted (`A`), Closed (`C`) | `S` (Start) | `C` (Closed) |
-| **EM** — Embargo Management | None (`N`), Proposed (`P`), Active (`A`), Revise (`R`), eXited (`X`) | `N` (None) | `X` (eXited) |
-| **CS** — Case State | Product of six one-way binary substates in order `vfdpxa`: Vendor aware (`v→V`), Fix ready (`f→F`), Fix deployed (`d→D`), Public aware (`p→P`), eXploit public (`x→X`), Attacks observed (`a→A`) | `vfdpxa` (all lowercase) | `VFDPXA` (all uppercase) |
+| State Machine | Scope | States | Initial | Terminal |
+| --- | --- | --- | --- | --- |
+| **RM** — Report Management | Per Participant | Start (`S`), Received (`R`), Invalid (`I`), Valid (`V`), Deferred (`D`), Accepted (`A`), Closed (`C`) | `S` (Start) | `C` (Closed) |
+| **EM** — Embargo Management | Per case | None (`N`), Proposed (`P`), Active (`A`), Revise (`R`), eXited (`X`) | `N` (None) | `X` (eXited) |
+| **PEC** — Participant Embargo Consent | Per Participant | Unbound, Invited, Signatory, Lapsed, Declined | Unbound | — (resets to Unbound when the embargo ends) |
+| **VFD** — Vendor fix path (CS) | Per Participant | Three one-way binary substates in order `vfd`: Vendor aware (`v→V`), Fix ready (`f→F`), Fix deployed (`d→D`) | `vfd` | `VFD` |
+| **PXA** — Public state (CS) | Per case | Three one-way binary substates in order `pxa`: Public aware (`p→P`), eXploit public (`x→X`), Attacks observed (`a→A`) | `pxa` | `PXA` |
+
+The specification names the EM states *Revise* and *eXited* as *Revised*
+and *Exited* ([§7.1](vultron-spec/index.md#71-states)); the shorthand
+letters are the same. PEC is specified in
+[§9](vultron-spec/index.md#9-participant-embargo-consent-pec-state-machine-n)
+and explained in the [Embargo Lifecycle](../topics/behavior_logic/use-cases/embargo-lifecycle.md).
+
+!!! note "The formal protocol's triple"
+
+    The [Formal Protocol](formal_protocol/index.md) pages model the RM,
+    EM, and CS machines and write a Participant's state as the triple
+    $S_i = (q^{rm}, q^{em}, q^{cs})$, where $q^{cs}$ is the six-letter
+    CS string `vfdpxa` that combines VFD and PXA. PEC is not part of the
+    triple. The triple is the form the transition tables below use.
 
 !!! note "Reading CS states"
 
@@ -47,7 +67,8 @@ process models below.
 ## Message Types at a Glance
 
 The complete message set is
-$M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$ (28 types).
+$M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$ (28 types), each
+defined in [§4 of the specification](vultron-spec/index.md#4-semantic-layer-message-meanings-n).
 Every message is emitted by the Participant whose state changed; the
 "Response Expected" column shows what the recipient is expected to send
 back.
@@ -148,17 +169,22 @@ Each substate advances once, in the order shown, and never reverts.
 
 ## Actor Roles Summary
 
-All Participants share the same message vocabulary and the same three
+All Participants share the same message vocabulary and the same five
 state machines; roles differ in where they start and which messages
-they typically originate. See [States](formal_protocol/states.md) for
-the per-role reachable state spaces and start states.
+they typically originate. The roles are defined in
+[§2.2 of the specification](vultron-spec/index.md#22-roles); see
+[States](formal_protocol/states.md) for the per-role reachable state
+spaces and start states. Finder is not a protocol role: an actor that
+discovers a vulnerability and reports it holds the Reporter role
+(ADR-0078).
 
 | Role | RM start | Typically sends | Typically receives |
 | --- | :---: | --- | --- |
-| **Finder / Reporter** | `A` (Accepted) | `RS` (the initial report), embargo proposals (`EP`/`EV`), observations (`CP`/`CX`/`CA`) | `RK`, `CV`, RM status, embargo negotiation |
+| **Reporter** | `A` (Accepted) | `RS` (the initial report), embargo proposals (`EP`/`EV`), observations (`CP`/`CX`/`CA`) | `RK`, `CV`, RM status, embargo negotiation |
 | **Vendor** | `S` (Start) | `CV` (own awareness), `CF` (fix ready), own RM status (`RV`/`RA`/`RC`…), embargo messages | `RS`, `RK`, embargo negotiation, CS updates |
 | **Coordinator** | `S` (Start) | `RS` (forwarding reports), `GI`, embargo proposals, `CP` | reports and effectively any message type — a Coordinator facilitates across Participants |
 | **Deployer** | `S` (Start) | `CD` (fix deployed), acknowledgements | `CV`, `CF`, `RS` |
+| **Observer** | `S` (Start) | observations (`CP`/`CX`/`CA`), acknowledgements, embargo consent | every case-scoped message; an Observer tracks state but drives no VFD transition |
 
 !!! note "Who may send what"
 
@@ -173,6 +199,9 @@ the per-role reachable state spaces and start states.
 
 ## Where to Go Next
 
+- **[Vultron Protocol Specification](vultron-spec/index.md)** — the
+  normative definition of every state machine, message, and role
+  summarized here.
 - **[States](formal_protocol/states.md)** — full state definitions,
   reachable/unreachable states, and per-role state spaces.
 - **[Messages](formal_protocol/messages.md)** — message-type
