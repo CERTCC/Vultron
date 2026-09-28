@@ -37,6 +37,7 @@ In this section, you will find:
 
 <!-- markdownlint-disable MD007 -->
 - [Vultron ActivityPub](activitypub/index.md) — Represent Vultron Protocol message types as ActivityPub messages using the ActivityStreams vocabulary.
+- [Measuring Your CVD Program](measure_your_cvd_program.md) — Score your own program's closed cases against the chance baseline from the Measuring CVD research, and read the result as a skill indicator you can act on.
 - **Demo How-Tos**
     - [FVV Demo](demos/fvv-demo.md) — Run the three-actor Finder, Vendor, Vendor (FVV) demo, in which two vendors each advance an independent fix path with no coordinator.
 - [Process Implementation](process_implementation.md) — Integrate the Report Management (RM), Embargo Management (EM), and Case State (CS) state machines into an existing workflow management system.

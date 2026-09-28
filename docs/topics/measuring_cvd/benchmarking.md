@@ -31,9 +31,9 @@ This analysis baseline
 would provide context on "more skillful than the average for some set of
 teams" rather than more skillful than blind luck.
 
-- [CVD Benchmarks](#cvd-benchmarks) discusses this topic, which should be viewed as an examination of what
+- [CVD Benchmarks](#cvd-benchmarks) below discusses this topic, which should be viewed as an examination of what
 "reasonable" should mean in the context of a "reasonable baseline expectation."
-- [MPCVD](#cvd-benchmarks) suggests how the model might be applied to establish benchmarks for
+- [Measuring and Benchmarking MPCVD](./benchmarking_mpcvd.md), the next page, suggests how the model might be applied to establish benchmarks for
 CVD processes involving any number of participants.
 
 ## CVD Benchmarks
@@ -143,3 +143,6 @@ benchmarks rather than change expectations of the role of chance.
     $f_{\mathbf{D} \prec \mathbf{X}} = 0.844$, we can then compute a
     benchmark $\alpha_{\mathbf{D} \prec \mathbf{X}} = 0.81$, which is again
     a significant improvement over the naïve $\alpha_d = 0$ benchmark.
+
+The benchmarks above treat each case as a single history.
+[Measuring and Benchmarking MPCVD](./benchmarking_mpcvd.md) extends them to a case in which every affected vendor and product has a history of its own.
