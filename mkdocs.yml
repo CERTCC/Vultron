@@ -114,6 +114,7 @@ nav:
       - Concept Taxonomy: 'reference/vultron-taxonomy.md'
       - Glossary: 'reference/glossary.md'
       - Protocol Specification: 'reference/vultron-spec/index.md'
+      - Conformance Matrix: 'reference/conformance_matrix.md'
     - Documentation Conventions: 'reference/conventions.md'
     - Notation: 'reference/notation.md'
     - Versioning: 'reference/versioning.md'
@@ -141,7 +142,7 @@ nav:
       - 'reference/specs/index.md'
       - Protocol: 'reference/specs/protocol.md'
       - Architecture: 'reference/specs/architecture.md'
-    - ISO Crosswalk:
+    - Standards Crosswalks:
       - 'reference/iso_crosswalks/index.md'
       - ISO 30111: 'reference/iso_crosswalks/iso_30111_2019.md'
       - ISO 29147: 'reference/iso_crosswalks/iso_29147_2018.md'

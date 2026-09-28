@@ -328,11 +328,11 @@ This view is planned and not yet drawn. It will show:
 
 This view answers the question: what do I need to build to claim a specific capability set or role?
 
-This view is planned and not yet drawn. It will show:
+The [Conformance Matrix](conformance_matrix.md) draws it as tables checked against the specification:
 
-- A capability set matrix: rows are named capability sets (Case Observer, role extensions, Case Decision, Case Hosting, domain sets); columns are role or configuration claims; cells show required versus optional
-- Role overlays showing which capability sets each role requires
-- Named configuration profiles as pre-filled columns in the matrix
+- A capability set matrix: rows are roles, columns are the capability sets, and cells show required versus optional
+- The transitions each role is authorized to drive
+- Named configuration profiles as pre-filled rows
 
 ---
 

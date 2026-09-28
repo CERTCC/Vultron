@@ -13,6 +13,8 @@ level: 300
 Vultron ActivityStreams (Vultron AS) is an extension of the
 [ActivityStreams vocabulary](https://www.w3.org/TR/activitystreams-vocabulary/){:target="_blank"}
 to describe the mapping of Vultron to ActivityStreams.
+This page shows each Vultron object as it appears on the wire.
+The normative definition of the object types is [§5.2 Object Types](../vultron-spec/index.md#52-object-types) of the Vultron Protocol Specification; the activities that carry them are cataloged in [Message Types](../messages/index.md).
 For why the extension is as small as it is, and when a new object type is minted
 rather than reusing a native one, see
 [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md).
@@ -80,6 +82,12 @@ The following objects are defined for use in the Vultron AS vocabulary:
 - [`CaseParticipant`](#caseparticipant)
 - [`ParticipantStatus`](#participantstatus)
 - [`EmbargoEvent`](#embargoevent)
+- [`CaseParticipantRole`](#caseparticipantrole)
+- [`CaseLedgerEntry`](#caseledgerentry)
+- [`CaseProposal`](#caseproposal)
+
+A case contains its participants, its report, its status records, its embargo events, and its ledger entries; a `CaseProposal` precedes the case and asks for one to be created.
+The [namespace page](../../ns/index.md) lists the declared type names.
 
 ### VulnerabilityReport
 
@@ -146,6 +154,7 @@ print(json2md(populated_case()))
 ### CaseStatus
 
 A `CaseStatus` object is used to represent the participant-agnostic status of a `VulnerabilityCase` object.
+It is canonical: it carries what the case asserts, and only the [CASE_MANAGER](../../topics/case_lifecycle/case_manager_and_ledger.md) writes it ([§5.4.1](../vultron-spec/index.md#541-single-writer-authority)).
 The semantics of the `CaseStatus` object are described in the [Case Model](../../topics/case_lifecycle/case_model.md) section.
 The distinction between *participant-agnostic* and *participant-specific* status is described in the
 [Global vs Local](../../topics/process_models/model_interactions/index.md) section.
@@ -187,14 +196,12 @@ print(json2md(participant_status()))
 
 !!! question "Why is there a CaseStatus inside the ParticipantStatus?"
 
-    The `ParticipantStatus` object allows for a `CaseParticipant` to include a `CaseStatus` object that is specific to
-    that participant. This allows for a participant to indicate that they believe the case as a whole is in a different
-    state than the case owner believes it to be in. For example, a vendor might believe that a an exploit has been
-    released for a vulnerability, while the coordinating case owner believes that the vulnerability is still unexploited. In this
-    case, the vendor could include a `CaseStatus` object in their `ParticipantStatus` that indicates that the case has
-    reached _Exploit Public_. Upon confirmation of this status by the case owner, the case owner would update the
-    `CaseStatus` object in the `VulnerabilityCase` object to reflect the new status by changing the `pxaState` to 
-    include _X_.
+    A `ParticipantStatus` is a claim, and a `CaseStatus` is canonical.
+    The `CaseStatus` inside a `ParticipantStatus` lets a participant state what it believes the case as a whole has reached, without that belief becoming the case's state.
+    For example, a vendor might observe that an exploit has been released while the case still records the vulnerability as unexploited.
+    The vendor includes a `CaseStatus` in its `ParticipantStatus` showing _Exploit Public_.
+    The [CASE_MANAGER](../../topics/case_lifecycle/case_manager_and_ledger.md) then decides whether to adopt the claim, by default with the Case Owner's authorization, and if it does it writes the canonical `CaseStatus` on the `VulnerabilityCase` with `pxaState` including _X_ ([§10.3 Status Adoption](../vultron-spec/index.md#103-status-adoption-the-two-seam-model), [§12.4.4](../vultron-spec/index.md#1244-case-owner-authority)).
+    No other participant writes the canonical `CaseStatus` ([§5.4.1](../vultron-spec/index.md#541-single-writer-authority)).
 
 ### EmbargoEvent
 
@@ -205,4 +212,42 @@ It is a specialization of the `as:Event` object.
 from vultron.wire.as2.vocab.examples.vocab_examples import embargo_event, json2md
 
 print(json2md(embargo_event()))
+```
+
+### CaseParticipantRole
+
+A `CaseParticipantRole` object carries a single CVD role being offered to an actor in the context of a case.
+It is a distinct type so that offering a role (`Offer(CaseParticipantRole)`) is structurally different from offering ownership of the case (`Offer(VulnerabilityCase)`); see [Case Management Messages](../messages/case_management.md#offer-case-participant-role).
+The example is the object carried by such an offer.
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import offer_case_participant_role, json2md
+
+print(json2md(offer_case_participant_role().object_))
+```
+
+### CaseLedgerEntry
+
+A `CaseLedgerEntry` object is one entry in the canonical case ledger.
+The [CASE_MANAGER](../../topics/case_lifecycle/case_manager_and_ledger.md) writes an entry for every case-scoped message and fans it out to participants with `Announce(CaseLedgerEntry)`; each entry carries the hash of the previous one, which is how participants detect a gap.
+See [Ledger Replication](../messages/ledger_replication.md) for the activities that carry it.
+The example is the object carried by such an announcement.
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import announce_case_ledger_entry, json2md
+
+print(json2md(announce_case_ledger_entry().object_))
+```
+
+### CaseProposal
+
+A `CaseProposal` object asks another actor to create and manage a case around a report.
+It is used when the actor holding the report does not intend to manage the case itself; the actor that accepts the proposal becomes the case's creator.
+The report is carried inline, and `target` names the prospective case-actor service.
+See [Case Proposal](../messages/case_proposal.md) for the three-message flow.
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import create_case_proposal, json2md
+
+print(json2md(create_case_proposal().object_))
 ```
