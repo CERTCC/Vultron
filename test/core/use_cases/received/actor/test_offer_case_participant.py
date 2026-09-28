@@ -189,12 +189,17 @@ class TestOfferCaseParticipantReceivedUseCase:
         assert BYSTANDER_ID in result.reason
 
     @pytest.mark.spec("CM-16-004")
-    def test_case_manager_loopback_copy_commits_receipt(self):
-        """The CASE_MANAGER's own cc copy (OX-12-004) records the Offer it sent."""
+    def test_case_manager_addressee_commits_receipt(self):
+        """The CASE_MANAGER, as addressee, records the Offer: the gate's control.
+
+        A Case Owner that also manages its case receives the
+        ``Offer(CaseParticipant)`` in ``to`` over the ordinary delivery path
+        (ADR-0109 keeps that same-actor delivery; the former self-``cc:`` copy
+        is retired).  Holding the role, it passes the gate and the receipt
+        commit runs.
+        """
         dl, _ = _seed_dl_for_case_actor()
-        activity = _build_offer_activity(
-            to=[CASE_OWNER_ID], cc=[CASE_ACTOR_ID]
-        )
+        activity = _build_offer_activity(to=[CASE_ACTOR_ID])
         event = cast(
             OfferCaseParticipantReceivedEvent, extract_event(activity)
         )

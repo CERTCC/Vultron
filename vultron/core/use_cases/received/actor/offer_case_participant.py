@@ -69,7 +69,10 @@ class OfferCaseParticipantReceivedUseCase:
 
     Commits a canonical ``CaseLedgerEntry`` for the received Offer
     (CM-16-003/CM-16-004, ADR-0026) via BTBridge.  That commit is the
-    CASE_MANAGER's, and fires on its own loopback copy (OX-12-004).
+    CASE_MANAGER's and runs only where the receiving actor holds the role —
+    a Case Owner that also manages its case receives the Offer in ``to``
+    over the ordinary delivery path (ADR-0109; the former self-``cc:``
+    copy is retired).
 
     The Case Owner is the addressee: the Offer is now pending its decision,
     which it makes as a separate outbound Accept or Reject, so its receipt is
