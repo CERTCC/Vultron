@@ -3,8 +3,6 @@
 import logging
 from typing import TYPE_CHECKING
 
-from py_trees.common import Status
-
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.note.add_note_received_tree import (
     create_add_note_to_case_received_tree,
@@ -15,7 +13,10 @@ from vultron.core.models.events.note import (
     CreateNoteReceivedEvent,
     RemoveNoteFromCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -23,6 +24,10 @@ from vultron.core.ports.case_persistence import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
+)
+from vultron.core.use_cases.received._bt_verdict import (
+    not_case_manager,
+    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
@@ -47,7 +52,7 @@ class CreateNoteReceivedUseCase:
                 "create_note: no note domain object in event for activity '%s'",
                 request.activity_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused("Create(Note) carries no note object")
 
         case_id: str | None = note.context
         # The *receiving* actor, not the sender (BT-17-005): a received Note is
@@ -62,14 +67,14 @@ class CreateNoteReceivedUseCase:
             tree=tree, actor_id=actor_id, activity=request
         )
 
-        if result.status != Status.SUCCESS:
-            reason = BTBridge.get_failure_reason(tree)
+        verdict = verdict_from_bt(tree, result, label="CreateNoteBT")
+        if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
-                "CreateNoteBT did not succeed for activity '%s': %s",
+                "CreateNoteBT refused activity '%s': %s",
                 request.activity_id,
-                reason or result.feedback_message,
+                verdict.reason,
             )
-        return HandlerResult.applied()
+        return verdict
 
 
 class AddNoteToCaseReceivedUseCase:
@@ -103,7 +108,15 @@ class AddNoteToCaseReceivedUseCase:
         case_id = request.case_id
         if note_id is None or case_id is None:
             logger.warning("add_note_to_case: missing note_id or case_id")
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Add(Note, Case) is missing its note id or case id"
+            )
+
+        # The CASE_MANAGER gate reads a missing case as "not the manager" and
+        # skips, which would hide an Add aimed at a case this actor lacks.
+        if self._dl.read_case(case_id) is None:
+            logger.warning("add_note_to_case: case '%s' not found", case_id)
+            return HandlerResult.refused(f"case '{case_id}' not found")
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -119,15 +132,24 @@ class AddNoteToCaseReceivedUseCase:
             activity=request,
             sync_port=self._sync_port,
         )
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "add_note_to_case: BT did not fully succeed for note '%s'"
-                " in case '%s': %s",
+        verdict = verdict_from_bt(
+            tree, result, label="GuardedAttachAndCommitBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "add_note_to_case: note '%s' in case '%s' refused: %s",
                 note_id,
                 case_id,
-                BTBridge.get_failure_reason(tree) or result.feedback_message,
+                verdict.reason,
             )
-        return HandlerResult.applied()
+            return verdict
+        if verdict.disposition is HandlerDisposition.APPLIED and (
+            not_case_manager(tree)
+        ):
+            # Only the CaseActor attaches; others learn of the note through
+            # Announce(CaseLedgerEntry) fan-out (SYNC-02-002).
+            return HandlerResult.skipped("not the case's CASE_MANAGER")
+        return verdict
 
 
 class RemoveNoteFromCaseReceivedUseCase:
@@ -143,14 +165,16 @@ class RemoveNoteFromCaseReceivedUseCase:
         case_id = request.case_id
         if note_id is None or case_id is None:
             logger.warning("remove_note_from_case: missing note_id or case_id")
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Remove(Note, Case) is missing its note id or case id"
+            )
         case = self._dl.read_case(case_id)
 
         if case is None:
             logger.warning(
                 "remove_note_from_case: case '%s' not found", case_id
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(f"case '{case_id}' not found")
 
         existing_ids = [_as_id(n) for n in case.notes]
         if note_id not in existing_ids:
@@ -159,7 +183,9 @@ class RemoveNoteFromCaseReceivedUseCase:
                 note_id,
                 case_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.skipped(
+                f"note '{note_id}' not in case '{case_id}'"
+            )
 
         case.notes = [  # type: ignore[assignment]
             n for n in case.notes if _as_id(n) != note_id

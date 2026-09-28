@@ -4,7 +4,6 @@ description: >-
   The Vultron inbox handler must be thoroughly testable at unit, integration, and system levels.
   Testability enables confidence in correctness, supports refactoring, and documents expected
   behavior.
-version: 1.0.0
 scope:
 - prototype
 - production

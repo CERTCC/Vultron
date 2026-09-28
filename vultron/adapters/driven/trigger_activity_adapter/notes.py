@@ -42,7 +42,7 @@ def _note_for_wire(dl: CasePersistence, note_id: str) -> as_Note:
     (DL-05-001) is not what ``_AddNoteToCaseActivity``'s ``as_Note``-typed
     ``object`` field accepts, although a generic ``as_Add`` admits any
     ``CoreObject``. ``Create`` gets the same wire note so the two agree. The translation
-    belongs here on the adapter side (ARCH-12-005) and goes through the core
+    belongs here on the adapter side (ARCH-20-001) and goes through the core
     object's AS2 rendering (ADR-0099 detail 1).
 
     Raises:

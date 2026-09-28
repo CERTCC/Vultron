@@ -1,7 +1,6 @@
 id: CS
 title: Code Style Specifications
 description: Defines code formatting, import organization, and coding style standards for Python code in the Vultron project.
-version: 1.2.0
 scope:
 - prototype
 - production

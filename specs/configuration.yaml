@@ -2,7 +2,6 @@ id: CFG
 title: Configuration Management
 description: Requirements for unified, structured application configuration in Vultron. Configuration uses YAML files backed
   by Pydantic-based models loaded via pydantic-settings with environment variable override support.
-version: 1.0.0
 scope:
 - prototype
 - production

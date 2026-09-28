@@ -185,7 +185,7 @@ class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
 
         ``as_VultronPerson`` used to register under ``VultronPerson`` too — a
         key no AS2 payload ever carries, which let a caller holding the *core*
-        class name resolve a wire class by name coincidence (ARCH-23-001).
+        class name resolve a wire class by name coincidence (ARCH-23-002).
         """
         for class_stem in (
             "VultronPerson",

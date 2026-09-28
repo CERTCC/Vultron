@@ -4,7 +4,6 @@ description: >-
   Requirements for a canonical representation of time durations independent of start/end
   timestamps. Applicable wherever a duration must be exchanged in JSON, such as embargo
   policy records and embargo initialization at case creation.
-version: 1.0.0
 scope:
 - prototype
 - production

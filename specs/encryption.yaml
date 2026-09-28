@@ -4,7 +4,6 @@ description: >-
   Requirements for encrypted messaging and actor key management using ActivityPub extension
   conventions. Ensures that sensitive vulnerability information can be protected in transit
   between actors.
-version: 1.0.0
 scope:
 - prototype
 - production

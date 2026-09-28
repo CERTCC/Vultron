@@ -27,6 +27,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import CaseActor
 from vultron.enums.roles import CVDRole
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.note import AddNoteToCaseReceivedUseCase
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -135,11 +136,12 @@ class TestAddNoteToCaseLedgerRouting:
         )
         event = make_payload(activity, receiving_actor_id=CASE_ACTOR_ID)
 
-        AddNoteToCaseReceivedUseCase(
+        result = AddNoteToCaseReceivedUseCase(
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         event_types = _ledger_event_types(dl)
         assert "add_note_to_case" in event_types, (
@@ -164,11 +166,12 @@ class TestAddNoteToCaseLedgerRouting:
         )
         event = make_payload(activity, receiving_actor_id=VENDOR_ID)
 
-        AddNoteToCaseReceivedUseCase(
+        result = AddNoteToCaseReceivedUseCase(
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        assert result.disposition == HandlerDisposition.SKIPPED
 
         event_types = _ledger_event_types(dl)
         assert "add_note_to_case" not in event_types, (
@@ -198,11 +201,12 @@ class TestAddNoteToCaseLedgerRouting:
         # Explicitly clear receiving_actor_id to exercise the fallback path.
         event = event.model_copy(update={"receiving_actor_id": None})
 
-        AddNoteToCaseReceivedUseCase(
+        result = AddNoteToCaseReceivedUseCase(
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         event_types = _ledger_event_types(dl)
         assert "add_note_to_case" in event_types, (

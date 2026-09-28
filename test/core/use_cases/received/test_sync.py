@@ -25,6 +25,7 @@ from vultron.core.models.case_ledger import (
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
@@ -657,3 +658,195 @@ class TestPreGenesisAnnounceBuffering:
 
         assert all(dl.read(e.id_) is not None for e in entries)
         assert gap_buffer.depth(CASE_URI) == 0
+
+
+class TestAnnounceLedgerEntryDisposition:
+    """Each ``Announce(CaseLedgerEntry)`` exit reports what happened (#2255).
+
+    APPLIED reads as "processed" in the InboxOutcome.  A duplicate or a
+    self-echo is a no-op (SKIPPED), a parked entry is DEFERRED, and an entry
+    this replica answered with a ``Reject`` is REFUSED (HP-01-003).
+    """
+
+    _IMPOSTER_URI = "https://example.org/actors/imposter"
+
+    @pytest.fixture
+    def gap_buffer(self) -> LedgerGapBuffer:
+        return LedgerGapBuffer()
+
+    def _make_event(
+        self, entry: CaseLedgerEntry, actor: str = ACTOR_URI
+    ) -> AnnounceLogEntryReceivedEvent:
+        wire_entry = WireCaseLedgerEntry.model_validate(
+            entry.model_dump(mode="json")
+        )
+        activity = announce_log_entry_activity(wire_entry, actor=actor)
+        event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+        return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
+
+    def _seed_case_managed_by(self, dl, manager_id: str) -> None:
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        manager = as_CaseParticipant(
+            id_=f"{CASE_URI}/participants/case-manager",
+            context=CASE_URI,
+            attributed_to=manager_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(manager)
+        case = as_VulnerabilityCase(id_=CASE_URI, name="Disposition Case")
+        case.case_participants.append(manager.id_)
+        case.actor_participant_index[manager_id] = manager.id_
+        dl.create(case)
+
+    def _run(self, dl, event, gap_buffer=None):
+        return AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            gap_buffer=gap_buffer,
+        ).execute()
+
+    @pytest.mark.spec("HP-01-003")
+    def test_missing_log_entry_is_refused(self, dl):
+        event = AnnounceLogEntryReceivedEvent(
+            activity_id="urn:uuid:no-entry",
+            actor_id=ACTOR_URI,
+            receiving_actor_id=RECEIVER_URI,
+        )
+
+        result = self._run(dl, event)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_chain_extending_entry_is_applied(
+        self, dl, genesis_entry, gap_buffer
+    ):
+        result = self._run(dl, self._make_event(genesis_entry), gap_buffer)
+
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("SYNC-03-003")
+    def test_already_stored_entry_is_skipped(
+        self, dl, genesis_entry, gap_buffer
+    ):
+        dl.save(genesis_entry)
+
+        result = self._run(dl, self._make_event(genesis_entry), gap_buffer)
+
+        assert result.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("SYNC-03-001")
+    def test_hash_mismatch_is_refused(self, dl, first_entry, gap_buffer):
+        """A stale or forked entry is answered with Reject, so it is REFUSED."""
+        dl.save(first_entry)
+        bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
+
+        result = self._run(dl, self._make_event(bad_entry), gap_buffer)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "SYNC-03-001" in result.reason
+        assert gap_buffer.depth(CASE_URI) == 0
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("SYNC-14-001")
+    def test_forward_gap_entry_is_deferred(
+        self, dl, case_with_genesis, gap_buffer
+    ):
+        e0 = _make_entry(CASE_URI, 0, case_with_genesis.genesis_hash)
+        e1 = _make_entry(CASE_URI, 1, e0.entry_hash)
+
+        result = self._run(dl, self._make_event(e1), gap_buffer)
+
+        assert result.disposition == HandlerDisposition.DEFERRED
+        assert gap_buffer.depth(CASE_URI) == 1
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("SYNC-14-003")
+    def test_entry_that_closes_a_gap_is_applied(
+        self, dl, case_with_genesis, gap_buffer
+    ):
+        e0 = _make_entry(CASE_URI, 0, case_with_genesis.genesis_hash)
+        e1 = _make_entry(CASE_URI, 1, e0.entry_hash)
+        self._run(dl, self._make_event(e1), gap_buffer)
+
+        result = self._run(dl, self._make_event(e0), gap_buffer)
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert dl.read(e1.id_) is not None
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("SYNC-15-004")
+    def test_pre_genesis_entry_is_deferred(self, dl, gap_buffer):
+        case = _make_case()  # deliberately NOT saved — pre-genesis window
+        entry = _make_entry(CASE_URI, 0, case.genesis_hash)
+
+        result = self._run(dl, self._make_event(entry), gap_buffer)
+
+        assert result.disposition == HandlerDisposition.DEFERRED
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("SYNC-15-001")
+    def test_unbuffered_pre_genesis_entry_is_refused(self, dl):
+        """With buffering disabled the entry is only answered with Reject."""
+        case = _make_case()
+        entry = _make_entry(CASE_URI, 0, case.genesis_hash)
+
+        result = self._run(
+            dl, self._make_event(entry), LedgerGapBuffer(max_entries=0)
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("SYNC-13-006")
+    def test_announce_from_non_case_actor_is_refused(
+        self, dl, first_entry, gap_buffer
+    ):
+        self._seed_case_managed_by(dl, ACTOR_URI)
+
+        result = self._run(
+            dl, self._make_event(first_entry, self._IMPOSTER_URI), gap_buffer
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert self._IMPOSTER_URI in result.reason
+        assert dl.read(first_entry.id_) is None
+
+    @pytest.mark.spec("HP-01-003")
+    def test_case_manager_self_echo_is_skipped(
+        self, dl, first_entry, gap_buffer
+    ):
+        """The CaseActor's own fan-out echoing back is a delivery receipt."""
+        self._seed_case_managed_by(dl, RECEIVER_URI)
+
+        result = self._run(
+            dl, self._make_event(first_entry, RECEIVER_URI), gap_buffer
+        )
+
+        assert result.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_case_manager_refuses_announce_from_another_actor(
+        self, dl, first_entry, gap_buffer
+    ):
+        self._seed_case_managed_by(dl, RECEIVER_URI)
+
+        result = self._run(
+            dl, self._make_event(first_entry, self._IMPOSTER_URI), gap_buffer
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert self._IMPOSTER_URI in result.reason

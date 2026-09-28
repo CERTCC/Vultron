@@ -4,7 +4,6 @@ description: Requirements for integrating py_trees behavior trees into Vultron h
   model, state management via the DataLayer, handler integration patterns, actor isolation, concurrency constraints, and failure
   diagnosis. Complex protocol workflows such as report validation, case creation, and embargo management must be implemented
   as BT nodes or subtrees.
-version: 1.1.0
 scope:
 - prototype
 - production
@@ -498,9 +497,11 @@ groups:
     priority: MUST
     kind: project
     statement: 'After any BT execution that returns FAILURE, code MUST retrieve the failure reason via `BTBridge.get_failure_reason(tree)`
-      (a depth-first walk to the first failing leaf node). Code MUST NOT log or inspect `result.feedback_message` or `bt.root.feedback_message`
-      for diagnostic purposes: a `py_trees` Sequence root''s `feedback_message` is always `""` when a child fails, regardless
-      of what the failing child set.'
+      (a walk down the chain of failed nodes to the failing leaf, taking the last failed child of each composite). Code MUST
+      NOT log or inspect `result.feedback_message` or `bt.root.feedback_message` for diagnostic purposes: a `py_trees` Sequence
+      root''s `feedback_message` is always `""` when a child fails, regardless of what the failing child set. The one exception
+      is a node that raised: it never set a status, so `get_failure_reason` finds no failing leaf, and `result.feedback_message`
+      then carries the bridge''s composed exception message.'
     rationale: '`py_trees` sets `feedback_message` on the failing child node, not on the parent Sequence. Logging the root
       message produces an empty string that is indistinguishable from "no error" in logs, making failures completely silent.
       `get_failure_reason()` walks to the actual failing leaf and returns its message.'

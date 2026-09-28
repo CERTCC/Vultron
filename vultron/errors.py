@@ -354,24 +354,25 @@ class BtNodePreconditionError(VultronError):
     """
 
 
-class VultronStatusAssertionRefusedError(VultronError):
-    """Raised when a receive-path BT wholly refuses a status assertion.
+class VultronWiringError(VultronError):
+    """Raised when a node is missing a DataLayer or port it requires.
 
-    Raised by :class:`~vultron.core.use_cases.received.status\
-.AddParticipantStatusToParticipantReceivedUseCase` when
-    ``AddParticipantStatusBT`` returns ``FAILURE`` (i.e.
-    ``FilterParticipantStatusDimensionsNode`` refused every dimension and
-    produced a filtered status indistinguishable from the participant's current
-    state).  The inbox ``DispatchNode`` catches this exception and writes
-    ``"rejected"`` to ``KEY_OUTCOME_STATUS``, surfacing the total refusal as a
-    ``rejected`` ``InboxOutcome`` rather than the silent ``202 Accepted /
-    processed`` response that previously made total refusals invisible to
-    senders.  Extends ISSUE-2255 (sender-feedback diagnostics).
+    That is a deployment or composition fault, never the sender's doing, so
+    ``BTBridge`` flags it as ``internal_error`` even though it is a
+    ``VultronError`` — and a received handler therefore raises rather than
+    reporting the message as ``REFUSED`` (#2255, ADR-0095).
+    """
 
-    Callers that need to distinguish total-refusal from a partial-accept (where
-    the BT succeeds with some dimensions filtered) can inspect the
-    ``InboxOutcome.status`` field: ``"rejected"`` means wholly refused,
-    ``"processed"`` means at least one dimension was accepted.
+
+class VultronBTInternalError(VultronError):
+    """Raised when a received-side BT failed on an internal error.
+
+    ``BTBridge`` catches a non-``VultronError`` exception escaping a node and
+    reports it as ``FAILURE`` with ``internal_error=True``.  That is a
+    programming error, not a protocol outcome, so a handler MUST NOT report it
+    as ``HandlerDisposition.REFUSED`` (ADR-0095): it re-raises it as this
+    exception so the inbox pipeline records it as a raised dispatch, traceback
+    and all, and it stays distinguishable from a refusal.
     """
 
 

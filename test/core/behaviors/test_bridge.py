@@ -681,6 +681,66 @@ def test_get_failure_reason_finds_first_failing_child():
     assert result == "Failure"
 
 
+class _FailWith(py_trees.behaviour.Behaviour):
+    def __init__(self, name: str, message: str) -> None:
+        super().__init__(name=name)
+        self._message = message
+
+    def update(self) -> Status:
+        self.feedback_message = self._message
+        return Status.FAILURE
+
+
+def test_get_failure_reason_names_last_selector_attempt():
+    """A failed Selector reports its final attempt, not its first guard.
+
+    Receive trees put a cheap "already done?" check first and the real work
+    last. The first child failing is what sent the Selector on to the next
+    one, so reporting it names the harmless check instead of the cause.
+    """
+    root = py_trees.composites.Selector(name="Root", memory=False)
+    root.add_children(
+        [
+            _FailWith("AlreadyDone", "not yet done"),
+            _FailWith("DoIt", "invalid RM transition"),
+        ]
+    )
+    root.setup_with_descendants()
+    root.tick_once()
+    assert BTBridge.get_failure_reason(root) == "invalid RM transition"
+
+
+def test_get_failure_reason_skips_selector_that_succeeded():
+    """A Selector that recovered is not where a failed Sequence failed."""
+    fallback = py_trees.composites.Selector(name="Fallback", memory=False)
+    fallback.add_children(
+        [_FailWith("Guard", "benign"), AlwaysSucceed(name="Ok")]
+    )
+    root = py_trees.composites.Sequence(name="Root", memory=False)
+    root.add_children([fallback, _FailWith("Commit", "commit failed")])
+    root.setup_with_descendants()
+    root.tick_once()
+    assert BTBridge.get_failure_reason(root) == "commit failed"
+
+
+def test_leader_skip_is_flagged_on_result(bridge, test_actor_id):
+    """A leadership skip is a typed fact, not a message to pattern-match."""
+    bridge.is_leader = lambda: False
+    result = bridge.execute_with_setup(
+        tree=AlwaysSucceed(), actor_id=test_actor_id
+    )
+    assert result.status == Status.FAILURE
+    assert result.leader_skipped is True
+
+
+def test_ordinary_failure_is_not_flagged_leader_skipped(bridge, test_actor_id):
+    result = bridge.execute_with_setup(
+        tree=AlwaysFail(), actor_id=test_actor_id
+    )
+    assert result.status == Status.FAILURE
+    assert result.leader_skipped is False
+
+
 # Log-level tests
 
 
@@ -1910,3 +1970,23 @@ class TestNestedExecutionKeyIsolation:
         assert after["/activity"] == {"type": "Create", "id": "outer-activity"}
         assert after["/case_id"] == "outer-case"
         assert after["/actor_id"] == test_actor_id
+
+
+class _RaiseWiring(py_trees.behaviour.Behaviour):
+    def update(self) -> Status:
+        from vultron.errors import VultronWiringError
+
+        raise VultronWiringError("sync_port must be injected")
+
+
+def test_wiring_error_is_flagged_internal():
+    """A missing port is our fault, not the peer's (#2255)."""
+    bridge = BTBridge(
+        datalayer=SqliteDataLayer("sqlite:///:memory:", actor_id="a")
+    )
+    result = bridge.execute_with_setup(_RaiseWiring(name="W"), actor_id="a")
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "VultronWiringError: sync_port must be injected" in (
+        result.feedback_message
+    )

@@ -40,9 +40,9 @@ and `docs/adr/0095-received-side-handler-result.md` for the received-side half.
 > `-> UseCaseResult` (#3372); the query use case returns `ActionRulesResult`.
 > `test/architecture/test_use_case_execute_returns_result.py` enforces
 > UCORG-05-004 outside `triggers/`. The dispatcher returns the value and
-> `DispatchNode` maps its disposition onto `InboxOutcome.status` (#3373). Every
-> handler still returns `APPLIED` unconditionally — assigning the correct
-> disposition per site is #2255. On the trigger side, a standalone
+> `DispatchNode` maps its disposition onto `InboxOutcome.status` (#3373). Each
+> handler exit returns the disposition it earned (#2255; see
+> [Assigning a disposition](#assigning-a-disposition)). On the trigger side, a standalone
 > `TriggerResult` envelope lives in `vultron/core/use_cases/triggers/results.py`
 > (#3398), plus a demo-layer `ActivityResult` subtype, introduced only so
 > `ActorSession` can type demo trigger responses at the HTTP boundary; it does
@@ -228,8 +228,8 @@ change in #3373, `DispatchNode.update()` treated "dispatch did not raise" as
 SUCCESS and every link from `execute()` to `DispatchNode` was typed `-> None`, so a
 handler's verdict could not reach `InboxOutcome`: a handler could find nothing
 it could act on, log a warning, return, and the pipeline still reported
-`processed`. The plumbing is now in place; assigning each handler its real
-disposition is #2255.
+`processed`. #3373 put the plumbing in place and #2255 gave each handler its real
+disposition.
 
 Each link returns `HandlerResult`:
 
@@ -277,20 +277,64 @@ escalating a skip to `REFUSED` stays the calling handler's verdict (#2255).
 (HP-01-004), not a claim about which outcomes a handler can cause.
 
 **What this does not do.** The verdict reaches `InboxOutcome` and the actor log.
-Reaching the log takes a deliberate step: `run_inbox_pipeline` only debug-logs
-`outcome.status`, so a refusal is invisible at normal log levels until that is
-raised (UCORG-05-013, and #2255's acceptance criterion).
+Reaching the log takes a deliberate step: `run_inbox_pipeline` debug-logs every
+`outcome.status`, and `_warn_if_rejected` also logs a `rejected` one at WARNING
+so a refusal is visible at normal log levels (UCORG-05-013).
 
 It does not reach the *sender* over the HTTP response — `post_actor_inbox`
 returns 202 before any handler runs, so the response cannot carry a processing
 verdict. One path does already reach the sender by another route:
 `received/status.py` emits a `Create(ProcessingFault)` carrying
 `VULTRON_FAILURE_STATUS_ASSERTION_REFUSED` when a status assertion fails
-non-idempotently. That predates this design and must not regress. Acceptance
+non-idempotently. That predates this design and must not regress. A
+participant status the adoption gate withholds (RSH-01-002) is `SKIPPED`
+and emits no fault: the claim was recorded, and only its adoption as
+canonical waits for the CASE_OWNER (RSH-05-022). Acceptance
 ("is this a well-formed activity addressed to me?") and processing ("did handling
 it succeed?") are distinct paths, and only the first is synchronous. Surfacing
 processing outcomes to a remote party is #2682's problem, and at the protocol
 level it is an ack/`ProcessingFault` message, not a response code.
+
+### Assigning a disposition
+
+Most handlers run a behavior tree, whose root status says only whether it
+succeeded. `vultron/core/use_cases/received/_bt_verdict.py` turns a finished
+run into a `HandlerResult`. `verdict_from_bt` gives the default reading:
+
+- `SUCCESS` → `APPLIED`; a leadership skip (the tree never ran) → `SKIPPED`.
+- `internal_error`, or a node missing its DataLayer or a port → raise
+  `VultronBTInternalError`. `VultronWiringError` is the exception a node raises
+  for a missing port; `BTBridge` flags it `internal_error` even though it is a
+  `VultronError`.
+- Any other `FAILURE` → `REFUSED`, carrying the failing leaf's reason.
+
+`applied_or_raise` is the variant for a tree that only stores or commits what
+the handler already accepted: there any failure raises, because it can only be
+the DataLayer's.
+
+A handler refines the default where its tree says more. It asks which node
+decided with `node_failed`, `node_succeeded`, `find_node` (by type) or
+`find_named` (by name, for composites). It does not match on a node's
+`feedback_message`, which usually embeds ids. A duplicate guard's `FAILURE` is
+`SKIPPED`, a role gate that reports "not my job" as `SUCCESS` is `SKIPPED`, and
+a gap-buffer park is `DEFERRED`. Where later steps must run only on `APPLIED`,
+the handler returns the verdict early when it is anything else.
+
+The rules the handlers follow:
+
+| Exit | Disposition |
+|---|---|
+| Internal or infrastructure failure, missing port | raise |
+| Malformed activity (missing id, object or field) | `REFUSED` |
+| Activity about a case this actor does not hold | `REFUSED` |
+| Invalid transition; untrusted, non-participant or non-owner sender | `REFUSED` |
+| The handler answered with a `Reject` or a decline | `REFUSED` |
+| Not this actor's role, nothing to record it on | `SKIPPED` |
+| Duplicate or redelivery | `SKIPPED` |
+| Buffered out-of-order or pre-genesis ledger entry | `DEFERRED` |
+
+The authorization rows cover the checks the handlers make. Some handlers make
+none yet; that gap is #3733.
 
 ---
 

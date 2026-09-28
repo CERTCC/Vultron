@@ -297,9 +297,15 @@ FAILURE, but local state written by the successful earlier children persists.
 
 **Design implication**: When using `memory=False` sequences for partially-
 reversible operations, document which steps are non-transactional and what
-state is committed if a later step fails. Tests MUST assert partial-write
-behavior explicitly so future readers do not assume FAILURE → no writes
-occurred.
+state is committed if a later step fails.
+Tests MUST assert partial-write behavior explicitly so future readers do not
+assume FAILURE → no writes occurred.
+
+**BT-19-001 prescription**: To prevent partial writes on a failing guard,
+place every read-only guard node (case-existence check, role resolution,
+routing prerequisite) **before** any state-mutation node in the sequence.
+A failing guard then leaves zero DataLayer state behind (BTND-06-005,
+BT-19-001).
 
 For the note-domain worked example, see
 `vultron/core/behaviors/note/AGENTS.md` § "`memory=False` Note Sequence".

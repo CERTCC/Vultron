@@ -110,8 +110,6 @@ def render_markdown(spec_file: SpecFile) -> str:
         "",
         spec_file.description,
         "",
-        f"**Version**: {spec_file.version}",
-        "",
         "---",
         "",
     ]
@@ -231,7 +229,6 @@ def _file_to_dict(spec_file: SpecFile) -> dict:
         "id": spec_file.id,
         "title": spec_file.title,
         "description": spec_file.description,
-        "version": spec_file.version,
         "scope": [s.value for s in spec_file.scope],
     }
     if spec_file.tags is not None:

@@ -21,6 +21,7 @@ import pytest
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
 )
@@ -90,9 +91,10 @@ class TestOfferActorToCaseReceivedUseCase:
             event, OfferActorToCaseReceivedEvent
         ), f"Expected OfferActorToCaseReceivedEvent, got {type(event)}"
 
-        OfferActorToCaseReceivedUseCase(
+        result = OfferActorToCaseReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         outbox = dl.outbox_list()
         assert (
@@ -133,7 +135,12 @@ class TestOfferActorToCaseReceivedUseCase:
         event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
-            OfferActorToCaseReceivedUseCase(dl, event).execute()
+            result = OfferActorToCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+        # The store holds no such case, so the recommendation is refused.
+        assert result.disposition is HandlerDisposition.REFUSED
 
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages, (
@@ -161,9 +168,10 @@ class TestOfferActorToCaseReceivedUseCase:
         mock_event.activity = None
 
         with caplog.at_level(logging.WARNING):
-            OfferActorToCaseReceivedUseCase(dl, mock_event).execute()
+            result = OfferActorToCaseReceivedUseCase(dl, mock_event).execute()
 
         assert any("missing" in r.message.lower() for r in caplog.records)
+        assert result.disposition is HandlerDisposition.REFUSED
 
     def test_offer_actor_populates_recommendation_recommender_index(
         self, make_payload

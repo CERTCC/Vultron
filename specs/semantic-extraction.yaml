@@ -4,7 +4,6 @@ description: >-
   The inbox handler extracts semantic meaning from ActivityStreams activities by matching
   activity type and object type patterns. This semantic type determines which handler function
   processes the activity.
-version: 1.2.0
 scope:
 - prototype
 - production

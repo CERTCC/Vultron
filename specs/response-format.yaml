@@ -4,7 +4,6 @@ description: >-
   The Vultron protocol uses ActivityStreams activities for both requests and responses. When
   handlers process inbound activities, they generate response activities (Accept, Reject,
   Update, etc.) sent to the originating actor or other participants.
-version: 1.0.0
 scope:
 - prototype
 - production

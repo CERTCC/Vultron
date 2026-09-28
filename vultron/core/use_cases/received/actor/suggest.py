@@ -10,9 +10,13 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
 from vultron.core.models.events.actor import (
     OfferActorToCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -55,10 +59,12 @@ class OfferActorToCaseReceivedUseCase:
         if not recommended_id or not case_id:
             logger.warning(
                 "OfferActorToCaseReceived: missing recommended_id or case_id"
-                " in event '%s' — skipping",
+                " in event '%s' — refusing",
                 activity_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Offer(Actor, Case) is missing its recommended actor or case"
+            )
 
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -93,7 +99,16 @@ class OfferActorToCaseReceivedUseCase:
         bridge = BTBridge(
             datalayer=self._dl, trigger_activity=self._trigger_activity
         )
-        bridge.execute_with_setup(
+        result = bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
         )
-        return HandlerResult.applied()
+        verdict = verdict_from_bt(
+            tree, result, label="RecommendActorToCaseReceivedBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "OfferActorToCaseReceived: refused '%s': %s",
+                activity_id,
+                verdict.reason,
+            )
+        return verdict

@@ -240,10 +240,15 @@ forbidden-key set, because every field's camelCase form is a sanctioned
 `validation_alias`. The guard is structurally inert on such classes and arms
 itself when #2288/#2289 remove the alias. There is no ordering constraint.
 
-**Persisted rows are keyed by Python field name.** `Record.from_obj()` calls
-`obj.model_dump(mode="json", serialize_as_any=True)` with no `by_alias`, so rows
-are stored with `id_`/`type_` rather than `id`/`type`. That is *not* a latent
-read-back bug on its own — see the next section for why.
+**Persisted rows now use wire-facing identity keys** (`id`/`type`/`@context`).
+`Record.from_obj()` calls `_rekey_wire_identity()` after `_dehydrate_data()` to
+rename the three identity keys before storage (#3546, ARCH-23-005).
+Existing rows keyed `id_`/`type_` continue to round-trip correctly via
+`populate_by_name=True`.
+The alias-injection analysis in the next section remains accurate: `id_` is still
+a sanctioned input on read-back, and re-keying did not mask the
+`CaseLedgerEntry` bug because that bug is driven by the `_set_id_from_case`
+validator injecting a duplicate key, not by key-name choice.
 
 ### The `id_` Failures Are an Alias-Injection Bug, Not a Field-Name Bug
 
@@ -289,9 +294,10 @@ The same inject-alias-beside-field-name pattern appears at
 is a site to fix, and the fix is to write the key the payload is already using —
 not to re-key the database.
 
-The round-trip cleanups (ARCH-23-005) are still prerequisites rather than
-follow-ups, because the `@computed_field` half of the problem
-(`embargo_adherence`, 1096 failures) is real and independent.
+All three halves of ARCH-23-005 are now met: translation (#2940),
+persistence re-keying (#3546), and the refusal clause for a contradicted
+`@computed_field` value (`embargo_adherence`, #3695) — see "`extra="forbid"` Is
+the Boundary Contract" below for the refusal mechanism.
 
 ## `as_ObjectRef`: The Former Kludge, Re-Added On Purpose
 

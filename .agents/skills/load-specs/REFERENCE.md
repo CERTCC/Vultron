@@ -37,7 +37,7 @@ selection shows only a truncated prefix. `--text` requires a selection.
 ### `topics`
 
 One entry per spec topic that has a selected requirement. Fields: `id`,
-`title`, `version` (with `--slim`: `id` and `title` only).
+`title`.
 
 ### `requirements`
 

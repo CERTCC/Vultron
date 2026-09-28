@@ -4,7 +4,6 @@ description: >-
   Requirements for a standardized embargo policy record associated with an Actor profile.
   Allows actors to declare their default embargo preferences so that coordinators can evaluate
   compatibility before proposing an embargo or inviting an actor to a case.
-version: 1.2.0
 scope:
 - prototype
 - production

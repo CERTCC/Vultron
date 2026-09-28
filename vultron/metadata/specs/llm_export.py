@@ -143,7 +143,6 @@ def _topic_record(file: SpecFile) -> dict[str, str]:
     return {
         "id": file.id,
         "title": file.title,
-        "version": file.version,
     }
 
 
@@ -316,7 +315,7 @@ def to_llm_json(
         priority: Filter to specs with this priority value.
         slim: Reduce each requirement to ``id``/``priority``/``statement``
             (plus ``note`` when set), keep only relationship edges whose
-            both ends are selected, and reduce topics to ``id``/``title``.
+            both ends are selected.
 
     Returns:
         Compact JSON string (no indentation).
@@ -351,15 +350,9 @@ def to_llm_json(
     if slim:
         kept = {r["id"] for r in requirements}
         edges = [e for e in edges if e["to"] in kept]
-        topics: list[dict[str, str]] = [
-            {"id": f.id, "title": f.title}
-            for f in registry.files
-            if f.id in topic_ids_seen
-        ]
-    else:
-        topics = [
-            _topic_record(f) for f in registry.files if f.id in topic_ids_seen
-        ]
+    topics = [
+        _topic_record(f) for f in registry.files if f.id in topic_ids_seen
+    ]
 
     result = {"topics": topics, "requirements": requirements, "edges": edges}
     return json.dumps(result, separators=(",", ":"))

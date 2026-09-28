@@ -51,7 +51,7 @@ from vultron.core.behaviors.blackboard_scope import (
 )
 from vultron.core.behaviors.store_scope import port_for_store, store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronError
+from vultron.errors import VultronError, VultronWiringError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -96,6 +96,9 @@ class BTExecutionResult:
     feedback_message: str = ""
     errors: list[str] | None = None
     internal_error: bool = False
+    # The tree never ran: this node is not the replication leader. A caller
+    # reports that as "not my job", so it must not have to match the message.
+    leader_skipped: bool = False
 
 
 def _default_is_leader() -> bool:
@@ -454,12 +457,16 @@ class BTBridge:
             prefix: Which boundary was crossed — ``"BT setup failed"`` or
                 ``"BT execution failed"``.  The two must stay distinguishable
                 so an execution error is never reported as a setup error.
-            internal_error: Classification, as described above.
+            internal_error: Classification, as described above.  A
+                ``VultronWiringError`` is always internal: a missing DataLayer
+                or port is our composition fault, not the protocol's, whatever
+                base class it shares (#2255).
 
         Returns:
             A FAILURE ``BTExecutionResult`` carrying the composed message as
             both ``feedback_message`` and the sole entry in ``errors``.
         """
+        internal_error = internal_error or isinstance(e, VultronWiringError)
         if internal_error:
             error_msg = (
                 f"{prefix} with internal error: {type(e).__name__}: {e}"
@@ -722,6 +729,7 @@ class BTBridge:
                 return BTExecutionResult(
                     status=Status.FAILURE,
                     feedback_message=msg,
+                    leader_skipped=True,
                 )
             # Execution-scoped blackboard keys: each lives for exactly one BT
             # execution and is reset to its pre-execution state in the finally
@@ -870,29 +878,32 @@ class BTBridge:
     ) -> str:
         """Return a human-readable explanation for a tree that returned FAILURE.
 
-        Performs a depth-first walk of the tree and returns the
-        ``feedback_message`` of the first node whose status is
-        ``Status.FAILURE``.  If no node carries a message, the class name of
-        that node is returned instead.  If the tree succeeded (or is still
-        RUNNING), an empty string is returned.
+        Follows the chain of FAILURE nodes down from the root and returns the
+        ``feedback_message`` of the leaf it ends at, or that leaf's class name
+        when it carries no message.  At each failed composite it follows the
+        *last* failed child: a failed Sequence has exactly one, and in a failed
+        Selector every child failed, so the last is the final attempt.  The
+        first is usually the cheap "already done?" guard whose failure is what
+        sent the Selector on, and naming it hides the real cause.  A decorator
+        that failed while its child did not (an ``Inverter``) is itself the
+        leaf.  If the tree succeeded (or is still RUNNING), an empty string is
+        returned.
 
         Args:
             tree: Root behavior node to inspect.
 
         Returns:
-            First FAILURE node's ``feedback_message``, its class name, or
-            ``""`` when no FAILURE node is found.
+            The failing leaf's ``feedback_message``, its class name, or
+            ``""`` when the tree did not fail.
         """
-        stack = [tree]
-        while stack:
-            node = stack.pop()
-            if node.status == Status.FAILURE:
-                if not node.children:
-                    # Leaf node — this is the actual source of failure.
-                    return node.feedback_message or node.__class__.__name__
-                # Composite node — the failure originates in a child.
-                stack.extend(reversed(node.children))
-        return ""
+        node = tree
+        if node.status != Status.FAILURE:
+            return ""
+        while True:
+            failed = [c for c in node.children if c.status == Status.FAILURE]
+            if not failed:
+                return node.feedback_message or node.__class__.__name__
+            node = failed[-1]
 
     @staticmethod
     def get_tree_visualization(

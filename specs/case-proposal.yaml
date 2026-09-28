@@ -3,7 +3,6 @@ title: CaseProposal Protocol
 description: Requirements for the CaseProposal protocol flow, which separates the act of requesting case initialization from
   the act of creating the case. Covers the wire vocabulary type, the Create/Accept/Reject message flow, and the corresponding
   MessageSemantics values and received-side use cases.
-version: 1.1.0
 scope:
 - prototype
 - production

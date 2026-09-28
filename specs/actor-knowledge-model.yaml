@@ -6,7 +6,6 @@ description: >-
   recipients hold objects that were not explicitly included in prior activities; DataLayer
   access is private and non-shareable, and all inter-Actor communication occurs exclusively
   through the AS2 wire protocol.
-version: 1.0.0
 scope:
 - prototype
 - production

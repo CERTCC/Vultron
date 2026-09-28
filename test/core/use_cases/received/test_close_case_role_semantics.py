@@ -24,6 +24,7 @@ Covers CM-23-002 (owner Leave) and CM-23-003 (non-owner Leave) across:
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import pytest
 import py_trees
@@ -48,6 +49,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -249,12 +251,13 @@ class TestOwnerLeaveReceivePath:
     def test_owner_leave_advances_owner_to_rm_closed(self):
         """Owner Leave: the leaving owner actor is advanced to RM.CLOSED."""
         dl = _make_full_dl()
-        CloseCaseReceivedUseCase(
+        result = CloseCaseReceivedUseCase(
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         rm_states = _participant_rm_states(dl, OWNER_ID)
         assert RM.CLOSED in rm_states, (
@@ -493,12 +496,13 @@ class TestNonOwnerLeaveReceivePath:
     def test_non_owner_leave_advances_only_leaving_participant(self):
         """Non-owner Leave: the leaving vendor actor is advanced to RM.CLOSED."""
         dl = _make_full_dl()
-        CloseCaseReceivedUseCase(
+        result = CloseCaseReceivedUseCase(
             dl=dl,
             request=_make_close_case_event(sender_actor_id=VENDOR_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         rm_states = _participant_rm_states(dl, VENDOR_ID)
         assert RM.CLOSED in rm_states, (
@@ -774,13 +778,17 @@ class TestOwnerLeaveDuringActiveEmbargo:
         dl = _make_full_dl()
         _seed_active_embargo(dl, em_state=em_state)
 
-        CloseCaseReceivedUseCase(
+        result = CloseCaseReceivedUseCase(
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
+
+        # HP-01-003: answering with a Reject is a refusal, not "processed".
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "embargo" in result.reason
 
         assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID), (
             "Owner must NOT reach RM.CLOSED while an embargo is live"
@@ -881,13 +889,15 @@ class TestOwnerLeaveDuringActiveEmbargo:
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
         # No trigger_activity port → EmitRejectCloseCaseNode fails.
-        CloseCaseReceivedUseCase(
+        result = CloseCaseReceivedUseCase(
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=None,
         ).execute()
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "embargo" in result.reason
 
         assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID), (
             "Owner must NOT reach RM.CLOSED when the decline emit could not run"
@@ -918,6 +928,17 @@ def _case_actor_rm_closed_entries(dl: SqliteDataLayer) -> list:
             (e.payload_snapshot or {}).get("object", {}).get("rmState", "")
         ).endswith("CLOSED")
     ]
+
+
+@pytest.mark.spec("HP-01-003")
+def test_close_without_case_id_is_refused():
+    """A Leave with no case id is malformed, so REFUSED (#2255)."""
+    result = CloseCaseReceivedUseCase(
+        dl=_make_full_dl(),
+        request=cast(CloseCaseReceivedEvent, MagicMock(case_id=None)),
+    ).execute()
+
+    assert result.disposition == HandlerDisposition.REFUSED
 
 
 class TestCaseActorRMClosedRecordingIsBestEffort:

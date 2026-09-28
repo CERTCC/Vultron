@@ -4,7 +4,6 @@ description: >-
   Requirements for validating ActivityStreams 2.0 activities at the inbox handler boundary,
   covering ActivityStreams structure and semantic validation. Invalid activities are rejected
   with appropriate error responses before dispatch.
-version: 1.0.0
 scope:
 - prototype
 - production

@@ -48,6 +48,7 @@ from vultron.core.models.events.report import (
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.report import (
     CloseReportReceivedUseCase,
@@ -369,3 +370,53 @@ class TestCloseReportReceivedActorId:
         assert (
             _rm_state(dl, other_id) == RM.RECEIVED
         ), "no other actor's participant may be transitioned"
+
+
+# ---------------------------------------------------------------------------
+# Tests — handler disposition (#2255)
+# ---------------------------------------------------------------------------
+
+
+class TestCloseInvalidateDisposition:
+    """Close/Invalidate report the outcome, not a blanket APPLIED (#2255)."""
+
+    @pytest.mark.spec("HP-01-003")
+    def test_invalidate_is_applied(self):
+        result = InvalidateReportReceivedUseCase(
+            dl=_make_dl(), request=_make_invalidate_event()
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_close_is_applied(self):
+        result = CloseReportReceivedUseCase(
+            dl=_make_dl(receiving_rm=RM.INVALID),
+            request=_make_close_report_event(),
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_close_from_received_is_refused(self):
+        """RECEIVED → CLOSED is not an RM transition, so the Close is refused."""
+        result = CloseReportReceivedUseCase(
+            dl=_make_dl(), request=_make_close_report_event()
+        ).execute()
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason and "Invalid RM transition" in result.reason
+
+    @pytest.mark.spec("HP-01-003")
+    def test_invalidate_without_local_case_is_refused(self):
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=RECEIVING_ACTOR_ID)
+        result = InvalidateReportReceivedUseCase(
+            dl=dl, request=_make_invalidate_event()
+        ).execute()
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason and "InvalidateReportReceivedBT" in result.reason
+
+    @pytest.mark.spec("HP-01-003")
+    def test_close_without_local_case_is_refused(self):
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=RECEIVING_ACTOR_ID)
+        result = CloseReportReceivedUseCase(
+            dl=dl, request=_make_close_report_event()
+        ).execute()
+        assert result.disposition == HandlerDisposition.REFUSED

@@ -379,7 +379,6 @@ SPEC_YAML = {
     "id": "AA",
     "title": "Fixture",
     "description": "Backstop fixture",
-    "version": "1.0",
     "scope": ["prototype"],
     "groups": [
         {

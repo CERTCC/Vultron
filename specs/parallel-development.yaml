@@ -7,7 +7,6 @@ description: >-
   for the build, ingest-idea, review-priorities, and update-plan skills, and the
   two paths through GitHub Project #24: Schedule on Epics, and a Status path for
   every other Issue and a ship stage for PRs, both mirrored from facts.
-version: 1.4.0
 scope:
   - prototype
   - production

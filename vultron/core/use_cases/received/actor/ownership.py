@@ -3,8 +3,6 @@
 import logging
 from typing import TYPE_CHECKING
 
-from py_trees.common import Status
-
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
@@ -16,13 +14,20 @@ from vultron.core.models.events.actor import (
     OfferCaseOwnershipTransferReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
 )
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     resolve_receiving_actor_id,
+)
+from vultron.core.use_cases.received._bt_verdict import (
+    not_case_manager,
+    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
@@ -94,7 +99,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        _idempotent_create(
+        stored = _idempotent_create(
             self._dl,
             request.activity_type,
             request.activity_id,
@@ -107,10 +112,12 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         if case_id is None:
             logger.warning(
                 "OfferCaseOwnershipTransferReceived: missing case_id"
-                " on offer '%s' — skipping cascade",
+                " on offer '%s' — refusing",
                 request.activity_id,
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Offer(ownership transfer) names no case"
+            )
 
         transferee_id = _as_id(request.activity.target)
         original_actor_id = self._resolve_offering_actor_id(case_id)
@@ -133,14 +140,20 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             activity=request,
             sync_port=self._sync_port,
         )
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "OfferOwnershipTransferBT did not fully succeed"
-                " for case '%s': %s",
+        verdict = verdict_from_bt(
+            tree, result, label="OfferOwnershipTransferBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "OfferOwnershipTransferBT refused for case '%s': %s",
                 case_id,
-                BTBridge.get_failure_reason(tree),
+                verdict.reason,
             )
-        return HandlerResult.applied()
+            return verdict
+        if not_case_manager(tree):
+            # The cascade is the CaseActor's; anyone else only stores the Offer.
+            return stored
+        return verdict
 
 
 class AcceptCaseOwnershipTransferReceivedUseCase:
@@ -166,7 +179,9 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             logger.warning(
                 "accept_case_ownership_transfer: missing case_id on request"
             )
-            return HandlerResult.applied()
+            return HandlerResult.refused(
+                "Accept(ownership transfer) names no case"
+            )
         tree = create_accept_ownership_transfer_tree(
             case_id=case_id,
             new_owner_id=new_owner_id,
@@ -178,15 +193,18 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             activity=request,
             sync_port=self._sync_port,
         )
-        if result.status != Status.SUCCESS:
+        verdict = verdict_from_bt(
+            tree, result, label="AcceptOwnershipTransferBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
-                "AcceptOwnershipTransferBT did not succeed"
-                " for case '%s' new_owner '%s': %s",
+                "AcceptOwnershipTransferBT refused for case '%s' new_owner"
+                " '%s': %s",
                 case_id,
                 new_owner_id,
-                BTBridge.get_failure_reason(tree),
+                verdict.reason,
             )
-        return HandlerResult.applied()
+        return verdict
 
 
 class RejectCaseOwnershipTransferReceivedUseCase:
@@ -205,4 +223,6 @@ class RejectCaseOwnershipTransferReceivedUseCase:
             request.actor_id,
             request.offer_id,
         )
-        return HandlerResult.applied()
+        return HandlerResult.skipped(
+            "ownership transfer declined; nothing to undo"
+        )

@@ -1,7 +1,6 @@
 id: HTTP
 title: HTTP Protocol Requirements
 description: HTTP protocol requirements for the Vultron API, covering status codes, headers, and content negotiation.
-version: 1.0.0
 scope:
 - prototype
 - production

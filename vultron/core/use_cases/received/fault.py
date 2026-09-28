@@ -50,4 +50,6 @@ class CreateProcessingFaultReceivedUseCase:
             request.activity_id,
             request.fault_id,
         )
-        return HandlerResult.applied()
+        return HandlerResult.skipped(
+            "ask-register correlation not implemented (#2883)"
+        )

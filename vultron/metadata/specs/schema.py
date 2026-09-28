@@ -374,6 +374,10 @@ class SpecFile(BaseModel):
     ``scope`` is required at the file level and serves as the default for
     groups and specs that do not override it (SR-02-014).  ``kind`` is now
     required on each individual spec item rather than at the file level.
+
+    There is deliberately no ``version`` field (SR-01-003): the release tag
+    pins spec content and requirement IDs are the citation address.
+    ``extra="forbid"`` makes a file that declares one fail to load.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -381,7 +385,6 @@ class SpecFile(BaseModel):
     id: str
     title: NonEmptyStr
     description: NonEmptyStr
-    version: NonEmptyStr
     scope: list[Scope]
     tags: list[SpecTag] | None = None
     relationships: list[Relationship] | None = None

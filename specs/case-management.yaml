@@ -3,7 +3,6 @@ title: Case Management
 description: Requirements for VulnerabilityCase lifecycle management, CASE_MANAGER responsibilities, and the RM/EM/CS/VFD state
   model. Covers actor isolation at the protocol level, the distinction between participant-specific and participant-agnostic
   state, case initialization sequencing, embargo acceptance ownership, and the invitation acceptance lifecycle.
-version: 1.4.0
 scope:
 - prototype
 - production
@@ -743,9 +742,8 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: Domain objects MUST NOT directly inherit from ActivityStreams base types, and wire classes MUST NOT carry
-      translation methods; core↔wire translation MUST be provided by the adapter-side translator resolved through the
-      declarative pairing registry (see `specs/architecture.yaml` ARCH-12-001 through ARCH-12-007, ARCH-23-001, and
-      `notes/domain-model-separation.md`)
+      translation methods; AS2 serialization MUST be performed by the rendering port (ARCH-20-001)
+      (see `notes/domain-model-separation.md` and ADR-0099)
     rationale: The two branches stay distinct type hierarchies, and the translation between them lives on the adapter side —
       the one layer permitted to see both — so neither branch imports the other.
     adr:
@@ -2102,9 +2100,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-18-008
-    - rel_type: depends_on
-      spec_id: ARCH-12-005
-      note: ARCH-12-005 places the translation on the adapter side, so the derivation lives there rather than on the wire class.
     adr:
     - ADR-0056
     - ADR-0082

@@ -6,11 +6,15 @@ from vultron.core.models.events.unknown import (
     UnknownReceivedEvent,
     UnresolvableObjectReceivedEvent,
 )
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
+from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +33,7 @@ class UnknownUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         logger.warning("unknown use case called for event: %s", request)
-        return HandlerResult.applied()
+        return HandlerResult.refused("unrecognized activity semantics")
 
 
 class UnresolvableObjectUseCase:
@@ -46,8 +50,6 @@ class UnresolvableObjectUseCase:
         self._request = request
 
     def execute(self) -> HandlerResult:
-        from py_trees.common import Status
-
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.inbox.dead_letter_tree import (
             create_store_dead_letter_tree,
@@ -74,10 +76,17 @@ class UnresolvableObjectUseCase:
             ),
             activity=request,
         )
-        if result.status != Status.SUCCESS:
+        verdict = verdict_from_bt(tree, result, label="StoreDeadLetterBT")
+        if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning(
-                "StoreDeadLetterBT did not succeed for activity '%s': %s",
+                "StoreDeadLetterBT did not store a record for activity '%s':"
+                " %s",
                 request.activity_id,
-                BTBridge.get_failure_reason(tree),
+                verdict.reason,
             )
-        return HandlerResult.applied()
+            return verdict
+        # The record is bookkeeping; the activity itself was not processed
+        # (SE-04-002), so the sender sees it rejected (HP-01-003).
+        return HandlerResult.refused(
+            f"unresolvable object '{unresolvable_uri}'; dead-lettered"
+        )
