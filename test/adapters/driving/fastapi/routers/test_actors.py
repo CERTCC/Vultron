@@ -93,16 +93,29 @@ def test_get_actor_not_found_returns_404(client_actors):
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_get_actor_inbox_returns_mailbox_structure(
-    client_actors, created_actors
+@pytest.mark.spec("IE-02-003")
+@pytest.mark.spec("IE-02-004")
+@pytest.mark.parametrize(
+    "method", ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "DELETE"]
+)
+@pytest.mark.parametrize("path_suffix", ["/inbox", "/inbox/"])
+def test_non_post_on_inbox_path_returns_405(
+    client_actors, created_actors, method, path_suffix
 ):
+    """The inbox has no read surface; every non-POST method is refused.
+
+    Both trailing-slash forms are pinned because ``actors_get`` is a path
+    catch-all: without an explicit refusal an unrouted GET on either form falls
+    into the profile route and answers 404, not 405 (#3844). The ``Allow``
+    header is pinned too: a method left off the refusal route would still 405
+    through Starlette's partial match, but advertising the refused methods.
+    """
     for actor in created_actors:
-        resp = client_actors.get(f"/actors/{_route_key(actor.id_)}/inbox")
-        assert resp.status_code == status.HTTP_200_OK
-        data = resp.json()
-        assert isinstance(data, dict)
-        assert "items" in data
-        assert isinstance(data["items"], list)
+        resp = client_actors.request(
+            method, f"/actors/{_route_key(actor.id_)}{path_suffix}"
+        )
+        assert resp.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+        assert resp.headers["allow"] == "POST"
 
 
 def test_post_activity_to_actor_inbox_accepted(client_actors, created_actors):

@@ -141,11 +141,11 @@ received", and do not add receipt bookkeeping to the actor record to feed one:
   `/inbox/` falls into the profile route and answers 404. The inbox path needs
   an explicit method refusal declared ahead of that catch-all.
 - **`CoreActor.inbox` is a URI string** (ARCH-12-006), so any helper that
-  reaches for `actor.inbox.items` is a no-op in production. The old
-  `_record_inbox_receipt` / `_activity_already_received` pair passed its tests
-  only because the tests supplied an inbox with an `.items` list: a wire
-  `as_Organization` in `routers/actors/test_inbox.py`, and a hand-rolled
-  `_StubActor` in `test_inbox_route_log_levels.py`.
+  reaches for `actor.inbox.items` is a no-op in production. The route-level
+  receipt-recording and duplicate-guard helpers deleted in #3844 passed their
+  tests only because those tests supplied an inbox with an `.items` list — a
+  wire `as_Organization` in one file, a hand-rolled stub actor in another.
+  A test of an actor-record helper must build a `CoreActor`.
 - **The activity itself is already stored.** Ingress writes the received
   activity into the actor's store under its activity type; ingress storage is
   also where redelivery is detected (IE-10-001).

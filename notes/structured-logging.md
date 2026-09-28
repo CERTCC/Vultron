@@ -75,7 +75,6 @@ MUST be at DEBUG or lower. Verify with a grep after any bulk refactor.
 | `sync adapter: queued Announce(CaseLedgerEntry) 'UUID' → ['actor']` | `vultron/adapters/driven/sync_activity_adapter.py:116` | Fires per recipient per entry |
 | `store_embedded_participants: stored participant 'UUID'` | `vultron/core/use_cases/received/case/_helpers.py:92` | Fires per participant on every case announcement |
 | `SeedAnnouncedCaseNode: case already exists locally — skipping save` | `vultron/core/behaviors/case/nodes/announce.py:78` | Routine idempotency skip |
-| `Activity UUID already received by actor; ignoring duplicate submission` | `vultron/adapters/driving/fastapi/routers/actors/_routes.py:365` | Normal sync protocol behaviour |
 | `discover_actors()` full logfmt() actor object at INFO | `vultron/demo/utils.py:280,283,286` | logfmt() actor object output at INFO; only the ID is meaningful — full formatted object → DEBUG |
 
 ---
