@@ -512,7 +512,7 @@ groups:
       reach nested models, and since ADR-0099 detail 3 the nested objects are mutable core
       classes. The evidence is therefore a value taken at parse, not a property of the graph.
       The stored record does not keep the body, so a rebuilt activity has no evidence to carry;
-      persisting it with the record is a later step of ADR-0106. Until then, attaching a new
+      persisting it with the record is a later step of ADR-0107. Until then, attaching a new
       delivery's body to an earlier stored activity would record a claim about the wrong event.
     verification: >-
       `test/architecture/test_wire_artifact_immutability.py` parses every example activity as a
@@ -526,7 +526,7 @@ groups:
     adr:
     - ADR-0074
     - ADR-0099
-    - ADR-0106
+    - ADR-0107
     relationships:
     - rel_type: refines
       spec_id: VM-08-001

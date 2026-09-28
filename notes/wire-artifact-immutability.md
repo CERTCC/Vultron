@@ -70,7 +70,7 @@ moved out of the object graph:
   body, so it copies A's evidence onto B. Without that the evidence would stop
   at the first pipeline step.
 - Replay through `StoredActivityIngressAdapter` carries no evidence yet: storage
-  does not keep it. Persisting it is a step of ADR-0106 (#3742).
+  does not keep it. Persisting it is a step of ADR-0107 (#3742).
 
 The gate follows the mechanism. It tampers with every class reachable in a
 parsed example tree, so a class added to the vocabulary is checked the first
@@ -78,7 +78,7 @@ time an example carries it. A gate on a class flag checks the flag, not the
 guarantee the flag was meant to give.
 
 Nothing consumes the evidence yet. Recording it verbatim as the ledger's
-`payloadSnapshot`, in place of today's rebuilt snapshot, is ADR-0106.
+`payloadSnapshot`, in place of today's rebuilt snapshot, is ADR-0107.
 
 Source: ISSUE-3584.
 
@@ -124,7 +124,7 @@ data. Two distinct objects serve these two needs:
   it to other participants via `Announce(CaseLedgerEntry)` so they can
   reconstruct local state from the same evidence. Today the recorded
   `payloadSnapshot` is still rebuilt from the object graph; recording the
-  sealed body verbatim instead is ADR-0106.
+  sealed body verbatim instead is ADR-0107.
 
 - **B — the hydrated routing copy**: a separately constructed object with
   bare-string references resolved to full objects. Produced independently from
@@ -197,7 +197,7 @@ event, breaking the accountability invariant.
 - **ADR-0074**: wire Activity artifact immutability — the decision record for
   this design principle (A/B split, dumb-relay ports). Its inbound `frozen`
   mechanism is partially superseded by ADR-0099 (see above).
-- **ADR-0106** (proposed): a case ledger entry is a postmark on the received
+- **ADR-0107** (proposed): a case ledger entry is a postmark on the received
   envelope; replicas resolve bare references by dereference.
 - **ADR-0017**: two-branch hierarchy (core branch strict, wire branch
   lenient). Its shared root is gone: under ADR-0099 detail 4 `as_Base` stands

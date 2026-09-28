@@ -185,7 +185,7 @@ General information about architectural decision records is available at <https:
 
 - [ADR-0020 Move Inbox Orchestration into a Core BT Module with a Typed `process_payload` Seam](0020-inbox-bt-orchestration.md)
 - [ADR-0105 Two Cases for One Vulnerability Merge by Owner Consent: the Offered Case Freezes and Redirects](0105-case-merge-freeze-and-redirect-by-owner-consent.md)
-- [ADR-0106 A Case Ledger Entry Is a Postmark on the Received Envelope; References Resolve by Dereference](0106-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
+- [ADR-0107 A Case Ledger Entry Is a Postmark on the Received Envelope; References Resolve by Dereference](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
 
 ## Rejected ADRs
 

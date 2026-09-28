@@ -131,7 +131,7 @@ spelling, and both are the status classes covered by ADR-0036.
    additionally kept as an unparsed `dict[str, Any]` in the ledger payload
    snapshot (CLP-07-001); that copy is neither serialization above. It is meant
    to be the body as it arrived, but today it is rebuilt from the parsed graph;
-   [ADR-0106](0106-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
+   [ADR-0107](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
    records that gap and stages the change that records the received evidence
    instead.
 2. **Core field names follow Python convention; the AS2 spelling lives in a
@@ -642,7 +642,7 @@ provisional one would overstate what has been established. Flip both to
   `frozen=True` covers only the class that declares it, and detail 3 made every paired nested object a mutable core class, so a frozen envelope can carry a writable case, report, participant or status.
   Pydantic has no per-instance freezing, and the nested classes are mutable by design because they are also the domain objects.
   The evidence therefore moves out of the object graph: `parse_activity` seals the received body as JSON text before anything expands or validates it, and ingress rehydration carries that text to the routing copy (snapshot-at-parse, #3584).
-  What the ledger does with that evidence is [ADR-0106](0106-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)'s decision, not this one's.
+  What the ledger does with that evidence is [ADR-0107](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)'s decision, not this one's.
 
 **Unaffected:** ADR-0063 (rendering behind a port), ADR-0083 (the message set
 and the AS2 vocabulary are different shapes), ADR-0069 (namespace).
