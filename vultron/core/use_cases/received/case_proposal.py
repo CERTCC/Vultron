@@ -305,8 +305,10 @@ class CreateCaseProposalReceivedUseCase:
                 f"proposal '{proposal_id}' already accepted; Create in flight"
             )
         if node_succeeded(tree, CheckDeclineRecordExistsNode):
-            # CP-05-006: the earlier decision stands.
-            return HandlerResult.refused(
+            # HP-01-003: a pre-existing decline record is a duplicate — the
+            # earlier REFUSED is the record; replaying the same message is a
+            # benign no-op, not a new refusal.
+            return HandlerResult.skipped(
                 f"proposal '{proposal_id}' was previously declined"
             )
         if node_succeeded(tree, RecordProposalDeclineNode):

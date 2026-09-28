@@ -26,7 +26,6 @@ from typing import Any, cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.errors import VultronProtocolViolationError
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.models.dimensions import (

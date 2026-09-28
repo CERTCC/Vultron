@@ -174,6 +174,12 @@ def verdict_from_bt(
     if reason in WIRING_UNAVAILABLE_MESSAGES:
         # The node was composed without a dependency: our fault, not the
         # sender's, so it must not read as a refusal (ADR-0095).
+        # Coverage: nodes that raise VultronWiringError are caught by the
+        # bridge and land in BTExecutionResult.internal_error (handled
+        # above). This set-membership check catches the complementary path:
+        # a node that sets feedback_message and returns FAILURE instead of
+        # raising. It only covers the three messages exported from helpers.py;
+        # a node with a custom wiring-failure message would slip past it.
         raise VultronBTInternalError(f"{label}: {reason}")
     return HandlerResult.refused(f"{label}: {reason}")
 

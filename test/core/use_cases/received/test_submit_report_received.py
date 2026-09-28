@@ -744,7 +744,9 @@ class TestSubmitReportDisposition:
     def _run(self, to=None, cc=None, report=True, actor_config=None, dl=None):
         from vultron.core.models.case_actor import CaseActor
 
-        report_obj = VulnerabilityReport(id_=self.REPORT_ID) if report else None
+        report_obj = (
+            VulnerabilityReport(id_=self.REPORT_ID) if report else None
+        )
         activity = VultronActivity(
             id_=self.OFFER_ID,
             type_="Offer",

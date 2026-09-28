@@ -90,8 +90,7 @@ activities would only defer them again. The legacy adapter paths
 (`inbox_handler._dispatch_or_defer_inbox_item`, `InboxPipeline.process`)
 apply the same gate through `HandlerResult.took_effect`. A replay that raises
 is logged and does not turn an applied bootstrap into `rejected`
-(MV-01-007). This is inert while every received handler returns `APPLIED`,
-and becomes live as handlers adopt real dispositions (#2255).
+(MV-01-007). This became live when each received handler was given its real disposition (#2255).
 
 This two-adapter design was chosen over:
 
