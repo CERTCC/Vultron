@@ -6,7 +6,7 @@ description: >
   vocabulary and its route to InboxOutcome, the two semantically distinct request
   paths (VultronEvent vs TriggerRequest), and why a shared UseCaseRequest base
   was not introduced. Received side and dispatcher chain migrated; trigger side
-  decided (ADR-0108: one dispatcher method over a verb registry) and being built.
+  decided (ADR-0110: one dispatcher method over a verb registry), not yet built.
 related_specs:
   - specs/use-case-organization.yaml
   - specs/handler-protocol.yaml
@@ -200,7 +200,7 @@ See ADR-0040 for the full decision record.
 
 ## Trigger Side: One Dispatcher Method over a Verb Registry
 
-Decided in ADR-0108, planned from concern #3354, not yet built. The trigger
+Decided in ADR-0110, planned from concern #3354, not yet built. The trigger
 half does **not** get the mechanical "type the 27 methods" migration this note
 once described. The driving port collapses to one method and the two request
 families become one:

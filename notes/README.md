@@ -213,10 +213,10 @@ dispatcher boundary, the two semantically distinct request paths (`VultronEvent`
 vs `TriggerRequest`), why `UseCaseRequest` was not introduced, the trigger-side
 collapse to a one-method `TriggerDispatcher` port over a verb registry with a
 typed result hierarchy, and the ratchet test design. Received side and
-dispatcher chain are implemented; the trigger side is decided (ADR-0108) and
-being built. ADRs: `docs/adr/0040-use-case-result-envelope.md` (original),
+dispatcher chain are implemented; the trigger side is decided (ADR-0110) and
+planned as staged tasks, none yet built. ADRs: `docs/adr/0040-use-case-result-envelope.md` (original),
 `docs/adr/0095-received-side-handler-result.md` (received-side half), and
-`docs/adr/0108-trigger-dispatcher-port-over-verb-registry.md` (trigger-side half).
+`docs/adr/0110-trigger-dispatcher-port-over-verb-registry.md` (trigger-side half).
 **Load when**: implementing a new use case, reviewing the `execute()` contract,
 working on the `UseCase` or trigger driving port, adding a trigger verb,
 threading a handler verdict to `InboxOutcome`, or debugging return-type ratchet

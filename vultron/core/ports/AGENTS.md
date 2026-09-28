@@ -69,8 +69,8 @@ buffering layer.
   shape. A core-owned domain model (`VultronEvent`, `TriggerRequest`,
   `UseCaseResult`) **is** an explicit domain type and is the right boundary
   type, even though it is a Pydantic `BaseModel` — the accepted
-  `ActivityDispatcher.dispatch(event: VultronEvent)` port is the precedent
-  (ADR-0009, ADR-0108). Reading this rule as "no `BaseModel` anywhere" is what
+  `ActivityDispatcher.dispatch(event, dl)` port is the precedent
+  (ADR-0009, ADR-0110). Reading this rule as "no `BaseModel` anywhere" is what
   produced a 27-method port that flattened typed requests into `Any` scalars.
 - **A driving port is O(1) in the behaviors behind it.** Routing from a
   discriminator (semantics, trigger verb) to a use case is data in a registry,

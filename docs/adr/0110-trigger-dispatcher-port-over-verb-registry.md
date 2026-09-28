@@ -9,7 +9,7 @@ stakeholder_type: [project-contributor]
 
 ## Context and Problem Statement
 
-The received half of the protocol enters core through one driving-port method: `ActivityDispatcher.dispatch(event: VultronEvent)`, routed by `SEMANTIC_REGISTRY`, a data table with one row per semantic type.
+The received half of the protocol enters core through one driving-port method: `ActivityDispatcher.dispatch(event, dl)`, routed by `SEMANTIC_REGISTRY`, a data table with one row per semantic type.
 ADR-0009 names that port as a clean point to preserve.
 
 The trigger half enters core through `TriggerServicePort`, a `Protocol` with 27 methods, one per verb, every one returning `dict[str, Any]`.

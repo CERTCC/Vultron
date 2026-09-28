@@ -346,7 +346,7 @@ Notes: `notes/architecture-hexagonal.md` (Rule 9), `notes/use-case-protocol.md`
 Related: #2682 / #2369 (async trigger outcome observability — orthogonal, but the
 typed results make that design work easier)
 
-**Resolved**: 2026-09-28 — implementation tracked in #3828, #3831, #3832, #3833 (staged: OpenAPI snapshot → typed results and one request family → registry and one-method port → route cutover and deletions) and #3829 (TB- → TRIG- citations, topic-scoped ratchet). Decision recorded in ADR-0108 (accepted-provisional). One override of the concern: `add-on-behalf-status` is routed under `/trigger/`, not `/demo/`, because a coordinator recording evidenced vendor awareness is an intentional actor decision under TRIG-08-002.
+**Resolved**: 2026-09-28 — implementation tracked in #3828, #3831, #3832, #3833 (staged: OpenAPI snapshot → typed results and one request family → registry and one-method port → route cutover and deletions) and #3829 (TB- → TRIG- citations, topic-scoped ratchet). Decision recorded in ADR-0110 (accepted-provisional). One override of the concern: `add-on-behalf-status` is routed under `/trigger/`, not `/demo/`, because a coordinator recording evidenced vendor awareness is an intentional actor decision under TRIG-08-002.
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3826>.
 Spec: `specs/use-case-organization.yaml` UCORG-05-005/006/014, `specs/triggerable-behaviors.yaml` TRIG-08-003/004, TRIG-12.
 Notes: `notes/use-case-protocol.md`, `notes/architecture-hexagonal.md`, `notes/spec-authoring-rules.md`, `vultron/core/ports/AGENTS.md`.

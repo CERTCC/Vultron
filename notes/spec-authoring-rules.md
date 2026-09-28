@@ -12,6 +12,8 @@ description: >
 related_specs:
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
+  - specs/triggerable-behaviors.yaml
+  - specs/testability.yaml
 related_notes:
   - notes/specs-vs-adrs.md
   - notes/behavioral-conformance-specs.md

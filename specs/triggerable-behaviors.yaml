@@ -453,7 +453,7 @@ groups:
       and `/actors/{actor_id}/demo/` and fails on any whose `response_model` is
       `None`.
     adr:
-    - ADR-0108
+    - ADR-0110
   - id: TRIG-12-002
     priority: MUST
     kind: project
@@ -472,7 +472,7 @@ groups:
       The parametrized test asserts `set(response.json()) == expected_keys` for
       each registry row; a route that adds or drops a key fails it.
     adr:
-    - ADR-0108
+    - ADR-0110
   - id: TRIG-12-003
     priority: MUST_NOT
     kind: project
@@ -492,7 +492,7 @@ groups:
       the committed snapshot and fails on any difference; the snapshot's commit
       predates the first route change in history.
     adr:
-    - ADR-0108
+    - ADR-0110
   - id: TRIG-12-004
     priority: MUST
     kind: project
@@ -510,7 +510,7 @@ groups:
       TRIG-12-002 be asserted as tests instead of by inspection, and what
       catches an unrouted use case (`SvcAddOnBehalfStatusUseCase` was reachable
       only from its own tests). Keeping behavior out of it is what keeps it
-      from becoming the per-verb facade it replaces (ADR-0108).
+      from becoming the per-verb facade it replaces (ADR-0110).
     verification: >-
       Architecture tests assert the route-to-registry bijection and the
       use-case-to-row bijection, both as exact set equalities (ARCH-18-001).
@@ -520,4 +520,4 @@ groups:
     - rel_type: refines
       spec_id: TRIG-08-004
     adr:
-    - ADR-0108
+    - ADR-0110

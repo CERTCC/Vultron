@@ -29,10 +29,6 @@ A few modules remain at the top level of `vultron/` by necessity:
 
 - `vultron/errors.py` — top-level error base; adapter-layer errors live at
   `vultron/adapters/driving/fastapi/errors.py`
-- `vultron/types.py` — shared type aliases (`BehaviorHandler` Protocol);
-  neutral module used to break circular import chains. Contents should be
-  migrated into `vultron/core/types.py` once circular imports are fully
-  resolved.
 
 **Constraint**: `types.py` MUST remain accessible to both core dispatch
 modules and adapter layers without creating circular imports. See `AGENTS.md`

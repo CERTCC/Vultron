@@ -114,7 +114,7 @@ Key enforced principle: core has no FastAPI, wire, or transport imports.
     `BaseModel`; the rule targets the layer a type belongs to, not the library
     it is built with. Driving ports are O(1) in the behaviors behind them: one
     `dispatch()`/`trigger()` method over a registry, never one method per verb
-    (ADR-0108).
+    (ADR-0110).
 10. Edge adapters promote loose wire objects to strict core types before
     calling core functions. Core helpers raise a descriptive exception on
     failure; they never return `None` as a failure signal. See ADR-0032.

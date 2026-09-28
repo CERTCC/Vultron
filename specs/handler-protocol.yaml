@@ -43,9 +43,11 @@ groups:
       `VultronEvent` subclass — and their `execute()` method MUST take no arguments
     verification: >-
       `test/architecture/test_use_case_execute_returns_result.py` reads every
-      `execute()` under `vultron/core/use_cases/` and fails on one that takes
-      arguments or lacks a result annotation; the `UseCase` Protocol in
-      `vultron/core/ports/use_case.py` fixes the `(dl, request)` constructor shape.
+      `execute()` under `vultron/core/use_cases/` and fails on one that lacks a
+      `UseCaseResult` return annotation; the `(dl, request)` constructor and the
+      argument-free `execute()` are declared by the `UseCase` Protocol in
+      `vultron/core/ports/use_case.py`. No ratchet yet rejects an `execute()`
+      that takes arguments.
   - id: HP-01-002
     priority: MUST
     kind: project
@@ -160,8 +162,9 @@ groups:
       `test/architecture/test_core_no_wire_imports.py` (ARCH-01-001) confirms no
       module under `vultron/core/` imports the wire layer, so a handler cannot
       reach the AS2 parser or the semantic extractor; `VultronEvent.activity` in
-      `vultron/core/models/events/base.py` is typed as the core `VultronActivity`,
-      never a wire class.
+      `vultron/core/models/events/base.py` is typed as the core `VultronActivity`
+      (optional on the base, narrowed to required by subclasses that always carry
+      one), never a wire class.
     adr:
     - ADR-0032
     - ADR-0035
@@ -232,19 +235,20 @@ groups:
     kind: project
     statement: >-
       Persistence writes made on a handler's behalf MUST go through the
-      persistence port's typed upsert, `dl.save(obj)`, which validates and
-      dehydrates the domain object; they MUST NOT build records by hand
-      (`object_to_record()`) or call the record-level `update()` / `create()`
-      compatibility methods.
+      persistence port's typed object methods — `dl.save(obj)` (upsert) or
+      `dl.create(obj)` (insert) with a domain object — which validate and
+      dehydrate the model; they MUST NOT build records by hand
+      (`object_to_record()`) or call the record-level `update(id_, record)`
+      compatibility method.
     rationale: >-
-      `save()` is the one write path that keeps the stored record consistent
-      with the domain model and that `dl.read()` can rehydrate (ADR-0034). The
-      record-level methods are retained only as compatibility shims for the
-      adapter layer.
+      `save()` and `create()` are the write paths that keep the stored record
+      consistent with the domain model and that `dl.read()` can rehydrate
+      (ADR-0034). The record-level method is retained only as a compatibility
+      shim for the adapter layer and for one legacy generic-update BT node.
     verification: >-
-      `grep -rn "object_to_record\|\.update(\|\.create(" vultron/core/use_cases/`
-      matches no persistence call; every write under `vultron/core/use_cases/`
-      and `vultron/core/behaviors/` is `dl.save(...)`.
+      `grep -rn "object_to_record\|\.update(" vultron/core/use_cases/` matches
+      nothing; every write under `vultron/core/use_cases/` is `dl.save(...)` or
+      `dl.create(...)` with a domain object.
   - id: HP-08-002
     priority: MUST_NOT
     kind: project

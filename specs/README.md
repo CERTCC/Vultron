@@ -435,7 +435,7 @@ Each requirement has a unique ID: `PREFIX-NN-NNN`
 - **NN**: Category number within specification
 - **NNN**: Requirement number within category
 
-Example: `HP-04-002` = Handler Protocol, category 4 (Payload Access), requirement 2
+Example: `HP-04-001` = Handler Protocol, category 4 (Payload Access), requirement 1
 
 **Note**: The `HP-` prefix is reserved for `handler-protocol.yaml`. The
 `http-protocol.yaml` file uses the `HTTP-` prefix to avoid ambiguity. The
