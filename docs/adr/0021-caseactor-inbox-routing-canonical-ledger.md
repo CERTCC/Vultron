@@ -6,6 +6,7 @@ consulted: >-
   notes/case-communication-model.md, notes/case-ledger-authority.md,
   specs/case-ledger-processing.yaml, specs/participant-case-replica.yaml
 stakeholder_type: [project-contributor]
+partially_superseded_by: 0109-a-container-emits-only-as-actors-it-hosts.md
 ---
 
 # CaseActor Inbox Routing as the Sole Path to Canonical Ledger Entries
@@ -149,6 +150,11 @@ satisfied without corrupting the ledger.
   invocation exists outside the guarded-commit factory.
 
 ## Clarification: CaseActor-Originated Activities (Issue #1287)
+
+> **Partially superseded by [ADR-0109](0109-a-container-emits-only-as-actors-it-hosts.md).**
+> This section is retained as history.
+> The CaseActor no longer adds its own id to `cc:`: an activity it originates as `CASE_MANAGER` is committed by the emitting tree (CLP-10-013), and a participant on another container reaches the CaseActor by sending it the participant's own activity (CM-24-004).
+> The rest of this ADR stands.
 
 The canonical path above applies symmetrically when the **CaseActor** is
 the originator, not just when it is a relay target. The CaseActor is a

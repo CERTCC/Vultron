@@ -23,6 +23,7 @@ nav:
       - Defining CVD Success: 'topics/background/cvd_success.md'
     - Case Lifecycle:
       - 'topics/case_lifecycle/index.md'
+      - A Case Under Vultron: 'topics/case_lifecycle/a_case_under_vultron.md'
       - The Case Model: 'topics/case_lifecycle/case_model.md'
       - The CASE_MANAGER and the Case Ledger: 'topics/case_lifecycle/case_manager_and_ledger.md'
       - Case Initialization: 'topics/case_lifecycle/case_initialization.md'
@@ -84,6 +85,7 @@ nav:
       - Open Questions: 'topics/future_work/open_questions.md'
   - How-to Guides:
       - 'howto/index.md'
+      - Adopt Vultron in Your CVD Program: 'howto/adopt_vultron.md'
       - Process Implementation: 'howto/process_implementation.md'
       - Vultron ActivityPub:
           - 'howto/activitypub/index.md'
