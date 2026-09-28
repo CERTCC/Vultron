@@ -31,7 +31,8 @@ def is_release(version: str) -> bool:
 
     Development (``.devN``) and local (``+...``) versions are not releases,
     and neither is the no-tag fallback (itself a local version) or an
-    unparseable string. A release candidate is a release build.
+    unparseable string. ``tag_regex`` in ``pyproject.toml`` admits no
+    pre-release suffix (ADR-0006), so every release build is a final release.
     """
     try:
         parsed = Version(version)
@@ -43,10 +44,9 @@ def is_release(version: str) -> bool:
 def describe_build(version: str) -> str:
     """Return a Markdown sentence naming the build *version* describes."""
     if is_release(version):
-        kind = "pre-release" if Version(version).is_prerelease else "release"
         return (
             "This site and the `vultron` package were built from "
-            f"{kind} **{version}**."
+            f"release **{version}**."
         )
     if version == FALLBACK_VERSION:
         return (
