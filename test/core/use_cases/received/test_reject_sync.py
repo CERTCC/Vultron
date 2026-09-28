@@ -330,8 +330,14 @@ class TestRejectLedgerEntryReceivedUseCase:
         dl.create(case)
 
         event = self._make_event(entry1, entry0.entry_hash)
-        uc = RejectLedgerEntryReceivedUseCase(dl, event)
-        uc.execute()
+        # The tree runs on to ReplayMissingEntries once the case resolves, and
+        # that node refuses to run without a sync port (BT-HELPER-01 raise, not
+        # FAILURE), so the use case needs one even though this test asserts
+        # only the state write (#3799).
+        sync_port = MagicMock(spec=SyncActivityPort)
+        uc = RejectLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
+        result = uc.execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         state_id = VultronReplicationState(
             case_id=CASE_URI, peer_id=PARTICIPANT_URI
