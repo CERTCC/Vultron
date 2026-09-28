@@ -21,11 +21,16 @@ Each step builds on the one before it.
 
 ## See how a case moves
 
-1. [Vultron Process Models](../topics/process_models/index.md) — the three processes a case runs: report handling, embargo, and case state.
-2. [Embargo Principles](../topics/process_models/em/principles.md) — what an embargo is for and what it asks of each participant.
-3. [Negotiating Embargoes](../topics/process_models/em/negotiating.md) — how participants propose, accept and revise an embargo.
-4. [Adding Participants to an Embargoed Case](../topics/process_models/em/working_with_others.md) — what happens when another party joins mid-case.
-5. [Early Termination](../topics/process_models/em/early_termination.md) — when and how an embargo ends before its planned date.
+1. [A Case Under Vultron](../topics/case_lifecycle/a_case_under_vultron.md) — the case from your seat: who owns it, what you see and control, and what an embargo invitation asks of you.
+2. [Vultron Process Models](../topics/process_models/index.md) — the three processes a case runs: report handling, embargo, and case state.
+3. [Embargo Principles](../topics/process_models/em/principles.md) — what an embargo is for and what it asks of each participant.
+4. [Negotiating Embargoes](../topics/process_models/em/negotiating.md) — how participants propose, accept and revise an embargo.
+5. [Adding Participants to an Embargoed Case](../topics/process_models/em/working_with_others.md) — what happens when another party joins mid-case.
+6. [Early Termination](../topics/process_models/em/early_termination.md) — when and how an embargo ends before its planned date.
+
+## Prepare your program
+
+1. [How to Adopt Vultron in Your CVD Program](../howto/adopt_vultron.md) — name your roles, choose a conformance claim, map your intake to the report states, publish your embargo defaults, and decide which judgment calls stay yours.
 
 ## Map it onto what you already do
 

@@ -36,6 +36,7 @@ In this section, you will find:
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
 <!-- markdownlint-disable MD007 -->
+- [Adopt Vultron in Your CVD Program](adopt_vultron.md) — Take a Coordinated Vulnerability Disclosure program from its current practice to one that can coordinate cases through Vultron: name your roles, choose a conformance claim, map your intake to the report states, publish your embargo defaults, and decide which judgment calls stay yours.
 - [Vultron ActivityPub](activitypub/index.md) — Represent Vultron Protocol message types as ActivityPub messages using the ActivityStreams vocabulary.
 - **Demo How-Tos**
     - [FVV Demo](demos/fvv-demo.md) — Run the three-actor Finder, Vendor, Vendor (FVV) demo, in which two vendors each advance an independent fix path with no coordinator.
