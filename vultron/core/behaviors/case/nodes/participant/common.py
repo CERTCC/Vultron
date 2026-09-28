@@ -29,7 +29,6 @@ from vultron.core.models.participant_status import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -48,7 +47,7 @@ if TYPE_CHECKING:
 
 def _create_and_attach_participant(
     dl: CasePersistence,
-    participant: VultronParticipant,
+    participant: CaseParticipant,
     case_id: str,
     actor_id_for_index: str,
     node_logger: logging.Logger,

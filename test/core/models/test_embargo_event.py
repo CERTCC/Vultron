@@ -19,7 +19,7 @@ import pytest
 from pydantic import ValidationError
 
 from vultron.core.models.base import CoreObject
-from vultron.core.models.embargo_event import EmbargoEvent, VultronEmbargoEvent
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.registry import CORE_VOCABULARY
 
 _FUTURE_DT = datetime(2099, 12, 31, tzinfo=timezone.utc)
@@ -59,15 +59,3 @@ class TestCoreEmbargoEventRegistration:
     def test_registered_in_core_vocabulary(self):
         assert "EmbargoEvent" in CORE_VOCABULARY
         assert CORE_VOCABULARY["EmbargoEvent"] is EmbargoEvent
-
-
-class TestVultronEmbargoEventAlias:
-    """VultronEmbargoEvent is the backward-compat alias for EmbargoEvent."""
-
-    def test_alias_is_same_class(self):
-        assert VultronEmbargoEvent is EmbargoEvent
-
-    def test_alias_creates_correct_type(self):
-        e = VultronEmbargoEvent(context=_CONTEXT, end_time=_FUTURE_DT)
-        assert e.type_ == "EmbargoEvent"
-        assert isinstance(e, EmbargoEvent)

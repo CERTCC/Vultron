@@ -84,7 +84,3 @@ class CaseActor(CoreObject):
 
     def _as2_derived_fields(self) -> dict[str, Any]:
         return {"inbox": f"{self.id_}/inbox", "outbox": f"{self.id_}/outbox"}
-
-
-#: Backward-compatibility alias.  New code should import :class:`CaseActor`.
-VultronCaseActor = CaseActor

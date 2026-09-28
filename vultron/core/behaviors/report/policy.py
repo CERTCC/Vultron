@@ -33,7 +33,8 @@ Extension Points:
 
 import logging
 
-from vultron.core.models.vultron_types import VulnerabilityCase, VultronReport
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.report import VulnerabilityReport
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class ValidationPolicy:
     This class defines the interface for pluggable policy implementations.
     """
 
-    def is_credible(self, report: VultronReport) -> bool:
+    def is_credible(self, report: VulnerabilityReport) -> bool:
         """
         Evaluate whether report source is credible.
 
@@ -63,7 +64,7 @@ class ValidationPolicy:
         """
         raise NotImplementedError("Subclasses must implement is_credible()")
 
-    def is_valid(self, report: VultronReport) -> bool:
+    def is_valid(self, report: VulnerabilityReport) -> bool:
         """
         Evaluate whether report content is technically valid.
 
@@ -100,7 +101,7 @@ class AlwaysAcceptPolicy(ValidationPolicy):
     - Reputation-based scoring
     """
 
-    def is_credible(self, report: VultronReport) -> bool:
+    def is_credible(self, report: VulnerabilityReport) -> bool:
         """
         Accept report as credible (always returns True).
 
@@ -117,7 +118,7 @@ class AlwaysAcceptPolicy(ValidationPolicy):
         )
         return True
 
-    def is_valid(self, report: VultronReport) -> bool:
+    def is_valid(self, report: VulnerabilityReport) -> bool:
         """
         Accept report as valid (always returns True).
 

@@ -25,8 +25,8 @@ import pytest
 
 from vultron.core.models.activity import VultronOffer
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.report import VultronReport
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from test.core.behaviors.bt_harness import BTTestScenario
@@ -38,9 +38,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 
 
 @pytest.fixture
-def actor(bt_scenario: BTTestScenario) -> VultronCaseActor:
+def actor(bt_scenario: BTTestScenario) -> CaseActor:
     """Create a test actor and persist it in the scenario DataLayer."""
-    obj = VultronCaseActor(
+    obj = CaseActor(
         id_="https://example.org/actors/vendor",
         name="Vendor Co",
     )
@@ -49,9 +49,9 @@ def actor(bt_scenario: BTTestScenario) -> VultronCaseActor:
 
 
 @pytest.fixture
-def report(bt_scenario: BTTestScenario) -> VultronReport:
+def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
     """Create a test report and persist it in the scenario DataLayer."""
-    obj = VultronReport(
+    obj = VulnerabilityReport(
         name="TEST-001",
         content="Test vulnerability report",
     )
@@ -62,7 +62,7 @@ def report(bt_scenario: BTTestScenario) -> VultronReport:
 @pytest.fixture
 def report_case_link(
     bt_scenario: BTTestScenario,
-    report: VultronReport,
+    report: VulnerabilityReport,
 ) -> VultronReportCaseLink:
     """Create a VultronReportCaseLink at RM.RECEIVED for the test report."""
     obj = VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
@@ -73,8 +73,8 @@ def report_case_link(
 @pytest.fixture
 def offer(
     bt_scenario: BTTestScenario,
-    report: VultronReport,
-    actor: VultronCaseActor,
+    report: VulnerabilityReport,
+    actor: CaseActor,
 ) -> VultronOffer:
     """Create a test offer and persist it in the scenario DataLayer."""
     obj = VultronOffer(actor=actor.id_, object_=report.id_)
@@ -85,8 +85,8 @@ def offer(
 @pytest.fixture
 def case(
     bt_scenario: BTTestScenario,
-    report: VultronReport,
-    actor: VultronCaseActor,
+    report: VulnerabilityReport,
+    actor: CaseActor,
 ) -> VulnerabilityCase:
     """Create a participant-less VulnerabilityCase linked to the test report.
 

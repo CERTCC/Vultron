@@ -26,16 +26,14 @@ from vultron.core.models.participant_status import coerce_cvd_roles
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.models.vultron_types import (
-    CaseStatus,
-    EmbargoEvent,
-    ParticipantStatus,
-    VultronActivity,
-    VulnerabilityCase,
-    VultronNote,
-    VultronParticipant,
-    VultronReport,
-)
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.note import VultronNote
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.enums import as_ObjectType as AOtype
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
@@ -188,7 +186,7 @@ def _build_report_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     if isinstance(content, str) and content and object_id:
         return {
-            "object_": VultronReport(
+            "object_": VulnerabilityReport(
                 id_=object_id,
                 name=getattr(obj, "name", None),
                 summary=getattr(obj, "summary", None),
@@ -204,10 +202,10 @@ def _build_report_object(obj: object) -> dict[str, Any]:
     return {}
 
 
-def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
+def _participant_ref_to_domain(ref: object) -> str | CaseParticipant | None:
     """Convert a wire-layer participant ref to a core domain object or ID string.
 
-    Returns a ``VultronParticipant`` if ``ref`` has ``case_roles`` (duck-type),
+    Returns a ``CaseParticipant`` if ``ref`` has ``case_roles`` (duck-type),
     a plain string if it is a URI reference, or ``None`` if the ref is
     unusable.  This preserves participant metadata — including role lists —
     across the wire→domain extraction boundary so bootstrap trust logic can
@@ -227,9 +225,9 @@ def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
     if not participant_id:
         return None
 
-    # Core VultronParticipant objects are already in the canonical shape —
+    # Core CaseParticipant objects are already in the canonical shape —
     # return them directly to preserve participant_statuses (including RM state).
-    if isinstance(ref, VultronParticipant):
+    if isinstance(ref, CaseParticipant):
         return ref
 
     to_core = getattr(ref, "to_core", None)
@@ -244,14 +242,14 @@ def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
                 exc_info=True,
             )
         else:
-            if isinstance(converted, VultronParticipant):
+            if isinstance(converted, CaseParticipant):
                 return converted
 
     roles = getattr(ref, "case_roles", [])
     attributed = getattr(ref, "attributed_to", None)
     context_id = _get_id(getattr(ref, "context", None))
     if roles is not None and attributed is not None and context_id:
-        return VultronParticipant(
+        return CaseParticipant(
             id_=participant_id,
             attributed_to=str(attributed),
             context=context_id,
@@ -269,7 +267,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     if object_id:
         raw_participants = getattr(obj, "case_participants", []) or []
-        participants: list[str | VultronParticipant] = []
+        participants: list[str | CaseParticipant] = []
         for ref in raw_participants:
             converted = _participant_ref_to_domain(ref)
             if converted is not None:
@@ -348,7 +346,7 @@ def _build_participant_object(obj: object) -> dict[str, Any]:
     participant_context = _get_id(getattr(obj, "context", None))
     if object_id and attributed_to and participant_context:
         return {
-            "object_": VultronParticipant(
+            "object_": CaseParticipant(
                 id_=object_id,
                 name=getattr(obj, "name", None),
                 attributed_to=attributed_to,

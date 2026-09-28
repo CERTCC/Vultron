@@ -58,7 +58,7 @@ from vultron.core.behaviors.case.nodes.participant.participant_add import (
     SeedParticipantAsSignatoryNode,
 )
 from vultron.config.actor import ActorConfig
-from vultron.core.models.vultron_types import VulnerabilityCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 

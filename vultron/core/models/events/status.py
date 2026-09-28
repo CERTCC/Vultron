@@ -7,12 +7,12 @@ from vultron.core.models.events.base import MessageSemantics, VultronEvent
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.case_status import CaseStatus
-    from vultron.core.models.participant import VultronParticipant
+    from vultron.core.models.case_participant import CaseParticipant
     from vultron.core.models.participant_status import ParticipantStatus
 else:
     VulnerabilityCase = object
     CaseStatus = object
-    VultronParticipant = object
+    CaseParticipant = object
     ParticipantStatus = object
 
 
@@ -92,5 +92,5 @@ class AddParticipantStatusToParticipantReceivedEvent(VultronEvent):
         return self.target_id
 
     @property
-    def participant(self) -> "VultronParticipant | None":
-        return cast("VultronParticipant | None", self.target)
+    def participant(self) -> "CaseParticipant | None":
+        return cast("CaseParticipant | None", self.target)

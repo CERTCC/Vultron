@@ -42,7 +42,7 @@ from vultron.core.behaviors.sync.announce_tree import (
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics
@@ -125,7 +125,7 @@ def _make_full_dl(
     """
     dl = _make_dl(store_owner_id)
 
-    ca_svc = VultronCaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
+    ca_svc = CaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
     case = as_VulnerabilityCase(

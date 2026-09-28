@@ -28,7 +28,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.config.actor import ActorConfig
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.vultron_types import VultronParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import _as_id
@@ -85,7 +85,7 @@ class CreateOwnerParticipantNode(DataLayerActionWithPorts):
 
         self._set_output(
             "new_case_participant",
-            VultronParticipant(
+            CaseParticipant(
                 attributed_to=self.actor_id,
                 context=case_id,
                 case_roles=_effective_case_roles(self.actor_config),
@@ -205,7 +205,7 @@ class AttachOwnerParticipantToCaseNode(DataLayerActionWithPorts):
         assert self.actor_id is not None
         case_id_obj = self.case_id
         participant = self.new_case_participant
-        if not isinstance(participant, VultronParticipant):
+        if not isinstance(participant, CaseParticipant):
             self.logger.error(
                 "%s: case_id/%s missing in blackboard",
                 self.name,
@@ -317,9 +317,7 @@ class RecordOwnerJoinedEventNode(DataLayerActionWithPorts):
 
         stored_case = self._stored_case
         participant = self._participant
-        if stored_case is None or not isinstance(
-            participant, VultronParticipant
-        ):
+        if stored_case is None or not isinstance(participant, CaseParticipant):
             self.logger.error(
                 "%s: %s/%s missing in blackboard",
                 self.name,

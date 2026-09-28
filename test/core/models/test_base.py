@@ -13,22 +13,22 @@ from vultron.core.models.activity import (
 )
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.embargo_event import VultronEmbargoEvent
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.note import VultronNote
-from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 
 DOMAIN_OBJECT_CLASSES = [
-    VultronReport,
+    VulnerabilityReport,
     VulnerabilityCase,
     VultronNote,
-    VultronParticipant,
+    CaseParticipant,
     CaseStatus,
-    VultronEmbargoEvent,
-    VultronCaseActor,
+    EmbargoEvent,
+    CaseActor,
     VultronActivity,
     VultronOffer,
     VultronAccept,
@@ -39,14 +39,14 @@ _FUTURE_DT = datetime(2030, 1, 1, tzinfo=timezone.utc)
 
 REQUIRED_KWARGS: dict[type, dict] = {
     VultronNote: {"content": "test content"},
-    VultronParticipant: {
+    CaseParticipant: {
         "context": "urn:uuid:case-123",
     },
     CaseStatus: {
         "context": "urn:uuid:case-123",
         "attributed_to": "urn:uuid:actor-456",
     },
-    VultronEmbargoEvent: {
+    EmbargoEvent: {
         "context": "urn:uuid:case-123",
         "end_time": _FUTURE_DT,
     },
@@ -89,7 +89,7 @@ def test_has_as_type(cls):
 #: ADR-0099 detail 5 moved that derivation from the wire class onto the core
 #: class, which is what makes these the exception — the label is a function of
 #: the object's state, and the class that holds the state owns it.
-DERIVES_ITS_OWN_NAME = frozenset({CaseStatus, VultronEmbargoEvent})
+DERIVES_ITS_OWN_NAME = frozenset({CaseStatus, EmbargoEvent})
 
 
 @pytest.mark.parametrize("cls", DOMAIN_OBJECT_CLASSES)
@@ -125,19 +125,17 @@ def test_vultron_activity_as_type_required():
 
 
 def test_domain_object_as_id_unique():
-    a = VultronReport()
-    b = VultronReport()
+    a = VulnerabilityReport()
+    b = VulnerabilityReport()
     assert a.id_ != b.id_
 
 
 def test_domain_object_expected_as_types():
-    assert VultronReport().type_ == "VulnerabilityReport"
+    assert VulnerabilityReport().type_ == "VulnerabilityReport"
     assert VulnerabilityCase().type_ == "VulnerabilityCase"
     assert VultronNote(content="test").type_ == "Note"
     assert (
-        VultronParticipant(
-            context="urn:uuid:c", attributed_to="urn:uuid:a"
-        ).type_
+        CaseParticipant(context="urn:uuid:c", attributed_to="urn:uuid:a").type_
         == "CaseParticipant"
     )
     assert (
@@ -145,10 +143,10 @@ def test_domain_object_expected_as_types():
         == "CaseStatus"
     )
     assert (
-        VultronEmbargoEvent(context="urn:uuid:c", end_time=_FUTURE_DT).type_
+        EmbargoEvent(context="urn:uuid:c", end_time=_FUTURE_DT).type_
         == "EmbargoEvent"
     )
-    assert VultronCaseActor().type_ == "Service"
+    assert CaseActor().type_ == "Service"
     _test_actor = "https://example.org/actors/test"
     assert VultronOffer(actor=_test_actor).type_ == "Offer"
     assert VultronAccept(actor=_test_actor).type_ == "Accept"
@@ -168,10 +166,10 @@ def test_vultron_participant_required_fields():
     Both context and attributed_to are optional; when attributed_to is
     provided, name is auto-derived from it.
     """
-    p_empty = VultronParticipant()
+    p_empty = CaseParticipant()
     assert p_empty.context is None
 
-    p = VultronParticipant(
+    p = CaseParticipant(
         context="urn:uuid:case-123", attributed_to="urn:uuid:actor-456"
     )
     assert p.context == "urn:uuid:case-123"
@@ -196,13 +194,13 @@ def test_vultron_case_status_required_fields():
 def test_vultron_embargo_event_required_fields():
     # context is required; omitting it must raise
     with pytest.raises(Exception):
-        VultronEmbargoEvent()
+        EmbargoEvent()
     # end_time is optional (has a default); context alone is sufficient
-    em_default = VultronEmbargoEvent(context="urn:uuid:case-123")
+    em_default = EmbargoEvent(context="urn:uuid:case-123")
     assert em_default.context == "urn:uuid:case-123"
     assert em_default.end_time is not None
     # explicit end_time is also accepted
-    em = VultronEmbargoEvent(context="urn:uuid:case-123", end_time=_FUTURE_DT)
+    em = EmbargoEvent(context="urn:uuid:case-123", end_time=_FUTURE_DT)
     assert em.context == "urn:uuid:case-123"
     assert em.end_time == _FUTURE_DT
 

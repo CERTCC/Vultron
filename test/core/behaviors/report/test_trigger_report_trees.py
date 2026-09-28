@@ -33,10 +33,10 @@ from vultron.core.behaviors.report.trigger_report_trees import (
     create_reject_report_trigger_tree,
 )
 from vultron.core.models.activity import VultronOffer
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -66,22 +66,22 @@ def scenario() -> BTTestScenario:
 
 
 @pytest.fixture
-def actor(scenario: BTTestScenario) -> VultronCaseActor:
-    obj = VultronCaseActor(id_=ACTOR_ID, name="Vendor Co")
+def actor(scenario: BTTestScenario) -> CaseActor:
+    obj = CaseActor(id_=ACTOR_ID, name="Vendor Co")
     scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
-def report(scenario: BTTestScenario) -> VultronReport:
-    obj = VultronReport(name="TEST-001", content="Test vuln")
+def report(scenario: BTTestScenario) -> VulnerabilityReport:
+    obj = VulnerabilityReport(name="TEST-001", content="Test vuln")
     scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
 def offer(
-    scenario: BTTestScenario, report: VultronReport, actor: VultronCaseActor
+    scenario: BTTestScenario, report: VulnerabilityReport, actor: CaseActor
 ) -> VultronOffer:
     obj = VultronOffer(actor=REPORTER_ID, object_=report.id_, target=ACTOR_ID)
     scenario.dl.create(obj)
@@ -97,7 +97,7 @@ def offer(
 
 @pytest.fixture
 def closed_status(
-    scenario: BTTestScenario, report: VultronReport
+    scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VultronReportCaseLink:
     """Pre-seed RM.CLOSED so the duplicate-close guard fires."""
     link = VultronReportCaseLink(report_id=report.id_, rm_state=RM.CLOSED)
@@ -107,7 +107,7 @@ def closed_status(
 
 @pytest.fixture
 def invalid_status(
-    scenario: BTTestScenario, report: VultronReport
+    scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VultronReportCaseLink:
     """Pre-seed RM.INVALID — valid predecessor for INVALID→CLOSED."""
     link = VultronReportCaseLink(report_id=report.id_, rm_state=RM.INVALID)
@@ -117,7 +117,7 @@ def invalid_status(
 
 @pytest.fixture
 def accepted_status(
-    scenario: BTTestScenario, report: VultronReport
+    scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VultronReportCaseLink:
     """Pre-seed RM.ACCEPTED — valid predecessor for ACCEPTED→CLOSED."""
     link = VultronReportCaseLink(report_id=report.id_, rm_state=RM.ACCEPTED)
@@ -127,7 +127,7 @@ def accepted_status(
 
 @pytest.fixture
 def report_case_link(
-    scenario: BTTestScenario, report: VultronReport
+    scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VultronReportCaseLink:
     """Pre-seed RM.RECEIVED so transition nodes can find the ReportCaseLink."""
     link = VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
@@ -137,14 +137,14 @@ def report_case_link(
 
 @pytest.fixture
 def case_with_owner(
-    scenario: BTTestScenario, report: VultronReport
+    scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VulnerabilityCase:
     """Create a VulnerabilityCase where ACTOR_ID is CASE_OWNER and a separate CASE_MANAGER exists for routing."""
     owner_participant = CaseParticipant(
         attributed_to=ACTOR_ID,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    manager_actor = VultronCaseActor(id_=CASE_MANAGER_ID, name="Case Manager")
+    manager_actor = CaseActor(id_=CASE_MANAGER_ID, name="Case Manager")
     manager_participant = CaseParticipant(
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -162,14 +162,14 @@ def case_with_owner(
 
 @pytest.fixture
 def case_with_non_owner(
-    scenario: BTTestScenario, report: VultronReport
+    scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VulnerabilityCase:
     """Create a VulnerabilityCase where ACTOR_ID is VENDOR (not CASE_OWNER) with a CASE_MANAGER for routing."""
     vendor_participant = CaseParticipant(
         attributed_to=ACTOR_ID,
         case_roles=[CVDRole.VENDOR],
     )
-    manager_actor = VultronCaseActor(id_=CASE_MANAGER_ID, name="Case Manager")
+    manager_actor = CaseActor(id_=CASE_MANAGER_ID, name="Case Manager")
     manager_participant = CaseParticipant(
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],

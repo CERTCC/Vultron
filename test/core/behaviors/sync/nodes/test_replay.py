@@ -27,7 +27,7 @@ from vultron.core.behaviors.sync.nodes import (
     SendMissingEntriesNode,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
@@ -166,9 +166,7 @@ class TestFindCaseActorNode:
         ``context == case_id`` scan found nothing here and the node failed.
         """
         _seed_case_with_manager(datalayer, MANAGER_ACTOR_ID)
-        datalayer.create(
-            VultronCaseActor(id_=MANAGER_ACTOR_ID, name="CaseActor")
-        )
+        datalayer.create(CaseActor(id_=MANAGER_ACTOR_ID, name="CaseActor"))
         event = _make_reject_event(tail_hash="")
 
         result = bridge.execute_with_setup(
@@ -195,7 +193,7 @@ class TestFindCaseActorNode:
         roster the honest answer is FAILURE.
         """
         datalayer.create(
-            VultronCaseActor(
+            CaseActor(
                 id_="https://example.org/actors/some-other-case-actor",
                 name="Unrelated CaseActor",
                 context="https://example.org/cases/a-different-case",

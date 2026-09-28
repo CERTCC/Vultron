@@ -49,7 +49,7 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
-from vultron.core.models.vultron_types import VulnerabilityCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.behaviors.case.case_setup_tree import (
     RecordCaseCreationEvents,
 )

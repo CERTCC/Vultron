@@ -30,7 +30,6 @@ from vultron.core.behaviors.sync.commit_tree import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
     _snapshot_with_context,
@@ -211,7 +210,7 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
             return Status.SUCCESS
 
         participant = self._new_invite_participant_bb
-        if not isinstance(participant, (CaseParticipant, VultronParticipant)):
+        if not isinstance(participant, CaseParticipant):
             self.logger.error(
                 "%s: new_invite_participant not available", self.name
             )

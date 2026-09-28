@@ -837,7 +837,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[PRM-01-001](../specs/protocol.md#prm-01)</td>
-<td markdown="span">VultronParticipant MUST expose a read-only `roles` property — role inspection for case membership.</td>
+<td markdown="span">CaseParticipant MUST expose a read-only `roles` property — role inspection for case membership.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[PRM-02-001](../specs/protocol.md#prm-02)</td>
