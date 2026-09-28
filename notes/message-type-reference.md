@@ -12,8 +12,10 @@ related_specs:
   - specs/semantic-extraction.yaml
   - specs/diataxis-requirements.yaml
   - specs/project-documentation.yaml
+  - specs/received-status-handling.yaml
 related_notes:
   - notes/activitystreams-semantics.md
+  - notes/received-status-authorization.md
   - notes/case-state-model.md
   - notes/diataxis-framework.md
   - notes/documentation-strategy.md
@@ -56,14 +58,25 @@ before writing anything that claims a shorthand maps to a wire form.
 | `EV` `EJ` `EC` | folded into `EP` / `ER` / `EA` respectively | context, not structure |
 | `RI` `RV` `RD` `RA` `RC` | *also* `Add(ParticipantStatus)`, via `rm_state` | payload, parallel to the dedicated report activities |
 
-The last row is the one that surprises people. RM state changes have **two**
-wire expressions: the dedicated report-scoped activity
+The last row is the one that surprises people, and it is **not an anomaly**
+(ADR-0108). RM state changes have **two** wire expressions because a move has
+two layers: the **act** — the dedicated report-scoped activity
 (`Accept(Offer(Report))` = `RV`, `TentativeReject(...)` = `RI`,
-`Reject(...)` = `RC`) *and* the `rm_state` field of a participant-status
-broadcast. `RA` and `RD` additionally appear as case-shaped activities
-(`Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`), because engaging or
-deferring is a case-participation decision rather than a report-validity
-judgment (MSM-01-005 for `RA`, MSM-01-004 for `RD`).
+`Reject(...)` = `RC`), which answers the finder's offer and carries what it
+answers — and the **declaration of resulting state**, the `rm_state` field of a
+participant-status broadcast, which is the participant's own statement about
+itself. One move producing both messages is expected; the declaration is
+supposed to agree with what the act implied, and when it does not the receiver
+flags the gap (RSH-06) rather than preferring one message over the other
+(RSH-08-002). Neither form is "the" authoritative encoding: authority is a
+property of the pipeline (mover announces → CASE_MANAGER adjudicates and commits
+→ replicas apply the ledger), and the CASE_MANAGER applies the same RM
+acceptance rule whichever message carried the declaration (RSH-06-006). Do not
+propose retiring either form to "resolve" the row. `RA` and `RD` additionally
+appear as case-shaped activities (`Join(VulnerabilityCase)` and
+`Ignore(VulnerabilityCase)`), because engaging or deferring is a
+case-participation decision rather than a report-validity judgment (MSM-01-005
+for `RA`, MSM-01-004 for `RD`).
 
 ### Expansions: one shorthand, many wire activities
 

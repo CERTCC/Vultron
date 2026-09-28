@@ -107,6 +107,15 @@ StatusAdoptionGate (Fallback)
 If the gate passes, `EmitAddCaseStatusToSelfNode` emits a self-addressed
 `Add(CaseStatus)` to the CaseActor (as CASE_MANAGER).
 
+> **Amended by ADR-0108 (2026-09-28).** The self-addressed `Add(CaseStatus)`
+> loopback was replaced by a direct canonical write: when the gate passes,
+> `EmitCaseStatusUpdateNode` writes the post-adoption `CaseStatus` to the case
+> ledger in the same tree (RSH-04-004, #2857), and the `TeardownEffects`
+> sequence (EmbargoTeardownAuthorizationGate → ThreatTerminationBranchNode)
+> follows it directly. RSH-01-003 and RSH-01-004 now specify that shape, and
+> `EmitAddCaseStatusToSelfNode` has been removed. The two-gate division of
+> responsibility is unchanged; only the channel between the gates is.
+
 ### EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode (`add_case_status_tree`)
 
 Positioned after `AppendCaseStatusToCaseNode`.
@@ -158,8 +167,9 @@ A shared `EmitCaseStatusUpdateNode` (direct write, not inbox-routed) is wired
 after every EM lifecycle BT node. This is **not** a new seam decision — it
 carves a limited exception to ADR-0021's inbox-routing rule: the CaseActor's
 own outbound EM/PXA state change emissions write directly to the ledger rather
-than routing through the inbox seam. The existing `EmitAddCaseStatusToSelfNode` (inbox-loopback path)
-is a kludge that will be refactored once `EmitCaseStatusUpdateNode` is in place.
+than routing through the inbox seam. The former `EmitAddCaseStatusToSelfNode` (inbox-loopback path)
+was a kludge; it was refactored onto `EmitCaseStatusUpdateNode` and later removed
+(see the ADR-0108 amendment above).
 
 ### CaseStatus Emission Authority (RSH-04)
 
