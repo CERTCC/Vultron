@@ -9,6 +9,7 @@ import logging
 from typing import Any
 
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
@@ -145,7 +146,9 @@ def resolve_receiving_actor_id(
     )
 
 
-def is_recipient(receiving_actor_id: str, activity: Any) -> bool:
+def is_recipient(
+    receiving_actor_id: str, activity: VultronActivity | None
+) -> bool:
     """True when *receiving_actor_id* is in *activity*'s ``to`` or ``cc``.
 
     A received-side handler that acts for an addressee (the Case Owner
@@ -154,17 +157,15 @@ def is_recipient(receiving_actor_id: str, activity: Any) -> bool:
     merely holds a copy.  The copy-holder refuses (HP-01-005): the sender
     addressed the wrong party, and the receiver's own record says so.
 
-    Matching is by :func:`~vultron.core.predicates.addressing.is_addressed_to`,
-    so a recipient written with a trailing slash still counts.  An activity
-    without addressing fields names no recipient at all.
+    The extractor has already normalised ``to``/``cc`` to id lists, so this
+    reads them as such.  Matching is by
+    :func:`~vultron.core.predicates.addressing.is_addressed_to`, so a
+    recipient written with a trailing slash still counts.  An event without
+    an activity names no recipient at all.
     """
-    recipients: list[str] = []
-    for field in ("to", "cc"):
-        value = getattr(activity, field, None)
-        if isinstance(value, str):
-            recipients.append(value)
-        elif value:
-            recipients.extend(_as_id(v) or "" for v in value)
+    if activity is None:
+        return False
+    recipients = [*(activity.to or []), *(activity.cc or [])]
     return is_addressed_to(receiving_actor_id, recipients)
 
 

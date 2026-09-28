@@ -94,12 +94,15 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A handler that receives a message it holds no role to act on — a CASE_MANAGER-addressed
-      message at an actor that is not the case's CASE_MANAGER, or a copy of an activity that
-      names the receiving actor in neither `to` nor `cc` — MUST report `REFUSED` with a reason
-      naming the missing role or addressing. Such a receipt is not a legitimate no-op and MUST
-      NOT be reported as `SKIPPED`; `SKIPPED` is reserved for a duplicate or otherwise
-      idempotent re-delivery of a message the receiver was entitled to act on
+      A handler that receives a message it holds no role or addressing to act on MUST report
+      `REFUSED` with a reason naming the missing role or addressing. That covers a
+      CASE_MANAGER-addressed message at an actor that is not the case's CASE_MANAGER, a copy of
+      an activity that names the receiving actor in neither `to` nor `cc`, and an addressing
+      the message's own protocol does not honour — a `cc`-only receiver of `Offer(Report)`,
+      where only a `to` recipient acts (HP-09-001, HP-09-002). Such a receipt is not a
+      legitimate no-op and MUST NOT be reported as `SKIPPED`; `SKIPPED` is reserved for a
+      duplicate or otherwise idempotent re-delivery of a message the receiver was entitled to
+      act on
     rationale: >-
       A role gate skips as SUCCESS so that the CASE_MANAGER's own failure stays distinguishable
       from a non-manager's no-op (BTND-07-005), and several handlers read that skip as "not my
@@ -107,12 +110,20 @@ groups:
       inbox then showed a misaddressed message as a successful receipt. The disposition is the
       receiver's own report on its own handling (HP-01-004): it never says anything about
       another actor. A message the receiver could not act on was addressed to the wrong party
-      by its sender, and `REFUSED` with a reason is the record that says so. See #3752.
+      by its sender — or, for a courtesy copy the protocol gives it no standing to act on,
+      addressed in a way that asked nothing of it — and `REFUSED` with a reason is the record
+      that says so. Under the narrowed `SKIPPED`, an addressee's first receipt of a message
+      that is now pending its own decision (the Case Owner and `Offer(CaseParticipant)`) is
+      `APPLIED`: it is neither a duplicate nor a refusal. See #3752.
     verification: >-
       The `HP-01-005`-marked tests under `test/core/use_cases/received/` drive each affected
-      handler at a receiver that is not the CASE_MANAGER, or not an addressee, and assert
-      `REFUSED`, an empty outbox, and no state write; a control test per handler shows the
-      CASE_MANAGER or addressee still acts.
+      handler at a receiver that is not the CASE_MANAGER, or not an entitled addressee, and
+      assert `REFUSED` with no protocol effect: an empty outbox and no case-state write. The
+      one deliberate retention is `Offer(Report)`, whose handler stores the report and the
+      Offer before the addressing check so that a receiver with `auto_create_case` off keeps
+      the data for a later explicit decision (CM-15-002); the refused receipt still proposes
+      no case. A control test per handler shows the CASE_MANAGER or entitled addressee still
+      acts.
     adr:
     - ADR-0095
 - id: HP-02

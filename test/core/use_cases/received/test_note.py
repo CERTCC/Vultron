@@ -17,6 +17,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import CaseActor
@@ -274,6 +277,11 @@ class TestNoteUseCases:
             id_="https://example.org/cases/case_n3_noop",
             name="Noop Case",
         )
+        # Somebody else holds CASE_MANAGER, so the gate fails on "this actor
+        # is not the manager" rather than on "no role holder" (BT-17-005).
+        seed_case_manager_participant(
+            dl, case, "https://example.org/actors/case-manager"
+        )
         note = as_Note(
             id_="https://example.org/notes/note_noop",
             content="A note",
@@ -284,7 +292,6 @@ class TestNoteUseCases:
         activity = add_note_to_case_activity(
             note, target=case, actor="https://example.org/users/finder"
         )
-        # Non-CaseActor: no CASE_MANAGER participant registered
         event = make_payload(
             activity,
             receiving_actor_id="https://example.org/actors/non-manager",

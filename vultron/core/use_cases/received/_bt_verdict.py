@@ -54,6 +54,7 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronBTInternalError
 
@@ -153,16 +154,21 @@ def not_case_manager_refusal(
         if (refusal := not_case_manager_refusal(tree, dl, case_id)) is not None:
             return refusal
 
-    The gate also reads a case this store does not hold as "not the manager",
-    so the reason names which of the two it was. Both are refusals
-    (HP-01-005): a CASE_MANAGER-addressed message that reaches an actor
-    without that role was misaddressed, and the receiver's inbox record says
-    so rather than reporting a processed no-op.
+    The gate also fails for a case this store does not hold and for a case
+    whose roster names no CASE_MANAGER at all, so the reason says which of the
+    three it was. All are refusals (HP-01-005): a CASE_MANAGER-addressed
+    message that reaches an actor without that role was misaddressed, and the
+    receiver's inbox record says so rather than reporting a processed no-op.
     """
+    from vultron.core.participants.authority import resolve_case_manager_id
+
     if not not_case_manager(tree):
         return None
-    if dl.read(case_id) is None:
+    case = dl.read(case_id)
+    if not isinstance(case, VulnerabilityCase):
         return HandlerResult.refused(f"unknown case '{case_id}'")
+    if resolve_case_manager_id(case, dl) is None:
+        return HandlerResult.refused(f"case '{case_id}' has no CASE_MANAGER")
     return HandlerResult.refused(f"not the CASE_MANAGER of case '{case_id}'")
 
 

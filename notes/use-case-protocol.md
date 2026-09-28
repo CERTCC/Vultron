@@ -14,6 +14,7 @@ related_notes:
   - notes/use-case-behavior-trees.md
   - notes/architecture-hexagonal.md
   - notes/inbox-orchestration.md
+  - notes/case-communication-model.md
 relevant_packages:
   - vultron/core/models
   - vultron/core/ports
@@ -334,7 +335,8 @@ The rules the handlers follow:
 | Activity about a case this actor does not hold | `REFUSED` |
 | Invalid transition; untrusted, non-participant or non-owner sender | `REFUSED` |
 | The handler answered with a `Reject` or a decline | `REFUSED` |
-| Not this actor's role (a CASE_MANAGER-addressed message at a non-manager), or a copy naming it in neither `to` nor `cc` | `REFUSED` (HP-01-005) |
+| Not this actor's role (a CASE_MANAGER-addressed message at a non-manager), a copy naming it in neither `to` nor `cc`, or an addressing the message's protocol gives it no standing to act on (`cc`-only `Offer(Report)`, HP-09-001) | `REFUSED` (HP-01-005) |
+| An addressee's first receipt of a message now pending its own decision (the Case Owner and `Offer(CaseParticipant)`): neither a duplicate nor a refusal | `APPLIED` |
 | Duplicate or redelivery | `SKIPPED` |
 | Buffered out-of-order or pre-genesis ledger entry | `DEFERRED` |
 
