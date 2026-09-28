@@ -36,6 +36,7 @@ from vultron.metadata.base import mkdocs_config
 from vultron.metadata.docs.page_schema import LEVELS
 from vultron.metadata.file_loading import MetadataLoadError, load_frontmatter
 from vultron.metadata.generated_block import splice_between
+from vultron.metadata.markdown_tables import fenced_lines
 
 #: Command that regenerates every artifact, quoted in markers and errors.
 WRITE_COMMAND = "uv run docs-site --write"
@@ -53,7 +54,6 @@ END_MARKER = "<!-- END GENERATED SECTION CONTENTS -->"
 
 _INDEX_NAME = "index.md"
 _H1_RE = re.compile(r"^#\s+(.*?)\s*#*\s*$")
-_FENCE_RE = re.compile(r"^\s*(```|~~~)")
 _ATTR_LIST_RE = re.compile(r"\s*\{[^}]*\}\s*$")
 
 
@@ -99,13 +99,19 @@ def _is_url(target: str) -> bool:
 
 
 def _body_h1(body: str) -> str | None:
-    """The first H1 of a page body, outside fenced code, without attr lists."""
-    fenced = False
-    for line in body.splitlines():
-        if _FENCE_RE.match(line):
-            fenced = not fenced
+    """The first H1 of a page body, outside fenced code, without attr lists.
+
+    Fenced lines come from :func:`fenced_lines`, the one fence reader
+    (CS-22-001): it honours run length and fence character, so a shorter run
+    or the other character inside a longer block does not end it, and it
+    tracks a fence nested under an admonition, where a ``# comment`` inside a
+    shell block would otherwise be taken for the page's heading.
+    """
+    fenced = fenced_lines(body)
+    for number, line in enumerate(body.splitlines(), start=1):
+        if number in fenced:
             continue
-        match = None if fenced else _H1_RE.match(line)
+        match = _H1_RE.match(line)
         if match:
             return _ATTR_LIST_RE.sub("", match.group(1)).strip() or None
     return None

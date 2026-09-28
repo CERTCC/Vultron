@@ -932,17 +932,18 @@ def test_iter_sections_carries_the_heading_level() -> None:
     assert levels == {"": 0, "One": 1, "Three": 3, "Two": 2}
 
 
-@pytest.mark.parametrize("indent", ["", " ", "  ", "   "])
+@pytest.mark.parametrize("indent", ["", " ", "  ", "   ", "    ", "        "])
 def test_iter_tables_skips_a_table_inside_an_indented_fence(
     indent: str,
 ) -> None:
-    """CommonMark allows 1–3 spaces before a fence, and so does the reader.
+    """A fence is tracked at any indentation, not only CommonMark's 1–3 spaces.
 
     The negative half of the fence guarantee. An indented fence is the normal
-    form inside a list item, and mkdocs-material admonitions require one
-    (``MD046`` is disabled in this repository for that reason), so anchoring the
-    fence at column 0 would leave the most common spelling untracked — and a
-    pipe table documented inside one would be read as a real table.
+    form inside a list item, and mkdocs-material admonitions and content tabs
+    nest one four spaces deep (``MD046`` is disabled in this repository for
+    that reason), so anchoring the fence at column 0, or stopping at three
+    spaces, would leave the most common spellings untracked — and a pipe table
+    documented inside one would be read as a real table (#3685).
     """
     fenced = (
         f"{indent}```markdown\n"
@@ -960,7 +961,7 @@ def test_iter_tables_skips_a_table_inside_an_indented_fence(
     assert tables[0].columns == ("A", "B")
 
 
-@pytest.mark.parametrize("indent", [" ", "  ", "   "])
+@pytest.mark.parametrize("indent", [" ", "  ", "   ", "    ", "        "])
 def test_iter_sections_ignores_a_heading_inside_an_indented_fence(
     indent: str,
 ) -> None:
@@ -970,6 +971,38 @@ def test_iter_sections_ignores_a_heading_inside_an_indented_fence(
     )
     headings = [section.heading for section in iter_sections(text)]
     assert headings == ["", "Real"]
+
+
+_ADMONITION_FENCE = (
+    "## Real\n\n"
+    "!!! note\n\n"
+    "    ```bash\n"
+    "    # Not A Heading\n"
+    "    | Scenario | x |\n"
+    "    |---|---|\n"
+    "    | fv | 1 |\n"
+    "    ```\n\n"
+    "| A | B |\n|---|---|\n| 1 | 2 |\n"
+)
+
+
+def test_iter_sections_ignores_a_hash_inside_an_admonition_fence() -> None:
+    """A ``#`` comment in a shell block nested under ``!!! note`` is content.
+
+    mkdocs-material indents the admonition body by four spaces, which strict
+    CommonMark reads as an indented code block rather than a fence; the reader
+    tracks the fence anyway, so the comment is not a heading (#3685).
+    """
+    headings = [
+        section.heading for section in iter_sections(_ADMONITION_FENCE)
+    ]
+    assert headings == ["", "Real"]
+
+
+def test_iter_tables_skips_a_table_inside_an_admonition_fence() -> None:
+    """A pipe table shown inside a fence under ``!!! note`` is an example."""
+    tables = iter_tables(_ADMONITION_FENCE)
+    assert [table.columns for table in tables] == [("A", "B")]
 
 
 def test_split_row_drops_only_the_outer_delimiters() -> None:
