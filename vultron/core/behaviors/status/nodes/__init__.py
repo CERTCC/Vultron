@@ -35,7 +35,7 @@ Submodules:
   (ValidateRMTransitionNode)
 - ``lifecycle``: Public disclosure and auto-close emit lifecycle nodes
   (_PublicDisclosureSkipConditionNode, PublicDisclosureBranchNode,
-  ThreatTerminationBranchNode, EmitAddCaseStatusToSelfNode, EmitCloseCaseNode)
+  ThreatTerminationBranchNode, EmitCloseCaseNode)
 - ``rm_anomaly``: RM transition anomaly notification (EmitRMGapNoteNode)
 - ``case_status``: Idempotency guard and append nodes for the
   AddCaseStatusToCase workflow, plus EmitCaseStatusUpdateNode for direct
@@ -83,7 +83,6 @@ from vultron.core.behaviors.status.nodes.rm_validation import (
     ValidateRMTransitionNode,
 )
 from vultron.core.behaviors.status.nodes.lifecycle import (
-    EmitAddCaseStatusToSelfNode,
     EmitCloseCaseNode,
     PublicDisclosureBranchNode,
     ThreatTerminationBranchNode,
@@ -116,7 +115,6 @@ __all__ = [
     "_PublicDisclosureSkipConditionNode",
     "PublicDisclosureBranchNode",
     "ThreatTerminationBranchNode",
-    "EmitAddCaseStatusToSelfNode",
     "EmitCloseCaseNode",
     "EmitRMGapNoteNode",
     # cs_invariant_diagnostic

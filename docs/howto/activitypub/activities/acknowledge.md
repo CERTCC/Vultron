@@ -40,8 +40,8 @@ Sending `Read(Offer(VulnerabilityReport))` immediately before a verdict adds a m
 2. Leave your RM state at `RECEIVED`.
    Acknowledgment is not a transition.
 
-The nested form is what a receiver dispatches on: `AckReportPattern` requires it, [Report Management (RM) Messages](../../../reference/messages/rm.md) documents it (MSM-01-008), and `rm_read_report_activity` builds it.
-A bare `Read(VulnerabilityReport)` carrying the report itself matches no pattern.
+The nested form is the one a receiver recognizes: the acknowledgment answers the `Offer`, so the `Offer` is its `object` ([Report Management (RM) Messages](../../../reference/messages/rm.md), MSM-01-008).
+A bare `Read(VulnerabilityReport)` carrying the report itself is not a Vultron activity, and a conformant receiver does not act on it.
 
 ---
 

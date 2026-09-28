@@ -14,12 +14,8 @@ level: 300
 The name "Vultron" covers several distinct concepts.
 Each concept has a defined scope, and each plays a different role.
 This document names each concept, defines its scope, and describes the relationships between them.
-
-!!! note "Audience"
-    This document addresses four audiences: sponsors, collaborators, independent
-    implementers, and contributors to this codebase. The concepts are the same
-    for all four audiences. The language used to describe them may vary by
-    context.
+It is a scope document, not a registry of definitions: where the [Vultron Protocol Specification](vultron-spec/index.md) defines a concept normatively, this page says what the concept covers and links to the specification for the definition.
+The [Glossary](glossary.md) is the registry of term names and the aliases to avoid.
 
 ---
 
@@ -139,82 +135,21 @@ These concepts describe what a Vultron implementation or component can do.
 
 ### Vultron capability sets
 
-**Definition.** A capability set is a named group of capabilities that defines what an actor must be able to do for a given participation level or role.
+**Definition.** A capability set is a named group of protocol obligations an implementation takes on.
+It is a property of *software*, distinct from a role, which is a position an actor holds in a case.
 A capability is one specific thing a system can do within the Vultron protocol.
 
-#### The Case Observer capability set
+The capability sets are defined normatively in [§12.2 of the Vultron Protocol Specification](vultron-spec/index.md#122-capability-sets).
+This page names them and says how they relate to the other concepts; it does not restate their obligations.
 
-**The Case Observer capability set is the participation floor.**
-Every actor that participates in any Vultron case must implement it.
-
-There is no sub-Observer participation level.
-Even a monitoring-only actor must track embargo state (PEC) to know what it is permitted to display.
-
-The Case Observer capability set includes:
-
-- Implement all five state machines (RM, EM, PEC, VFD, PXA) — track state and drive transitions
-- Embargo compliance: accept and decline embargo invitations; track PEC state
-- Receive and process all Vultron message types
-- Report PXA observations (public awareness, exploit public, attacks observed)
-
-No VFD drive obligations are part of the Observer set.
-Those belong to role extension sets.
-
-#### Role extension sets
-
-Every CVD process role is the Case Observer capability set plus a role-specific extension.
-
-| Role | Extension capabilities (added to Observer) |
-|---|---|
-| Reporter | Initiate cases; drive RS (report submission) |
-| Vendor | Drive fix-ready VFD transition (f→F, CF) |
-| Deployer | Drive fix-deployed VFD transition (d→D, CD) |
-| Coordinator | Drive case participant management; coordinate multi-party disclosure |
-| CNA | Assign Common Vulnerabilities and Exposures (CVE) IDs directly, as a CVE Numbering Authority (CNA) |
-
-Only an actor that holds both Vendor and Deployer can drive the full fix path.
-Vendor alone cannot drive fix deployment.
-Deployer alone cannot drive fix readiness.
-
-#### The Case Decision capability set
-
-The Case Decision capability set defines Case Owner governance capabilities:
-
-- Adopt status updates without an external approval gate
-- Drive shared EM transitions
-- Transfer case ownership
-
-The Case Decision capability set is separable from the Case Hosting capability set.
-A human Coordinator can provide the Case Decision capability set while a service
-actor performs Case Hosting.
-
-#### The Case Hosting capability set
-
-The Case Hosting capability set defines Case Manager infrastructure capabilities:
-
-- Host the actor enacting the CASE_MANAGER role (the single-writer for the
-  canonical ledger)
-- Maintain the authoritative append-only case ledger
-- Replicate ledger entries to participants via `Announce(CaseLedgerEntry)`
-- Manage case participants (invitation, role assignment, removal)
-
-The Case Hosting capability set is separable from the Case Decision capability set.
-A platform can provide Case Hosting without holding the Case Decision capability
-set. Ledger authority follows the CASE_MANAGER role the hosting implementation
-holds, not its hosting location or actor name (ADR-0088).
-
-#### Named configurations
-
-Common combinations of capability sets have names because they describe real deployment patterns.
-
-| Configuration | Capability sets | Roles |
+| Capability set | What it covers | Normative definition |
 |---|---|---|
-| **Hosting Coordinator** (or Autonomous Coordinator) | Case Observer + Case Decision + Case Hosting | Coordinator + Case Owner |
-| **Self-coordinating Vendor** | Case Observer + Case Decision + Case Hosting | Vendor + Deployer + Case Owner |
-| **Bug Bounty Platform** | Case Observer + Case Hosting | Case Manager (Case Decision optional) |
+| **Case Observer** | The participation floor every case Participant provides: track the five state machines, take part in embargo negotiation, and route case-scoped messages through the CASE_MANAGER. There is no sub-Observer participation level. | [Case Observer capability set](vultron-spec/index.md#case-observer-capability-set) |
+| **Case Decision** | The Case Owner's governance obligations, separable from hosting a case. | [Case Decision capability set](vultron-spec/index.md#case-decision-capability-set) |
+| **Case Hosting** | The Case Manager's infrastructure obligations, separable from deciding for a case: host the actor enacting the CASE_MANAGER role and run the canonical ledger. | [Case Hosting capability set](vultron-spec/index.md#case-hosting-capability-set) |
 
-A Hosting Coordinator is a `type:service` actor that holds both `CASE_OWNER` and `CASE_MANAGER` roles.
-It decides (Case Decision) and executes (Case Hosting) without a separate human approval step.
+Which transitions a Participant may drive on top of the Case Observer floor depends on the roles it holds; [§12.4](vultron-spec/index.md#124-role-specific-normative-requirements) states those role-specific requirements.
+Common combinations of capability sets and roles have names — Hosting Coordinator, Self-coordinating Vendor, Bug Bounty Platform — listed under [Named configurations](vultron-spec/index.md#named-configurations) in the specification.
 
 #### Optional domain capability sets
 
@@ -222,7 +157,7 @@ Optional capabilities are organized by domain function.
 
 Examples of domain capability sets:
 
-- **CNA capabilities** — assign CVE IDs (typically Actuator shape, calling the CVE assignment API)
+- **CNA capabilities** — assign Common Vulnerabilities and Exposures (CVE) IDs as a CVE Numbering Authority (CNA) does (typically Actuator shape, calling the CVE assignment API)
 - **Prioritization capabilities** — assess report severity or priority (typically Evaluator or Retriever shape)
 - **Exploit detection capabilities** — detect or assess exploit availability (typically Retriever shape, or a Sentinel that watches for new exploits)
 
@@ -257,14 +192,9 @@ Examples: `Case Observer / Vendor`, `Case Observer + Case Decision + Case Hostin
 
 **Previous name.** This concept was previously named "agent shapes" or "coordination agent taxonomy." That name was accurate when written. It is now replaced because "agent" has acquired strong connotations of large language model (LLM)-based autonomous systems, which was not the original intent. "Capability shape" describes what the concept actually covers: the pattern that a capability takes.
 
-**The four capability shapes.**
-
-| Shape | What it does | Connection type |
-|---|---|---|
-| **Evaluator** | Receives a situation and a set of options. Returns a structured recommendation. Gates downstream execution. | Call-out point |
-| **Retriever** | Receives a query. Returns structured facts from an external source. | Call-out point |
-| **Composer** | Receives context. Generates and records a new content artifact. | Call-out point |
-| **Actuator** | Receives a trigger. Invokes an external system for a side effect. Confirms success or failure. Produces no content artifact. | Call-out point |
+**The four capability shapes.** The shapes are Evaluator, Retriever, Composer, and Actuator.
+Each is a contract stating what a call-out point accepts and what it returns.
+The contracts are defined in [Annex G of the Vultron Protocol Specification](vultron-spec/index.md#g1-the-four-capability-shapes), which this page does not restate.
 
 **Sentinel is not a shape.** A Sentinel is a call-in integration pattern: it monitors a condition and, when the condition fires, acts on its own initiative by calling a Vultron trigger endpoint or sending protocol messages. The behavior engine never consults it, so it has no call-out point node, no blackboard contract, and no backend factory. The classifying criterion is which party initiates (BT-18-013, [ADR-0097](../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md)).
 
@@ -298,24 +228,13 @@ A capability shape defines the contract. A concrete implementation that satisfie
 Roles are not properties of systems. They are assignments within a case.
 
 **Two categories of roles.**
+Both are defined in [§2.2 of the Vultron Protocol Specification](vultron-spec/index.md#22-roles) and developed in [§12.3](vultron-spec/index.md#123-role-taxonomy); this page names them and does not restate the definitions.
 
-**Process roles** define what an actor does within a case and which protocol transitions it is authorized to drive.
+**Process roles** — Reporter, Vendor, Deployer, Coordinator, CVE Numbering Authority (CNA), and Observer — define what an actor does within a case and which protocol transitions it is authorized to drive ([§12.3.1](vultron-spec/index.md#1231-process-roles), [§12.4](vultron-spec/index.md#124-role-specific-normative-requirements)).
 
-| Role | Drive authority |
-|---|---|
-| Reporter | Initiates cases; drives RS (report submission) |
-| Vendor | Drives its own VFD fix-ready transition (CF) |
-| Deployer | Drives its own VFD fix-deployed transition (CD) |
-| Coordinator | Drives case participant management; coordinates multi-party disclosure |
-| CNA | May directly assign CVE IDs |
-| Observer | No VFD drive obligations; may report PXA observations |
-
-**Protocol authority roles** define what an actor controls in the protocol machinery.
-
-| Role | Protocol authority |
-|---|---|
-| Case Owner | Authoritative decision-maker for a case |
-| Case Manager | AS actor performing case replica synchronization on behalf of the Case Owner |
+**Protocol authority roles** — Case Owner and Case Manager — define what an actor controls in the protocol machinery ([§12.3.2](vultron-spec/index.md#1232-protocol-coordination-roles-protocol-authority)).
+The Case Manager is the Participant that writes the canonical case ledger and relays case-scoped messages on the Case Owner's behalf; it is the case's single-writer authority.
+That authority follows the role, never the name, Uniform Resource Identifier (URI), or hosting location of the actor that holds it (ADR-0088).
 
 **Role assignment.**
 
@@ -427,7 +346,7 @@ These questions are noted for future resolution. They do not block use of this t
 
 3. **Role capability prerequisites.** The full mapping of which capabilities each role extension set requires is not yet specified. The conformance view (above) will address this when drawn.
 
-4. **Named configurations: canonical name.** "Hosting Coordinator" and "Autonomous Coordinator" are both in use. A decision on the canonical name is needed.
+4. **Named configurations: canonical name.** "Hosting Coordinator" and "Autonomous Coordinator" have both been in use. The specification's [Named configurations](vultron-spec/index.md#named-configurations) table uses "Hosting Coordinator"; this page follows it.
 
 ---
 
