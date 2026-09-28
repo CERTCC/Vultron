@@ -11,10 +11,8 @@ acknowledgments). In the AS2 wire vocabulary, both concerns are served by
 mechanisms partitioned on **different axes** from the formal set. Neither is
 unimplemented; both are shaped differently.
 
-For the normative mapping see `specs/message-semantics-mapping.yaml` MSM-05.
-For the design rationale see
-[ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)
-and `notes/message-type-reference.md`.
+This page is the primary reference for the ledger negative acknowledgement (`Reject(CaseLedgerEntry)`) and for `close_report` as an ordinary `as:Reject` on the fault axis.
+The normative mapping is the [Fault and Acknowledgement Mechanism Evolution](../specs/protocol.md#msm-05) requirements group; the design rationale is in [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) and [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md).
 
 ---
 
@@ -32,7 +30,7 @@ in a way that state-machine origin is not.
 | Received, understood, **needs explanation** | `Create(Note)` / `Add(Note → Case)` | `RE` / `EE` / `CE` / `GE` |
 
 Status: **evolved** — the formal shorthands have no dedicated wire counterpart;
-see MSM-05-001.
+see [MSM-05-001](../specs/protocol.md#msm-05-001).
 
 ### `as:Reject` is overloaded
 
@@ -41,7 +39,7 @@ see MSM-05-001.
 `reject_invite_actor_to_case`, `reject_case_proposal`,
 `reject_case_ownership_transfer`). A receiver cannot infer "error" from the
 verb alone. The `reject_case_ledger_entry` semantic is also an `as:Reject` but
-it is the ledger NAK described below — not an ordinary refusal (MSM-05-003).
+it is the ledger NAK described below — not an ordinary refusal ([MSM-05-003](../specs/protocol.md#msm-05-003)).
 
 ---
 
@@ -57,7 +55,7 @@ vocabulary splits them into two mechanisms.
 (`MessageSemantics.ACK_REPORT`). Report submission is not ledger-replicated, so
 an explicit per-message acknowledgment is the correct mechanism here.
 
-Status: **direct** mapping — see MSM-01-008.
+Status: **direct** mapping — see [MSM-01-008](../specs/protocol.md#msm-01-008).
 
 ### EK / CK / GK — cumulative and implicit via hash-chain
 
@@ -68,15 +66,13 @@ state is acknowledged **cumulatively and implicitly** via hash-chain continuity:
   matches its local ledger tail says **nothing** — the match *is* the
   acknowledgment.
 - On a mismatch the participant emits `Reject(CaseLedgerEntry)`, whereupon the
-  CASE_MANAGER replays all entries after the last accepted hash
-  (`RejectLedgerEntryReceivedUseCase`,
-  `vultron/core/use_cases/received/sync.py`).
+  CASE_MANAGER replays all entries after the last accepted hash.
 
 This is negative acknowledgment with gap-fill replay — structurally closer to
 TCP cumulative ACK/SACK than to per-message positive acknowledgment. A matching
 hash proves receipt of the *entire* log prefix, not only one message.
 
-Status: **evolved** — see MSM-05-002.
+Status: **evolved** — see [MSM-05-002](../specs/protocol.md#msm-05-002).
 
 #### Liveness
 
@@ -84,22 +80,17 @@ Between `Announce(CaseLedgerEntry)` deliveries, silence and unreachability are
 observationally indistinguishable. A participant that has received all entries
 and a participant that is unreachable look identical until a new entry arrives.
 Implementations MAY rely solely on `Announce` deliveries for liveness inference
-without emitting a dedicated periodic heartbeat (MSM-05-006).
+without emitting a dedicated periodic heartbeat ([MSM-05-006](../specs/protocol.md#msm-05-006)).
 
 #### NAK path bounding
 
-The replay triggered by `Reject(CaseLedgerEntry)` is rate-limited per peer
-(30 s cooldown, 2 s at genesis) to prevent amplification; see SYNC-15-003. The
-outbox delivery budget (ADR-0066) provides a finite total-attempt bound
-independent of the replay rate limit.
+The replay triggered by `Reject(CaseLedgerEntry)` is rate-limited per peer to prevent amplification; see [SYNC-15-003](../specs/protocol.md#sync-15-003).
+The outbox delivery budget ([ADR-0066](../../adr/0066-outbox-terminal-state.md)) provides a finite total-attempt bound independent of the replay rate limit.
 
 ---
 
 ## See also
 
-- `docs/reference/messages/faults_and_acknowledgements.md` is the primary page
-  for `reject_case_ledger_entry` (SYNC mechanism and ledger NAK, MSM-05-002)
-  and `close_report` (ordinary `as:Reject` on the fault axis, MSM-05-003).
 - [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md) — why
   faults are partitioned by failure mode and acknowledgment moved to the hash
   chain.

@@ -29,9 +29,10 @@ protocol with other related standards and protocols, including:
     - [Glossary](glossary.md) — The terms this documentation uses for the Vultron Coordinated Vulnerability Disclosure (CVD) protocol and its reference implementation, with the aliases to avoid and the ambiguities to watch for.
     - [Concept Taxonomy](vultron-taxonomy.md) — Reference definitions for the distinct concepts that together constitute Vultron. Use this document to understand what each named concept covers, what it excludes, and how the concepts relate to each other.
     - [Protocol Specification](vultron-spec/index.md) — The Vultron Protocol specification: its semantic and syntactic layers and the state machines participants use to track a shared case.
+    - [Conformance Matrix](conformance_matrix.md) — Which capability sets each Vultron role requires, which transitions each role may drive, and the named configurations a conformance claim can use, as tables checked against the specification.
 - [Documentation Conventions](conventions.md) — The call-out boxes this documentation uses, and how to tell a normative page from an informative one.
 - [Versioning](versioning.md) — The release versioning scheme for the Vultron repository.
-- [ISO Crosswalk](iso_crosswalks/index.md) — A crosswalk of the Vultron Protocol against the ISO/IEC standards on vulnerability handling and disclosure.
+- [Standards Crosswalks](iso_crosswalks/index.md) — Crosswalks of the Vultron Protocol against the ISO/IEC standards on vulnerability handling and disclosure and against SSVC, each clause routed to the explanation that covers it and to the specification section that governs it.
 - [User Stories](user_stories/index.md) — Requirements captured as user stories.
 - **ActivityPub**
     - [Vultron AS Objects](activitypub/objects.md) — The Vultron ActivityStreams objects that extend the ActivityStreams vocabulary.
