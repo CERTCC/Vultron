@@ -79,7 +79,7 @@ Changes to a Vendor's development process are small and sit at three milestones.
 
 | When your workflow records that… | Emit |
 |---|---|
-| the report has been accepted as yours to fix | Vendor Awareness (CV) |
+| the report has reached you as the Vendor | Vendor Awareness (CV) |
 | a fix is ready | Fix Readiness (CF), and consider terminating any active embargo so publication can proceed |
 | the fix has been deployed, where you also deploy | Fix Deployed (CD) |
 
