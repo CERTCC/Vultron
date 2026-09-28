@@ -44,6 +44,7 @@ from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     em_reject_embargo_activity,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 
 class TestEmbargoProposalLifecycle:
@@ -77,6 +78,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_cem1/embargo_events/embargo1",
             content="Proposed embargo",
             context="https://example.org/cases/case_cem1",
+            end_time=days_from_now_utc(45),
         )
         activity = as_Create(
             actor="https://example.org/users/vendor",
@@ -118,6 +120,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_cem2/embargo_events/embargo2",
             content="Proposed embargo",
             context="https://example.org/cases/case_cem2",
+            end_time=days_from_now_utc(45),
         )
         activity = as_Create(
             actor="https://example.org/users/vendor",
@@ -153,6 +156,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em2/embargo_events/e2",
             content="Proposed embargo",
             context="https://example.org/cases/case_em2",
+            end_time=days_from_now_utc(45),
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -194,6 +198,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em3/embargo_events/e3",
             content="Embargo",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         # Use inline objects (not string IDs) so rehydration skips DataLayer lookup
         proposal = em_propose_embargo_activity(
@@ -252,6 +257,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em3_warn/embargo_events/e3",
             content="Embargo",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -304,6 +310,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em5/embargo_events/e5",
             content="Embargo",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         participant = CaseParticipant(
             id_="https://example.org/cases/case_em5/participants/coord",
@@ -371,6 +378,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em6/embargo_events/e6",
             content="Embargo",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -413,6 +421,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em4/embargo_events/e4",
             content="Embargo",
             context="https://example.org/cases/case_em4",
+            end_time=days_from_now_utc(45),
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -469,6 +478,7 @@ class TestEmbargoProposalLifecycle:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_eval_invalid/embargo_events/e1",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -561,7 +571,10 @@ def _make_pxa_case(
         em_state=em_state, pxa_state=CS_pxa[pxa_state_name]
     )
     embargo = as_EmbargoEvent(
-        id_=embargo_id, content="PXA test embargo", context=case_id
+        id_=embargo_id,
+        content="PXA test embargo",
+        context=case_id,
+        end_time=days_from_now_utc(45),
     )
     proposal = em_propose_embargo_activity(
         embargo,
@@ -682,6 +695,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
             id_=f"{case_id}/embargo_events/e1",
             content="clear embargo",
             context=case_id,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
@@ -802,6 +816,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             id_=f"{case_id}/embargo_events/e1",
             content="clear embargo",
             context=case_id,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(

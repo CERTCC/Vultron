@@ -62,6 +62,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
     as_VulnerabilityCase,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 _BASE = "http://coordinator:7999/api/v2/actors"
 _UUID = "24d63c7d-6b1e-4f61-a5e1-180d27192d0b"
@@ -392,6 +393,7 @@ class TestInviteRolesAndEmbargoEnrichment:
                 id_=f"{case.id_}/embargo/e1",
                 content="Active embargo",
                 context=case.id_,
+                end_time=days_from_now_utc(45),
             )
             dl.create(embargo)
             case.active_embargo = embargo.id_

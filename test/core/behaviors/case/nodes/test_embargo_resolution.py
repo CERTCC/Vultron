@@ -123,7 +123,10 @@ def _assert_duration(
 ) -> None:
     assert embargo is not None
     assert embargo.end_time is not None
-    assert before + expected <= embargo.end_time <= after + expected
+    # ``from_now_utc`` stamps at second precision (CS-13-003), so the lower
+    # bound drops the sub-second part ``datetime.now`` carries.
+    floor = before.replace(microsecond=0)
+    assert floor + expected <= embargo.end_time <= after + expected
 
 
 def _em_state(bt_scenario: BTTestScenario) -> EM:

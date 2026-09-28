@@ -28,7 +28,7 @@ from typing import Sequence, cast
 
 from pydantic import ValidationError
 
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import as_utc, now_utc
 from vultron.core.models.rsvp_deadline import (
     DEFAULT_MIN_RSVP_WINDOW,
     RsvpDeadlineClamp,
@@ -114,7 +114,7 @@ def em_propose_embargo_activity(
         published = kwargs.setdefault("published", now_utc())
         if isinstance(published, str):
             try:
-                published = datetime.fromisoformat(published)
+                published = as_utc(datetime.fromisoformat(published))
             except ValueError as exc:
                 raise VultronActivityConstructionError(
                     f"em_propose_embargo_activity: published {published!r}"

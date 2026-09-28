@@ -77,6 +77,7 @@ from vultron.core.models.dimensions import (
     EmDimension,
     PxaDimension,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -949,7 +950,9 @@ class TestThreatTerminationBranchNode:
         )
         case.add_participant(cm_participant)
         embargo = as_EmbargoEvent(
-            id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
+            id_=f"{CASE_ID}/embargo_events/e1",
+            context=CASE_ID,
+            end_time=days_from_now_utc(45),
         )
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)
@@ -1102,7 +1105,9 @@ class TestAddCaseStatusTreeSeam2:
             actor_id=CASE_MANAGER_ID,
         )
         embargo = as_EmbargoEvent(
-            id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
+            id_=f"{CASE_ID}/embargo_events/e1",
+            context=CASE_ID,
+            end_time=days_from_now_utc(45),
         )
         cm_participant = CaseParticipant(
             id_=f"{CASE_ID}/participants/cm",
@@ -1219,7 +1224,9 @@ class TestRegressionCSPTeardownPath:
             case_roles=[CVDRole.CASE_MANAGER],
         )
         embargo = as_EmbargoEvent(
-            id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
+            id_=f"{CASE_ID}/embargo_events/e1",
+            context=CASE_ID,
+            end_time=days_from_now_utc(45),
         )
         case = VulnerabilityCase(
             id_=CASE_ID, name="Regression Case", attributed_to=manager_id
@@ -1630,7 +1637,9 @@ class TestPxaEmInvariantDiagnosticNode:
             case_roles=[CVDRole.CASE_MANAGER],
         )
         embargo = as_EmbargoEvent(
-            id_=f"{DIAG_CASE_ID}/embargo_events/e1", context=DIAG_CASE_ID
+            id_=f"{DIAG_CASE_ID}/embargo_events/e1",
+            context=DIAG_CASE_ID,
+            end_time=days_from_now_utc(45),
         )
         case = VulnerabilityCase(
             id_=DIAG_CASE_ID,

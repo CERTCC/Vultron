@@ -28,6 +28,7 @@ from pydantic import (
     SerializerFunctionWrapHandler,
     ValidationInfo,
     field_serializer,
+    field_validator,
     model_serializer,
     model_validator,
 )
@@ -38,6 +39,7 @@ from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     _new_urn,
     absent_times_as_none,
+    as_utc,
     blank_times_as_none,
     now_utc,
 )
@@ -400,6 +402,28 @@ class CoreObject(CoreRecord):
         ):
             return data
         return absent_times_as_none(cls, blank_times_as_none(cls, dict(data)))
+
+    @field_validator("start_time", "end_time", "published", "updated")
+    @classmethod
+    def _normalise_datetime_to_utc(
+        cls, value: datetime | None
+    ) -> datetime | None:
+        """Read a naive timestamp as UTC; leave an absent one absent.
+
+        The core twin of ``as_Object.validate_datetime`` (CS-13-001, CM-28-006,
+        #3784).  Under ADR-0099 detail 3 an inbound ``EmbargoEvent``,
+        ``CaseParticipant`` or ``VulnerabilityCase`` validates straight into
+        this class, so the wire validator never sees their fields and a naive
+        ``endTime`` on a nested object would otherwise reach core unchanged —
+        and raise ``TypeError`` at the first comparison with an aware value.
+
+        Runs after parsing, so it applies to a subclass that redeclares one of
+        these fields (``EmbargoEvent.end_time``) as well as to the inherited
+        ones.  It never fabricates a time: ``None`` stays ``None``
+        (CLP-15-007, ADR-0103), and an aware value keeps its offset — the
+        sender's claim is carried as received.
+        """
+        return as_utc(value)
 
     @field_serializer(
         "start_time", "end_time", "published", "updated", when_used="json"

@@ -30,6 +30,7 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.case_actor import CaseActor
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.core.models._helpers import days_from_now_utc
 
 _FACTORY_PATH = (
     "vultron.core.behaviors.case.nodes.lifecycle.create_commit_log_entry_tree"
@@ -272,7 +273,7 @@ def test_activity_payload_is_forwarded_as_payload_snapshot(bridge):
 
 
 def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
-    embargo = as_EmbargoEvent(context=CASE_ID)
+    embargo = as_EmbargoEvent(context=CASE_ID, end_time=days_from_now_utc(45))
     datalayer.save(embargo)
     activity = _FakeActivity(
         activity_id=ACTIVITY_ID,

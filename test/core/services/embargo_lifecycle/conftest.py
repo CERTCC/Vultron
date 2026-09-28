@@ -43,6 +43,7 @@ from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.core.models._helpers import days_from_now_utc
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -100,7 +101,7 @@ def _make_case(
 
 
 def _make_embargo(dl: SqliteDataLayer, case_id: str) -> as_EmbargoEvent:
-    embargo = as_EmbargoEvent(context=case_id)
+    embargo = as_EmbargoEvent(context=case_id, end_time=days_from_now_utc(45))
     dl.create(embargo)
     return embargo
 

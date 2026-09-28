@@ -20,13 +20,8 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import CoreObject, NonEmptyString
-
-
-def _45_days_hence() -> datetime:
-    """Return a datetime 45 days in the future (UTC)."""
-    return days_from_now_utc(45)
 
 
 class EmbargoEvent(CoreObject):
@@ -45,9 +40,12 @@ class EmbargoEvent(CoreObject):
     )
     # Optional: a received embargo carries the sender's start, which may be
     # absent (ISSUE-3257).  Nothing decides on it — ``end_time`` is the time
-    # embargo decisions read, and it stays required.
+    # embargo decisions read, and it is required with no default: the only
+    # fallback duration in the system is the protocol default resolved at case
+    # creation (EP-04-005, EP-04-010, #3404), so every construction site states
+    # the end it means.  Both fields are read as UTC by ``CoreObject`` (#3784).
     start_time: datetime | None = Field(default_factory=now_utc)
-    end_time: datetime = Field(default_factory=_45_days_hence)
+    end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
 
     @model_validator(mode="after")

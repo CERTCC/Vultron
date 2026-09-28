@@ -75,6 +75,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 from vultron.core.models.dimensions import (
     RmDimension,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -122,7 +123,9 @@ def _make_case_with_embargo(
 ) -> VulnerabilityCase:
     """Build a VulnerabilityCase with finder, vendor, CASE_MANAGER participants,
     an active embargo, and the report linked via vulnerability_reports."""
-    embargo = as_EmbargoEvent(context="urn:placeholder")
+    embargo = as_EmbargoEvent(
+        context="urn:placeholder", end_time=days_from_now_utc(45)
+    )
     dl.create(embargo)
 
     case = VulnerabilityCase(name="Test Case", attributed_to=vendor_id)

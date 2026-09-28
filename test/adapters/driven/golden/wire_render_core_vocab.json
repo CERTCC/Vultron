@@ -73,9 +73,9 @@
   "EmbargoEvent": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "context": "urn:test:context:1",
-    "endTime": "<clock>",
+    "endTime": "2026-01-02T03:04:05+00:00",
     "id": "urn:test:embargoevent:golden",
-    "name": "Embargo for urn:test:context:1 start: <clock> end: <clock>",
+    "name": "Embargo for urn:test:context:1 start: <clock> end: 2026-01-02T03:04:05+00:00",
     "published": "2026-01-02T03:04:05+00:00",
     "startTime": "<clock>",
     "type": "EmbargoEvent",

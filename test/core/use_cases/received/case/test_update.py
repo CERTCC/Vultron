@@ -38,6 +38,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.factories import (
     update_case_activity,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 #: The actor receiving these Update(VulnerabilityCase) messages.
 #:
@@ -228,6 +229,7 @@ class TestCaseUseCases:
         embargo = as_EmbargoEvent(
             id_="https://example.org/embargoes/em1",
             context="https://example.org/cases/uc4",
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
 
@@ -277,6 +279,7 @@ class TestCaseUseCases:
         embargo = as_EmbargoEvent(
             id_="https://example.org/embargoes/em2",
             context="https://example.org/cases/uc5",
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
 
@@ -365,6 +368,7 @@ class TestCaseUseCases:
         embargo = as_EmbargoEvent(
             id_="https://example.org/embargoes/em6b",
             context=case_id,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
 

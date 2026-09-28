@@ -50,6 +50,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.core.models._helpers import days_from_now_utc
 
 _ACTOR_URI = "https://example.org/actors/alice"
 _CASE_URI = "https://example.org/cases/case-001"
@@ -57,7 +58,7 @@ _CASE_URI = "https://example.org/cases/case-001"
 
 @pytest.fixture
 def sample_embargo() -> as_EmbargoEvent:
-    return as_EmbargoEvent(context=_CASE_URI)
+    return as_EmbargoEvent(context=_CASE_URI, end_time=days_from_now_utc(45))
 
 
 @pytest.fixture

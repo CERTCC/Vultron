@@ -38,6 +38,7 @@ from vultron.core.behaviors.embargo.trigger_tree import (
 )
 from vultron.core.behaviors.status.nodes import EmitCaseStatusUpdateNode
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.core.models._helpers import days_from_now_utc
 
 CASE_ID = "https://example.org/cases/case-trigger-tree"
 EMBARGO_ID = "https://example.org/cases/case-trigger-tree/embargos/e1"
@@ -69,6 +70,7 @@ def dummy_embargo() -> "as_EmbargoEvent":
     return as_EmbargoEvent(
         id_=EMBARGO_ID,
         context=CASE_ID,
+        end_time=days_from_now_utc(45),
     )
 
 

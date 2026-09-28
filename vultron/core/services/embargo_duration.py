@@ -34,6 +34,8 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict
 
 from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.core.models.enums import VultronObjectType
+from vultron.core.ports.case_persistence import CasePersistence
 
 
 class EmbargoDurationSource(StrEnum):
@@ -51,6 +53,23 @@ class InitialEmbargoDuration(BaseModel):
 
     duration: timedelta
     source: EmbargoDurationSource
+
+
+def owner_embargo_policies(
+    store: CasePersistence, owner_id: str
+) -> list[EmbargoPolicy]:
+    """Return the ``EmbargoPolicy`` records *owner_id* has published in *store*.
+
+    The candidate set for :func:`select_actor_default`, scoped to the case
+    owner so another actor's policy in the same store cannot supply the
+    default (#3753).  Shared by the case-creation node and the demo seeder so
+    the two cannot drift on what counts as the owner's policies.
+    """
+    return [
+        p
+        for p in store.list_objects(VultronObjectType.EMBARGO_POLICY)
+        if isinstance(p, EmbargoPolicy) and p.actor_id == owner_id
+    ]
 
 
 def select_actor_default(

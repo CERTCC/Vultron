@@ -33,6 +33,7 @@ from vultron.wire.as2.enums import (
     as_TransitiveActivityType,
 )
 from vultron.wire.as2.factories import rm_submit_report_activity
+from vultron.core.models._helpers import days_from_now_utc
 
 
 # Fixtures for reused test objects
@@ -367,7 +368,9 @@ def _make_wire_vulnerability_case():
 def _make_wire_embargo_event():
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    return as_EmbargoEvent(context=_CASE_ID_2401)
+    return as_EmbargoEvent(
+        context=_CASE_ID_2401, end_time=days_from_now_utc(45)
+    )
 
 
 def _make_wire_case_status():
@@ -460,7 +463,9 @@ def test_embargo_event_with_context_is_valid():
     """
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    event = as_EmbargoEvent(context="urn:uuid:case-123")
+    event = as_EmbargoEvent(
+        context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+    )
     assert event.context == "urn:uuid:case-123"
 
     record = object_to_record(cast(Any, event))
@@ -574,6 +579,7 @@ def _case_carrying_its_embargo():
         id_="urn:uuid:emb-dl08000-0000-0000-000000000001",
         summary="embargo carried with the case",
         context=case_id,
+        end_time=days_from_now_utc(45),
     )
     return as_VulnerabilityCase(
         id_=case_id,

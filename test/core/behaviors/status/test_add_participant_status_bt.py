@@ -89,6 +89,7 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -769,7 +770,9 @@ class TestPublicDisclosureBranchNode:
 
         # Give the case an active embargo in ACTIVE state
         embargo = as_EmbargoEvent(
-            id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
+            id_=f"{CASE_ID}/embargo_events/e1",
+            context=CASE_ID,
+            end_time=days_from_now_utc(45),
         )
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)
