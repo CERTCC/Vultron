@@ -878,6 +878,72 @@ class TestADR0041EmbargoInit:
             embargo_obj, EmbargoEvent
         ), "EmbargoEvent must be stored in DataLayer (AC-3)"
 
+    @pytest.mark.spec("EP-04-005")
+    def test_configured_protocol_default_sets_the_embargo_end(
+        self, make_payload
+    ):
+        """The tree hands ``actor_config`` to the embargo subtree (EP-04-005)."""
+        from datetime import datetime, timedelta, timezone
+
+        from vultron.config.actor import ActorConfig
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.embargo_event import EmbargoEvent
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        configured = timedelta(days=5)
+        before = datetime.now(tz=timezone.utc)
+        _run_full_bt(
+            make_payload,
+            dl,
+            actor_config=ActorConfig(
+                protocol_default_embargo_duration=configured
+            ),
+        )
+        after = datetime.now(tz=timezone.utc)
+
+        case = next(iter(dl.list_objects("VulnerabilityCase")))
+        assert isinstance(case, VulnerabilityCase)
+        assert case.active_embargo_id is not None
+        embargo = dl.read(case.active_embargo_id)
+        assert isinstance(embargo, EmbargoEvent)
+        assert embargo.end_time is not None
+        slack = timedelta(seconds=1)
+        assert (
+            before + configured - slack
+            <= embargo.end_time
+            <= after + configured + slack
+        )
+
+    @pytest.mark.spec("EP-04-008")
+    def test_ineligible_case_is_created_without_an_embargo(
+        self, make_payload, monkeypatch
+    ):
+        """P/X/A refusal: case created at EM.NONE, no embargo, tree succeeds."""
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+        from vultron.core.states.em import EM
+        from vultron.errors import VultronInvalidStateTransitionError
+
+        def _pxa_set(self, **_):
+            raise VultronInvalidStateTransitionError("P/X/A is set")
+
+        monkeypatch.setattr(
+            EmbargoLifecycle, "assert_embargo_eligible", _pxa_set
+        )
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+
+        case = next(iter(dl.list_objects("VulnerabilityCase")))
+        assert isinstance(case, VulnerabilityCase)
+        assert case.active_embargo is None
+        assert case.current_status.em.state == EM.NONE
+        assert list(dl.list_objects("EmbargoEvent")) == []
+        assert (
+            dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI)) is None
+        )
+
     def test_vendor_owner_seeded_as_signatory(self, make_payload):
         """CM-13: vendor (CASE_OWNER) is SIGNATORY on the active embargo.
 

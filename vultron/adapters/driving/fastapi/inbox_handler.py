@@ -48,6 +48,7 @@ from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 
 # Re-export port factories and semantics sets so existing callers that
 # import them from this module continue to work (backward compat).
+from vultron.adapters.driving.fastapi import inbox_port_factories
 from vultron.adapters.driving.fastapi.inbox_port_factories import (  # noqa: F401
     _sync_port_factory,
     _trigger_activity_port_factory,
@@ -80,13 +81,27 @@ logger = logging.getLogger(__name__)
 
 
 def prepare_for_dispatch(activity: as_Activity) -> VultronEvent:
-    """Extract domain event from an AS2 activity, ready for dispatch."""
+    """Extract domain event from an AS2 activity, ready for dispatch.
+
+    The local actor's configured RSVP windows govern an inbound embargo
+    invite (EP-07-001, EP-07-002); when no ``ActorConfig`` loads, the
+    protocol defaults apply.
+    """
     logger.debug(
         "Preparing activity '%s' of type '%s' for dispatch.",
         activity.id_,
         activity.type_,
     )
-    event = extract_event(activity)
+    actor_config = inbox_port_factories._resolve_actor_config()
+    event = extract_event(
+        activity,
+        min_rsvp_window=(
+            actor_config.min_rsvp_window if actor_config else None
+        ),
+        default_rsvp_window=(
+            actor_config.default_rsvp_window if actor_config else None
+        ),
+    )
     logger.debug(
         "Prepared event with semantics '%s' for activity '%s'",
         event.semantic_type,

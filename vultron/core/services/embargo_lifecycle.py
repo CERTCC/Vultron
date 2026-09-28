@@ -885,6 +885,25 @@ class EmbargoLifecycle:
             is_lapsed=is_lapsed,
         )
 
+    def assert_embargo_eligible(self, *, case_id: str, operation: str) -> None:
+        """Raise unless the case is still embargo-eligible (P/X/A all clear).
+
+        The public form of the guard ``propose_embargo`` applies in STRICT
+        mode, for callers that must decide *before* creating anything — the
+        default embargo at case creation is not created at all for an
+        ineligible case (EP-04-008).
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+            VultronInvalidStateTransitionError: When any of P/X/A is set.
+        """
+        case = self._persistence.read_case(case_id)
+        if case is None:
+            raise VultronNotFoundError("VulnerabilityCase", case_id)
+        self._assert_pxa_embargo_eligible(
+            case.current_status.pxa.state, case_id, operation
+        )
+
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------

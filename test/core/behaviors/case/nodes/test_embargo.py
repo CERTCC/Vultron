@@ -33,8 +33,11 @@ from vultron.core.behaviors.case.nodes.embargo import (
     AdvanceEMStateToActiveNode,
     AttachEmbargoToCaseNode,
     CreateEmbargoEventNode,
-    ResolveEmbargoDurationNode,
     SeedOwnerAsSignatoryNode,
+)
+from vultron.core.behaviors.case.nodes.embargo_resolution import (
+    CaseNotEmbargoEligibleNode,
+    ResolveEmbargoDurationNode,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.behaviors.case.nodes.participant import (
@@ -208,7 +211,9 @@ class TestInitializeDefaultEmbargoNode:
     def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
         node = InitializeDefaultEmbargoNode()
 
-        assert [type(child) for child in node.children] == [
+        refusal_arm, creation_arm = node.children
+        assert isinstance(refusal_arm, CaseNotEmbargoEligibleNode)
+        assert [type(child) for child in creation_arm.children] == [
             ResolveEmbargoDurationNode,
             CreateEmbargoEventNode,
             AdvanceEMStateToActiveNode,

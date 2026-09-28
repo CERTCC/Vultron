@@ -164,6 +164,11 @@ There is a floor. An inviting actor must not send a window shorter than the conf
 A receiving actor that gets one anyway clamps the deadline up to the minimum and logs the clamp; it does **not** reject the invitation as malformed (EP-07-003, EP-07-004, EP-07-005).
 Refusing a too-short invitation would punish the invitee for the inviter's error.
 
+There is also a ceiling: the deadline never falls after the invited embargo ends (EP-07-006, CM-28-011).
+A deadline past that end, whether sent explicitly or computed from the policy window, is lowered to the end and the clamp is logged.
+The floor gives way to the ceiling: the minimum is 72 hours or the time left in the embargo, whichever is shorter (EP-07-002).
+On day 28 of a 30-day embargo, the invitee has until day 30 to answer, not seven days.
+
 A late `Accept` is never refused merely for being late (EMB-17-001).
 The case manager instead asks whether the accepted embargo is still the case's current one, and the three answers are all different:
 
