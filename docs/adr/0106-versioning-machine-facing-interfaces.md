@@ -13,7 +13,7 @@ stakeholder_type: [project-contributor]
 
 Vultron ships several things that other software depends on: the wire format that peers parse, the protocol behavior that peers rely on, the hash-chained case ledger, the HTTP API, the stored data, the configuration files, and the Python package.
 Each changes at its own pace, and each breaks a different audience when it changes incompatibly.
-ADR-0006 gives the project one CalVer number, and a pending amendment (#3553) will make that number the name of a release.
+ADR-0006 gives the project one CalVer number and makes that number the name of a release.
 A release name tells a reader *when* something shipped.
 It does not tell a peer, a client, or an upgrading deployment whether the interface it depends on is still compatible.
 
@@ -66,7 +66,7 @@ The release tag never implies an interface version, and an interface version nev
 | `GET /version` and OpenAPI `info.version` | clients | Report **compatibility**: API major, wire version, and ledger format. | Never report the exact build. |
 | Stored data: the SQLite store and its JSON blobs | an upgrading deployment | A stored-format marker. | On a mismatch the server will refuse to start. There will be no migrations in the prototype; they are tracked as a productionization Idea (#3661). |
 | Configuration YAML | deployers | No version. | Every configuration model will reject unknown keys, so a renamed or removed key will fail loudly. |
-| Python library and CLI | library users | The package CalVer (ADR-0006, with the amendment pending in #3553). | As the release tag. |
+| Python library and CLI | library users | The package CalVer (ADR-0006). | As the release tag. |
 | Spec-file `version:` fields | nobody | None: the fields are removed. | Not applicable. |
 
 Four rows need more than the table gives them.
@@ -177,7 +177,7 @@ The ADR's status will advance to `accepted` once those carriers are built and te
 
 ## More Information
 
-- ADR-0006, with the amendment pending in #3553, governs release naming; this ADR does not change it.
+- ADR-0006 governs release naming; this ADR does not change it.
 - ADR-0069 chose the namespace host and IRI; this ADR changes only the path of the context document within it.
 - Source: #2960, which enumerated the versionable components.
 - Related bugs found while planning: #3659 (ledger canonicalization is not RFC 8785) and #3660 (outbound delivery's media type).

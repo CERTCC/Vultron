@@ -83,7 +83,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0003 Build our own Behavior Tree engine in Python](0003-build-custom-python-bt-engine.md)
 - [ADR-0004 Use factory methods for common BT node types](0004-use-factory-methods-for-common-bt-node-types.md)
 - [ADR-0005 Use ActivityStreams Vocabulary as the basis for Vultron Message Formats](0005-activitystreams-vocabulary-as-vultron-message-format.md)
-- [ADR-0006 Vultron Project Versioning](0006-use-calver-for-project-versioning.md)
+- [ADR-0006 Vultron Release Versioning](0006-use-calver-for-project-versioning.md)
 - [ADR-0007 Introduce a Behavior Dispatcher Between Inbox Handling and Behavior Execution](0007-use-behavior-dispatcher.md)
 - [ADR-0008 Use py_trees for Behavior Tree Execution in Handler Integration](0008-use-py-trees-for-handler-bt-integration.md)
 - [ADR-0009 Adopt Hexagonal Architecture (Ports and Adapters) for Vultron](0009-hexagonal-architecture.md)
