@@ -44,6 +44,12 @@ from vultron.core.behaviors.case.nodes.case_lookup import RequireCaseForReport
 from vultron.core.behaviors.case.nodes.lifecycle import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case.nodes.conditions import (
+    CheckIsCaseManagerNode,
+)
+from vultron.core.behaviors.report.nodes.ack_conditions import (
+    CheckSenderIsExecutingActorNode,
+)
 from vultron.core.behaviors.report.nodes.emit import EmitAckReportActivity
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
@@ -200,13 +206,22 @@ def create_ack_report_received_tree(
        actor holds ``CVDRole.CASE_MANAGER``) — records receipt before any
        effects run (CLP-10-006).
     2. Store AckReport activity idempotently.
-    3. Emit AckReport to CaseActor (Selector — graceful no-op if no CaseActor).
+    3. Forward the ack to the CASE_MANAGER — only when it is the executing
+       actor's *own* ack and that actor is not itself the CASE_MANAGER.
 
-    When running under ``actor_id=receiving_actor_id`` (ADR-0022 single-BT
-    shape), step 3's ``EmitAckReportActivity`` uses the blackboard
-    ``actor_id`` as sender.  On the received side (no TriggerActivityPort),
-    the emit node returns FAILURE and the ``NoEmitFallback`` Success absorbs
-    it — so the emit is a graceful no-op in the typical CaseActor context.
+    Step 3 serves the own-inbox pattern: an actor that acknowledges a report
+    by posting the ``Read`` to its own inbox relies on this tree to forward
+    it.  The received side *does* carry a TriggerActivityPort
+    (``ACK_REPORT`` is wired for it), so ``EmitAckReportActivity`` really
+    emits, authored as the blackboard ``actor_id``.  Hence the two skips:
+
+    - another actor's ack must not be re-emitted under this actor's name;
+    - the CASE_MANAGER has just committed the ack, and a forward would be
+      addressed to itself and loop back through loopback delivery
+      (OX-12-004) under a fresh id, forever (#2667).
+
+    ``NoEmitFallback`` still absorbs an emit failure (no routable recipient,
+    or no port in a caller that did not wire one).
 
     Args:
         request: The parsed inbound domain event.
@@ -225,6 +240,13 @@ def create_ack_report_received_tree(
         name="MaybeEmitAckToCaseActor",
         memory=False,
         children=[
+            py_trees.decorators.Inverter(
+                name="SkipIfAckFromAnotherActor",
+                child=CheckSenderIsExecutingActorNode(
+                    sender_actor_id=request.actor_id
+                ),
+            ),
+            CheckIsCaseManagerNode(case_id=case_id, name="SkipIfCaseManager"),
             EmitAckReportActivity(
                 offer_id=offer_id,
                 report_id=report_id,

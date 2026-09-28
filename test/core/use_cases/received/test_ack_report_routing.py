@@ -32,7 +32,10 @@ from vultron.core.models.events.report import AckReportReceivedEvent
 from vultron.core.models.report import VultronReport
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.report import AckReportReceivedUseCase
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
+    as_Read,
+)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -111,8 +114,9 @@ def _make_case_store(owner_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
 
 def _make_ack_event(
     receiving_actor_id: str | None = CASE_ACTOR_ID,
+    sender_id: str = VENDOR_ID,
 ) -> AckReportReceivedEvent:
-    """Construct an AckReportReceivedEvent (Read(Offer(Report)))."""
+    """Construct an AckReportReceivedEvent (Read(Offer(Report))) from *sender_id*."""
     report_obj = VultronReport(id_=REPORT_ID)
     offer_obj = VultronActivity(
         id_=OFFER_ID,
@@ -124,14 +128,14 @@ def _make_ack_event(
     read_activity = VultronActivity(
         id_="https://example.org/activities/read-ack",
         type_="Read",
-        actor=VENDOR_ID,
+        actor=sender_id,
         object_=offer_obj,
         context=CASE_ID,
     )
     return AckReportReceivedEvent(
         semantic_type=MessageSemantics.ACK_REPORT,
         activity_id=read_activity.id_,
-        actor_id=VENDOR_ID,
+        actor_id=sender_id,
         object_=offer_obj,
         inner_object=report_obj,
         activity=read_activity,
@@ -212,3 +216,84 @@ class TestAckReportLedgerRouting:
             "Store-owner fallback (CaseActor) MUST write an ack_report"
             f" ledger entry when receiving_actor_id is absent; found: {event_types}"
         )
+
+
+def _queued_reads(dl: SqliteDataLayer) -> list[as_Read]:
+    """The ``Read`` activities queued in *dl*'s outbox."""
+    queued = [dl.read(activity_id) for activity_id in dl.outbox_list()]
+    return [a for a in queued if isinstance(a, as_Read)]
+
+
+class TestAckReportEcho:
+    """Who re-emits an AckReport, and to whom (#2667).
+
+    ``EmitAckReportActivity`` exists for the legacy own-inbox pattern: an
+    actor that acknowledges a report by posting the ``Read`` to its *own*
+    inbox relies on this tree to forward it to the CASE_MANAGER.  Any other
+    receiver is hearing someone else's acknowledgement and must not echo it
+    under its own name — and the CASE_MANAGER, which the echo is addressed
+    to, would otherwise address one to itself, re-deliver it via loopback
+    (OX-12-004) with a fresh id, and loop.
+    """
+
+    @pytest.mark.parametrize(
+        "receiver", [CASE_ACTOR_ID, FINDER_ID], ids=["case_manager", "finder"]
+    )
+    def test_ack_from_other_actor_emits_nothing(self, receiver: str):
+        dl = _make_case_store(receiver)
+        AckReportReceivedUseCase(
+            dl=dl,
+            request=_make_ack_event(receiving_actor_id=receiver),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert _queued_reads(dl) == []
+
+    def test_own_ack_is_forwarded_to_case_manager(self):
+        """The vendor's own ``Read`` in its own inbox still reaches the CM."""
+        dl = _make_case_store(VENDOR_ID)
+        AckReportReceivedUseCase(
+            dl=dl,
+            request=_make_ack_event(receiving_actor_id=VENDOR_ID),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        reads = _queued_reads(dl)
+        assert len(reads) == 1
+        assert reads[0].actor == VENDOR_ID
+        assert reads[0].to == [CASE_ACTOR_ID]
+
+    def test_case_manager_still_commits_without_echo(self):
+        """Skipping the echo at the CM does not skip its ledger commit."""
+        dl = _make_case_store(CASE_ACTOR_ID)
+        AckReportReceivedUseCase(
+            dl=dl,
+            request=_make_ack_event(receiving_actor_id=CASE_ACTOR_ID),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert "ack_report" in _ledger_event_types(dl)
+        assert _queued_reads(dl) == []
+
+    def test_case_manager_own_ack_is_not_forwarded_to_itself(self):
+        """The CM's own ``Read`` in its own inbox commits and is not echoed.
+
+        Sender, receiver and CASE_MANAGER are one actor, so the foreign-sender
+        skip does not apply; only ``SkipIfCaseManager`` stops the forward that
+        would address the CM itself and loop via loopback delivery (#2667).
+        """
+        dl = _make_case_store(CASE_ACTOR_ID)
+        AckReportReceivedUseCase(
+            dl=dl,
+            request=_make_ack_event(
+                receiving_actor_id=CASE_ACTOR_ID, sender_id=CASE_ACTOR_ID
+            ),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert "ack_report" in _ledger_event_types(dl)
+        assert _queued_reads(dl) == []
