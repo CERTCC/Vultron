@@ -331,7 +331,7 @@ def test_create_engage_case_tree_returns_sequence(
     assert tree is not None
     assert tree.name == "EngageCaseBT"
     assert hasattr(tree, "children")
-    assert len(tree.children) == 5
+    assert len(tree.children) == 4
 
 
 @pytest.mark.spec("BT-06-002")
@@ -358,6 +358,8 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
     assert tree.children[2].name == "IdempotentTransitionRMtoAccepted"
     assert tree.children[2].children[0].name == "CheckRMStateAccepted"
     assert tree.children[2].children[1].name == "TransitionRMtoAccepted"
+    # Only the CASE_MANAGER announces the updated case (CM-06-001, #2667)
+    assert tree.children[3].name == "GuardedBroadcastEngageCaseBT"
 
 
 def test_defer_tree_node_names(case_with_participant, actor_id):

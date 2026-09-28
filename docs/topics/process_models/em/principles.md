@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [cvd-practitioner]
-level: 300
+level: 200
 ---
 
 # Embargo Principles

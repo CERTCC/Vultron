@@ -472,6 +472,43 @@ class TestOfferAddressingSemantics:
             dl.read(link_id), VultronReportCaseLink
         ), "Expected pending VultronReportCaseLink when receiving actor in to"
 
+    def test_submit_report_trailing_slash_recipient_creates_case(self):
+        """A trailing slash on the ``to:`` entry still addresses the receiver.
+
+        ``receiving_actor_id`` is canonicalised by the inbox adapter while the
+        sender's ``to:`` is not, so exact string membership discarded an Offer
+        that had in fact been delivered to this actor (HP-09-001, #2667).
+        """
+        event = self._make_event(
+            to=[self.VENDOR_ID + "/"], receiving_actor_id=self.VENDOR_ID
+        )
+        dl = self._make_dl()
+
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
+        assert isinstance(dl.read(link_id), VultronReportCaseLink)
+
+    def test_submit_report_short_id_recipient_is_not_the_receiver(self):
+        """A bare slug in ``to:`` is not treated as this actor's URI.
+
+        ``vendor`` names an actor under *some* authority, not necessarily
+        this one, so normalisation stops at the trailing slash.
+        """
+        event = self._make_event(
+            to=["vendor"], receiving_actor_id=self.VENDOR_ID
+        )
+        dl = self._make_dl()
+
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
+        assert dl.read(link_id) is None
+
     def test_receiving_actor_in_cc_logs_warning_no_case(self, caplog):
         """HP-09-002: Receiving actor in Offer.cc → WARNING logged, no case."""
         import logging
@@ -646,3 +683,47 @@ class TestSubmitReportStoresOfferRecord:
         assert (
             len(records) == 1
         ), "Expected exactly one VultronOfferRecord after idempotent calls"
+
+
+class TestSubmitReportUnresolvableReceiver:
+    """No receiver → nothing is written (#2667).
+
+    The report, Offer and OfferRecord used to be stored *before* the receiver
+    was resolved, so a refusal left them behind in a store nobody owned.
+    """
+
+    FINDER_ID = "https://example.org/users/finder"
+    VENDOR_ID = "https://example.org/actors/vendor"
+    REPORT_ID = "https://example.org/reports/r-anon-1"
+    OFFER_ID = "https://example.org/activities/offer-anon-1"
+
+    def test_submit_report_unresolvable_receiver_writes_nothing(
+        self, anonymous_store
+    ):
+        from vultron.core.models.offer_record import VultronOfferRecord
+        from vultron.errors import VultronValidationError
+
+        activity = VultronActivity(
+            id_=self.OFFER_ID,
+            type_="Offer",
+            actor=self.FINDER_ID,
+            to=[self.VENDOR_ID],
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=self.OFFER_ID,
+            actor_id=self.FINDER_ID,
+            object_=VultronReport(id_=self.REPORT_ID),
+            activity=activity,
+            receiving_actor_id=None,
+        )
+        inner = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
+
+        with pytest.raises(VultronValidationError):
+            SubmitReportReceivedUseCase(
+                anonymous_store(inner), event
+            ).execute()
+
+        assert inner.read(self.REPORT_ID) is None
+        assert inner.read(self.OFFER_ID) is None
+        assert inner.read(VultronOfferRecord.build_id(self.OFFER_ID)) is None

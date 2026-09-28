@@ -205,24 +205,26 @@ the case to a coordinator, who either **accepts** (the case `attributed_to`
 field is updated to the coordinator) or **rejects** (ownership remains with
 the vendor).
 
+Every message goes through the Case Actor, which holds the CASE_MANAGER role, so that the ledger records the transfer and every participant learns of it.
+
 ```mermaid
 sequenceDiagram
     participant V as Vendor
+    participant CA as Case Actor
     participant C as Coordinator
 
-    V->>C: CaseTransferOffer (Offer)
+    V->>CA: CaseTransferOffer (Offer)
+    CA->>C: Offer (forwarded)
     alt Coordinator accepts
-        C-->>V: Accept
-        Note over V,C: case.attributed_to = Coordinator
+        C-->>CA: Accept
+        Note over CA: CASE_OWNER moves to Coordinator
     else Coordinator rejects
-        C-->>V: Reject
-        Note over V: Ownership unchanged
+        C-->>CA: Reject
+        Note over CA: Ownership unchanged
     end
 ```
 
-See
-[Ownership Transfer](../topics/case_lifecycle/ownership_transfer.md)
-for the routing model and wire format.
+See [Ownership Transfer](../topics/case_lifecycle/ownership_transfer.md) for why the transfer is routed this way, and [Case Management Messages](../reference/messages/case_management.md#offer-case-ownership-transfer) for the wire format.
 
 ---
 

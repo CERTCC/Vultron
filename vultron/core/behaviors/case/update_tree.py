@@ -21,8 +21,8 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.conditions import (
-    CheckIsCaseManagerNode,
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
 )
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
@@ -49,10 +49,9 @@ def create_update_case_received_tree(
         ├── CaptureCaseUpdateBroadcastExclusionsNode
         ├── ApplyCaseUpdateNode
         └── GuardedBroadcastCaseUpdateBT (Selector)
-            ├── BroadcastIfCaseManager (Sequence)
-            │   ├── CheckIsCaseManagerNode
-            │   └── BroadcastCaseUpdateNode
-            └── Success("BroadcastSkippedNotCaseManager")
+            ├── SkipIfNotCaseManager (Sequence)
+            │   └── Inverter(CheckIsCaseManagerNode)
+            └── BroadcastCaseUpdateNode
 
     Every actor applies the update to its own replica; only the case's
     ``CASE_MANAGER`` announces it (CM-06-001).  The gate is on the **role**
@@ -66,7 +65,10 @@ def create_update_case_received_tree(
     ``Announce`` authored as itself to every participant, which for a
     non-authoritative actor is identity spoofing.  A non-manager therefore
     *skips* the broadcast (Success) rather than failing: applying the update
-    locally is correct and expected.
+    locally is correct and expected.  The gate is
+    :func:`create_case_manager_gated_tree` (BTND-07-005), so a broadcast that
+    fails *at* the CASE_MANAGER propagates rather than reading as a skip
+    (BT-14-001).
     """
     root = py_trees.composites.Sequence(
         name="UpdateCaseBT",
@@ -77,22 +79,10 @@ def create_update_case_received_tree(
             ),
             CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
             ApplyCaseUpdateNode(case_id=case_id, request=request),
-            py_trees.composites.Selector(
+            create_case_manager_gated_tree(
                 name="GuardedBroadcastCaseUpdateBT",
-                memory=False,
-                children=[
-                    py_trees.composites.Sequence(
-                        name="BroadcastIfCaseManager",
-                        memory=False,
-                        children=[
-                            CheckIsCaseManagerNode(case_id=case_id),
-                            BroadcastCaseUpdateNode(case_id=case_id),
-                        ],
-                    ),
-                    py_trees.behaviours.Success(
-                        name="BroadcastSkippedNotCaseManager"
-                    ),
-                ],
+                case_id=case_id,
+                children=[BroadcastCaseUpdateNode(case_id=case_id)],
             ),
         ],
     )

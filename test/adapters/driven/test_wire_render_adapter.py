@@ -231,18 +231,16 @@ def test_render_is_the_core_objects_own_alias_dump(adapter):
 
 
 def test_render_adapter_does_not_resolve_a_wire_counterpart():
-    """AC-1: the adapter names neither ``WIRE_TYPE_MAP`` nor ``from_core``."""
-    import ast
-    import inspect
-
+    """AC-1: the adapter names no type registry, lookup, or ``from_core``."""
     import vultron.adapters.driven.wire_render.as2 as module
+    from test.support.source_names import (
+        REGISTRY_LOOKUP_NAMES,
+        referenced_names,
+    )
 
-    names = {
-        node.id if isinstance(node, ast.Name) else node.attr
-        for node in ast.walk(ast.parse(inspect.getsource(module)))
-        if isinstance(node, (ast.Name, ast.Attribute))
-    }
-    assert not names & {"WIRE_TYPE_MAP", "from_core", "as_VultronObject"}
+    assert not referenced_names(module) & (
+        REGISTRY_LOOKUP_NAMES | {"from_core"}
+    )
 
 
 def test_context_is_supplied_once_and_not_as_a_core_field(adapter):

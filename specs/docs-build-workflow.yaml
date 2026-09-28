@@ -124,8 +124,7 @@ groups:
           step of `.github/actions/check-site-publication`, which
           `.github/workflows/docs-build-check.yml` runs after the build. Its logic is
           covered by `test/metadata/docs/test_withheld.py`, including the
-          empty-`site/` and stale-declaration failure modes. #3555 repoints the
-          declaration at the maturity manifest.
+          empty-`site/` and stale-declaration failure modes.
       - id: DOCBW-03-006
         priority: MUST
         kind: project
