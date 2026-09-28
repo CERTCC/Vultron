@@ -351,6 +351,32 @@ class TestToWireObject:
         """
         assert _to_wire_object(core_obj, core_obj.id_) is core_obj
 
+    @pytest.mark.spec("ARCH-23-001")
+    def test_package_does_not_resolve_a_wire_counterpart(self):
+        """No module in the package names a type registry or its lookups.
+
+        A class-name counterpart lookup needs one of these to look the name up
+        in, so naming none of them is what keeps ``_to_wire_object`` — and any
+        sibling — from reintroducing it (ISSUE-3694). Import aliases are
+        checked too, so ``import find_in_vocabulary as f`` is still caught.
+        """
+        import vultron.adapters.driven.trigger_activity_adapter as package
+        from test.support.source_names import (
+            REGISTRY_LOOKUP_NAMES,
+            package_modules,
+            referenced_names,
+        )
+
+        modules = package_modules(package)
+        assert len(modules) > 1, "fixture must scan the package's submodules"
+
+        found = {
+            module.__name__: hits
+            for module in modules
+            if (hits := referenced_names(module) & REGISTRY_LOOKUP_NAMES)
+        }
+        assert found == {}
+
 
 class TestAnnounceVulnerabilityCase:
     def test_returns_activity_id(self, adapter, dl):

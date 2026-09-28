@@ -12,6 +12,8 @@ from vultron.core.models.events.case import (
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+
 from ._helpers import (
     _store_embedded_embargo,
     _store_embedded_participants,
@@ -52,13 +54,11 @@ class EngageCaseReceivedUseCase:
 
         # The BT must execute under the receiving actor's identity so that
         # CheckIsCaseManagerNode in GuardedCommitCaseLedgerEntryBT can match
-        # the CaseActor and commit the ledger entry (fix for #2300).
-        # Fall back to the sender's ID only when receiving_actor_id is absent
-        # (e.g. in legacy unit tests that do not populate the field).
-        receiving_actor_id = (
-            request.receiving_actor_id
-            if request.receiving_actor_id is not None
-            else actor_id
+        # the CaseActor and commit the ledger entry (fix for #2300).  Absent
+        # receiving_actor_id the answer is the store's owner, never the sender
+        # (BT-17-006, #2667).
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
         )
 
         # Persist any inline participant objects carried in the case snapshot
@@ -127,11 +127,11 @@ class DeferCaseReceivedUseCase:
 
         # The BT must execute under the receiving actor's identity so that
         # CheckIsCaseManagerNode in GuardedCommitCaseLedgerEntryBT can match
-        # the CaseActor and commit the ledger entry (fix for #2300).
-        receiving_actor_id = (
-            request.receiving_actor_id
-            if request.receiving_actor_id is not None
-            else actor_id
+        # the CaseActor and commit the ledger entry (fix for #2300).  Absent
+        # receiving_actor_id the answer is the store's owner, never the sender
+        # (BT-17-006, #2667).
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
         )
 
         logger.info(

@@ -14,6 +14,8 @@
 
 from unittest.mock import MagicMock
 
+import py_trees
+
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
@@ -74,13 +76,12 @@ class TestUpdateCaseBTStructure:
         # replica is correct.
         guard = tree.children[3]
         assert guard.name == "GuardedBroadcastCaseUpdateBT"
-        gated = guard.children[0]
-        assert gated.name == "BroadcastIfCaseManager"
-        assert [child.__class__ for child in gated.children] == [
-            CheckIsCaseManagerNode,
-            BroadcastCaseUpdateNode,
-        ]
-        assert guard.children[1].name == "BroadcastSkippedNotCaseManager"
+        skip, broadcast = guard.children
+        assert skip.name == "SkipIfNotCaseManager"
+        inverter = skip.children[0]
+        assert isinstance(inverter, py_trees.decorators.Inverter)
+        assert isinstance(inverter.decorated, CheckIsCaseManagerNode)
+        assert isinstance(broadcast, BroadcastCaseUpdateNode)
 
     def test_update_case_bt_executes_without_post_bt_broadcast(
         self, make_payload, monkeypatch

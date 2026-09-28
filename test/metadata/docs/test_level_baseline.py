@@ -30,37 +30,7 @@ from vultron.metadata.file_loading import MetadataLoadErrors
 #: ``--prune-baseline`` drops it from the file, and never add one. Pinning the
 #: keys rather than their count also stops an entry being swapped for another
 #: (AC-4 of #3529).
-_BASELINED = frozenset(
-    {
-        ("howto/activitypub/activities/error.md", "CASE_MANAGER"),
-        ("howto/activitypub/activities/initialize_case.md", "CASE_MANAGER"),
-        ("howto/activitypub/activities/invite_actor.md", "CASE_MANAGER"),
-        ("howto/activitypub/activities/manage_case.md", "CASE_MANAGER"),
-        (
-            "howto/activitypub/activities/manage_participants.md",
-            "CASE_MANAGER",
-        ),
-        (
-            "howto/activitypub/activities/role_delegation.md",
-            "Case Ownership Transfer",
-        ),
-        ("howto/activitypub/activities/status_updates.md", "CASE_MANAGER"),
-        ("howto/activitypub/activities/suggest_actor.md", "CASE_MANAGER"),
-        ("reference/activitypub/objects.md", "CaseParticipant"),
-        ("reference/fv-demo-protocol.md", "CASE_MANAGER"),
-        ("reference/fv-demo-protocol.md", "Case Ledger Entry"),
-        ("reference/fv-demo-protocol.md", "VulnerabilityCase"),
-        ("reference/vultron-taxonomy.md", "CASE_MANAGER"),
-        ("topics/case_lifecycle/index.md", "CASE_MANAGER"),
-        ("topics/scenarios/fccv-handoff.md", "Case Ownership Transfer"),
-        ("topics/scenarios/fcv.md", "Case Ledger Entry"),
-        ("topics/scenarios/fvcv-handoff.md", "Case Ledger Entry"),
-        ("topics/scenarios/fvcv-handoff.md", "Case Ownership Transfer"),
-        ("topics/scenarios/index.md", "Case Ledger Entry"),
-        ("tutorials/container_demos.md", "Case Ownership Transfer"),
-        ("tutorials/other_demos.md", "Case Ownership Transfer"),
-    }
-)
+_BASELINED: frozenset[tuple[str, str]] = frozenset()
 
 
 @pytest.mark.spec("DF-11-002")

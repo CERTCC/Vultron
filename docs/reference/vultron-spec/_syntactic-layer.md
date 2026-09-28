@@ -136,7 +136,7 @@ accepting a report.
 **The two ways an actor joins a case are different messages.** Conflating them
 loses a round-trip in which the Case Owner decides:
 
-- `Invite`, with the case stub as its object, is the CASE_MANAGER inviting an actor
+- `Invite`, with the case stub as its target, is the CASE_MANAGER inviting an actor
   to join on the Case Owner's behalf. It is answered with `Accept` or `Reject`.
 - `Offer`, with a `CaseParticipant` as its object, is a participant *recommending*
   an actor. It is answered by the Case Owner, which may then cause an `Invite` to

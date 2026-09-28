@@ -20,6 +20,8 @@ from tree-structure assertions.
 import logging
 from typing import cast
 
+import pytest
+
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_actor import CaseActor
@@ -398,10 +400,19 @@ class TestCaseUseCases:
     # Broadcast tests (CM-06-001, CM-06-002)
     # ------------------------------------------------------------------
 
+    @pytest.mark.parametrize(
+        "receiving_actor_id",
+        [RECEIVER_ID, None],
+        ids=["explicit-receiver", "store-owner-fallback"],
+    )
     def test_update_case_broadcasts_announce_to_participants(
-        self, make_payload
+        self, make_payload, receiving_actor_id
     ):
-        """After a case update, the CaseActor outbox contains an Announce."""
+        """After a case update, the CaseActor outbox contains an Announce.
+
+        With no ``receiving_actor_id`` the tree runs as the store's owner, never
+        the sender, so the CASE_MANAGER gate still passes (BT-17-006, #2667).
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=RECEIVER_ID,
@@ -433,7 +444,7 @@ class TestCaseUseCases:
             id_=case_id, name="Updated", attributed_to=owner_id
         )
         activity = update_case_activity(updated_case, actor=owner_id)
-        event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
+        event = make_payload(activity, receiving_actor_id=receiving_actor_id)
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 

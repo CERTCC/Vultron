@@ -16,6 +16,7 @@ from vultron.core.models.events.report import (
 )
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.predicates.addressing import is_addressed_to
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import (
     VultronAlreadyExistsError,
@@ -112,9 +113,9 @@ def _is_primary_submit_report_recipient(
     to_list = (request.activity.to or []) if request.activity else []
     cc_list = (request.activity.cc or []) if request.activity else []
 
-    if to_list and receiving_actor_id in to_list:
+    if is_addressed_to(receiving_actor_id, to_list):
         return True
-    if cc_list and receiving_actor_id in cc_list:
+    if is_addressed_to(receiving_actor_id, cc_list):
         logger.warning(
             "SubmitReportReceivedUseCase: cc addressing not supported for "
             "Offer(Report) — discarding activity for report '%s'",
@@ -248,6 +249,12 @@ class SubmitReportReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        # Resolve the receiver before any write: it raises when no actor owns
+        # this store, and a refusal must not leave the report behind (#2667).
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
+
         # The report and Offer(Report) activity are stored unconditionally so
         # that a receiver with auto_create_case=False still retains the data
         # needed for a subsequent pre-case ACK (Read(Offer(Report))) or an
@@ -255,10 +262,6 @@ class SubmitReportReceivedUseCase:
         _store_submit_report_dependencies(self._dl, request)
         if not request.report_id:
             return HandlerResult.applied()
-
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
 
         if not _is_primary_submit_report_recipient(
             request, receiving_actor_id

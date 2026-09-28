@@ -6,7 +6,7 @@ level: 400
 # Reference Implementation Architecture
 
 This page explains how the Vultron reference implementation is structured.
-It is written for practitioners who want to understand the code before reading it: Coordinated Vulnerability Disclosure (CVD) practitioners evaluating adoption, software developers assessing the implementation, and contributors orienting to the layout.
+It is written for readers who want to understand the code before reading it: software developers assessing the implementation, and contributors orienting to the layout.
 It answers three questions: what the hexagonal boundary means, how an incoming message flows from Hyper Text Transfer Protocol (HTTP) delivery to behavior-tree execution, and what the reference implementation supplies versus what an adopter must build.
 
 !!! note "Reference implementation, not the protocol"
@@ -88,7 +88,7 @@ The semantic extractor is the single place where AS2 structure becomes domain in
 
 The core layer decides what to do.
 The behavior dispatcher (`vultron/core/dispatcher.py`) maps the extracted semantics to a use case through a table lookup, and the use case runs the appropriate behavior tree.
-Routing all inbound case activity through the [Case Actor](case_lifecycle/case_model.md#caseactor) is what lets a single behavior-tree execution produce a canonically ordered ledger entry ([ADR-0021](../adr/0021-caseactor-inbox-routing-canonical-ledger.md), [ADR-0022](../adr/0022-single-bt-execution-for-received-side-case-actor-routing.md)).
+Routing all inbound case activity through the [CASE_MANAGER](case_lifecycle/case_manager_and_ledger.md) — in the prototype, the [Case Actor](case_lifecycle/case_model.md#caseactor) — is what lets a single behavior-tree execution produce a canonically ordered ledger entry ([ADR-0021](../adr/0021-caseactor-inbox-routing-canonical-ledger.md), [ADR-0022](../adr/0022-single-bt-execution-for-received-side-case-actor-routing.md)).
 The design that moves this orchestration into a core module behind a typed `process_payload` seam is recorded in [ADR-0020](../adr/0020-inbox-bt-orchestration.md).
 
 For the protocol-level view of what these messages mean to a participant, see [Protocol Event Flow](protocol_flow.md).
@@ -148,11 +148,12 @@ The extension boundary is the set of ports.
 The reference implementation provides the protocol machinery: the five state machines, the wire vocabulary and its semantic mapping, the inbox and outbox pipelines, the behavior trees that orchestrate transitions, and the persistence and delivery adapters that make a local actor run.
 What an adopter supplies are the capabilities behind the call-out points — the judgment and the connections to outside systems that the protocol deliberately leaves open.
 
-This division tracks the protocol's conformance test layers.
-Correct message syntax and correct state transitions (test layers L1 and L2) come from using a conformant serializer and implementing the state machines.
-Correct observable behavior (L3) is stated by the behavioral conformance specifications.
-Correct internal decision structure — precondition checks before state writes before effects, audit-log ordering, idempotency — is test layer L4, which is only demonstrable through a reference implementation, and the `vultron/core/behaviors/` behavior-tree layer is that demonstration.
-The [Process Implementation Notes](../howto/process_implementation.md#conformance) how-to describes the L1–L4 test layers and how to map the protocol onto an existing workflow system.
+This division also shows in how conformance is tested.
+The specification organizes conformance tests in four layers, L1 Syntax to L4 Process ([§12.5](../reference/vultron-spec/index.md#125-conformance-testing-approach)).
+A layer says what a test checks, and is a separate question from the capability sets an implementation claims, which say what it provides ([§12.2](../reference/vultron-spec/index.md#122-capability-sets)).
+Correct message syntax and correct state transitions (L1 and L2) come from using a conformant serializer and implementing the state machines.
+Correct observable behavior (L3) — the right messages emitted and the right states reached — is stated by the behavioral conformance specifications.
+Correct internal decision structure — precondition checks before state writes before effects — is L4, which is only enforceable against a reference implementation, and the `vultron/core/behaviors/` behavior-tree layer is that demonstration.
 
 An adopter therefore has a spectrum of choices.
 A minimal participant reuses the protocol machinery and supplies only the capabilities it needs.
@@ -168,5 +169,6 @@ A different-language implementation reuses the concepts — the boundary, the pi
 - [Capability Model](capability_model/index.md) — the call-out point taxonomy and how to build a capability
 - [Concept Taxonomy](../reference/vultron-taxonomy.md) — vultron-core, vultron-wire, and vultron-transport as distinct concepts
 - [Process Implementation Notes](../howto/process_implementation.md) — integrating the protocol into an existing workflow system
+- [Federation](future_work/federation.md) — future work on a deployment in which each organization runs its own coordination service
 - [ADR-0009](../adr/0009-hexagonal-architecture.md) — Adopt Hexagonal Architecture
 - [ADR-0017](../adr/0017-domain-wire-object-separation.md) — Domain/Wire Object Separation

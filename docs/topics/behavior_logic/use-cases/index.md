@@ -44,49 +44,10 @@ Judgment comes before effects because a refusal has to be able to stop the step 
 
 ## Mechanical and delegated decisions
 
-The useful distinction in a use case is not between "simple" and "complex" steps.
-It is between decisions the protocol can settle from what it already knows and decisions it cannot.
-
-A **mechanical** decision reads recorded state and applies a rule.
-Is this Participant already in the Valid (RV) state of the Report Management (RM) machine, does this case exist in this actor's own store, is this transition permitted by the state machine.
-Two conformant implementations will reach the same answer, because the rule and the inputs are both fixed.
-
-A **delegated** decision has no answer in the record.
-Whether a report is credible, whether embargo terms are acceptable, whether a vulnerability merits a Common Vulnerabilities and Exposures (CVE) identifier — these depend on policy, expertise, or facts held outside the protocol.
-The protocol marks the location and defines what an answer looks like; it does not supply the answer.
-Two conformant implementations may legitimately differ here, and that is the point of the seam.
-
-This is why a use-case page is worth reading separately from the tree that implements it.
-The tree shows the nodes in order.
-The page tells you which of those nodes your organization owns.
-
----
-
-## How call-out points behave
-
-A call-out point is a location where an actor obtains a judgment, a fact, or an artifact from outside the protocol ([ADR-0024](../../../adr/0024-coordination-agent-taxonomy.md)).
-Four capability shapes cover every one of them: **Evaluator** returns a recommendation, **Retriever** returns facts, **Composer** returns content, and **Actuator** confirms a side effect (BT-18-013, [ADR-0097](../../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md)).
-A **Sentinel** is not a shape: it watches a condition and calls a trigger endpoint on its own initiative, so it has no call-out point.
-The shapes and their service contracts are described in the [Capability Model](../../capability_model/index.md).
-
-Three properties of a call-out point matter when reading these pages.
-
-It answers synchronously.
-A call-out point returns success or failure and never leaves the tree running (BT-18-011).
-An Evaluator that wants to block the step returns failure rather than reporting a rejection in its output (BT-18-007).
-
-It has a default.
-Every call-out point is injected through a backend factory with a deterministic default, so a deployment that supplies nothing still runs (BT-18-004, BT-23-001, [ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
-The default is usually the permissive one, on the reasoning that a stub should not silently withhold progress.
-One class of gate inverts that.
-Where a permissive default would let a party other than the case owner force a case-state change or an embargo teardown, the default is the conservative answer instead (BT-23-012, [ADR-0076](../../../adr/0076-security-significant-gates-default-require-case-owner-approval.md)).
-When a page says a call-out point "defaults to accept", that is the stub's behavior and not a protocol requirement to accept.
-
-It is not the same as asking another actor.
-A call-out point asks a service the deploying organization runs, so it can be answered while the step is still in progress.
-A question that needs a decision from another Participant — whether the case owner permits a change to the case's agreed state — cannot work that way.
-There the actor sends a request and finishes, and the reply starts fresh work when it arrives ([ADR-0080](../../../adr/0080-protocol-asks-not-suspended-behaviors.md)).
-Both appear in these pages, and confusing them leads to an implementation that waits for something that is never going to arrive.
+Each page separates the decisions the protocol settles from recorded state from the ones it hands to a system the deploying organization runs, the call-out points.
+The tree shows the nodes in order; the page tells you which of those nodes your organization owns.
+The [Capability Model](../../capability_model/index.md) explains the distinction, the [four shapes](../../capability_model/index.md#the-four-shapes) a call-out point takes, and how call-out points behave: they answer synchronously, they have a default when nothing is plugged in, and they are not the same as asking another actor ([Settled and open design questions](../../capability_model/index.md#settled)).
+When a page says a call-out point "defaults to accept", that describes the default stub, not a protocol requirement to accept.
 
 ---
 

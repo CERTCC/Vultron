@@ -7,6 +7,7 @@ description: >
   strategy, subtree map, and anti-patterns to avoid.
 related_specs:
   - specs/behavior-tree-integration.yaml
+  - specs/handler-protocol.yaml
 related_notes:
   - notes/bt-canonical-reference.md
   - notes/bt-pitfalls.md
@@ -222,7 +223,10 @@ Resolve a subject by **addressee membership**, not by position: prefer the
 receiving actor when it is among the recipients (correct in every recipient's
 replica, and canonical by construction per HP-09-001), fall back to a sole
 named recipient, and warn rather than guess when several recipients are named
-and none is this store's actor. See `resolve_invitee_id()` in
+and none is this store's actor. Test membership with `is_addressed_to()`
+(`vultron/core/predicates/addressing.py`), never a bare `in`: `to:`/`cc:`
+arrive as the sender wrote them, so a trailing slash misses an exact match
+while the receiver is canonical (#2667). See `resolve_invitee_id()` in
 `vultron/core/use_cases/received/embargo.py` and the older
 `_is_primary_submit_report_recipient()` in `received/report.py`. Full rule:
 `vultron/core/AGENTS.md` § "A Message Subject Is Never

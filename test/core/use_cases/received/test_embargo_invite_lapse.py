@@ -15,6 +15,8 @@ compatibility (#2213)."""
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -542,6 +544,48 @@ class TestInviteeIsTheAddressee:
 
         coord = self._read_participant(dl, coord_p_id)
         assert coord.embargo_consent_state == PEC.UNBOUND
+
+    @pytest.mark.parametrize(
+        "to",
+        [[_INVITEE + "/"], [_OTHER, _INVITEE + "/"]],
+        ids=["sole-recipient", "multi-recipient"],
+    )
+    def test_trailing_slash_recipient_is_this_replica(
+        self, make_payload, caplog, to
+    ):
+        """A recipient spelled with a trailing slash still names this replica.
+
+        Membership is by normalised id (HP-09-001, #2667): the invitee resolves
+        to the canonical ``receiving_actor_id``, so the participant lookup hits
+        ``actor_participant_index`` rather than missing on the slash, and the
+        multi-recipient case is not reported as ambiguous.
+        """
+        dl = _make_dl(actor_id=_INVITEE)
+        case_id = "https://example.org/cases/addressee-slash"
+        embargo_id = "https://example.org/cases/addressee-slash/embargos/e"
+        case, embargo, coord_p_id, invitee_p_id = self._seed_case(
+            dl, case_id, embargo_id, extra_actors=(_OTHER,)
+        )
+
+        invite = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            to=to,
+            rsvp_deadline=_FUTURE,
+        )
+        event = make_payload(invite, receiving_actor_id=_INVITEE)
+
+        caplog.set_level("WARNING")
+        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        assert not any(
+            "cannot tell which participant" in record.message
+            for record in caplog.records
+        )
+        invitee = self._read_participant(dl, invitee_p_id)
+        assert invitee.embargo_consent_state == PEC.INVITED
+        assert invitee.invite_rsvp_deadline == _FUTURE
 
     def test_multi_recipient_not_addressed_to_this_store_warns(
         self, make_payload, caplog
