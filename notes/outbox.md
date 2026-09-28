@@ -6,6 +6,7 @@ related_specs:
   - specs/outbox.yaml
 related_notes:
   - notes/outbox-delivery-reliability.md
+  - notes/case-communication-model.md
 relevant_packages:
   - fastapi
   - vultron/adapters/driving/fastapi
@@ -33,12 +34,12 @@ Vultron activities are direct messages and MUST have a non-empty `to:` field.
 
 | Question | Decision | Rationale |
 |---|---|---|
-| Which addressing fields are valid? | `to:` required; one `cc:` exception | All Vultron exchanges are DMs; `cc`/`bto`/`bcc` unsupported except for the CASE_MANAGER purposeful self-copy (see OX-08-004) |
+| Which addressing fields are valid? | `to:` required; no exceptions | All Vultron exchanges are DMs; `cc`/`bto`/`bcc` are unsupported (OX-08-004, ADR-0108) |
 | Where to enforce? | `handle_outbox_item` in `outbox_handler.py` | Already has the full activity; consistent with existing `VultronOutboxObjectIntegrityError` pattern |
 | Exception class? | New `VultronOutboxToFieldMissingError` | Matches project exception naming convention; distinct from object-integrity errors |
 | Scope? | All outbox activities, no exceptions | Every outbound activity must be addressed |
 | What counts as valid `to:`? | Non-empty list (or scalar) of URI strings | Empty list is as bad as `None`; format validation out of scope |
-| `cc`/`bto`/`bcc` presence? | Log WARNING, except for CASE_MANAGER purposeful self-copy | OX-08-004: purposeful `cc:` self-copy (originating actor's own ID only) MUST NOT trigger the WARNING; all other uses SHOULD warn |
+| `cc`/`bto`/`bcc` presence? | Log WARNING, no exemption | OX-08-004: the former CASE_MANAGER self-copy exemption was retired by ADR-0108 — the emitting tree commits its own entry, so no outbound activity names its own sender |
 
 ---
 
@@ -121,8 +122,7 @@ When modifying `outbox_handler.py`, add or update tests for these scenarios:
 
 3. **Activity Validation** (`handle_outbox_item`)
    - Test: reject missing or empty `to:` field (OX-08-001, OX-08-002)
-   - Test: warn on `cc`/`bto`/`bcc` presence for third-party addresses (OX-08-004)
-   - Test: no WARNING for purposeful CASE_MANAGER self-copy (`cc:` = own actor ID)
+   - Test: warn on any `cc`/`bto`/`bcc` presence, including the sender's own id (OX-08-004, ADR-0108)
    - Test: enforce `VultronOutboxObjectIntegrityError` for malformed activities
    - Location: `test/adapters/driving/fastapi/test_outbox.py`
 

@@ -403,7 +403,11 @@ groups:
     verification: Integration tests in `test/demo/` confirm that each logical state
       change produces at most one `CaseLedgerEntry`; no test scenario produces both
       an accepted-participant-assertion entry and a separately-synthesized CASE_MANAGER
-      entry for the same state change.
+      entry for the same state change. The case-ledger invariant harness
+      (`test/ci/invariants/common.py`) asserts, for every replica of every scenario,
+      that no two entries carry the same `payloadSnapshot.id` — the duplicate
+      observed when an emitting tree committed an Invite and a self-addressed copy of
+      it committed the same Invite again (#2996, ADR-0108).
     stories:
     - story_2022_045
   - id: CLP-07-003
@@ -694,8 +698,9 @@ groups:
   title: CASE_MANAGER Inbox Routing for Canonical Ledger Entry Authorship
   description: Requirements for the end-to-end routing path that delivers protocol-significant
     activities to the CASE_MANAGER's inbox so the CASE_MANAGER can author canonical ledger
-    entries. Covers outbound addressing rules, HTTP loopback self-delivery (OX-12-004),
-    and the pre-flight guard that prevents non-CASE_MANAGER invocations from committing
+    entries. Covers outbound addressing rules, the rule that the CASE_MANAGER commits its
+    own emissions in the emitting tree rather than mailing itself a copy (ADR-0108), and
+    the pre-flight guard that prevents non-CASE_MANAGER invocations from committing
     ledger entries.
   specs:
   - id: CLP-10-001
@@ -706,10 +711,12 @@ groups:
       CASE_MANAGER's inbox receives the activity and can author a canonical ledger entry.
       This requirement applies to ALL participants — the CASE_MANAGER is a participant
       with extra duties; it is not excluded from CLP-10-001. When the CASE_MANAGER itself
-      originates an activity (e.g., `invite_actor_to_case`), it MUST include its own
-      actor ID in the outbound activity's `cc:` field so that HTTP loopback self-delivery
-      (OX-12-004) triggers the CASE_MANAGER's received-side use case and the `GuardedCommitCaseLedgerEntryBT`
-      fires in the correct inbox context.
+      originates a protocol-significant activity (e.g., `invite_actor_to_case`), it MUST
+      emit from its own store and commit the canonical entry in the emitting tree
+      (CLP-10-013); it MUST NOT address a copy of the activity to itself in any
+      addressing field. A participant whose container does not host the CASE_MANAGER
+      reaches it by sending the CASE_MANAGER the participant's own activity, never by
+      executing a tree locally as the CASE_MANAGER (CM-24-004, ADR-0108).
     rationale: 'Before ADR-0021, several trigger trees (e.g., `validate_report`, `ack_report`,
       `close_case`) emitted no activity addressed to the CASE_MANAGER. The CASE_MANAGER
       therefore had no protocol event to commit, and the canonical ledger was missing
@@ -719,16 +726,18 @@ groups:
       applies when the CASE_MANAGER is the originator: `invite_actor_to_case_trigger_bt`
       emitted an `Invite` addressed only to the invitee — the CASE_MANAGER never received
       its own activity and the canonical ledger had no `invite_actor_to_case` entry.
-      Using `cc:` rather than `to:` for the self-copy preserves the semantics that
-      the invitee is the primary recipient while still routing the activity through
-      the CASE_MANAGER''s inbox for archival. See OX-08-004 for the updated addressing
-      policy and ADR-0021 for the full end-to-end path.'
-    note: The self-`cc:` clause binds only where the canonical entry depends on inbox
-      loopback. A tree that emits under a `CVDRole.CASE_MANAGER` gate and wraps the
-      emit in `create_receive_activity_tree` with a `case_id` commits the entry itself
-      (CLP-10-013), so the entry already exists and a self-addressed copy adds no
-      record — see EMB-19-001 for the worked case, where addressing the manager also
-      made the announce reach nobody.
+      The first fix (ADR-0021 § Clarification) had the CASE_MANAGER add its own id to
+      `cc:` so a copy looped back through its inbox. That copy compensated for the case
+      owner''s container emitting the Invite in the CASE_MANAGER''s name from a store
+      that was not the ledger''s home; where the two were co-hosted it also committed
+      the same Invite twice (#2996). ADR-0108 replaced the loopback with the rule that
+      the emitting tree commits, and that only the hosting container emits as the
+      CASE_MANAGER.'
+    note: A tree that emits under a `CVDRole.CASE_MANAGER` gate and wraps the emit in
+      `create_receive_activity_tree` with a `case_id` commits the entry itself
+      (CLP-10-013), so a self-addressed copy would add no record — see EMB-19-001 for
+      the worked case, where addressing the manager also made the announce reach
+      nobody.
     verification: For each entry in `EXPECTED_EVENT_TYPES`, a test verifies that the
       CASE_MANAGER's canonical ledger contains at least one entry with that `eventType`
       after a full FV demo run.
@@ -945,33 +954,32 @@ groups:
     priority: MUST
     kind: project
     statement: A store MUST NOT mint a canonical case-ledger index unless it is the
-      store that holds that case's canonical log. `CommitLogEntryBT` MUST decline
-      — reporting success, having written nothing — when the actor it executes as
-      is not one the running container hosts.
+      store that holds that case's canonical log. `CommitLogEntryBT` MUST fail —
+      raising, having written nothing — when the actor it executes as is not one the
+      running container hosts, because no sanctioned path executes a tree in a store
+      other than its actor's own (BT-05-005, ADR-0108).
     rationale: 'A log index is a claim on a position in one hash chain, so two stores
       claiming the same position fork it irreparably. The delegated-emit path is how
       a second claimant arises: a trigger the case *owner* runs emits as the case''s
       CASE_MANAGER (PCR-08-007, CM-24-001) and commits under that same actor id. When
       the owner hosts the CaseActor this is the canonical commit. After an ownership
       handoff it is not — the CaseActor stays on the container that first received
-      the report (CP-08-003) while the owner is elsewhere — and BT-05-005''s foreign-authority
-      exception deliberately leaves the tree running in the *requester''s* store so
-      the activity is created and outboxed where it can be delivered. Without this
-      rule the commit rides along on that exception and mints index N in the owner''s
-      replica while the real CASE_MANAGER mints its own index N from the `cc:` copy.
-      The two disagree on bytes, not just timing: the owner''s snapshot carries local
-      enrichment (`attributedTo`, `name`, the case''s `caseStatus`) that the wire
-      copy does not (CM-17-002). Both then fan out, and the case partitions into the
-      participants each reached first (#2626). Declining loses nothing — the activity
-      still carries the CaseActor as `cc:`, so the canonical log gains the entry the
-      only way a remote store ever can (CLP-10-001), and the owner''s replica gains
-      it by replication from that log, byte-identical as a replica must be (DL-07-009).
-      Success rather than failure on decline because every existing caller reads a
-      non-SUCCESS commit as a hard error, and "the canonical log is somewhere else"
-      is not one.'
+      the report while the owner is elsewhere — and, before ADR-0108, BT-05-005 carried
+      an exception that left the tree running in the *requester''s* store so the
+      activity was created and outboxed where it could be delivered. The commit rode
+      along on that exception and minted index N in the owner''s replica while the real
+      CASE_MANAGER minted its own index N from a `cc:` copy of the activity. The two
+      disagreed on bytes, not just timing: the owner''s snapshot carried local
+      enrichment (`attributedTo`, `name`, the case''s `caseStatus`) that the wire copy
+      did not (CM-17-002). Both then fanned out, and the case partitioned into the
+      participants each reached first (#2626). The guard first answered this by
+      declining silently and relying on the `cc:` copy. ADR-0108 removed both the
+      exception and the copy: a participant on another container asks the
+      CASE_MANAGER to act by message (CM-24-004), so a tree executing as an actor its
+      store does not host is a programming error, and the guard raises.'
     verification: A test executes `CommitLogEntryBT` under an `actor_id` at a foreign
-      authority and asserts SUCCESS with no `CaseLedgerEntry` written and no fan-out
-      sent, and under a same-authority `actor_id` asserts the guard stands aside.
+      authority and asserts that it raises with no `CaseLedgerEntry` written and no
+      fan-out sent, and under a same-authority `actor_id` asserts the guard stands aside.
     exceptions:
     - A store that cannot name its own actor — a test double, or any implementation
       that reports no `actor_id` — is never foreign, and such callers commit exactly

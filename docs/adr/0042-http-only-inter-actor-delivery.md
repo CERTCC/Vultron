@@ -113,7 +113,8 @@ ARCH-17 (ASGIEmitter Base URL / reentrancy guard). Affected specs and notes:
 Source concern: #1723. Related bugs originally caused by the in-process
 shortcut: #531, #534, #557, #558.
 
-Generated spec requirements: `outbox.yaml` OX-12-001 through OX-12-004
+Generated spec requirements: `outbox.yaml` OX-12-001 through OX-12-003
 (uniform HTTP delivery, ASGIEmitter removal, no direct `ASGITransport` in
-application code, HTTP loopback self-delivery). Supersedes
+application code). OX-12-004 (HTTP loopback self-delivery) was retired by
+ADR-0108: the CaseActor no longer addresses a copy to itself. Supersedes
 `architecture.yaml` ARCH-17-001 and ARCH-17-002.

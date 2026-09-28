@@ -1776,14 +1776,27 @@ groups:
   - id: CM-17-006
     priority: MUST
     kind: protocol
-    statement: The CASE_MANAGER MUST commit a `CaseLedgerEntry` for the emitted `Invite` activity (recording the fact of its
-      emission) AFTER the Invite has been queued for delivery to the invitee. The commit MUST NOT precede the emission.
-    verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER commits the
-      `CaseLedgerEntry` for an emitted `Invite` only after the Invite has been queued for
-      delivery.
+    statement: >-
+      The CASE_MANAGER MUST commit exactly one `CaseLedgerEntry` for an emitted `Invite`
+      activity, in the tree that emits it, after the Invite activity has been constructed and
+      before it is appended to the outbox. The Invite MUST NOT be addressed to the CASE_MANAGER
+      itself, and no received-side path MUST commit a second entry for it.
+    rationale: >-
+      Build, commit, then enqueue is the order `vultron/core/behaviors/case/AGENTS.md` enforces
+      for every emit that also commits: a commit that fails after the outbox write orphans an
+      activity queued for delivery with no ledger entry, and the next duplicate check then takes
+      the fresh path (ISSUE-1325). An earlier wording required the commit to follow the queueing;
+      the code never did that, and the loopback copy that wording assumed committed the same
+      Invite a second time (#2996, ADR-0108).
+    verification: >-
+      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py` asserts the emit node
+      commits before it appends to the outbox and sets no `cc`; the case-ledger invariant harness
+      asserts a single entry per Invite activity id (CLP-07-002).
     relationships:
     - rel_type: implements
       spec_id: CLP-10-006
+    adr:
+    - ADR-0108
     lint_suppress:
     - missing_story_reference
   - id: CM-17-007
@@ -1791,16 +1804,29 @@ groups:
     kind: project
     statement: >-
       In the direct-trigger path (the Case Owner calls `invite-actor-to-case` with a
-      `roles` list), `SvcInviteActorToCaseUseCase` MUST write that list to the blackboard
-      key `suggested_roles` via `_extra_execute_kwargs()` before BT execution so that
-      `EmitInviteActorToCaseNode` can read it.
+      `roles` list), `SvcInviteActorToCaseUseCase` MUST send the Case Owner's own
+      `Offer(CaseParticipant)` carrying that `roles` list to the CASE_MANAGER, from the Case
+      Owner's identity and outbox. It MUST NOT execute the invite tree locally as the
+      CASE_MANAGER. The CASE_MANAGER's recommend-actor received tree MUST, when the
+      recommender holds `CVDRole.CASE_OWNER` for the case, emit the `Invite` directly with the
+      offered roles instead of forwarding the Offer to the Case Owner (CM-16-003, CM-16-004),
+      and the emit MUST carry those roles so that `caseRoles` is never empty (CM-17-003).
     rationale: >-
-      Without writing to `suggested_roles` before BT execution, `EmitInviteActorToCaseNode`
-      has no roles to embed and will emit the Invite with `roles=None`, producing the
-      `caseRoles=[]` defect described in CM-17-003.
-    verification: Inspection of `vultron/core/` confirms that
-      `SvcInviteActorToCaseUseCase._extra_execute_kwargs()` writes the `roles` list to the
-      blackboard key `suggested_roles` before BT execution.
+      The owner's direct invite is the recommend-actor flow with the recommender and the
+      decider being the same participant, so it reuses that flow rather than adding a message
+      type. This is one path for every topology: when the Case Owner's container also hosts the
+      CASE_MANAGER the Offer loops back over HTTP (OX-12-001), and when it does not the Offer
+      is the only way to reach the CASE_MANAGER without emitting in its name from a store that
+      is not the ledger's home (ADR-0108). The former wording had the trigger write
+      `suggested_roles` to the blackboard for a locally executed emit; the roles now travel in
+      the Offer and are read from the stored Offer on the CASE_MANAGER side (CM-16-018).
+    verification: >-
+      `test/core/use_cases/triggers/test_actor_triggers.py` asserts the trigger enqueues an
+      `Offer(CaseParticipant)` addressed to the CASE_MANAGER with the offered roles and runs no
+      tree as the CASE_MANAGER; `test/core/behaviors/case/test_suggest_actor_tree.py` asserts
+      the CASE_OWNER branch emits the Invite with those roles and does not forward the Offer.
+    adr:
+    - ADR-0108
   - id: CM-17-008
     priority: MUST
     kind: project
@@ -3021,12 +3047,21 @@ groups:
       constructed Activity in the CASE_MANAGER's outbox, not in the requesting
       participant's outbox.  The emit MUST sit inside a composite gated on the
       executing actor holding `CVDRole.CASE_MANAGER` for the case; code MUST NOT
-      instead compare `actor_id` against a computed `case_actor_id`.
+      instead compare `actor_id` against a computed `case_actor_id`. The delegated
+      emit MUST execute on the container that hosts the CASE_MANAGER: a requesting
+      participant whose container does not host it reaches the CASE_MANAGER by
+      sending it the participant's own activity, and the CASE_MANAGER's received
+      tree performs the delegated emit. A container MUST NOT execute a tree, or
+      enqueue an activity, as an actor it does not host (ADR-0108).
     rationale: >-
       The CASE_MANAGER's outbox is the delivery path to other participants.
       Queuing a delegated Activity in the requesting actor's outbox bypasses
       the CASE_MANAGER as the authoritative intermediary and breaks the
-      CaseLedgerEntry audit trail.
+      CaseLedgerEntry audit trail. Emitting in the CASE_MANAGER's name from a
+      container that does not host it is the same bypass in a different coat:
+      the activity leaves a store that is not the ledger's home, the canonical
+      entry can only be minted by mailing the CASE_MANAGER a copy of its own
+      emission, and no such container could ever sign the activity (OX-10).
 
       The mechanism changed in ADR-0073. This entry previously required setting
       `self._actor_id = case_actor_id` in `_prepare()`. That is a convention, and
