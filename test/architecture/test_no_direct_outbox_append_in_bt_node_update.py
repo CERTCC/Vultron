@@ -126,7 +126,6 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         # status/nodes/cs_invariant_diagnostic.py
         "PxaEmInvariantDiagnosticNode",
         # status/nodes/lifecycle.py
-        "EmitAddCaseStatusToSelfNode",
         "EmitCloseCaseNode",
         # status/nodes/rm_anomaly.py
         "EmitRMGapNoteNode",
