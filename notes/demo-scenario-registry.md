@@ -227,6 +227,7 @@ checking it. Route each consumer by what it is:
 | Consumer | Treatment | Why |
 |---|---|---|
 | `docs/topics/scenarios/index.md` | build-time render (DEMOCI-11-009) | Inside the mkdocs tree, so `markdown-exec` can call the renderer; no table is committed and drift is impossible. Mind the link form — see above |
+| `docs/tutorials/container_demos.md` | build-time render (`container_demos` slug) | Same mechanism; its `DEMO` column is the registry `name`, so the tutorial can only offer values the demo CLI accepts (#3622 replaced a hand table that had drifted to a subset) |
 | `.github/demo-scenarios.json` | generate + `--check` | CI needs it before Python exists |
 | `test/ci/README-case-log-ratchet.md` | generate + `--check` | Outside the mkdocs tree — read raw on GitHub and by agents, so an include directive would render literally |
 | `vultron/demo/scenario/README.md` | generate + `--check` | Same |

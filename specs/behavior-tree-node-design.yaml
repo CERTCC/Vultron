@@ -686,6 +686,11 @@ groups:
       A same-state write (target == current) is permitted as a status confirmation.
       An illegal jump (e.g. vfd → VFD, skipping Vfd) or a backward move MUST cause
       the node to return Status.FAILURE with a descriptive feedback_message.
+      Exception: on the receive side, a dimension the CASE_MANAGER's per-dimension
+      adjudication has already accepted under RSH-05 / RSH-06 (including a
+      non-adjacent forward RM move, RSH-06-006) MAY reach the write node with
+      adjacency validation relaxed for that dimension; a backward move is still
+      refused at the write boundary.
     rationale: >-
       The dimension objects' transition() machinery (SDO-02-002) and the
       is_valid_*_transition() helpers in vultron/core/states/ enforce forward-only

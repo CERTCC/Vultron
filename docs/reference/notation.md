@@ -1,8 +1,9 @@
 ---
 description: >
-  Notation conventions used throughout the documentation.
-stakeholder_type: ALL
-level: 300
+  The mathematical and diagram notation used in the formal treatment of the
+  Vultron Protocol.
+stakeholder_type: [platform-developer, process-researcher]
+level: 400
 ---
 
 # Notation
@@ -10,85 +11,8 @@ level: 300
 {% include-markdown "../includes/not_normative.md" %}
 
 Defining the Vultron Protocol involves a lot of notation.
-This page provides a reference for the conventions and notation used throughout the documentation.
-
-## Documentation Conventions
-
-This documentation uses the [*Admonitions*](https://squidfunk.github.io/mkdocs-material/reference/admonitions/){:target="_blank"} (call-outs) provided by
-[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/){:target="_blank"} to highlight specific types of information.
-
-!!! note ""
-
-    Statements in boxes like this are normative requirements. 
-    Use of SHOULD, MUST, MAY, etc. follow the [RFC 2119](https://tools.ietf.org/html/rfc2119){:target="_blank"} conventions.
-
-!!! note "Formalisms"
-
-    Formalisms are used to define the behavior of the Vultron Protocol.
-
-    $$A = A$$
-
-    Readers should generally be able to understand the protocol description in the text without understanding the formalisms,
-    but the formalisms are included for completeness.
-
-!!! info
-
-    Statements in boxes like this are informative notes. 
-    They provide additional information that may be helpful in understanding the normative requirements.
-
-!!! tip
-
-    Statements in boxes like this are tips. 
-    They provide additional information that might point to other resources, or provide additional context that may be 
-    helpful in understanding the protocol.
-
-!!! quote
-
-    This is a quote.
-
-!!! example
-
-    This is an example.
-    It is also an example example.
-
-!!! question
-
-    What is a question? This is.
-
-!!! success
-
-    This admonition indicates that a page contains
-    normative content (as shown below).
-
-!!! warning
-
-    This is a warning.
-
-Material for MkDocs supports a number of other [admonitions](https://squidfunk.github.io/mkdocs-material/reference/admonitions/){:target="_blank"}.
-This documentation generally keeps its usage consistent with the admonition names used in the Material for MkDocs
-[documentation](https://squidfunk.github.io/mkdocs-material/reference/admonitions/){:target="_blank"}; the
-ones used here are listed for completeness and clarity.
-Any admonition used here but not listed, or any inconsistency with the above, can be reported by [opening an issue](https://github.com/CERTCC/Vultron/issues){:target="_blank"}.
-
-### Normative and Non-Normative Pages
-
-Not everything in this documentation about the Vultron Protocol is a normative requirement.
-The following conventions indicate whether a page contains normative requirements or not.
-
-!!! info "Recognizing Normative Pages"
-
-    {% include-markdown "../includes/normative.md" %}
-
-    Pages that contain normative requirements are marked with a banner at or near the top of the page:
-
-!!! info "Recognizing Non-Normative Pages"
-
-    {% include-markdown "../includes/not_normative.md" %}
-
-    Pages that do not contain normative requirements are marked with a banner at or near the top of the page (Like this one).
-    This banner may be omitted if the page is clearly non-normative.
-    This banner appears on pages where that may not be clear, for example on pages describing a specific implementation
-    in terms of SHOULD, MUST, MAY, etc. statements that are not intended to be normative requirements.
+This page is the reference for the set-theory, logic, and deterministic finite automaton (DFA) symbols used in the [formal protocol](formal_protocol/index.md) and the process-model formal pages, and for the diagram forms used throughout the documentation.
+The call-out boxes and the normative-page banners the documentation uses are described on [Documentation Conventions](conventions.md).
 
 <!-- notation-math-start -->
 ## Mathematical Notation
@@ -155,7 +79,7 @@ stateDiagram-v2
 
 ### Sequence and Class Diagrams
 
-Sequence and class diagrams follow UML conventions
+Sequence and class diagrams follow Unified Modeling Language (UML) conventions
 
 ```mermaid
 ---

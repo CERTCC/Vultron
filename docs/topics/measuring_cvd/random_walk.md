@@ -24,7 +24,7 @@ organizational skills that transferred to better CVD. We follow the
     exclusive and jointly exhaustive possibilities. In the absence of any
     relevant evidence pertaining to which cell of the partition is the
     true one, a rational agent should assign an equal initial credence of
-    $n$ to each cell.
+    $1/n$ to each cell.
 
 While the principle of indifference is rather strong, it is inherently
 difficult to reason about absolutely skill-less CVD when the work

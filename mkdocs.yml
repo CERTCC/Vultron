@@ -23,6 +23,7 @@ nav:
       - Defining CVD Success: 'topics/background/cvd_success.md'
     - Case Lifecycle:
       - 'topics/case_lifecycle/index.md'
+      - A Case Under Vultron: 'topics/case_lifecycle/a_case_under_vultron.md'
       - The Case Model: 'topics/case_lifecycle/case_model.md'
       - The CASE_MANAGER and the Case Ledger: 'topics/case_lifecycle/case_manager_and_ledger.md'
       - Case Initialization: 'topics/case_lifecycle/case_initialization.md'
@@ -84,6 +85,7 @@ nav:
       - Open Questions: 'topics/future_work/open_questions.md'
   - How-to Guides:
       - 'howto/index.md'
+      - Adopt Vultron in Your CVD Program: 'howto/adopt_vultron.md'
       - Process Implementation: 'howto/process_implementation.md'
       - Vultron ActivityPub:
           - 'howto/activitypub/index.md'
@@ -103,6 +105,7 @@ nav:
             - How to Revise or Terminate an Embargo: 'howto/activitypub/activities/manage_embargo.md'
             - How to Report a Protocol Fault: 'howto/activitypub/activities/error.md'
       - Wiring a Capability: 'howto/wire_capability.md'
+      - Measuring Your CVD Program: 'howto/measure_your_cvd_program.md'
       - Demo How-Tos:
           - FVV Demo: 'howto/demos/fvv-demo.md'
   - Reference:
@@ -113,7 +116,7 @@ nav:
       - Concept Taxonomy: 'reference/vultron-taxonomy.md'
       - Glossary: 'reference/glossary.md'
       - Protocol Specification: 'reference/vultron-spec/index.md'
-    - Terms and Definitions: 'reference/terms.md'
+    - Documentation Conventions: 'reference/conventions.md'
     - Notation: 'reference/notation.md'
     - Versioning: 'reference/versioning.md'
     - Formal Protocol:
@@ -161,7 +164,6 @@ nav:
       - Benchmarking CVD: 'topics/measuring_cvd/benchmarking.md'
       - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
       - Reward Functions: 'topics/measuring_cvd/reward_functions.md'
-      - Modeling and Simulation: 'topics/measuring_cvd/mod_sim.md'
       - State Space Size: 'topics/measuring_cvd/state_space_size.md'
     - Other Uses of Vultron:
       - 'topics/other_uses/index.md'
@@ -171,7 +173,6 @@ nav:
       - Situation Awareness: 'topics/other_uses/situation_awareness.md'
       - VEP: 'topics/other_uses/vep.md'
       - CVD Action Rules: 'topics/other_uses/action_rules.md'
-      - CVD Directory: 'topics/other_uses/cvd_directory.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Working on This Implementation: 'about/project_record.md'
@@ -230,12 +231,19 @@ validation:
     # Fail --strict (DOCBW-03-011) on a link to a #fragment that does not
     # exist on the target page. Default is `info`, which is silent in the
     # warning count: a page can ship dozens of dead in-page links and still
-    # look clean. Note that this check only knows about heading anchors: the
-    # per-requirement `<a id="clp-14-001">` anchors in the generated spec
-    # tables are real and work in a browser, but linking to one still warns
-    # here. Cite the requirement ID in the link text and point the href at its
-    # group anchor (`#clp-14`).
+    # look clean. MkDocs alone sees only heading anchors and raw HTML in the
+    # page *source*, so an `<a id="clp-14-001">` printed by a markdown-exec
+    # block would warn here even though it is in the built page. The
+    # `vultron/metadata/docs/anchor_ids.py` hook (under `hooks:` below) adds
+    # every id in each page's rendered HTML to the page's anchor set, so a
+    # requirement citation may link its own anchor (`#clp-14-001`). The hook
+    # registers *targets* only: a link that an exec block prints is never seen
+    # by this check, and needs its own renderer test (#3735).
     anchors: warn
+hooks:
+  # Registers ids found in rendered HTML (exec-block output included) as link
+  # targets for the anchors check above. See the module docstring.
+  - vultron/metadata/docs/anchor_ids.py
 draft_docs: |
   draft-*.md
   # Patterns are relative to docs_dir; `docs/developer/` was mis-anchored
@@ -337,18 +345,22 @@ plugins:
         howto/general_implementation.md: howto/activitypub/index.md
         topics/background/notation.md: reference/notation.md
         topics/background/overview.md: topics/background/what-is-vultron.md
-        topics/background/terms.md: reference/terms.md
+        # Terms and Definitions was merged into the glossary's roles section (#3624).
+        reference/terms.md: reference/glossary.md#cvd-roles-and-participants
+        topics/background/terms.md: reference/glossary.md#cvd-roles-and-participants
         topics/background/versioning.md: reference/versioning.md
         topics/formal_protocol/index.md: reference/formal_protocol/index.md
         topics/formal_protocol/worked_example.md: tutorials/worked_example.md
         topics/future_work/cs_model_limitations.md: topics/process_models/cs/cs_model_limitations.md
-        topics/future_work/cvd_directory.md: topics/other_uses/cvd_directory.md
-        topics/future_work/mod_sim.md: topics/measuring_cvd/mod_sim.md
+        topics/future_work/cvd_directory.md: topics/future_work/open_questions.md
+        topics/future_work/mod_sim.md: topics/measuring_cvd/reward_functions.md
         # The old page speculated about an OWL ontology; its target now records
         # what became of that ontology (kept in the repo, not published), which
         # is the answer a reader following the old URL is after.
         topics/future_work/ontology.md: reference/ontology/index.md
         topics/future_work/reward_functions.md: topics/measuring_cvd/reward_functions.md
+        topics/measuring_cvd/mod_sim.md: topics/measuring_cvd/reward_functions.md
+        topics/other_uses/cvd_directory.md: topics/future_work/open_questions.md
         topics/process_models/cs/events.md: topics/process_models/cs/cs_model.md
         topics/process_models/cs/model_definition.md: topics/process_models/cs/transitions.md
         topics/process_models/em/participant-embargo-consent.md: topics/behavior_logic/use-cases/embargo-lifecycle.md

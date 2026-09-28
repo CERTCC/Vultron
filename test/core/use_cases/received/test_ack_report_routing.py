@@ -234,8 +234,8 @@ class TestAckReportEcho:
     inbox relies on this tree to forward it to the CASE_MANAGER.  Any other
     receiver is hearing someone else's acknowledgement and must not echo it
     under its own name — and the CASE_MANAGER, which the echo is addressed
-    to, would otherwise address one to itself, re-deliver it via loopback
-    (OX-12-004) with a fresh id, and loop.
+    to, would otherwise address one to itself, re-deliver it over HTTP to
+    its own inbox (OX-12-001) with a fresh id, and loop.
     """
 
     @pytest.mark.parametrize(
