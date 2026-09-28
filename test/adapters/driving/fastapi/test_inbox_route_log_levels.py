@@ -15,12 +15,8 @@
 
 """Inbox-route HTTP handler chatter is DEBUG, not INFO (SL-04-007).
 
-Two patterns are covered:
-
-- ``Parsing activity from request body`` — HTTP handler internals, and a
-  duplicate of the ``vultron.wire.as2.parser`` line that follows it.
-- ``Activity ... already received by ...; ignoring duplicate submission`` —
-  normal sync-protocol behaviour, not an anomaly worth INFO.
+``Parsing activity from request body`` is HTTP handler internals, and a
+duplicate of the ``vultron.wire.as2.parser`` line that follows it.
 """
 
 import logging
@@ -71,27 +67,3 @@ def test_parse_activity_body_dump_not_emitted_at_info(caplog):
         _inbox.parse_activity(_body())
 
     assert not _parsing_records(caplog)
-
-
-class _StubInbox:
-    """Inbox stand-in exposing the ``items`` list the dedup guard reads."""
-
-    def __init__(self, items: list[str]) -> None:
-        self.items = items
-
-
-class _StubActor:
-    """CoreActor stand-in exposing only the inbox the guard reads."""
-
-    def __init__(self, received: list[str]) -> None:
-        self.id_ = "https://example.org/actors/vendor"
-        self.inbox = _StubInbox(received)
-
-
-def test_duplicate_submission_guard_still_detects_duplicates():
-    """Demoting the log level does not change the dedup decision."""
-    activity_id = "urn:uuid:already-seen"
-    actor = _StubActor([activity_id])
-
-    assert _inbox._activity_already_received(actor, activity_id)  # type: ignore[arg-type]
-    assert not _inbox._activity_already_received(actor, "urn:uuid:fresh")  # type: ignore[arg-type]

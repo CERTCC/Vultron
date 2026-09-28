@@ -138,12 +138,21 @@ def test_store_inbox_activity_persists_activity(datalayer):
     assert stored is not None
 
 
+@pytest.mark.spec("IE-10-001")
 def test_store_inbox_activity_is_idempotent(datalayer):
+    """Ingress storage is where a redelivery is detected (IE-10-001).
+
+    The second call must not raise, must report that it wrote nothing, and must
+    leave the first delivery in place rather than overwriting it.
+    """
     note = as_Note(content="test")
-    activity = as_Create(actor=_ACTOR_URI, object_=note)
-    # Second call must not raise, and reports that it wrote nothing
+    activity = as_Create(actor=_ACTOR_URI, object_=note, summary="first")
     assert _store_inbox_activity(datalayer, activity) is True
-    assert _store_inbox_activity(datalayer, activity) is False
+
+    redelivered = activity.model_copy(update={"summary": "second"})
+    assert _store_inbox_activity(datalayer, redelivered) is False
+    stored = datalayer.read(activity.id_)
+    assert getattr(stored, "summary", None) == "first"
 
 
 # ---------------------------------------------------------------------------

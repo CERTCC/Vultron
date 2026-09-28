@@ -48,9 +48,9 @@ groups:
       404 to an unrouted GET, so the inbox path needs its own method refusal declared
       ahead of it.
     verification: >-
-      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that GET, PUT,
-      PATCH, and DELETE on the inbox path each return HTTP 405, for both
-      trailing-slash forms (`/inbox` and `/inbox/`).
+      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that GET, HEAD,
+      OPTIONS, PUT, PATCH, and DELETE on the inbox path each return HTTP 405 with
+      `Allow: POST`, for both trailing-slash forms (`/inbox` and `/inbox/`).
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001
