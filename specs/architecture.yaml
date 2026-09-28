@@ -1252,15 +1252,6 @@ groups:
       key names (`id`, `type`, `@context`) rather than Python field names
       (`id_`, `type_`, `context_`).  This applies to the persistence record
       round trip as well as to translation.
-    note: >-
-      The refusal clause is knowingly unmet and tracked by #3695: both the
-      translation half (`_to_core_data()` emits wire-facing names, covered by a
-      round-trip test over every `CORE_VOCABULARY` entry) and the persistence
-      half (`Record.from_obj()` now emits `id`/`type` keys, covered by
-      `test_from_obj_emits_wire_identity_keys_no_trailing_underscores`, #3546)
-      are met, but computed fields are still stripped *unconditionally* so a
-      contradicted computed value is not yet refused.  Remove this note when
-      #3695 is closed.
     rationale: >-
       A contradicted computed value cannot come from an honest producer: the
       value is derived, so every dump agrees with itself.  Refusing it closes

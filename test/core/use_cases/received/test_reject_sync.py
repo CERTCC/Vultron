@@ -330,7 +330,12 @@ class TestRejectLedgerEntryReceivedUseCase:
         dl.create(case)
 
         event = self._make_event(entry1, entry0.entry_hash)
-        uc = RejectLedgerEntryReceivedUseCase(dl, event)
+        # The case manager resolves (above), so the tree reaches the replay
+        # arm; SendMissingEntries raises VultronWiringError without a sync
+        # port (#3776), so inject one as the replay test below does.
+        uc = RejectLedgerEntryReceivedUseCase(
+            dl, event, sync_port=SyncActivityAdapter(dl)
+        )
         uc.execute()
 
         state_id = VultronReplicationState(
