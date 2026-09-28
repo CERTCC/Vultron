@@ -4,7 +4,7 @@ description: >
   reporter through embargo negotiation, coordination, publication, and case
   closure.
 stakeholder_type: [cvd-practitioner, platform-developer]
-level: 400
+level: 300
 ---
 
 # Worked Example
