@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 200
+contents: generated
 ---
 
 # CVD Case State Model Introduction
@@ -26,14 +27,15 @@ The pages in this section present the resulting model of 32 states and their tra
 
 ## Pages in this section
 
-The first two pages define the model, and the second builds on the first.
-The third discusses the model's limits and draws on [Measuring CVD](../../measuring_cvd/index.md).
+The first page defines the model's states, and the second builds on it with the transitions between them.
+The research discussion of the model's limits, [CS Model Limitations](cs_model_limitations.md), draws on [Measuring CVD](../../measuring_cvd/index.md) and sits in that section.
 
-| Page | What it covers |
-|---|---|
-| [CS States](cs_model.md) | The six substates a case tracks, the Vendor fix path that constrains them, and the resulting set of case states |
-| [CS Transitions](transitions.md) | The events that move a case between states, the rules that restrict them, the full state diagram, and the transition grammar |
-| [CS Model Limitations](cs_model_limitations.md) | Research discussion of what the model leaves out, including transition probabilities and the ordering of case histories |
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+
+- [CS States](cs_model.md) — The six substates a case tracks, the Vendor fix path that constrains them, and the resulting set of case states.
+- [CS Transitions](transitions.md) — The events that move a case between states, the rules that restrict them, the full state diagram, and the transition grammar.
+
+<!-- END GENERATED SECTION CONTENTS -->
 
 ## Where the model is used
 

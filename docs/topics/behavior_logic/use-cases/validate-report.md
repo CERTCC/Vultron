@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+description: >
+  Trigger `validate_report`: deciding that a received report is worth coordinating, and advancing RM to `VALID`.
 ---
 
 # Validate Report

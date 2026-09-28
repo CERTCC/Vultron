@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+description: >
+  Inferring the likely state of a case from incomplete information.
 ---
 
 # Vulnerability Response Situation Awareness

@@ -8,13 +8,13 @@ out of the nav; this checks that taking it out did not orphan it (#3528).
 
 from __future__ import annotations
 
-import posixpath
 import re
 
 import pytest
 
 from vultron.metadata.base import repo_root
 from vultron.metadata.docs.page_frontmatter import classify_docs_tree
+from vultron.metadata.docs.page_links import link_targets
 from vultron.metadata.docs.page_schema import is_working_record
 
 #: The working record's one nav entry.
@@ -27,19 +27,6 @@ UNROUTED = re.compile(
     r"(agents|developer|reference/codebase)/.*|reference/ontology/index\.md"
 )
 
-_LINK_RE = re.compile(
-    r"\]\((?!https?:|mailto:|#)([^)\s#]+\.md)(?:#[^)\s]*)?(?:\s+\"[^\"]*\")?\)"
-)
-
-
-def _links(docs_path: str, text: str) -> set[str]:
-    """``docs/``-relative targets of the relative ``.md`` links in *text*."""
-    base = posixpath.dirname(docs_path)
-    return {
-        posixpath.normpath(posixpath.join(base, target))
-        for target in _LINK_RE.findall(text)
-    }
-
 
 def _reachable_from_door() -> set[str]:
     """Pages reached from the door, following links through working record."""
@@ -49,7 +36,7 @@ def _reachable_from_door() -> set[str]:
     while queue:
         rel = queue.pop()
         text = (docs / rel).read_text(encoding="utf-8")
-        for target in _links(rel, text) - seen:
+        for target in link_targets(rel, text) - seen:
             if (docs / target).is_file():
                 seen.add(target)
                 if is_working_record(target):
@@ -58,19 +45,19 @@ def _reachable_from_door() -> set[str]:
 
 
 def test_links_resolve_relative_to_the_linking_page():
-    assert _links(
+    assert link_targets(
         "adr/index.md", "[a](0001-x.md) [b](archived/README.md)"
     ) == {
         "adr/0001-x.md",
         "adr/archived/README.md",
     }
-    assert _links(
+    assert link_targets(
         "about/x.md", "[a](../adr/index.md#top) [b](https://e.org/c.md)"
     ) == {"adr/index.md"}
 
 
 def test_links_with_a_title_are_followed():
-    assert _links(
+    assert link_targets(
         "about/x.md", '[a](../adr/index.md "ADRs") [b](y.md#s "t")'
     ) == {"adr/index.md", "about/y.md"}
 

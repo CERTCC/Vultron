@@ -1,10 +1,11 @@
-"""Generate the contents listing of each top-level ``docs/`` section landing page.
+"""Generate or check the contents of every ``index.md`` that opens a nav group.
 
 Requirements: specs/diataxis-requirements.yaml DF-11-005 (generated, check
-gated, never hand-maintained), DF-09-009 (an empty target set fails), DF-11-004
-(a level is never rendered). Design rationale:
+gated, never hand-maintained; the two exempt shapes), DF-09-009 (an empty
+target set fails), DF-11-004 (a level is never rendered). Design rationale:
 ``notes/site-information-architecture.md`` § "Landing pages are generated,
-never hand-maintained" (ADR-0102).
+never hand-maintained" and § "An ``index.md`` is a routing surface"
+(ADR-0102, #3617).
 
 Every section landing page used to be a hand-written copy of the navigation,
 and every one had drifted from it. So the listing is derived from two
@@ -20,8 +21,23 @@ Only the text between :data:`BEGIN_MARKER` and :data:`END_MARKER` is
 generated. The prerequisites admonition, the section's framing, and any
 cross-section pointers are hand-written prose and survive regeneration.
 
-A landing page is the ``index.md`` a top-level nav section opens with. The
-nav's own structure decides which pages those are; nothing lists them.
+A section index is the ``index.md`` a nav group opens with, at any depth. Each
+one declares in its frontmatter which of three shapes it is (:class:`Contents`),
+and the declaration is required: an index that opens a group without one is a
+fault, so no sub-section can be left undecided by omission.
+
+* ``contents: generated`` — the page enumerates its group; the listing between
+  the markers is generated and ``--check`` fails when it is stale.
+* ``contents: routing`` — the page links its group's members inside framing
+  prose or a themed grouping that is editorial content. Nothing is generated;
+  ``--check`` fails when the page fails to link a member (DF-11-005's
+  routing-page exemption). The members it must link are the group's nav
+  members plus any reader page in its own directory the nav does not carry
+  (DF-11-006's routing-page pattern), so a page added to the directory without
+  a link is caught.
+* ``contents: rendered`` — the enumeration is rendered at build time from a
+  registry (DEMOCI-11-009), so nothing is committed to drift. The generator
+  records the page and leaves it alone.
 """
 
 from __future__ import annotations
@@ -29,11 +45,14 @@ from __future__ import annotations
 import posixpath
 import re
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from vultron.metadata.base import mkdocs_config
-from vultron.metadata.docs.page_schema import LEVELS
+from vultron.metadata.docs.page_frontmatter import classify_docs_tree
+from vultron.metadata.docs.page_links import link_targets
+from vultron.metadata.docs.page_schema import LEVELS, is_working_record
 from vultron.metadata.file_loading import MetadataLoadError, load_frontmatter
 from vultron.metadata.generated_block import splice_between
 from vultron.metadata.markdown_tables import fenced_lines
@@ -52,9 +71,20 @@ BEGIN_MARKER = (
 #: Closing marker of a generated listing.
 END_MARKER = "<!-- END GENERATED SECTION CONTENTS -->"
 
+#: Frontmatter key on every ``index.md`` that opens a nav group (DF-11-005).
+CONTENTS_KEY = "contents"
+
 _INDEX_NAME = "index.md"
 _H1_RE = re.compile(r"^#\s+(.*?)\s*#*\s*$")
 _ATTR_LIST_RE = re.compile(r"\s*\{[^}]*\}\s*$")
+
+
+class Contents(StrEnum):
+    """How an ``index.md`` that opens a nav group carries its contents."""
+
+    GENERATED = "generated"
+    ROUTING = "routing"
+    RENDERED = "rendered"
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,10 +110,34 @@ class Entry:
 
 @dataclass(frozen=True, slots=True)
 class LandingPage:
-    """A top-level nav section and the entries its landing page lists."""
+    """A nav group whose index declares ``contents: generated``."""
 
     path: str
     entries: tuple[Entry, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RoutingPage:
+    """A nav group whose index declares ``contents: routing``.
+
+    Attributes:
+        path: ``docs/``-relative path of the index.
+        required: Every ``docs/``-relative page the index must link: the
+            group's nav members, and the reader pages in the index's own
+            directory that the nav does not carry.
+    """
+
+    path: str
+    required: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SectionIndexes:
+    """Every ``index.md`` that opens a nav group, by declared shape."""
+
+    generated: tuple[LandingPage, ...]
+    routing: tuple[RoutingPage, ...]
+    rendered: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +145,7 @@ class _PageFacts:
     title: str
     description: str | None
     level: int | None
+    contents: str | None
 
 
 def _is_url(target: str) -> bool:
@@ -118,7 +173,8 @@ def _body_h1(body: str) -> str | None:
 
 
 def _page_facts(docs_dir: Path, rel: str, root: Path) -> _PageFacts:
-    """Read a page's title and the ``description`` and ``level`` it declares.
+    """Read a page's title and the ``description``, ``level`` and ``contents``
+    it declares.
 
     The title follows mkdocs: frontmatter ``title:``, else the body's first
     H1, else the file stem.
@@ -137,6 +193,15 @@ def _page_facts(docs_dir: Path, rel: str, root: Path) -> _PageFacts:
             "is listed in the mkdocs.yml nav but does not exist",
             path=f"docs/{rel}",
         )
+    if (
+        posixpath.basename(rel) == _INDEX_NAME
+        and not path.read_text(encoding="utf-8").strip()
+    ):
+        raise MetadataLoadError(
+            "is empty; an index page's hand-written prose cannot be "
+            f"regenerated. Restore the file, then run '{WRITE_COMMAND}'.",
+            path=f"docs/{rel}",
+        )
     post = load_frontmatter(path, root=root)
     metadata = post.metadata
     title = metadata.get("title")
@@ -152,10 +217,12 @@ def _page_facts(docs_dir: Path, rel: str, root: Path) -> _PageFacts:
             )
         description = " ".join(raw.split())
     level = metadata.get("level")
+    contents = metadata.get(CONTENTS_KEY)
     return _PageFacts(
         title=" ".join(title.split()),
         description=description,
         level=level if type(level) is int and level in LEVELS else None,
+        contents=contents if isinstance(contents, str) else None,
     )
 
 
@@ -233,39 +300,206 @@ def _entry(item: object, docs_dir: Path, root: Path) -> Entry:
     )
 
 
-def discover_landing_pages(root: Path) -> tuple[LandingPage, ...]:
-    """Return every top-level nav section that opens with an ``index.md``.
+def _member_pages(items: list[object]) -> list[str]:
+    """The pages a routing index must link for the nav members *items*.
 
-    Raises:
-        MetadataLoadError: If no section resolves (DF-09-009), a section lists
-            nothing but its landing page, or a listed page is unreadable.
+    A member page is itself; a member group that opens with an index is that
+    index; a member group without one contributes each of its leaves. External
+    URLs are not pages and are skipped.
     """
-    docs_dir = root / "docs"
-    nav = mkdocs_config(root).get("nav")
-    pages: list[LandingPage] = []
-    for item in nav if isinstance(nav, list) else []:
+    pages: list[str] = []
+    for item in items:
         _label, value = _split_item(item)
-        if not isinstance(value, list):
-            continue
+        if isinstance(value, str):
+            if not _is_url(value):
+                pages.append(value)
+        elif isinstance(value, list):
+            landing = _group_landing(value)
+            if landing is not None:
+                pages.append(landing)
+            else:
+                pages.extend(_member_pages(value))
+    return pages
+
+
+def _contents_of(facts: _PageFacts, landing: str) -> Contents:
+    """The declared shape of a group-opening index, or a fault naming it."""
+    permitted = ", ".join(member.value for member in Contents)
+    if facts.contents is None:
+        raise MetadataLoadError(
+            f"opens a mkdocs.yml nav group but declares no `{CONTENTS_KEY}:`; "
+            f"declare one of {permitted} so the decision is recorded "
+            "(DF-11-005, #3617)",
+            path=f"docs/{landing}",
+        )
+    try:
+        return Contents(facts.contents)
+    except ValueError:
+        raise MetadataLoadError(
+            f"declares `{CONTENTS_KEY}: {facts.contents}`; permitted values "
+            f"are {permitted} (DF-11-005)",
+            path=f"docs/{landing}",
+        ) from None
+
+
+class _Walk:
+    """One pass over the nav, collecting each group-opening index by shape."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self.docs_dir = root / "docs"
+        self.generated: list[LandingPage] = []
+        self.routing: list[RoutingPage] = []
+        self.rendered: list[str] = []
+        self._orphans: dict[str, list[str]] | None = None
+
+    def _orphan_siblings(self, landing: str) -> list[str]:
+        """Reader pages beside *landing* that the nav does not carry.
+
+        These are the leaves a routing page exists to reach (DF-11-006).
+        Fragments are not pages and the working record is routed from its own
+        door (DF-11-003), so neither is required.
+        """
+        if self._orphans is None:
+            tree = classify_docs_tree(self.root)
+            by_dir: dict[str, list[str]] = {}
+            for page in tree.pages:
+                if page in tree.navved or is_working_record(page):
+                    continue
+                if posixpath.basename(page) == _INDEX_NAME:
+                    continue
+                by_dir.setdefault(posixpath.dirname(page), []).append(page)
+            self._orphans = by_dir
+        return self._orphans.get(posixpath.dirname(landing), [])
+
+    def visit(self, items: list[object]) -> None:
+        for item in items:
+            _label, value = _split_item(item)
+            if isinstance(value, list):
+                self._group(value)
+            elif (
+                isinstance(value, str)
+                and not _is_url(value)
+                and posixpath.basename(value) == _INDEX_NAME
+            ):
+                self._leaf_index(value)
+
+    def _leaf_index(self, landing: str) -> None:
+        """An ``index.md`` the nav carries as a leaf, not as a group opener.
+
+        It is a section index only if it says so, or if its directory holds
+        reader pages the nav omits: then it is the routing page those pages
+        are reached through (DF-11-006) and must declare that, so a leaf set
+        cannot be left with an unaccountable door.
+        """
+        facts = _page_facts(self.docs_dir, landing, self.root)
+        orphans = self._orphan_siblings(landing)
+        if facts.contents is None:
+            if orphans:
+                raise MetadataLoadError(
+                    f"is the only nav entry for its directory, which holds "
+                    f"{len(orphans)} reader page(s) the nav omits "
+                    f"({', '.join(orphans)}), but declares no "
+                    f"`{CONTENTS_KEY}:`; declare `{CONTENTS_KEY}: "
+                    f"{Contents.ROUTING.value}` and link each of them "
+                    "(DF-11-005, DF-11-006)",
+                    path=f"docs/{landing}",
+                )
+            return
+        self._decided(landing, facts, [])
+
+    def _group(self, value: list[object]) -> None:
         landing = _group_landing(value)
         if landing is None:
-            continue
-        members = value[1:]
-        if not members:
-            raise MetadataLoadError(
-                f"the nav section opening with {landing} lists nothing else, "
-                "so its landing page would enumerate an empty section",
-                path="mkdocs.yml",
+            self.visit(value)
+            return
+        facts = _page_facts(self.docs_dir, landing, self.root)
+        self._decided(landing, facts, value[1:])
+        self.visit(value[1:])
+
+    def _decided(
+        self, landing: str, facts: _PageFacts, members: list[object]
+    ) -> None:
+        """File *landing* under its declared shape, given its nav *members*."""
+        shape = _contents_of(facts, landing)
+        if shape is Contents.GENERATED:
+            if not members:
+                raise MetadataLoadError(
+                    f"the nav group opening with {landing} lists nothing "
+                    "else, so its landing page would enumerate an empty "
+                    "section",
+                    path="mkdocs.yml",
+                )
+            entries = sort_entries(
+                [_entry(i, self.docs_dir, self.root) for i in members]
             )
-        entries = sort_entries([_entry(i, docs_dir, root) for i in members])
-        pages.append(LandingPage(path=landing, entries=entries))
-    if not pages:
+            self.generated.append(LandingPage(path=landing, entries=entries))
+        elif shape is Contents.ROUTING:
+            required = dict.fromkeys(
+                [*_member_pages(members), *self._orphan_siblings(landing)]
+            )
+            self.routing.append(
+                RoutingPage(path=landing, required=tuple(required))
+            )
+        else:
+            self.rendered.append(landing)
+
+
+def discover_section_indexes(root: Path) -> SectionIndexes:
+    """Return every section index in the nav, at any depth, by declared shape.
+
+    A section index is an ``index.md`` that opens a nav group, or one the nav
+    carries as a leaf that declares a shape or is the door to reader pages
+    the nav omits.
+
+    Raises:
+        MetadataLoadError: If a section index declares no ``contents:`` or an
+            unknown one, no generated page resolves (DF-09-009), a generated
+            section lists nothing but its landing page, or a listed page is
+            unreadable or empty.
+    """
+    nav = mkdocs_config(root).get("nav")
+    walk = _Walk(root)
+    walk.visit(nav if isinstance(nav, list) else [])
+    if not walk.generated:
         raise MetadataLoadError(
             "resolved no section landing pages from the nav; an empty target "
             "set is a failure, not a pass (DF-09-009)",
             path="mkdocs.yml",
         )
-    return tuple(pages)
+    return SectionIndexes(
+        generated=tuple(walk.generated),
+        routing=tuple(walk.routing),
+        rendered=tuple(walk.rendered),
+    )
+
+
+def discover_landing_pages(root: Path) -> tuple[LandingPage, ...]:
+    """Return every nav group index that declares ``contents: generated``.
+
+    Raises:
+        MetadataLoadError: As :func:`discover_section_indexes`.
+    """
+    return discover_section_indexes(root).generated
+
+
+def routing_faults(root: Path, page: RoutingPage) -> list[MetadataLoadError]:
+    """Return one fault per member *page* is required to link but does not.
+
+    Every missing member is reported, not only the first (EH-07-001).
+    """
+    source = (root / "docs" / page.path).read_text(encoding="utf-8")
+    linked = link_targets(page.path, source)
+    return [
+        MetadataLoadError(
+            f"declares `{CONTENTS_KEY}: {Contents.ROUTING.value}` but does not "
+            f"link {member}; a routing page must link every member of its "
+            "section (DF-11-005)",
+            path=f"docs/{page.path}",
+        )
+        for member in page.required
+        if member not in linked
+    ]
 
 
 def _render_entry(entry: Entry, landing: str, depth: int) -> list[str]:

@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer]
 level: 300
+contents: generated
 ---
 
 # Use-Case Behavior
@@ -53,12 +54,16 @@ When a page says a call-out point "defaults to accept", that describes the defau
 
 ## The use cases
 
-| Use case | Trigger name | What the page covers |
-|---|---|---|
-| [Validate report](validate-report.md) | `validate_report` | Deciding that a received report is worth coordinating, and advancing RM to `VALID` |
-| [Prioritize report](prioritize-report.md) | `engage_case`, `defer_case` | Choosing whether to work the case now or park it, and announcing which |
-| [Propose case](propose-case.md) | `create_case` | Asking a case actor service to open and manage a case, and what it does on acceptance |
-| [Embargo lifecycle](embargo-lifecycle.md) | `propose_embargo`, `accept_embargo`, `reject_embargo`, `terminate_embargo` | Negotiating, joining, revising, and ending an embargo |
+Each entry names the trigger endpoint that starts the use case.
+
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+
+- [Validate Report](validate-report.md) — Trigger `validate_report`: deciding that a received report is worth coordinating, and advancing RM to `VALID`.
+- [Prioritize Report](prioritize-report.md) — Triggers `engage_case` and `defer_case`: choosing whether to work the case now or park it, and announcing which.
+- [Propose Case](propose-case.md) — Trigger `create_case`: asking a case actor service to open and manage a case, and what it does on acceptance.
+- [Embargo Lifecycle](embargo-lifecycle.md) — Triggers `propose_embargo`, `accept_embargo`, `reject_embargo`, and `terminate_embargo`: negotiating, joining, revising, and ending an embargo.
+
+<!-- END GENERATED SECTION CONTENTS -->
 
 ---
 

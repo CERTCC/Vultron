@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+description: >
+  Wire activities for the Report Management message types RS, RI, RV, RD, RA, RC, RK, and RE.
 ---
 
 # Report Management (RM) Messages

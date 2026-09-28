@@ -1,8 +1,9 @@
 """Tests for the generated docs-site artifacts (``uv run docs-site``).
 
-Requirements: DF-11-005 (landing pages generated and check gated), DF-11-008
-(the coverage matrix), DF-11-011 (the stakeholder-type fragment), DF-09-009 (an
-empty target set fails), DF-11-004 (a level is never rendered).
+Requirements: DF-11-005 (landing pages generated and check gated; every
+group-opening index declares its shape; routing pages link every member),
+DF-11-008 (the coverage matrix), DF-11-011 (the stakeholder-type fragment),
+DF-09-009 (an empty target set fails), DF-11-004 (a level is never rendered).
 """
 
 from __future__ import annotations
@@ -22,10 +23,13 @@ from vultron.metadata.docs.coverage_matrix import (
 )
 from vultron.metadata.docs.landing_pages import (
     BEGIN_MARKER,
+    CONTENTS_KEY,
     END_MARKER,
     Entry,
     discover_landing_pages,
+    discover_section_indexes,
     render_listing,
+    routing_faults,
     sort_entries,
     splice_listing,
 )
@@ -40,11 +44,24 @@ from vultron.metadata.docs.stakeholder_fragment import (
     FRAGMENT_PATH,
     render_fragment,
 )
-from vultron.metadata.file_loading import MetadataLoadError
+from vultron.metadata.file_loading import MetadataLoadError, MetadataLoadErrors
 
 _LANDING = (
+    f"---\n{CONTENTS_KEY}: generated\n---\n\n"
     "# Guides\n\nHand-written framing.\n\n"
     f"{BEGIN_MARKER}\n\n{END_MARKER}\n\nHand-written see-also.\n"
+)
+
+
+def _index(contents: str | None, body: str = "# Sub\n") -> str:
+    """A group-opening ``index.md`` declaring *contents*, or nothing."""
+    head = f"---\n{CONTENTS_KEY}: {contents}\n---\n\n" if contents else ""
+    return head + body
+
+
+#: A nested generated index: the same markers, one level down.
+_SUB_LANDING = _index(
+    "generated", f"# Sub\n\n{BEGIN_MARKER}\n\n{END_MARKER}\n"
 )
 
 
@@ -217,7 +234,10 @@ class TestLandingPageGeneration:
     def test_group_with_an_index_links_to_it(self, tmp_path):
         files = {
             "docs/guides/index.md": _LANDING,
-            "docs/guides/sub/index.md": _page("Sub", description="Sub d."),
+            "docs/guides/sub/index.md": (
+                f"---\ndescription: Sub d.\n{CONTENTS_KEY}: routing\n---\n\n"
+                "# Sub\n\n[Leaf](leaf.md)\n"
+            ),
             "docs/guides/sub/leaf.md": _page("Leaf"),
         }
         nav: list[object] = [
@@ -321,7 +341,10 @@ class TestProsePreservation:
             f"{BEGIN_MARKER}\n\n", f"{BEGIN_MARKER}\n\n- [Old](old.md)\n"
         )
         result = splice_listing(stale, page)
-        assert result.startswith("# Guides\n\nHand-written framing.\n\n")
+        assert result.startswith(
+            f"---\n{CONTENTS_KEY}: generated\n---\n\n"
+            "# Guides\n\nHand-written framing.\n\n"
+        )
         assert result.endswith(f"{END_MARKER}\n\nHand-written see-also.\n")
         assert "old.md" not in result
         assert "- [A](a.md)" in result
@@ -337,6 +360,250 @@ class TestProsePreservation:
         (page,) = discover_landing_pages(root)
         with pytest.raises(ValueError, match="generated-block begin"):
             splice_listing("# Guides\n\n- [A](a.md)\n", page)
+
+
+@pytest.mark.spec("DF-11-005")
+class TestSectionIndexDecisions:
+    """Every ``index.md`` that opens a nav group declares how it carries its
+    contents; the three shapes are handled as declared (#3617)."""
+
+    def _nested_repo(self, tmp_path, sub_index: str, **extra: str) -> Path:
+        files = {
+            "docs/guides/index.md": _LANDING,
+            "docs/guides/a.md": _page("A"),
+            "docs/guides/sub/index.md": sub_index,
+            "docs/guides/sub/leaf.md": _page("Leaf", description="L."),
+            "docs/guides/sub/other.md": _page("Other"),
+        }
+        files.update(extra)
+        nav: list[object] = [
+            {
+                "Guides": [
+                    "guides/index.md",
+                    "guides/a.md",
+                    {
+                        "Sub": [
+                            "guides/sub/index.md",
+                            "guides/sub/leaf.md",
+                            "guides/sub/other.md",
+                        ]
+                    },
+                ]
+            }
+        ]
+        return _repo(tmp_path, files, nav)
+
+    def test_nested_generated_index_is_a_landing_page(self, tmp_path):
+        root = self._nested_repo(tmp_path, _SUB_LANDING)
+        pages = {p.path: p for p in discover_landing_pages(root)}
+        assert set(pages) == {"guides/index.md", "guides/sub/index.md"}
+        assert render_listing(pages["guides/sub/index.md"]) == (
+            "- [Leaf](leaf.md) — L.\n- [Other](other.md)"
+        )
+
+    def test_undeclared_group_index_names_the_page(self, tmp_path):
+        root = self._nested_repo(tmp_path, _index(None))
+        with pytest.raises(MetadataLoadError) as exc:
+            discover_section_indexes(root)
+        assert exc.value.path == "docs/guides/sub/index.md"
+        assert f"`{CONTENTS_KEY}:`" in str(exc.value)
+        assert "generated, routing, rendered" in str(exc.value)
+
+    def test_unknown_declaration_names_the_page(self, tmp_path):
+        root = self._nested_repo(tmp_path, _index("themed"))
+        with pytest.raises(MetadataLoadError, match="themed") as exc:
+            discover_section_indexes(root)
+        assert exc.value.path == "docs/guides/sub/index.md"
+
+    def test_rendered_index_is_recorded_and_left_alone(self, tmp_path):
+        root = self._nested_repo(tmp_path, _index("rendered"))
+        indexes = discover_section_indexes(root)
+        assert indexes.rendered == ("guides/sub/index.md",)
+        assert [p.path for p in indexes.generated] == ["guides/index.md"]
+        assert indexes.routing == ()
+
+    def test_routing_index_must_link_every_nav_member(self, tmp_path):
+        body = "# Sub\n\nRead [Leaf](leaf.md) first.\n"
+        root = self._nested_repo(tmp_path, _index("routing", body))
+        (page,) = discover_section_indexes(root).routing
+        assert page.required == ("guides/sub/leaf.md", "guides/sub/other.md")
+        (fault,) = routing_faults(root, page)
+        assert fault.path == "docs/guides/sub/index.md"
+        assert "guides/sub/other.md" in str(fault)
+
+    def test_routing_index_linking_every_member_has_no_fault(self, tmp_path):
+        body = "# Sub\n\n[Leaf](leaf.md) then [Other](./other.md#top).\n"
+        root = self._nested_repo(tmp_path, _index("routing", body))
+        (page,) = discover_section_indexes(root).routing
+        assert routing_faults(root, page) == []
+
+    def test_routing_index_reports_every_missing_member(self, tmp_path):
+        root = self._nested_repo(tmp_path, _index("routing"))
+        (page,) = discover_section_indexes(root).routing
+        missing = [str(f) for f in routing_faults(root, page)]
+        assert len(missing) == 2
+
+    def test_routing_index_owns_siblings_the_nav_omits(self, tmp_path):
+        """A leaf kept out of the nav behind its routing page (DF-11-006) is
+        still required, so a page added to the directory without a link is
+        caught; a fragment and the working record are not."""
+        root = self._nested_repo(
+            tmp_path,
+            _index("routing", "# Sub\n\n[Leaf](leaf.md) [Other](other.md)\n"),
+            **{
+                "docs/guides/sub/orphan.md": _page("Orphan"),
+                "docs/guides/sub/_fragment.md": "shared text\n",
+                "docs/guides/sub/host.md": (
+                    "# Host\n\n{% include-markdown './_fragment.md' %}\n"
+                ),
+            },
+        )
+        (page,) = discover_section_indexes(root).routing
+        assert "guides/sub/orphan.md" in page.required
+        assert "guides/sub/host.md" in page.required
+        assert "guides/sub/_fragment.md" not in page.required
+        assert "guides/sub/index.md" not in page.required
+        missing = {
+            str(f).split("link ")[1].split(";")[0]
+            for f in routing_faults(root, page)
+        }
+        assert missing == {"guides/sub/orphan.md", "guides/sub/host.md"}
+
+    def test_routing_index_does_not_own_the_working_record(self, tmp_path):
+        files = {
+            "docs/adr/index.md": _index("routing", "# ADRs\n"),
+            "docs/adr/0001-x.md": _page("X"),
+        }
+        nav: list[object] = [
+            {"Guides": ["guides/index.md", "guides/a.md"]},
+            {"ADRs": ["adr/index.md"]},
+        ]
+        files["docs/guides/index.md"] = _LANDING
+        files["docs/guides/a.md"] = _page("A")
+        root = _repo(tmp_path, files, nav)
+        (page,) = discover_section_indexes(root).routing
+        assert page.required == ()
+
+    def test_routing_member_group_counts_as_its_index(self, tmp_path):
+        files = {
+            "docs/guides/index.md": _index(
+                "routing", "# G\n\n[S](sub/index.md)\n"
+            ),
+            "docs/guides/sub/index.md": _SUB_LANDING,
+            "docs/guides/sub/leaf.md": _page("Leaf"),
+            "docs/guides/loose/x.md": _page("X"),
+            "docs/guides/loose/y.md": _page("Y"),
+        }
+        nav: list[object] = [
+            {
+                "Guides": [
+                    "guides/index.md",
+                    {"Sub": ["guides/sub/index.md", "guides/sub/leaf.md"]},
+                    {"Loose": ["guides/loose/x.md", "guides/loose/y.md"]},
+                    {"Home": "https://example.org/"},
+                ]
+            }
+        ]
+        root = _repo(tmp_path, files, nav)
+        indexes = discover_section_indexes(root)
+        (page,) = indexes.routing
+        assert page.required == (
+            "guides/sub/index.md",
+            "guides/loose/x.md",
+            "guides/loose/y.md",
+        )
+        assert [p.path for p in indexes.generated] == ["guides/sub/index.md"]
+
+    def test_routing_faults_fail_check_and_are_not_written(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        root = self._nested_repo(tmp_path, _index("routing"))
+        monkeypatch.setattr(site_sync, "repo_root", lambda: root)
+        with pytest.raises(MetadataLoadErrors) as exc:
+            site_sync.stale_artifacts(root)
+        assert len(exc.value.failures) == 2
+        with pytest.raises(SystemExit) as run:
+            site_sync.main(["--write"])
+        assert run.value.code == 1
+        err = capsys.readouterr().err
+        assert "routing-page link(s) missing" in err
+        assert "guides/sub/other.md" in err
+        assert (root / "docs/guides/sub/index.md").read_text() == _index(
+            "routing"
+        )
+
+    def test_leaf_index_with_orphan_siblings_must_declare(self, tmp_path):
+        """A nav leaf ``index.md`` whose directory holds pages the nav omits
+        is their door (DF-11-006); leaving it undeclared is a fault."""
+        files = {
+            "docs/guides/index.md": _LANDING,
+            "docs/guides/a.md": _page("A"),
+            "docs/guides/set/index.md": "# Set\n\n[One](one.md)\n",
+            "docs/guides/set/one.md": _page("One"),
+        }
+        nav: list[object] = [
+            {
+                "Guides": [
+                    "guides/index.md",
+                    "guides/a.md",
+                    {"Set": "guides/set/index.md"},
+                ]
+            }
+        ]
+        with pytest.raises(MetadataLoadError, match="nav omits") as exc:
+            discover_section_indexes(_repo(tmp_path, files, nav))
+        assert exc.value.path == "docs/guides/set/index.md"
+        assert "guides/set/one.md" in str(exc.value)
+
+    def test_declared_leaf_index_routes_its_siblings(self, tmp_path):
+        files = {
+            "docs/guides/index.md": _LANDING,
+            "docs/guides/a.md": _page("A"),
+            "docs/guides/set/index.md": _index(
+                "routing", "# Set\n\n[One](one.md)\n"
+            ),
+            "docs/guides/set/one.md": _page("One"),
+            "docs/guides/set/two.md": _page("Two"),
+        }
+        nav: list[object] = [
+            {
+                "Guides": [
+                    "guides/index.md",
+                    "guides/a.md",
+                    {"Set": "guides/set/index.md"},
+                ]
+            }
+        ]
+        root = _repo(tmp_path, files, nav)
+        (page,) = discover_section_indexes(root).routing
+        assert page.required == ("guides/set/one.md", "guides/set/two.md")
+        (fault,) = routing_faults(root, page)
+        assert "guides/set/two.md" in str(fault)
+
+    def test_undeclared_leaf_index_without_orphans_is_a_content_page(
+        self, tmp_path
+    ):
+        files = {
+            "docs/guides/index.md": _LANDING,
+            "docs/guides/essay/index.md": _page("Essay"),
+        }
+        nav: list[object] = [
+            {"Guides": ["guides/index.md", "guides/essay/index.md"]}
+        ]
+        indexes = discover_section_indexes(_repo(tmp_path, files, nav))
+        assert indexes.routing == () and indexes.rendered == ()
+        assert [p.path for p in indexes.generated] == ["guides/index.md"]
+
+    def test_routing_is_never_the_only_shape(self, tmp_path):
+        """A nav whose every group index routes has no generated page, and
+        that is the DF-09-009 empty target set, not a pass."""
+        files = {
+            "docs/guides/index.md": _index("routing", "# G\n\n[A](a.md)\n"),
+            "docs/guides/a.md": _page("A"),
+        }
+        nav: list[object] = [{"Guides": ["guides/index.md", "guides/a.md"]}]
+        with pytest.raises(MetadataLoadError, match="DF-09-009"):
+            discover_section_indexes(_repo(tmp_path, files, nav))
 
 
 # ---------------------------------------------------------------------------
@@ -527,7 +794,7 @@ class TestSiteSync:
     ):
         root = _guides_repo(tmp_path, a=_page("A"))
         (root / "docs/guides/index.md").write_text("")
-        with pytest.raises(FileNotFoundError, match="hand-written prose"):
+        with pytest.raises(MetadataLoadError, match="hand-written prose"):
             site_sync.stale_artifacts(root)
 
     def test_check_exits_nonzero_when_stale(
@@ -559,12 +826,57 @@ class TestSiteSync:
             site_sync.stale_artifacts(repo_root()) == []
         ), "run 'uv run docs-site --write' and commit the result"
 
-    def test_committed_landing_pages_are_the_top_level_sections(self):
-        paths = {p.path for p in discover_landing_pages(repo_root())}
-        assert paths == {
+    def test_committed_generated_pages_are_the_decided_set(self):
+        """The decision table in ``notes/site-information-architecture.md``
+        § "Sub-section index decisions" is what this set pins (#3617)."""
+        indexes = discover_section_indexes(repo_root())
+        assert {p.path for p in indexes.generated} == {
             "tutorials/index.md",
             "topics/index.md",
             "howto/index.md",
             "reference/index.md",
             "research/index.md",
+            "topics/background/index.md",
+            "topics/case_lifecycle/index.md",
+            "topics/process_models/rm/index.md",
+            "topics/process_models/em/index.md",
+            "topics/process_models/cs/index.md",
+            "topics/process_models/model_interactions/index.md",
+            "topics/behavior_logic/use-cases/index.md",
+            "topics/future_work/index.md",
+            "reference/iso_crosswalks/index.md",
+            "reference/formal_protocol/index.md",
+            "reference/messages/index.md",
+            "topics/measuring_cvd/index.md",
+            "topics/other_uses/index.md",
         }
+        assert {p.path for p in indexes.routing} == {
+            "topics/process_models/index.md",
+            "topics/behavior_logic/index.md",
+            "howto/activitypub/index.md",
+            "howto/activitypub/activities/index.md",
+            "reference/specs/index.md",
+        }
+        assert set(indexes.rendered) == {"topics/scenarios/index.md"}
+
+    def test_committed_routing_pages_link_every_member(self):
+        root = repo_root()
+        faults = [
+            str(fault)
+            for page in discover_section_indexes(root).routing
+            for fault in routing_faults(root, page)
+        ]
+        assert faults == []
+
+    def test_the_activity_guides_index_is_required_to_route_its_leaves(self):
+        """The thirteen guides are out of the nav (DF-11-006, #3627), so only
+        the sibling rule makes their routing page accountable for them."""
+        (page,) = [
+            p
+            for p in discover_section_indexes(repo_root()).routing
+            if p.path == "howto/activitypub/activities/index.md"
+        ]
+        assert "howto/activitypub/activities/establish_embargo.md" in (
+            page.required
+        )
+        assert len(page.required) >= 13

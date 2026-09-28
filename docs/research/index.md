@@ -4,6 +4,7 @@ description: >
   disclosure, and where else the model applies.
 stakeholder_type: [process-researcher]
 level: 500
+contents: generated
 ---
 
 # Studying the CVD Process

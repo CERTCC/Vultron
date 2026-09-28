@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [cvd-practitioner]
 level: 300
+description: >
+  Adding Participants to a case under embargo.
 ---
 
 # Adding Participants to an Embargoed Case

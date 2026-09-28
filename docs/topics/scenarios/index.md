@@ -2,6 +2,7 @@
 title: Demo Scenario Narratives
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
+contents: rendered
 ---
 
 # Demo Scenario Narratives

@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 200
+contents: generated
 ---
 
 # Embargo Management Process Model
@@ -118,13 +119,17 @@ The normative PEC states and transitions are [§9 of the Vultron Protocol Specif
 
 ## In this section
 
-- [Embargo Principles](principles.md) — what an embargo is for, and the norms Participants follow while one is in force.
-- [Negotiating Embargoes](negotiating.md) — when an embargo can be proposed, accepted or rejected, and how long it can reasonably last.
-- [Default Embargoes](defaults.md) — how published defaults and the protocol default start an embargo without a negotiation.
-- [Adding Participants to an Embargoed Case](working_with_others.md) — adding Participants to a case under embargo.
-- [Early Termination](early_termination.md) — the events that end an embargo before its agreed time.
-- [Case Splitting and Merging](split_merge.md) — what happens to embargoes when cases are split or merged.
-- [EM Formal Model](formal_model.md) — the EM process as a [deterministic finite automaton](../../../reference/formal_protocol/index.md), with its grammar and every possible history.
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+
+- [Embargo Principles](principles.md) — What an embargo is for, and the norms Participants follow while one is in force.
+- [Default Embargoes](defaults.md) — How published defaults and the protocol default start an embargo without a negotiation.
+- [Negotiating Embargoes](negotiating.md) — When an embargo can be proposed, accepted or rejected, and how long it can reasonably last.
+- [Adding Participants](working_with_others.md) — Adding Participants to a case under embargo.
+- [Early Termination](early_termination.md) — The events that end an embargo before its agreed time.
+- [Case Splits and Merges](split_merge.md) — What happens to embargoes when cases are split or merged.
+- [EM Formal Model](formal_model.md) — The EM process as a formal state machine, with its grammar and every possible history.
+
+<!-- END GENERATED SECTION CONTENTS -->
 
 ## Doing it on the wire
 

@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 200
+contents: generated
 ---
 
 # Vultron Protocol Tutorials

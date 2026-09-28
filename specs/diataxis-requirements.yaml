@@ -617,17 +617,35 @@ groups:
       - ADR-0102
     statement: >-
       Section landing pages that enumerate their section's contents MUST be generated from
-      page frontmatter and gated by a check mode, and MUST NOT be hand-maintained.
+      page frontmatter and gated by a check mode, and MUST NOT be hand-maintained. Every
+      `index.md` that opens a navigation group, or that is the only navigation entry for a
+      directory holding reader pages the navigation omits, MUST declare in its frontmatter
+      which of three shapes it is: `generated`, the enumeration above; `routing`, an index
+      whose links to its members are part of its framing or of a themed grouping that is
+      editorial content, which is exempt from generation and MUST instead be checked to link
+      every member of its section; or `rendered`, an enumeration produced at build time from
+      a registry (DEMOCI-11-009), which is exempt because nothing is committed to drift.
     rationale: >-
       Every section landing page was a hand-written duplicate of the navigation and every
       one had drifted from it — children missing, order disagreeing, and one describing a
       retired taxonomy to readers. The defect class is the duplication, so correcting
       individual omissions does not prevent recurrence. Two existing tools supply the
       pattern: `vultron/metadata/adr/index_gen.py` and `demo-scenarios-sync` (ADR-0098).
+      The two exempt shapes exist because generation fixes an index that under-routes and
+      cannot express an argument or a theme; what a routing page owes instead is
+      completeness, which is derivable and therefore checked — the split DEMOCI-11-007
+      already makes between what is generated and what is checked. The declaration is
+      required rather than defaulted so a sub-section cannot be left undecided by omission.
+      The per-page decisions and their reasons are in `notes/site-information-architecture.md`.
     verification: >-
-      The generator's `--check` mode runs as a pre-commit hook and in CI, failing when a
-      generated landing page differs from what frontmatter implies. Per DF-09-009 the check
-      fails rather than passes when it resolves no targets.
+      The generator's `--check` mode (`uv run docs-site --check`) runs as a pre-commit hook
+      and in CI, failing when a generated landing page differs from what frontmatter
+      implies, when a section index declares no shape or an unknown one, or when a routing
+      index does not link a member of its section — the group's navigation members plus any
+      reader page in its own directory the navigation omits. Per DF-09-009 the check fails
+      rather than passes when it resolves no generated page.
+      `test/metadata/docs/test_site_sync.py` pins the committed set of generated, routing,
+      and rendered indexes.
   - id: DF-11-006
     priority: SHOULD
     kind: process

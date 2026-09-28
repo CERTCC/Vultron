@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+description: >
+  Extending the measure to a case in which every affected vendor and product has its own history.
 ---
 
 # Measuring and Benchmarking MPCVD

@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [process-researcher]
 level: 400
+description: >
+  Formal definitions of zero day and forever day in terms of case states.
 ---
 
 # Improving Definitions of Common Terms

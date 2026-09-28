@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 200
+contents: generated
 ---
 
 # Report Management Process Model
@@ -563,8 +564,13 @@ to *Deferred* to *Closed* in rapid (even immediate) succession.
 
     Participants MUST NOT close cases or reports from the _Valid_ state.
 
-## Where to go next
+## In this section
 
-- [RM Interactions Between CVD Participants](rm_interactions.md) applies this model to common coordination scenarios, from a single Finder and Vendor to multi-party cases.
-- [RM Formal Model](formal_model.md) gives the formal definition of the model, including the state subsets used on the [Model Interactions](../model_interactions/index.md) pages.
-- [Embargo Management Process Model](../em/index.md) describes the process that runs alongside RM when a case is under embargo.
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+
+- [RM Participant Interactions](rm_interactions.md) — The RM model applied to common coordination scenarios, from a single Reporter and Vendor to multi-party cases.
+- [RM Formal Model](formal_model.md) — The formal definition of the RM model, including the state subsets used on the Model Interactions pages.
+
+<!-- END GENERATED SECTION CONTENTS -->
+
+The [Embargo Management Process Model](../em/index.md) describes the process that runs alongside RM when a case is under embargo.

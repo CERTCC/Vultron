@@ -1,6 +1,7 @@
 ---
 stakeholder_type: ALL
 level: 200
+contents: generated
 ---
 
 # Explanation

@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
+description: >
+  The pre-case bootstrap exchange (ADR-0023).
 ---
 
 # Case Proposal Messages

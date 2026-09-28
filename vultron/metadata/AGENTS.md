@@ -81,7 +81,11 @@ hand-written; `demo_scenarios/` regenerates the CI matrix and two scenario
 tables but leaves the spec enumerations and nav to completeness checks. Each is
 wired into pre-commit as a `--check` hook (`adr-index-sync`,
 `demo-scenarios-sync`). A generated file that is committed but ungated is a
-hand-edited file with extra steps.
+hand-edited file with extra steps. `docs/landing_pages.py` (`docs-site-sync`)
+makes the split per page: an `index.md` that opens a nav group declares
+`contents: generated | routing | rendered`, and a routing index is *checked* to
+link every member of its section instead of being written (#3617). Do not add a
+fourth shape or a default — an undeclared group index is a fault on purpose.
 
 One trap specific to build-time rendering: MkDocs rewrites `.md` links with a
 treeprocessor on **its own** `Markdown` instance, and `markdown-exec` converts a

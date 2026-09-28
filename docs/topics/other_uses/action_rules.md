@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [process-researcher]
 level: 400
+description: >
+  Actions a role can take from each subset of states, and the transition each action causes.
 ---
 
 # Recommended Action Rules for CVD
