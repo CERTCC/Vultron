@@ -123,9 +123,9 @@ note is an `add_note_to_case` entry.
 
 ### 9. Vendor develops and ships a fix
 
-The Vendor progresses through the fix lifecycle.  Participant status updates
-reflect the Vendor reaching the fix-ready (VFd) state.  No participant deploys a
-fix in this scenario, so the VFD state stays at VFd.
+The Vendor progresses through the fix lifecycle.
+Participant status updates reflect the Vendor reaching the fix-ready (VFd) state.
+No participant deploys a fix in this scenario, so the VFD state stays at VFd.
 
 *Antecedent:* `engage_case` is in the ledger.
 

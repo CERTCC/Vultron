@@ -111,13 +111,9 @@ recorded.
 
 ### 6. Vendor1 offers case ownership to the Coordinator
 
-Vendor1 decides that the Coordinator is better positioned to manage the case and
-initiates a case-ownership transfer.  The offer is addressed to the **Case
-Actor**, not to the Coordinator (ADR-0053): the Case Actor records it as an
-`offer_case_ownership_transfer` entry, so every participant learns that a
-transfer is on offer, and then forwards an offer of its own to the Coordinator.
-The offer the Coordinator receives is therefore a new activity with its own
-identity.
+Vendor1 decides that the Coordinator is better positioned to manage the case and initiates a case-ownership transfer.
+The offer is addressed to the **Case Actor**, not to the Coordinator (ADR-0053): the Case Actor records it as an `offer_case_ownership_transfer` entry, so every participant learns that a transfer is on offer, and then forwards an offer of its own to the Coordinator.
+The offer the Coordinator receives is therefore a new activity with its own identity.
 
 *Antecedent:* Coordinator's `accept_invite_actor_to_case` entry is in the ledger.
 
@@ -178,7 +174,5 @@ current case owner, commits the final close entry.
 |---|---|
 | Finder submits report to Vendor1 | Report submission precedes the case. |
 
-The ownership offer is not an unobservable step.  The Case Actor records it as
-`offer_case_ownership_transfer` before it forwards the offer, and the
-Coordinator's `accept_case_ownership_transfer` follows it, which is the edge
-declared above.
+The ownership offer is not an unobservable step.
+The Case Actor records it as `offer_case_ownership_transfer` before it forwards the offer, and the Coordinator's `accept_case_ownership_transfer` follows it, which is the edge declared above.

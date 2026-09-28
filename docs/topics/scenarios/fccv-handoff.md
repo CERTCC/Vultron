@@ -120,11 +120,8 @@ C2 joins the case.  An `accept_invite_actor_to_case` entry is recorded.
 
 ### 6. C1 offers case ownership to C2
 
-C1 decides to transfer the case to C2 and initiates the ownership-transfer
-protocol.  The offer is addressed to the **Case Actor**, not to C2 (ADR-0053):
-the Case Actor records it as an `offer_case_ownership_transfer` entry, so every
-participant learns that a transfer is on offer, and then forwards an offer of its
-own to C2.
+C1 decides to transfer the case to C2 and initiates the ownership-transfer protocol.
+The offer is addressed to the **Case Actor**, not to C2 (ADR-0053): the Case Actor records it as an `offer_case_ownership_transfer` entry, so every participant learns that a transfer is on offer, and then forwards an offer of its own to C2.
 
 *Antecedent:* C2's `accept_invite_actor_to_case` entry is in the ledger.
 
@@ -180,6 +177,5 @@ commits the final close entry.
 |---|---|
 | Finder submits report to C1 | Report submission precedes the case. |
 
-The ownership offer is not an unobservable step.  The Case Actor records it as
-`offer_case_ownership_transfer` before it forwards the offer, and C2's
-`accept_case_ownership_transfer` follows it, which is the edge declared above.
+The ownership offer is not an unobservable step.
+The Case Actor records it as `offer_case_ownership_transfer` before it forwards the offer, and C2's `accept_case_ownership_transfer` follows it, which is the edge declared above.

@@ -111,12 +111,11 @@ participant status updates reflect the new VFD state.
 
 ### 7. Vulnerability is publicly disclosed
 
-The Vendor publishes a security advisory.  The Finder also publishes.  These
-publication events advance the CS PXA state to *publicly known* and trigger
-embargo teardown (EM exits ACTIVE).  Each publication notification is recorded
-as a participant status update in the ledger.  No participant deploys a fix in
-this scenario: deployment is a Deployer's step, so the Vendor's VFD state stays
-at fix-ready (VFd).
+The Vendor publishes a security advisory.
+The Finder also publishes.
+These publication events advance the CS PXA state to *publicly known* and trigger embargo teardown (EM exits ACTIVE).
+Each publication notification is recorded as a participant status update in the ledger.
+No participant deploys a fix in this scenario: deployment is a Deployer's step, so the Vendor's VFD state stays at fix-ready (VFd).
 
 *Antecedent:* The fix-ready participant status entry is in the ledger.
 
