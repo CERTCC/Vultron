@@ -7,7 +7,7 @@ stakeholder_type: [project-contributor]
 This document maps user stories from `docs/reference/user_stories/` to formal
 requirements in `specs/`. It is a **traceability reference**, not a
 requirements document. User stories capture stakeholder intent; the
-requirements in `specs/` specify system behaviour.
+requirements in `specs/` specify system behavior.
 
 Stories are grouped by theme. Each story entry lists the mapped spec
 requirements with a brief traceability note. Stories with no clear mapping
@@ -42,7 +42,7 @@ Source specifications: `specs/*.yaml`
 | [3. Embargo Management](#3-embargo-management) | ~393 | 031–050 | Embargo proposals, negotiation, termination |
 | [4. Case Management and Participant Roles](#4-case-management-and-participant-roles) | ~576 | 051–080 | Case creation, participants, coordinators, roles |
 | [5. Actor Identity, Privacy, and Security](#5-actor-identity-privacy-and-security) | ~1013 | 081–090 | Actor registration, identity, privacy constraints |
-| [6. Communication and Messaging](#6-communication-and-messaging) | ~1216 | 091–100 | Inbox/outbox, notifications, acknowledgements |
+| [6. Communication and Messaging](#6-communication-and-messaging) | ~1216 | 091–100 | Inbox/outbox, notifications, acknowledgments |
 | [7. Publication and Disclosure](#7-publication-and-disclosure) | ~1457 | 101–106 | Coordinated publication, advisories, disclosure timing |
 | [8. Bug Bounty and Incentives](#8-bug-bounty-and-incentives) | ~1708 | 107–109 | Bug bounty programs and incentives |
 | [9. Prioritization, Assessment, and Fix Verification](#9-prioritization-assessment-and-fix-verification) | ~1763 | 110–111 | SSVC scoring, fix readiness |

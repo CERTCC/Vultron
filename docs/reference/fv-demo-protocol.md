@@ -36,7 +36,7 @@ The Vendor's container hosts it as a second actor record with its own inbox, bec
 The dedicated `case-actor` container in the compose file takes no part in this scenario, and the demo runner asserts at the end of Phase 2 that it holds no case data.
 
 The Finder is not a protocol role.
-The actor labelled Finder holds `REPORTER`, the role of whoever submits the report ([ADR-0078](../adr/0078-retire-finder-role.md)).
+The actor labeled Finder holds `REPORTER`, the role of whoever submits the report ([ADR-0078](../adr/0078-retire-finder-role.md)).
 
 ---
 

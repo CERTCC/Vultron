@@ -55,7 +55,7 @@ Read the object and the context before treating a `Reject` as an error.
     Treating every `Reject` as a fault turns each legitimate refusal into a false alarm.
 
 A `Reject(CaseLedgerEntry)` is a third thing again: it is the ledger negative acknowledgment, and it asks the CASE_MANAGER to replay a missing prefix rather than reporting a fault.
-See [Faults and Acknowledgements](../../../reference/messages/faults_and_acknowledgements.md).
+See [Faults and Acknowledgments](../../../reference/messages/faults_and_acknowledgements.md).
 
 ---
 
@@ -68,7 +68,7 @@ A fault report is not a state transition.
 
 ## Further reading
 
-- [Faults and Acknowledgements](../../../reference/messages/faults_and_acknowledgements.md) — the wire format for each mechanism, and why the formal `RE`, `EE`, `CE`, and `GE` shorthands have no dedicated wire activity
+- [Faults and Acknowledgments](../../../reference/messages/faults_and_acknowledgements.md) — the wire format for each mechanism, and why the formal `RE`, `EE`, `CE`, and `GE` shorthands have no dedicated wire activity
 - [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why the implementation partitions faults by failure mode rather than by state machine
 - [Message Types](../../../reference/formal_protocol/messages.md) — the formal error shorthands these mechanisms realize
 

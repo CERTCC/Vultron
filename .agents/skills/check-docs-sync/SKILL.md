@@ -87,6 +87,13 @@ For each small update:
    fixes mechanical style findings in place, and any finding it reports must be
    resolved before proceeding. If it escalates a quadrant misclassification,
    act on the recommendation it gives or hand the page to `write-docs`.
+   The gate is satisfied only by a report that names a **non-empty target
+   set**. If `lint-docs` reports `no lintable targets resolved`, or its target
+   count is zero, the gate is **not satisfied** — treat it as a failure, check
+   the paths you passed (an `_*.md` include fragment is a valid target; a
+   generated page is not), and re-run. A gate that resolved nothing and passed
+   is how an American-spelling regression reached `main` (DF-09-009,
+   ADR-0092).
 3. Invoke `format-markdown` to lint the updated file before building.
 4. Invoke `build-docs` to validate the build passes. It runs
    `.github/scripts/mkdocs-build-strict.sh`, which is the canonical docs gate.
@@ -148,7 +155,8 @@ Return a summary of what was done:
 
 - Only update `docs/` — do not modify code, tests, or `specs/`.
 - Always invoke `lint-docs` and then `build-docs` after each inline `docs/`
-  update; do not skip either. `lint-docs` is a blocking gate (DF-09-001).
+  update; do not skip either. `lint-docs` is a blocking gate (DF-09-001), and a
+  run that resolved zero targets does not satisfy it (DF-09-009).
 - Small updates MUST be applied in the same PR, not deferred (PD-03-007).
 - Offer `write-docs` before filing a Concern for a large update. Deferring
   without offering the inline path first inverts PD-03-007's preference.

@@ -91,7 +91,7 @@ Therefore, the RM message types are primarily used to inform other Participants 
 | $RD$         | Report/Case Deferred | A message indicating the Participant is deferring further action; a case-participation decision (`Ignore(VulnerabilityCase)`). |
 | $RA$         | Report/Case Accepted | A message indicating the Participant has accepted the report for further action; a case-participation decision (`Join(VulnerabilityCase)`). |
 | $RC$         | Report Closed | A message indicating the Participant has closed the report.                            |
-| $RK$         | Report Acknowledgement | A message acknowledging the receipt of any RM message listed above.           |
+| $RK$         | Report Acknowledgment | A message acknowledging the receipt of any RM message listed above.           |
 | $RE$         | Report Error | A message indicating a Participant received an unexpected RM message.                  |
 
 A summary of the RM message types is shown below.
@@ -141,7 +141,7 @@ Therefore, the message types below are those a Participant SHOULD emit when thei
 | $EJ$         | Embargo Revision Rejection | A message indicating the Participant has rejected a proposed embargo revision.                                                                                                          |
 | $EC$         | Embargo Revision Acceptance | A message indicating the Participant has accepted a proposed embargo revision.                                                                                                          |
 | $ET$         | Embargo Termination | A message indicating the Participant has terminated an embargo (including the reason for termination). Note that an *Embargo Termination* message is intended to have immediate effect. |
-| $EK$         | Embargo Acknowledgement | A message acknowledging receipt of any of the above EM message types.                                                                                                                   |
+| $EK$         | Embargo Acknowledgment | A message acknowledging receipt of any of the above EM message types.                                                                                                                   |
 | $EE$         | Embargo Error | A message indicating a Participant received an unexpected EM message.                                                                                                                   |
 
 !!! note ""
@@ -167,7 +167,7 @@ changes:
 | $CP$         | Public Awareness | A message from a Participant indicating that they have evidence that the vulnerability is known to the public. This message might be sent after a Participant has published their own advisory or if they have observed public discussion of the vulnerability.                  |
 | $CX$         | Exploit Public | A message from a Participant indicating that they have evidence that an exploit for the vulnerability is publicly available. This message might be sent after a Participant has published their own exploit code, or if they have observed exploit code available to the public. |
 | $CA$         | Attacks Observed | A message from a Participant indicating that they have evidence that attackers are exploiting the vulnerability in attacks.                                                                                                                                                      |
-| $CK$         | CS Acknowledgement | A message acknowledging receipt of any of the above CS message types.                                                                                                                                                                                                            |
+| $CK$         | CS Acknowledgment | A message acknowledging receipt of any of the above CS message types.                                                                                                                                                                                                            |
 | $CE$         | CS Error | A message indicating a Participant received an unexpected CS message.                                                                                                                                                                                                            |
 
 !!! note ""
@@ -190,7 +190,7 @@ be sent).
 | Message Type | Name | Description                                                                                                 |
 |:------------:| --- |-------------------------------------------------------------------------------------------------------------|
 | $GI$         | General Inquiry | A message from a Participant to one or more other Participants to communicate non-state-change information. |
-| $GK$         | General Acknowledgement | A message from a Participant indicating their receipt of a GI message.            |
+| $GK$         | General Acknowledgment | A message from a Participant indicating their receipt of a GI message.            |
 | $GE$         | General Error | A message indicating a general error has occurred.                                                          |
 
 Examples of general inquiry messages include but are not limited to
@@ -222,7 +222,7 @@ For convenience, these are collected into the table below.
 | RM | $RD$ | Report/Case Deferred | $\{V,A\} \xrightarrow{d} D$ |
 | RM | $RA$ | Report/Case Accepted | $\{V,D\} \xrightarrow{a} A$ |
 | RM | $RC$ | Report Closed | $\{I,D,A\} \xrightarrow{c} C$ |
-| RM | $RK$ | Report Acknowledgement | any valid RM message |
+| RM | $RK$ | Report Acknowledgment | any valid RM message |
 | RM | $RE$ | Report Error | any unexpected RM message |
 | EM | $EP$ | Embargo Proposal | $\{N,P\} \xrightarrow{p} P$ |
 | EM | $ER$ | Embargo Proposal Rejection | $P \xrightarrow{r} N$ |
@@ -231,7 +231,7 @@ For convenience, these are collected into the table below.
 | EM | $EJ$ | Embargo Revision Rejection | $R \xrightarrow{r} A$ |
 | EM | $EC$ | Embargo Revision Acceptance | $R \xrightarrow{a} A$ |
 | EM | $ET$ | Embargo Termination | $\{A,R\} \xrightarrow{t} X$ |
-| EM | $EK$ | Embargo Acknowledgement | any valid EM message |
+| EM | $EK$ | Embargo Acknowledgment | any valid EM message |
 | EM | $EE$ | Embargo Error | any unexpected EM message |
 | CS | $CV$ | Vendor Awareness | $vfd \cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd \cdot\cdot\cdot$ |
 | CS | $CF$ | Fix Readiness | $Vfd \cdot\cdot\cdot \xrightarrow{\mathbf{F}} VFd \cdot\cdot\cdot$ |
@@ -239,10 +239,10 @@ For convenience, these are collected into the table below.
 | CS | $CP$ | Public Awareness | $\cdot\cdot\cdot p \cdot\cdot \xrightarrow{\mathbf{P}} \cdot\cdot\cdot P \cdot\cdot$ |
 | CS | $CX$ | Exploit Public | $\cdot\cdot\cdot\cdot x \cdot \xrightarrow{\mathbf{X}} \cdot\cdot\cdot\cdot X \cdot$ |
 | CS | $CA$ | Attacks Observed | $\cdot\cdot\cdot\cdot\cdot a \xrightarrow{\mathbf{A}} \cdot\cdot\cdot\cdot\cdot A$ |
-| CS | $CK$ | CS Acknowledgement | any valid CS message |
+| CS | $CK$ | CS Acknowledgment | any valid CS message |
 | CS | $CE$ | CS Error | any unexpected CS message |
 | *| $GI$ | General Inquiry | any time |
-|* | $GK$ | General Acknowledgement | any valid GI message |
+|* | $GK$ | General Acknowledgment | any valid GI message |
 | * | $GE$ | General Error | any unexpected GI message |
 
 !!! note "Message Types Formally Defined"
@@ -270,24 +270,24 @@ See [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md) fo
 
 !!! note "Error shorthands have no direct wire counterpart"
 
-    $RE$, $EE$, $CE$, and $GE$ are not realised as distinct AS2 activity types.
+    $RE$, $EE$, $CE$, and $GE$ are not realized as distinct AS2 activity types.
     Fault reporting is instead partitioned by **failure mode**: `Create(ProcessingFault)`
     for a message that was not understood, `as:Reject` for one that was understood but
     declined, and `Create(Note)` for a condition requiring narrative explanation.
     See [How to Report a Protocol Fault](../../howto/activitypub/activities/error.md) and
     `specs/message-semantics-mapping.yaml` MSM-05.
 
-!!! note "Acknowledgement shorthands have no direct wire counterpart"
+!!! note "Acknowledgment shorthands have no direct wire counterpart"
 
     $EK$, $CK$, and $GK$ have no per-message wire equivalents for ledger-replicated
-    state. Acknowledgement is instead **cumulative and implicit** via hash-chain
+    state. Acknowledgment is instead **cumulative and implicit** via hash-chain
     continuity: a receiver whose `prev_log_hash` matches its local ledger tail says
-    nothing — the match *is* the acknowledgement. On a mismatch the receiver emits
+    nothing — the match *is* the acknowledgment. On a mismatch the receiver emits
     `Reject(CaseLedgerEntry)`, whereupon the CASE_MANAGER replays all entries after the
-    last accepted hash (negative acknowledgement with gap-fill replay).
+    last accepted hash (negative acknowledgment with gap-fill replay).
 
     $RK$ remains a real wire activity (`Read(Offer(VulnerabilityReport))`) because
     report submission is not ledger-replicated.
 
-    See [Faults and Acknowledgements](../messages/faults_and_acknowledgements.md) and
+    See [Faults and Acknowledgments](../messages/faults_and_acknowledgements.md) and
     `specs/message-semantics-mapping.yaml` MSM-05-002.

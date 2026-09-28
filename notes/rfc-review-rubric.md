@@ -7,6 +7,9 @@ description: >
 status: active
 related_specs:
   - specs/docs-build-workflow.yaml
+  - specs/diataxis-requirements.yaml
+related_notes:
+  - notes/documentation-strategy.md
 ---
 
 # RFC Review Rubric
@@ -343,24 +346,15 @@ Items moved here are no longer checked manually; the mechanism is noted.
 | Markdown lint (heading format, list style) | `markdownlint-cli2` pre-commit hook | pre-existing |
 | MkDocs build with zero warnings | `mkdocs build --strict` in `docs-build-check.yml` and `deploy_site.yml` (DOCBW-03-009, DOCBW-03-010) | #3051 |
 | Broken `§N.M` heading anchors | `mkdocs.yml` `validation.links.anchors: warn` + strict build | pre-existing |
+| American spelling (SG-37) in every `docs/` file, fragments included | `codespell` pre-commit hook (`--write-changes`, `files: ^docs/.*\.md$`), dictionary and exclusions in `[tool.codespell]` in `pyproject.toml` | #3318 |
+| Style-guide rules over this document's `_*.md` fragments | `lint-docs` § "Fragments and assembly units": sentence- and block-scoped rules against each fragment with its own line numbers; page-scoped rules (acronym first use, concept order, H1) against `index.md` as assembled (DF-09-007, [ADR-0092](../docs/adr/0092-lint-fragments-as-source-page-rules-on-rendered-page.md)); an empty target set is a failure (DF-09-009) | #3318 |
 
-!!! warning "`lint-docs` does not cover this document yet — tracked as #3318"
-    `lint-docs` drops files matching `not_in_nav`'s generated patterns, which
-    includes `_*.md`. All fragments of this specification are therefore outside
-    the linter's default target set, so every style-guide rule in §1–§2 above is
-    checked by review only — including the mechanical ones a linter is best at
-    (spelling, filler, acronym expansion, voice).
-
-    This is not hypothetical: an American-spelling regression was introduced
-    during the PR #3265 review round and survived `markdownlint`, `mdlint.sh` and
-    a clean strict build.
-
-    The covering mechanism is decided but not yet built: fragments are to be
-    linted as source for per-sentence and per-block rules, with page-scoped rules
-    evaluated against the assembling page (DF-09-007, [ADR-0092](../docs/adr/0092-lint-fragments-as-source-page-rules-on-rendered-page.md)),
-    and `codespell` as the mechanical floor for spelling (SG-37). Until #3318
-    lands, treat the `[M]` items in §1–§2 as `[J]` for this document and check
-    them by reading.
+Retired item, kept per this rubric's own rule: this document was outside
+`lint-docs`' target set until #3318, because the linter read the `_` nav-exclusion
+prefix as "not a page" and dropped every fragment. An American-spelling
+regression reached `main` through that gap during the PR #3265 review round. The
+two rows above are the covering mechanism; the `[M]` items in §1–§2 are
+mechanical for this document again.
 
 ---
 
@@ -371,3 +365,4 @@ Items moved here are no longer checked manually; the mechanism is noted.
 | 2026-09-16 | Initial rubric created from review of PR #3265 | Review of draft RFC commit d4572cee7 |
 | 2026-09-16 | Added §8 Readability and Concept Flow, §9 Content Modularity, §10 Concept Lifecycle Coverage; extended §2 (Observer dual-use, track/drive definition), §4 (OQ fragment consistency), §5 (nav-note accuracy) — 24 additional gap items from top-to-bottom sequential audit of assembled spec | PR #3265 review comment |
 | 2026-09-16 | Added §11 Round-2 Finding Classes (9 items) and two Mechanized entries; noted that `lint-docs` skips this document's fragments. Corrected §10: "Bug Bounty Operator" is not a role anywhere in the glossary, specs, notes or code — only the *Bug Bounty Platform* named configuration exists | Second review round of PR #3265 |
+| 2026-09-28 | Retired the "`lint-docs` does not cover this document" warning: fragments are linted as source, page-scoped rules go to the assembled `index.md`, and `codespell` is the SG-37 floor. Two Mechanized rows added; the `[M]`-treated-as-`[J]` instruction removed | #3318 |

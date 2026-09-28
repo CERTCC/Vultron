@@ -3,11 +3,11 @@ stakeholder_type: [platform-developer, project-contributor]
 level: 400
 ---
 
-# Faults and Acknowledgements
+# Faults and Acknowledgments
 
-The formal Vultron protocol defines per-state-machine error and acknowledgement
+The formal Vultron protocol defines per-state-machine error and acknowledgment
 shorthands (`RE`/`EE`/`CE`/`GE` for faults; `RK`/`EK`/`CK`/`GK` for
-acknowledgements). In the AS2 wire vocabulary, both concerns are served by
+acknowledgments). In the AS2 wire vocabulary, both concerns are served by
 mechanisms partitioned on **different axes** from the formal set. Neither is
 unimplemented; both are shaped differently.
 
@@ -45,17 +45,17 @@ it is the ledger NAK described below — not an ordinary refusal (MSM-05-003).
 
 ---
 
-## Acknowledgement
+## Acknowledgment
 
-The formal set defines per-message positive acknowledgements keyed by state
+The formal set defines per-message positive acknowledgments keyed by state
 machine: `RK` (RM), `EK` (EM), `CK` (CS), `GK` (General). The AS2
 vocabulary splits them into two mechanisms.
 
 ### RK — a real wire activity
 
-`RK` (Report Acknowledgement) is realized as `Read(Offer(VulnerabilityReport))`
+`RK` (Report Acknowledgment) is realized as `Read(Offer(VulnerabilityReport))`
 (`MessageSemantics.ACK_REPORT`). Report submission is not ledger-replicated, so
-an explicit per-message acknowledgement is the correct mechanism here.
+an explicit per-message acknowledgment is the correct mechanism here.
 
 Status: **direct** mapping — see MSM-01-008.
 
@@ -66,14 +66,14 @@ state is acknowledged **cumulatively and implicitly** via hash-chain continuity:
 
 - A participant receiving `Announce(CaseLedgerEntry)` whose `prev_log_hash`
   matches its local ledger tail says **nothing** — the match *is* the
-  acknowledgement.
+  acknowledgment.
 - On a mismatch the participant emits `Reject(CaseLedgerEntry)`, whereupon the
   CASE_MANAGER replays all entries after the last accepted hash
   (`RejectLedgerEntryReceivedUseCase`,
   `vultron/core/use_cases/received/sync.py`).
 
-This is negative acknowledgement with gap-fill replay — structurally closer to
-TCP cumulative ACK/SACK than to per-message positive acknowledgement. A matching
+This is negative acknowledgment with gap-fill replay — structurally closer to
+TCP cumulative ACK/SACK than to per-message positive acknowledgment. A matching
 hash proves receipt of the *entire* log prefix, not only one message.
 
 Status: **evolved** — see MSM-05-002.
@@ -101,7 +101,7 @@ independent of the replay rate limit.
   for `reject_case_ledger_entry` (SYNC mechanism and ledger NAK, MSM-05-002)
   and `close_report` (ordinary `as:Reject` on the fault axis, MSM-05-003).
 - [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md) — why
-  faults are partitioned by failure mode and acknowledgement moved to the hash
+  faults are partitioned by failure mode and acknowledgment moved to the hash
   chain.
 - [How to Report a Protocol Fault](../../howto/activitypub/activities/error.md) — how-to guide
   for fault activities.

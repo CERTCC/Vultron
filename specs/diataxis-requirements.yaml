@@ -482,8 +482,9 @@ groups:
       Copied prose drifts silently: one copy is updated, the other is not, and both pass lint
       because neither is wrong by itself. DRY is already a project standard (CS-22-001) and the
       tree already assembles pages from fragments, so this names the existing mechanism as the
-      required one. Extraction moves prose out of `lint-docs`' target set until #3318 lands,
-      raising rather than lowering the DF-10-001 obligation. Placement and include-path mechanics:
+      required one. An extracted fragment stays in `lint-docs`' target set for sentence- and
+      block-scoped rules (DF-09-007), but the claims it carries are still verified at the moment
+      of the move (DF-10-001). Placement and include-path mechanics:
       `notes/documentation-sweeps.md`.
     verification: >-
       Inspection confirms that content appearing on more than one page either (a) uses

@@ -112,7 +112,7 @@ malformed message.
 Building an implementation that passes this test requires constructing
 activities with full objects at the point of creation, not after the fact.
 The failure mode — a bare URI where an object is expected — is silent in
-many frameworks: the activity serialises, is transmitted, and arrives
+many frameworks: the activity serializes, is transmitted, and arrives
 looking syntactically valid. The failure only appears when the recipient
 tries to act on it.
 
