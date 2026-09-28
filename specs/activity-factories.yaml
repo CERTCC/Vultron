@@ -46,7 +46,7 @@ groups:
     statement: When a factory parameter represents a domain entity whose fields determine how the wire object is enriched
       (e.g. a case whose embargo state determines whether `activeEmbargo` appears in the stub), the factory MUST accept that
       entity already projected into its complete wire counterpart and MUST derive the enrichment from that wire object's own
-      fields. The core→wire projection MUST be delegated to the adapter-side translator (ARCH-12-005) and performed before
+      fields. The core→wire projection MUST be performed by the rendering port (ARCH-20-001) before
       the factory is called; factories MUST NOT import a core domain type or perform the projection themselves. Callers MUST
       NOT hand a factory a hand-built *partial* wire object (e.g. an `as_VulnerabilityCaseStub` assembled field-by-field) — an
       incompletely projected argument risks omitting fields the translator would have included (e.g. `end_time` on an embargo
@@ -61,10 +61,6 @@ groups:
       wire→core ratchet test), and each factory that enriches from a domain entity reads only fields of the wire object it
       was handed.
     relationships:
-    - rel_type: depends_on
-      spec_id: ARCH-12-005
-      note: ARCH-12-005 names the adapter-side translator as the sole owner of core→wire projection, which this requirement
-        delegates to.
     - rel_type: implements
       spec_id: ARCH-22-001
     adr:

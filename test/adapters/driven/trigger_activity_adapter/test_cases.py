@@ -351,7 +351,7 @@ class TestToWireObject:
         """
         assert _to_wire_object(core_obj, core_obj.id_) is core_obj
 
-    @pytest.mark.spec("ARCH-23-001")
+    @pytest.mark.spec("ARCH-23-002")
     def test_package_does_not_resolve_a_wire_counterpart(self):
         """No module in the package names a type registry or its lookups.
 
