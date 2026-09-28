@@ -39,12 +39,53 @@ groups:
     priority: MUST
     kind: protocol
     statement: The endpoint MUST reject non-POST requests with HTTP 405
+    rationale: >-
+      The inbox is a delivery target, not a mailbox other actors may read: ActivityPub
+      grants an inbox read only to the actor's own authenticated owner, and Vultron
+      has no authentication, so a GET here would open another actor's mail. The 405
+      covers both trailing-slash forms, and it does not fall out of having no GET
+      route: the profile route is a path catch-all (`/{actor_id:path}`) that answers
+      404 to an unrouted GET, so the inbox path needs its own method refusal declared
+      ahead of it.
     verification: >-
-      Integration tests in `test/demo/` confirm that GET, PUT, DELETE, and PATCH
-      requests to the inbox endpoint return HTTP 405.
+      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that GET, PUT,
+      PATCH, and DELETE on the inbox path each return HTTP 405, for both
+      trailing-slash forms (`/inbox` and `/inbox/`).
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001
+    lint_suppress:
+    - missing_story_reference
+  - id: IE-02-004
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      The inbox path MUST NOT expose an actor's received activities, as a collection
+      or as a list of ids. What an actor has received is an operator question,
+      answered by the datalayer router (`/actors/{id}/datalayer/...`) over the
+      actor's own store; a sender learns the disposition of what it posted from the
+      reply activities delivered to its own inbox, never by reading the recipient's.
+    rationale: >-
+      Ingress already stores the received activity under its type, so refusing a read
+      loses nothing. The DataLayer `inbox` queue holds only deferred or re-queued
+      deliveries (bootstrap replay, retries) and is drained as they are processed: a
+      processing queue, not a record of receipt. The core actor's
+      `inbox` is a URI string (ARCH-12-006), so no receipt bookkeeping may hang off
+      the actor record. A stub read over the drained queue reported an empty inbox
+      after each successful delivery (#3141).
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/routers/actors/` confirms no
+      GET route on the inbox path, an explicit method refusal on that path ahead of
+      the `/{actor_id:path}` profile catch-all, and no receipt bookkeeping on the
+      actor record; `test/adapters/driving/fastapi/routers/test_actors.py` confirms
+      the 405 for both trailing-slash forms.
+    relationships:
+    - rel_type: depends_on
+      spec_id: IE-02-003
+    - rel_type: depends_on
+      spec_id: ARCH-12-006
+    - rel_type: depends_on
+      spec_id: DL-07-001
     lint_suppress:
     - missing_story_reference
 - id: IE-03
@@ -222,10 +263,28 @@ groups:
   - id: IE-10-001
     priority: SHOULD
     kind: protocol
-    statement: The endpoint SHOULD implement early duplicate detection at HTTP layer
+    statement: >-
+      The endpoint SHOULD detect a redelivered activity early, at ingress storage:
+      when the activity id is already held in the receiving actor's store, the stored
+      copy is routed and the redelivered body is not re-stored.
+    rationale: >-
+      Ingress storage is the first point at which the receiver holds durable evidence
+      of a prior delivery, so the HTTP adapter realises the early filtering ID-05-002
+      permits there, in the background task rather than the route handler. An earlier
+      route-level check keyed on the actor record's inbox collection was a no-op in
+      production, because the core actor's `inbox` is a URI string (ARCH-12-006); it
+      gave the appearance of early duplicate detection without providing any (#3141).
+    verification: >-
+      `vultron/adapters/driving/fastapi/inbox_storage.py` reports whether ingress
+      wrote the activity or found the id already held, and
+      `vultron/adapters/driving/fastapi/inbox_orchestration.py` routes the stored
+      copy in the latter case. No duplicate check keyed on the actor record exists
+      in `vultron/adapters/driving/fastapi/routers/actors/`.
     relationships:
     - rel_type: depends_on
       spec_id: ID-05-002
+    lint_suppress:
+    - missing_story_reference
 - id: IE-11
   title: Activity Addressing
   specs:
