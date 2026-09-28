@@ -216,8 +216,14 @@ routing pages carry leaves"; ADR-0102, DF-11).
 confirm it.** The recipe:
 
 1. **Section** — the Diátaxis quadrant from Phase 2 picks the top-level section.
-   The four section landing pages are generated from frontmatter
-   (`uv run docs-site --write`, DF-11-005); do not hand-edit their listings.
+   Every section index that declares `contents: generated` is regenerated from
+   frontmatter (`uv run docs-site --write`, DF-11-005); do not hand-edit a
+   generated listing. The blurb beside a new page's link is its `description:`
+   frontmatter, so write one. A new `index.md` that opens a nav group must
+   declare `contents: generated | routing | rendered` or `docs-site --check`
+   fails; a `routing` index must link every member of its section. The
+   decision table is `notes/site-information-architecture.md`
+   § "Sub-section index decisions".
 2. **Group** — the page's `stakeholder_type` picks the group within the section:
    the group whose other pages address the same reader, or the routing page
    (`docs/start/*.md`, `docs/research/index.md`) that carries that type's path.

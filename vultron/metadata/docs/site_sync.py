@@ -60,11 +60,11 @@ def desired_contents(root: Path) -> dict[str, str]:
     """Return ``{repo-relative path: desired full contents}`` for every artifact.
 
     Raises:
-        FileNotFoundError: If a landing page is missing or empty; its
-            hand-written prose cannot be regenerated.
-        MetadataLoadError: If a listed page is missing or unreadable, a
-            page's declarations do not validate, a group-opening index
-            declares no ``contents:``, or a target set is empty (DF-09-009).
+        MetadataLoadError: If a listed page or a landing page is missing,
+            empty, or unreadable (a landing page's hand-written prose cannot
+            be regenerated), a page's declarations do not validate, a
+            group-opening index declares no ``contents:``, or a target set is
+            empty (DF-09-009).
         MetadataLoadErrors: If a routing index fails to link a member of its
             section; every missing link is listed.
         ValueError: If a landing page's markers are missing or malformed.
@@ -88,15 +88,11 @@ def desired_contents(root: Path) -> dict[str, str]:
             ),
         )
     for page in indexes.generated:
+        # A missing or empty landing page was already refused by
+        # discover_section_indexes (landing_pages._page_facts), so the
+        # source read here is non-empty.
         path = f"docs/{page.path}"
-        current = _read(root / path)
-        if not current:
-            raise FileNotFoundError(
-                f"{path} is missing or empty; its generated listing is spliced "
-                "between markers in hand-written prose that cannot be "
-                f"regenerated. Restore the file, then run '{WRITE_COMMAND}'."
-            )
-        contents[path] = splice_listing(current, page)
+        contents[path] = splice_listing(_read(root / path), page)
     return contents
 
 
