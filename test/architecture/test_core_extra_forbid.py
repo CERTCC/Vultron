@@ -147,6 +147,120 @@ def test_round_trip_is_exact_for_every_core_vocabulary_entry() -> None:
         assert restored == obj, f"{name} did not round-trip exactly"
 
 
+def test_participant_status_signatory_round_trips() -> None:
+    """AC-1 corner: a SIGNATORY ParticipantStatus whose embargo_adherence is
+    True round-trips exactly (ARCH-23-005).
+
+    The vocabulary ratchet builds minimal objects whose consent is absent, so
+    their derived embargo_adherence is False.  This test explicitly exercises
+    the True side so the comparison inside _check_computed_field_inputs cannot
+    be an inverted equality that passes vacuously.
+    """
+    from vultron.core.models.dimensions import PecDimension
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.states.participant_embargo_consent import PEC
+
+    signatory = ParticipantStatus(
+        context="urn:uuid:case-signatory",
+        consent=PecDimension(state=PEC.SIGNATORY),
+    )
+    assert signatory.embargo_adherence is True
+
+    restored = ParticipantStatus.model_validate(
+        signatory.model_dump(mode="json")
+    )
+    assert restored == signatory
+
+
+def test_contradicted_embargo_adherence_raises_protocol_violation() -> None:
+    """AC-2: a supplied embargo_adherence that contradicts the derived value
+    raises VultronProtocolViolationError for both snake_case and camelCase
+    spellings (ARCH-23-005, EH-07-001).
+    """
+    import pytest
+    from pydantic import ValidationError
+
+    from vultron.core.models.participant_status import ParticipantStatus
+
+    for spelling in ("embargo_adherence", "embargoAdherence"):
+        with pytest.raises(ValidationError) as exc_info:
+            ParticipantStatus.model_validate(
+                {
+                    "context": "urn:uuid:case-contradict",
+                    spelling: True,
+                }
+            )
+        msg = str(exc_info.value)
+        assert (
+            "embargo_adherence" in msg
+        ), f"Error for spelling {spelling!r} did not name the field: {msg}"
+        assert (
+            "supplied True" in msg
+        ), f"Error for spelling {spelling!r} did not include supplied value: {msg}"
+
+
+def test_all_computed_field_contradictions_named_in_one_error() -> None:
+    """AC-2: every contradicted computed field is named in one error (EH-07-001).
+
+    Because embargo_adherence is the only production computed field, a
+    test-local CoreObject subclass with two computed fields is used to prove
+    the multi-violation contract.
+    """
+    from typing import Literal
+
+    from pydantic import ValidationError, computed_field
+
+    from vultron.core.models.base import CoreObject
+    from vultron.errors import VultronProtocolViolationError
+
+    class _TwoComputedFields(CoreObject):
+        type_: Literal["_TwoComputedFields"] = "_TwoComputedFields"
+        base_val: int = 3
+
+        @computed_field  # type: ignore[misc]
+        @property
+        def doubled(self) -> int:
+            return self.base_val * 2
+
+        @computed_field  # type: ignore[misc]
+        @property
+        def tripled(self) -> int:
+            return self.base_val * 3
+
+    with pytest.raises(ValidationError) as exc_info:
+        _TwoComputedFields.model_validate({"doubled": 999, "tripled": 888})
+    msg = str(exc_info.value)
+    assert "doubled" in msg, f"First contradicted field not named: {msg}"
+    assert "tripled" in msg, f"Second contradicted field not named: {msg}"
+    assert isinstance(
+        exc_info.value.errors()[0].get("ctx", {}).get("error"),
+        VultronProtocolViolationError,
+    )
+
+
+def test_contradicted_embargo_adherence_refused_at_parse() -> None:
+    """AC-4: an inbound ParticipantStatus with a contradicted embargoAdherence
+    is refused at parse, not accepted with the value normalised away.
+    """
+    import pytest
+
+    from vultron.wire.as2.parser import VultronParseValidationError
+    from vultron.wire.as2.parser import parse_activity
+
+    body = {
+        "type": "Announce",
+        "actor": "https://example.org/actors/alice",
+        "object": {
+            "type": "ParticipantStatus",
+            "context": "urn:uuid:case-received-path",
+            "embargoAdherence": True,
+        },
+        "published": "2026-01-01T00:00:00+00:00",
+    }
+    with pytest.raises(VultronParseValidationError):
+        parse_activity(body)
+
+
 def test_retired_wire_normalisation_mechanisms_are_not_reintroduced() -> None:
     """AC-7: the mechanisms ``extra="forbid"`` subsumes stay deleted.
 

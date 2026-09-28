@@ -32,6 +32,7 @@ from pydantic import (
     model_validator,
 )
 from pydantic.alias_generators import to_camel
+from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
@@ -41,6 +42,7 @@ from vultron.core.models._helpers import (
     now_utc,
 )
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
+from vultron.errors import VultronProtocolViolationError
 from vultron.primitives import NonEmptyString, UriString  # noqa: F401
 
 #: The Vultron JSON-LD ``@context``.  VM-10-001 (MUST) requires it on every
@@ -256,25 +258,56 @@ class CoreObject(CoreRecord):
         exclude=True,
     )
 
-    @model_validator(mode="before")
+    @model_validator(mode="wrap")
     @classmethod
-    def _drop_computed_field_inputs(cls, data: Any) -> Any:
-        """Strip read-only computed-field values so a dump round-trips.
+    def _check_computed_field_inputs(
+        cls, data: Any, handler: ModelWrapValidatorHandler["CoreObject"]
+    ) -> "CoreObject":
+        """Strip or refuse supplied computed-field values (ARCH-23-005).
 
         A ``@computed_field`` (e.g. ``ParticipantStatus.embargo_adherence``,
-        ADR-0056) appears in ``model_dump()`` output but is not settable, so
-        ``model_validate(model_dump(x))`` would reject it as an unknown key
-        under ``extra="forbid"``.  Dropping the computed keys before field
-        validation makes the round-trip exact (ARCH-23-005).  See
+        ADR-0056) appears in ``model_dump()`` output but is not settable.
+        A value that matches the derived value is stripped so a dump
+        round-trips; a value that contradicts the object's own derived state
+        raises ``VultronProtocolViolationError`` naming every contradiction,
+        not only the first (EH-07-001).  See
         ``notes/wire-core-boundary.md`` § "Measured Evidence".
         """
         computed = cls.model_computed_fields
         if not isinstance(data, dict) or not computed:
-            return data
-        drop = cls._computed_field_spellings().keys() & data.keys()
-        if drop:
-            data = {k: v for k, v in data.items() if k not in drop}
-        return data
+            return handler(data)
+
+        spellings = cls._computed_field_spellings()
+
+        # Record every supplied computed-field value, keyed by canonical name.
+        supplied: dict[str, Any] = {}
+        for spelling, field_name in spellings.items():
+            if spelling in data:
+                supplied[field_name] = data[spelling]
+
+        # Strip every spelling before passing to the wrapped handler so that
+        # extra="forbid" does not reject them.
+        if supplied:
+            data = {k: v for k, v in data.items() if k not in spellings}
+
+        obj = handler(data)
+
+        if supplied:
+            contradictions: list[str] = []
+            for field_name, supplied_val in supplied.items():
+                derived_val = getattr(obj, field_name, None)
+                if supplied_val != derived_val:
+                    contradictions.append(
+                        f"{field_name!r}: supplied {supplied_val!r},"
+                        f" derived {derived_val!r}"
+                    )
+            if contradictions:
+                raise VultronProtocolViolationError(
+                    "Supplied computed-field value(s) contradict derived"
+                    " state (ARCH-23-005): " + "; ".join(contradictions)
+                )
+
+        return obj
 
     @classmethod
     def _computed_field_spellings(cls) -> dict[str, str]:
@@ -289,16 +322,6 @@ class CoreObject(CoreRecord):
             if isinstance(alias, str):
                 spellings[alias] = name
         return spellings
-
-    # NOTE (#2940 triage): rejecting a *contradicted* computed-field value here
-    # instead of stripping it was considered and rejected on evidence.
-    # ``as_ParticipantStatus.embargo_adherence`` is an independent settable wire
-    # field, while core derives it from ``consent`` (ADR-0056), so a wire row
-    # carrying ``embargo_adherence: True`` with no ``consent`` legitimately
-    # disagrees with the core-derived ``False``.  Raising there breaks the
-    # wire→core read projection (it makes ``dl.read()`` return the wire object).
-    # Telling "re-reading our own dump" apart from "projecting a wire row"
-    # requires the WireParsePort (#2938).  Tracked by #3547.
 
     @model_validator(mode="before")
     @classmethod
