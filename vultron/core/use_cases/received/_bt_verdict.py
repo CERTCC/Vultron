@@ -31,10 +31,16 @@ assertion is ``REFUSED``, and a programming error is neither — it propagates.
 there any ``FAILURE`` raises.
 
 Handlers refine it where the tree says more: a guard whose ``FAILURE`` is a
-duplicate, a role gate that reports "not my job" as ``SUCCESS``. They ask with
-:func:`node_failed` / :func:`node_succeeded`, which look a node up by type the
-way ``_filter_node_wholly_refused`` in ``status.py`` does, because a node's
+duplicate, a role gate that skips as ``SUCCESS`` because this actor is not the
+case's CASE_MANAGER. They ask with :func:`node_failed` /
+:func:`node_succeeded`, which look a node up by type the way
+``_filter_node_wholly_refused`` in ``status.py`` does, because a node's
 ``feedback_message`` usually embeds ids and is not a stable key.
+
+A role-gate skip is not a benign no-op. The message was the CASE_MANAGER's to
+act on and reached an actor that is not it, so the handler reports ``REFUSED``
+(HP-01-005) through :func:`not_case_manager_refusal`; ``SKIPPED`` is reserved
+for a duplicate or an otherwise idempotent re-delivery.
 """
 
 from typing import Protocol, TypeVar
@@ -48,6 +54,7 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronBTInternalError
 
 _N = TypeVar("_N", bound=py_trees.behaviour.Behaviour)
@@ -123,14 +130,40 @@ def not_case_manager(tree: py_trees.behaviour.Behaviour | _HasRoot) -> bool:
     """True when the tree's CASE_MANAGER gate found this actor is not it.
 
     ``create_case_manager_gated_tree`` inverts ``CheckIsCaseManagerNode`` so a
-    non-manager skips the gated work and the tree still succeeds. When that
-    gated work is all the handler does, the success is a correct no-op.
+    non-manager skips the gated work and the tree still succeeds. The handler
+    then has to say what that success was: see
+    :func:`not_case_manager_refusal`.
     """
     from vultron.core.behaviors.case.nodes.conditions import (
         CheckIsCaseManagerNode,
     )
 
     return node_failed(tree, CheckIsCaseManagerNode)
+
+
+def not_case_manager_refusal(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    dl: CasePersistence,
+    case_id: str,
+) -> HandlerResult | None:
+    """The refusal owed when the tree's CASE_MANAGER gate turned this actor away.
+
+    ``None`` when the gate passed (or the tree has none), so a handler writes::
+
+        if (refusal := not_case_manager_refusal(tree, dl, case_id)) is not None:
+            return refusal
+
+    The gate also reads a case this store does not hold as "not the manager",
+    so the reason names which of the two it was. Both are refusals
+    (HP-01-005): a CASE_MANAGER-addressed message that reaches an actor
+    without that role was misaddressed, and the receiver's inbox record says
+    so rather than reporting a processed no-op.
+    """
+    if not not_case_manager(tree):
+        return None
+    if dl.read(case_id) is None:
+        return HandlerResult.refused(f"unknown case '{case_id}'")
+    return HandlerResult.refused(f"not the CASE_MANAGER of case '{case_id}'")
 
 
 def failure_reason(
@@ -213,5 +246,6 @@ __all__ = [
     "node_failed",
     "node_succeeded",
     "not_case_manager",
+    "not_case_manager_refusal",
     "verdict_from_bt",
 ]

@@ -26,6 +26,7 @@ from vultron.core.states.participant_embargo_consent import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.predicates.addressing import is_addressed_to
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -142,6 +143,29 @@ def resolve_receiving_actor_id(
         " receiving_actor_id and the DataLayer reports no actor of its own,"
         " so there is no store this message could be applied to (CM-01-001)"
     )
+
+
+def is_recipient(receiving_actor_id: str, activity: Any) -> bool:
+    """True when *receiving_actor_id* is in *activity*'s ``to`` or ``cc``.
+
+    A received-side handler that acts for an addressee (the Case Owner
+    deciding an ``Offer(CaseParticipant)``, the transferee of a forwarded
+    ownership Offer) uses this to tell that addressee from an actor that
+    merely holds a copy.  The copy-holder refuses (HP-01-005): the sender
+    addressed the wrong party, and the receiver's own record says so.
+
+    Matching is by :func:`~vultron.core.predicates.addressing.is_addressed_to`,
+    so a recipient written with a trailing slash still counts.  An activity
+    without addressing fields names no recipient at all.
+    """
+    recipients: list[str] = []
+    for field in ("to", "cc"):
+        value = getattr(activity, field, None)
+        if isinstance(value, str):
+            recipients.append(value)
+        elif value:
+            recipients.extend(_as_id(v) or "" for v in value)
+    return is_addressed_to(receiving_actor_id, recipients)
 
 
 def _idempotent_create(

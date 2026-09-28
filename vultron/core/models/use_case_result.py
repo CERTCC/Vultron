@@ -65,12 +65,18 @@ class HandlerDisposition(StrEnum):
 
     - ``APPLIED`` — local state changed to reflect the inbound assertion.
     - ``SKIPPED`` — a correct no-op: a duplicate, an already-present record,
-      or otherwise legitimately nothing to do.
+      or an otherwise idempotent re-delivery of a message this actor was
+      entitled to act on.
     - ``DEFERRED`` — the item was parked for later replay (for example a ledger
       entry buffered pending its predecessor), neither acted on nor declined.
-    - ``REFUSED`` — the handler rejected the inbound assertion.
+    - ``REFUSED`` — the handler rejected the inbound assertion. This includes
+      a message the receiver holds no role to act on — a CASE_MANAGER-addressed
+      message at an actor that is not the case's CASE_MANAGER, or a copy that
+      names the receiver in neither ``to`` nor ``cc`` (HP-01-005).
 
-    A benign skip or a deferral MUST NOT be reported as ``REFUSED`` (HP-01-003).
+    A benign skip or a deferral MUST NOT be reported as ``REFUSED`` (HP-01-003),
+    and "not mine to act on" is not a benign skip: the disposition is the
+    receiver's own record of a misaddressed message.
     """
 
     APPLIED = "applied"

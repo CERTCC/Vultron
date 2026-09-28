@@ -53,6 +53,9 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+)
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -63,17 +66,27 @@ CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 CASE_OWNER_ID = "https://example.org/actors/case-owner"
 RECOMMENDER_ID = "https://example.org/actors/finder"
 RECOMMENDED_ID = "https://example.org/actors/vendor-new"
+BYSTANDER_ID = "https://example.org/actors/bystander"
+
+
+def _case_ref(case_id: str) -> as_VulnerabilityCase:
+    """An inline case as ``target``, as the inbox rehydrates a bare id.
+
+    The CASE_MANAGER's receipt commit refuses a bare-string ``target``, so a
+    test that reaches that commit must send what production sends.
+    """
+    return as_VulnerabilityCase(id_=case_id, name="OfferRoundTripTest")
 
 
 def _seed_dl_for_case_owner() -> tuple[SqliteDataLayer, str]:
-    """DataLayer seeded with a Case Owner actor and a case.
+    """DataLayer seeded as the Case Owner's own store.
 
     The Case Owner is the local actor that receives Offer(CaseParticipant)
-    from the CaseActor.
+    from the CASE_MANAGER, which is somebody else (``CASE_ACTOR_ID``).
     """
     dl = SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id=CASE_ACTOR_ID,  # the receiving CaseActor's own store
+        actor_id=CASE_OWNER_ID,  # the receiving Case Owner's own store
     )
     owner_actor = as_Actor(id_=CASE_OWNER_ID)
     case = as_VulnerabilityCase(
@@ -81,16 +94,20 @@ def _seed_dl_for_case_owner() -> tuple[SqliteDataLayer, str]:
         name="OfferRoundTripTest",
         attributed_to=CASE_OWNER_ID,
     )
+    seed_case_manager_participant(dl, case, CASE_ACTOR_ID)
     dl.create(owner_actor)  # type: ignore[arg-type]
     dl.create(case)
     return dl, CASE_OWNER_ID
 
 
-def _seed_dl_for_case_actor() -> tuple[SqliteDataLayer, str]:
-    """DataLayer seeded with a CaseActor Service and a case.
+def _seed_dl_for_case_actor(
+    manager_id: str = CASE_ACTOR_ID,
+) -> tuple[SqliteDataLayer, str]:
+    """DataLayer seeded as the CaseActor's own store.
 
     The CaseActor is the local actor that receives Accept/Reject from the
-    Case Owner.
+    Case Owner, and holds ``CVDRole.CASE_MANAGER`` for the case unless
+    *manager_id* names somebody else (BT-17-005).
     """
     dl = SqliteDataLayer(
         "sqlite:///:memory:",
@@ -102,6 +119,7 @@ def _seed_dl_for_case_actor() -> tuple[SqliteDataLayer, str]:
         name="OfferRoundTripTest",
         attributed_to=CASE_OWNER_ID,
     )
+    seed_case_manager_participant(dl, case, manager_id)
     dl.create(case_actor)
     dl.create(case)
     return dl, CASE_ACTOR_ID
@@ -110,13 +128,15 @@ def _seed_dl_for_case_actor() -> tuple[SqliteDataLayer, str]:
 def _build_offer_activity(
     actor: str = CASE_ACTOR_ID,
     to: list[str] | None = None,
+    cc: list[str] | None = None,
 ):
     recommended = as_Actor(id_=RECOMMENDED_ID)
     return offer_case_participant_activity(
         recommended,
-        target=CASE_ID,
+        target=_case_ref(CASE_ID),
         actor=actor,
         to=to or [CASE_OWNER_ID],
+        cc=cc or [],
         origin="https://example.org/activities/orig-offer-001",
     )
 
@@ -137,15 +157,57 @@ class TestOfferCaseParticipantReceivedUseCase:
         activity = _build_offer_activity()
         return cast(OfferCaseParticipantReceivedEvent, extract_event(activity))
 
-    def test_executes_without_error(self):
+    @pytest.mark.spec("HP-01-005")
+    def test_case_owner_receipt_is_applied(self):
+        """The addressee's receipt: the Offer is now the Case Owner's to decide."""
         dl, _ = _seed_dl_for_case_owner()
         event = self._event()
-        # The receiver is not the case's CASE_MANAGER, so the CM-gated
-        # ledger commit — the tree's only work — is correctly not done.
+        # The Case Owner is not the CASE_MANAGER, so the CM-gated ledger
+        # commit is correctly not done here; the Offer is addressed to it.
         result = OfferCaseParticipantReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
-        assert result.disposition is HandlerDisposition.SKIPPED
+        assert result.disposition is HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-005")
+    def test_bystander_copy_is_refused(self):
+        """Neither CASE_MANAGER nor addressee: a misaddressed copy is refused."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=BYSTANDER_ID)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID, name="OfferRoundTripTest", attributed_to=CASE_OWNER_ID
+        )
+        seed_case_manager_participant(dl, case, CASE_ACTOR_ID)
+        dl.create(case)
+        event = self._event()  # to=[CASE_OWNER_ID]
+
+        result = OfferCaseParticipantReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert BYSTANDER_ID in result.reason
+
+    @pytest.mark.spec("CM-16-004")
+    def test_case_manager_loopback_copy_commits_receipt(self):
+        """The CASE_MANAGER's own cc copy (OX-12-004) records the Offer it sent."""
+        dl, _ = _seed_dl_for_case_actor()
+        activity = _build_offer_activity(
+            to=[CASE_OWNER_ID], cc=[CASE_ACTOR_ID]
+        )
+        event = cast(
+            OfferCaseParticipantReceivedEvent, extract_event(activity)
+        )
+
+        result = OfferCaseParticipantReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert dl.list_objects("CaseLedgerEntry"), (
+            "the CASE_MANAGER's receipt commit must record the"
+            " Offer(CaseParticipant)"
+        )
 
     def test_never_fabricates_the_local_actor(self, caplog):
         """There is no "no local actor" case to skip for (ADR-0073).
@@ -168,7 +230,7 @@ class TestOfferCaseParticipantReceivedUseCase:
         assert result.disposition is HandlerDisposition.REFUSED
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
-        assert "unknown" not in messages
+        assert "'unknown'" not in messages
 
     def test_skips_when_missing_case_id(self, caplog):
         dl, _ = _seed_dl_for_case_owner()
@@ -200,7 +262,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         offer = _build_offer_activity()
         accept = accept_case_participant_offer_activity(
             offer,
-            target=CASE_ID,
+            target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
         )
@@ -235,7 +297,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             ).execute()
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
-        assert "unknown" not in messages
+        assert "'unknown'" not in messages
 
     def test_skips_when_missing_case_id(self, caplog):
         dl, _ = _seed_dl_for_case_actor()
@@ -330,7 +392,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         offer = _build_offer_activity()
         reject = reject_case_participant_offer_activity(
             offer,
-            target=CASE_ID,
+            target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
         )
@@ -365,7 +427,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             ).execute()
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
-        assert "unknown" not in messages
+        assert "'unknown'" not in messages
 
     def test_skips_when_missing_case_id(self, caplog):
         dl, _ = _seed_dl_for_case_actor()
@@ -449,6 +511,9 @@ def _seed_dl_for_ac1() -> SqliteDataLayer:
         name="AC1RolesThreading",
         attributed_to=AC1_CASE_OWNER_ID,
     )
+    # The CaseActor holds CASE_MANAGER: both the Accept(Offer) effects and
+    # the Accept(Invite) effects are role-gated (BT-17-001, BT-17-005).
+    seed_case_manager_participant(dl, case, AC1_CASE_ACTOR_ID)
     invitee = as_Organization(id_=AC1_INVITEE_ID)
     dl.create(case_actor)
     dl.create(case)
@@ -502,7 +567,7 @@ class TestRolesFromStoredOffer:
 
         accept = accept_case_participant_offer_activity(
             cast(as_Offer, stored_offer),
-            target=AC1_CASE_ID,
+            target=_case_ref(AC1_CASE_ID),
             actor=AC1_CASE_OWNER_ID,
             to=[AC1_CASE_ACTOR_ID],
         )
@@ -637,14 +702,14 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         recommended = as_Actor(id_=AC1_INVITEE_ID)
         offer = offer_case_participant_activity(
             recommended,
-            target=AC1_CASE_ID,
+            target=_case_ref(AC1_CASE_ID),
             actor=AC1_CASE_ACTOR_ID,
             to=[AC1_CASE_OWNER_ID],
             roles=[CVDRole.VENDOR],
         )
         accept = accept_case_participant_offer_activity(
             offer,
-            target=AC1_CASE_ID,
+            target=_case_ref(AC1_CASE_ID),
             actor=AC1_CASE_OWNER_ID,
             to=[AC1_CASE_ACTOR_ID],
         )
@@ -746,4 +811,91 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         assert participant.case_roles == [], (
             "AC-1: participant.case_roles must be [] when roles were not "
             "threaded from CaseParticipant offer (suggested_roles absent)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# #3752: a receiver that is not the CASE_MANAGER refuses and queues nothing
+# ---------------------------------------------------------------------------
+
+
+class TestOfferCaseParticipantDecisionsAtNonCaseManager:
+    """Accept/Reject(Offer(CaseParticipant)) reach a copy-holder (#3752).
+
+    Both decisions are addressed to the CASE_MANAGER, whose effects (notify the
+    recommender, invite the actor) sit behind a role gate (BT-17-001).  A
+    receiver that is not it — here the CaseActor store when another actor
+    holds the role — queues nothing and refuses (HP-01-005).
+    """
+
+    OTHER_MANAGER_ID = "https://example.org/actors/other-case-manager"
+
+    @pytest.fixture(autouse=True)
+    def clear_blackboard(self):
+        py_trees.blackboard.Blackboard.storage.clear()
+        yield
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def _seed(self) -> SqliteDataLayer:
+        from vultron.core.models.case import VulnerabilityCase
+
+        dl, _ = _seed_dl_for_case_actor(manager_id=self.OTHER_MANAGER_ID)
+        case = dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        case.recommendation_recommender_index[
+            "https://example.org/activities/orig-offer-001"
+        ] = RECOMMENDER_ID
+        dl.save(case)
+        return dl
+
+    @pytest.mark.spec("BT-17-001")
+    @pytest.mark.spec("HP-01-005")
+    def test_accept_at_non_case_manager_is_refused_and_queues_nothing(self):
+        dl = self._seed()
+        accept = accept_case_participant_offer_activity(
+            _build_offer_activity(),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "CASE_MANAGER" in result.reason
+        assert dl.outbox_list() == [], (
+            "a receiver that is not the CASE_MANAGER must neither notify the"
+            " recommender nor invite the actor"
+        )
+
+    @pytest.mark.spec("BT-17-001")
+    @pytest.mark.spec("HP-01-005")
+    def test_reject_at_non_case_manager_is_refused_and_queues_nothing(self):
+        dl = self._seed()
+        reject = reject_case_participant_offer_activity(
+            _build_offer_activity(),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = cast(
+            RejectOfferCaseParticipantReceivedEvent, extract_event(reject)
+        )
+
+        result = RejectOfferCaseParticipantReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "CASE_MANAGER" in result.reason
+        assert dl.outbox_list() == [], (
+            "a receiver that is not the CASE_MANAGER must not notify the"
+            " recommender of the rejection"
         )

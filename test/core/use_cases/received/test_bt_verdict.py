@@ -28,6 +28,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     find_node,
     node_failed,
     node_succeeded,
+    not_case_manager_refusal,
     verdict_from_bt,
 )
 from vultron.errors import VultronBTInternalError
@@ -179,3 +180,71 @@ def test_applied_or_raise_passes_success_through():
         tree, BTExecutionResult(status=Status.SUCCESS), label="TestBT"
     )
     assert verdict.disposition == HandlerDisposition.APPLIED
+
+
+# ---------------------------------------------------------------------------
+# not_case_manager_refusal (HP-01-005, #3752)
+# ---------------------------------------------------------------------------
+
+
+class _Store:
+    """A store that holds (or does not hold) one case."""
+
+    def __init__(self, holds_case: bool) -> None:
+        self._holds_case = holds_case
+
+    def read(self, id_: str) -> object | None:
+        return object() if self._holds_case else None
+
+
+def _gated_run(gate_status: Status) -> py_trees.behaviour.Behaviour:
+    """A tree whose CASE_MANAGER check reports *gate_status*.
+
+    The check is the real node, so the helper's type lookup finds it; its
+    status is set directly rather than ticked, since ticking needs the BT
+    bridge's ports and store.
+    """
+    from vultron.core.behaviors.case.nodes.conditions import (
+        CheckIsCaseManagerNode,
+    )
+
+    check = CheckIsCaseManagerNode(case_id="c")
+    check.status = gate_status
+    root = py_trees.composites.Selector(name="Root", memory=False)
+    root.add_children(
+        [
+            py_trees.decorators.Inverter(name="Inv", child=check),
+            _Fixed("Work", Status.SUCCESS),
+        ]
+    )
+    return root
+
+
+@pytest.mark.spec("HP-01-005")
+def test_not_case_manager_refusal_is_none_when_the_gate_passed():
+    tree = _gated_run(Status.SUCCESS)
+    assert not_case_manager_refusal(tree, _Store(True), "c") is None  # type: ignore[arg-type]
+
+
+@pytest.mark.spec("HP-01-005")
+def test_not_case_manager_refusal_is_none_without_a_gate():
+    tree = _ran(_Fixed("Ok", Status.SUCCESS))
+    assert not_case_manager_refusal(tree, _Store(True), "c") is None  # type: ignore[arg-type]
+
+
+@pytest.mark.spec("HP-01-005")
+def test_not_case_manager_refusal_names_the_missing_role():
+    tree = _gated_run(Status.FAILURE)
+    verdict = not_case_manager_refusal(tree, _Store(True), "c")  # type: ignore[arg-type]
+    assert verdict is not None
+    assert verdict.disposition == HandlerDisposition.REFUSED
+    assert verdict.reason == "not the CASE_MANAGER of case 'c'"
+
+
+@pytest.mark.spec("HP-01-005")
+def test_not_case_manager_refusal_names_the_unknown_case():
+    tree = _gated_run(Status.FAILURE)
+    verdict = not_case_manager_refusal(tree, _Store(False), "c")  # type: ignore[arg-type]
+    assert verdict is not None
+    assert verdict.disposition == HandlerDisposition.REFUSED
+    assert verdict.reason == "unknown case 'c'"

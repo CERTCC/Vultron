@@ -316,9 +316,14 @@ A handler refines the default where its tree says more. It asks which node
 decided with `node_failed`, `node_succeeded`, `find_node` (by type) or
 `find_named` (by name, for composites). It does not match on a node's
 `feedback_message`, which usually embeds ids. A duplicate guard's `FAILURE` is
-`SKIPPED`, a role gate that reports "not my job" as `SUCCESS` is `SKIPPED`, and
-a gap-buffer park is `DEFERRED`. Where later steps must run only on `APPLIED`,
-the handler returns the verdict early when it is anything else.
+`SKIPPED`, a gap-buffer park is `DEFERRED`, and a role gate that skipped as
+`SUCCESS` because this actor is not the case's CASE_MANAGER is `REFUSED`
+through `not_case_manager_refusal()` (HP-01-005, #3752): the message was the
+manager's to act on and reached the wrong party, which the receiver's own
+record should say. `SKIPPED` is reserved for a redundant or idempotent
+re-delivery of a message the receiver was entitled to act on. Where later
+steps must run only on `APPLIED`, the handler returns the verdict early when
+it is anything else.
 
 The rules the handlers follow:
 
@@ -329,7 +334,7 @@ The rules the handlers follow:
 | Activity about a case this actor does not hold | `REFUSED` |
 | Invalid transition; untrusted, non-participant or non-owner sender | `REFUSED` |
 | The handler answered with a `Reject` or a decline | `REFUSED` |
-| Not this actor's role, nothing to record it on | `SKIPPED` |
+| Not this actor's role (a CASE_MANAGER-addressed message at a non-manager), or a copy naming it in neither `to` nor `cc` | `REFUSED` (HP-01-005) |
 | Duplicate or redelivery | `SKIPPED` |
 | Buffered out-of-order or pre-genesis ledger entry | `DEFERRED` |
 

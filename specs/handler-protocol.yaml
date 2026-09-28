@@ -90,6 +90,31 @@ groups:
       must not say so in `InboxOutcome`'s words.
     adr:
     - ADR-0095
+  - id: HP-01-005
+    priority: MUST
+    kind: project
+    statement: >-
+      A handler that receives a message it holds no role to act on — a CASE_MANAGER-addressed
+      message at an actor that is not the case's CASE_MANAGER, or a copy of an activity that
+      names the receiving actor in neither `to` nor `cc` — MUST report `REFUSED` with a reason
+      naming the missing role or addressing. Such a receipt is not a legitimate no-op and MUST
+      NOT be reported as `SKIPPED`; `SKIPPED` is reserved for a duplicate or otherwise
+      idempotent re-delivery of a message the receiver was entitled to act on
+    rationale: >-
+      A role gate skips as SUCCESS so that the CASE_MANAGER's own failure stays distinguishable
+      from a non-manager's no-op (BTND-07-005), and several handlers read that skip as "not my
+      job" and reported `SKIPPED`, which `DispatchNode` records as `processed`. The receiver's
+      inbox then showed a misaddressed message as a successful receipt. The disposition is the
+      receiver's own report on its own handling (HP-01-004): it never says anything about
+      another actor. A message the receiver could not act on was addressed to the wrong party
+      by its sender, and `REFUSED` with a reason is the record that says so. See #3752.
+    verification: >-
+      The `HP-01-005`-marked tests under `test/core/use_cases/received/` drive each affected
+      handler at a receiver that is not the CASE_MANAGER, or not an addressee, and assert
+      `REFUSED`, an empty outbox, and no state write; a control test per handler shows the
+      CASE_MANAGER or addressee still acts.
+    adr:
+    - ADR-0095
 - id: HP-02
   title: Semantic Verification
   specs:
