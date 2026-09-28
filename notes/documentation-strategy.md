@@ -9,6 +9,7 @@ related_notes:
   - notes/case-state-model.md
   - notes/documentation-sweeps.md
   - notes/message-type-reference.md
+  - notes/rfc-review-rubric.md
   - notes/rfc-spec-authoring.md
   - notes/site-information-architecture.md
   - notes/spec-authoring-rules.md
@@ -541,9 +542,11 @@ material — outside `lint-docs` entirely, because the fragments carry the `_`
 prefix that keeps them out of nav. Normative requirements: DF-09-007 through
 DF-09-009. Decision record: ADR-0092.
 
-**This section describes the decided target state, not what `lint-docs` does
-today.** The tooling changes are tracked in #3318; until they land, `lint-docs`
-still drops every `_*.md` fragment.
+This is the state `lint-docs` implements since #3318: its Phase 1 exemption list
+names content classes, its § "Fragments and assembly units" carries the rule
+split below, and an empty target set is a failure. Preserve the split when
+editing the skill — collapsing it in either direction reintroduces one of the
+two failure modes (false positives on every fragment, or no coverage).
 
 The `_` prefix was doing double duty. In `mkdocs.yml` it means "exclude from
 nav"; `lint-docs` read it as "not really a page". The second claim is false for
@@ -566,11 +569,10 @@ expansion in every fragment that uses an acronym renders one expansion per
 fragment on a single published page — twelve for "VFD", ten for "RM", nine for
 "EM", eight each for "CS" and "PEC".
 
-Note the direction this cuts while #3318 is open: extracting a fragment moves its
-prose *out* of `lint-docs`' target set, which drops both `docs/includes/**` and
-`_*.md`. Deduplicating by extraction is still right (DF-10-002), but it trades
-automated coverage for structural non-duplication, so the claims in an extracted
-fragment must be verified by hand at the moment of the move — see
+Extracting a fragment keeps its prose in `lint-docs`' target set — `_*.md` and
+`docs/includes/**` are targets — so deduplicating by extraction (DF-10-002) costs
+no automated coverage. Lint checks prose, not claims, so the claims in an
+extracted fragment are still verified at the moment of the move — see
 [documentation-sweeps.md](documentation-sweeps.md) and DF-10-001.
 
 Two things make this cheap rather than a tooling problem:
@@ -631,9 +633,10 @@ blocks the safe fixes above the threshold and permits the risky ones below it.
 ### `codespell` is the mechanical floor for spelling
 
 Spelling is the only style rule in this project with off-the-shelf tooling, so
-it is the only one that need not depend on an agent noticing. `codespell` is to
-be configured in `pyproject.toml` with `builtin = "en-GB_to_en-US"` and run as a
-stock pre-commit hook over `docs/` (#3318; nothing is configured yet).
+it is the only one that need not depend on an agent noticing. `codespell` is
+configured in `[tool.codespell]` in `pyproject.toml` with
+`builtin = "en-GB_to_en-US"` and runs as the stock upstream pre-commit hook over
+`docs/*.md` with `--write-changes` in the hook args (#3318).
 
 Note that `builtin` *replaces* `codespell`'s default dictionaries rather than
 adding to them, so a word absent from `en-GB_to_en-US` is not checked at all —

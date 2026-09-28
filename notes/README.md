@@ -984,7 +984,7 @@ behavior simulator reference, Do Work behaviors, and ISO crosswalks. Also the
 fragment/assembly-unit model for `{% include-markdown %}` pages: why nav
 exclusion (`not_in_nav`) is not a lint-scope class, which style rules are
 page-scoped vs. per-sentence, and why the include graph is not a tree
-(DF-09-007 through DF-09-009, ADR-0092) — plus the planned `codespell`
+(DF-09-007 through DF-09-009, ADR-0092) — plus the `codespell`
 configuration and its three silent hazards (ADR-0092, #3318).
 **Load when**: evaluating where new documentation belongs, cross-referencing
 Vultron docs to ISO/CVD process standards, or changing the target set, exemption
@@ -996,8 +996,9 @@ new context" insight, the two witness sessions (#3342 over `specs/`, #3002 over
 `docs/`), and what agents must do when moving or republishing content (verify
 every claim against its authority; prefer `{% include-markdown %}` over copying).
 Records the three fragment mechanics that bite — placement beside the host pages,
-include paths relative to the including file, and the fact that extraction moves
-prose out of `lint-docs`' target set until #3318 lands.
+include paths relative to the including file, and the fact that a fragment is a
+`lint-docs` target in its own right (DF-09-007) while its claims still need
+verifying at the move.
 Normative anchors: DF-10-001, DF-10-002.
 **Load when**: performing any documentation sweep (naming, Diátaxis extraction,
 page split), or deciding how to share content across two docs/ locations.

@@ -163,6 +163,10 @@ To be validated when #3318 lands, by all three of:
 - `check-docs-sync` fails rather than passes when its `lint-docs` invocation
   resolves to zero targets.
 
+*Validated 2026-09-28 (#3318):* all three hold. The `lint-docs` target-set rule
+is skill prose, so the first and third are checked by reading the skill; the
+second is the `codespell` pre-commit hook and `codespell docs/` exiting 0.
+
 ## Pros and Cons of the Options
 
 ### Exempt fragments by content shape
