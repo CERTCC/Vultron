@@ -25,20 +25,20 @@ protocol with other related standards and protocols, including:
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
 <!-- markdownlint-disable MD007 -->
-- [Terms and Definitions](terms.md) — The Coordinated Vulnerability Disclosure (CVD) stakeholder roles and case terms used throughout this documentation.
+- **Protocol Architecture**
+    - [Glossary](glossary.md) — The terms this documentation uses for the Vultron Coordinated Vulnerability Disclosure (CVD) protocol and its reference implementation, with the aliases to avoid and the ambiguities to watch for.
+    - [Concept Taxonomy](vultron-taxonomy.md) — Reference definitions for the distinct concepts that together constitute Vultron. Use this document to understand what each named concept covers, what it excludes, and how the concepts relate to each other.
+    - [Protocol Specification](vultron-spec/index.md) — The Vultron Protocol specification: its semantic and syntactic layers and the state machines participants use to track a shared case.
+- [Documentation Conventions](conventions.md) — The call-out boxes this documentation uses, and how to tell a normative page from an informative one.
 - [Versioning](versioning.md) — The release versioning scheme for the Vultron repository.
 - [ISO Crosswalk](iso_crosswalks/index.md) — A crosswalk of the Vultron Protocol against the ISO/IEC standards on vulnerability handling and disclosure.
 - [User Stories](user_stories/index.md) — Requirements captured as user stories.
-- **Protocol Architecture**
-    - [Concept Taxonomy](vultron-taxonomy.md) — Reference definitions for the distinct concepts that together constitute Vultron. Use this document to understand what each named concept covers, what it excludes, and how the concepts relate to each other.
-    - [Glossary](glossary.md) — Domain terminology for the Vultron Coordinated Vulnerability Disclosure (CVD) protocol and its reference implementation, with the aliases to avoid.
-    - [Protocol Specification](vultron-spec/index.md) — The Vultron Protocol specification: its semantic and syntactic layers and the state machines participants use to track a shared case.
-- [Notation](notation.md) — Notation conventions used throughout the documentation.
 - **ActivityPub**
     - [Vultron AS Objects](activitypub/objects.md) — The Vultron ActivityStreams objects that extend the ActivityStreams vocabulary.
 - [FV Demo Protocol](fv-demo-protocol.md) — The message-level protocol interactions of the Finder + Vendor (FV) demo, for developers building interoperable actors.
 - [Trigger API](trigger-api.md) — The `POST /actors/{actor_id}/trigger/{behavior}` endpoints, each of which starts a protocol behavior on an actor's behalf.
 - [Protocol Quick Reference](quick_reference.md) — A single-page summary of the protocol's state machines, message types, and how they interact.
+- [Notation](notation.md) — The mathematical and diagram notation used in the formal treatment of the Vultron Protocol.
 - [Formal Protocol](formal_protocol/index.md) — The Multi-Party Coordinated Vulnerability Disclosure (MPCVD) process defined as a communicating hierarchical state machine.
 - [Case Model Fields](case_model_fields.md) — The fields of the case, participant, and status objects, as the reference implementation defines them.
 - [Messages](messages/index.md) — How the formal message set relates to the ActivityStreams 2.0 (AS2) wire vocabulary the prototype sends and receives.

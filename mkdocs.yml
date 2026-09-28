@@ -113,7 +113,7 @@ nav:
       - Concept Taxonomy: 'reference/vultron-taxonomy.md'
       - Glossary: 'reference/glossary.md'
       - Protocol Specification: 'reference/vultron-spec/index.md'
-    - Terms and Definitions: 'reference/terms.md'
+    - Documentation Conventions: 'reference/conventions.md'
     - Notation: 'reference/notation.md'
     - Versioning: 'reference/versioning.md'
     - Formal Protocol:
@@ -344,7 +344,9 @@ plugins:
         howto/general_implementation.md: howto/activitypub/index.md
         topics/background/notation.md: reference/notation.md
         topics/background/overview.md: topics/background/what-is-vultron.md
-        topics/background/terms.md: reference/terms.md
+        # Terms and Definitions was merged into the glossary's roles section (#3624).
+        reference/terms.md: reference/glossary.md#cvd-roles-and-participants
+        topics/background/terms.md: reference/glossary.md#cvd-roles-and-participants
         topics/background/versioning.md: reference/versioning.md
         topics/formal_protocol/index.md: reference/formal_protocol/index.md
         topics/formal_protocol/worked_example.md: tutorials/worked_example.md

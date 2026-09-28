@@ -69,7 +69,8 @@ The state belongs to the case as a whole, not to any one Participant.
 | *eXited* | The embargo has ended. |
 
 The underlined-capital shorthand for these states (N, P, A, R, X) is introduced in the [EM formal model](formal_model.md#em-states).
-The Vultron Protocol Specification names *Revise* and *eXited* as *Revised* and *Exited*.
+
+{% include-markdown "./_em_state_names.md" %}
 
 !!! warning "Check which model a state name belongs to"
 

@@ -14,11 +14,7 @@ The normative EM states and transitions are specified in [§7 of the Vultron Pro
 The [states table (§7.1)](../../../reference/vultron-spec/index.md#71-states) and the [transitions table (§7.2)](../../../reference/vultron-spec/index.md#72-transitions-and-guards) are the authority.
 This page restates them in DFA notation and adds what the specification does not carry: the symbol set, a right-linear grammar, a regular expression for every possible history, and the shortest histories.
 
-!!! note "State names"
-
-    The specification names two states *Revised* and *Exited*.
-    The process-model pages call them *Revise* and *eXited*, so that the underlined capital gives the one-letter shorthand used below.
-    They are the same states.
+{% include-markdown "./_em_state_names.md" %}
 
 ---
 

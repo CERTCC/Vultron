@@ -17,7 +17,7 @@ Each step builds on the one before it.
 
 1. [What Is Vultron?](../topics/background/what-is-vultron.md) — what kind of thing Vultron is, and what it leaves to your organization.
 2. [What Does *Success* Mean in CVD?](../topics/background/cvd_success.md) — the outcomes a case is trying to reach, stated independently of any tool.
-3. [Terms and Definitions](../reference/terms.md) — the vocabulary the rest of the site uses for participants, reports and cases.
+3. [CVD Roles and Participants](../reference/glossary.md#cvd-roles-and-participants) — the vocabulary the rest of the site uses for participants, reports and cases.
 
 ## See how a case moves
 
