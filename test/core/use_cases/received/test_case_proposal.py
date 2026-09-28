@@ -802,7 +802,7 @@ class TestCaseProposalDisposition:
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("CP-05-006")
-    def test_redelivered_declined_proposal_is_refused(self, make_payload):
+    def test_redelivered_declined_proposal_is_skipped(self, make_payload):
         dl = self._case_actor_dl()
         proposal = _make_proposal()
         kwargs = {
@@ -811,7 +811,7 @@ class TestCaseProposalDisposition:
         }
         _run_create_proposal(dl, proposal, make_payload, **kwargs)
         result = _run_create_proposal(dl, proposal, make_payload, **kwargs)
-        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.disposition == HandlerDisposition.SKIPPED
         assert result.reason and "declined" in result.reason
 
     @pytest.mark.spec("HP-01-003")
