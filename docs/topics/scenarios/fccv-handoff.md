@@ -1,6 +1,5 @@
 ---
 title: "FCCV-handoff Scenario: Finder + C1 → C2 + Vendor"
-status: stable
 causal_edges:
   - antecedent: validate_report
     consequent: engage_case
