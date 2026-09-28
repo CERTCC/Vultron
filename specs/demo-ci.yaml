@@ -1878,19 +1878,18 @@ groups:
         statement: >-
           A scenario narrative page (`docs/topics/scenarios/<name>.md`, and the
           index `docs/topics/scenarios/index.md`) MUST NOT declare a `status` or
-          `maturity` frontmatter key, or otherwise state whether the scenario it
-          describes passes or how mature it is. Every markdown page under
+          `maturity` frontmatter key. Every markdown page under
           `docs/topics/scenarios/` other than the index MUST be a registered
           scenario's narrative page as derived by DEMOCI-11-003; a page whose stem
           names no registered scenario MUST fail the check.
         rationale: >-
           All ten pages declared `status: stable`, an ungated template default,
-          while two of their scenarios were failing in CI (ISSUE-3555). A page
-          cannot know whether its scenario passes; that is the unverifiable
-          fact MS-16-002 forbids, and the live answer is the demo-integration
-          workflow, which runs every registered scenario (DEMOCI-06-003). So a
-          page for an unregistered scenario describes something no CI run
-          exercises. `maturity` is refused too (ADR-0106 dropped it).
+          while two of their scenarios were failing (ISSUE-3555). A page cannot
+          know whether its scenario passes (MS-16-002); the live answer is the
+          demo-integration workflow, which runs every registered scenario
+          (DEMOCI-06-003), so an unregistered scenario's page describes what no
+          CI run exercises. `maturity` is refused too (ADR-0106). Prose claiming
+          an outcome is wrong for the same reason but is a review matter.
         verification: >-
           `uv run demo-scenarios --check` (the pre-commit hook, DEMOCI-11-005)
           reports a page under `docs/topics/scenarios/` that no registered

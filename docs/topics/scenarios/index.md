@@ -25,6 +25,9 @@ The table below is rendered at build time from the scenario registry — each
 scenario declares itself in its own demo module (ADR-0098, DEMOCI-11-009), so no
 copy of it is committed here and it cannot drift.
 
+These pages carry no status or maturity claim, because a page cannot know whether its scenario currently passes (DEMOCI-11-012).
+The live answer is the [Demo Integration workflow](https://github.com/CERTCC/Vultron/actions/workflows/demo-integration.yml), which runs every registered scenario on each push to `main` and files an issue when one fails.
+
 ```python exec="true" idprefix=""
 from vultron.metadata.demo_scenarios.render import render_page
 
