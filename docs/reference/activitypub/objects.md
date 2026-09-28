@@ -87,7 +87,6 @@ The following objects are defined for use in the Vultron AS vocabulary:
 - [`CaseProposal`](#caseproposal)
 
 A case contains its participants, its report, its status records, its embargo events, and its ledger entries; a `CaseProposal` precedes the case and asks for one to be created.
-The [namespace page](../../ns/index.md) lists the declared type names.
 
 ### VulnerabilityReport
 
