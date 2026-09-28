@@ -126,11 +126,8 @@ spelling, and both are the status classes covered by ADR-0036.
    | inter-actor delivery over HTTP | `model_dump_json(by_alias=True)` | AS2 — camelCase plus `@context` |
    | persistence to the data layer | `model_dump(mode="json")`, no `by_alias`, then `_rekey_wire_identity()` | Python field names, with `id_`/`type_`/`context_` renamed to wire-facing `id`/`type`/`@context` (ARCH-23-005, #3546) |
 
-   **Amended 2026-09-28 (#3546):** the persistence path now applies
-   `_rekey_wire_identity()` after `model_dump(mode="json")`, renaming the three
-   identity keys (`id_`→`id`, `type_`→`type`, `context_`→`@context`) to their
-   wire-facing spellings before storing.
-   Camelcase is still not applied to other fields.
+   **Amended 2026-09-28 (#3546):** the persistence path now applies `_rekey_wire_identity()` after `model_dump(mode="json")`, renaming the three identity keys (`id_`→`id`, `type_`→`type`, `context_`→`@context`) to their wire-facing spellings before storing.
+   camelCase is still not applied to other fields.
 
    **AS2 is the HTTP transmission format only.** Stored rows are not fully
    AS2-spelled (camelCase is not applied) and this decision does not change that. A received activity is
