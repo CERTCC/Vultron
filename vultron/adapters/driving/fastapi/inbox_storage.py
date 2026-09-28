@@ -192,7 +192,12 @@ def _store_nested_inbox_object(
         )
 
 
-def _store_inbox_activity(dl: DataLayer, activity: as_Activity) -> None:
+def _store_inbox_activity(dl: DataLayer, activity: as_Activity) -> bool:
+    """Store *activity*; return whether this call wrote it.
+
+    ``False`` means a record under the same id was already held, so a later
+    by-id read returns *that* record rather than this delivery.
+    """
     try:
         dl.create(object_to_record(activity))
     except VultronAlreadyExistsError:
@@ -200,3 +205,5 @@ def _store_inbox_activity(dl: DataLayer, activity: as_Activity) -> None:
             "Activity %s already exists in shared DL; skipping re-store.",
             activity.id_,
         )
+        return False
+    return True

@@ -15,6 +15,7 @@ related_notes:
   - notes/configuration.md
   - notes/ownership-transfer.md
   - notes/sync-ledger-replication.md
+  - notes/wire-artifact-immutability.md
 relevant_packages:
   - vultron/wire/as2
   - vultron/core/models

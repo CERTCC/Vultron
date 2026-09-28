@@ -187,7 +187,14 @@ def _strip_published_udpated(obj: as_Base | BaseModel) -> as_Base | BaseModel:
 
 
 def _to_json(obj: object, **kwargs: object) -> str:
-    """Serialize *obj* to a JSON string, excluding None values and using aliases."""
+    """Serialize *obj* to a JSON string, excluding None values and using aliases.
+
+    Serialized as a sender delivers it (``outbox_delivery``): a field typed as a
+    parent class dumps its value's *own* fields, so an inline subclass such as a
+    ``CaseProposal`` under ``object`` keeps the ``object``/``target`` a receiver
+    requires instead of being cut down to the parent's shape.
+    """
+    kwargs.setdefault("serialize_as_any", True)
     if hasattr(obj, "to_json"):
         return obj.to_json(**kwargs)  # type: ignore[union-attr,no-any-return]
     if isinstance(obj, BaseModel):

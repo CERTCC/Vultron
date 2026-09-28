@@ -25,6 +25,15 @@ real sender value.  Downstream every one of those read as the sender's claim.
 
 Each body is raw JSON through ``parse_activity`` → ``extract_event``, the real
 inbound path, so the test sees what a receiver sees.
+
+Most nested kinds now validate into a *core* class (ADR-0099 detail 3), which is
+why the rule is held twice: ``as_Base.carry_absent_times_on_inbound`` and its
+core twin ``CoreObject._carry_absent_times_on_inbound`` both call
+``absent_times_as_none``.  That helper finds the timestamp fields by class
+introspection, as every datetime field with a ``default_factory`` in the class's
+own ``model_fields``, and checks each under its field name, ``alias`` and
+``validation_alias``.  It therefore needs no per-class list and works the same
+for either branch (ISSUE-3589).
 """
 
 from datetime import datetime
@@ -33,6 +42,7 @@ from typing import Any, Callable
 import pytest
 
 from vultron.core.models._helpers import absent_times_as_none
+from vultron.core.models.base import CoreObject
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.parser import parse_activity
@@ -155,6 +165,78 @@ def _extracted(obj: dict[str, Any], extra: dict[str, Any]) -> Any:
     domain = getattr(event, "object_", None)
     assert domain is not None, f"{obj['type']} did not extract a domain object"
     return domain
+
+
+def _parsed(obj: dict[str, Any], extra: dict[str, Any]) -> Any:
+    """Return the nested object exactly as ``parse_activity`` built it."""
+    extra = dict(extra)
+    activity_type = extra.pop("activity_type", "Create")
+    activity = parse_activity(_body(obj, activity_type, **extra))
+    nested = getattr(activity, "object_", None)
+    assert nested is not None and not isinstance(
+        nested, str
+    ), f"{obj['type']} was not expanded"
+    return nested
+
+
+#: The nested kinds that validate straight into a core class once ADR-0099
+#: detail 3 deleted their paired ``as_*`` twins (#3487).  Absence handling for
+#: these runs in ``CoreObject._carry_absent_times_on_inbound``, not in
+#: ``as_Base.carry_absent_times_on_inbound`` which was written first (ISSUE-3589).
+CORE_KINDS = [k for k in KINDS if k != "Note"]
+
+
+@pytest.mark.spec("ARCH-12-001")
+@pytest.mark.parametrize("kind", CORE_KINDS)
+def test_collapsed_nested_kind_parses_into_a_core_class(kind: str):
+    """The parser hands these kinds to a core class, not a wire subclass.
+
+    This is the premise the two parser-level tests below rest on: they pin the
+    timestamp rule *for core classes*, so if a kind stops landing in core they
+    stop testing the interaction they exist for (ISSUE-3589).
+    """
+    obj, extra = KINDS[kind]
+
+    nested = _parsed(dict(obj), extra)
+
+    assert isinstance(nested, CoreObject)
+    assert not isinstance(nested, as_Base)
+
+
+@pytest.mark.spec("CLP-15-007")
+@pytest.mark.parametrize("spelling", list(ABSENT))
+@pytest.mark.parametrize("kind", list(KINDS))
+def test_parsed_nested_object_without_times_has_none(kind: str, spelling: str):
+    """An omitted nested time is ``None`` straight out of the parser.
+
+    Pinned below extraction on purpose.  The extraction tests would still pass
+    if the parser minted a time and a builder later dropped it, and a parsed
+    activity is also what the inbox stores and rehydrates, so the parser's own
+    result must already be free of the receiver's clock (ISSUE-3257).  Holds
+    for the core classes the parser now builds as well as for the wire ones
+    (ISSUE-3589).
+    """
+    obj, extra = KINDS[kind]
+    obj = dict(obj)
+    ABSENT[spelling](obj)
+
+    nested = _parsed(obj, extra)
+
+    assert nested.published is None
+    assert nested.updated is None
+
+
+@pytest.mark.spec("CLP-15-007")
+@pytest.mark.parametrize("kind", list(KINDS))
+def test_parsed_nested_object_carries_sender_times(kind: str):
+    """A nested time the sender supplied comes out of the parser unchanged."""
+    obj, extra = KINDS[kind]
+    obj = {**obj, "published": SENDER_PUBLISHED, "updated": SENDER_UPDATED}
+
+    nested = _parsed(obj, extra)
+
+    assert nested.published == datetime.fromisoformat(SENDER_PUBLISHED)
+    assert nested.updated == datetime.fromisoformat(SENDER_UPDATED)
 
 
 @pytest.mark.spec("CLP-15-007")
