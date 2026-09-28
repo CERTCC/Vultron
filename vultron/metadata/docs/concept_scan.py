@@ -173,7 +173,7 @@ def _blank(chars: list[str], start: int, end: int) -> None:
 def _mask_structure(text: str) -> list[str]:
     """Blank frontmatter and fenced code, which are line-shaped."""
     chars = list(text)
-    fenced = fenced_lines(text, nested=True)
+    fenced = fenced_lines(text)
     offset = 0
     in_frontmatter = text.startswith(("---\n", "---\r\n"))
     for number, line in enumerate(text.splitlines(keepends=True), start=1):

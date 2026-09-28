@@ -1,6 +1,5 @@
 ---
 title: "FCVCV Scenario: Finder + C1 + V1 + C2 + V2"
-status: stable
 causal_edges:
   - antecedent: validate_report
     consequent: engage_case

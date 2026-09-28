@@ -113,14 +113,16 @@ An organization's roles vary from case to case — the same vendor is a Reporter
 in one case and a Vendor in the next. What brought its engineer to this
 documentation does not change between cases. So no stakeholder type is named
 after a `CVDRole` value, which makes the conflation structurally impossible
-rather than a matter of author discipline. `docs/reference/terms.md` defines
+rather than a matter of author discipline. The glossary's "CVD Roles and
+Participants" section (which absorbed `docs/reference/terms.md` in #3624) defines
 roles held in a case; it is not a register of reader types, and stakeholder-type
 descriptions must not be added to it.
 
 This is not a hypothetical hazard. Five audience or role enumerations were
 already in circulation and none was authoritative: the four audiences in
 `docs/index.md`, the three in #607/#3511, the seven roles in
-`docs/reference/terms.md`, the `Roles:` metadata on the 111 user stories, and
+`docs/reference/terms.md` (since merged into the glossary), the `Roles:` metadata
+on the 111 user stories, and
 the vendors/system-owners/coordinators/governments list in
 `topics/other_uses/roles_influence.md`. The first two are audiences and the last
 three are roles, and they were read as one list. The enumeration below is

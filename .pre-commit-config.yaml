@@ -109,13 +109,16 @@ repos:
         # Three kinds of input make the committed artifacts stale, so all three
         # are watched (DEMOCI-11-005): the @scenario decorators in the scenario
         # modules, the renderers that turn them into tables and JSON, and the
-        # artifacts themselves — the last so a hand-edit is caught too.
+        # artifacts themselves — the last so a hand-edit is caught too. The
+        # scenario narrative pages are watched as well, because --check also
+        # refuses a page for an unregistered scenario or one that declares a
+        # maturity claim (DEMOCI-11-012).
         #
         # Not covered: a commit that *only deletes* a scenario module and its
         # derived files. pre-commit's staged-file list excludes deletions, so no
         # pattern can match one; test_committed_artifacts_are_in_sync in
         # test/metadata/test_demo_scenario_artifacts.py is the backstop there.
-        files: ^(vultron/demo/scenario/.*\.py|vultron/metadata/demo_scenarios/.*\.py|\.github/demo-scenarios\.json|test/ci/README-case-log-ratchet\.md|vultron/demo/scenario/README\.md)$
+        files: ^(vultron/demo/scenario/.*\.py|vultron/metadata/demo_scenarios/.*\.py|\.github/demo-scenarios\.json|test/ci/README-case-log-ratchet\.md|vultron/demo/scenario/README\.md|docs/topics/scenarios/.*\.md)$
         pass_filenames: false
 
       - id: wire-context-sync
