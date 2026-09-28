@@ -32,7 +32,7 @@ Technical debt
 
 medium
 
-## Evidence
+## Evidence (as filed — line numbers are as of filing and have since drifted)
 
 The RM worked example — four sibling handlers of one state machine, three different conventions for the subject of the RM write:
 
@@ -93,13 +93,13 @@ Three defects follow from that rule having been unstated, and each is an impleme
 
 1. **Subject (#3812).** The report-invalid and report-closed handlers advance the *receiving* actor's RM. The tests that pin them cite BT-17-006 (execute in the receiving actor's store) and read "the tree runs as B" as "the write is about B" — the store-versus-subject conflation ADR-0089 named as bug #2300. HP-00-001 and BT-17-006's own sender-ID clause already say the subject is the sender.
 2. **Acceptance rule (#3813).** Only `Add(ParticipantStatus)` runs the per-dimension rule and the sender-is-participant check; the activity-typed handlers get adjacency-only validation. The rule belongs to the state machine, not the message (RSH-06-006).
-3. **Pipeline (#3814, ratchets #3815).** Every received-side tree gates its *commit* on the CASE_MANAGER role but runs its *effects* at every inbox, so `Add(EmbargoEvent)`, `Remove(EmbargoEvent)` and `Add(CaseStatus)` move a replica's state from any sender. Those effects exist because `create_announce_log_entry_tree` replays only seven ledger event types and has none for `add_case_status_to_case`, the report verdicts, engage/defer, or `add_embargo_event_to_case`. Replay must be completed before the effects are gated, or replicas go blind.
+3. **Pipeline (#3814, ratchets #3815).** Every received-side tree gates its *commit* on the CASE_MANAGER role but runs its *effects* at every inbox, so `Add(EmbargoEvent)`, `Remove(EmbargoEvent)` and `Add(CaseStatus)` move a replica's state from any sender. Those effects exist because `create_announce_log_entry_tree` replays only a fixed subset of ledger event types and has none for `add_case_status_to_case`, the report verdicts, engage/defer, or `add_embargo_event_to_case`. Replay must be completed before the effects are gated, or replicas go blind.
 
 ### Phase 1 inventory (per machine: act / declaration / ledger; subject; adjudication)
 
 - **RM**: acts `Accept`/`TentativeReject`/`Reject(Offer(Report))`, `Join`/`Ignore(Case)`, `Leave(Case)`; declaration `Add(ParticipantStatus).rmState`; ledger `add_participant_status_to_participant`, `close_case`. Subject: sender for valid/engage/defer/leave, **receiver for invalid/closed (bug)**. Adjudication: only the declaration path runs `VerifySenderIsParticipantNode` + `FilterParticipantStatusDimensionsNode` + `StatusAdoptionGate` + `EmitRMGapNoteNode`; acts get `CreateParticipantStatusNode` adjacency only; `Leave` sets `force_rm_state=True`.
 - **EM**: acts `Accept`/`Reject(Invite(EmbargoEvent))` (EM driven only when sender is `case.attributed_to`, inside `EmbargoLifecycle`, OBSERVED mode), `Add(EmbargoEvent)` and `Remove(EmbargoEvent)` (**any sender**, OBSERVED override, no transition check); declaration `Add(CaseStatus).emState` (validates `is_valid_em_transition`, **any sender**), embedded `caseStatus.em` reaches case-level EM only via teardown; ledger `remove_embargo_event_from_case` only — **no replay for `add_case_status_to_case` or `add_embargo_event_to_case`**.
-- **CS V/F/D**: declaration only (`Add(ParticipantStatus).vfdState`, role-gated and monotone); ledger replay applies with **no role check and no monotonicity**.
+- **CS V/F/D**: declaration only (`Add(ParticipantStatus).vfdState`, role-gated and monotone); ledger replay applies with **no role check and no V/F/D monotonicity** (RM is ratcheted, RSH-05-007).
 - **CS P/X/A**: declaration `Add(CaseStatus).pxaState` (monotone, any sender); embedded `caseStatus.pxa` reaches case level only indirectly; **no ledger replay**.
 - **PEC**: no wire form of its own (MSM-07); single write path `apply_pec_transition`. Clean.
 - **Roster**: `Add`/`Remove(CaseParticipant)` any sender, no check; `Accept(Offer(VulnerabilityCase))` makes the sender owner without checking an offer exists. Missing authorization checks, not parallel encodings — routed to participant-admission epic #3409.

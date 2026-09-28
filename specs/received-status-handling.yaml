@@ -64,9 +64,9 @@ groups:
       second adjudication pass to a write it has already authorized. The direct
       ledger write is the shape RSH-04-004 specifies for every CASE_MANAGER-side
       `CaseStatus` mutation; the adoption path is one such mutation.
-    verification: Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py` confirm a canonical
-      `CaseStatus` ledger entry is committed when `StatusAdoptionGate` passes and that no self-addressed
-      `Add(CaseStatus, VulnerabilityCase)` is emitted.
+    verification: Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py` confirm that when
+      `StatusAdoptionGate` passes `EmitCaseStatusUpdateNode` appends the post-adoption `CaseStatus` to the case,
+      and that no `EmitAddCaseStatusToSelf` node is present in the tree.
     adr:
     - ADR-0046
     - ADR-0108
@@ -131,11 +131,9 @@ groups:
       (security-significant gate exception) and ADR-0076. The prior default
       of `AlwaysSucceed` was a prototype-stage convenience; production-ready
       posture requires explicit operator opt-in for permissive behavior.
-      Belt-and-suspenders: even though `StatusAdoptionGate` (RSH-07-001) has
-      already obtained Case Owner approval before the self-addressed
-      `Add(CaseStatus)` arrives here, an operator constructing
-      `add_case_status_tree` outside the self-addressed pattern would otherwise
-      inherit a permissive teardown gate with no explicit opt-in.
+      Belt-and-suspenders: `add_case_status_tree` runs this gate with no
+      adoption gate ahead of it (RSH-04-001), so it would otherwise inherit a
+      permissive teardown gate with no explicit opt-in.
     verification: Inspection of `vultron/core/behaviors/status/` confirms the default backend for
       `EmbargoTeardownAuthorizationGate` is `RequireCaseOwnerApproval`, not `AlwaysSucceed`.
 
@@ -172,9 +170,12 @@ groups:
       (e.g., CASE_OWNER). Authorization is the responsibility of StatusAdoptionGate;
       by the time this node runs, the canonical write is already authorized.
     rationale: >
-      Duplicating a CASE_OWNER gate here would prevent teardown when the
-      self-addressed `Add(CaseStatus)` arrives from the CASE_MANAGER itself
-      (sender = CASE_MANAGER, not CASE_OWNER).
+      By the time this node runs the canonical write is already authorized:
+      by `StatusAdoptionGate` in `add_participant_status_tree` (where the
+      sender is the asserting participant), or by CASE_MANAGER emission
+      authority in `add_case_status_tree` (RSH-04-001, where the sender is the
+      CASE_MANAGER). Neither sender is necessarily CASE_OWNER, so a duplicate
+      CASE_OWNER gate here would block legitimate teardown on both paths.
   - id: RSH-03-003
     priority: MUST
     kind: protocol
@@ -274,13 +275,10 @@ groups:
     verification: Inspection of `vultron/core/behaviors/` confirms `EmitCaseStatusUpdateNode` writes directly to
       `case.case_statuses` and emits `Announce(CaseLedgerEntry)` without routing through `add_case_status_tree`.
     note: >
-      Implementation tracked in ISSUE-2175 (implement EmitCaseStatusUpdateNode,
-      size:M). A follow-on refactor of `EmitAddCaseStatusToSelfNode` is tracked
-      in ISSUE-2176 (size:S, blocked-by ISSUE-2175).
-      The `EmitAddCaseStatusToSelfNode` kludge (inbound path) is acknowledged
-      as a parallel refactor target: once `EmitCaseStatusUpdateNode` is in
-      place, `EmitAddCaseStatusToSelfNode` should be refactored to use direct
-      ledger writes as well. That refactor is blocked-by the impl issue.
+      Implemented in ISSUE-2175 (`EmitCaseStatusUpdateNode`). The inbound
+      adoption path was refactored onto the same node in ISSUE-2176 (RSH-01-003),
+      and the former `EmitAddCaseStatusToSelfNode` inbox-loopback kludge has
+      since been removed (ADR-0108).
 
     stories:
     - story_2022_045
@@ -1240,15 +1238,15 @@ groups:
       received-side effect under RSH-08-003 MUST NOT land before the replay
       node for the transition it wrote exists.
     rationale: >
-      Replicas currently replay seven event types; the case-status entry
+      Replicas currently replay only a fixed subset of event types; the case-status entry
       committed on every embargo or public-state change, and the report
       valid/invalid/closed and engage/defer entries, have none. Removing the
       direct-receipt effects before the ledger carries those transitions would
       leave replicas blind (ADR-0108 § 4).
     verification: An architecture ratchet in `test/architecture/` derives the committed `event_type` set from the
-      receive-side commit path and asserts each member is matched by an `Is*EventNode` in
-      `vultron/core/behaviors/sync/nodes/event_conditions.py` or listed in a declared-no-effect set held to
-      bidirectional equality (TB-10-002).
+      receive-side commit path and asserts each member is matched by an `Is*EventNode` reachable from
+      `create_announce_log_entry_tree` (any module under `vultron/core/behaviors/sync/nodes/`, not only
+      `event_conditions.py`) or listed in a declared-no-effect set held to bidirectional equality (TB-10-002).
     adr:
     - ADR-0108
     lint_suppress:

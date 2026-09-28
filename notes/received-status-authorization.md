@@ -61,7 +61,8 @@ issue under epic #3472:
   but runs its *effects* at every inbox, so `Add(EmbargoEvent)`,
   `Remove(EmbargoEvent)` and `Add(CaseStatus)` move a replica's state from any
   sender. Those effects exist because the ledger does not yet carry every
-  transition — `create_announce_log_entry_tree` replays only seven event types and
+  transition — `create_announce_log_entry_tree` replays only a fixed subset of
+  event types and
   has no node for `add_case_status_to_case`, the report verdicts, or
   engage/defer. Order of repair is fixed: add the replay nodes (RSH-08-004), then
   gate the effects (RSH-08-003). Gating first blinds every replica.
@@ -466,10 +467,13 @@ conversation-state routing subtree, and `RequireCaseOwnerApprovalNode` is
 deleted rather than completed. See the amendment note under **StatusAdoptionGate**
 above and [protocol-asks.md](protocol-asks.md); tracked by #2885.
 
-Note: the self-addressed `Add(CaseStatus)` path arrives with the CASE_MANAGER as
-sender (CASE_MANAGER role). This means even when `EmbargoTeardownAuthorizationGate` requires
-CASE_OWNER approval, the CASE_MANAGER has already obtained that approval via
-StatusAdoptionGate before emitting the self-message. The two gates compose correctly.
+Note: on the adoption path the two gates run in one tree, in order:
+StatusAdoptionGate authorizes adoption, `EmitCaseStatusUpdateNode` writes the
+canonical `CaseStatus`, and only then does `EmbargoTeardownAuthorizationGate`
+decide whether teardown may run (RSH-01-003, RSH-01-004). Case Owner approval for
+adoption has therefore already been obtained before the teardown gate asks its
+own question, and the two gates compose without an inbox round-trip. (The former
+self-addressed `Add(CaseStatus)` loopback that threaded them is gone — ADR-0108.)
 
 ### ThreatTerminationBranchNode
 
@@ -580,18 +584,17 @@ CASE_MANAGER mutates EM/PXA state
   → Announce(CaseLedgerEntry) syncs participants
 ```
 
-**Not** the inbox-loopback pattern that `EmitAddCaseStatusToSelfNode`
-currently uses:
+**Not** the inbox-loopback pattern the former `EmitAddCaseStatusToSelfNode`
+used:
 
 ```text
-[kludge] EmitAddCaseStatusToSelf → inbox → add_case_status_tree → writes ledger
+[kludge, removed] EmitAddCaseStatusToSelf → inbox → add_case_status_tree → writes ledger
 ```
 
 The inbox gate (StatusAdoptionGate → EmbargoTeardownAuthorizationGate) exists for evaluating **external participant
 suggestions**, not for the CASE_MANAGER recording its own authoritative state
-changes. `EmitAddCaseStatusToSelfNode` is a recognized kludge; a follow-on
-issue will refactor the inbound path to use direct ledger writes as well
-(blocked by the `EmitCaseStatusUpdateNode` impl issue).
+changes. The inbound adoption path was refactored onto `EmitCaseStatusUpdateNode`
+(#2176, RSH-01-003) and the loopback node was removed (ADR-0108).
 
 ### BT nodes in scope for the emit invariant
 

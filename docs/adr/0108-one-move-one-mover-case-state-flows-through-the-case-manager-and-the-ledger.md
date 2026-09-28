@@ -30,7 +30,7 @@ That is the store-versus-subject conflation [ADR-0089](0089-one-participant-stat
 
 The direct-receipt effects have a traceable origin too.
 PCR-03-001 says a replica accepts case-state updates only from the CASE_MANAGER, and the ledger is the channel.
-But the replica-apply path handles only seven ledger event types (embargo removal, participant status, note, invite acceptance, close case, report submission, ownership transfer).
+But the replica-apply path handles only a fixed subset of ledger event types (embargo removal, participant status, note, invite acceptance, close case, report submission, and the ownership-transfer offer and acceptance).
 The case-status entry the CASE_MANAGER commits on every embargo or public-state change has no replay node, nor do report valid/invalid/closed or engage/defer.
 Replicas learn those things today only because the effect runs at every inbox.
 The direct effects fill a gap in the specified pipeline, and in filling it they bypass the CASE_MANAGER's adjudication and sender checks.
