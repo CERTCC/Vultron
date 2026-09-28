@@ -34,7 +34,7 @@ are the product**.
 | `history/` | `plan/history/**/*.md`, `plan/incoming/learnings/*.md` | `HistoryEntryFrontmatter` |
 | `msm/` | a constant mapping table + the wire `SEMANTIC_REGISTRY` | — |
 | `demo_scenarios/` | the `@scenario` registry in `vultron/demo/scenario/` | — |
-| `docs/` | `git log` over `docs/`, for the what's-new page; `docs/reference/glossary.md` (`glossary_index.py`); the built `site/` tree (`withheld.py`, `links.py`, `legacy_urls.py`, via `built_site.py`); every `docs/**/*.md` page's `stakeholder_type`/`level` (`page_frontmatter.py`, DF-11) | `PageFrontmatter`, `WorkingRecordFrontmatter` (`page_schema.py`); publication axis: DOCBW-03-005; reference axis: DOCBW-03-007; continuity axis: DOCBW-03-008 |
+| `docs/` | `git log` over `docs/`, for the what's-new page; `docs/reference/glossary.md` (`glossary_index.py`); the built `site/` tree (`withheld.py`, `links.py`, `legacy_urls.py`, via `built_site.py`); each page's rendered HTML at build time (`anchor_ids.py`, an `on_page_content` hook under `hooks:` in `mkdocs.yml` — registers exec-emitted ids as anchor targets for `--strict`, #3735); every `docs/**/*.md` page's `stakeholder_type`/`level` (`page_frontmatter.py`, DF-11) | `PageFrontmatter`, `WorkingRecordFrontmatter` (`page_schema.py`); publication axis: DOCBW-03-005; reference axis: DOCBW-03-007; continuity axis: DOCBW-03-008 |
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin | — (selection rules: PAD-15) |
 
 Shared helpers live in three places — `base.py`, `markdown_tables.py`, and
@@ -56,10 +56,14 @@ that costs.
 `markdown_tables.py` — the structural reader for every ratchet over
 hand-written markdown: `iter_sections()` (heading-scoped, so a rule can exempt a
 change-history section) and `iter_tables()` (pipe tables with their heading and
-line number). It absorbs the hazards a hand-rolled regex gets wrong — fenced code
-including *indented* fences, delimiter rows, escaped pipes. Three consumers grew
-their own regex before #3451; if you are about to write `re.compile(r"^\|")`,
-use this instead.
+line number), plus `fenced_lines()`, the one fence reader. It absorbs the
+hazards a hand-rolled regex gets wrong — fenced code at *any* indentation
+(admonitions and content tabs nest a fence at four spaces, which strict
+CommonMark would misread as indented code; #3685), closers that must match the
+opener's run length and character, delimiter rows, escaped pipes. Three
+consumers grew their own regex before #3451 and `landing_pages` kept a fourth
+until #3685; if you are about to write `re.compile(r"^\|")` or
+`re.compile(r"^\s*(```|~~~)")`, use this instead.
 
 `repo_root` had six near-identical copies before #3450. Five were private
 `_find_repo_root`; the sixth, `specs/registry.py:find_repo_root`, was public and

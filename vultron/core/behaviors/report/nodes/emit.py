@@ -201,13 +201,17 @@ def _compute_report_addressees(
 
     The Case Actor is **not** excluded from being addressed when it is itself the
     sender.  CLP-10-001 is explicit that "the CaseActor is a participant with
-    extra duties; it is not excluded" — an activity it originates still has to
-    reach its own inbox, because that is what triggers its received-side use case
-    and fires ``GuardedCommitCaseLedgerEntryBT`` in the right inbox context via
-    HTTP loopback self-delivery (OX-12-004).  Dropping the self-address left a
-    report activity with no recipients at all, which fails the emit node and
-    surfaces as "no routable recipients" — so an actor that both participates and
-    manages the case could not validate a report.
+    extra duties; it is not excluded" — a *participant-role* activity (here the
+    vendor validating a report) is addressed to the CASE_MANAGER, and when the
+    same actor holds both roles that recipient is its own inbox, reached over
+    ordinary HTTP delivery (OX-12-001).  That is what triggers its received-side
+    use case and fires ``GuardedCommitCaseLedgerEntryBT`` in the right inbox
+    context.  This is not the self-*copy* ADR-0109 forbids: that rule covers an
+    activity the CASE_MANAGER authors *as* CASE_MANAGER, which the emitting tree
+    commits itself.  Dropping the self-address left a report activity with no
+    recipients at all, which fails the emit node and surfaces as "no routable
+    recipients" — so an actor that both participates and manages the case could
+    not validate a report.
 
     Args:
         report_id: VulnerabilityReport ID used to locate the linked case.

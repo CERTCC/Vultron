@@ -103,3 +103,11 @@ The EM reward function might include the following:
 - a limit on how long an EM history can get without reaching
     $q^{em} \in A$ at all (i.e., How many proposal-rejection cycles are
     tolerable before giving up?)
+
+## Modeling and Simulation
+
+The reward functions sketched above are also the instrument for evaluating changes to the protocol itself.
+A [reference implementation](../../reference/code/index.md) of the protocol now exists, and its [demo scenarios](../scenarios/index.md) run the coordination logic end to end.
+Its [behavior trees](../behavior_logic/index.md) are modular, which makes them ready ground for simulated experiments: a candidate change to the protocol can be run against a population of simulated cases and scored with a reward function before it is proposed for adoption.
+Nothing of this kind has been built.
+The [formal protocol](../../reference/formal_protocol/index.md), the [CS model](../process_models/cs/index.md), and the reward-function criteria above are the pieces such a simulation would assemble.

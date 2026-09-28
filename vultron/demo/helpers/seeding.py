@@ -1302,7 +1302,14 @@ def _seed_active_embargo(case_obj, dl) -> None:
     case_id = case_obj.id_
     if case_obj.active_embargo:
         return
-    owner_id = _as_id(case_obj.attributed_to) or ""
+    owner_id = _as_id(case_obj.attributed_to)
+    if not owner_id:
+        # ``ResolveEmbargoDurationNode`` fails on a case with no owner rather
+        # than scoping the policy lookup to nobody; the seeder mirrors it.
+        raise ValueError(
+            f"_seed_active_embargo: case {case_id!r} has no attributed_to,"
+            " so its owner's embargo policies cannot be resolved"
+        )
     resolved = resolve_initial_embargo_duration(
         sender_proposal=None,
         actor_default=select_actor_default(
