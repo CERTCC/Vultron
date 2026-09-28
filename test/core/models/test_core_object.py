@@ -115,15 +115,9 @@ def test_core_object_context_empty_string_rejected():
 # --- CORE_VOCABULARY registration ------------------------------------------
 
 
-@pytest.fixture
-def isolated_vocab():
-    """Snapshot CORE_VOCABULARY around a test, restoring it after."""
-    snapshot = dict(CORE_VOCABULARY)
-    try:
-        yield
-    finally:
-        CORE_VOCABULARY.clear()
-        CORE_VOCABULARY.update(snapshot)
+# ``isolated_vocab`` (snapshot/restore of CORE_VOCABULARY and CORE_TYPE_MAP)
+# is provided by ``test/conftest.py`` so every test-local CoreObject subclass
+# in the suite shares one registry-isolation mechanism.
 
 
 def test_concrete_subclass_registers(isolated_vocab):
