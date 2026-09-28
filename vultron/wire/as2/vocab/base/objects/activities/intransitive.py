@@ -18,8 +18,9 @@
 from datetime import datetime
 from typing import TypeAlias
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.enums import as_IntransitiveActivityType as IA_type
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.base import (
@@ -62,9 +63,15 @@ class as_Arrive(as_IntransitiveActivity):
 
 
 #: What a Question's ``anyOf``/``oneOf`` may hold: a collection of options (AS2
-#: §4.1 non-functional), a lone option, or a URI reference to one.
+#: §4.1 non-functional), a lone option, or a URI reference to one.  A reference
+#: is a ``NonEmptyString`` so a blank option is refused rather than carried
+#: (CS-08-001).
 _QuestionOptions: TypeAlias = (
-    list[as_Object | as_Link | str] | as_Object | as_Link | str | None
+    list[as_Object | as_Link | NonEmptyString]
+    | as_Object
+    | as_Link
+    | NonEmptyString
+    | None
 )
 
 
@@ -87,6 +94,21 @@ class as_Question(as_IntransitiveActivity):
     anyOf: _QuestionOptions = None
     oneOf: _QuestionOptions = None
     closed: as_Object | as_Link | str | datetime | bool | None = None
+
+    @model_validator(mode="after")
+    def _options_are_exclusive(self) -> "as_Question":
+        """AS2 §4.1: ``anyOf`` and ``oneOf`` are mutually exclusive.
+
+        A Question is either a multiple-choice (``anyOf``) or a single-choice
+        (``oneOf``) poll; carrying both leaves the receiver unable to tell
+        which answer form is expected.
+        """
+        if self.anyOf is not None and self.oneOf is not None:
+            raise ValueError(
+                "as_Question: anyOf and oneOf are mutually exclusive "
+                "(AS2 §4.1); set at most one"
+            )
+        return self
 
 
 def main():

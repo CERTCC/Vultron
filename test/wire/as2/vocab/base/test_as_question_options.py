@@ -24,6 +24,7 @@ so its option fields are corrected rather than removed.
 import json
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
@@ -83,3 +84,35 @@ def test_question_options_accept_uri_references() -> None:
     parsed = parse_activity(body)
     assert isinstance(parsed, as_Question)
     assert parsed.anyOf == uris
+
+
+@pytest.mark.spec("CS-08-001")
+@pytest.mark.parametrize("field", ["oneOf", "anyOf"])
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_question_refuses_a_blank_option_reference(
+    field: str, blank: str
+) -> None:
+    """A URI reference that is present must be non-empty, alone or in a list."""
+    with pytest.raises(ValidationError):
+        as_Question.model_validate({"actor": _ACTOR, field: blank})
+    with pytest.raises(ValidationError):
+        as_Question.model_validate(
+            {"actor": _ACTOR, field: ["https://example.org/options/0", blank]}
+        )
+
+
+def test_question_refuses_both_any_of_and_one_of() -> None:
+    """AS2 §4.1: ``anyOf`` and ``oneOf`` are mutually exclusive."""
+    with pytest.raises(ValidationError, match="mutually exclusive"):
+        as_Question.model_validate(
+            {"actor": _ACTOR, "anyOf": _options(2), "oneOf": _options(1)}
+        )
+
+    body = {
+        "type": "Question",
+        "actor": _ACTOR,
+        "anyOf": ["https://example.org/options/0"],
+        "oneOf": ["https://example.org/options/1"],
+    }
+    with pytest.raises(ValidationError, match="mutually exclusive"):
+        as_Question.model_validate(body)
