@@ -372,6 +372,39 @@ def test_reject_at_advanced_hash_replays_again(
     assert sync_port.send_announce_log_entry.call_count == 6
 
 
+@pytest.mark.spec("ID-04-005")
+@pytest.mark.spec("BT-19-001")
+def test_unknown_case_reject_leaves_replication_state_unchanged(
+    bridge, datalayer
+):
+    """Reject(LedgerEntry) for an unknown case must not write replication state.
+
+    FindCaseActorNode must run before UpdateReplicationStateNode so that a
+    failing case lookup leaves nothing behind (ID-04-005, BT-19-001).
+    """
+    entry = _make_entry(0)
+    # Do NOT save the case — this is the unknown-case scenario
+    event = _make_event(entry, tail_hash="")
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.FAILURE
+    state_id = VultronReplicationState(
+        case_id=CASE_ID,
+        peer_id=PEER_ID,
+        last_acknowledged_hash="",
+    ).id_
+    assert (
+        datalayer.read(state_id) is None
+    ), "UpdateReplicationStateNode must not write state before FindCaseActorNode validates the case"
+
+
 @pytest.mark.spec("SYNC-15-011")
 def test_reject_at_tail_then_growth_replays_the_new_suffix(
     bridge, datalayer, case_manager_case

@@ -32,8 +32,8 @@ def create_reject_log_entry_tree() -> py_trees.behaviour.Behaviour:
         name="RejectLogEntryReceivedBT",
         memory=False,
         children=[
-            UpdateReplicationStateNode(name="UpdateReplicationState"),
             FindCaseActorNode(name="FindCaseActor"),
+            UpdateReplicationStateNode(name="UpdateReplicationState"),
             # When the peer has no VulnerabilityCase yet (last_accepted_hash=""),
             # send Announce(VulnerabilityCase) before replaying entries so the
             # peer can anchor its hash chain (SYNC-15-002).

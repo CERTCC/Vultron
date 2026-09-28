@@ -305,8 +305,28 @@ class TestRejectLedgerEntryReceivedUseCase:
     @pytest.mark.spec("SYNC-04-001")
     def test_updates_replication_state(self, dl, entry0, entry1):
         """Receiving a Reject updates ReplicationState (SYNC-04-001)."""
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
         dl.save(entry0)
         dl.save(entry1)
+
+        manager = as_CaseParticipant(
+            id_=f"{CASE_URI}/participants/manager",
+            context=CASE_URI,
+            attributed_to=CASE_ACTOR_URI,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(manager)
+        case = as_VulnerabilityCase(id_=CASE_URI, name="Reject Sync Case")
+        case.case_participants.append(manager.id_)
+        case.actor_participant_index[CASE_ACTOR_URI] = manager.id_
+        dl.create(case)
 
         event = self._make_event(entry1, entry0.entry_hash)
         uc = RejectLedgerEntryReceivedUseCase(dl, event)
