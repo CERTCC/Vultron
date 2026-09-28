@@ -230,12 +230,19 @@ validation:
     # Fail --strict (DOCBW-03-011) on a link to a #fragment that does not
     # exist on the target page. Default is `info`, which is silent in the
     # warning count: a page can ship dozens of dead in-page links and still
-    # look clean. Note that this check only knows about heading anchors: the
-    # per-requirement `<a id="clp-14-001">` anchors in the generated spec
-    # tables are real and work in a browser, but linking to one still warns
-    # here. Cite the requirement ID in the link text and point the href at its
-    # group anchor (`#clp-14`).
+    # look clean. MkDocs alone sees only heading anchors and raw HTML in the
+    # page *source*, so an `<a id="clp-14-001">` printed by a markdown-exec
+    # block would warn here even though it is in the built page. The
+    # `vultron/metadata/docs/anchor_ids.py` hook (under `hooks:` below) adds
+    # every id in each page's rendered HTML to the page's anchor set, so a
+    # requirement citation may link its own anchor (`#clp-14-001`). The hook
+    # registers *targets* only: a link that an exec block prints is never seen
+    # by this check, and needs its own renderer test (#3735).
     anchors: warn
+hooks:
+  # Registers ids found in rendered HTML (exec-block output included) as link
+  # targets for the anchors check above. See the module docstring.
+  - vultron/metadata/docs/anchor_ids.py
 draft_docs: |
   draft-*.md
   # Patterns are relative to docs_dir; `docs/developer/` was mis-anchored
