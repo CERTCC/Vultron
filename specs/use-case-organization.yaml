@@ -137,7 +137,7 @@ groups:
       exclusion MUST name the tracking issue in the test and MUST be removed when that
       issue closes
     rationale: >-
-      The received and trigger halves migrate independently (#1769 and #3354), so the
+      The received and trigger halves migrate independently (#1769 and #3831), so the
       ratchet has to be landable while one half still returns `dict`. Naming the issue
       keeps the carve-out from reading as permanent — an unattributed exclusion list is
       indistinguishable from a deliberate design choice a year later.
@@ -147,18 +147,50 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `TriggerResult` MUST carry `activity` and `emitting_actor_id` fields; `HandlerResult`
-      MUST carry a `disposition` field of type `HandlerDisposition` and an optional
-      `reason`; either MAY carry further domain-specific result fields but MUST NOT carry
-      raw `dict` payloads
+      `TriggerResult` is the fieldless base of the trigger-side result hierarchy.
+      Its `ActivityResult` subtype MUST carry `activity` and `emitting_actor_id`;
+      every other subtype MUST declare exactly the keys its verb's response body
+      carries, and the base MUST reject unknown keys so a use case that grows a
+      return key fails loudly instead of being silently dropped from the body.
+      `HandlerResult` MUST carry a `disposition` field of type `HandlerDisposition`
+      and an optional `reason`. Either MAY carry further domain-specific result
+      fields but MUST NOT carry raw `dict` payloads; the one permitted
+      `dict[str, Any]` value is an emitted activity's JSON object (`activity`,
+      `offer`, `note`), which core captures from the BT blackboard as JSON and
+      cannot type without a wire import (UCORG-05-014).
+    rationale: >-
+      Four trigger verbs return bodies that carry no `emitting_actor_id` (and one
+      no `activity`), so a base that required both could not be satisfied without
+      changing live response bodies. Moving the required fields down to the
+      subtype the BT-backed verbs return lets every verb have an exact,
+      non-optional shape (ADR-0110).
+    verification: >-
+      Unit tests construct each `TriggerResult` subtype and assert its exact
+      field set, and that an unknown key raises; the exact-response-key test
+      parametrized over the trigger registry (TRIG-12-002) confirms each verb's
+      HTTP body matches its declared subtype.
+    adr:
+    - ADR-0110
   - id: UCORG-05-006
     priority: MUST_NOT
     kind: project
     statement: >-
-      `TriggerService` methods and `TriggerServicePort` Protocol method signatures MUST NOT
-      declare `dict` or `dict[str, Any]` as their return type; they MUST declare
-      `TriggerResult`
-    rationale: Propagating dict past the service boundary defeats the typed contract at the router boundary.
+      The trigger driving port MUST NOT declare `dict` or `dict[str, Any]` as a
+      return type. It exposes one method, `trigger(request, dl)`, whose return
+      type is the `TriggerResult` subtype bound to the request's type, so a router
+      receives the verb's typed result without a per-verb port method.
+    rationale: >-
+      Propagating dict past the port defeats the typed contract at the router
+      boundary. A per-verb method surface grows linearly with the verbs behind
+      it, flattens each validated request into loose scalars that the next
+      layer reassembles, and hides nothing (ADR-0110).
+    verification: >-
+      mypy and pyright resolve the bound result type at every router call site
+      with no cast; an architecture test asserts the port `Protocol` declares
+      exactly one public method and that no `TriggerService`-style per-verb
+      facade exists under `vultron/core/`.
+    adr:
+    - ADR-0110
   - id: UCORG-05-007
     priority: MUST
     kind: project
@@ -279,22 +311,31 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A concrete `ActivityResult` subtype of `TriggerResult` MUST exist in
-      `vultron/demo/` that carries a non-optional `activity` field typed as
-      `as_TransitiveActivity`. It MUST be constructed by validating the
-      `activity` key from the raw `dict` returned by `post_to_trigger`, and
-      MUST NOT be placed in `vultron/core/` until a core-layer activity type
-      is available via the `WireParsePort` seam (ADR-0082).
+      A `WireActivityResult` model MUST exist in `vultron/demo/` that carries a
+      non-optional `activity` field typed as `as_TransitiveActivity`. It MUST be
+      constructed by validating the `activity` key from the raw `dict` returned
+      by `post_to_trigger`; it is a typed view of the HTTP response body, not a
+      use-case return value, and MUST NOT be placed in `vultron/core/` until a
+      core-layer activity type is available via the `WireParsePort` seam
+      (ADR-0082). The plain `ActivityResult` name belongs to the core
+      `TriggerResult` subtype (UCORG-05-005), whose `activity` is the JSON object
+      captured from the BT blackboard; a demo-layer typed view MUST NOT reuse a
+      core result class name.
     rationale: >-
-      Core trigger use cases capture `activity` as `dict[str, Any]` from the BT
-      blackboard; placing a wire type there would violate ARCH-03-001.
-      `ActivityResult` in `vultron/demo/` bridges the gap by validating the raw
-      dict to `as_TransitiveActivity` at the HTTP response boundary, so
-      `ActorSession` method return types are fully typed without polluting core.
+      Core captures `activity` as `dict[str, Any]` from the BT blackboard; a
+      wire type there would violate ARCH-03-001. The demo-layer view validates
+      the raw dict to `as_TransitiveActivity` at the HTTP boundary so
+      `ActorSession` is fully typed without polluting core. Two `ActivityResult`
+      classes in different layers, one JSON and one wire, would be
+      indistinguishable in a traceback, so the wire-typed one takes the `Wire`
+      prefix `WireCaseLedgerEntry` already uses (ARCH-04-005).
     verification: >-
-      `ActivityResult` exists in `vultron/demo/`, its `activity` field is
-      `as_TransitiveActivity` (non-optional), and mypy passes with no
-      `# type: ignore` in `ActorSession` method bodies.
+      `WireActivityResult` exists in `vultron/demo/`, its `activity` field is
+      `as_TransitiveActivity` (non-optional), no class under `vultron/demo/`
+      shares a name with a class in `vultron/core/use_cases/triggers/results.py`,
+      and mypy passes with no `# type: ignore` in `ActorSession` method bodies.
+    adr:
+    - ADR-0110
     relationships:
     - rel_type: refines
       spec_id: UCORG-05-005

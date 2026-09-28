@@ -166,6 +166,65 @@ reporting a protocol result.
 
 ---
 
+## Narrative Causal Edges — Schema and Update-Together Rule (DEMOMA-22)
+
+Each scenario narrative under `docs/topics/scenarios/` carries a `causal_edges:`
+list in its YAML front matter (DEMOMA-22-004). Every entry declares one protocol
+causal relationship that must be observable in the case ledger. This section is
+the contributor-facing description of that list; it moved here from the
+narratives index in #3622, because the index is a reader-facing routing page and
+the schema, the invariant, and the update-together rule are working record.
+
+```yaml
+causal_edges:
+  - antecedent: <event_type>     # string — eventType in the case ledger
+    consequent: <event_type>     # string — eventType in the case ledger
+    consequent_actor: <name>     # human label for the committing actor
+    note: <text>                 # optional human-readable explanation
+    observable: true             # optional; false marks unobservable edges
+```
+
+- `antecedent` — the `eventType` string of the causally-earlier ledger entry.
+- `consequent` — the `eventType` string of the causally-later ledger entry.
+- `consequent_actor` — documentary label identifying which participant commits
+  the consequent event; used in diagnostic output when a check fails.
+- `note` — optional prose explanation of the causal relationship.
+- `observable` — defaults to `true`. Set to `false` for edges whose antecedent
+  or consequent is not directly captured as a case-ledger entry (for example,
+  the reporter submitting a report to the receiver's API is not itself a ledger
+  event). Unobservable edges are documented for completeness but are excluded
+  from the automated ordering check.
+
+**Invariant check (DEMOMA-22-005).** Invariant 16 reads each narrative's
+`causal_edges:` list and asserts that for every observable edge `(A, B)` there
+exist ledger entries `a` with `eventType == A` and `b` with `eventType == B`
+such that `a.log_index < b.log_index`. The check uses the case-actor's
+authoritative replica, which is the canonical causal order (ADR-0079).
+Diagnostic output on failure names the unsatisfied edge and the log indices
+that were observed. Unobservable edges are skipped and never cause a failure.
+
+**Update-together rule (DEMOMA-22-006).** The causal edges declared in a
+narrative page and the scenario's invariant test file
+(`test/ci/invariants/test_<name>_invariants.py`) are a matched pair. A change to
+a scenario's causal flow — adding a protocol step, reordering steps, or removing
+a participant — requires updating both the narrative's `causal_edges:` list and,
+where the change adds a new `eventType` that should always be present, the
+scenario's `_XXX_EXPECTED_EVENT_TYPES` list in its invariant file. Changing one
+without the other leaves the conformance oracle out of date. Invariant 16 will
+catch a stale edge list once devlogs exist; the `_XXX_EXPECTED_EVENT_TYPES` list
+will catch a missing event type immediately. Neither check substitutes for the
+other.
+
+An edge may name an event type the expected-types list does not require. The
+handoff narratives declare `offer_case_ownership_transfer →
+accept_case_ownership_transfer` because the Case Actor commits the offer before
+forwarding it (ADR-0053, verified against a run in #3622), while DEMOMA-16-005
+and DEMOMA-16-006 require only the acceptance. Adding the offer to those lists
+would need the spec amendment and the harness edit to land together (see
+"Keeping Spec and Code in Sync" below).
+
+---
+
 ## Harness File Conventions
 
 Each scenario gets **one self-contained harness file**,
