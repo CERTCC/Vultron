@@ -404,7 +404,10 @@ class CoreObject(CoreRecord):
         inter-actor delivery        ``model_dump_json(by_alias=True)`` — AS2:
                                     camelCase **plus** ``@context``
         persistence                 ``model_dump(mode="json")`` — Python field
-                                    names, no ``@context``
+                                    names, no ``@context``; the adapter-layer
+                                    ``_rekey_wire_identity()`` then renames
+                                    ``id_``/``type_`` → ``id``/``type``
+                                    (ARCH-23-005, #3546)
         ==========================  ==========================================
 
         ``by_alias`` is exactly that fork, so it is what selects the behaviour

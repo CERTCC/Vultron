@@ -157,6 +157,49 @@ _AS_LIST_REF_FIELDS: frozenset[str] = frozenset(
 )
 
 
+# Trailing-underscore Python field names whose wire-facing names differ and
+# must be used in persisted rows (ARCH-23-005).  Only the three identity
+# fields have this property; every other field is either identical to its
+# wire name (snake_case → snake_case) or a camelCase alias that this path
+# MUST NOT apply (ARCH-20-001).
+_PYTHON_TO_WIRE_IDENTITY_KEYS: dict[str, str] = {
+    "id_": "id",
+    "type_": "type",
+    "context_": "@context",
+}
+
+
+def _rekey_wire_identity(data: dict[str, Any]) -> dict[str, Any]:
+    """Rename Python trailing-underscore identity keys to their wire-facing names.
+
+    Renames ``id_`` → ``id``, ``type_`` → ``type``, and ``context_`` →
+    ``@context`` recursively through all dict values and list-of-dict items,
+    per ARCH-23-005.  Only those three keys are renamed; all others pass
+    through unchanged, so no camelCase is introduced (contrast: blanket
+    ``by_alias=True`` would apply the ``alias_generator=to_camel`` and make
+    every field camelCase).
+
+    Applied to the result of :func:`_dehydrate_data` before the dict is
+    stored in :attr:`Record.data_`.  Read-back tolerates both spellings via
+    ``populate_by_name=True`` / ``validate_by_name=True`` on all model roots,
+    so existing rows keyed ``id_``/``type_`` continue to round-trip correctly
+    (AC-3).
+    """
+    result: dict[str, Any] = {}
+    for key, value in data.items():
+        wire_key = _PYTHON_TO_WIRE_IDENTITY_KEYS.get(key, key)
+        if isinstance(value, dict):
+            result[wire_key] = _rekey_wire_identity(value)
+        elif isinstance(value, list):
+            result[wire_key] = [
+                _rekey_wire_identity(item) if isinstance(item, dict) else item
+                for item in value
+            ]
+        else:
+            result[wire_key] = value
+    return result
+
+
 def _dehydrate_data(
     data: dict[str, Any], obj: "PersistableModel | BaseModel | None" = None
 ) -> dict[str, Any]:
@@ -350,8 +393,12 @@ class Record(StorableRecord):
             # serialized against the base schema and lose its domain fields —
             # breaking read/replay reconstruction (SYNC-13-004).
             # ``obj`` is passed so its ``inline_required_refs`` are honoured.
-            data_=_dehydrate_data(
-                obj.model_dump(mode="json", serialize_as_any=True), obj
+            # _rekey_wire_identity renames id_/type_ to id/type at every nesting
+            # level so stored rows carry wire-facing keys (ARCH-23-005).
+            data_=_rekey_wire_identity(
+                _dehydrate_data(
+                    obj.model_dump(mode="json", serialize_as_any=True), obj
+                )
             ),
         )
         return record

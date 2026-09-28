@@ -20,6 +20,7 @@ from vultron.adapters.driven.db_record import (
     Record,
     _KEEP_INLINE_NESTED_TYPES,
     _dehydrate_data,
+    _rekey_wire_identity,
     object_to_record,
     record_to_object,
 )
@@ -67,7 +68,11 @@ def test_object_to_record_preserves_id_type_and_data_for_base_object(
     record = object_to_record(base_object)
     assert record.id_ == base_object.id_
     assert record.type_ == base_object.type_
-    assert record.data_ == base_object.model_dump()
+    # data_ carries wire-facing identity keys (ARCH-23-005)
+    assert record.data_["id"] == base_object.id_
+    assert record.data_["type"] == base_object.type_
+    assert "id_" not in record.data_
+    assert "type_" not in record.data_
 
 
 def test_object_to_record_returns_Record_for_note_object(note_object):
@@ -514,7 +519,8 @@ def test_case_proposal_object_survives_storage_as_an_inline_report():
     )
     report = proposal.object_
     assert isinstance(report, as_VulnerabilityReport)
-    assert stored["id_"] == report.id_
+    # data_ carries wire-facing identity keys (ARCH-23-005)
+    assert stored["id"] == report.id_
     assert (
         stored["attributed_to"] == "https://example.org/actors/finder-cp01004"
     )
@@ -609,7 +615,8 @@ def test_case_active_embargo_survives_storage_as_an_inline_object():
         "AKM-03-001 requires the embargo inline; storage reduced it to"
         f" {stored!r}, which the receiver cannot resolve"
     )
-    assert stored["id_"] == "urn:uuid:emb-dl08000-0000-0000-000000000001"
+    # data_ carries wire-facing identity keys (ARCH-23-005)
+    assert stored["id"] == "urn:uuid:emb-dl08000-0000-0000-000000000001"
 
 
 def test_case_carries_the_embargo_as_an_inline_object():
@@ -710,7 +717,8 @@ def test_invite_keeps_the_invited_peer_inline():
         f"the invitee collapsed to {stored!r}; nothing in this store can expand"
         " it again (DL-08-003)"
     )
-    assert stored.get("id_") == _PEER_ACTOR_ID
+    # data_ carries wire-facing identity keys (ARCH-23-005)
+    assert stored.get("id") == _PEER_ACTOR_ID
 
 
 def test_invited_peer_round_trips_as_an_object():
@@ -828,3 +836,130 @@ def test_recommended_peer_round_trips_as_an_object():
         restored, str
     ), "a bare string object_ is exactly what the AKM-03-001 gate rejects"
     assert getattr(restored, "id_", None) == _PEER_ACTOR_ID
+
+
+# ---------------------------------------------------------------------------
+# ARCH-23-005: persisted rows MUST carry wire-facing identity keys
+# ---------------------------------------------------------------------------
+
+
+def test_from_obj_emits_wire_identity_keys_no_trailing_underscores():
+    """ARCH-23-005: no trailing-underscore identity key in the stored data_.
+
+    ``Record.from_obj()`` MUST emit ``id``/``type`` rather than ``id_``/
+    ``type_`` as the key names for the identity fields of persisted rows.
+    This is the verification clause the spec cites.
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(
+        id_="urn:uuid:case-arch23005-0000-0000-000000000001"
+    )
+    record = object_to_record(cast(Any, case))
+
+    assert (
+        "id_" not in record.data_
+    ), "ARCH-23-005: data_ MUST NOT carry trailing-underscore 'id_' key"
+    assert (
+        "type_" not in record.data_
+    ), "ARCH-23-005: data_ MUST NOT carry trailing-underscore 'type_' key"
+    assert (
+        record.data_["id"] == "urn:uuid:case-arch23005-0000-0000-000000000001"
+    )
+    assert record.data_["type"] == "VulnerabilityCase"
+
+
+def test_from_obj_wire_identity_keys_apply_to_inline_objects():
+    """ARCH-23-005 applies at every nesting level of the stored dict.
+
+    Inline objects (kept because they are in inline_required_refs) must also
+    carry ``id``/``type`` rather than ``id_``/``type_``.
+    """
+    case = _case_carrying_its_embargo()
+    record = object_to_record(cast(Any, case))
+
+    stored_embargo = record.data_["active_embargo"]
+    assert isinstance(stored_embargo, dict)
+    assert (
+        "id_" not in stored_embargo
+    ), "ARCH-23-005: inline dict MUST NOT carry trailing-underscore 'id_'"
+    assert (
+        "type_" not in stored_embargo
+    ), "ARCH-23-005: inline dict MUST NOT carry trailing-underscore 'type_'"
+
+
+def test_rekey_wire_identity_renames_only_identity_keys():
+    """_rekey_wire_identity renames id_/type_/context_ and nothing else."""
+    data = {
+        "id_": "urn:uuid:x",
+        "type_": "SomeType",
+        "context_": "https://example.org/context",
+        "some_other_field": "value",
+        "nested": {
+            "id_": "urn:uuid:y",
+            "type_": "Inner",
+            "unrelated": 42,
+        },
+        "items": [
+            {"id_": "urn:uuid:z", "type_": "ListItem", "n": 1},
+            "a-bare-string",
+        ],
+    }
+    result = _rekey_wire_identity(data)
+
+    assert result["id"] == "urn:uuid:x"
+    assert result["type"] == "SomeType"
+    assert result["@context"] == "https://example.org/context"
+    assert result["some_other_field"] == "value"
+    assert "id_" not in result
+    assert "type_" not in result
+    assert "context_" not in result
+
+    nested = result["nested"]
+    assert nested["id"] == "urn:uuid:y"
+    assert nested["type"] == "Inner"
+    assert nested["unrelated"] == 42
+    assert "id_" not in nested
+
+    # List items that are dicts are also re-keyed (ARCH-23-005).
+    list_item = result["items"][0]
+    assert list_item["id"] == "urn:uuid:z"
+    assert list_item["type"] == "ListItem"
+    assert "id_" not in list_item
+    assert result["items"][1] == "a-bare-string"
+
+
+def test_rekey_wire_identity_is_no_op_on_already_wire_keyed_dict():
+    """_rekey_wire_identity is idempotent on dicts already using wire keys."""
+    data = {"id": "urn:uuid:x", "type": "Foo", "name": "bar"}
+    result = _rekey_wire_identity(data)
+    assert result == data
+
+
+def test_from_obj_wire_identity_keys_apply_to_list_items():
+    """ARCH-23-005 applies to list-of-dict fields such as case_statuses."""
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(
+        id_="urn:uuid:case-arch23005-list-000-000000000001",
+        attributed_to="urn:uuid:actor-arch23005-list",
+    )
+    record = object_to_record(cast(Any, case))
+
+    statuses = record.data_.get("case_statuses", [])
+    assert isinstance(statuses, list)
+    assert (
+        len(statuses) > 0
+    ), "VulnerabilityCase must have at least one CaseStatus"
+    for item in statuses:
+        assert isinstance(item, dict)
+        assert "id_" not in item, "ARCH-23-005: list item MUST NOT carry 'id_'"
+        assert (
+            "type_" not in item
+        ), "ARCH-23-005: list item MUST NOT carry 'type_'"
+        assert "id" in item
+        assert "type" in item
