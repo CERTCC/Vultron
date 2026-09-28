@@ -36,11 +36,11 @@ In this section, you will find:
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
 <!-- markdownlint-disable MD007 -->
-- [Vultron ActivityPub](activitypub/index.md) — Represent Vultron Protocol message types as ActivityPub messages using the ActivityStreams vocabulary.
+- [Process Implementation](process_implementation.md) — Where an existing ticketing, embargo, or threat-monitoring workflow emits Vultron messages, milestone by milestone.
+- [Vultron ActivityPub](activitypub/index.md) — The shape of a Vultron activity on the wire: ActivityStreams 2.0 verbs, Vultron objects, and the fields a receiver reads to tell activities apart.
 - [Measuring Your CVD Program](measure_your_cvd_program.md) — Score your own program's closed cases against the chance baseline from the Measuring CVD research, and read the result as a skill indicator you can act on.
 - **Demo How-Tos**
     - [FVV Demo](demos/fvv-demo.md) — Run the three-actor Finder, Vendor, Vendor (FVV) demo, in which two vendors each advance an independent fix path with no coordinator.
-- [Process Implementation](process_implementation.md) — Integrate the Report Management (RM), Embargo Management (EM), and Case State (CS) state machines into an existing workflow management system.
 - [Wiring a Capability](wire_capability.md) — Wire a capability into the reference implementation, replacing a call-out stub with real backend logic.
 <!-- markdownlint-enable MD007 -->
 

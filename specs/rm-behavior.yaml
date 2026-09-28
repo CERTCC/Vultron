@@ -1445,7 +1445,12 @@ groups:
       is_valid_rm_transition() before persisting. A same-state write is
       permitted (status confirmation). An illegal jump or backward move
       MUST cause the node to return Status.FAILURE without writing to the
-      DataLayer.
+      DataLayer. This is the emit-side and write-boundary rule. On the
+      receive side the CASE_MANAGER adjudicates a peer's RM declaration
+      under RSH-06-006 instead — a non-adjacent forward move is accepted and
+      flagged, not refused — and reaches the write node with adjacency
+      validation explicitly relaxed for the dimension the adjudication
+      accepted; the write node still refuses a backward move.
     verification: A unit test confirms that a BT write node returns `Status.FAILURE` without writing to the DataLayer
       when passed an illegal RM state transition (e.g., START → CLOSED directly).
     rationale: >-
