@@ -171,7 +171,9 @@ class TestAddNoteToCaseLedgerRouting:
             request=event,
             sync_port=SyncActivityAdapter(dl),
         ).execute()
-        assert result.disposition == HandlerDisposition.SKIPPED
+        # HP-01-005: the note was the CASE_MANAGER's to record; a receiver
+        # without that role refuses rather than reporting a processed no-op.
+        assert result.disposition == HandlerDisposition.REFUSED
 
         event_types = _ledger_event_types(dl)
         assert "add_note_to_case" not in event_types, (

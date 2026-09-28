@@ -119,12 +119,14 @@ def test_create_report_handler_returns_applied(reporter, report, dl):
 
 def test_submit_report_persists_activity_and_report(reporter, report, dl):
     activity = as_Offer(actor=reporter, object_=report)
-    # Addressed to no one, so no case is proposed; the report is still stored.
+    # Addressed to no one, so the receiver refuses it (HP-01-005): the Offer
+    # names no party entitled to propose a case.  The report is still stored
+    # for a later explicit decision (CM-15-001).
     _call_use_case(
         activity,
         SubmitReportReceivedUseCase,
         dl=dl,
-        expected=HandlerDisposition.SKIPPED,
+        expected=HandlerDisposition.REFUSED,
     )
 
     # check side effects

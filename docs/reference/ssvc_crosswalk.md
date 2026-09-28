@@ -13,14 +13,16 @@ level: 400
 In the context of the Vultron Protocol, once a report has been validated
 (i.e., it is in the RM [*Valid*](../topics/process_models/rm/index.md#the-valid-v-state) state, $q^{rm} \in V$), it must be prioritized to
 determine what further effort, if any, is necessary.
-While any prioritization scheme might be used, here we demonstrate an application of the [SSVC](https://github.com/CERTCC/SSVC){:target="_blank"} model.
+While any prioritization scheme might be used, here we demonstrate an application of the [SSVC](https://certcc.github.io/SSVC/){:target="_blank"} model.
 
-{== TODO merge with SSVC section of [Situation Awareness](../topics/other_uses/situation_awareness.md) ==}
+The protocol side of each mapping is normative in the [Vultron Protocol Specification](vultron-spec/index.md): the RM states and transitions in [§6](vultron-spec/index.md#6-report-management-rm-state-machine-n), and the case state dimensions in [§8](vultron-spec/index.md#8-case-state-cs-dimensions-n).
+The SSVC side follows the [SSVC documentation](https://certcc.github.io/SSVC/){:target="_blank"}, whose decision models and decision points are linked from each section below.
+[Situation Awareness](../topics/other_uses/situation_awareness.md) discusses how the case state model can inform SSVC decisions from the other direction.
 
-## SSVC Supplier and Deployer Trees
+## SSVC Supplier and Deployer Decision Models
 
-The default outcomes for both the SSVC [*Supplier*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_supplier.pdf){:target="_blank"}
-and [*Deployer*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_deployer_SeEUMss.pdf){:target="_blank"} Trees are
+The default outcomes for both the SSVC [*Supplier*](https://certcc.github.io/SSVC/howto/supplier_tree/){:target="_blank"}
+and [*Deployer*](https://certcc.github.io/SSVC/howto/deployer_tree/){:target="_blank"} decision models are
 *Defer*, *Scheduled*, *Out of Cycle*, and *Immediate*.
 The mapping from SSVC outcomes to RM states is straightforward, as shown below for the *Supplier Tree* and
 the *Deployer Tree*.
@@ -74,10 +76,10 @@ the main part of this documentation:
     ($\{V,D\} \xrightarrow{a} A$) transition out of the _Valid_,
     _Deferred_, or _Accepted_ states.
 
-## SSVC Coordinator Trees
+## SSVC Coordinator Decision Models
 
-SSVC version 2 offers two decision trees for Coordinators: A [*Coordinator Triage Tree*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_coord-triage.pdf){:target="_blank"}
-and a [*Coordinator Publish Tree*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_coord-publish.pdf){:target="_blank"}.
+SSVC offers two decision models for Coordinators: a [*Coordinator Triage*](https://certcc.github.io/SSVC/howto/coordination_triage_decision/){:target="_blank"} model
+and a [*Coordinator Publish*](https://certcc.github.io/SSVC/howto/publication_decision/){:target="_blank"} model.
 The outputs for the *Coordinator Triage* Decision Tree are *Decline*, *Track*, and *Coordinate*.
 Similar to the *Supplier Tree* mapping above, the mapping here is simple, as shown below.
 
@@ -110,7 +112,7 @@ Vultron Protocol.
 
 ### Exploitation
 
-The SSVC *Exploitation* decision point permits three possible values:
+The SSVC [*Exploitation*](https://certcc.github.io/SSVC/reference/decision_points/exploitation/){:target="_blank"} decision point permits three possible values:
 
 - *None*
 - *PoC*
@@ -137,7 +139,7 @@ These case states and SSVC values are equivalent in both directions, hence our u
 
 ### Report Public
 
-The SSVC *Report Public* decision point also maps directly onto the [CS model](../topics/process_models/cs/index.md).
+The SSVC [*Report Public*](https://certcc.github.io/SSVC/reference/decision_points/report_public/){:target="_blank"} decision point also maps directly onto the [CS model](../topics/process_models/cs/index.md).
 A value of *Yes* means that the report is public, equivalent to $q^{cs} \in \cdot\cdot\cdot P \cdot\cdot$.
 On the other hand, a *No* value is the same as $q^{cs} \in \cdot\cdot\cdot p \cdot\cdot$.
 As above, "$\iff$" indicates the bidirectional equivalence.
@@ -152,6 +154,7 @@ As above, "$\iff$" indicates the bidirectional equivalence.
 
 ### Supplier Contacted
 
+The SSVC [*Supplier Contacted*](https://certcc.github.io/SSVC/reference/decision_points/supplier_contacted/){:target="_blank"} decision point records whether the Vendor knows about the report.
 If the Supplier (Vendor) has been notified (i.e., there is reason to believe they are at least in the RM [*Received*](../topics/process_models/rm/index.md#the-received-r-state)
 state, equivalent to the $V\cdot\cdot\cdot\cdot\cdot$ CS state subset) the *Supplier Contacted* value should be *Yes*,
 otherwise it should be *No*.
@@ -170,7 +173,7 @@ otherwise it should be *No*.
 ### Report Credibility
 
 Unlike most of the other SSVC decision points covered here that form a part of a Participant's report prioritization
-process *after* report validation, the *Report Credibility* decision point forms an important step in the Coordinator's
+process *after* report validation, the [*Report Credibility*](https://certcc.github.io/SSVC/reference/decision_points/report_credibility/){:target="_blank"} decision point forms an important step in the Coordinator's
 validation process.
 In fact, it is often the only validation step possible when the Coordinator lacks the ability to reproduce a
 vulnerability whether due to constraints of resources, time, or skill.
@@ -191,9 +194,9 @@ because "Valid-but-not-Credible" is a contradiction.
 
 ### Public Value Added
 
-The SSVC *Public Value Added* decision point can take on the values *Precedence*, *Ampliative*, or *Limited*.
+The SSVC [*Public Value Added*](https://certcc.github.io/SSVC/reference/decision_points/public_value_added/){:target="_blank"} decision point can take on the values *Precedence*, *Ampliative*, or *Limited*.
 *Precedence* means that publication adds value by providing information that is not widely known.
-*Ampliative* means that publication might providing additional information or reach to information that may or may not
+*Ampliative* means that publication might provide additional information or reach to information that may or may not
 already be public.
 *Limited* means that publication impact might be limited because the information is already widely known.
 
@@ -209,7 +212,7 @@ already be public.
 
 ### Supplier Engagement
 
-The possible values for the *Supplier* (Vendor) *Engagement* decision point are *Active* or *Unresponsive*.
+The possible values for the [*Supplier Engagement*](https://certcc.github.io/SSVC/reference/decision_points/supplier_engagement/){:target="_blank"} (Vendor engagement) decision point are *Active* or *Unresponsive*.
 From the Coordinator's perspective, if enough Suppliers in a CVD case have communicated their engagement in a case
 (i.e., enough Vendors are in the RM *Accepted* state already or are expected to make it there soon from either the
 *Received* or *Valid* states), then the SSVC value would be *Active*.
@@ -267,7 +270,7 @@ flowchart LR
 
 ### Supplier Involvement
 
-The *Supplier Involvement* decision point can take on the values *Fix-Ready*, *Cooperative*, or *Uncooperative/Unresponsive*.
+The [*Supplier Involvement*](https://certcc.github.io/SSVC/reference/decision_points/supplier_involvement/){:target="_blank"} decision point can take on the values *Fix-Ready*, *Cooperative*, or *Uncooperative/Unresponsive*.
 We begin by noting the equivalence of the *Fix-Ready* value with the similarly named substate of the CS model.
 
 !!! note "SSVC *Supplier Involvement* Decision Point Mapped to CS States"

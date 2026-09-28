@@ -23,6 +23,7 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
+    is_recipient,
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
@@ -99,6 +100,22 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
+        # Two receivers are entitled to this Offer: the CASE_MANAGER it is
+        # addressed to (CM-21-005) and the transferee the CASE_MANAGER forwards
+        # it to.  Both are named in `to`; anyone else holds a misaddressed
+        # copy, refuses, and stores nothing (HP-01-005, #3752).
+        if not is_recipient(receiving_actor_id, request.activity):
+            verdict = HandlerResult.refused(
+                f"'{receiving_actor_id}' is not a recipient of ownership"
+                f"-transfer Offer '{request.activity_id}'"
+            )
+            logger.warning(
+                "OfferCaseOwnershipTransferReceived: refused '%s': %s",
+                request.activity_id,
+                verdict.reason,
+            )
+            return verdict
+
         stored = _idempotent_create(
             self._dl,
             request.activity_type,
@@ -151,7 +168,8 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             )
             return verdict
         if not_case_manager(tree):
-            # The cascade is the CaseActor's; anyone else only stores the Offer.
+            # The cascade is the CASE_MANAGER's; the transferee (an addressee,
+            # checked above) only stores the forwarded Offer.
             return stored
         return verdict
 

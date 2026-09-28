@@ -784,16 +784,17 @@ class TestSubmitReportDisposition:
         result, _ = self._run(to=[self.VENDOR_ID], dl=dl)
         assert result.disposition == HandlerDisposition.SKIPPED
 
-    @pytest.mark.spec("HP-01-003")
-    def test_cc_only_is_skipped(self):
+    @pytest.mark.spec("HP-01-005")
+    def test_cc_only_is_refused(self):
         result, _ = self._run(cc=[self.VENDOR_ID])
-        assert result.disposition == HandlerDisposition.SKIPPED
+        assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason and "cc" in result.reason
 
-    @pytest.mark.spec("HP-01-003")
-    def test_not_a_recipient_is_skipped(self):
+    @pytest.mark.spec("HP-01-005")
+    def test_not_a_recipient_is_refused(self):
         result, _ = self._run(to=[self.OTHER_ID])
-        assert result.disposition == HandlerDisposition.SKIPPED
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason and "not a recipient" in result.reason
 
     @pytest.mark.spec("HP-01-003")
     def test_auto_create_disabled_is_skipped(self):

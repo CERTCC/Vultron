@@ -15,9 +15,9 @@
 
 """BT nodes and factory for AcceptInviteActorToCase received use-case.
 
-When the CaseActor receives ``Accept(Invite(actor, case))``, it runs this tree
-as itself (the CaseActor) to record the invitee's participation in its own
-DataLayer — without spoofing the invitee's identity (PCR-08-010).
+When the CASE_MANAGER receives ``Accept(Invite(actor, case))``, it runs this
+tree as itself to record the invitee's participation in its own DataLayer —
+without spoofing the invitee's identity (PCR-08-010, PCR-08-009).
 
 Tree structure::
 
@@ -25,22 +25,32 @@ Tree structure::
     ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
     ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
     ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
-    ├── CreateInviteeParticipantNode           — construct participant at RM.START
-    ├── MaybeSignEmbargoConsentNode            — sign when embargo is EM.ACTIVE
-    ├── PersistInviteeParticipantNode          — dl.create, attach, save case
-    ├── AdvanceInviteeToReceivedNode           — advance to RM.RECEIVED via writer
-    ├── EmitAddCaseParticipantNode             — emit Add(CaseParticipant), commit ledger
-    ├── EmitAnnounceCaseToInviteeNode          — queue Announce(VulnerabilityCase)
-    └── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
+    └── AcceptInviteIfCaseManager (Selector)   — BT-17-001 gate
+        ├── SkipIfNotCaseManager               — Inverter(CheckIsCaseManagerNode)
+        └── AcceptInviteEffects (Sequence, memory=False)
+            ├── CreateInviteeParticipantNode         — construct participant at RM.START
+            ├── MaybeSignEmbargoConsentNode          — sign when embargo is EM.ACTIVE
+            ├── PersistInviteeParticipantNode        — dl.create, attach, save case
+            ├── AdvanceInviteeToReceivedNode         — advance to RM.RECEIVED via writer
+            ├── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
+            ├── EmitAnnounceCaseToInviteeNode        — queue Announce(VulnerabilityCase)
+            └── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
 
-Specs: PCR-08-010 (identity constraint), CM-10-001/CM-10-003 (embargo
-consent), MV-10-003/MV-10-005 (announce after consent resolved).
-BT-06-001, BT-15-001.
+Admitting the invitee, announcing the case to it and backfilling the ledger
+are the CASE_MANAGER's (PCR-08-009); every other participant learns of the
+new member through the ledger fan-out.  The same handler runs on any actor
+that holds a copy of the Accept, so the effects sit behind a role gate and
+a receiver that is not the case's CASE_MANAGER does nothing (#3752).
+
+Specs: PCR-08-009/PCR-08-010 (who records, identity constraint),
+CM-10-001/CM-10-003 (embargo consent), MV-10-003/MV-10-005 (announce after
+consent resolved). BT-06-001, BT-15-001, BT-17-001.
 """
 
 import py_trees
 
 from vultron.core.behaviors.case.nodes import (
+    create_case_manager_gated_tree,
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.case.nodes.accept_invite import (
@@ -112,8 +122,9 @@ def create_accept_invite_actor_to_case_tree(
 ) -> py_trees.composites.Sequence:
     """Return the BT for handling an inbound ``Accept(Invite(actor, case))``.
 
-    The CaseActor runs this tree **as itself** (not as the invitee) to record
-    the invitee's participation in its own DataLayer (PCR-08-010).
+    The CASE_MANAGER runs this tree **as itself** (not as the invitee) to
+    record the invitee's participation in its own DataLayer (PCR-08-009,
+    PCR-08-010).
 
     The returned Sequence::
 
@@ -121,13 +132,15 @@ def create_accept_invite_actor_to_case_tree(
         ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
         ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
         ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
-        ├── CreateInviteeParticipantNode           — construct participant at RM.START
-        ├── MaybeSignEmbargoConsentNode            — sign when EM.ACTIVE
-        ├── PersistInviteeParticipantNode          — persist, attach, save case
-        ├── AdvanceInviteeToReceivedNode           — advance to RM.RECEIVED via writer
-        ├── EmitAddCaseParticipantNode             — emit Add(CaseParticipant), commit ledger
-        ├── EmitAnnounceCaseToInviteeNode          — queue Announce to invitee
-        └── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
+        └── AcceptInviteIfCaseManager              — BT-17-001 gate (#3752)
+            └── AcceptInviteEffects (memory=False)
+                ├── CreateInviteeParticipantNode         — construct participant at RM.START
+                ├── MaybeSignEmbargoConsentNode          — sign when EM.ACTIVE
+                ├── PersistInviteeParticipantNode        — persist, attach, save case
+                ├── AdvanceInviteeToReceivedNode         — advance to RM.RECEIVED via writer
+                ├── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
+                ├── EmitAnnounceCaseToInviteeNode        — queue Announce to invitee
+                └── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
 
     The idempotency guard ``CheckInviteeNotAlreadyParticipantNode`` uses
     :class:`~vultron.core.behaviors.idempotency.SilentIdempotencyGuardMixin`
@@ -155,24 +168,33 @@ def create_accept_invite_actor_to_case_tree(
             CapturePreCommitBackfillTargetNode(case_id=case_id),
         ],
         effect_nodes=[
-            CreateInviteeParticipantNode(
-                case_id=case_id, invitee_id=invitee_id
-            ),
-            MaybeSignEmbargoConsentNode(
-                case_id=case_id, invitee_id=invitee_id
-            ),
-            PersistInviteeParticipantNode(
-                case_id=case_id, invitee_id=invitee_id
-            ),
-            AdvanceInviteeToReceivedNode(
-                case_id=case_id, invitee_id=invitee_id
-            ),
-            EmitAddCaseParticipantNode(case_id=case_id, invitee_id=invitee_id),
-            EmitAnnounceCaseToInviteeNode(
-                case_id=case_id, invitee_id=invitee_id
-            ),
-            BackfillCanonicalLedgerToInviteeNode(
-                case_id=case_id, invitee_id=invitee_id
+            create_case_manager_gated_tree(
+                name="AcceptInviteIfCaseManager",
+                case_id=case_id,
+                children=[
+                    CreateInviteeParticipantNode(
+                        case_id=case_id, invitee_id=invitee_id
+                    ),
+                    MaybeSignEmbargoConsentNode(
+                        case_id=case_id, invitee_id=invitee_id
+                    ),
+                    PersistInviteeParticipantNode(
+                        case_id=case_id, invitee_id=invitee_id
+                    ),
+                    AdvanceInviteeToReceivedNode(
+                        case_id=case_id, invitee_id=invitee_id
+                    ),
+                    EmitAddCaseParticipantNode(
+                        case_id=case_id, invitee_id=invitee_id
+                    ),
+                    EmitAnnounceCaseToInviteeNode(
+                        case_id=case_id, invitee_id=invitee_id
+                    ),
+                    BackfillCanonicalLedgerToInviteeNode(
+                        case_id=case_id, invitee_id=invitee_id
+                    ),
+                ],
+                body_name="AcceptInviteEffects",
             ),
         ],
     )

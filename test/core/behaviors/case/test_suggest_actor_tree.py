@@ -28,6 +28,7 @@ ADR-0026/CM-16.
 from unittest.mock import MagicMock
 
 import py_trees
+import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.suggest_actor_tree import (
@@ -421,7 +422,7 @@ class TestAcceptActorRecommendationReceivedTree:
     def test_has_accept_recommendation_node(self):
         nodes = [
             c
-            for c in self.tree.children
+            for c in self.tree.iterate()
             if isinstance(c, EmitAcceptActorRecommendationNode)
         ]
         assert nodes, "Expected EmitAcceptActorRecommendationNode in tree"
@@ -434,7 +435,7 @@ class TestAcceptActorRecommendationReceivedTree:
     def test_has_invite_actor_node(self):
         nodes = [
             c
-            for c in self.tree.children
+            for c in self.tree.iterate()
             if isinstance(c, EmitInviteActorToCaseNode)
         ]
         assert (
@@ -470,7 +471,7 @@ class TestRejectActorRecommendationReceivedTree:
     def test_has_reject_recommendation_node(self):
         nodes = [
             c
-            for c in self.tree.children
+            for c in self.tree.iterate()
             if isinstance(c, EmitRejectActorRecommendationNode)
         ]
         assert nodes, "Expected EmitRejectActorRecommendationNode in tree"
@@ -1061,3 +1062,103 @@ class TestSnapshotWithContext:
         )
         assert "target" not in result
         assert result["context"] == "https://x/case"
+
+
+# ---------------------------------------------------------------------------
+# #3752: every effect sits behind the CASE_MANAGER role gate (BT-17-001)
+# ---------------------------------------------------------------------------
+
+
+def _descendants(node: py_trees.behaviour.Behaviour) -> set[int]:
+    return {id(n) for n in node.iterate()} - {id(node)}
+
+
+def _gate(tree: py_trees.behaviour.Behaviour, name: str):
+    gates = [
+        n
+        for n in tree.iterate()
+        if isinstance(n, py_trees.composites.Selector) and n.name == name
+    ]
+    assert len(gates) == 1, f"expected exactly one gate named {name!r}"
+    return gates[0]
+
+
+def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
+    """Leaves that write or emit: everything after the receipt commit."""
+    return [
+        n
+        for n in tree.iterate()
+        if type(n).__name__.startswith("Emit")
+        or type(n).__name__.startswith("Record")
+    ]
+
+
+@pytest.mark.spec("BT-17-001")
+@pytest.mark.parametrize(
+    ("factory", "kwargs", "gate_name"),
+    [
+        (
+            create_recommend_actor_to_case_received_tree,
+            dict(
+                recommendation_id=_REC_ID,
+                recommender_id=_RECOMMENDER,
+                recommended_id=_RECOMMENDED,
+                case_id=_CASE_ID,
+            ),
+            "RecommendActorToCaseIfCaseManager",
+        ),
+        (
+            create_accept_actor_recommendation_received_tree,
+            dict(
+                recommendation_id=_REC_ID,
+                recommender_id=_RECOMMENDER,
+                invitee_id=_RECOMMENDED,
+                case_id=_CASE_ID,
+            ),
+            "AcceptActorRecommendationIfCaseManager",
+        ),
+        (
+            create_reject_actor_recommendation_received_tree,
+            dict(
+                recommendation_id=_REC_ID,
+                recommender_id=_RECOMMENDER,
+                recommended_id=_RECOMMENDED,
+                case_id=_CASE_ID,
+            ),
+            "RejectActorRecommendationIfCaseManager",
+        ),
+    ],
+    ids=["recommend", "accept", "reject"],
+)
+def test_every_effect_is_inside_the_case_manager_gate(
+    factory, kwargs, gate_name
+):
+    """No emit or index write is reachable without passing the role gate.
+
+    The gate is the sanctioned composite (BTND-07-005) and sits after the
+    receipt commit (CLP-10-006), so a receiver that is not the CASE_MANAGER
+    skips every effect (#3752).
+    """
+    from vultron.core.behaviors.case.nodes.conditions import (
+        CheckIsCaseManagerNode,
+    )
+
+    tree = factory(**kwargs)
+    gate = _gate(tree, gate_name)
+    inside = _descendants(gate)
+
+    effects = _effect_nodes(tree)
+    assert effects, "the tree must have effect nodes to gate"
+    outside = [type(n).__name__ for n in effects if id(n) not in inside]
+    assert outside == [], f"effect nodes outside the gate: {outside}"
+
+    # The gate follows the receipt commit: commit first, effects second.
+    children = list(tree.children)
+    commit_index = next(
+        i
+        for i, c in enumerate(children)
+        if c.name == "GuardedCommitCaseLedgerEntryBT"
+    )
+    assert children.index(gate) > commit_index
+    # And it is the role check that guards it.
+    assert any(isinstance(n, CheckIsCaseManagerNode) for n in gate.iterate())

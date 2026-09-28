@@ -158,7 +158,7 @@ The server responds with `202 Accepted`:
 HTTP/1.1 202 Accepted
 ```
 
-The `202 Accepted` status is the actor's acknowledgement.
+The `202 Accepted` status is the actor's acknowledgment.
 It means the actor received the message and accepted it for processing.
 Processing then happens in the background, so the response body is empty.
 

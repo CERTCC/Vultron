@@ -117,7 +117,7 @@ The actor's own state changed, and the obligation follows from that.
 
 This is the richest call-out surface in the protocol, because almost every embargo question is a policy question.
 Each point below names its capability shape from the [ADR-0024](../../../adr/0024-coordination-agent-taxonomy.md) taxonomy, and each is answered by an injected backend rather than by logic inside the tree ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
-Their service contracts are catalogued in the [Capability Model](../../capability_model/index.md#embargo-management).
+Their service contracts are cataloged in the [Capability Model](../../capability_model/index.md#embargo-management).
 
 **Deciding to negotiate.** `WantToProposeEmbargo` (Evaluator) asks whether to propose at all; `SelectEmbargoOfferTerms` (Composer) asks what terms; `StopProposingEmbargo` (Evaluator) asks whether to give up after a refusal.
 Their deterministic defaults differ, and the differences encode a recommended posture: propose by default, and do not give up by default.

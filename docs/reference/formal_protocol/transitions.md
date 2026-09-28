@@ -214,7 +214,7 @@ the corresponding sender state transition.
 | $\lnot C,*,*$ | $-,-,-$ |                      $EK$                       |
 | $\lnot C,*,*$ | $-,-,-$ |                      $EE$                       |
 
-A Participant still in RM *Start* has no case to negotiate, so the only EM messages it sends are $EE$, the error it returns when an EM message reaches it before the report does, and $EK$, its acknowledgement of an $EE$.
+A Participant still in RM *Start* has no case to negotiate, so the only EM messages it sends are $EE$, the error it returns when an EM message reaches it before the report does, and $EK$, its acknowledgment of an $EE$.
 
 !!! note inline end "EM Messages Received and State Transitions"
 

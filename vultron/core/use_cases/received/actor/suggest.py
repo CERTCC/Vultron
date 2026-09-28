@@ -16,7 +16,10 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
+from vultron.core.use_cases.received._bt_verdict import (
+    not_case_manager_refusal,
+    verdict_from_bt,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -25,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class OfferActorToCaseReceivedUseCase:
-    """CaseActor received Offer(Actor, Case) from a recommending participant.
+    """The CASE_MANAGER received Offer(Actor, Case) from a recommending participant.
 
     Delegates to :func:`create_recommend_actor_to_case_received_tree` via
     BTBridge to commit the ledger entry and DM Offer(CaseParticipant) to the
@@ -36,6 +39,10 @@ class OfferActorToCaseReceivedUseCase:
     VulnerabilityCase.recommendation_recommender_index so downstream
     Accept/Reject use cases can look up the recommender without re-reading the
     stored wire Offer (ADR-0035 DL-06-002, CLP-10-005).
+
+    Every effect is gated on the receiving actor holding
+    ``CVDRole.CASE_MANAGER`` for the case (BT-17-001).  Any other receiver of
+    a copy does nothing and refuses (HP-01-005, #3752).
     """
 
     def __init__(
@@ -105,6 +112,10 @@ class OfferActorToCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="RecommendActorToCaseReceivedBT"
         )
+        if verdict.disposition is not HandlerDisposition.REFUSED:
+            refusal = not_case_manager_refusal(tree, self._dl, case_id)
+            if refusal is not None:
+                verdict = refusal
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "OfferActorToCaseReceived: refused '%s': %s",

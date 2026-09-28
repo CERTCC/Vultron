@@ -121,7 +121,9 @@ def _not_primary_recipient_reason(
 
     Only a ``to`` recipient acts on an ``Offer(Report)`` (HP-09-001,
     HP-09-002).  Anyone else received a copy that is not addressed to it,
-    which is a correct no-op rather than a refusal (HP-01-003).
+    which it refuses (HP-01-005): the sender addressed the wrong party, and
+    the receiver's own record says so rather than reporting a processed
+    no-op.
     """
     to_list = (request.activity.to or []) if request.activity else []
     cc_list = (request.activity.cc or []) if request.activity else []
@@ -282,11 +284,11 @@ class SubmitReportReceivedUseCase:
                 "Offer carries no report id; nothing to propose a case for"
             )
 
-        skip_reason = _not_primary_recipient_reason(
+        refusal_reason = _not_primary_recipient_reason(
             request, receiving_actor_id
         )
-        if skip_reason is not None:
-            return HandlerResult.skipped(skip_reason)
+        if refusal_reason is not None:
+            return HandlerResult.refused(refusal_reason)
 
         # Routing-level policy short-circuit: when the receiver opts out of
         # automatic case creation, do not even invoke the case-creation BT.

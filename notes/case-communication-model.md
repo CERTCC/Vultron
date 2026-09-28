@@ -12,6 +12,8 @@ related_specs:
   - specs/sync-ledger-replication.yaml
   - specs/case-ledger-processing.yaml
   - specs/case-management.yaml
+  - specs/behavior-tree-integration.yaml
+  - specs/handler-protocol.yaml
 related_notes:
   - notes/sync-ledger-replication.md
   - notes/case-ledger-authority.md
@@ -19,6 +21,7 @@ related_notes:
   - notes/participant-case-replica.md
   - notes/fv-demo.md
   - notes/outbox.md
+  - notes/use-case-protocol.md
 relevant_packages:
   - vultron/core/use_cases/triggers
   - vultron/core/use_cases/received
@@ -221,11 +224,16 @@ Case Owner triggers SvcInviteActorToCaseUseCase
 Invitee sends Accept(Invite, actor=invitee_id, to=[case_actor_id])
   → CASE_MANAGER's inbox (NOT the case owner's inbox)
 
-CASE_MANAGER's AcceptInviteActorToCaseReceivedUseCase:
-  1. Creates CaseParticipant at RM.VALID
-  2. Records RM VALID→ACCEPTED inline (Accept(Invite) IS the engage signal)
-  3. Emits Announce(VulnerabilityCase) to invitee
-  4. Commits CaseLedgerEntry → Announce(CaseLedgerEntry) broadcast
+AcceptInviteActorToCaseReceivedUseCase, at every receiver of a copy:
+  1. Commits the receipt CaseLedgerEntry (guarded; CLP-10-006)
+  2. CASE_MANAGER gate (create_case_manager_gated_tree, BT-17-001):
+     a non-manager stops here and the handler reports REFUSED (HP-01-005)
+  3. Creates the CaseParticipant at RM.START, persists it, advances it to
+     RM.RECEIVED through the ParticipantStatus writer (ADR-0089)
+  4. Emits Add(CaseParticipant), commits its CaseLedgerEntry →
+     Announce(CaseLedgerEntry) broadcast
+  5. Emits Announce(VulnerabilityCase) to the invitee and backfills the
+     prior ledger to it
 ```
 
 ### Key Rules
@@ -235,7 +243,14 @@ CASE_MANAGER's AcceptInviteActorToCaseReceivedUseCase:
 - The invitee's `Accept` MUST be addressed **to the CASE_MANAGER**,
   not to the case owner (PCR-08-008).
 - The CASE_MANAGER (not the case owner) MUST process the Accept and
-  record the invitee's RM transition (PCR-08-009).
+  record the invitee's RM transition (PCR-08-009). The same handler runs on
+  any actor holding a copy, so admitting, announcing and backfilling sit
+  behind the role gate; a receiver the gate turns away reports `REFUSED`
+  through `not_case_manager_refusal()`, never `SKIPPED` (HP-01-005, #3752).
+- The handler runs the tree as the **receiving** actor only
+  (`resolve_receiving_actor_id()`), never as a CASE_MANAGER address looked
+  up from the store: that ran the tree under a foreign identity and let the
+  gate pass for a store that was not the manager's (BT-17-006, #3823).
 - No `RmEngageCaseActivity` is emitted on behalf of the invitee.
   `Accept(Invite)` is semantically equivalent to engaging, so the
   separate engage step is redundant.
@@ -396,30 +411,43 @@ to emit `Announce(CaseLedgerEntry)` as if authored by the CASE_MANAGER. The
 outbox entry is queued under the wrong actor, and the CASE_MANAGER's canonical
 ledger never receives it.
 
-The correct pattern (from `status.py`'s `_commit_log_cascade_bt`) is a strict
-pre-flight guard that only proceeds when the receiving actor IS the CASE_MANAGER:
+The correct pattern runs the tree as the receiving actor and lets the tree
+decide, through the sanctioned role gate, whether that actor may act
+(BT-17-001, BTND-07-005). Code MUST NOT instead compare the receiving actor
+against a `case_actor_id` looked up from the store (CM-24-004): the authority
+is a *role* held in the case, not an address.
 
 ```python
-# ✅ CORRECT — pre-flight guard; only commits when receiving actor holds CASE_MANAGER
-receiving_actor_id = request.receiving_actor_id
-case_actor_id = _find_case_actor_id(self._dl, case_id)
-
-if receiving_actor_id != case_actor_id:
-    return   # not the CASE_MANAGER — skip commit entirely
-
-# Now safe: receiving_actor_id == case_actor_id, so DL matches identity
-BTBridge(datalayer=self._dl).execute_with_setup(
-    tree=create_guarded_commit_case_ledger_entry_tree(case_id),
-    actor_id=receiving_actor_id,   # ← correct: same as active DL
-    ...
+# ✅ CORRECT — the tree runs as the receiving actor; the gate decides
+tree = create_receive_activity_tree(
+    ...,
+    effect_nodes=[
+        create_case_manager_gated_tree(
+            name="AttachNoteIfCaseManager",
+            case_id=case_id,
+            children=[AttachNoteNode(...), ...],
+        ),
+    ],
 )
+result = BTBridge(datalayer=self._dl).execute_with_setup(
+    tree,
+    actor_id=resolve_receiving_actor_id(self._dl, request.receiving_actor_id),
+    activity=request,
+)
+verdict = verdict_from_bt(tree, result, label="AddNoteToCaseBT")
+if verdict.disposition is HandlerDisposition.APPLIED:
+    if (r := not_case_manager_refusal(tree, self._dl, case_id)) is not None:
+        verdict = r   # REFUSED: not the manager, or no case / no manager here
 ```
 
-The pre-flight guard is what makes the identity correct. When a non-CASE_MANAGER
-receives the same activity (relay copy to finder, vendor's own inbox), the
-guard fires and the commit is skipped. The CASE_MANAGER's own inbox delivery —
-which arrives because the trigger tree emitted to `case_manager_id`
-(CLP-10-001) — is the only path to a canonical write.
+The gate is what makes the identity correct: the role holder, the receiving
+actor and the store owner are one actor or the effects do not run (BT-05-006).
+When a non-CASE_MANAGER receives the same activity (relay copy to finder,
+vendor's own inbox), the gate's skip arm succeeds so the tree still succeeds,
+and the handler turns that skip into `REFUSED` — the message was the manager's
+to act on and reached the wrong party (HP-01-005, #3752). The CASE_MANAGER's
+own inbox delivery — which arrives because the trigger tree emitted to
+`case_manager_id` (CLP-10-001) — is the only path to a canonical write.
 
 ### Why the `Announce(CaseLedgerEntry)` envelope is not a payload
 

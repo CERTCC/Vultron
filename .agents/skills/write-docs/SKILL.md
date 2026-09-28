@@ -123,10 +123,11 @@ from the source:
      is no `base_path` configured, so `{% include-markdown "./_slug.md" %}` and
      `{% include-markdown "../../includes/normative.md" %}` are the shapes that
      resolve; a `docs/`-rooted argument fails the strict build.
-   - **Lint scope** — `lint-docs` drops `docs/includes/**` and `_*.md` until
-     #3318 lands, so lint the new fragment by hand. Page-scoped rules belong to
-     the assembled page, not the fragment (DF-09-007); quadrant comes from each
-     host page (DF-09-008).
+   - **Lint scope** — a fragment is a `lint-docs` target in its own right, so
+     pass it explicitly (or lint the branch diff, which includes it). Page-scoped
+     rules belong to the assembled page, not the fragment (DF-09-007); quadrant
+     comes from each host page (DF-09-008). See `lint-docs` § "Fragments and
+     assembly units".
 
 The move is not complete until every claim that is now a first-class assertion
 on this page has been confirmed. Flag any claim that cannot be verified as a

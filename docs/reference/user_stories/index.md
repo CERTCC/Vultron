@@ -15,6 +15,7 @@ While the protocol is designed to support these use cases, it is not required th
 protocol.
 
 Where appropriate, a reference implementation will be provided for each applicable user story.
+The [User Story Traceability Matrix](traceability.md) maps each story to the formal requirements in the specifications that satisfy it.
 
 <br/>
 
@@ -34,16 +35,15 @@ Where appropriate, a reference implementation will be provided for each applicab
 
 ## Support Levels
 
-Each story page indicates a categorization according to the level of support provided
-by the originally published Vultron Protocol (version 0.4.0):
+Each story page carries a support level, assigned when the story was written against the protocol as it stood at the time:
 
-- *Provided* - Stories in this category are directly supported by the Vultron Protocol v0.4.0.
-- *Allowed* - Stories in this category are indirectly supported by the Vultron Protocol v0.4.0.
-- *Unsupported* - Stories in this category are not supported by the Vultron Protocol v0.4.0.
-- *Out-of-scope* - Stories in this category are out of scope for the Vultron Protocol v0.4.0.
+- *Provided* - The protocol directly supports the story.
+- *Allowed* - The protocol indirectly supports the story.
+- *Unsupported* - The protocol does not support the story.
+- *Out-of-scope* - The story is outside the protocol's scope.
 
-These categories are expected to change toward *Supported*, *Unsupported* and *Out-of-scope* as the protocol matures.
-Some stories in the *Unsupported* category may move to *Supported* as ActivityPub support and protocol development progresses.
+A support level is a dated judgment, not a live conformance result.
+The [User Story Traceability Matrix](traceability.md) is the current record of which requirements satisfy a story, and a story with mapped requirements may be better supported than its original level says.
 
 ## User Stories Table
 
