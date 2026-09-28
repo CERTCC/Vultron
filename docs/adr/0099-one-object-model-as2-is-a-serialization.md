@@ -394,11 +394,15 @@ reader the moment it is closed.
   and the bare enumerations wire legitimately needs already live in
   `vultron/core/states/`. `TYPE_CHECKING`-only imports are exempt generally,
   not by carving out the one file that needed it.
-- **Retire ADR-0017 and ADR-0082**, including the forward references from
+- ~~**Retire ADR-0017 and ADR-0082**, including the forward references from
   `notes/wire-core-boundary.md`, `notes/vocabulary-registry.md`,
   `notes/core-wire-rendering-port.md`, `docs/reference/glossary.md` and several
-  spec rationales. (The ratchet test that also cited them is already deleted with
-  detail 6.)
+  spec rationales.~~ **Done (#3492).** Both carry `status: superseded` and live
+  in `docs/adr/archived/`; their old URLs redirect. The notes and glossary named
+  here already described ADR-0082's remedy as cancelled; the spec rationales
+  that still presented it as current were reworded, and #3840 tracks the
+  requirements whose *normative* text still names the cancelled mechanisms.
+  (The ratchet test that also cited them was deleted with detail 6.)
 
 ## Validation
 
@@ -612,14 +616,13 @@ compatibility.
 
 ### Relationship to other decisions
 
-**Partially supersedes** — recorded as `partially_superseded_by` on both, which
-annotates them without retiring them, rather than `superseded_by`, which would.
-Both retain `status: accepted` deliberately: this ADR is
-`accepted-provisional`, and retiring two accepted decisions on the strength of a
-provisional one would overstate what has been established. Flip both to
-`superseded` and move them to `docs/adr/archived/` when this ADR reaches
-`accepted` — and note that move rewrites roughly 140 references across `docs/`,
-`specs/`, `notes/` and `test/`, so it wants to happen once.
+**Supersedes** — recorded as `superseded_by` on both, which now carry
+`status: superseded` and live in
+[`docs/adr/archived/`](archived/README.md). While this ADR was
+`accepted-provisional` they were only annotated (`partially_superseded_by`) and
+kept `status: accepted`, because retiring two accepted decisions on the strength
+of a provisional one would have overstated what had been established. They were
+retired in full when this ADR reached `accepted` (#3492).
 
 - **ADR-0017** — the Option D shared root is replaced. Everything Option B
   contributed and ADR-0017 preserved — `CoreObject`, `CORE_VOCABULARY`, the
@@ -648,8 +651,15 @@ provisional one would overstate what has been established. Flip both to
   The evidence therefore moves out of the object graph: `parse_activity` seals the received body as JSON text before anything expands or validates it, and ingress rehydration carries that text to the routing copy (snapshot-at-parse, #3584).
   What the ledger does with that evidence is [ADR-0107](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)'s decision, not this one's.
 
-**Unaffected:** ADR-0063 (rendering behind a port), ADR-0083 (the message set
-and the AS2 vocabulary are different shapes), ADR-0069 (namespace).
+**Unaffected:** ADR-0083 (the message set and the AS2 vocabulary are different
+shapes), ADR-0069 (namespace).
+
+**ADR-0063** — its decision (render core objects to wire JSON behind a driven
+port) stands. Its mechanism and its removal of `alias_generator` from the core
+branch do not: detail 2 puts the AS2 spelling back on `CoreObject` as the field
+alias, and the port collapsed to the core object's own `by_alias` dump
+(ARCH-20-002). Recorded as `partially_superseded_by` on ADR-0063 when ADR-0082,
+which had previously held that pointer, was retired (#3492).
 
 ### Issue dispositions
 

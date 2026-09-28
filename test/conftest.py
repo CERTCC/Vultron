@@ -213,26 +213,21 @@ def _dispose_actor_stores_between_tests():
 
 
 @pytest.fixture
-def isolated_vocab():
-    """Snapshot the core class registries around a test, restoring them after.
+def isolated_core_registries():
+    """Restore ``CORE_VOCABULARY`` and ``CORE_TYPE_MAP`` after the test.
 
-    ``CoreObject.__init_subclass__`` registers every concrete subclass in the
-    process-global ``CORE_VOCABULARY`` and ``CORE_TYPE_MAP``.  A test that
-    defines a local ``CoreObject`` subclass therefore leaks it into every later
-    registry-iterating test in the session unless both maps are restored.
-    Request this fixture from any test that defines such a class.
+    Request this fixture from any test that defines a local ``CoreObject`` or
+    ``CoreRecord`` subclass (TB-06-003, TB-06-004).  It lives in the root
+    conftest because such tests exist under ``test/core/``, ``test/adapters/``
+    and ``test/architecture/`` alike, and the suite is meant to share one
+    registry-isolation mechanism.  The snapshot/restore itself is
+    :func:`test.support.core_vocab.restore_core_registries`, which is where its
+    behaviour is tested.
     """
-    from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
+    from test.support.core_vocab import restore_core_registries
 
-    vocab_snapshot = dict(CORE_VOCABULARY)
-    type_map_snapshot = dict(CORE_TYPE_MAP)
-    try:
+    with restore_core_registries():
         yield
-    finally:
-        CORE_VOCABULARY.clear()
-        CORE_VOCABULARY.update(vocab_snapshot)
-        CORE_TYPE_MAP.clear()
-        CORE_TYPE_MAP.update(type_map_snapshot)
 
 
 def seed_case_actor_replica(dl, case_actor_id, case, *extra):

@@ -4,7 +4,7 @@ date: 2026-08-13
 deciders: Allen Householder
 consulted: Claude Code (planning agent for CONCERN-2260)
 informed: Vultron contributors
-partially_superseded_by: docs/adr/0082-wire-core-boundary-pairing-registry.md
+partially_superseded_by: 0099-one-object-model-as2-is-a-serialization.md
 stakeholder_type: [project-contributor]
 ---
 
@@ -275,15 +275,16 @@ routes into `_wire_object_from_row` → `_project_wire_row_to_core`
 ## More Information
 
 - Source concern: #2260. Closes the long-standing violation tracked in #1991.
-- **Mechanism revised by [ADR-0082](0082-wire-core-boundary-pairing-registry.md).**
-  The decision — render core objects to wire JSON through a driven port — stands,
-  and so does the removal of `alias_generator` from the core branch. What changes
-  is step 2 above: the AS2 adapter stops resolving a wire class by name collision
-  and calling that class's `from_core()`, and instead delegates to an
-  adapter-side translator module driven by a declarative core↔wire pairing
-  registry, so that wire classes carry no projection logic at all. Read step 2,
-  and ARCH-20-002's `from_core()` mandate, as revised by that registry once
-  ADR-0082's task set lands.
+- **Mechanism revised by [ADR-0082](archived/0082-wire-core-boundary-pairing-registry.md),
+  itself superseded by [ADR-0099](0099-one-object-model-as2-is-a-serialization.md).**
+  The decision — render core objects to wire JSON through a driven port — stands.
+  ADR-0082 planned to replace step 2 above (resolving a wire class by name
+  collision and calling its `from_core()`) with an adapter-side translator driven
+  by a declarative core↔wire pairing registry; ADR-0099 retired that plan before
+  it landed, because with one object model there is no counterpart to resolve.
+  As built, the port is the core object's own `by_alias` dump (ARCH-20-002), and
+  the `alias_generator` removal this ADR ordered is reversed by ADR-0099 detail 2,
+  which puts the AS2 spelling back on `CoreObject` as the field alias.
 - Related: #2232 (wire-shaped rows on the DataLayer read path, fixed by
   ADR-0062), #2268 (the thirteen remaining wire-shadowing types on the write
   path, not in scope here).

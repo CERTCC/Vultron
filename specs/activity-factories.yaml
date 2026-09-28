@@ -50,10 +50,11 @@ groups:
       NOT hand a factory a hand-built *partial* wire object (e.g. an `as_VulnerabilityCaseStub` assembled field-by-field) — an
       incompletely projected argument risks omitting fields the translator would have included (e.g. `end_time` on an embargo
       event).
-    rationale: 'ADR-0082 gives the adapter-side translator sole ownership of core→wire projection. A factory that projects
-      internally must import the core domain model, which is why `factories/actor.py` and `factories/case.py` are wire→core
-      import violations under ARCH-22-001; sanctioning the factory layer as a second projection site would pin them in place
-      permanently. The invariant the original rule protected — enrichment is complete and expressed in one place — is preserved
+    rationale: 'The rendering port (ARCH-20-001) is the sole owner of core→wire projection under ADR-0099; ADR-0082 had
+      assigned that role to an adapter-side translator, which ADR-0099 retired before it was built. A factory that projects
+      internally would be a second projection site, and enrichment computed in two places drifts — which is why
+      `factories/actor.py` and `factories/case.py` importing the core model was counted as a violation under the original
+      ARCH-22-001. The invariant the original rule protected — enrichment is complete and expressed in one place — is preserved
       by requiring a *complete* translator-produced wire object rather than a hand-built partial one (issue #1300: a bare
       `active_embargo` URI reached the wire instead of an embargo event with `end_time`).'
     verification: No module under `vultron/wire/as2/factories/` imports from `vultron.core.models` (enforced by the ARCH-22
@@ -64,6 +65,7 @@ groups:
       spec_id: ARCH-22-001
     adr:
     - ADR-0082
+    - ADR-0099
 - id: AF-02
   title: Module Structure
   specs:

@@ -49,7 +49,8 @@ relevant_packages:
 > `KNOWN_VIOLATIONS` inventory, the exemption set, and the pairing registry
 > describe a plan that was cancelled. The migration is epic #2670.
 
-ADR: `docs/adr/0082-wire-core-boundary-pairing-registry.md`.
+ADR: `docs/adr/archived/0082-wire-core-boundary-pairing-registry.md`
+(superseded by ADR-0099).
 Specs: ARCH-12-001 through ARCH-12-005, ARCH-22, ARCH-23, VM-01-004.
 Source: planning group G02 (#2830).
 
@@ -59,7 +60,7 @@ It is easy to conflate these, and doing so wastes a lot of time:
 
 | Rule | Direction | Remedy |
 |---|---|---|
-| ARCH-01-001 | core MUST NOT import wire | `WireRenderPort` (ADR-0063) for rendering; `WireParsePort` (ADR-0082) for parsing |
+| ARCH-01-001 | core MUST NOT import wire | `WireRenderPort` (ADR-0063) for rendering; for parsing, `rehydrate()` owns ID-to-object materialisation (VM-06-007) — the `WireParsePort` ADR-0082 proposed was rejected by ADR-0099 |
 | ARCH-22-001 | ~~wire MUST NOT import core~~ — **repealed** (ADR-0099) | replaced by an allow-list: wire MAY import `core/models/` and `core/states/` only (#3483) |
 
 ADR-0063 solved the *rendering* half of the first rule. It did **not** touch the
@@ -68,11 +69,12 @@ second: its adapter is a thin dispatcher that still calls
 counterpart. Anyone reading ADR-0063 and concluding that wire→core imports were
 addressed will misjudge the remaining work.
 
-The *parsing* half of the first rule was also still open until ADR-0082: core
-reached for a wire capability by duck-typing, `getattr(obj, "to_core", None)`, at
-three sites — including ADR-0062's primary ingress projection in
-`vultron/core/use_cases/received/case/_helpers.py`. Duck-typing does not satisfy
-ARCH-01-001; it only hides the violation from the import-based ratchet.
+The *parsing* half of the first rule was also still open when ADR-0082 was
+written: core reached for a wire capability by duck-typing,
+`getattr(obj, "to_core", None)`, at three sites — including ADR-0062's primary
+ingress projection in `vultron/core/use_cases/received/case/_helpers.py`.
+Duck-typing does not satisfy ARCH-01-001; it only hides the violation from the
+import-based ratchet.
 
 ## Why "Zero Wire→Core Imports" Was Unreachable
 
@@ -373,9 +375,12 @@ while the protocol did not work.
 
 ## Related Files
 
-- `docs/adr/0082-wire-core-boundary-pairing-registry.md` — the decision
-- `docs/adr/0062-…` — superseded by 0082; still describes current code
-- `docs/adr/0063-…` — decision stands, mechanism revised by 0082
+- `docs/adr/archived/0082-wire-core-boundary-pairing-registry.md` — the
+  decision this note diagnoses for; superseded by ADR-0099 (#3492)
+- `docs/adr/archived/0062-…` — superseded by 0082, which is itself superseded
+- `docs/adr/0063-…` — decision stands; the 0082 mechanism revision never landed
+- `docs/adr/0099-one-object-model-as2-is-a-serialization.md` — the decision
+  that replaced the remedy
 - `vultron/core/models/_wire_spelling.py` — the camelCase guard, retired by
   ARCH-12-003's `extra="forbid"` clause
 - `vultron/adapters/driven/wire_render/as2.py` — the render adapter whose

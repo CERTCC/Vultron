@@ -248,14 +248,14 @@ def test_disagreeing_duplicate_spellings_cannot_mask_a_contradiction(
 
 
 def test_all_computed_field_contradictions_named_in_one_error(
-    isolated_vocab,
+    isolated_core_registries,
 ) -> None:
     """AC-2: every contradicted computed field is carried in one error as
     structured ``Violation`` data (EH-07-001, EH-07-003).
 
     Because embargo_adherence is the only production computed field, a
     test-local CoreObject subclass with two computed fields is used to prove
-    the multi-violation contract.  ``isolated_vocab`` keeps that subclass out
+    the multi-violation contract.  ``isolated_core_registries`` keeps that subclass out
     of the process-global core registries.
     """
     from typing import Literal
@@ -291,7 +291,7 @@ def test_all_computed_field_contradictions_named_in_one_error(
 
 
 def test_json_mode_dump_round_trips_for_non_bool_computed_field(
-    isolated_vocab,
+    isolated_core_registries,
 ) -> None:
     """A ``mode="json"`` dump of a computed field of any type round-trips
     (ARCH-23-005).

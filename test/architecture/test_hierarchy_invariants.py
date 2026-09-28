@@ -46,7 +46,7 @@ See ``test_validate_assignment_ratchet.py``, which uses the same three-part shap
 (exact backlog + strict goal + guard-the-guard).
 
 Spec: `specs/architecture.yaml` ARCH-12-003, ARCH-12-004, ARCH-12-007
-Reference: `docs/adr/0017-domain-wire-object-separation.md`
+Reference: `docs/adr/archived/0017-domain-wire-object-separation.md` (superseded by ADR-0099)
 """
 
 import pytest

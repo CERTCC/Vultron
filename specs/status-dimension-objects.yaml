@@ -205,7 +205,7 @@ groups:
       `extra="forbid"` is strictly stronger than a reject-guard enumerating the known flat keys: it also catches typos and
       stale keys from an older schema, needs no per-class maintenance, and covers every registered core type rather than the
       two named here. Because Pydantic itself raises, the failure surfaces as a pydantic `ValidationError` rather than
-      `VultronValidationError`, and no wire→core recovery is attempted (ADR-0082 supersedes the ADR-0062 backstop).'
+      `VultronValidationError`, and no wire→core recovery is attempted (ADR-0082 retired the ADR-0062 backstop, and ADR-0099 keeps `extra="forbid"` as the guard).'
     verification: '`ParticipantStatus.model_validate({"rm_state": "RECEIVED"})` and the camelCase equivalent both raise pydantic
       `ValidationError`; neither yields a model whose `rm.state` is `RM.START`. No `CaseStatus` or `ParticipantStatus` class
       declares a `model_validator(mode="before")` reject-guard for those keys.'
@@ -222,6 +222,7 @@ groups:
     - ADR-0062
     - ADR-0063
     - ADR-0082
+    - ADR-0099
 - id: SDO-04
   title: Wire Projection and Migration Scope
   specs:

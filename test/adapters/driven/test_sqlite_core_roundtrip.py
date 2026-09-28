@@ -34,7 +34,7 @@ from vultron.adapters.driven.datalayer_sqlite.hydration import (
 )
 from vultron.adapters.driven.datalayer_sqlite.schema import VultronObjectRecord
 from vultron.core.models.actor import VultronService
-from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
+from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -258,16 +258,17 @@ def test_saved_core_service_reads_back_as_itself(dl):
 
 
 @pytest.mark.spec("DL-05-006")
-def test_type_value_index_follows_a_replaced_class(monkeypatch):
+def test_type_value_index_follows_a_replaced_class(isolated_core_registries):
     """Replacing a registered class keeps the registry size but updates the index."""
     assert core_class_for_row_type("Note") is VultronNote  # warm the cache
 
     class _StandInNote(VultronNote):
         pass
 
-    # No own ``type_`` annotation, so the subclass registers only here.
-    CORE_TYPE_MAP.pop(_StandInNote.__name__, None)
-    monkeypatch.setitem(CORE_VOCABULARY, "VultronNote", _StandInNote)
+    # ``_StandInNote`` has no own ``type_`` annotation, so it registered in
+    # ``CORE_TYPE_MAP`` alone; ``isolated_core_registries`` restores that map
+    # and the ``CORE_VOCABULARY`` entry replaced here.
+    CORE_VOCABULARY["VultronNote"] = _StandInNote
     assert core_class_for_row_type("Note") is _StandInNote
 
 
