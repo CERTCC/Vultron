@@ -11,10 +11,9 @@ level: 300
 
 ---
 
-This namespace defines the Vultron-specific vocabulary types used in
-[Vultron protocol](https://certcc.github.io/Vultron/) wire messages.
-Vultron messages are ActivityStreams 2.0 Activities; the Vultron vocabulary
-extends the AS2 core vocabulary with CVD-specific object types.
+This namespace defines the Vultron-specific vocabulary types used in [Vultron protocol](https://certcc.github.io/Vultron/) wire messages.
+Vultron messages are ActivityStreams 2.0 (AS2) Activities; the Vultron vocabulary extends the AS2 core vocabulary with Coordinated Vulnerability Disclosure (CVD) object types.
+The shape of an activity is described in [Vultron and ActivityPub](../howto/activitypub/index.md).
 
 ## Declared types
 
@@ -23,13 +22,13 @@ extends the AS2 core vocabulary with CVD-specific object types.
 | `CaseLedgerEntry` | Entry in the canonical append-only case ledger |
 | `CaseParticipant` | Actor-in-role binding within a specific case |
 | `CaseParticipantRole` | A CVD role being offered to an actor in a case context |
-| `CaseProposal` | Request to a CaseActor service to initialize a new case |
+| `CaseProposal` | Request to a Case Actor Service to initialize a new case |
 | `CaseReference` | Typed external URL reference attached to a case |
-| `CaseStatus` | Snapshot of all three state machines (RM/EM/CS) at one moment |
+| `CaseStatus` | Case-level status snapshot: the Embargo Management (EM) state and the public (pxa) dimensions of the Case State (CS) |
 | `EmbargoEvent` | Embargo proposal, acceptance, revision, or termination record |
 | `EmbargoPolicy` | Actor-level declaration of embargo preferences |
-| `ParticipantStatus` | Per-participant snapshot of RM state and [embargo consent](../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) |
-| `ProcessingFault` | Negative acknowledgement returned when a received activity could not be processed |
+| `ParticipantStatus` | Per-participant snapshot: Report Management (RM) state, the vendor fix (vf) and deployment (d) dimensions of the CS, roles, and [embargo consent](../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) |
+| `ProcessingFault` | Negative acknowledgment returned when a received activity could not be processed |
 | `VulnerabilityCase` | Coordination container for a vulnerability disclosure case |
 | `VulnerabilityRecord` | Persistent identifier record for a confirmed vulnerability |
 | `VulnerabilityReport` | Initial report artifact submitted to a case |
