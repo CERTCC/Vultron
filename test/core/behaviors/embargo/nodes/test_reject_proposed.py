@@ -19,8 +19,6 @@ to reject first is the earliest-expiring (EP-08-002, ADR-0100, #3470); the
 node used to read ``proposed_embargoes[0]``, which is arrival order.
 """
 
-from datetime import timedelta
-
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -104,8 +102,3 @@ def test_fails_when_nothing_is_proposed(dl: SqliteDataLayer) -> None:
     node = ReadProposedEmbargoIdNode(case_id=case.id_)
     assert _tick(node) == Status.FAILURE
     assert "No proposed embargoes" in node.feedback_message
-
-
-# ``timedelta`` documents that ``days_from_now_utc`` measures from now; the
-# ordering under test is between the three ends, not their absolute values.
-assert timedelta(days=15) < timedelta(days=30) < timedelta(days=60)

@@ -66,6 +66,11 @@ def earliest_expiring_embargo_id(
     (``EmbargoEvent.end_time`` is required, #3404, so a resolved record can
     always be ordered.)
 
+    Two records that end at the same instant are indistinguishable in the
+    dimension EP-08 orders on, so the tie keeps the first id in *embargo_ids*
+    — which, for callers passing a case's open proposals, is recording order.
+    That is the one place position may decide, and only between equals.
+
     Raises:
         VultronNotFoundError: If an id does not resolve in *store*.
         VultronValidationError: If a record is not an ``EmbargoEvent``.

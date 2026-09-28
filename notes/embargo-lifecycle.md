@@ -211,7 +211,12 @@ Two rules follow for any new proposal-selection code:
   a decided proposal in both records, and every `EmbargoLifecycle` decision (owner
   accept, owner reject, activation, termination) and `RemoveFromProposedEmbargoesNode`
   call it. A participant's accept or reject is consent, not a decision, and prunes
-  nothing. One gap remains by EP-08-003's own text: termination prunes the
+  nothing. Replicas prune too: the received Accept goes through
+  `accept_embargo_invite`, and the received `Reject(Invite)` tree appends
+  `RemoveFromProposedEmbargoesNode(decided_by=<rejecting actor>)`, which prunes only
+  when that actor is the case owner — without it the owner's Reject left the decided
+  proposal in every participant's records, where a later default selection could still
+  pick it. One gap remains by EP-08-003's own text: termination prunes the
   terminated embargo's entry, not open *revision* proposals against it, which
   survive in both records and compete in the next default selection after
   `EXITED → PROPOSED` — tracked as #3836.

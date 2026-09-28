@@ -798,8 +798,11 @@ groups:
       both records. Both are now pruned together by
       `VulnerabilityCase.discard_proposed_embargo`, called from every `EmbargoLifecycle`
       decision (owner accept, owner reject, activation, termination) and from
-      `RemoveFromProposedEmbargoesNode`. This requirement covers every record of open
-      proposals, not just the index.
+      `RemoveFromProposedEmbargoesNode` — on teardown unconditionally, and in the
+      received `Reject(Invite)` tree gated on the rejecting actor being the case owner,
+      so a replica forgets the proposal the owner rejected while a participant's
+      Reject (consent, not a decision) prunes nothing. This requirement covers every
+      record of open proposals on every replica, not just the index.
     verification: >-
       A unit test asserts that accepting a proposal, rejecting a proposal, and
       tearing down an embargo each leave no corresponding entry in the open-proposal

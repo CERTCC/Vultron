@@ -28,6 +28,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 
 from .conftest import (
@@ -35,6 +36,41 @@ from .conftest import (
     _make_case,
     _make_embargo,
 )
+
+
+@pytest.mark.spec("EP-08-003")
+def test_activate_embargo_prunes_the_proposal_from_both_records(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Activation decides the proposal that carried the embargo.
+
+    ``activate_embargo`` is the received-side ``Add(EmbargoEvent)`` and the
+    case-creation path; after it the embargo is active and no longer an open
+    proposal in either record (EP-08-003, #3470).
+    """
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    embargo = _make_embargo(dl, case.id_)
+    other = _make_embargo(dl, case.id_)
+    case.proposed_embargoes = [embargo.id_, other.id_]
+    case.pending_embargo_proposal_index = {
+        embargo.id_: f"{case.id_}/embargo_proposals/1",
+        other.id_: f"{case.id_}/embargo_proposals/2",
+    }
+    dl.save(case)
+
+    result = EmbargoLifecycle(persistence=dl).activate_embargo(
+        case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+    )
+
+    assert result.em_after == EM.ACTIVE
+    activated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert activated.active_embargo_id == embargo.id_
+    # The decided proposal left both records; the other stays open.
+    assert activated.proposed_embargoes == [other.id_]
+    assert activated.pending_embargo_proposal_index == {
+        other.id_: f"{case.id_}/embargo_proposals/2"
+    }
 
 
 def test_terminate_active_embargo_strict_active_to_exited(

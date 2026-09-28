@@ -180,7 +180,11 @@ def _record_embargo_proposal_index(
         return
     if case.pending_embargo_proposal_index.get(embargo_id) == proposal_id:
         return
-    case.pending_embargo_proposal_index[embargo_id] = proposal_id
+    # Validated assignment, like the pruner ``discard_proposed_embargo``.
+    case.pending_embargo_proposal_index = {
+        **case.pending_embargo_proposal_index,
+        embargo_id: proposal_id,
+    }
     dl.save(case)
 
 
