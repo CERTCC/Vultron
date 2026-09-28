@@ -3,7 +3,6 @@ title: Triggerable Behaviors
 description: Requirements for the trigger API that allows an actor to initiate protocol behaviors based on its own internal
   state, rather than reacting to an inbound ActivityStreams message. Triggerable behaviors are the outgoing counterpart to
   the inbound handler pipeline and are required to demonstrate the full CVD protocol.
-version: 1.0.0
 scope:
 - prototype
 - production

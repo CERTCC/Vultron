@@ -4,7 +4,6 @@ description: >-
   The inbox endpoint is the primary entry point for actor-to-actor communication in Vultron.
   It receives ActivityStreams activities via HTTP POST, validates them, and queues them for
   asynchronous processing.
-version: 1.0.0
 scope:
 - prototype
 - production

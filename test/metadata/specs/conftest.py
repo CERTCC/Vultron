@@ -9,7 +9,6 @@ MINIMAL_YAML = {
     "id": "TST",
     "title": "Test Spec File",
     "description": "A spec file for unit testing",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -33,7 +32,6 @@ SECOND_YAML = {
     "id": "MOR",
     "title": "More Test Specs",
     "description": "Additional spec file for testing",
-    "version": "0.2",
     "scope": ["production"],
     "groups": [
         {

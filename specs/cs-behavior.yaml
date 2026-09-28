@@ -6,7 +6,6 @@ description: >-
   and specifies typed preconditions, ordered steps, and postconditions that implementations
   must satisfy. CS cascade chains that trigger embargo teardown reference EM behavior
   directly and are developed in concert with the EM behavioral requirements.
-version: 0.1.1
 tags:
 - behavioral
 - state-machine

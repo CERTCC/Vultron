@@ -5,7 +5,6 @@ description: >-
   prepare-for-dispatch, and dispatch-or-defer chain as a single testable unit. Honours
   the existing ActivityDispatcher and DataLayer ports so that tests can drive the real
   pipeline with in-memory adapters.
-version: 1.0.0
 scope:
 - prototype
 - production

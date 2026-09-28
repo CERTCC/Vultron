@@ -5,7 +5,6 @@ description: >-
   is triggered by either a received EM message or a local EM state transition, and
   specifies typed preconditions, ordered steps, and postconditions that implementations
   must satisfy.
-version: 0.3.0
 tags:
 - behavioral
 - state-machine

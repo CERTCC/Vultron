@@ -6,7 +6,6 @@ description: >
   directions, how asks expire, and how a receiver reports that it could not
   process an inbound message. Derived from ADR-0080 and the G01 planning session
   (CONCERN-2829).
-version: 1.0.0
 scope:
 - prototype
 - production

@@ -7,7 +7,6 @@ description: Requirements for participant assertions, CASE_MANAGER canonicalizat
   the process log, the CASE_MANAGER inbox routing path that enables ledger entry authorship,
   and the causal-ordering model that makes log_index order the authoritative causal
   sequence.
-version: 1.4.0
 scope:
 - prototype
 - production

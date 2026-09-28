@@ -3,7 +3,6 @@ title: Observability
 description: >-
   Requirements for health check endpoints and high-level observability architecture, enabling
   operators to understand system behavior, diagnose issues, and monitor health.
-version: 1.0.0
 scope:
 - prototype
 - production

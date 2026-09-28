@@ -3,7 +3,6 @@ title: Case Management
 description: Requirements for VulnerabilityCase lifecycle management, CASE_MANAGER responsibilities, and the RM/EM/CS/VFD state
   model. Covers actor isolation at the protocol level, the distinction between participant-specific and participant-agnostic
   state, case initialization sequencing, embargo acceptance ownership, and the invitation acceptance lifecycle.
-version: 1.4.0
 scope:
 - prototype
 - production

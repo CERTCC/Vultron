@@ -4,7 +4,6 @@ description: >-
   Requirements for a unified demo command-line interface that aggregates all individual
   Vultron demo scripts into a single invokable entry point. Covers CLI structure, demo
   isolation, Docker packaging, and test requirements.
-version: 1.0.0
 scope:
 - prototype
 - production

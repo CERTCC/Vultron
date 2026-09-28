@@ -374,7 +374,6 @@ def test_spec_file_valid():
         id="AB",
         title="Test File",
         description="A test file",
-        version="0.1",
         scope=[Scope.PRODUCTION],
         groups=[
             SpecGroup(
@@ -403,7 +402,6 @@ def test_spec_file_no_file_level_kind():
         id="AB",
         title="Test File",
         description="A test file",
-        version="0.1",
         scope=[Scope.PRODUCTION],
         groups=[
             SpecGroup(
@@ -424,13 +422,40 @@ def test_spec_file_no_file_level_kind():
     assert not hasattr(sf, "kind")
 
 
+@pytest.mark.spec("SR-02-013")
+def test_spec_file_rejects_version_field():
+    with pytest.raises(ValidationError, match="version"):
+        SpecFile.model_validate(
+            {
+                "id": "AB",
+                "title": "Test File",
+                "description": "A test file",
+                "version": "1.0.0",
+                "scope": ["production"],
+                "groups": [
+                    {
+                        "id": "AB-01",
+                        "title": "Group",
+                        "specs": [
+                            {
+                                "id": "AB-01-001",
+                                "priority": "MUST",
+                                "statement": "AB-01-001 MUST work",
+                                "kind": "protocol",
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+
+
 def test_spec_file_requires_scope():
     with pytest.raises(ValidationError):
         SpecFile(  # type: ignore[call-arg]
             id="AB",
             title="Test File",
             description="A test file",
-            version="0.1",
             groups=[
                 SpecGroup(
                     id="AB-01",
@@ -454,7 +479,6 @@ def test_spec_file_empty_scope_rejected():
             id="AB",
             title="Test File",
             description="A test file",
-            version="0.1",
             scope=[],
             groups=[
                 SpecGroup(
@@ -479,7 +503,6 @@ def test_spec_file_empty_groups_rejected():
             id="AB",
             title="Test File",
             description="A test file",
-            version="0.1",
             scope=[Scope.PRODUCTION],
             groups=[],
         )
@@ -495,7 +518,6 @@ def test_registry_duplicate_spec_id_raises(tmp_path):
         "id": "DUP",
         "title": "Dup File",
         "description": "Duplicate spec IDs",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [
             {
@@ -573,7 +595,6 @@ def test_effective_tags_file_level_inherited(tmp_path):
         "id": "TST",
         "title": "Test",
         "description": "Test",
-        "version": "0.1",
         "scope": ["production"],
         "tags": ["protocol"],
         "groups": [
@@ -601,7 +622,6 @@ def test_effective_tags_spec_overrides_file(tmp_path):
         "id": "TST",
         "title": "Test",
         "description": "Test",
-        "version": "0.1",
         "scope": ["production"],
         "tags": ["protocol"],
         "groups": [
@@ -630,7 +650,6 @@ def test_effective_tags_empty_when_neither_spec_nor_file(tmp_path):
         "id": "TST",
         "title": "Test",
         "description": "Test",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [
             {
@@ -657,7 +676,6 @@ def test_effective_tags_graph_node_populated(tmp_path):
         "id": "TST",
         "title": "Test",
         "description": "Test",
-        "version": "0.1",
         "scope": ["production"],
         "tags": ["protocol"],
         "groups": [
@@ -686,7 +704,6 @@ def test_effective_kind_spec_override(tmp_path):
         "id": "TST",
         "title": "Test",
         "description": "Test",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [
             {
@@ -890,7 +907,6 @@ def test_behavioral_spec_round_trips_through_yaml(tmp_path):
         "id": "BTB",
         "title": "Behavioral Test Spec",
         "description": "Tests BehavioralSpec fields round-trip through YAML",
-        "version": "0.1",
         "scope": ["prototype", "production"],
         "groups": [
             {
@@ -1008,7 +1024,6 @@ def test_load_registry_process_kind(tmp_path):
         "id": "DP",
         "title": "Process spec file",
         "description": "Spec file for process kind smoke test",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [
             {
@@ -1199,7 +1214,6 @@ def test_statement_spec_stories_yaml_round_trip(tmp_path):
         "id": "TST",
         "title": "Test",
         "description": "Test",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [
             {

@@ -3,7 +3,6 @@ title: Behavior Tree Node Design
 description: Formal requirements for BT node parameterization, composability, and reuse in the core behaviors package. Covers
   node context injection, blackboard hygiene, module ownership, and the fractal composability pattern that applies at every
   depth of the tree hierarchy.
-version: 1.2.0
 scope:
 - prototype
 - production

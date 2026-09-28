@@ -7,7 +7,6 @@ description: >-
   It is distinct from `python-app.yml` (Python unit tests and linting) and
   `.github/workflows/demo-integration.yml` (demo container integration tests,
   specified in `specs/demo-ci.yaml`).
-version: 1.6.0
 scope:
   - prototype
   - production

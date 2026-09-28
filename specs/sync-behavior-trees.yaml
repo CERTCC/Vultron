@@ -5,7 +5,6 @@ description: >-
   Covers three BTs: AnnounceLogEntryReceivedBT (received-side hash-chain validation with
   case-actor vs non-case-actor branching), RejectLogEntryReceivedBT (replication state
   update and replay), and CommitLogEntryBT (append, persist, fan-out).
-version: 1.0.0
 scope:
   - prototype
   - production

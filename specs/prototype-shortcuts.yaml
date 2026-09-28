@@ -3,7 +3,6 @@ title: Prototype Shortcuts
 description: >-
   Permissible shortcuts and relaxed constraints for the prototype stage, supporting
   iterative development while preserving traceability of production requirements.
-version: 1.0.0
 scope:
 - prototype
 - production
