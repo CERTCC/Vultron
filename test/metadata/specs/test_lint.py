@@ -34,7 +34,6 @@ def _minimal_spec(spec_id="TST-01-001", priority="MUST", extra=None):
         "id": "TST",
         "title": "Test File",
         "description": "Test spec file",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [
             {
@@ -100,7 +99,6 @@ def test_lint_prefix_mismatch(tmp_path, capsys):
         "id": "TST",
         "title": "Test File",
         "description": "Prefix mismatch test",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [
             {
@@ -274,7 +272,6 @@ def test_lint_spec_id_prefix_mismatch(tmp_path, capsys):
         "id": "TST",
         "title": "Test File",
         "description": "Spec ID prefix mismatch test",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [
             {
@@ -444,7 +441,6 @@ def _scenario_start_group(with_behavioral_spec: bool):
         "id": "SCN",
         "title": "Scenario Spec",
         "description": "Scenario spec file",
-        "version": "0.1",
         "scope": ["prototype"],
         "groups": [
             {
@@ -1081,7 +1077,6 @@ def _minimal_behavioral_spec_data(
         "id": "TST",
         "title": "Test File",
         "description": "Test spec file",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [{"id": "TST-01", "title": "Group", "specs": [spec]}],
     }
@@ -1180,7 +1175,6 @@ def test_lint_phantom_path_behavioral_step_suppress(tmp_path):
         "id": "TST",
         "title": "T",
         "description": "T",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [{"id": "TST-01", "title": "G", "specs": [spec]}],
     }
@@ -1477,7 +1471,6 @@ def _minimal_spec_no_stories(priority="MUST", kind="protocol"):
         "id": "TST",
         "title": "Test File",
         "description": "Test spec file",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [{"id": "TST-01", "title": "Group", "specs": [spec]}],
     }

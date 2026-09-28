@@ -4,7 +4,6 @@ description: >-
   Requirements for handling error conditions in the Vultron inbox handler, covering the
   exception hierarchy and error categories. Governs graceful degradation, clear error
   messages, system stability, and debuggability.
-version: 1.1.1
 scope:
 - prototype
 - production

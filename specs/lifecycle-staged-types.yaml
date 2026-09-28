@@ -3,7 +3,6 @@ title: Lifecycle-Staged Domain Types
 description: Rules for lifecycle-staged domain types anchored on guaranteed-field changes. A lifecycle milestone earns a distinct
   staged type only when it changes the set of required (non-None) fields; milestones that only gate permitted actions are
   modeled as predicates and preconditions rather than new types.
-version: 0.1.0
 scope:
 - prototype
 - production

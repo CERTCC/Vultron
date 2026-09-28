@@ -3,7 +3,6 @@ title: Vultron Semantic–AS2 Mapping
 description: Defines the authoritative mapping from each Vultron semantic message type (MessageSemantics enum value) to its
   ActivityStreams 2.0 wire representation. This is the single source of truth for how Vultron domain semantics are encoded
   as AS2 activity structures, isolating transport and wire-encoding concerns from the core domain logic and case-state machines.
-version: 1.0.0
 scope:
 - prototype
 - production

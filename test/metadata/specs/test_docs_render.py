@@ -20,7 +20,6 @@ GENERAL_YAML = {
     "id": "GEN",
     "title": "General Test Specs",
     "description": "A general kind spec for testing docs_render",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -74,7 +73,6 @@ DOMAIN_YAML = {
     "id": "DOM",
     "title": "Domain Test Specs",
     "description": "A domain kind spec with relationships",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -103,7 +101,6 @@ BEHAVIORAL_YAML = {
     "id": "BHV",
     "title": "Behavioral Test Specs",
     "description": "A domain spec with BehavioralSpec items",
-    "version": "0.1",
     "tags": ["behavioral"],
     "scope": ["production"],
     "groups": [
@@ -217,6 +214,13 @@ def test_render_for_kind_should_not_badge(general_registry):
 def test_render_for_kind_file_title_h2(general_registry):
     md = render_for_kind("protocol", general_registry)
     assert "## General Test Specs" in md
+
+
+@pytest.mark.spec("SR-01-003")
+def test_render_for_kind_prints_file_id_without_version(general_registry):
+    md = render_for_kind("protocol", general_registry)
+    assert "*File ID*: `GEN`" in md
+    assert "Version" not in md
 
 
 def test_render_for_kind_group_title_h3(general_registry):
@@ -412,7 +416,6 @@ PIPE_YAML = {
     "id": "PIP",
     "title": "Pipe Test Specs",
     "description": "Spec with a pipe char in the statement",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -451,7 +454,6 @@ MULTI_REL_YAML = {
     "id": "MRL",
     "title": "Multi-Rel Specs",
     "description": "Spec with two relationships",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -555,7 +557,6 @@ MIXED_KIND_FILE_YAML = {
     "id": "MIX",
     "title": "Mixed Kind Specs",
     "description": "File with general and implementation items",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -590,7 +591,6 @@ MIXED_KIND_GROUP_YAML = {
     "id": "MGR",
     "title": "Mixed Group Items",
     "description": "File with a group containing items of mixed kinds",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -620,7 +620,6 @@ IMPL_ANCHOR_YAML = {
     "id": "IMP",
     "title": "Implementation Anchor",
     "description": "Provides implementation-kind items for the test registry",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {

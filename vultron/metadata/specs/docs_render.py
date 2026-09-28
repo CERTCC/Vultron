@@ -252,9 +252,7 @@ def _render_file(
     lines.append("")
     lines.append(spec_file.description)
     lines.append("")
-    lines.append(
-        f"*File ID*: `{spec_file.id}` | " f"*Version*: {spec_file.version}"
-    )
+    lines.append(f"*File ID*: `{spec_file.id}`")
     lines.append("")
     for group in spec_file.groups:
         # Collect items whose effective kind matches current_kind.

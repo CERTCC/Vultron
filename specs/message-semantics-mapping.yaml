@@ -7,7 +7,6 @@ description: 'Authoritative normative bridge from protocol message shorthand lab
   pxa_state, EV/EJ/EC onto EP/ER/EA), and one shorthand may expand across several wire activities (GI, EP). Shorthands with
   no dedicated dispatch value are the protocol-layer error and acknowledgment signals; these are not unimplemented — the
   purposes they name are served by mechanisms partitioned on a different axis, specified normatively in MSM-05.'
-version: 0.3.0
 scope:
 - prototype
 - production

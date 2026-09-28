@@ -3,7 +3,6 @@ title: Status Dimension Objects
 description: Normative requirements for per-machine dimension objects decomposed from CaseStatus and ParticipantStatus. Each
   independent state machine (EM, PXA, RM, VFD, PEC) is represented by a lightweight Pydantic BaseModel that holds its state
   enum and owns immutable transition() validation and guard methods.
-version: 0.1.0
 scope:
 - prototype
 - production

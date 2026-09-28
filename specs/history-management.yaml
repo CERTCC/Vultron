@@ -4,7 +4,6 @@ description: Defines the structure, location, entry format, and tooling for mana
   `implementation` and `idea` types whose `--source` resolves to a GitHub issue number, `append-history` posts the
   entry body as a comment on the corresponding GitHub issue rather than writing a file. `learning` and `priority`
   types continue to write per-entry write-once files under `plan/history/`, managed by the `append-history` CLI tool.
-version: 1.6.0
 scope:
 
 - prototype

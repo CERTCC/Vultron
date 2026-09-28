@@ -8,7 +8,6 @@ description: >-
   narrow by design: findings with a definite owner are routed to a GitHub issue or an
   in-session fix at the moment of discovery, and only unverified general claims and
   spec divergences are queued for batch processing (BW-07).
-version: 3.1.0
 scope:
   - prototype
   - production

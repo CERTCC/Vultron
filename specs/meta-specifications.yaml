@@ -2,7 +2,6 @@ id: MS
 title: Meta-Specification Style Guide
 description: Normative rules for authoring specification files in this project. Covers file structure, requirement format,
   IDs, writing rules, cross-references, lifecycle, quality criteria, and the delineation between spec files and ADRs.
-version: 1.6.0
 scope:
 - prototype
 - production

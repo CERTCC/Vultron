@@ -3,7 +3,6 @@ title: Activity Factory Functions
 description: Requirements governing the factory function API for constructing outbound Vultron protocol activities. Factory
   functions are the sole public construction API for activity objects outside the wire vocabulary layer, replacing direct
   subclass instantiation to enforce consistent field population and layer separation.
-version: 1.0.0
 scope:
 - prototype
 - production

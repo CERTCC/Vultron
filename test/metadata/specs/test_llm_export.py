@@ -17,7 +17,6 @@ GRAPH_YAML_A = {
     "id": "GA",
     "title": "Graph Test A",
     "description": "Spec file A for graph tests",
-    "version": "1.0",
     "scope": ["prototype", "production"],
     "groups": [
         {
@@ -72,7 +71,6 @@ GRAPH_YAML_B = {
     "id": "GB",
     "title": "Graph Test B",
     "description": "Spec file B for graph tests",
-    "version": "1.0",
     "scope": ["prototype"],
     "groups": [
         {
@@ -321,7 +319,6 @@ class TestLlmExport:
             "id": "VV",
             "title": "Verification Test",
             "description": "Tests verification emission",
-            "version": "0.1",
             "scope": ["production"],
             "groups": [
                 {
@@ -361,7 +358,6 @@ class TestMainLlmJsonKindFlag:
             "id": "KF",
             "title": "Kind Filter Test",
             "description": "Tests --kind flag",
-            "version": "0.1",
             "scope": ["production"],
             "groups": [
                 {
@@ -488,7 +484,6 @@ NOTE_YAML = {
     "id": "NT",
     "title": "Note Export",
     "description": "Spec file exercising the note field",
-    "version": "1.0",
     "scope": ["prototype"],
     "groups": [
         {

@@ -4,7 +4,6 @@ description: >-
   Requirements for multi-actor demo scenarios, Docker Compose orchestration, actor isolation,
   acceptance testing, and reproducibility. Includes per-scenario required
   event-type lists for the case-ledger invariant harness.
-version: 1.4.0
 scope:
 
 - prototype

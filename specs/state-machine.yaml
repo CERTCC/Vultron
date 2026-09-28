@@ -4,7 +4,6 @@ description: 'Requirements governing how the RM (Report Management), EM (Embargo
   and PXA axes) protocol state machines are defined, represented, and executed at runtime. Each participant maintains its
   own RM state; the CASE_MANAGER maintains shared EM and Case State. Within CS, the PXA axis is shared across participants while
   the VFD axis is per-participant.'
-version: 1.0.0
 scope:
 - prototype
 - production

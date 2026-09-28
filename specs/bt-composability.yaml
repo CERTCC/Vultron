@@ -4,7 +4,6 @@ description: 'Requirements for implementing Vultron''s behavioral logic as compo
   as the canonical blueprint. Covers the workflow of BT composition: how to use the simulator reference, where structures
   must live, when to use BT composite idioms instead of procedural code, and the fractal composability principle that applies
   at every depth.'
-version: 1.0.0
 scope:
 - prototype
 - production

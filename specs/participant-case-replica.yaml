@@ -4,7 +4,6 @@ description: >-
   Requirements for how each Vultron Actor maintains and manages its local copy (replica) of
   a VulnerabilityCase. Covers replica identity, bootstrap, update authority, case-context
   message routing, reporter case discovery, and unknown-context handling.
-version: 1.2.0
 scope:
 - prototype
 - production

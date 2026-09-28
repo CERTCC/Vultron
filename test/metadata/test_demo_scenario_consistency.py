@@ -293,7 +293,6 @@ def _spec_file(groups: list[dict[str, object]]) -> dict[str, object]:
         "id": "SCN",
         "title": "Scenario Spec",
         "description": "Fixture spec file",
-        "version": "0.1",
         "scope": ["prototype"],
         "groups": groups,
     }

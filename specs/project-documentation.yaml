@@ -2,7 +2,6 @@ id: PD
 title: Project Documentation Structure
 description: This specification defines the purpose, scope, and maintenance requirements for key project documentation files
   that guide AI agents and human developers.
-version: 1.0.1
 scope:
 - prototype
 - production

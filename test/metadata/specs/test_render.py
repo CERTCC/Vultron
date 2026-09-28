@@ -26,7 +26,6 @@ BEHAVIORAL_YAML = {
     "id": "BEH",
     "title": "Behavioral Test Specs",
     "description": "Spec file for testing export_yaml fidelity",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -95,9 +94,10 @@ def test_render_markdown_includes_statement(loaded_registry):
     assert "MUST satisfy the test" in md
 
 
-def test_render_markdown_includes_version(loaded_registry):
+@pytest.mark.spec("SR-01-003")
+def test_render_markdown_prints_no_file_version(loaded_registry):
     md = render_markdown(loaded_registry.files[0])
-    assert "0.1" in md
+    assert "Version" not in md
 
 
 def test_render_markdown_includes_rationale(loaded_registry):
@@ -158,7 +158,6 @@ def test_export_json_inherited_tags_present_in_output(tmp_path):
         "id": "TST",
         "title": "Test",
         "description": "Test",
-        "version": "0.1",
         "scope": ["production"],
         "tags": ["protocol"],
         "groups": [

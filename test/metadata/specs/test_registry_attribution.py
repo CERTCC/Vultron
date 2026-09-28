@@ -30,7 +30,6 @@ _SPEC_FILE = """\
 id: TS
 title: Test
 description: A test spec file.
-version: "1.0.0"
 scope: [prototype]
 groups:
 - id: TS-01
@@ -62,8 +61,21 @@ class TestLoadRegistry:
         with pytest.raises(ValueError) as info:
             load_registry(tmp_path / "specs")
 
-        assert "specs/ts.yaml:13:" in str(info.value)
+        assert "specs/ts.yaml:12:" in str(info.value)
         assert "<unicode string>" not in str(info.value)
+
+    @pytest.mark.spec("SR-01-003")
+    def test_file_version_key_is_rejected(self, tmp_path):
+        _write(
+            tmp_path / "specs" / "ts.yaml",
+            _SPEC_FILE.replace("scope:", 'version: "1.0.0"\nscope:'),
+        )
+
+        with pytest.raises(ValueError) as info:
+            load_registry(tmp_path / "specs")
+
+        assert "specs/ts.yaml — " in str(info.value)
+        assert "version" in str(info.value)
 
     def test_invalid_enum_names_the_file(self, tmp_path):
         _write(

@@ -4,7 +4,6 @@ description: >-
   Requirements for the physical package layout of the use_cases package, registry
   synchronization, test mirroring, and documentation of the trigger-to-received-to-sync
   information flow pattern.
-version: 1.2.0
 scope:
 
 - prototype

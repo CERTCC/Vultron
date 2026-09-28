@@ -5,7 +5,6 @@ description: >-
   tracking, Report Management (RM), Embargo Management (EM), CVD Case State (CS) messaging,
   model interactions, and implementation guidance. This is the normative source for protocol
   behavior requirements that implementations must satisfy.
-version: 1.0.0
 scope:
 - prototype
 - production
