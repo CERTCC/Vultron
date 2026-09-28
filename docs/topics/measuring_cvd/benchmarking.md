@@ -31,10 +31,8 @@ This analysis baseline
 would provide context on "more skillful than the average for some set of
 teams" rather than more skillful than blind luck.
 
-- [CVD Benchmarks](#cvd-benchmarks) below discusses this topic, which should be viewed as an examination of what
-"reasonable" should mean in the context of a "reasonable baseline expectation."
-- [Measuring and Benchmarking MPCVD](./benchmarking_mpcvd.md), the next page, suggests how the model might be applied to establish benchmarks for
-CVD processes involving any number of participants.
+- [CVD Benchmarks](#cvd-benchmarks) below discusses this topic, which should be viewed as an examination of what "reasonable" should mean in the context of a "reasonable baseline expectation."
+- [Measuring and Benchmarking MPCVD](./benchmarking_mpcvd.md), the next page, suggests how the model might be applied to establish benchmarks for CVD processes involving any number of participants.
 
 ## CVD Benchmarks
 

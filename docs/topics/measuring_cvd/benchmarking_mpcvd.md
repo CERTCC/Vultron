@@ -100,20 +100,13 @@ behaving independently of all the others. Therefore:
 
     where $N_{vprod}$ represents the number of vendor-product pairs.
 
-This is undesirable, as it would result in a wide distribution
-of realized histories that more closely resemble the randomness
-assumptions of [A Random Walk through CVD States](./random_walk.md) than a skillful, coordinated effort. Further
-discussion of measuring MPCVD skill can be found in [MPCVD Benchmarks](#mpcvd-benchmarks) below.
+This is undesirable, as it would result in a wide distribution of realized histories that more closely resemble the randomness assumptions of [A Random Walk through CVD States](./random_walk.md) than a skillful, coordinated effort.
+Further discussion of measuring MPCVD skill can be found in [MPCVD Benchmarks](#mpcvd-benchmarks) below.
 
 !!! tip "Reducing Dimensionality of MPCVD Cases is a good thing"
 
-    For now, we posit that the goal of a good MPCVD
-    process is to reduce the dimensionality of a given MPCVD case as
-    much as is possible (i.e., to the dimensions of the single-vendor
-    CVD case described in [CS States](../process_models/cs/cs_model.md)).
-    Experience shows that a full dimension reduction is
-    unlikely in most cases, but that does not detract from the value of
-    having the goal.
+    For now, we posit that the goal of a good MPCVD process is to reduce the dimensionality of a given MPCVD case as much as is possible (i.e., to the dimensions of the single-vendor CVD case described in [CS States](../process_models/cs/cs_model.md)).
+    Experience shows that a full dimension reduction is unlikely in most cases, but that does not detract from the value of having the goal.
 
 !!! tip "Reducing Complexity within a Vendor Organization"
 
