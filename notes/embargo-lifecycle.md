@@ -18,7 +18,7 @@ related_notes:
   - notes/protocol-asks.md
 relevant_packages:
   - vultron/core/states/em.py
-  - vultron/core/services/embargo_lifecycle.py
+  - vultron/core/services/embargo_lifecycle/
   - vultron/core/use_cases/triggers/embargo.py
   - vultron/core/use_cases/received/embargo.py
   - vultron/bt/embargo_management
@@ -55,7 +55,8 @@ A correct embargo lifecycle transition must update **all three** consistently.
 
 ## Current Architecture (Implemented)
 
-`EmbargoLifecycle` exists at `vultron/core/services/embargo_lifecycle.py` and
+`EmbargoLifecycle` exists at `vultron/core/services/embargo_lifecycle/` (a package
+since #3760, one module per responsibility; see its `__init__` docstring) and
 owns all EM + PEC transition logic (implemented per
 [#538](https://github.com/CERTCC/Vultron/issues/538),
 [#746](https://github.com/CERTCC/Vultron/issues/746),
@@ -139,7 +140,7 @@ catch `VultronError` and return `Status.FAILURE`.
 
 When implementing any code that transitions embargo state:
 
-1. **Always use `EmbargoLifecycle`** (`vultron/core/services/embargo_lifecycle.py`).
+1. **Always use `EmbargoLifecycle`** (`vultron/core/services/embargo_lifecycle/`).
    Never instantiate `create_em_machine()` + `EMAdapter` inline.
    BT nodes MUST NOT directly assign `EmDimension` to `case.current_status.em`
    and call `dl.save(case)` as a substitute — route through `EmbargoLifecycle`
@@ -202,10 +203,23 @@ Two rules follow for any new proposal-selection code:
 - **Never select by insertion or arrival order.** Resolve candidates' embargo
   `end_time` and take the earliest. `#3392` needs the same comparison for
   EP-04-003 shortest-wins at case creation — use one shared comparator, not two.
-- **Prune on decision, in both records and on every decision path.** Teardown is
-  the only path that prunes anything today; accept and reject prune nothing. Two
-  records of overlapping state, each pruned on a different subset of the decision
-  paths, is exactly the drift EP-08-003 closes.
+- **Prune on decision, in both records and on every decision path.** Before #3470
+  teardown was the only path that pruned anything, and it pruned only
+  `proposed_embargoes`; accept and reject pruned nothing. Two records of overlapping
+  state, each pruned on a different subset of the decision paths, is exactly the
+  drift EP-08-003 closes: `VulnerabilityCase.discard_proposed_embargo` now forgets
+  a decided proposal in both records, and every `EmbargoLifecycle` decision (owner
+  accept, owner reject, activation, termination) and `RemoveFromProposedEmbargoesNode`
+  call it. A participant's accept or reject is consent, not a decision, and prunes
+  nothing. Replicas prune too: the received Accept goes through
+  `accept_embargo_invite`, and the received `Reject(Invite)` tree appends
+  `RemoveFromProposedEmbargoesNode(decided_by=<rejecting actor>)`, which prunes only
+  when that actor is the case owner — without it the owner's Reject left the decided
+  proposal in every participant's records, where a later default selection could still
+  pick it. One gap remains by EP-08-003's own text: termination prunes the
+  terminated embargo's entry, not open *revision* proposals against it, which
+  survive in both records and compete in the next default selection after
+  `EXITED → PROPOSED` — tracked as #3836.
 
 There is **no multi-candidate poll activity** — ADR-0100 retired
 `ChoosePreferredEmbargo` (#3469). Offering alternatives means sending several

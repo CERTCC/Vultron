@@ -12,11 +12,13 @@ description: >
   earliest-expiration ordering for N open proposals.
 related_specs:
   - specs/case-management.yaml
+  - specs/case-proposal.yaml
   - specs/embargo-policy.yaml
   - specs/vultron-as2-mapping.yaml
 related_notes:
   - notes/participant-embargo-consent.md
   - notes/embargo-lifecycle.md
+  - notes/case-proposal.md
   - notes/configuration.md
   - notes/bt-pitfalls.md
 relevant_packages:
@@ -99,9 +101,12 @@ proposals: resolve earliest `end_time` first and handle the remainder as
 revisions (ADR-0100). EP-04-003 `refines` EP-08-001 accordingly. Two consequences
 for implementers:
 
-- **One comparator, not two.** #3392 builds EP-04-003's comparison and #3470
-  builds EP-08's; they MUST share a single earliest-end-date comparator rather
-  than growing separate ones that can disagree.
+- **One comparator, not two.** `earliest_ending` in
+  `vultron/core/services/embargo_ordering.py` (#3470) is the comparator:
+  `resolve_initial_embargo_duration` uses it for EP-04-003's shortest-wins and
+  `find_embargo_proposal_id` / `ReadProposedEmbargoIdNode` use it for EP-08's
+  earliest-expiring selection. #3392 extends the case-creation input; it MUST NOT
+  grow a second comparator.
 - There is **no multi-candidate poll** to reach for when more than two sets of
   terms are on the table — ADR-0100 retired `ChoosePreferredEmbargo` (#3469).
   Send one `Invite` per candidate and answer each on its own.
@@ -220,23 +225,57 @@ for "eligible": a missing case or unreadable store *raises*, because FAILURE
 there would run creation, which persists an `EmbargoEvent` before anything
 re-checks P/X/A (`notes/bt-pitfalls.md` § "A Refusal Arm in a Selector Fails
 Toward 'Admit'"). The sender-proposal input
-(`sender_proposed_embargo_duration`) is wired but unwritten until the embedded
-proposal lands (#3392).
+(`sender_proposed_embargo_duration`) is written by the case-proposal use case
+from the `EmbargoEvent` the Reporter embedded on the report Offer, which the
+vendor's `CaseProposal` carries whole as `inReplyTo` (#3392, CP-01-008); the
+winning sender event keeps its identity with its context rewritten to the case,
+and the loser is registered as a pending revision. Keeping the identity means one
+URI denotes a report-scoped event on the Reporter's side and a case-scoped one on
+the case-actor's side; a replica holding both sees a `context` that changed, which
+is the rewrite EP-04-004 prescribes, not a conflict to reconcile. An exact tie
+between the sender's terms and the actor default registers no revision — there is
+nothing contested.
 
-### There is a third implicit duration, and it is the quietest
+The revision is registered inside `InitializeDefaultEmbargoNode`, *before* the
+case-proposal tree seeds the vendor and the reporter as SIGNATORY. So a contested
+creation leaves the case at `EM.REVISE` with two SIGNATORY participants who never
+saw the revision. That is deliberate: CM-14-005 seeds consent to the *active*
+embargo, whose terms are still in force under REVISE, and the alternative —
+registering after the seeds — would lapse everyone and demand a re-accept round
+that no node drives. Whether the pending revision should also be announced to
+peers as an `Invite(EmbargoEvent)` — and so re-derive those consent states — is
+the decision tracked as #3863.
 
-The 90-day constant and the shared key are gone; one unchosen number remains.
-`EmbargoEvent.end_time` (`vultron/core/models/embargo_event.py`) carries
+The sender's event arrives under the sender's id, and an id is a sender-supplied
+value. `persist_creation_time_embargo` (`nodes/embargo.py`) therefore refuses a
+stored twin under that id that is not this embargo — about this case, ending when
+this one ends — instead of swallowing `VultronAlreadyExistsError` as a replay the
+way a freshly minted id allowed; otherwise a colliding id would bind the case to a
+foreign embargo while shortest-wins compared the terms the sender stated. On the
+receive side a proposal whose `context` is not the proposal's report is read as no
+proposal (EP-04-009), the same way an expired one is.
+
+### There was a third implicit duration, and it was the quietest
+
+The 90-day constant and the shared key went first; one unchosen number outlived
+them. `EmbargoEvent.end_time` (`vultron/core/models/embargo_event.py`) carried
 `default_factory=_45_days_hence`, so **any** `EmbargoEvent` constructed without an
-explicit `end_time` silently acquires 45 days — nine times the 5-day ceiling
-EP-04-005 sets, and reachable from any construction site that forgets the argument.
+explicit `end_time` silently acquired 45 days — nine times the 5-day ceiling
+EP-04-005 sets, and reachable from any construction site that forgot the argument.
 
-It hides differently from the 90-day fallback did. That fallback was at least
-reachable by reading one function that everyone knew resolved the default. A field
-default applies wherever the object is built, with no call site to inspect.
-EP-04-010 requires the protocol default be the *single* source of the fallback
-duration, so this field default must resolve to it or be made explicit at
-construction. Tracked as #3404.
+It hid differently from the 90-day fallback. That fallback was at least reachable
+by reading one function that everyone knew resolved the default. A field default
+applies wherever the object is built, with no call site to inspect. EP-04-010
+requires the protocol default be the *single* source of the fallback duration.
+
+Resolved in #3404 by making `end_time` **required** rather than by pointing the
+default at the protocol default: a model cannot see the actor's configuration, and
+ARCH-10-001's fail-fast rule already says a required invariant is asserted at
+construction. The two trigger use cases that built an event conditionally already
+required `end_time` on their requests, so the only production site that leaned on
+the default was the demo's replica seeding, which now resolves its duration the way
+`InitializeDefaultEmbargoNode` does. Test builders state `days_from_now_utc(45)`
+explicitly — the same window, now visible at every site.
 
 ## Resolved: Reporter Embargo Proposal Mechanism (EP-04-004)
 
@@ -272,7 +311,7 @@ than "not implemented":
 | EM is defined as a global **per-case** state machine | `docs/reference/glossary.md` |
 | EM state exists only as `CaseStatus.em` (an `EmDimension`) | `vultron/core/models/dimensions.py` |
 | `EmbargoEvent.context` is required, and every core construction site set it to `case_id` | `case/nodes/embargo.py`, `triggers/embargo/{propose,revise}.py` |
-| `propose_embargo(case_id=…)` raises `VultronNotFoundError` when the case does not resolve | `vultron/core/services/embargo_lifecycle.py` |
+| `propose_embargo(case_id=…)` raises `VultronNotFoundError` when the case does not resolve | `vultron/core/services/embargo_lifecycle/proposals.py` |
 
 So the documented $q^{em} \in N \xrightarrow{p} P$ before any case exists named a
 machine instance that could not exist. `rm_em.md` has been corrected: its

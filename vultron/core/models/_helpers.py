@@ -37,9 +37,19 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
 
 
-def days_from_now_utc(days: int = 45) -> datetime:
+def from_now_utc(delta: timedelta) -> datetime:
+    """Return the UTC instant *delta* from now, at second precision (CS-13-004).
+
+    The one place embargo-deadline arithmetic lives: a resolved duration
+    (``InitialEmbargoDuration.duration``) becomes an ``end_time`` here, so
+    every deadline the application produces is aware, UTC and second-precise.
+    """
+    return now_utc() + delta
+
+
+def days_from_now_utc(days: int) -> datetime:
     """Return a UTC datetime *days* in the future, at second precision."""
-    return now_utc() + timedelta(days=days)
+    return from_now_utc(timedelta(days=days))
 
 
 #: Recency floor for statuses that carry no timestamps: they sort to the
@@ -272,7 +282,7 @@ def absent_times_as_none(
     """Read every absent clock-defaulted timestamp in *data* as ``None``.
 
     A datetime field with a ``default_factory`` (``published``, ``updated``, an
-    embargo's ``start_time``/``end_time``, a ledger entry's ``received_at``)
+    embargo's ``start_time``, a ledger entry's ``received_at``)
     fills an omitted value from the *local* clock.  That is right when this
     process authors the object and wrong when it reconstructs one it received:
     the value would be a time no one claimed, and downstream it reads as the

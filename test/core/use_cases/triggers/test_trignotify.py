@@ -87,6 +87,7 @@ from datetime import datetime, timezone
 from vultron.core.models.dimensions import (
     RmDimension,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 FUTURE_END_TIME = "2099-12-01T00:00:00Z"
 FUTURE_END_DATETIME = datetime(2099, 12, 1, 0, 0, 0, tzinfo=timezone.utc)
@@ -397,7 +398,9 @@ class TestEmbargoTriggerToField:
 
     def test_evaluate_embargo_to_field_addresses_case_actor_only(self):
         """SvcAcceptEmbargoUseCase queues activity addressed only to Case Actor."""
-        embargo = as_EmbargoEvent(context=self.case.id_)
+        embargo = as_EmbargoEvent(
+            context=self.case.id_, end_time=days_from_now_utc(45)
+        )
         self.dl.create(embargo)
         proposal = em_propose_embargo_activity(
             embargo, context=self.case.id_, actor=self.finder.id_
@@ -430,7 +433,9 @@ class TestEmbargoTriggerToField:
 
     def test_terminate_embargo_to_field_addresses_case_actor_only(self):
         """SvcTerminateEmbargoUseCase queues activity addressed only to Case Actor."""
-        embargo = as_EmbargoEvent(context=self.case.id_)
+        embargo = as_EmbargoEvent(
+            context=self.case.id_, end_time=days_from_now_utc(45)
+        )
         self.dl.create(embargo)
         self.case.set_embargo(embargo.id_)
         self.case.append_case_status(em_state=EM.ACTIVE)
@@ -457,7 +462,9 @@ class TestEmbargoTriggerToField:
 
     def test_reject_embargo_to_field_addresses_case_actor_only(self):
         """SvcRejectEmbargoUseCase queues activity addressed only to Case Actor."""
-        embargo = as_EmbargoEvent(context=self.case.id_)
+        embargo = as_EmbargoEvent(
+            context=self.case.id_, end_time=days_from_now_utc(45)
+        )
         self.dl.create(embargo)
         proposal = em_propose_embargo_activity(
             embargo, context=self.case.id_, actor=self.finder.id_
@@ -489,7 +496,9 @@ class TestEmbargoTriggerToField:
 
     def test_propose_embargo_revision_to_field_addresses_case_actor_only(self):
         """SvcProposeEmbargoRevisionUseCase queues activity to only Case Actor."""
-        embargo = as_EmbargoEvent(context=self.case.id_)
+        embargo = as_EmbargoEvent(
+            context=self.case.id_, end_time=days_from_now_utc(45)
+        )
         self.dl.create(embargo)
         self.case.set_embargo(embargo.id_)
         self.case.append_case_status(em_state=EM.ACTIVE)

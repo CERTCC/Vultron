@@ -26,6 +26,7 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 
 @dataclass
@@ -334,6 +335,7 @@ def test_dispatcher_resolves_case_for_reject_embargo_invite_gate():
             id_=f"{case_id}/embargo_events/e1",
             content="Embargo proposal",
             context=case_id,
+            end_time=days_from_now_utc(45),
         ),
         context=case_id,
         actor="https://example.org/users/vendor",

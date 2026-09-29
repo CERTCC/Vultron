@@ -4,6 +4,7 @@ description: >
   vocabulary the prototype sends and receives.
 stakeholder_type: [platform-developer]
 level: 400
+contents: generated
 ---
 
 # Message Types
@@ -36,16 +37,18 @@ Each page opens with a rendered mapping table and then gives one section per
 message type, stating protocol role, triggering transition, the wire activity
 that conveys it, any discriminating payload field, and a rendered example.
 
-| Page | Covers |
-|---|---|
-| [Report Management (RM)](rm.md) | `RS RI RV RD RA RC RK RE` |
-| [Embargo Management (EM)](em.md) | `EP ER EA EV EJ EC ET EK EE` |
-| [Case State (CS)](cs.md) | `CV CF CD CP CX CA CK CE` |
-| [General (GI)](general.md) | `GI GK GE` |
-| [Faults and Acknowledgments](faults_and_acknowledgements.md) | fault trichotomy; cumulative hash-chain ACK |
-| [Case Management](case_management.md) | case lifecycle, participant roster, ownership transfer |
-| [Case Proposal](case_proposal.md) | pre-case bootstrap (ADR-0023) |
-| [Ledger Replication](ledger_replication.md) | SYNC substrate (ADR-0077) |
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+
+- [Report Management (RM)](rm.md) — Wire activities for the Report Management message types RS, RI, RV, RD, RA, RC, RK, and RE.
+- [Embargo Management (EM)](em.md) — Wire activities for the Embargo Management message types EP, ER, EA, EV, EJ, EC, ET, EK, and EE.
+- [Case State (CS)](cs.md) — Wire activities for the Case State message types CV, CF, CD, CP, CX, CA, CK, and CE.
+- [General (GI)](general.md) — Wire activities for the General message types GI, GK, and GE.
+- [Faults and Acknowledgments](faults_and_acknowledgements.md) — The fault trichotomy and the cumulative hash-chain acknowledgment.
+- [Case Management](case_management.md) — Case lifecycle, participant roster, and ownership transfer activities.
+- [Case Proposal](case_proposal.md) — The pre-case bootstrap exchange (ADR-0023).
+- [Ledger Replication](ledger_replication.md) — The SYNC substrate that replicates the case ledger (ADR-0077).
+
+<!-- END GENERATED SECTION CONTENTS -->
 
 ## How to read the mapping tables
 

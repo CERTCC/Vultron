@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [cvd-practitioner, process-researcher]
 level: 300
+description: >
+  The RM model applied to common coordination scenarios, from a single Reporter and Vendor to multi-party cases.
 ---
 
 # Report Management Interactions Between CVD Participants

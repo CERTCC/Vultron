@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+description: >
+  Triggers `engage_case` and `defer_case`: choosing whether to work the case now or park it, and announcing which.
 ---
 
 # Prioritize Report

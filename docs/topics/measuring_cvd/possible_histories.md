@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+description: >
+  The 70 histories a case can have, derived from the six CS events and their ordering constraints.
 ---
 
 <!-- possible-histories-start -->

@@ -31,7 +31,9 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models._helpers import _as_id
+from vultron.core.services.embargo_ordering import (
+    earliest_expiring_embargo_id,
+)
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -116,17 +118,19 @@ class RejectProposedEmbargoLifecycleNode(DataLayerActionWithPorts):
 
 
 class ReadProposedEmbargoIdNode(DataLayerActionWithPorts):
-    """Read the first proposed embargo ID from the case and write it to the blackboard.
+    """Read the earliest-expiring proposed embargo ID and write it to the blackboard.
 
     Used by the EM PROPOSED cascade arm of ``PublicDisclosureBranchNode``
     (EMB-16-001): when public disclosure fires while EM is PROPOSED we must
     reject the proposed embargo.  Unlike ``ReadEmbargoIdNode`` (which reads
-    ``active_embargo``), this node reads the first entry of
-    ``proposed_embargoes``.
+    ``active_embargo``), this node selects from ``proposed_embargoes`` — by
+    earliest ``end_time``, never by position (EP-08-002, ADR-0100), since a
+    counter-proposal sits *after* the terms it replaced.
 
-    Returns FAILURE when the case is not found, has no proposed embargoes, or
-    the DataLayer is unavailable.  Returns SUCCESS and writes ``embargo_id``
-    to the blackboard on success.
+    Returns FAILURE when the case is not found, has no proposed embargoes, an
+    entry cannot be ordered (a new, deliberate failure path — see the comment
+    in ``update``), or the DataLayer is unavailable.  Returns SUCCESS and
+    writes ``embargo_id`` to the blackboard on success.
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
@@ -150,18 +154,26 @@ class ReadProposedEmbargoIdNode(DataLayerActionWithPorts):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        proposed = case.proposed_embargoes
-        if not proposed:
+        proposed_ids = case.proposed_embargo_ids
+        if not proposed_ids:
             self.feedback_message = (
                 f"No proposed embargoes on case '{self._case_id}'"
             )
             return Status.FAILURE
-
-        embargo_id = _as_id(proposed[0])
-        if embargo_id is None:
-            self.feedback_message = (
-                f"First proposed embargo on case '{self._case_id}' has no id"
+        # Failing closed here is deliberate (EP-08-002): before #3470 the node
+        # read ``proposed[0]`` and could not fail this way, so an unorderable
+        # record now leaves EM at PROPOSED after publication rather than
+        # rejecting whichever proposal happened to be readable.
+        try:
+            embargo_id = earliest_expiring_embargo_id(
+                self.datalayer, proposed_ids
             )
+        except VultronError as exc:
+            self.feedback_message = (
+                f"Cannot order the proposed embargoes of case"
+                f" '{self._case_id}': {exc}"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
         self._set_output("embargo_id", embargo_id)

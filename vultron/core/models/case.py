@@ -25,6 +25,7 @@ from pydantic import Field, ValidationInfo, model_validator
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
+    _as_id,
     _new_urn,
     most_recent_status,
     now_utc,
@@ -415,6 +416,42 @@ class VulnerabilityCase(CoreObject):
                 :attr:`active_embargo`.
         """
         self.active_embargo = embargo
+
+    def discard_proposed_embargo(self, embargo_id: str) -> bool:
+        """Forget *embargo_id* as an open proposal, in both records.
+
+        A decided proposal — accepted, rejected, or whose embargo was torn
+        down — leaves ``proposed_embargoes`` and
+        ``pending_embargo_proposal_index`` together (EP-08-003, ADR-0100):
+        two records of open proposals pruned on different subsets of the
+        decision paths is the drift that let a decided entry win a default
+        selection.  Idempotent; returns whether anything changed.
+        """
+        remaining = [
+            e for e in self.proposed_embargoes if _as_id(e) != embargo_id
+        ]
+        changed = len(remaining) != len(self.proposed_embargoes)
+        if changed:
+            self.proposed_embargoes = remaining
+        if embargo_id in self.pending_embargo_proposal_index:
+            index = dict(self.pending_embargo_proposal_index)
+            del index[embargo_id]
+            self.pending_embargo_proposal_index = index
+            changed = True
+        return changed
+
+    @property
+    def proposed_embargo_ids(self) -> list[str]:
+        """The ids of the open proposals — the one place they are derived.
+
+        The lifecycle's idempotent append, the pruner and the public-disclosure
+        cascade each used to derive these ids themselves; one derivation keeps
+        them from disagreeing.  It goes through ``_as_id`` for the same
+        reference contract :attr:`active_embargo_id` honours, not because an
+        inline object can appear here (``proposed_embargoes`` is ``list[str]``
+        and validated on assignment).
+        """
+        return [i for i in (_as_id(e) for e in self.proposed_embargoes) if i]
 
     @property
     def active_embargo_id(self) -> str | None:

@@ -34,6 +34,9 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict
 
 from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.core.models.enums import VultronObjectType
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.embargo_ordering import earliest_ending
 
 
 class EmbargoDurationSource(StrEnum):
@@ -51,6 +54,23 @@ class InitialEmbargoDuration(BaseModel):
 
     duration: timedelta
     source: EmbargoDurationSource
+
+
+def owner_embargo_policies(
+    store: CasePersistence, owner_id: str
+) -> list[EmbargoPolicy]:
+    """Return the ``EmbargoPolicy`` records *owner_id* has published in *store*.
+
+    The candidate set for :func:`select_actor_default`, scoped to the case
+    owner so another actor's policy in the same store cannot supply the
+    default (#3753).  Shared by the case-creation node and the demo seeder so
+    the two cannot drift on what counts as the owner's policies.
+    """
+    return [
+        p
+        for p in store.list_objects(VultronObjectType.EMBARGO_POLICY)
+        if isinstance(p, EmbargoPolicy) and p.actor_id == owner_id
+    ]
 
 
 def select_actor_default(
@@ -95,9 +115,9 @@ def resolve_initial_embargo_duration(
             duration=protocol_default,
             source=EmbargoDurationSource.PROTOCOL_DEFAULT,
         )
-    # min() keeps the first of equal durations, so a tie resolves to the
-    # sender's terms — the same duration either way.
-    duration, source = min(candidates, key=lambda c: c[0])
+    # A tie keeps the first candidate, so it resolves to the sender's terms —
+    # the same duration either way.  One comparator with EP-08 (#3470).
+    duration, source = earliest_ending(candidates, end=lambda c: c[0])
     return InitialEmbargoDuration(duration=duration, source=source)
 
 

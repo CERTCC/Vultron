@@ -50,6 +50,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.core.models._helpers import days_from_now_utc
 
 _ACTOR_URI = "https://example.org/actors/alice"
 _CASE_URI = "https://example.org/cases/case-001"
@@ -57,7 +58,7 @@ _CASE_URI = "https://example.org/cases/case-001"
 
 @pytest.fixture
 def sample_embargo() -> as_EmbargoEvent:
-    return as_EmbargoEvent(context=_CASE_URI)
+    return as_EmbargoEvent(context=_CASE_URI, end_time=days_from_now_utc(45))
 
 
 @pytest.fixture
@@ -257,6 +258,31 @@ def test_em_propose_embargo_string_published_is_measured_from(
             embargo=sample_embargo,
             rsvp_deadline=published + timedelta(hours=71),
             published=published.isoformat(),
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("EP-07-002")
+@pytest.mark.spec("CS-13-001")
+def test_em_propose_embargo_naive_published_datetime_is_read_as_utc(
+    sample_embargo,
+):
+    """A naive ``published`` datetime object is normalised at this edge.
+
+    ``resolve_rsvp_deadline`` no longer guards its inputs (#3784), so the one
+    input not read from a validated object is normalised here — the result
+    is the EP-07-002 refusal, not a ``TypeError`` from comparing naive and
+    aware values.
+    """
+    published = (datetime.now(tz=timezone.utc) + timedelta(days=1)).replace(
+        tzinfo=None
+    )
+    with pytest.raises(VultronActivityConstructionError, match="minimum"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=published.replace(tzinfo=timezone.utc)
+            + timedelta(hours=71),
+            published=published,
             actor=_ACTOR_URI,
         )
 

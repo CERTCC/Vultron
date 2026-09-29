@@ -122,9 +122,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`SUBMIT_REPORT` MUST be represented as `Offer(VulnerabilityReport)`'
+    note: >-
+      The Offer MAY carry the Reporter's proposed embargo terms as `proposedEmbargo`, an inline
+      `EmbargoEvent` whose `context` is the report (EP-04-004, EP-04-009, ADR-0096). The field is
+      declared on the base `as_Offer` because an inbound Offer is reconstructed as the base class,
+      and an undeclared key would be dropped silently. It does not change dispatch: `SubmitReportPattern`
+      keys on the activity and object types only.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `SubmitReportPattern`
       is registered as `Offer(VulnerabilityReport)`; integration tests in `test/demo/` exercise the full
-      report-submission flow end-to-end.
+      report-submission flow end-to-end. `test/wire/as2/test_report_offer_proposed_embargo.py` confirms
+      the optional `proposedEmbargo` survives the inbound parse and is surfaced by extraction.
     relationships:
     - rel_type: satisfies
       spec_id: MSM-01-001

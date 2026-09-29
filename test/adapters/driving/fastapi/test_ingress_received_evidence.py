@@ -96,6 +96,7 @@ def test_by_id_rehydration_carries_the_evidence_as_received(
 
 
 @pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("IE-10-001")
 def test_resend_under_a_held_id_routes_without_this_body_evidence(
     dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
 ):

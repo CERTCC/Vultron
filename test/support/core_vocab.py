@@ -30,7 +30,7 @@ import importlib
 import pkgutil
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from vultron.core.models.base import CoreObject
@@ -61,6 +61,10 @@ def restore_core_registries() -> Iterator[None]:
         CORE_TYPE_MAP.update(type_map_snapshot)
 
 
+#: The instant synthesised for a required datetime field.
+PINNED_INSTANT = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+
+
 def import_all_core_models() -> None:
     """Import every module under ``vultron.core.models`` so registries fill."""
     import vultron.core.models as models_pkg
@@ -80,6 +84,11 @@ def minimal_kwargs(cls: type[CoreObject]) -> dict[str, Any]:
         ann = str(field_info.annotation)
         if "timedelta" in ann:
             kwargs[field_name] = timedelta(days=90)
+        elif "datetime" in ann:
+            # A required instant (``EmbargoEvent.end_time``, #3404) is pinned
+            # so goldens stay deterministic; the value matches the goldens'
+            # own ``_PINNED`` so the two never disagree.
+            kwargs[field_name] = PINNED_INSTANT
         else:
             kwargs[field_name] = f"urn:test:{field_name}:1"
     return kwargs

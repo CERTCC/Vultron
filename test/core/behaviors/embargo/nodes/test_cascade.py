@@ -30,6 +30,7 @@ from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 from test.core.behaviors.embargo.nodes.conftest import (
     setup_blackboard,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 
 def _make_core_embargo(suffix: str = "1") -> CoreEmbargoEvent:
@@ -37,6 +38,7 @@ def _make_core_embargo(suffix: str = "1") -> CoreEmbargoEvent:
     return CoreEmbargoEvent(
         id_=f"https://example.org/embargo_events/e{suffix}",
         context=f"https://example.org/cases/case_{suffix}",
+        end_time=days_from_now_utc(45),
     )
 
 

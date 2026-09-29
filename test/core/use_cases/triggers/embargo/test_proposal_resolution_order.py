@@ -14,25 +14,22 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """EP-08: open embargo proposals resolve in earliest-expiration order.
 
-`docs/topics/process_models/em/defaults.md` is a normative page and requires that
-a Participant facing two or more open proposals accept the earliest-expiring one
-and handle the remainder as revisions.  That rule lived only in prose until
-EP-08, so nothing held the implementation to it and the implementation diverged:
-``find_embargo_proposal_id`` selects by *arrival* order.
+``docs/topics/process_models/em/defaults.md`` is normative and says a
+Participant SHOULD accept the earliest-expiring open proposal and treat the
+rest as revisions.  Until ADR-0100 the rule existed nowhere in ``specs/``, so
+nothing held the implementation to it and the implementation diverged:
+``find_embargo_proposal_id`` selected by arrival order, and nothing pruned a
+decided proposal from either record of open proposals.
 
-Both tests below are ``xfail(strict=True)``.  They assert the EP-08 behaviour
-against the real use-case entry point rather than the private helper, so they
-survive the signature change the fix requires (the helper needs DataLayer access
-to read each candidate's ``end_time``).  They auto-promote to passing when #3470
-lands.
+#3470 made the code agree.  These tests drive the path EP-08 governs: a
+*default* selection for EP-08-001/002 (no ``proposal_id`` on the request), and
+an owner accept, an owner reject and a teardown that each decide a proposal
+for EP-08-003.  A participant-consent accept against an already-ACTIVE embargo
+decides nothing and is covered by ``test_accept.py``.
 
-Each drives the path EP-08 actually governs: a *default* selection for
-EP-08-001/002 (no ``proposal_id`` on the request), and an *owner* accept that
-moves EM PROPOSED -> ACTIVE for EP-08-003.  A participant-consent accept against
-an already-active embargo decides nothing, so it cannot witness either rule.
-Note that #3470's remit covers both records of open proposals:
-``pending_embargo_proposal_index`` has no remover at all, and
-``proposed_embargoes`` is pruned only on teardown.
+The comparator is ``earliest_ending`` in
+``vultron/core/services/embargo_ordering.py`` — the same one EP-04-003 uses
+at case creation (EP-08-001 requires one, not two).
 
 Spec: EP-08-001, EP-08-002, EP-08-003.  ADR-0100.
 """
@@ -50,10 +47,17 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.use_cases.triggers.embargo import SvcAcceptEmbargoUseCase
+from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+from vultron.core.use_cases.triggers._helpers import find_embargo_proposal_id
+from vultron.core.use_cases.triggers.embargo import (
+    SvcAcceptEmbargoUseCase,
+    SvcRejectEmbargoUseCase,
+)
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
+    RejectEmbargoTriggerRequest,
 )
+from vultron.errors import VultronNotFoundError
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -144,13 +148,6 @@ def _build_case_with_two_open_proposals(
     return case, later_proposal.id_, earlier_proposal.id_
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "EP-08-001/EP-08-002: find_embargo_proposal_id selects by arrival order, "
-        "not earliest expiration. Tracked by #3470."
-    ),
-)
 @pytest.mark.spec("EP-08-001")
 @pytest.mark.spec("EP-08-002")
 def test_default_selection_picks_the_earliest_expiring_proposal(
@@ -238,14 +235,6 @@ def _build_case_with_one_open_proposal(
     return case, proposal.id_
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "EP-08-003: nothing removes an entry from "
-        "pending_embargo_proposal_index once its proposal is decided, and "
-        "proposed_embargoes is pruned only on teardown. Tracked by #3470."
-    ),
-)
 @pytest.mark.spec("EP-08-003")
 def test_accepting_a_proposal_removes_it_from_the_open_proposal_record(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
@@ -285,3 +274,136 @@ def test_accepting_a_proposal_removes_it_from_the_open_proposal_record(
     assert (
         proposal_id not in updated_case.pending_embargo_proposal_index.values()
     )
+    assert updated_case.proposed_embargoes == []
+
+
+@pytest.mark.spec("EP-08-001")
+def test_three_open_proposals_resolve_to_the_earliest_expiring(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """EP-08-001's verification clause: three distinct end times, shortest wins.
+
+    Recorded in an order (60, 15, 30 days) that neither the first nor the last
+    entry is the answer, so an arrival-order or a last-writer resolver both
+    fail here.
+    """
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case = VulnerabilityCase(
+        name="Three open proposals", attributed_to=owner.id_
+    )
+    start = now_utc()
+    proposals: dict[int, str] = {}
+    for days in (60, 15, 30):
+        embargo = as_EmbargoEvent(
+            context=case.id_,
+            start_time=start,
+            end_time=start + timedelta(days=days),
+        )
+        proposal = em_propose_embargo_activity(
+            embargo, context=case.id_, actor=owner.id_
+        )
+        case.proposed_embargoes.append(embargo.id_)
+        case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
+        finder_dl.create(embargo)
+        finder_dl.create(proposal)
+        proposals[days] = proposal.id_
+    case.append_case_status(em_state=EM.PROPOSED)
+    finder_dl.create(case)
+
+    assert find_embargo_proposal_id(case, finder_dl) == proposals[15]
+
+
+@pytest.mark.spec("EP-08-002")
+def test_default_selection_refuses_an_unresolvable_candidate(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A candidate with no readable end time neither wins nor vanishes.
+
+    Silently skipping it would hand the default to whichever proposal happened
+    to be readable — the arrival-order defect under a different name — and
+    silently choosing it would accept terms nobody can inspect.  The resolver
+    fails closed and names the record it could not order.
+    """
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, _later, _earlier = _build_case_with_two_open_proposals(
+        finder_dl, owner.id_, finder.id_
+    )
+    ghost_embargo_id = f"{case.id_}/embargo_events/never-stored"
+    case.pending_embargo_proposal_index[ghost_embargo_id] = (
+        f"{case.id_}/embargo_proposals/ghost"
+    )
+    finder_dl.save(case)
+
+    with pytest.raises(VultronNotFoundError, match="never-stored"):
+        find_embargo_proposal_id(case, finder_dl)
+
+
+@pytest.mark.spec("EP-08-003")
+def test_rejecting_a_proposal_removes_it_from_both_records(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """An owner's reject prunes ``proposed_embargoes`` *and* the index.
+
+    Before #3470 ``reject_proposed_embargo_bt`` pruned nothing and teardown
+    pruned only ``proposed_embargoes``; a rejected proposal survived in both
+    records (EP-08-003's own note).
+    """
+    owner, owner_dl = owner_actor_and_dl
+    finder = _persist_actor(owner_dl, "Finder Co")
+    case, proposal_id = _build_case_with_one_open_proposal(
+        owner_dl, owner.id_, finder.id_
+    )
+    (embargo_id,) = case.proposed_embargoes
+
+    request = RejectEmbargoTriggerRequest(
+        actor_id=owner.id_,
+        case_id=case.id_,
+        proposal_id=proposal_id,
+    )
+    SvcRejectEmbargoUseCase(
+        owner_dl, request, trigger_activity=TriggerActivityAdapter(owner_dl)
+    ).execute()
+
+    updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
+    assert updated_case.current_status.em.state == EM.NONE, (
+        "the owner's reject did not decide the proposal, so this test cannot "
+        "speak to EP-08-003"
+    )
+    assert embargo_id not in updated_case.proposed_embargoes
+    assert embargo_id not in updated_case.pending_embargo_proposal_index
+    assert (
+        proposal_id not in updated_case.pending_embargo_proposal_index.values()
+    )
+
+
+@pytest.mark.spec("EP-08-003")
+def test_tearing_down_an_embargo_removes_its_entry_from_the_index(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Teardown already pruned ``proposed_embargoes``; now the index goes too."""
+    owner, owner_dl = owner_actor_and_dl
+    lifecycle = EmbargoLifecycle(persistence=owner_dl)
+    case = VulnerabilityCase(name="Active embargo", attributed_to=owner.id_)
+    start = now_utc()
+    embargo = as_EmbargoEvent(
+        context=case.id_, start_time=start, end_time=start + timedelta(days=30)
+    )
+    case.append_case_status(em_state=EM.ACTIVE)
+    case.set_embargo(embargo.id_)
+    case.proposed_embargoes.append(embargo.id_)
+    case.pending_embargo_proposal_index[embargo.id_] = (
+        f"{case.id_}/embargo_proposals/1"
+    )
+    owner_dl.create(case)
+    owner_dl.create(embargo)
+
+    result = lifecycle.terminate_active_embargo(
+        case_id=case.id_, actor_id=owner.id_
+    )
+
+    assert result.em_after == EM.EXITED
+    updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
+    assert updated_case.proposed_embargoes == []
+    assert updated_case.pending_embargo_proposal_index == {}

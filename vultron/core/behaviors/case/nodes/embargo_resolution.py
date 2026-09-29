@@ -34,10 +34,9 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.embargo_policy import EmbargoPolicy
-from vultron.core.models.enums import VultronObjectType
 from vultron.core.services.embargo_duration import (
     InitialEmbargoDuration,
+    owner_embargo_policies,
     resolve_initial_embargo_duration,
     select_actor_default,
 )
@@ -117,8 +116,10 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
     proposal, so a policy some other actor published is never a candidate
     (EP-04-010).
 
-    ``sender_proposed_embargo_duration`` is the seam for EP-04-004's embedded
-    sender proposal; nothing writes it until that mechanism lands (#3392).
+    ``sender_proposed_embargo_duration`` is EP-04-004's sender proposal: the
+    case-proposal use case derives it from the ``EmbargoEvent`` the Reporter
+    embedded on the report Offer (carried on the proposal, CP-01-008) and
+    seeds it on the blackboard alongside ``sender_proposed_embargo`` (#3392).
     """
 
     def __init__(
@@ -196,13 +197,7 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        policies = [
-            p
-            for p in self.datalayer.list_objects(
-                VultronObjectType.EMBARGO_POLICY
-            )
-            if isinstance(p, EmbargoPolicy) and p.actor_id == owner_id
-        ]
+        policies = owner_embargo_policies(self.datalayer, owner_id)
         actor_default = select_actor_default(policies)
         protocol_default = self._actor_config.protocol_default_embargo_duration
         resolved = resolve_initial_embargo_duration(

@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+description: >
+  The twelve desired orderings and the partial order they induce over the histories.
 ---
 
 # On the Desirability of Possible Histories

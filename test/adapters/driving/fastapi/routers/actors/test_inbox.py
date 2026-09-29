@@ -23,24 +23,17 @@ helpers moved to ``inbox_storage`` (#3705); their tests are in
 import pytest
 from fastapi import HTTPException
 
-from typing import cast
-
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _activity_addressed_to,
-    _activity_already_received,
     _collect_addresses,
     _get_body,
     _names_an_individual_actor,
-    _record_inbox_receipt,
     parse_activity,
 )
-from vultron.core.models.actor import CoreActor
-from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 _ACTOR_URI = "https://example.org/actors/alice"
-_ACTIVITY_URI = "https://example.org/activities/create-001"
 
 
 # ---------------------------------------------------------------------------
@@ -94,57 +87,6 @@ def test_parse_activity_raises_422_for_unknown_type():
 def test_get_body_returns_dict_unchanged():
     body = {"type": "Create", "actor": _ACTOR_URI}
     assert _get_body(body) is body
-
-
-# ---------------------------------------------------------------------------
-# _activity_already_received
-# ---------------------------------------------------------------------------
-
-
-def test_activity_already_received_returns_true_when_in_inbox():
-    actor = as_Organization(id_=_ACTOR_URI, name="Alice")
-    actor.inbox.items.append(_ACTIVITY_URI)
-    assert (
-        _activity_already_received(cast(CoreActor, actor), _ACTIVITY_URI)
-        is True
-    )
-
-
-def test_activity_already_received_returns_false_when_not_in_inbox():
-    actor = as_Organization(id_=_ACTOR_URI, name="Alice")
-    assert (
-        _activity_already_received(cast(CoreActor, actor), _ACTIVITY_URI)
-        is False
-    )
-
-
-def test_activity_already_received_returns_false_when_inbox_is_none():
-    actor = CoreActor(id_=_ACTOR_URI, name="Alice")
-    assert _activity_already_received(actor, _ACTIVITY_URI) is False
-
-
-# ---------------------------------------------------------------------------
-# _record_inbox_receipt
-# ---------------------------------------------------------------------------
-
-
-def test_record_inbox_receipt_appends_to_inbox_items(datalayer):
-    from vultron.adapters.driven.db_record import object_to_record
-
-    actor = as_Organization(id_=_ACTOR_URI, name="Alice")
-    datalayer.create(object_to_record(actor))
-
-    _record_inbox_receipt(
-        datalayer, cast(CoreActor, actor), _ACTIVITY_URI, _ACTOR_URI
-    )
-    assert _ACTIVITY_URI in actor.inbox.items
-
-
-def test_record_inbox_receipt_is_noop_when_inbox_has_no_items_attr(datalayer):
-    """Actor with string inbox URI should not raise."""
-    actor = CoreActor(id_=_ACTOR_URI, name="Alice", inbox="https://inbox.url")
-    # Should not raise
-    _record_inbox_receipt(datalayer, actor, _ACTIVITY_URI, _ACTOR_URI)
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
+description: >
+  Every unresolved design question in the Future Work section, collected in one place with the issue or epic that records it.
 ---
 
 # Open questions

@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+description: >
+  Wire activities for the Embargo Management message types EP, ER, EA, EV, EJ, EC, ET, EK, and EE.
 ---
 
 # Embargo Management (EM) Messages

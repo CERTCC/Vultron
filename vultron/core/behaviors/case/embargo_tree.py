@@ -50,6 +50,9 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseNotEmbargoEligibleNode,
     ResolveEmbargoDurationNode,
 )
+from vultron.core.behaviors.case.nodes.embargo_revision import (
+    RegisterLongerProposalAsRevisionNode,
+)
 
 
 class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
@@ -84,6 +87,10 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
                         AdvanceEMStateToActiveNode(),
                         AttachEmbargoToCaseNode(),
                         SeedOwnerAsSignatoryNode(),
+                        # EP-04-003: the longer creation-time candidate becomes
+                        # a pending revision (ACTIVE → REVISE) when both
+                        # parties proposed.
+                        RegisterLongerProposalAsRevisionNode(),
                     ],
                 ),
             ],

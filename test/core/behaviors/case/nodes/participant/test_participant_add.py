@@ -42,6 +42,7 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.models._helpers import days_from_now_utc
 
 
 class TestCreateCaseParticipantNode:
@@ -164,7 +165,9 @@ class TestCreateCaseParticipantNode:
         actor_id: str,
         finder_actor_id: str,
     ) -> None:
-        embargo = EmbargoEvent(context=case_obj.id_)
+        embargo = EmbargoEvent(
+            context=case_obj.id_, end_time=days_from_now_utc(45)
+        )
         bt_scenario.dl.create(embargo)
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
         object.__setattr__(stored_case, "active_embargo", embargo.id_)

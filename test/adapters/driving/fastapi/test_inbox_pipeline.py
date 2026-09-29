@@ -50,6 +50,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 PipelineFixture: TypeAlias = tuple[InboxPipeline, SqliteDataLayer]
 
@@ -150,6 +151,7 @@ def test_routing_safety_net_embargo_domain(test_pipeline, monkeypatch):
     embargo = as_EmbargoEvent(
         id_="https://example.org/embargoes/e-ibp-1",
         context=case.id_,
+        end_time=days_from_now_utc(45),
     )
     activity = em_propose_embargo_activity(
         embargo, context=case.id_, actor=SENDER_ID, to=[RECEIVER_ID]

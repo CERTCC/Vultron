@@ -14,13 +14,17 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from vultron.wire.as2.enums import as_TransitiveActivityType as TA_type
 from vultron.wire.as2.vocab.base.objects.activities.base import (
     as_Activity as Activity,
 )
-from vultron.wire.as2.vocab.base.objects.base import as_ObjectRequiredRef
+from vultron.wire.as2.vocab.base.objects.base import (
+    as_ObjectRef,
+    as_ObjectRequiredRef,
+)
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.wire.as2.vocab.base.utils import name_of
 
 
@@ -119,6 +123,39 @@ class as_Offer(as_TransitiveActivity):
         validation_alias="suggestedRoles",
         serialization_alias="suggestedRoles",
     )
+    # EP-04-004: a Reporter states embargo terms for *this* report by carrying
+    # a proposed EmbargoEvent on the Offer(VulnerabilityReport).  Declared on
+    # the base for the same reason as ``suggested_roles``: an inbound Offer is
+    # reconstructed as a bare as_Offer, and Pydantic's default ``extra="ignore"``
+    # would otherwise drop the proposal silently (ADR-0096).  The event's
+    # ``context`` is the report URI until the CASE_MANAGER rewrites it at case
+    # creation (EP-04-009).  ``as_ObjectRef`` admits the core ``EmbargoEvent``
+    # the parser expands the inline dict to (ADR-0099 detail 3).
+    proposed_embargo: as_ObjectRef = Field(
+        default=None,
+        validation_alias="proposedEmbargo",
+        serialization_alias="proposedEmbargo",
+    )
+
+    @field_validator("proposed_embargo", mode="before")
+    @classmethod
+    def _expand_proposed_embargo(cls, value: object) -> object:
+        """Type an inline proposal by its ``type``, as the parser does at ingress.
+
+        ``as_ObjectRef`` is a union whose first model branch is the base
+        ``as_Object``, so a stored ``{"type": "EmbargoEvent", ...}`` read back
+        from the data layer — a path that has no ``parse_activity``
+        pre-expansion — would validate as a bare ``as_Object`` and lose its
+        class.  Resolving the wire type here keeps the two paths agreeing.  An
+        unknown type is left for the union to validate (MV-04-003).
+        """
+        if isinstance(value, dict) and isinstance(value.get("type"), str):
+            try:
+                target = find_in_vocabulary(value["type"])
+            except KeyError:
+                return value
+            return target.model_validate(value)
+        return value
 
 
 class as_Invite(as_Offer):

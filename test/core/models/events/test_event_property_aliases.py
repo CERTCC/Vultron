@@ -65,6 +65,7 @@ from vultron.core.models.note import VultronNote
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models._helpers import days_from_now_utc
 
 # Shared required fields for all VultronEvent instances.
 _ACT_ID = "https://example.org/activities/act-1"
@@ -97,6 +98,7 @@ _participant_status = ParticipantStatus(
 _embargo = EmbargoEvent(
     id_="https://example.org/embargoes/e1",
     context=_CASE_URI,
+    end_time=days_from_now_utc(45),
 )
 _activity = VultronActivity(
     id_="https://example.org/activities/offer-1",

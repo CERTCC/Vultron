@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
+contents: generated
 ---
 
 # Model Interactions
@@ -58,8 +59,11 @@ For example, one Participant closing their report does not end the embargo that 
 
 ## Pages in this section
 
-- [Interactions Between the RM and EM Models](rm_em.md) covers when embargoes are negotiated relative to report validation and prioritization, and what report closure means while an embargo is active.
-- [CVD Case State Interactions with the RM and EM Process Models](rm_em_cs.md) covers how each CS event, such as Vendor notification, fix readiness, or public awareness, constrains the RM and EM processes.
-  It also details which parts of the CS model are global to a case.
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+
+- [RM and EM Interactions](rm_em.md) — When embargoes are negotiated relative to report validation and prioritization, and what report closure means while an embargo is active.
+- [RM, EM, CS Interactions](rm_em_cs.md) — How each CS event, such as Vendor notification, fix readiness, or public awareness, constrains the RM and EM processes, and which parts of the CS model are global to a case.
+
+<!-- END GENERATED SECTION CONTENTS -->
 
 The [formal protocol](../../../reference/formal_protocol/index.md) combines all three models into one protocol definition and builds on these interactions.

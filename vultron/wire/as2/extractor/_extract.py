@@ -24,10 +24,12 @@ from vultron.core.models.rsvp_deadline import (
     RsvpDeadlineClamp,
     resolve_rsvp_deadline,
 )
+from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.wire.as2.extractor._builders import (
     _build_object_kwargs,
     _get_id,
     _to_domain_obj,
+    proposed_embargo_from,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
@@ -97,6 +99,15 @@ def extract_intent(
         extra_kwargs["rsvp_deadline"] = _effective_rsvp_deadline(
             activity, actor_id, obj, min_rsvp_window, default_rsvp_window
         )
+    if "proposed_embargo" in event_class.model_fields:
+        # Offer(VulnerabilityReport) carries it itself; Create(CaseProposal)
+        # carries it on the Offer inlined in the proposal (EP-04-004,
+        # CP-01-008).  Surfaced here so no use case re-reads the wire
+        # activity for it (ADR-0035).
+        carrier = activity if _obj_type != str(VOtype.CASE_PROPOSAL) else obj
+        extra_kwargs["proposed_embargo"] = proposed_embargo_from(
+            carrier, activity_id=activity.id_
+        )
 
     return cast(
         AnyReceivedEvent,
@@ -133,8 +144,9 @@ def _effective_rsvp_deadline(
     (EP-07-005).  Windows are measured from the invite's ``published`` time;
     an activity without one is measured from now.
 
-    ``resolve_rsvp_deadline`` normalises every input to UTC, including the
-    nested embargo's ``end_time``, which the wire edge does not.
+    Every input is already UTC-aware: the activity's fields by
+    ``as_Object.validate_datetime`` and the nested embargo's ``end_time`` by
+    ``CoreObject`` (CS-13-001, #3784).
     """
     raw_end_time = getattr(activity, "end_time", None)
     requested = raw_end_time if isinstance(raw_end_time, datetime) else None

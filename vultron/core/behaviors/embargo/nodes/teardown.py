@@ -31,10 +31,10 @@ from vultron.core.services.embargo_lifecycle import (
     TransitionMode,
 )
 from vultron.core.states.em import EM
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import case_addressees
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import (
-    _as_id,
     reset_case_participant_embargo_consent,
 )
 from vultron.errors import VultronNotFoundError
@@ -359,19 +359,38 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
 
 
 class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
-    """Remove the embargo from the case's proposed_embargoes list.
+    """Forget the embargo as an open proposal of the case.
 
-    Idempotent cleanup: returns SUCCESS if embargo successfully removed or was
-    not in proposed_embargoes (nothing to remove). Returns FAILURE only if the
-    case cannot be read (critical prerequisite missing).
+    Removes it from ``proposed_embargoes`` and from
+    ``pending_embargo_proposal_index`` together, through
+    ``VulnerabilityCase.discard_proposed_embargo`` (EP-08-003).  Idempotent
+    cleanup: returns SUCCESS whether or not there was anything to remove.
+    Returns FAILURE only if the case cannot be read (critical prerequisite
+    missing).
 
     Saves the case only when a change is made.
+
+    ``decided_by`` gates the prune on *who* decided: when set, the node prunes
+    only if that actor is the case owner (``attributed_to``), because only the
+    owner's accept or reject decides a proposal — a participant's is consent
+    (the same ``is_owner`` rule ``EmbargoLifecycle`` applies).  A non-owner's
+    id therefore returns SUCCESS and changes nothing, so a best-effort Sequence
+    that carries this node still reaches the nodes after it.  Left ``None``
+    (teardown), the prune is unconditional.
     """
 
-    def __init__(self, case_id: str, embargo_id: str, name: str | None = None):
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        name: str | None = None,
+        *,
+        decided_by: str | None = None,
+    ):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.embargo_id = embargo_id
+        self.decided_by = decided_by
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -382,16 +401,21 @@ class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        proposed_ids = [_as_id(e) for e in case.proposed_embargoes]
-        if self.embargo_id in proposed_ids:
-            case.proposed_embargoes = [
-                e
-                for e in case.proposed_embargoes
-                if _as_id(e) != self.embargo_id
-            ]
+        if (
+            self.decided_by is not None
+            and _as_id(case.attributed_to) != self.decided_by
+        ):
+            self.feedback_message = (
+                f"Actor '{self.decided_by}' is not the owner of case"
+                f" '{self.case_id}': its answer is consent, not a decision, so"
+                f" embargo '{self.embargo_id}' stays an open proposal"
+            )
+            return Status.SUCCESS
+
+        if case.discard_proposed_embargo(self.embargo_id):
             self.datalayer.save(case)
             self.feedback_message = (
-                f"Removed embargo '{self.embargo_id}' from proposed_embargoes"
+                f"Removed embargo '{self.embargo_id}' from the open proposals"
                 f" of case '{self.case_id}'"
             )
             self.logger.info(
@@ -399,7 +423,7 @@ class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
             )
         else:
             self.feedback_message = (
-                f"Embargo '{self.embargo_id}' not in proposed_embargoes"
+                f"Embargo '{self.embargo_id}' is not among the open proposals"
                 f" of case '{self.case_id}' — nothing to remove"
             )
 

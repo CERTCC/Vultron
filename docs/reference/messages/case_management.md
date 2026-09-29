@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
+description: >
+  Case lifecycle, participant roster, and ownership transfer activities.
 ---
 
 # Case Management Messages

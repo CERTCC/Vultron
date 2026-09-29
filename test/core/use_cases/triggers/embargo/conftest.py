@@ -22,6 +22,7 @@ from vultron.wire.as2.vocab.objects.case_participant import (
     VendorParticipant,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.core.models._helpers import days_from_now_utc
 
 
 def _persist_actor(dl: SqliteDataLayer, name: str) -> as_Service:
@@ -37,7 +38,7 @@ def _build_active_embargo_case(
         name="Embargo regression case",
         attributed_to=owner_id,
     )
-    embargo = as_EmbargoEvent(context=case.id_)
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
     proposal = em_propose_embargo_activity(
         embargo, context=case.id_, actor=owner_id
     )
@@ -90,7 +91,7 @@ def _build_proposed_embargo_case_no_owner_attribution(
         case.id_, case.published, case_manager_id
     )
 
-    embargo = as_EmbargoEvent(context=case.id_)
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
     proposal = em_propose_embargo_activity(
         embargo, context=case.id_, actor=case_manager_id
     )
@@ -172,7 +173,7 @@ def _build_active_embargo_case_with_case_manager(
         name="Active embargo revision case",
         attributed_to=actor_id,
     )
-    embargo = as_EmbargoEvent(context=case.id_)
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
 
     owner_participant = VendorParticipant(
         attributed_to=actor_id,

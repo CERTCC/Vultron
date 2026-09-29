@@ -45,6 +45,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 _STR_URI = "https://example.org/objects/123"
 _LINK = as_Link(href="https://example.org/objects/123")
@@ -321,7 +322,10 @@ class TestEmProposeEmbargoActivity:
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
-            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
         )
 
 
@@ -340,7 +344,10 @@ class TestActivateEmbargoActivity:
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
-            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
         )
 
 
@@ -359,7 +366,10 @@ class TestAddEmbargoToCaseActivity:
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
-            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
         )
 
 
@@ -378,7 +388,10 @@ class TestAnnounceEmbargoActivity:
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
-            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
         )
 
 
@@ -397,7 +410,10 @@ class TestRemoveEmbargoFromCaseActivity:
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
-            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
         )
 
 

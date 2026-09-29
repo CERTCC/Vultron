@@ -12,6 +12,7 @@ related_specs:
 related_notes:
   - notes/stub-objects.md
   - notes/embargo-lifecycle.md
+  - notes/embargo-default-semantics.md
   - notes/message-type-reference.md
 relevant_packages:
   - transitions
@@ -192,7 +193,7 @@ Consent-write sites (all ten route through `apply_pec_transition()`):
 | `case/nodes/invite_embargo_consent.py` | yes | yes |
 | `embargo/nodes/proposal.py` | yes | yes |
 | `use_cases/_helpers.py` | yes | yes |
-| `services/embargo_lifecycle.py` (6 sites) | yes | yes |
+| `services/embargo_lifecycle/` (6 sites) | yes | yes |
 
 All ten sites now use `apply_pec_transition()` as the single authoritative
 consent-write path (CM-18-005). `EmbargoLifecycle` is the intended long-term
@@ -265,9 +266,9 @@ document**:
 | `Invite.end_time` | RSVP-by — when the *invitation* stops being open |
 | `Invite.object_.end_time` | Embargo expiry — when the *embargo* ends |
 
-The nested one is the `as_EmbargoEvent` (`vultron/core/models/embargo_event.py`,
-default 45 days hence). Read them independently; never substitute one for the
-other. `end_time` is inherited from `as_Object`
+The nested one is the `as_EmbargoEvent` (`vultron/core/models/embargo_event.py`;
+`end_time` is required, with no default duration — #3404). Read them
+independently; never substitute one for the other. `end_time` is inherited from `as_Object`
 (`vultron/wire/as2/vocab/base/objects/base.py`), so no vocabulary extension was
 needed to add this.
 

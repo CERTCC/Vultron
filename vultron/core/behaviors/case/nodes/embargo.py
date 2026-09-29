@@ -30,7 +30,6 @@ notes/protocol-event-cascades.md D5-6-EMBARGORCP.
 """
 
 import logging
-from datetime import datetime, timezone
 
 import isodate  # type: ignore[import-untyped]
 from py_trees.common import Status
@@ -41,13 +40,17 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.services.embargo_duration import InitialEmbargoDuration
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.embargo_duration import (
+    EmbargoDurationSource,
+    InitialEmbargoDuration,
+)
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import _as_id, from_now_utc
 from vultron.errors import (
     VultronAlreadyExistsError,
     VultronError,
@@ -56,11 +59,55 @@ from vultron.errors import (
 logger = logging.getLogger(__name__)
 
 
+def persist_creation_time_embargo(
+    datalayer: CasePersistence, embargo: EmbargoEvent, case_id: str
+) -> None:
+    """Store *embargo* for *case_id*, refusing a stored twin that is not it.
+
+    Before #3392 every creation-time ``EmbargoEvent`` carried a freshly minted
+    id, so ``VultronAlreadyExistsError`` could only mean a replay of this same
+    write.  The Reporter's own event now arrives under the Reporter's id, and
+    an id is a sender-supplied value: when the store already holds it, the
+    stored object must be *this* embargo — about this case, ending when this
+    one ends — or the case would be bound to someone else's terms while
+    shortest-wins compared the terms the sender stated.
+
+    Raises:
+        VultronError: when the stored twin is not an ``EmbargoEvent`` about
+            *case_id* with the same ``end_time``.
+    """
+    try:
+        datalayer.create(embargo)
+    except VultronAlreadyExistsError:
+        stored = datalayer.read(embargo.id_)
+        if (
+            not isinstance(stored, EmbargoEvent)
+            or stored.context != case_id
+            or stored.end_time != embargo.end_time
+        ):
+            raise VultronError(
+                f"embargo id {embargo.id_!r} is already held by a different"
+                f" object ({type(stored).__name__}, context"
+                f" {getattr(stored, 'context', None)!r}); refusing to bind"
+                f" case {case_id!r} to it (EP-04-004)"
+            )
+        logger.debug(
+            "Embargo %s already stored for case %s — skipping creation",
+            embargo.id_,
+            case_id,
+        )
+
+
 class CreateEmbargoEventNode(DataLayerActionWithPorts):
     """Create the initial embargo event and publish embargo_id to blackboard.
 
     Its duration is the ``InitialEmbargoDuration`` that
     ``ResolveEmbargoDurationNode`` resolved (EP-04-005 through EP-04-007).
+    When the sender's proposal won, the event is the sender's own
+    ``EmbargoEvent`` with its ``context`` rewritten from the report to the
+    case — the same terms and identity the Reporter stated, now about the case
+    (EP-04-004, EP-04-009).  Otherwise a fresh event is minted for the
+    resolved duration.
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -71,6 +118,9 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
         "case_id": PortInformation(data_type=str, required=True),
         "initial_embargo_duration": PortInformation(
             data_type=InitialEmbargoDuration, required=True
+        ),
+        "sender_proposed_embargo": PortInformation(
+            data_type=object, required=False
         ),
     }
 
@@ -83,6 +133,7 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
         return {
             "case_id": "/case_id",
             "initial_embargo_duration": "/initial_embargo_duration",
+            "sender_proposed_embargo": "/sender_proposed_embargo",
             "default_embargo_id": "/default_embargo_id",
         }
 
@@ -104,16 +155,24 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
 
         resolved = self.initial_embargo_duration_bb
         duration = resolved.duration
-        end_time = datetime.now(tz=timezone.utc) + duration
-        embargo = EmbargoEvent(end_time=end_time, context=case_id)
+        sender_event = self._try_get_input("sender_proposed_embargo")
+        if (
+            resolved.source is EmbargoDurationSource.SENDER_PROPOSAL
+            and isinstance(sender_event, EmbargoEvent)
+        ):
+            # The Reporter's terms carry over whole; only the subject changes
+            # from the report to the case (EP-04-004).
+            embargo = sender_event.with_subject(case_id)
+            end_time = embargo.end_time
+        else:
+            end_time = from_now_utc(duration)
+            embargo = EmbargoEvent(end_time=end_time, context=case_id)
         try:
-            self.datalayer.create(embargo)
-        except VultronAlreadyExistsError:
-            self.logger.debug(
-                "%s: Embargo %s already exists — skipping creation",
-                self.name,
-                embargo.id_,
-            )
+            persist_creation_time_embargo(self.datalayer, embargo, case_id)
+        except VultronError as exc:
+            self.feedback_message = f"{self.name}: {exc}"
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
 
         self._set_output("default_embargo_id", embargo.id_)
         self.logger.info(

@@ -71,6 +71,7 @@ from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
+from vultron.core.models._helpers import days_from_now_utc
 
 #: Characters that cannot appear in a hostname label.
 _UNSAFE_IN_HOST = re.compile(r"[^a-z0-9-]+")
@@ -228,6 +229,7 @@ def _seed_case(
     embargo = EmbargoEvent(
         id_=f"{case_id}/embargoes/e0",
         context=case_id,
+        end_time=days_from_now_utc(45),
     )
     case_kwargs: dict = dict(
         id_=case_id,

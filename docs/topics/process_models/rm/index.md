@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 200
+contents: generated
 ---
 
 # Report Management Process Model
@@ -22,7 +23,7 @@ completed, should map onto the RM process outlined here.
     [Do Work Behavior](../../behavior_logic/do_work_bt.md).
 
     For further reference, [ISO/IEC 30111:2019(E)](https://www.iso.org/standard/69725.html) provides recommendations for Vendors' *internal* processes
-    that can be mapped into the RM process. We provide such a mapping in our [ISO Crosswalk](../../../reference/iso_crosswalks/index.md).
+    that can be mapped into the RM process. We provide such a mapping in our [Standards Crosswalks](../../../reference/iso_crosswalks/index.md).
 
 ## RM State Machine
 
@@ -563,8 +564,13 @@ to *Deferred* to *Closed* in rapid (even immediate) succession.
 
     Participants MUST NOT close cases or reports from the _Valid_ state.
 
-## Where to go next
+## In this section
 
-- [RM Interactions Between CVD Participants](rm_interactions.md) applies this model to common coordination scenarios, from a single Finder and Vendor to multi-party cases.
-- [RM Formal Model](formal_model.md) gives the formal definition of the model, including the state subsets used on the [Model Interactions](../model_interactions/index.md) pages.
-- [Embargo Management Process Model](../em/index.md) describes the process that runs alongside RM when a case is under embargo.
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+
+- [RM Participant Interactions](rm_interactions.md) — The RM model applied to common coordination scenarios, from a single Reporter and Vendor to multi-party cases.
+- [RM Formal Model](formal_model.md) — The formal definition of the RM model, including the state subsets used on the Model Interactions pages.
+
+<!-- END GENERATED SECTION CONTENTS -->
+
+The [Embargo Management Process Model](../em/index.md) describes the process that runs alongside RM when a case is under embargo.

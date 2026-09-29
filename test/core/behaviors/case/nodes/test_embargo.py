@@ -39,6 +39,9 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseNotEmbargoEligibleNode,
     ResolveEmbargoDurationNode,
 )
+from vultron.core.behaviors.case.nodes.embargo_revision import (
+    RegisterLongerProposalAsRevisionNode,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.behaviors.case.nodes.participant import (
     CreateCaseOwnerParticipant,
@@ -219,6 +222,7 @@ class TestInitializeDefaultEmbargoNode:
             AdvanceEMStateToActiveNode,
             AttachEmbargoToCaseNode,
             SeedOwnerAsSignatoryNode,
+            RegisterLongerProposalAsRevisionNode,
         ]
 
     def test_advance_em_state_delegates_to_embargo_lifecycle(

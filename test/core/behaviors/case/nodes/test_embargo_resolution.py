@@ -88,8 +88,9 @@ def _run(
     *,
     sender_proposal: timedelta | None = None,
     actor_config: ActorConfig | None = None,
+    **context: Any,
 ) -> tuple[Status, datetime, datetime]:
-    extra: dict[str, Any] = {}
+    extra: dict[str, Any] = dict(context)
     if sender_proposal is not None:
         extra["sender_proposed_embargo_duration"] = sender_proposal
     before = datetime.now(tz=timezone.utc)
@@ -123,7 +124,10 @@ def _assert_duration(
 ) -> None:
     assert embargo is not None
     assert embargo.end_time is not None
-    assert before + expected <= embargo.end_time <= after + expected
+    # ``from_now_utc`` stamps at second precision (CS-13-003), so the lower
+    # bound drops the sub-second part ``datetime.now`` carries.
+    floor = before.replace(microsecond=0)
+    assert floor + expected <= embargo.end_time <= after + expected
 
 
 def _em_state(bt_scenario: BTTestScenario) -> EM:
@@ -207,7 +211,12 @@ def test_initial_embargo_resolution_table(
         assert _em_state(bt_scenario) == EM.NONE
     else:
         _assert_duration(_active_embargo(bt_scenario), expected, before, after)
-        assert _em_state(bt_scenario) == EM.ACTIVE
+        # Both parties proposed: the shorter is active and the longer is a
+        # pending revision, so the EM state observed is REVISE (EP-04-003).
+        contested = has_sender and has_actor_default
+        assert _em_state(bt_scenario) == (
+            EM.REVISE if contested else EM.ACTIVE
+        )
 
 
 @pytest.mark.spec("EP-04-005")
@@ -395,3 +404,104 @@ def test_non_positive_sender_proposal_creates_no_embargo(
 
     assert status == Status.FAILURE
     assert _active_embargo(bt_scenario) is None
+
+
+@pytest.mark.spec("EP-04-003")
+def test_a_tie_between_sender_and_actor_default_registers_no_revision(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """Equal terms leave nothing contested: ACTIVE, and no pending revision."""
+    _publish_policy(bt_scenario, ACTOR_DEFAULT, f"{ACTOR_ID}/policy")
+
+    status, before, after = _run(bt_scenario, sender_proposal=ACTOR_DEFAULT)
+
+    assert status == Status.SUCCESS
+    _assert_duration(
+        _active_embargo(bt_scenario), ACTOR_DEFAULT, before, after
+    )
+    assert _em_state(bt_scenario) == EM.ACTIVE
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    assert case.proposed_embargoes == []
+
+
+def _sender_event(
+    end_time: datetime, *, event_id: str, context: str = "urn:report:r-1"
+) -> EmbargoEvent:
+    return EmbargoEvent(id_=event_id, context=context, end_time=end_time)
+
+
+@pytest.mark.spec("EP-04-004")
+def test_a_sender_id_already_held_by_another_embargo_is_refused(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """The Reporter's event arrives under the Reporter's id (#3392).  When the
+    store already holds that id for a different embargo, the case must not be
+    bound to it: creation fails instead of activating foreign terms while
+    shortest-wins compared the terms the sender stated."""
+    foreign_id = "https://example.org/embargoes/reused"
+    bt_scenario.dl.create(
+        EmbargoEvent(
+            id_=foreign_id,
+            context="https://example.org/cases/some-other-case",
+            end_time=datetime(2099, 1, 1, tzinfo=timezone.utc),
+        )
+    )
+    stated_end = datetime.now(tz=timezone.utc) + timedelta(days=5)
+
+    status, _, _ = _run(
+        bt_scenario,
+        sender_proposal=timedelta(days=5),
+        sender_proposed_embargo=_sender_event(stated_end, event_id=foreign_id),
+    )
+
+    assert status == Status.FAILURE
+    assert _active_embargo(bt_scenario) is None
+    stored = bt_scenario.dl.read(foreign_id)
+    assert isinstance(stored, EmbargoEvent)
+    assert stored.context == "https://example.org/cases/some-other-case"
+
+
+@pytest.mark.spec("EP-04-004")
+def test_a_replay_of_the_same_sender_embargo_is_idempotent(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """A stored twin that *is* this embargo — same case, same end — is the
+    replay the ``VultronAlreadyExistsError`` swallow always meant."""
+    event_id = "https://example.org/embargoes/replayed"
+    stated_end = datetime.now(tz=timezone.utc).replace(
+        microsecond=0
+    ) + timedelta(days=5)
+    bt_scenario.dl.create(
+        EmbargoEvent(id_=event_id, context=CASE_ID, end_time=stated_end)
+    )
+
+    status, _, _ = _run(
+        bt_scenario,
+        sender_proposal=timedelta(days=5),
+        sender_proposed_embargo=_sender_event(stated_end, event_id=event_id),
+    )
+
+    assert status == Status.SUCCESS
+    active = _active_embargo(bt_scenario)
+    assert active is not None and active.id_ == event_id
+
+
+@pytest.mark.spec("EP-04-003")
+def test_a_longer_sender_duration_without_its_event_fails_loudly(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """When the actor default won and the sender's duration is longer, the
+    revision needs the sender's event; a blackboard carrying the duration but
+    not the event is inconsistent and must not report SUCCESS with the
+    revision silently skipped (BT-HELPER-01)."""
+    _publish_policy(bt_scenario, ACTOR_DEFAULT, f"{ACTOR_ID}/policy")
+
+    status, _, _ = _run(
+        bt_scenario, sender_proposal=ACTOR_DEFAULT + timedelta(days=30)
+    )
+
+    assert status == Status.FAILURE
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    assert case.proposed_embargoes == []

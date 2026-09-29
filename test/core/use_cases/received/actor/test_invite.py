@@ -37,6 +37,7 @@ from test.core.use_cases.received.conftest import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 
 def _seed_ledger_entry(
@@ -438,6 +439,7 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseIA2/embargo_events/e1",
             content="Active embargo",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)

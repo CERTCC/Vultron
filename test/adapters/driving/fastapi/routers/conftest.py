@@ -57,6 +57,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 
 @pytest.fixture
@@ -259,7 +260,9 @@ def case_with_embargo(dl, actor):
     case_obj = VulnerabilityCase(
         name="EMBARGO-CASE-001", attributed_to=actor.id_
     )
-    embargo = as_EmbargoEvent(context=case_obj.id_)
+    embargo = as_EmbargoEvent(
+        context=case_obj.id_, end_time=days_from_now_utc(45)
+    )
     dl.create(embargo)
     case_obj.set_embargo(embargo.id_)
     case_obj.append_case_status(em_state=EM.ACTIVE)
@@ -275,7 +278,9 @@ def case_with_proposal(dl, actor):
         name="PROPOSAL-CASE-001",
         attributed_to=actor.id_,
     )
-    embargo = as_EmbargoEvent(context=case_obj.id_)
+    embargo = as_EmbargoEvent(
+        context=case_obj.id_, end_time=days_from_now_utc(45)
+    )
     dl.create(embargo)
     proposal = em_propose_embargo_activity(
         embargo, context=case_obj.id_, actor=actor.id_

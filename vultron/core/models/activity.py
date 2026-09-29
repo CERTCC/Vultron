@@ -63,6 +63,9 @@ class VultronActivity(CoreObject):
     # activity dumps them, even when null.
     instrument: Any | None = None
     result: Any | None = None
+    # A Reporter's proposed embargo terms on Offer(VulnerabilityReport)
+    # (EP-04-004); the wire dump carries it as ``proposedEmbargo``.
+    proposed_embargo: Any | None = None
     # ``Question`` fields (AS2 §4.1); the CBT-03-004 bootstrap-replay Question
     # is delivered through this model.
     any_of: Any | None = None

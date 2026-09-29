@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
+description: >
+  A recap of the definition with summary diagrams of each process model.
 ---
 
 # Formal Vultron Protocol Redux
