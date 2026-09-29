@@ -24,7 +24,7 @@ stakeholder_type: [project-contributor]
 > chain. ADR-0099 keeps those as *the* model. So read this ADR for the
 > domain/wire separation rationale, not for the shared-root mechanism.
 >
-> While ADR-0099 was `accepted-provisional` this ADR was only annotated as
+> Until ADR-0099 reached `accepted` this ADR was only annotated as
 > partially superseded and kept `status: accepted`; it was retired in full and
 > moved here when ADR-0099 reached `accepted` (#3492).
 

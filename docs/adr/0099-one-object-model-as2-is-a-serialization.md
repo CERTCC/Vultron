@@ -4,31 +4,18 @@ date: 2026-09-21
 deciders: Allen D. Householder
 consulted: notes/wire-core-boundary.md, notes/domain-model-separation.md
 stakeholder_type: [project-contributor]
-lint_suppress: [status_prose_contradiction]
 ---
 
 # One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy
 
-> **Implementation status as of 2026-09-22: decided, partially built.**
-> The decision details below are in the present tense because they state the
-> decision, not the state of the code — that is the MADR convention. Four pieces
-> have landed, each with a test that holds it:
->
-> | detail | what landed | issue |
-> |---|---|---|
-> | 2 | AS2 spellings are out of core logic; the spelling is derived from the field alias | #3485 |
-> | 5 | dimension objects serialize to a bare state value — validated by the spike under [Validation](#validation) | — |
-> | 6 | ARCH-22-001 replaced by the wire→core allow-list | #3483 |
-> | 9 | `rehydrate()` named and implemented as the owner of ID-to-object materialisation (VM-06-007) | #3486 |
-> | 3 | all 27 paired `as_*` domain classes deleted; message slots name the core class | #3487, #3488 |
->
-> The four misnamed wire classes were also renamed to `as_*` (#3484).
->
-> **Details 1, 4, 7, 8 and 10 are not built.** Detail 9's other half — the object
-> slots themselves holding whole objects — was unblocked by detail 3 and now
-> materialises promoted core classes. Item-by-item
-> status is in [Migration](#migration), which is transitional and should be
-> deleted once the work lands.
+> **Implementation status as of 2026-09-29: decided and built, with details 7
+> and 8 open.** The decision details below are in the present tense because
+> they state the decision, not the state of the code — that is the MADR
+> convention. Every migration issue under #2670 is closed and the record is
+> `accepted` (#3491). [Validation](#validation) maps each of the ten details to
+> the test that holds it, and records that details 7 and 8 are not what the
+> code does. [Migration](#migration) is kept as the record of how the work
+> landed and of the amendments made along the way.
 
 ## Context and Problem Statement
 
@@ -284,10 +271,11 @@ spelling, and both are the status classes covered by ADR-0036.
 
 ## Migration
 
-**This section is transitional. Delete it once the work has landed** — it
-describes the difference between the code as it was when this decision was
-taken and the decision above, and that difference stops being useful to a
-reader the moment it is closed.
+**This section is the record of how the work landed.** It was written as the
+difference between the code as it was when this decision was taken and the
+decision above, to be deleted once that difference closed. It is kept instead,
+because the dated amendments inside it (#3485, #3490) are decision content that
+[Validation](#validation) and the downstream notes cite.
 
 - **Delete 25 of the 27 paired `as_*` domain classes**, and retarget the
   message-shape classes' slots at the core classes.
@@ -464,24 +452,44 @@ under one model there is nothing for `_NORMALIZE_WIRE_TO_CORE` to normalise,
 because the stored object and the transmitted object are the same class. The
 stale docstring should be corrected independently of this ADR.
 
-The status remains `accepted-provisional` because the details carrying the most
-risk are still argued from the measured evidence rather than exercised. Detail 5
-was validated by the spike above, and details 2, 6 and 9 gained enforcing tests
-when they landed. Details 1, 3, 4, 7, 8 and 10 are not yet exercised — and
-detail 3, the deletion of the paired classes, is both the largest remaining piece
-and the one the rest depends on.
+### What holds each detail
 
-Ongoing validation:
+The record was graduated to `accepted` on 2026-09-28 (#3491), when the last
+migration issue under #2670 closed and the annotated architecture requirements
+(see *More Information*) were rewritten to the one-object model. Detail 5 was validated by
+the spike above before anything else was built; the other details were built
+under their own issues, and each is held by a test the way the table records.
+Two are not: details 7 and 8 are not what the code does, and the paragraph
+after the table says exactly how they differ.
 
-- `test/architecture/test_wire_core_import_allowlist.py` enforces the detail-6
-  allow-list, replacing the deleted wire→core ratchet
-- the existing `test/architecture/test_core_no_wire_imports.py`, unchanged
-- `test/architecture/test_core_no_as2_spellings.py` asserts no module under
-  `vultron/core/` contains an AS2 spelling, covering detail 2
-- `test/core/models/test_dimension_bare_serialization.py` holds detail 5,
-  including the parity of core and wire AS2 output
-- `test/wire/as2/test_rehydration_materialisation.py` holds detail 9's
-  materialisation owner
+| detail | held by |
+|---|---|
+| 1 — one class, two serializations | `test_core_object_context_is_emitted_on_the_as2_path_only` (`test/core/models/test_core_object.py`): `@context` on the `by_alias` dump only. `test_rekey_wire_identity_renames_only_identity_keys` (`test/adapters/driven/test_db_record.py`): the persistence path renames only `id_`/`type_`/`context_`. `test_core_object_derives_as2_spellings_and_accepts_field_names` (`test/architecture/test_hierarchy_invariants.py`) keeps both spellings readable on input. |
+| 2 — AS2 spelling lives in the alias | `test/architecture/test_core_no_as2_spellings.py`: no module under `vultron/core/` types an AS2 spelling. `test_promoted_core_classes_are_exactly_as2_representable` (`test/architecture/test_wire_no_core_object_annotations.py`): the closed-world check on the projected key set. `test/architecture/test_core_by_alias_dumps.py`: the `by_alias` output against its baseline. |
+| 3 — the paired classes are deleted | `test/architecture/test_wire_no_core_object_annotations.py`: message-shape slots name core classes. The identity tests per type — `TestVulnerabilityCaseWireRoundTrip` in `test/core/models/test_case.py`, and its siblings in `test_case_actor.py` and `test_case_reference.py` — assert `as_X is X`. `test/architecture/test_core_no_to_core_duck_typing.py`: nothing looks for a `to_core()` that no longer exists. |
+| 4 — the shared root is deleted | `test/wire/as2/vocab/base/test_wire_base_hierarchy.py`: `as_Base` stands directly on `pydantic.BaseModel`. `TestCoreRoots` and `test_wire_vocabulary_inherits_nothing_from_core` (`test/architecture/test_hierarchy_invariants.py`): core has exactly two roots and wire inherits neither. |
+| 5 — dimensions serialize as a bare value | `test/core/models/test_dimension_bare_serialization.py`, including the parity of core and wire AS2 output. |
+| 6 — wire→core allow-list | `test/architecture/test_wire_core_import_allowlist.py`, replacing the deleted ratchet. `test/architecture/test_core_no_wire_imports.py` holds ARCH-01-001 unchanged. |
+| 7 — strict reading, unknown fields set aside | **Not built as written.** `test_unknown_key_raises_for_every_core_vocabulary_entry` (`test/architecture/test_core_extra_forbid.py`) holds the *opposite* of the detail's second sentence: an unrecognised key on a core object is refused, not set aside. See below. |
+| 8 — set-aside fields reported, near misses warned | **Not built.** No path logs an unrecognised key at any level, and no near-miss check exists. `test_vultron_activity_accepts_every_wire_activity_key` (`test/adapters/driving/fastapi/test_outbox_helpers.py`) cites this detail but pins the complementary rule: every legitimate AS2 field is declared, so only a truly unknown key is unrecognised. |
+| 9 — object slots hold the whole object | `test/wire/as2/test_rehydration_materialisation.py`: `rehydrate()` materialises, refuses on a model-only slot, defers on a URI-admitting one. |
+| 10 — vocabulary and message set stay separate | `test/test_message_semantics_mapping.py` (MSM-03 to MSM-05): the formal shorthands map onto the semantic registry rather than onto AS2 types one-for-one. The reconciling artifact is `notes/message-type-reference.md` (ADR-0083). |
+
+**Details 7 and 8 diverge from the code, and the divergence is unadjudicated.**
+`CoreObject` resolves `extra="forbid"` (ARCH-12-003, #2940), so an unrecognised
+key on any core object — inbound in a message slot, or read back from a stored
+row — raises. `as_Base` keeps Pydantic's default `extra="ignore"`, so an
+unrecognised key on the wire *envelope* is dropped silently. Neither path sets
+the key aside, and nothing reports one. ARCH-12-003's rationale names detail 7
+as the argument its `forbid` clause enforces, which keeps the detail's first
+sentence (recognised fields are validated strictly) and inverts its second
+(unrecognised fields are not rejected); the disposition row for #2940 under
+*More Information* originally said inbound reading would be covered by details 7
+and 8, which did not happen. The detail's own reason for not refusing — that AS2 is
+designed to be extended and a peer adding a property must still federate — has
+not been answered anywhere in the record. Which behaviour the project means is
+a decision, not a documentation fix, so this section records the gap rather
+than resolving it; until it is resolved, no test can hold either detail.
 
 ## Pros and Cons of the Options
 
@@ -621,11 +629,11 @@ compatibility.
 
 **Supersedes** — recorded as `superseded_by` on both, which now carry
 `status: superseded` and live in
-[`docs/adr/archived/`](archived/README.md). While this ADR was
-`accepted-provisional` they were only annotated (`partially_superseded_by`) and
-kept `status: accepted`, because retiring two accepted decisions on the strength
-of a provisional one would have overstated what had been established. They were
-retired in full when this ADR reached `accepted` (#3492).
+[`docs/adr/archived/`](archived/README.md). Until this ADR reached `accepted`
+they were only annotated (`partially_superseded_by`) and kept
+`status: accepted`, because retiring two accepted decisions on the strength of
+one not yet validated would have overstated what had been established. They
+were retired in full when this ADR reached `accepted` (#3492).
 
 - **ADR-0017** — the Option D shared root is replaced. Everything Option B
   contributed and ADR-0017 preserved — `CoreObject`, `CORE_VOCABULARY`, the
@@ -673,7 +681,7 @@ which had previously held that pointer, was retired (#3492).
 | #2939 move projection to adapter-side translators | cancelled — no projection code |
 | #2942 relocate the semantic extractor | cancelled — it only moved to evade ARCH-22-001 |
 | #2944 / #2670 / #2673 the ARCH-22 ratchet and its exemption set | replaced by one allow-list test |
-| #2940 `extra="forbid"` on the core branch | re-scoped to the persistence path; inbound is covered by details 7 and 8 |
+| #2940 `extra="forbid"` on the core branch | landed as filed, not re-scoped: every core object refuses an unrecognised key, inbound and stored alike (ARCH-12-003). That leaves details 7 and 8 unbuilt — see [Validation](#validation) |
 | #2947 evaluate `activitypubdantic` | unchanged, still deferred |
 
 Generated spec requirements: `SDO-01-004` (detail 5, new). `SDO-03-004`'s
