@@ -59,17 +59,22 @@ gate tests ([§9.7](index.md#97-gating-full-case-delivery)).
 
 ### 10.2 Embargo Revision and Termination Cascades
 
-A change to the shared embargo state propagates to every participant's consent
+A change to the embargo in force propagates to every participant's consent
 state, because consent is given to specific terms.
+A change that is only proposed does not.
 
 !!! note "Recall: embargo management states"
     {% include-markdown "./includes/_em-states-table.md" %}
 
     Full definitions are in [§7.1](index.md#71-states).
 
-- **EM enters `Revised`.** The CASE_MANAGER MUST transition every participant
-  currently at PEC `SIGNATORY` to `LAPSED`. Consent to the previous terms does
-  not carry over to revised terms.
+- **EM enters `Revised`.** No consent changes.
+  The prior embargo is still in force and every signatory to it remains `SIGNATORY`; the CASE_MANAGER records the proposer as having accepted the terms it proposed.
+- **EM returns to `Active` with revised terms.** The CASE_MANAGER MUST re-evaluate every participant's consent against the new terms.
+  If the revised embargo ends no later than the one it replaces, every signatory is carried over unchanged.
+  If it ends later, every `SIGNATORY` that has not accepted the revised terms MUST move to `LAPSED`.
+  In either case a participant in any other state that has already accepted the revised terms MUST move to `SIGNATORY`; only signatories to the replaced terms are carried over.
+- **EM returns to `Active` because the owner rejected the revision.** No consent changes; the prior terms stand.
 - **EM enters `Exited`.** The CASE_MANAGER MUST reset every participant's PEC
   machine to `UNBOUND`. No embargo is in scope, so no consent is either.
 - **After a teardown.** The CASE_MANAGER SHOULD commit and send a fresh

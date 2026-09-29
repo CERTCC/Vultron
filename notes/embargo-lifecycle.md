@@ -10,6 +10,7 @@ description: >
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
+  - specs/message-semantics-mapping.yaml
 related_notes:
   - notes/embargo-default-semantics.md
   - notes/participant-embargo-consent.md
@@ -153,12 +154,18 @@ When implementing any code that transitions embargo state:
 3. **REVISE+PXA reject**: `reject_embargo_invite()` raises in STRICT mode when
    EM is REVISE and P/X/A is set — the correct path is
    `terminate_active_embargo()` per EMB-04-002.
-4. **PEC cascade is automatic**: `propose_embargo()` cascades `SIGNATORY →
-   LAPSED` on `ACTIVE → REVISE`; `terminate_active_embargo()` resets all PEC
-   to `UNBOUND`. Callers do not need to do this manually.
+4. **PEC cascade is automatic**: `propose_embargo()` changes no consent — a
+   proposal binds nobody (ADR-0093, EP-05-002) — and records the proposer's
+   consent to the proposed id. The owner path of `accept_embargo_invite()`
+   re-evaluates consent when it replaces the active embargo: signatories who
+   have not accepted *longer* terms lapse, and a *shorter* replacement carries
+   everyone over (MSM-07-005). `terminate_active_embargo()` resets all PEC to
+   `UNBOUND`. Callers do not need to do this manually.
 5. **OBSERVED mode** (received-side): pass
    `transition_mode=TransitionMode.OBSERVED` to sync local state with a remote
-   assertion. All guards and PEC cascades are bypassed in OBSERVED mode.
+   assertion. EM transition guards are bypassed in OBSERVED mode; the PEC
+   cascades still run, so a replica's consent records stay in step with the
+   CASE_MANAGER's.
 6. **PROPOSED + P/X/A**: when a CS public/exploit/attacks event fires while EM
    is PROPOSED, use `reject_proposed_embargo_bt` (not `terminate_embargo_bt`).
    `terminate_embargo_bt` requires an active embargo (`HasActiveEmbargoNode`
