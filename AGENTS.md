@@ -90,9 +90,9 @@ No other frameworks/package managers without approval (`ui/` Node/React: ADR-010
 - **Core helpers raise, never return `None`**: helpers raise on failure; `update()`
   is the sole `try/except` in BT nodes. See `notes/bt-pitfalls.md` § BT-HELPER-01.
 - **Optional string fields MUST follow "if present, then non-empty"**: use shared
-  `NonEmptyString`/`OptionalNonEmptyString` from `vultron/wire/as2/vocab/base/`
-  (CS-08-002). Do NOT add per-field `@field_validator` stubs for empty-string
-  rejection; extend the shared type alias. See CS-08-001, CS-08-002.
+  `NonEmptyString` from `vultron/primitives.py` (`NonEmptyString | None` when
+  optional; CS-08-002). Do NOT add per-field `@field_validator` stubs for
+  empty-string rejection; extend the shared type alias. See CS-08-001, CS-08-002.
 
 ### Decorator Usage
 
