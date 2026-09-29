@@ -13,7 +13,8 @@ stakeholder_type: [project-contributor]
 > the state of the code — that is the MADR convention. Every migration issue
 > under #2670 is closed and the record is `accepted` (#3491).
 > [Validation](#validation) maps each of the ten details to the test that holds
-> it; details 7 and 8 were amended there to say what was built (#3888).
+> it. Details 7 and 8 carry dated amendments, on the details themselves, saying
+> what was built (#3888); Validation records why.
 > [Migration](#migration) is kept as the record of how the work landed and of
 > the amendments made along the way.
 
@@ -495,7 +496,7 @@ after the table records why.
 | 5 — dimensions serialize as a bare value | `test/core/models/test_dimension_bare_serialization.py`, including the parity of core and wire AS2 output. |
 | 6 — wire→core allow-list | `test/architecture/test_wire_core_import_allowlist.py`, replacing the deleted ratchet. `test/architecture/test_core_no_wire_imports.py` holds ARCH-01-001 unchanged. |
 | 7 — strict reading, unknown fields refused (as amended) | `test_unknown_key_raises_for_every_core_vocabulary_entry` and `test_every_core_object_forbids_extra_with_no_exemption_list` (`test/architecture/test_core_extra_forbid.py`): every `CoreObject` subclass refuses an unknown key, with no exemption list. |
-| 8 — every AS2 field declared, so only unknown keys are refused (as amended) | `test_vultron_activity_accepts_every_wire_activity_key` (`test/adapters/driving/fastapi/test_outbox_helpers.py`): every key a wire activity dumps is a declared `VultronActivity` field, so a legitimate field is never the unknown one. Envelope-level reporting of dropped keys is #3900. |
+| 8 — every AS2 field declared, so only unknown keys are refused (as amended) | `test_vultron_activity_accepts_every_wire_activity_key` (`test/adapters/driving/fastapi/test_outbox_helpers.py`): on the stored/delivery path, every key a wire activity dumps is a declared `VultronActivity` field, so a legitimate field is never the unknown one. The inbound envelope is wire `as_Activity`, where an unknown key is still dropped; reporting it is #3900. |
 | 9 — object slots hold the whole object | `test/wire/as2/test_rehydration_materialisation.py`: `rehydrate()` materialises, refuses on a model-only slot, defers on a URI-admitting one. |
 | 10 — vocabulary and message set stay separate | `test/test_message_semantics_mapping.py` (MSM-03 to MSM-05): the formal shorthands map onto the semantic registry rather than onto AS2 types one-for-one. The reconciling artifact is `notes/message-type-reference.md` (ADR-0083). |
 
