@@ -410,7 +410,10 @@ async def run_inbox_pipeline(
     Calls :func:`~vultron.core.behaviors.inbox.process_payload` for the
     immediate payload, then processes any replayed activities that were
     pushed back to the inbox queue (e.g., after bootstrap dispatch), and
-    finally drains the outbox.
+    finally drains the outbox.  The synchronous BT work runs in a worker
+    thread so the ASGI event loop keeps serving while a handler executes
+    (IE-06-002, BT-11-002); only the outbox drain, which is async I/O, runs on
+    the loop.
 
     This function is the background task scheduled by ``post_actor_inbox``.
     It is the ONLY place that constructs the adapter instances, satisfying
@@ -450,7 +453,11 @@ async def run_inbox_pipeline(
     # (EP-07-001, EP-07-002); None applies the protocol defaults.
     actor_config = inbox_port_factories._resolve_actor_config()
 
-    async with _get_actor_lock(actor_id):
+    def _process_and_replay() -> None:
+        """The synchronous BT work for one delivery, plus its replays.
+
+        Runs on a worker thread (see below), so it must not touch asyncio.
+        """
         outcome = process_payload(
             payload, ingress, dispatch_adp, queue, actor_config=actor_config
         )
@@ -481,5 +488,21 @@ async def run_inbox_pipeline(
                 replay_outcome.context_id,
             )
             _warn_if_rejected(replay_outcome, actor_id, replayed=True)
+
+    async with _get_actor_lock(actor_id):
+        # Off the event loop, deliberately.  Starlette runs an ``async``
+        # background task on the loop itself, and ``process_payload`` is
+        # synchronous — BT ticks, the BT global lock, SQLite I/O.  Called
+        # inline it stalls the whole container for every inbound activity: no
+        # HTTP response goes out, no delivery from a peer is accepted, the
+        # co-hosted OutboxMonitor coroutine cannot drain, and a trigger route
+        # waiting on the BT lock from its threadpool thread starves (IE-06-002,
+        # BT-11-002).  The fv/fcvcv demo flakes were the CaseActor's outbox
+        # paying one full BT tick per delivery on the vendor container (#3033,
+        # #2898).  ``asyncio.to_thread`` matches what the sync trigger routes
+        # already do; the BT global RLock serialises BT execution across
+        # threads, and the per-actor lock above (held across the thread hop)
+        # keeps this actor's deliveries FIFO (BT-11-001, #1525).
+        await asyncio.to_thread(_process_and_replay)
 
     await outbox_handler(actor_id, actor_dl, emitter=emitter)

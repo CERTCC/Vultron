@@ -15,11 +15,15 @@ FVCV-handoff-specific invariants:
 - Vendor2 is a late joiner — its replica holds the complete log from genesis.
 
 Note on the ownership transfer: the ``Offer(VulnerabilityCase)`` /
-``Accept(Offer(VulnerabilityCase))`` handoff is a direct Vendor1 ↔
-Coordinator exchange (TRIG-11-001/TRIG-11-002) and does not emit a canonical
-CaseActor ledger entry, so it is not observable here.  The demo verifies the
-resulting ``attributed_to`` change on both the Vendor1 and Coordinator
-DataLayers via ``demo_check`` assertions instead.
+``Accept(Offer(VulnerabilityCase))`` handoff routes through the CaseActor
+(ADR-0053, CM-21-005/CM-21-007), which commits
+``offer_case_ownership_transfer`` and ``accept_case_ownership_transfer``
+ledger entries and broadcasts them to every participant.  The acceptance is
+in the expected-event-types list below, and the narrative's causal edges
+place it between the Coordinator's own invitation acceptance and its invite
+of Vendor2.  The demo additionally verifies the resulting ``attributed_to``
+change on both the Vendor1 and Coordinator DataLayers via ``demo_check``
+assertions.
 
 All tests are tagged ``@pytest.mark.case_ledger_invariants``.  They skip
 automatically when ``devlogs/fvcv-handoff/`` is absent.

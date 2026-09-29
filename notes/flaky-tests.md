@@ -3,6 +3,8 @@ title: Known Flaky Tests
 status: active
 related_notes:
   - notes/testing-pitfalls.md
+  - notes/sync-ledger-replication.md
+  - notes/bt-integration.md
 ---
 
 # Known Flaky Tests
@@ -120,15 +122,37 @@ No open entries.
 |---|---|---|
 | `fcvcv Demo Integration` | #2898 | 2026-09-28 |
 | `fcvcv Invariant Harness` | #2898 | 2026-09-28 |
-| `fvcv-extension` | #2422 | 2026-08-26 |
-| `fccv-extension` | #2422 | 2026-08-26 |
+| `fvcv-extension` | #2898 | 2026-08-26 |
+| `fccv-extension` | #2898 | 2026-08-26 |
 | `fv Demo Integration` | #3033 | 2026-09-02 |
 | `fv Invariant Harness` | #3033 | 2026-09-02 |
 | `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
 | `fvcv-handoff Invariant Harness` | #2257 | 2026-08-18 |
-| `fcv-reject Demo Integration` | #2390 | 2026-08-19 |
-| `fcv-reject Invariant Harness` | #2390 | 2026-08-19 |
+| `fcv-reject Demo Integration` | #3033 | 2026-09-02 |
+| `fcv-reject Invariant Harness` | #3033 | 2026-09-02 |
 
+> **Root fix landed 2026-09-29 for the #2898 / #3033 rows** (one PR closing
+> both). Two faults compounded: the CaseActor queued its initialization ledger
+> fan-out ahead of `Create(VulnerabilityCase)` (and the add-participant entry
+> ahead of a late joiner's `Announce(VulnerabilityCase)`), so every replica took
+> the SYNC-15 pre-genesis reject/replay path on the normal route; and the inbox
+> background task ran the synchronous BT pipeline on the event loop, so each
+> delivery to a busy container cost a full BT tick (CP-09-009, CM-17-009,
+> IE-06-003). **Do not delete these rows on issue closure** (#3033 AC-4):
+> delete them only after the post-merge `demo-integration.yml` runs on `main`
+> have stayed green for these jobs — the closed issue is the fix record, the
+> green runs are the evidence the flake is gone.
+>
+> `fcv-reject Demo Integration` / `fcv-reject Invariant Harness` were
+> **repointed from closed #2390 to #3033 on 2026-09-29**: the 2026-09-02
+> occurrences on `main` (`7dd4c49b`) and PR #3018 failed on the same
+> `run_direct_path_rm_triage()` replica gate as `fv`, with the coordinator as
+> the waiting actor. `fvcv-extension` / `fccv-extension` were **repointed from
+> closed #2422 to #2898 on 2026-09-29**: both scenarios carry the #2819 drain
+> workaround and share the late-joiner path #2898 fixes; no fresh failure was
+> gathered for them, so treat the rows as provisional and delete them with the
+> others.
+>
 > `fcvcv Demo Integration` / `fcvcv Invariant Harness` were **repointed to
 > #2898 on 2026-09-28**. #2819 (CaseActor invite race, vendor v2) is closed; its
 > fix was a per-scenario ledger drain, and #2898 tracks the delivery-ordering
@@ -149,10 +173,6 @@ No open entries.
 > coordinator/engage-case), distinct window.  Confirmed 2026-09-02 on PR #3029:
 > failed once, passed on re-run with all 25 checks green, `main` green throughout.
 > Invariant Harness fails as a downstream consequence of incomplete devlogs.
->
-> `fvcv-extension` / `fccv-extension` still cite #2422 and so are also pointing
-> at a closed issue; no fresh evidence was gathered for those two jobs.  Verify
-> before deleting or repointing them.
 >
 > **Do not delete a row merely because its issue closed.**  Check whether the
 > flake still reproduces first — a closed tracker plus an observed failure means

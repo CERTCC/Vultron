@@ -357,8 +357,12 @@ def _phase_report_submission(
             reporter_actor_id=finder.id_,
         )
 
-    # Drain the CaseActor's outbox before Phase 2 starts (ADR-0026, ADR-0058,
-    # issue #2819).
+    # Wait for the Phase 1 ledger to reach every replica before Phase 2 starts
+    # (ADR-0026, ADR-0058).  Added as a workaround for #2819 when the CaseActor
+    # queued its ledger fan-out ahead of Create(VulnerabilityCase) and every
+    # replica rejected and replayed; that ordering is fixed at the source
+    # (CP-09-009, CM-17-009, #2898), so this is now a plain replication check
+    # that also keeps Phase 2's ledger indices deterministic.
     drain_phase1_ledger(
         auth_client=vendor_client,
         case_id=case.id_,

@@ -13,7 +13,7 @@ causal_edges:
       Case engagement causes the CaseActor to record participant status entries.
   - antecedent: engage_case
     consequent: invite_actor_to_case
-    consequent_actor: coordinator
+    consequent_actor: case-actor
     note: >
       The Coordinator invites both the Finder and the Vendor to the case only
       after the case is active.
