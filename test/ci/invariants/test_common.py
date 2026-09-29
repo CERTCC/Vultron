@@ -785,6 +785,46 @@ class TestLoadDevlogsManifestHandling:
         assert "real invariant failure" in message
         assert "not exercised" not in message
 
+    @pytest.mark.spec("DEMOCI-10-014")
+    def test_crashed_dump_is_not_called_an_upstream_abort_or_an_invariant_failure(
+        self, tmp_path, monkeypatch
+    ):
+        """The harness's crashed-dump backstop has the no-case shape but a
+        different meaning.
+
+        ``ScenarioHarness`` writes ``caseId: null`` / ``targetCount: 0`` with
+        ``DUMP_CRASHED_REASON`` when ``dump_case_ledgers`` raised before it
+        could record results — for a run whose case may well have existed.
+        Keying the wording on shape alone would call that "aborted before a
+        case existed" over a reason line that says the dump crashed.
+        """
+        from vultron.demo.helpers.harness import DUMP_CRASHED_REASON
+
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "fcv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "fcv",
+                    "caseId": None,
+                    "ledgerFileCount": 0,
+                    "targetCount": 0,
+                    "reason": DUMP_CRASHED_REASON,
+                    "actors": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("fcv")
+        message = excinfo.value.msg or ""
+        assert "real invariant failure" not in message
+        assert "before a case existed" not in message
+        assert "dump raised" in message
+        assert "not exercised" in message
+        assert DUMP_CRASHED_REASON in message
+
     def test_failure_message_names_each_missing_actor(
         self, tmp_path, monkeypatch
     ):

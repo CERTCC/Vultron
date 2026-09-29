@@ -1643,8 +1643,10 @@ class TestADR0041GenesisCommitFailure:
         """A failed genesis create_case commit returns FAILURE (not SUCCESS).
 
         The genesis entry is the root of the CaseActor's hash chain; a
-        best-effort SUCCESS here would tell the vendor a case exists while the
-        canonical ledger has no root.
+        best-effort SUCCESS would hide that the canonical ledger has no root.
+        Since CP-09-009 the node runs after the emits, so the FAILURE no
+        longer withholds Accept/Create — it makes the broken ledger visible
+        (see test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued).
         """
         from py_trees.common import Status
 
@@ -2677,3 +2679,55 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
         "every Announce(CaseLedgerEntry) must follow Create(VulnerabilityCase),"
         f" got {labels}"
     )
+
+
+@pytest.mark.spec("CP-09-009")
+def test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued(
+    make_payload,
+):
+    """A genesis-commit failure is surfaced, not prevented, once the commit runs last.
+
+    Before CP-09-009 the ledger commit preceded the emits, so a failed genesis
+    ``create_case`` commit aborted the Sequence before ``Accept`` and
+    ``Create`` were queued.  Now the commit runs after them (so the fan-out
+    queues behind the ``Create``), and the trade-off is explicit: on genesis
+    failure the handler does not report APPLIED, but ``Accept`` and ``Create``
+    are already in the FIFO outbox, no ``Announce(CaseLedgerEntry)`` follows
+    them, and the retry marker has already been cleared.  This test pins that
+    shape so a future change to either half is a deliberate one.
+    """
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.core.behaviors.case.nodes import (
+        CommitNativeLedgerEntriesNode,
+    )
+    from vultron.core.models.use_case_result import HandlerDisposition
+    from vultron.core.use_cases.received.case_proposal import (
+        CreateCaseProposalReceivedUseCase,
+    )
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+    _seed_report(dl)
+    event = _make_full_event(make_payload)
+    with patch.object(
+        CommitNativeLedgerEntriesNode, "_commit_one", return_value=False
+    ):
+        result = CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    assert (
+        result.disposition is not HandlerDisposition.APPLIED
+    ), "a failed genesis commit must not read as a successful case creation"
+    assert "genesis create_case ledger commit failed" in (result.reason or "")
+    assert _outbox_labels(dl) == [
+        "Accept(CaseProposal)",
+        "Create(VulnerabilityCase)",
+    ], "Accept and Create are queued before the commit runs, and nothing follows"
+    assert (
+        list(dl.list_objects("PendingCreateCaseActivity")) == []
+    ), "the retry marker is cleared before the commit runs"

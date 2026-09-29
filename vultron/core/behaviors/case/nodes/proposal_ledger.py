@@ -333,9 +333,17 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         # canonical hash chain.  Unlike the remaining best-effort entries, a
         # failure here must NOT be masked: if the genesis entry is missing,
         # the CaseActor's authoritative ledger has no root and every later
-        # entry (and every replica seeded from it) is broken.  Fail fast so
-        # the enclosing Sequence aborts before Accept/Create are emitted, and
-        # the vendor is not told a case exists that has no canonical ledger.
+        # entry (and every replica seeded from it) is broken.  Return FAILURE
+        # so the enclosing Sequence fails and the handler reports it.
+        #
+        # What that FAILURE can and cannot do changed with CP-09-009.  This
+        # node now runs after the emit nodes, so Accept(as_CaseProposal) and
+        # Create(VulnerabilityCase) are already in the outbox and the retry
+        # marker is already cleared: the failure is surfaced (ERROR log,
+        # non-APPLIED verdict), not prevented.  Holding the Create back would
+        # mean fanning the genesis entry out ahead of it, which is the
+        # pre-genesis path CP-09-009 exists to avoid.  Pinned by
+        # test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued.
         if self.wire_render_port is None:
             self.feedback_message = "wire_render_port not available"
             logger.error("%s: %s", self.name, self.feedback_message)
@@ -351,7 +359,8 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         ):
             self.feedback_message = (
                 f"genesis create_case ledger commit failed for case"
-                f" '{case_id}' — aborting native initialization"
+                f" '{case_id}' — the CASE_MANAGER ledger has no root;"
+                " Accept and Create were already queued (CP-09-009)"
             )
             logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

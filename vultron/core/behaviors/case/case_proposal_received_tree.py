@@ -11,7 +11,8 @@ after step 1 and cleared on successful completion of step 2 so that a retry
 runner (#1139) can recover the obligation if delivery of step 2 fails.
 
 The normal-path Sequence performs CaseActor-native initialization per
-ADR-0041 before emitting outbound activities:
+ADR-0041, emits the outbound activities, and commits the canonical ledger
+entries last (CP-09-009):
 
   1. Resolve (or create) the VulnerabilityCase
   2. Add the proposing actor (report receiver) as CASE_OWNER participant at

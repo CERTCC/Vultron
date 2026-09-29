@@ -1545,10 +1545,13 @@ groups:
           When `test/ci/invariants/common.py::load_devlogs()` fails because a
           `dump-manifest.json` is present but no ledger files are, its failure
           message MUST name the layer that failed: when every manifest records
-          `caseId: null` and `targetCount: 0` (the scenario aborted before a
+          `caseId: null` and `targetCount: 0` with a reason other than the
+          harness's crashed-dump backstop reason (the scenario aborted before a
           case existed, or only the pre-run sentinel was written) the message
           MUST say the ledger invariants were not exercised and point at the
-          demo-integration job for the cause; only when a manifest names a case
+          demo-integration job for the cause; when a manifest carries the
+          crashed-dump reason the message MUST say the dump raised and that
+          whether a case existed is unknown; only when a manifest names a case
           MAY the message call the outcome a ledger invariant failure.
         rationale: >-
           A demo that aborted upstream still fails the harness (DEMOCI-10-003),
@@ -1560,8 +1563,9 @@ groups:
           recorded on #2898).
         verification: >-
           `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling`
-          — `test_upstream_abort_is_not_called_a_real_invariant_failure` and
-          `test_missing_ledgers_for_an_existing_case_stay_a_real_invariant_failure`.
+          — `test_upstream_abort_is_not_called_a_real_invariant_failure`,
+          `test_crashed_dump_is_not_called_an_upstream_abort_or_an_invariant_failure`
+          and `test_missing_ledgers_for_an_existing_case_stay_a_real_invariant_failure`.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-10-003

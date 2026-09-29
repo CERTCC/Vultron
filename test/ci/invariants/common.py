@@ -36,6 +36,7 @@ import pytest
 import yaml
 
 from vultron.core.states.participant_embargo_consent import PEC
+from vultron.demo.helpers.harness import DUMP_CRASHED_REASON
 from vultron.demo.helpers.ledger_dump import (
     DUMP_MANIFEST_FILENAME,
     default_devlogs_root,
@@ -199,17 +200,32 @@ def _read_dump_manifests(search_root: Path) -> list[dict]:
     return manifests
 
 
+def _dump_crashed(manifest: dict) -> bool:
+    """True when the harness backstop wrote the manifest because the dump raised.
+
+    ``ScenarioHarness`` writes a fallback manifest carrying
+    ``DUMP_CRASHED_REASON`` when ``dump_case_ledgers`` died before it could
+    record per-actor results.  That manifest has the same ``caseId: null`` /
+    ``targetCount: 0`` shape as a no-case run, but says nothing about whether
+    a case existed — only the reason line tells the two apart.
+    """
+    return manifest.get("reason") == DUMP_CRASHED_REASON
+
+
 def _demo_never_reached_a_case(manifest: dict) -> bool:
     """True when the dump had nothing to target because no case ever existed.
 
     The dump writes ``caseId: null`` and ``targetCount: 0`` when the scenario
     aborted before a case was created (DEMOCI-10-002) — the same shape as the
-    pre-run sentinel (DEMOCI-10-012).  A manifest that names a case but
-    captured nothing is a different situation: the case existed and its
-    ledgers are missing.
+    pre-run sentinel (DEMOCI-10-012) and as the harness's crashed-dump
+    backstop, which is excluded here because it does not know whether a case
+    existed.  A manifest that names a case but captured nothing is a
+    different situation again: the case existed and its ledgers are missing.
     """
-    return manifest.get("caseId") is None and not manifest.get(
-        "targetCount", 0
+    return (
+        manifest.get("caseId") is None
+        and not manifest.get("targetCount", 0)
+        and not _dump_crashed(manifest)
     )
 
 
@@ -223,8 +239,10 @@ def _fail_no_ledgers_despite_dump(
     manifest says the scenario never reached a case, the ledger invariants
     were not exercised at all — the demo aborted upstream, and calling that a
     "real invariant failure" sends a triager to the ledger when the fault is
-    in delivery or in the scenario (ISSUE-3879, #2898).  The job still fails
-    either way (DEMOCI-10-003).
+    in delivery or in the scenario (ISSUE-3879, #2898).  When the dump itself
+    crashed, whether a case existed is unknown and the headline says so.  Only
+    a manifest that names a case supports the strong wording.  The job still
+    fails in every branch (DEMOCI-10-003).
     """
     if all(_demo_never_reached_a_case(m) for m in manifests):
         headline = (
@@ -234,12 +252,29 @@ def _fail_no_ledgers_despite_dump(
             "This is an upstream demo failure — see the demo-integration job "
             "for the cause — not a ledger invariant failure."
         )
-    else:
+    elif any(_dump_crashed(m) for m in manifests):
+        headline = (
+            f"No case-ledger files under {search_root}: "
+            f"{len(manifests)} dump manifest(s) show the case-ledger dump "
+            "raised before it recorded any per-actor result, so whether a "
+            "case existed is unknown and the ledger invariants were not "
+            "exercised. See the demo-integration job log for the dump's "
+            "traceback; this is not evidence of a ledger invariant failure."
+        )
+    elif any(m.get("caseId") for m in manifests):
         headline = (
             f"No case-ledger files under {search_root}, but "
             f"{len(manifests)} dump manifest(s) show the demo ran and dumped "
             "for an existing case. "
             "This is a real invariant failure, not missing test data."
+        )
+    else:
+        headline = (
+            f"No case-ledger files under {search_root}, and the "
+            f"{len(manifests)} dump manifest(s) name no case and give no "
+            "recognised reason, so the ledger invariants were not exercised "
+            "and the cause cannot be attributed from the manifest alone. "
+            "See the demo-integration job for the cause."
         )
     lines = [headline]
     for manifest in manifests:

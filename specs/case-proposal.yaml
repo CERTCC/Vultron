@@ -755,11 +755,20 @@ groups:
       receiver's system must hold the case object before any fan-out that references
       it. The bootstrap Create is not a message about a ledger event (it is the
       CBT-01 trust handoff), so SYNC-09-002's commit-before-emit applies to the
-      `Announce(CaseLedgerEntry)` fan-out, which still follows its commit.
+      `Announce(CaseLedgerEntry)` fan-out, which still follows its commit. The
+      order has a cost that is accepted deliberately: a genesis `create_case`
+      commit that fails can no longer withhold the `Accept` and `Create`, which
+      are already queued and whose retry marker is already cleared; the failure
+      is surfaced as a non-APPLIED verdict and an ERROR log rather than
+      prevented. Holding the `Create` back would put the genesis entry's fan-out
+      ahead of it, which is the pre-genesis path this rule exists to avoid.
     verification: >-
       `test/core/behaviors/case/test_case_proposal_received_tree.py::test_accept_and_create_are_queued_before_any_ledger_fanout`
       runs the accept tree with a real sync adapter and asserts the outbox order is
-      Accept, Create, then every Announce.
+      Accept, Create, then every Announce;
+      `test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued`
+      pins the accepted failure shape (non-APPLIED verdict, Accept and Create
+      queued, no Announce, no retry marker).
     relationships:
     - rel_type: refines
       spec_id: CP-05-003
