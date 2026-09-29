@@ -753,6 +753,58 @@ class TestAddCaseStatusTree:
         assert f"status '{STATUS_ID}'" in msg, msg
         assert f"for case '{STATUS_ID}'" not in msg, msg
 
+    @pytest.mark.spec("RSH-05-018")
+    @pytest.mark.spec("SL-03-001")
+    def test_em_refusal_warning_names_case_id_and_labelled_status_id(
+        self, dl, make_payload, caplog
+    ):
+        """The EM refusal WARNING has the same shape as the PXA one (#3039).
+
+        Case in the ``for case '%s'`` slot, status in its own labelled
+        ``(status '%s')`` slot, so an operator can correlate either refusal
+        the same way.
+        """
+        import logging
+
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="EM Refusal Log", attributed_to=ACTOR_ID
+        )
+        case.append_case_status(pxa_state=CS_pxa.pxa)
+        dl.create(case)
+
+        # Invalid EM jump (NONE → ACTIVE) + valid PXA advance → EM dimension
+        # refused, tree still SUCCEEDS (partial accept), refusal is logged.
+        asserted = as_CaseStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em=EmDimension(state=EM.ACTIVE),
+            pxa=PxaDimension(state=CS_pxa.Pxa),
+        )
+        dl.create(asserted)
+
+        activity = add_status_to_case_activity(
+            asserted, target=case.id_, actor=ACTOR_ID
+        )
+        event = make_payload(activity)
+        tree = add_case_status_tree(
+            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+        )
+        bridge = BTBridge(datalayer=dl)
+
+        with caplog.at_level(logging.WARNING):
+            result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        em_refusals = [
+            r.getMessage()
+            for r in caplog.records
+            if r.levelno == logging.WARNING and "refused EM" in r.getMessage()
+        ]
+        assert len(em_refusals) == 1, em_refusals
+        msg = em_refusals[0]
+        assert f"for case '{CASE_ID}'" in msg, msg
+        assert f"(status '{STATUS_ID}')" in msg, msg
+
     @pytest.mark.spec("RSH-05-012")
     def test_finalize_cs_filter_node_emstate_uses_name_serialization(
         self, dl, make_payload

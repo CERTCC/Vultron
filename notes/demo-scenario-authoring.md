@@ -229,15 +229,24 @@ now has to treat the return as possibly-absent.
 
 **How to apply:**
 
+- **Prefer nesting over a sentinel.** When a value is produced inside a
+  `demo_step` / `demo_gate` body in scenario code, put every step that reads it
+  *inside* that body (ADR-0058's nested-block model, `demo_gate` docstring). A
+  failed block then skips its dependents outright. Do **not** pre-initialise the
+  name to `None` and read it after the block: the sentinel satisfies the
+  unbound-variable ratchet while handing `None` (or `.activity` on `None`) to the
+  next step, which then fails — or crashes the run — for the wrong reason
+  (#3038, #3887).
 - Type any such helper `-> Optional[T]` (e.g. `participant_adds_note_to_case` in
   `vultron/demo/helpers/notes.py` returns `Optional[as_Note]`).
 - In callers, treat `None` as "this step failed and `demo_step` already recorded
   it" — do not raise. Guard every `.id_` (or other attribute) access on the
-  returned value.
+  returned value. This is the fallback when the reader cannot be nested (the
+  value crosses a phase-function boundary, for example).
 - Skip dependent steps when the value is `None`, e.g. by making the next step's
   `in_reply_to` conditional on the prior result being present.
 
-Source: ISSUE-2390
+Source: ISSUE-2390, amended by ISSUE-3038
 
 ---
 
