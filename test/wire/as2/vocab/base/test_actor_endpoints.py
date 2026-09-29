@@ -25,10 +25,14 @@ form must not change as a side effect of registering the collection types
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import json
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import pytest
 
+from test.support.clock import SteppingClock
+from vultron.core.models import _helpers
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.actor import (
     VultronApplication,
     VultronGroup,
@@ -37,13 +41,28 @@ from vultron.core.models.actor import (
     VultronService,
 )
 from vultron.wire.as2.parser import parse_activity
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Service
+from vultron.wire.as2.vocab.base.objects.actors import (
+    as_Actor,
+    as_Application,
+    as_Group,
+    as_Organization,
+    as_Person,
+    as_Service,
+)
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
 )
 
 ACTOR_ID = "https://example.org/actors/alice"
 _ACTOR_CLASSES = [as_Actor, as_Service]
+_ALL_WIRE_ACTOR_CLASSES = [
+    as_Actor,
+    as_Application,
+    as_Group,
+    as_Organization,
+    as_Person,
+    as_Service,
+]
 _CORE_ACTOR_CLASSES = [
     VultronPerson,
     VultronOrganization,
@@ -76,6 +95,10 @@ def _arrival_shapes(field_name: str) -> dict[str, dict[str, Any]]:
 
 
 _SHAPES = list(_arrival_shapes("inbox"))
+#: Every shape but the one that arrives as a complete, addressed collection:
+#: for these the actor *derives* the endpoint rather than receiving it.
+_DERIVED_SHAPES = [shape for shape in _SHAPES if shape != "collection-dict"]
+_ARRIVED_AT = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
 
 
 @pytest.mark.parametrize("actor_cls", _ACTOR_CLASSES)
@@ -217,7 +240,11 @@ def test_serialized_endpoints_carry_only_address_type_and_items():
 
     Pins the wire form byte-for-byte on the fields this area owns.  In
     particular ``current`` is gone: it serialized as ``0``, but AS2's
-    ``current`` is a reference to a page, not an integer (ISSUE-3563).
+    ``current`` is a reference to a page, not an integer (ISSUE-3563).  Nor
+    is there a ``published``/``updated``: an endpoint built around a URI is an
+    address, not an object this process authored, so it is not stamped with
+    the local clock (#3732) — an earlier revision of this test had to pop
+    both keys before it could make the "nothing else" claim.
     """
     actor = as_Service.model_validate(
         {
@@ -230,15 +257,102 @@ def test_serialized_endpoints_carry_only_address_type_and_items():
     dumped = json.loads(actor.to_json())
 
     for field_name in _ENDPOINTS:
-        endpoint = dumped[field_name]
-        endpoint.pop("published")
-        endpoint.pop("updated")
-        assert endpoint == {
+        assert dumped[field_name] == {
             "@context": "https://www.w3.org/ns/activitystreams",
             "id": f"{ACTOR_ID}/{field_name}",
             "type": "OrderedCollection",
             "items": [],
         }
+
+
+@pytest.mark.parametrize("actor_cls", _ACTOR_CLASSES)
+@pytest.mark.parametrize("field_name", _ENDPOINTS)
+@pytest.mark.parametrize("shape", _DERIVED_SHAPES)
+def test_derived_endpoint_carries_no_clock_stamp(actor_cls, field_name, shape):
+    """A derived endpoint is an address, so it is not stamped with the clock.
+
+    ``as_Object`` mints ``published`` and ``updated`` from ``now_utc()`` on
+    every construction.  An endpoint the actor derives — from a bare URI, from
+    its own ``id_``, or around an id-less collection — is not an object this
+    process authored, and a clock value minted there can never round-trip:
+    ``CoreActor`` keeps only the URI (ARCH-12-006), so an actor stored and read
+    back through the datalayer compared unequal to itself whenever a second
+    boundary fell between the write and the read (#3732, #3726).
+    """
+    data = {"id": ACTOR_ID, **_arrival_shapes(field_name)[shape]}
+
+    collection = getattr(actor_cls.model_validate(data), field_name)
+
+    assert collection.published is None
+    assert collection.updated is None
+
+
+@pytest.mark.parametrize("field_name", _ENDPOINTS)
+def test_constructed_actor_endpoints_carry_no_clock_stamp(field_name):
+    """The endpoints ``set_collections`` derives for a new actor are unstamped.
+
+    This is the shape ``as_Person(name=...)`` stores, and the one that must
+    equal what the datalayer hands back (#3732, #3726).
+    """
+    collection = getattr(as_Service(id_=ACTOR_ID, name="Alice"), field_name)
+
+    assert collection.id_ == f"{ACTOR_ID}/{field_name}"
+    assert collection.published is None
+    assert collection.updated is None
+
+
+@pytest.mark.parametrize("with_id", [True, False], ids=["addressed", "idless"])
+@pytest.mark.parametrize("field_name", _ENDPOINTS)
+def test_endpoint_collection_keeps_the_time_it_arrived_with(
+    field_name, with_id
+):
+    """Not stamping a derived address never means discarding a stated time.
+
+    A collection that arrives carrying ``published``/``updated`` keeps them as
+    received — with or without an ``id`` of its own — because that value is
+    the sender's claim, not this process's clock (ADR-0103).
+    """
+    collection: dict[str, Any] = {
+        "type": "OrderedCollection",
+        "published": _ARRIVED_AT.isoformat(),
+        "updated": _ARRIVED_AT.isoformat(),
+    }
+    if with_id:
+        collection["id"] = f"{ACTOR_ID}/{field_name}"
+
+    endpoint = getattr(
+        as_Service.model_validate({"id": ACTOR_ID, field_name: collection}),
+        field_name,
+    )
+
+    assert endpoint.id_ == f"{ACTOR_ID}/{field_name}"
+    assert endpoint.published == _ARRIVED_AT
+    assert endpoint.updated == _ARRIVED_AT
+
+
+@pytest.mark.parametrize("actor_cls", _ALL_WIRE_ACTOR_CLASSES)
+def test_actor_round_trips_through_uri_endpoints_across_a_clock_tick(
+    actor_cls, monkeypatch
+):
+    """AS2 actor → URI-only endpoints → AS2 actor is equal whatever the clock.
+
+    This is the datalayer path in miniature: ``CoreActor`` reduces each
+    endpoint to its URI (ARCH-12-006) and the AS2 form is rebuilt from that
+    URI on read.  The rebuild happens an hour later here, so any clock stamp
+    minted on the way would show up as an inequality (#3732, #3726).  Every
+    wire actor class shares ``as_Actor``'s coercion, so every one is checked.
+    """
+    actor = actor_cls(id_=ACTOR_ID, name="Alice")
+    as_stored = actor.model_dump(by_alias=True)
+    for field_name in _ENDPOINTS:
+        as_stored[field_name] = as_stored[field_name]["id"]
+    monkeypatch.setattr(
+        _helpers,
+        "datetime",
+        SteppingClock(now_utc() + timedelta(hours=1), step=timedelta(0)),
+    )
+
+    assert actor_cls.model_validate(as_stored) == actor
 
 
 @pytest.mark.parametrize("actor_cls", _ACTOR_CLASSES)

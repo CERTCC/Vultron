@@ -61,22 +61,29 @@ class as_Actor(as_Object):
         id: the parser expands an inline id-less collection before this
         runs, and its ``default_factory`` id is a ``urn:uuid:`` nobody
         routes to.
+
+        Every collection derived here is an *address* and carries no clock
+        stamp (see :func:`_address_collection`); a ``published``/``updated``
+        the value arrived with is kept as received.
         """
         derived = _endpoint_collection(info.data.get("id_"), info.field_name)
         if v is None:
             return derived
         if isinstance(v, str):
-            return (
-                as_OrderedCollection(id_=v.strip()) if v.strip() else derived
-            )
+            return _address_collection(v.strip()) if v.strip() else derived
         if isinstance(v, dict) and not (v.get("id") or v.get("id_")):
             return as_OrderedCollection.model_validate(
-                {**v, "id": derived.id_}
+                {**_NO_CLOCK_STAMP, **v, "id": derived.id_}
             )
         if isinstance(v, as_OrderedCollection) and (
             "id_" not in v.model_fields_set
         ):
-            return v.model_copy(update={"id_": derived.id_})
+            unstamped = {
+                name: None
+                for name in _NO_CLOCK_STAMP
+                if name not in v.model_fields_set
+            }
+            return v.model_copy(update={"id_": derived.id_, **unstamped})
         return v
 
     @model_validator(mode="after")
@@ -101,6 +108,29 @@ class as_Actor(as_Object):
         return self
 
 
+#: The ``as_Object`` fields a derived endpoint leaves unset.  Spelled as a
+#: mapping so it can seed a dict the arrived value then overrides.
+_NO_CLOCK_STAMP: dict[str, None] = {"published": None, "updated": None}
+
+
+def _address_collection(uri: str | None) -> as_OrderedCollection:
+    """Return the endpoint collection that is only the address *uri*.
+
+    ActivityPub publishes ``inbox``/``outbox`` as URIs and ``CoreActor`` keeps
+    only that URI (ARCH-12-006), so a collection built around one is an
+    address, not an object this process authored: it carries no ``published``
+    or ``updated``.  ``as_Object`` would otherwise mint both from the local
+    clock on every construction, and a value minted on read can never equal
+    the one minted on write once a second boundary separates them — which is
+    how an actor stored and read back through the datalayer compared unequal
+    to itself (#3732, #3726).  *uri* ``None`` yields a fresh-id collection for
+    a caller with no address to give.
+    """
+    if uri is None:
+        return as_OrderedCollection(published=None, updated=None)
+    return as_OrderedCollection(id_=uri, published=None, updated=None)
+
+
 def _endpoint_collection(
     actor_id: str | None, field_name: str | None
 ) -> as_OrderedCollection:
@@ -111,8 +141,8 @@ def _endpoint_collection(
     actor is being rejected anyway.
     """
     if actor_id is None or field_name is None:
-        return as_OrderedCollection()
-    return as_OrderedCollection(id_=f"{actor_id}/{field_name}")
+        return _address_collection(None)
+    return _address_collection(f"{actor_id}/{field_name}")
 
 
 as_ActorRef: TypeAlias = ActivityStreamRef[as_Actor]
