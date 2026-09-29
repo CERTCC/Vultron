@@ -186,9 +186,6 @@ _EXPECTED_QUALIFIER = MappingProxyType(
 #: a reason; this is not a place to park an unexplained failure.
 _UNREGISTERED_FORMS_BY_DESIGN = MappingProxyType(
     {
-        # establish_embargo.md: polling across candidate embargoes has a
-        # factory but no registered pattern, so no receiver dispatches it.
-        "Question(anyOf=[Event])": "no registered pattern (#3433)",
         # acknowledge.md: named as the form that matches nothing, to warn an
         # implementer off sending the bare report instead of its Offer.
         "Read(VulnerabilityReport)": "counter-example (MSM-01-008)",

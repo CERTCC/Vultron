@@ -367,8 +367,12 @@ multi-candidate embargo poll (#3469), so its entry goes away with the example
 itself rather than being fixed into a passing case. That leaves
 `_KNOWN_UNDISPATCHABLE` **empty** once #3469 lands — the first time this gate has
 had no exemptions. An empty exemption map is the goal state, not a signal the map
-is unused: keep it and its two guard tests, because the next undispatchable
-example is what they exist to catch.
+is unused: keep it and its collected-names guard, because the next undispatchable
+example is what they exist to catch. The per-entry `xfail(strict=True)` test that
+forced an exemption out once its example became dispatchable went with the last
+entry, because a `parametrize` over an empty table collects as a permanent SKIP —
+a green line that means nothing. The first new entry MUST bring that strict xfail
+back with it; the table's own comment says so.
 
 The generator's output path is now resolved from the file's own location
 (`Path(__file__).parents[5]`), so it works regardless of the caller's working

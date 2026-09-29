@@ -12,16 +12,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 import datetime
 import unittest
-from typing import Sequence, cast
+from typing import cast
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
-from vultron.wire.as2.vocab.activities.embargo import (
-    _ChoosePreferredEmbargoActivity,
-)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
-    as_Question,
-)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -66,26 +60,6 @@ class TestVocabEmbargoExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.object_, embargo)
         self.assertEqual(activity.context, case.id_)
-
-    def test_choose_preferred_embargo(self):
-        activity = examples.choose_preferred_embargo()
-        self.assertIsInstance(activity, as_Activity)
-        case = examples.case()
-        examples.embargo_event()
-        coordinator = examples.coordinator()
-
-        self.assertIsInstance(activity, as_Question)
-
-        self.assertEqual(activity.actor, coordinator.id_)
-        assert activity.context is not None
-        self.assertIn(case.id_, activity.context)
-
-        assert isinstance(activity, _ChoosePreferredEmbargoActivity)
-        assert activity.one_of is not None
-        self.assertIsInstance(activity.one_of, Sequence)
-        self.assertGreaterEqual(len(activity.one_of), 1)
-        for obj in activity.one_of:
-            self.assertIsInstance(obj, EmbargoEvent)
 
     def test_accept_embargo(self):
         activity = examples.accept_embargo()
