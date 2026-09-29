@@ -43,27 +43,28 @@ groups:
     priority: MUST
     kind: project
     statement: When a factory parameter represents a domain entity whose fields determine how the wire object is enriched
-      (e.g. a case whose embargo state determines whether `activeEmbargo` appears in the stub), the factory MUST accept that
-      entity already projected into its complete wire counterpart and MUST derive the enrichment from that wire object's own
-      fields. The core→wire projection MUST be performed by the rendering port (ARCH-20-001) before
-      the factory is called; factories MUST NOT import a core domain type or perform the projection themselves. Callers MUST
-      NOT hand a factory a hand-built *partial* wire object (e.g. an `as_VulnerabilityCaseStub` assembled field-by-field) — an
-      incompletely projected argument risks omitting fields the translator would have included (e.g. `end_time` on an embargo
-      event).
-    rationale: 'ADR-0082 gives the adapter-side translator sole ownership of core→wire projection. A factory that projects
-      internally must import the core domain model, which is why `factories/actor.py` and `factories/case.py` are wire→core
-      import violations under ARCH-22-001; sanctioning the factory layer as a second projection site would pin them in place
-      permanently. The invariant the original rule protected — enrichment is complete and expressed in one place — is preserved
-      by requiring a *complete* translator-produced wire object rather than a hand-built partial one (issue #1300: a bare
+      (e.g. a case whose embargo state determines whether `activeEmbargo` appears in the stub), the factory MUST accept the
+      complete domain object — under ADR-0099 detail 3 the core class is its own wire form, so there is no separate
+      counterpart to project into — and MUST derive the enrichment from that object's own fields. Callers MUST NOT hand a
+      factory a hand-built *partial* stub (e.g. an `as_VulnerabilityCaseStub` assembled field-by-field) in place of the
+      object — an incomplete argument risks omitting fields the object would have supplied (e.g. `end_time` on an embargo
+      event). Factories MUST NOT re-derive AS2 spellings by hand; the field alias a core object inherits (ARCH-12-003) is the
+      only source of the wire spelling, and delivery renders through the port (ARCH-20-001).
+    rationale: 'Enrichment computed in two places drifts. The rule originally required a translator-produced wire object
+      because the domain type and its wire type were different classes; ADR-0099 made them one class, so "the complete wire
+      counterpart" is the domain object itself and the factory may import it — ARCH-22-001 admits `vultron/core/models/`
+      and `vultron/core/states/` to the wire layer for exactly this. What survives is the invariant the rule always
+      protected: the factory reads the object it was given and never a stub somebody assembled by hand (issue #1300: a bare
       `active_embargo` URI reached the wire instead of an embargo event with `end_time`).'
-    verification: No module under `vultron/wire/as2/factories/` imports from `vultron.core.models` (enforced by the ARCH-22
-      wire→core ratchet test), and each factory that enriches from a domain entity reads only fields of the wire object it
-      was handed.
+    verification: Each factory that enriches from a domain entity reads only fields of the object it was handed, and the
+      factory package's imports from `vultron.core` stay inside the ARCH-22-001 allow-list
+      (`test/architecture/test_wire_core_import_allowlist.py`).
     relationships:
-    - rel_type: implements
+    - rel_type: depends_on
       spec_id: ARCH-22-001
+      note: The allow-list is what lets a factory accept the core object directly.
     adr:
-    - ADR-0082
+    - ADR-0099
 - id: AF-02
   title: Module Structure
   specs:

@@ -299,6 +299,11 @@ plugins:
   # `docs-legacy-urls` check (DOCBW-03-008) fails the build on one that does not.
   - redirects:
       redirect_maps:
+        # Retired ADRs move to adr/archived/ (MS-14-004) and keep their old URL.
+        # ADR-0017 is live on the published site; ADR-0082 has been cited by
+        # issues, specs and notes since it merged.
+        adr/0017-domain-wire-object-separation.md: adr/archived/0017-domain-wire-object-separation.md
+        adr/0082-wire-core-boundary-pairing-registry.md: adr/archived/0082-wire-core-boundary-pairing-registry.md
         howto/activitypub/activities/_accept_embargo.md: reference/messages/em.md
         howto/activitypub/activities/_accept_invite_to_case.md: reference/messages/case_management.md
         howto/activitypub/activities/_activate_embargo.md: reference/messages/em.md

@@ -364,13 +364,15 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
             _project_to_core_participant,
         )
 
-        class _NoToCore:
-            """Neither a core participant nor a wire projection."""
+        class _NotAParticipant:
+            """Carries an id but is not a core ``CaseParticipant``."""
 
             id_ = "https://example.org/cases/x/participants/bogus"
 
         with caplog.at_level(logging.ERROR):
-            result = _project_to_core_participant(_NoToCore(), _NoToCore.id_)
+            result = _project_to_core_participant(
+                _NotAParticipant(), _NotAParticipant.id_
+            )
 
         assert result is None
         assert "cannot be projected" in caplog.text

@@ -317,8 +317,10 @@ def rm_invite_to_case_activity(
 ```
 
 **Rule (AF-01-005):** When a factory parameter represents a domain entity whose fields
-determine how the wire object is enriched, the factory MUST accept the core domain object
-and project it internally. See `specs/activity-factories.yaml` AF-01-005.
+determine how the wire object is enriched, the factory MUST accept the complete domain
+object — under ADR-0099 the core class is its own wire form — and derive the enrichment
+from that object's fields; callers never hand it a hand-built partial stub. See
+`specs/activity-factories.yaml` AF-01-005.
 
 ## Layer and Import Summary
 

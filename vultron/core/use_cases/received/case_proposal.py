@@ -33,7 +33,6 @@ Three use cases covering the full CP message flow (ADR-0023):
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pydantic import ValidationError
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
@@ -149,42 +148,34 @@ class CreateCaseProposalReceivedUseCase:
     def _core_inline_report(
         activity_obj: Any, proposal_id: str
     ) -> VulnerabilityReport | None:
-        """Return the proposal's inline report in its core shape, if present.
+        """Return the proposal's inline report, if the proposal carries one.
 
-        The proposal dict handed to the tree is deliberately wire-spelled — the
-        ``Accept`` must carry the proposal inline on the wire (CP-05-003,
-        AKM-03-001) — and that is exactly why the report cannot be rebuilt from
-        it: ``by_alias=True`` writes the reporter as ``attributedTo``, while the
-        core ``VulnerabilityReport`` declares ``attributed_to`` and sets
-        ``extra="ignore"``. Validating that dict dropped the reporter without
-        complaint, the report stored fine, and the three things derived from it —
-        the reporter participant, its ledger entry, the SIGNATORY seed — each
-        skipped "best-effort" (#2482).
-
-        Mapping the spellings is the wire layer's own job, via ``to_core()``.
-        Duck-typed for the same reason ``model_dump`` is at the call site: core
-        MUST NOT import wire (ARCH-03-001).
+        Under ADR-0099 detail 3 the report the wire parser validated *is* the
+        core ``VulnerabilityReport`` — ``as_VulnerabilityReport`` is an alias
+        of that class — so there is no projection step and none is duck-typed
+        (ARCH-20-008).  Anything else in the slot (a bare IRI the parser could
+        not dereference, or a foreign object) is not a report the tree can
+        seed from; ``None`` tells ``StoreProposalReportNode`` to rebuild the
+        report from the proposal dict instead, and that node owns the WARNING
+        when the rebuild has nothing to work with.
         """
         raw_report = getattr(
             getattr(activity_obj, "object_", None), "object_", None
         )
-        to_core = getattr(raw_report, "to_core", None)
-        if not callable(to_core):
-            return None
-        try:
-            candidate = to_core()
-        except ValidationError as exc:
-            logger.warning(
-                "create_case_proposal_received: could not convert the inline"
-                " report of proposal '%s' to its core shape: %s — falling back"
-                " to the proposal dict",
+        if isinstance(raw_report, VulnerabilityReport):
+            return raw_report
+        if raw_report is not None:
+            # ``StoreProposalReportNode._report_from_proposal_dict`` warns on
+            # the same condition with the CP-01-004 remedy, so keep this at
+            # DEBUG rather than doubling the WARNING.
+            logger.debug(
+                "create_case_proposal_received: proposal '%s' carries a %s"
+                " where an inline report was expected — falling back to the"
+                " proposal dict",
                 proposal_id,
-                exc,
+                type(raw_report).__name__,
             )
-            return None
-        return (
-            candidate if isinstance(candidate, VulnerabilityReport) else None
-        )
+        return None
 
     def execute(self) -> HandlerResult:
         request = self._request

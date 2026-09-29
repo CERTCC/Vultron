@@ -3,7 +3,6 @@
 import logging
 from typing import Any
 
-from pydantic import ValidationError
 
 from vultron.core.behaviors.case.update_support import (
     find_excluded_actor_ids,
@@ -16,7 +15,6 @@ from vultron.core.models.participant_status import (
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.rm import RM, is_monotonic_rm_forward
-from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -124,10 +122,12 @@ def _store_embedded_participants(
 
     Idempotent: ``dl.save()`` upserts so repeated calls are safe.
 
-    Each embedded participant is projected to the canonical core shape first
-    (see :func:`_project_to_core_participant`) — a received snapshot arrives in
-    the wire shape, and both the regression check below and every later reader
-    of the stored row require the core shape (issue #2232).
+    Each embedded participant is checked to be a core :class:`CaseParticipant`
+    first (see :func:`_project_to_core_participant`) — under ADR-0099 detail 3
+    a received snapshot deserialises straight into core objects, and both the
+    regression check below and every later reader of the stored row require
+    that canonical shape (issue #2232).  Bare ID strings carry no ``id_`` and
+    are skipped here; they are not participant records to store.
 
     A received snapshot is a remote point-in-time view, so it must never
     regress local RM progress.  Bootstrap and Announce activities are built
@@ -166,75 +166,50 @@ def _project_to_core_participant(
 ) -> CaseParticipant | None:
     """Return *participant_ref* as a canonical core participant, or ``None``.
 
-    This is the wire→core ingress boundary for embedded participants.  A
-    received ``VulnerabilityCase`` snapshot is deserialised from AS2, so its
-    ``case_participants`` are wire objects (``as_CaseParticipant``) carrying
-    wire-shaped statuses with a flat ``rm_state`` — legitimate inbound data, not
-    a corrupt row.  Every core-side reader below this point (the RM comparison
-    in :func:`_would_regress_participant`, and anything that later reads the
-    stored row) requires the canonical nested ``rm: RmDimension`` shape, so the
-    projection has to happen here rather than being discovered downstream
-    (issue #2232).
+    This is the wire→core ingress boundary for embedded participants.  Under
+    ADR-0099 detail 3 a received ``VulnerabilityCase`` snapshot deserialises
+    its ``case_participants`` straight into core :class:`CaseParticipant`
+    objects — ``as_CaseParticipant`` is an alias of that class — so a
+    participant either *is* the canonical core object already or cannot be
+    represented at all.  No projection capability is duck-typed on the object
+    (ARCH-20-008); a snapshot that failed core validation never reaches this
+    point, because ``extra="forbid"`` and the core validators refused it at
+    parse (ARCH-12-003).
 
-    Projecting at ingress rather than only at persistence also means the row
-    that lands in the DataLayer is core-shaped, which is what makes
-    ``dl.read()`` return a core object per DL-05-001.
+    Every core-side reader below this point (the RM comparison in
+    :func:`_would_regress_participant`, and anything that later reads the
+    stored row) requires the canonical nested ``rm: RmDimension`` shape, so
+    the check happens here rather than being discovered downstream (issue
+    #2232).  Storing the core object is also what makes ``dl.read()`` return a
+    core object per DL-05-001.
 
     ``None`` means *this participant cannot be stored* and the caller must skip
-    it.  A projection failure is logged at ERROR: core types are stricter than
-    wire types, so it means the sender's snapshot was never valid domain data.
-    Skipping one unprojectable participant is deliberately preferred over
-    letting the exception abort the whole received-case behavior tree — a single
-    malformed embedded participant must not cost the receiver the entire case
-    (and, because the HTTP inbox re-queues on exception, must not turn the
-    activity into an undrainable poison message).
+    it.  The failure is logged at ERROR: a value that is not a core participant
+    means the sender's snapshot was never valid domain data.  Skipping one
+    such participant is deliberately preferred over letting an exception abort
+    the whole received-case behavior tree — a single malformed embedded
+    participant must not cost the receiver the entire case (and, because the
+    HTTP inbox re-queues on exception, must not turn the activity into an
+    undrainable poison message).
 
     Args:
-        participant_ref: An embedded participant object from the snapshot,
-            either core-shaped already or a wire projection exposing
-            ``to_core()``.
+        participant_ref: An embedded participant object from the snapshot.
         pid: The participant's ID, for log context.
 
     Returns:
-        A core :class:`CaseParticipant` (possibly a role subclass), or ``None``
-        when the object cannot be represented in the canonical core shape.
+        The core :class:`CaseParticipant` (possibly a role subclass), or
+        ``None`` when the object is not one.
     """
     if isinstance(participant_ref, CaseParticipant):
         return participant_ref
-    to_core = getattr(participant_ref, "to_core", None)
-    if to_core is None:
-        logger.error(
-            "participant '%s' cannot be projected to the canonical core"
-            " shape and will be skipped: a"
-            " %s exposes no to_core() projection, so it cannot be stored in"
-            " the canonical core shape (issue #2232).",
-            pid,
-            type(participant_ref).__name__,
-        )
-        return None
-    try:
-        projected = to_core()
-    except (ValidationError, VultronValidationError, ValueError, TypeError):
-        logger.error(
-            "participant '%s' cannot be projected to the canonical core shape"
-            " and will be skipped: its %s snapshot failed core validation"
-            " (issue #2232).",
-            pid,
-            type(participant_ref).__name__,
-            exc_info=True,
-        )
-        return None
-    if not isinstance(projected, CaseParticipant):
-        logger.error(
-            "participant '%s' cannot be projected to the canonical core shape"
-            " and will be skipped: %s.to_core() returned a %s, not a core"
-            " CaseParticipant (issue #2232).",
-            pid,
-            type(participant_ref).__name__,
-            type(projected).__name__,
-        )
-        return None
-    return projected
+    logger.error(
+        "participant '%s' cannot be projected to the canonical core shape and"
+        " will be skipped: a %s is not a core CaseParticipant, so it cannot be"
+        " stored in the canonical core shape (issue #2232).",
+        pid,
+        type(participant_ref).__name__,
+    )
+    return None
 
 
 def _participant_rm_state(participant: object) -> RM | None:

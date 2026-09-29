@@ -2115,22 +2115,28 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The core→wire translation of `ParticipantStatus` MUST derive the `embargoAdherence` value
-      from the consent state rather than copying a stored field.
+      The `embargoAdherence` value in the AS2 form of `ParticipantStatus` MUST be derived from
+      `consent.state` at serialization time — the computed field CM-18-008 requires — and MUST
+      NOT be a stored field that serialization copies out.
     rationale: >-
-      Deriving from consent state at translation time ensures the wire value is always
-      consistent with the authoritative PEC state, eliminating the drift risk that arises
-      when a stored boolean is copied.
-    verification: Inspection of the adapter-side `ParticipantStatus` translator confirms the
-      `embargoAdherence` wire value is derived from `consent.state` rather than copied from a
-      stored boolean, and a translation test asserts the emitted value tracks a change to
-      `consent.state`.
+      Deriving the value when the object is serialized keeps the wire value consistent with
+      the authoritative PEC state; a stored boolean can drift from it.  Under ADR-0099 the AS2
+      form is the core object's own `by_alias` dump, so the computed field is the single
+      derivation site and there is no separate translator to keep honest.
+    verification: '`ParticipantStatus.model_fields` has no `embargo_adherence` entry (it is a
+      `@computed_field`); a `by_alias` dump emits `embargoAdherence` equal to
+      `consent.state == PEC.SIGNATORY` and a test asserts the emitted value tracks a change to
+      `consent.state`; a supplied value that contradicts the derived one is refused rather than
+      stored (ARCH-23-005).'
     relationships:
     - rel_type: refines
       spec_id: CM-18-008
+    - rel_type: depends_on
+      spec_id: ARCH-23-005
+      note: The round-trip rule is what makes a contradicting supplied value a refusal rather than a silent overwrite.
     adr:
     - ADR-0056
-    - ADR-0082
+    - ADR-0099
 - id: CM-19
   title: Participant Index Discipline
   specs:

@@ -951,46 +951,60 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Core code that needs a wire object normalised into its core counterpart MUST obtain it
-      through the `WireParsePort` declared in `vultron/core/ports/`.  Core MUST NOT
-      duck-type the projection capability on the object it holds — `getattr(obj, "to_core", None)`
-      and equivalents are prohibited.
+      Core code holding an inbound nested object MUST treat a core-branch instance as already
+      canonical — under ADR-0099 detail 3 the wire class of a domain type is the core class, so
+      there is no wire→core projection step — and MUST rebuild an object from a snapshot `dict`
+      only through `project_wire_snapshot_to_core` (`vultron/core/models/_helpers.py`).  Core
+      MUST NOT duck-type a projection capability on the object it holds:
+      `getattr(obj, "to_core", None)` and equivalents are prohibited.
     rationale: >-
-      The adapter-side translator is the authoritative projection and handles structural
-      differences (e.g. flat `emConsentState` → nested `PecDimension`).  Reaching it through a
-      port avoids the lossy dump-and-revalidate path prohibited by ARCH-20-007 while keeping the
-      dependency direction that ARCH-01-004 prescribes: duck-typing `to_core` was core reaching
-      for a wire capability without declaring the dependency, and it stops working once the
-      `to_core` method no longer exists on wire classes (ADR-0099).
+      No class core can hold carries a `to_core()` any more, so a duck-typed lookup always
+      answers `None` and the branch behind it is dead code that reads as a live fallback — three
+      such sites survived the migration until #3840 removed them.  The `WireParsePort` that
+      ADR-0082 designed to own this step was rejected by ADR-0099; `rehydrate()` owns
+      ID-to-object materialisation (VM-06-007) and the snapshot projection helper owns the
+      dict case, so nothing is left for a port to do.  Refusing the idiom also keeps
+      ARCH-20-007's prohibition on dump-and-revalidate from being reached around.
     verification: >-
-      No module under `vultron/core/` contains `getattr(obj, "to_core", None)` or calls a
-      `to_core` attribute; the parsing sites route through `WireParsePort`.
+      `test/architecture/test_core_no_to_core_duck_typing.py` fails on any line under
+      `vultron/core/` that names a `to_core` attribute (`"to_core"` or `.to_core(`).
     relationships:
     - rel_type: refines
       spec_id: ARCH-20-007
+    - rel_type: depends_on
+      spec_id: VM-06-007
+      note: ID-to-object materialisation is `rehydrate()`'s job, so core never needs a parse port.
     adr:
-    - ADR-0063
-    - ADR-0082
+    - ADR-0099
   - id: ARCH-20-009
     priority: MUST
     kind: project
     statement: >-
-      When the wire type has no counterpart in the pairing registry, and therefore no translator
-      reachable through `WireParsePort`, the normalised core object MUST be obtained
-      already-normalised from the DataLayer port (DL-05-001).  It MUST NOT be synthesised in core
-      by dump-and-revalidate.
+      When a received activity carries a nested object only by reference — a bare IRI or a
+      stub — core MUST obtain the object from the DataLayer port (DL-05-001), either as
+      `rehydrate()` resolved it at ingress (VM-06-007) or by reading it back.  It MUST NOT be
+      synthesised in core by dump-and-revalidate, and MUST NOT be replaced by a fabricated
+      placeholder.
     rationale: >-
-      The DataLayer port returns objects that have already passed through the normalisation
-      boundary, making dump-and-revalidate unnecessary and avoiding the prohibited idiom.  An
-      absent pairing-registry entry is the successor to the absent `to_core()` override this
-      requirement was originally written against: it is the declarative statement that no
-      translation exists for that type.
+      The DataLayer port returns core objects that already passed the validation boundary, so
+      re-deriving one in core is both unnecessary and the prohibited idiom.  This requirement
+      was written against an absent `to_core()` override and then an absent pairing-registry
+      entry as the signal that "no translation exists"; under ADR-0099 there is no translation
+      at all, so the only question left is where a missing object comes from, and the answer is
+      the store.
+    verification: >-
+      `rehydrate()` refuses an unresolvable IRI in a model-only slot rather than fabricating a
+      value (VM-06-007's tests), and no module under `vultron/core/` revalidates a
+      `by_alias=True` dump through a core class (ARCH-20-007).
     relationships:
     - rel_type: refines
       spec_id: ARCH-20-007
+    - rel_type: depends_on
+      spec_id: VM-06-007
+    - rel_type: depends_on
+      spec_id: DL-05-001
     adr:
-    - ADR-0063
-    - ADR-0082
+    - ADR-0099
 - id: ARCH-21
   title: Post-Construction Mutation Safety
   description: >-
@@ -1200,13 +1214,14 @@ groups:
       note: Import-time registration is why the verification must force population before comparing the registries.
     adr:
     - ADR-0082
+    - ADR-0099
   - id: ARCH-23-003
     priority: MUST_NOT
     kind: project
     statement: >-
-      Serialized AS2 output MUST NOT change as a result of any pairing-registry
-      or vocabulary-key change.  The wire `"type"` value emitted on the wire is
-      independent of the registry key under which a wire class is registered.
+      Serialized AS2 output MUST NOT change as a result of a vocabulary-key
+      change.  The wire `"type"` value emitted on the wire is independent of
+      the registry key under which a wire class is registered.
     rationale: >-
       The registry key is an internal lookup concern; the `type` field value is
       an external protocol commitment that receivers match on.  Conflating them
@@ -1218,6 +1233,7 @@ groups:
       byte-identical to its pre-change output.
     adr:
     - ADR-0082
+    - ADR-0099
   - id: ARCH-23-004
     priority: MUST
     kind: project
@@ -1239,6 +1255,7 @@ groups:
       for every wire class.
     adr:
     - ADR-0082
+    - ADR-0099
   - id: ARCH-23-005
     priority: MUST
     kind: project
@@ -1282,6 +1299,7 @@ groups:
     adr:
     - ADR-0056
     - ADR-0082
+    - ADR-0099
   - id: ARCH-23-006
     priority: MUST
     kind: project

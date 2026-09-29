@@ -34,7 +34,7 @@ The codebase splits into three concentric responsibilities.
 
 The wire format is a separate concern from the domain, not a subset of it.
 AS2 was chosen because it maps cleanly to Vultron semantics ([ADR-0005](../adr/0005-activitystreams-vocabulary-as-vultron-message-format.md)), but that alignment does not make it a domain dependency.
-Core domain objects and wire classes form two structurally distinct branches with no shared base: a strict core branch and a lenient wire branch ([ADR-0017](../adr/0017-domain-wire-object-separation.md), [ADR-0099](../adr/0099-one-object-model-as2-is-a-serialization.md)).
+Core domain objects and wire classes form two structurally distinct branches with no shared base: a strict core branch and a lenient wire branch ([ADR-0017](../adr/archived/0017-domain-wire-object-separation.md), [ADR-0099](../adr/0099-one-object-model-as2-is-a-serialization.md)).
 The core branch is authoritative, and AS2 is one of its serializations: a core object dumped with its AS2 aliases *is* the wire document.
 The wire branch tolerates the loose, optional shapes that arrive over the network.
 A domain type such as a case has no separate wire class: its `as_` name is an alias of the core class.
@@ -171,4 +171,4 @@ A different-language implementation reuses the concepts — the boundary, the pi
 - [Process Implementation Notes](../howto/process_implementation.md) — integrating the protocol into an existing workflow system
 - [Federation](future_work/federation.md) — future work on a deployment in which each organization runs its own coordination service
 - [ADR-0009](../adr/0009-hexagonal-architecture.md) — Adopt Hexagonal Architecture
-- [ADR-0017](../adr/0017-domain-wire-object-separation.md) — Domain/Wire Object Separation
+- [ADR-0017](../adr/archived/0017-domain-wire-object-separation.md) — Domain/Wire Object Separation

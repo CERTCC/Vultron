@@ -315,15 +315,17 @@ groups:
       non-optional `activity` field typed as `as_TransitiveActivity`. It MUST be
       constructed by validating the `activity` key from the raw `dict` returned
       by `post_to_trigger`; it is a typed view of the HTTP response body, not a
-      use-case return value, and MUST NOT be placed in `vultron/core/` until a
-      core-layer activity type is available via the `WireParsePort` seam
-      (ADR-0082). The plain `ActivityResult` name belongs to the core
+      use-case return value, and MUST NOT be placed in `vultron/core/`:
+      `as_TransitiveActivity` is a wire-only class with no core counterpart
+      (ADR-0099 detail 3 aliased the paired domain types, not the activity
+      envelopes), and core MUST NOT import wire (ARCH-01-001). The plain
+      `ActivityResult` name belongs to the core
       `TriggerResult` subtype (UCORG-05-005), whose `activity` is the JSON object
       captured from the BT blackboard; a demo-layer typed view MUST NOT reuse a
       core result class name.
     rationale: >-
       Core captures `activity` as `dict[str, Any]` from the BT blackboard; a
-      wire type there would violate ARCH-03-001. The demo-layer view validates
+      wire type there would violate ARCH-01-001. The demo-layer view validates
       the raw dict to `as_TransitiveActivity` at the HTTP boundary so
       `ActorSession` is fully typed without polluting core. Two `ActivityResult`
       classes in different layers, one JSON and one wire, would be

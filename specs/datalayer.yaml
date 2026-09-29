@@ -239,7 +239,8 @@ groups:
       DataLayer table (source concern #2268) — but the mechanism moves from a hand-maintained
       list to a structural property. `_NORMALIZE_WIRE_TO_CORE` was the ADR-0062
       persistence-boundary backstop, needed only because fifteen wire classes shadowed a core
-      type. ADR-0082 removes the shadowing outright, which makes the list dead code: a grow-only
+      type. ADR-0082 planned to remove the shadowing outright and ADR-0099 did, by deleting the
+      paired wire classes (ADR-0099 detail 3), which makes the list dead code: a grow-only
       ratchet over an empty subject set can never fail, and a list somebody must remember to
       update is the divergence mechanism behind #1991 → #2232 → #2260 → #2268.
     verification: >-
@@ -259,6 +260,7 @@ groups:
     adr:
     - ADR-0062
     - ADR-0082
+    - ADR-0099
   - id: DL-05-006
     priority: MUST
     kind: project

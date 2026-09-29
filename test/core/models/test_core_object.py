@@ -18,6 +18,7 @@ from vultron.core.models import (
 )
 from vultron.core.models.base import VULTRON_CONTEXT_URI, CoreRecord
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.registry import CORE_TYPE_MAP
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry as CoreCaseLedgerEntry,
 )
@@ -25,6 +26,8 @@ from vultron.core.models.note import VultronNote
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
+
+from test.support.core_vocab import restore_core_registries
 
 # --- Inheritance shape ------------------------------------------------------
 
@@ -115,12 +118,61 @@ def test_core_object_context_empty_string_rejected():
 # --- CORE_VOCABULARY registration ------------------------------------------
 
 
-# ``isolated_vocab`` (snapshot/restore of CORE_VOCABULARY and CORE_TYPE_MAP)
-# is provided by ``test/conftest.py`` so every test-local CoreObject subclass
-# in the suite shares one registry-isolation mechanism.
+# ``isolated_core_registries`` (snapshot/restore of CORE_VOCABULARY and
+# CORE_TYPE_MAP) is provided by ``test/conftest.py`` so every test-local
+# CoreObject subclass in the suite shares one registry-isolation mechanism.
+# The restore itself is ``test.support.core_vocab.restore_core_registries``,
+# tested directly below.
 
 
-def test_concrete_subclass_registers(isolated_vocab):
+@pytest.mark.spec("TB-06-003")
+@pytest.mark.spec("TB-06-004")
+def test_restore_core_registries_restores_both_maps():
+    """Both registries return to their prior contents, including the
+    ``CORE_TYPE_MAP``-only entry a subclass without its own ``type_`` makes
+    (the #3789 gap; see :func:`restore_core_registries`).
+    """
+    vocab_before = dict(CORE_VOCABULARY)
+    type_map_before = dict(CORE_TYPE_MAP)
+
+    with restore_core_registries():
+
+        class RestoreProbeConcrete(CoreObject):
+            type_: Literal["RestoreProbeConcrete"] = "RestoreProbeConcrete"
+
+        class RestoreProbeTypeMapOnly(CoreObject):
+            pass
+
+        # Both registrations happened, so the restore below is not vacuous.
+        assert CORE_VOCABULARY["RestoreProbeConcrete"] is RestoreProbeConcrete
+        assert CORE_TYPE_MAP["RestoreProbeConcrete"] is RestoreProbeConcrete
+        assert "RestoreProbeTypeMapOnly" not in CORE_VOCABULARY
+        assert (
+            CORE_TYPE_MAP["RestoreProbeTypeMapOnly"] is RestoreProbeTypeMapOnly
+        )
+
+    assert CORE_VOCABULARY == vocab_before
+    assert CORE_TYPE_MAP == type_map_before
+    assert "RestoreProbeConcrete" not in CORE_TYPE_MAP
+    assert "RestoreProbeTypeMapOnly" not in CORE_TYPE_MAP
+
+
+@pytest.mark.spec("TB-06-003")
+def test_restore_core_registries_restores_on_exception():
+    """A failing test body must not leave its local class registered."""
+    with pytest.raises(RuntimeError):
+        with restore_core_registries():
+
+            class RestoreProbeRaises(CoreObject):
+                type_: Literal["RestoreProbeRaises"] = "RestoreProbeRaises"
+
+            raise RuntimeError("test body failed")
+
+    assert "RestoreProbeRaises" not in CORE_VOCABULARY
+    assert "RestoreProbeRaises" not in CORE_TYPE_MAP
+
+
+def test_concrete_subclass_registers(isolated_core_registries):
     class CoreVocabFixtureConcrete(CoreObject):
         type_: Literal["CoreVocabFixtureConcrete"] = "CoreVocabFixtureConcrete"
 
@@ -133,14 +185,18 @@ def test_concrete_subclass_registers(isolated_vocab):
     )
 
 
-def test_subclass_without_type_override_does_not_register(isolated_vocab):
+def test_subclass_without_type_override_does_not_register(
+    isolated_core_registries,
+):
     class CoreVocabFixtureAbstract(CoreObject):
         pass
 
     assert "CoreVocabFixtureAbstract" not in CORE_VOCABULARY
 
 
-def test_subclass_with_union_type_override_does_not_register(isolated_vocab):
+def test_subclass_with_union_type_override_does_not_register(
+    isolated_core_registries,
+):
     class CoreVocabFixtureUnion(CoreObject):
         # Optional[str] — an abstract intermediate base, must not register.
         type_: str | None = None
@@ -148,7 +204,7 @@ def test_subclass_with_union_type_override_does_not_register(isolated_vocab):
     assert "CoreVocabFixtureUnion" not in CORE_VOCABULARY
 
 
-def test_registry_key_is_class_name_verbatim(isolated_vocab):
+def test_registry_key_is_class_name_verbatim(isolated_core_registries):
     """Core uses wire-style names with no prefix; key must equal __name__."""
 
     class VulnerabilityCaseRegistryProbe(CoreObject):
@@ -166,7 +222,9 @@ def test_find_in_core_vocabulary_raises_on_unknown():
         find_in_core_vocabulary("ThisTypeDoesNotExist")
 
 
-def test_registry_robust_under_future_annotations(tmp_path, isolated_vocab):
+def test_registry_robust_under_future_annotations(
+    tmp_path, isolated_core_registries
+):
     """Regression: PEP 563 string annotations must not bypass the union skip.
 
     Under ``from __future__ import annotations``, raw entries in

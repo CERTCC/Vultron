@@ -1,16 +1,16 @@
 ---
-status: accepted
+status: superseded
 date: 2026-08-31
 deciders: Allen Householder
 consulted: Claude Code (planning agent for G02 / CONCERN-2830)
 informed: Vultron contributors
 supersedes: 0062-normalise-wire-to-core-at-both-ingress-and-persistence.md
-partially_superseded_by: 0099-one-object-model-as2-is-a-serialization.md
+superseded_by: 0099-one-object-model-as2-is-a-serialization.md
 stakeholder_type: [project-contributor]
 ---
 
-> **Partially superseded by
-> [ADR-0099](0099-one-object-model-as2-is-a-serialization.md).** The diagnosis
+> **Superseded by
+> [ADR-0099](../0099-one-object-model-as2-is-a-serialization.md).** The diagnosis
 > in this ADR stands and is the foundation ADR-0099 builds on — the four
 > duplications, the measured evidence, and the finding that "zero wire→core
 > imports" was unreachable are all still accurate and should still be read.
@@ -24,6 +24,13 @@ stakeholder_type: [project-contributor]
 > Item 8 of the Decision Outcome below ("the shared base moves to a neutral
 > bottom layer") is the specific item ADR-0099 reverses, and issue #2933 was
 > its implementation.
+>
+> While ADR-0099 was `accepted-provisional` this ADR was only annotated as
+> partially superseded and kept `status: accepted`; it was retired in full and
+> moved here when ADR-0099 reached `accepted` (#3492). The ARCH-23 requirements
+> that record the parts which landed and still hold (disjoint registry keys,
+> derived reference fields, self-round-tripping dumps) now derive from
+> ADR-0099.
 
 # Wire/Core Boundary: One Declarative Pairing Registry, One Translator, and Reject Unknown Keys
 

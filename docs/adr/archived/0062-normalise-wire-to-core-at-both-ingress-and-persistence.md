@@ -165,7 +165,7 @@ the shapes converge.
 
 ## More Information
 
-**Superseded by [ADR-0082](../0082-wire-core-boundary-pairing-registry.md).**
+**Superseded by [ADR-0082](0082-wire-core-boundary-pairing-registry.md)**, itself since superseded by [ADR-0099](../0099-one-object-model-as2-is-a-serialization.md).
 That decision takes the unification this ADR named as the right end state and
 deferred: with
 `extra="forbid"` on the core branch and a declarative core↔wire pairing registry,

@@ -41,7 +41,6 @@ from typing import TYPE_CHECKING, Any
 import py_trees
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
-from pydantic import ValidationError
 
 if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
@@ -104,31 +103,17 @@ def _accepted_wire_patch(
 
 
 def _to_core_status(status_obj: Any) -> ParticipantStatus | None:
-    """Return *status_obj* as a core :class:`ParticipantStatus`, or ``None``.
+    """Return *status_obj* if it is a core :class:`ParticipantStatus`.
 
-    ``SqliteDataLayer.read`` already returns core models.  For any other
-    object (e.g. a wire-layer ``as_ParticipantStatus`` supplied as a
-    fallback by the tree factory), call ``to_core()`` to project it to the
-    core type (ARCH-20-007).
+    ``SqliteDataLayer.read`` returns core models, and under ADR-0099 detail 3
+    the wire ``as_ParticipantStatus`` *is* this class, so a status is either
+    already canonical or not a status at all.  No projection capability is
+    duck-typed on the object (ARCH-20-008); anything else answers ``None`` and
+    the caller treats it as "no status to filter".
     """
     if isinstance(status_obj, ParticipantStatus):
         return status_obj
-    if status_obj is None:
-        return None
-    to_core = getattr(status_obj, "to_core", None)
-    if to_core is None:
-        return None
-    try:
-        result = to_core()
-        return result if isinstance(result, ParticipantStatus) else None
-    except ValidationError as exc:
-        logger.warning(
-            "FilterParticipantStatusDimensionsNode: could not normalise"
-            " status object '%s' to a core ParticipantStatus: %s",
-            _as_id(status_obj),
-            exc,
-        )
-        return None
+    return None
 
 
 def _significant_state(status: ParticipantStatus) -> tuple:

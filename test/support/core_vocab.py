@@ -19,15 +19,47 @@ Shared by the architecture ratchets that must cover *every* core vocabulary
 entry (``extra="forbid"``, ``dl.read()`` round-trip) and by the rendering
 port's golden test, so the "what is the least a core type needs" rule lives in
 one place.
+
+Also home to :func:`restore_core_registries`, the one snapshot/restore
+mechanism for the process-global core class registries.  The
+``isolated_core_registries`` fixture in ``test/conftest.py`` is a thin wrapper
+around it; the helper exists separately so the restore itself is testable.
 """
 
 import importlib
 import pkgutil
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from vultron.core.models.base import CoreObject
-from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
+
+
+@contextmanager
+def restore_core_registries() -> Iterator[None]:
+    """Snapshot ``CORE_VOCABULARY`` and ``CORE_TYPE_MAP``; restore both on exit.
+
+    ``CoreObject.__init_subclass__`` and ``CoreRecord.__init_subclass__``
+    register every subclass at class-definition time: a concrete ``Literal``
+    ``type_`` lands in both maps, a subclass with no ``type_`` of its own lands
+    in ``CORE_TYPE_MAP`` alone.  A test-local subclass therefore leaks into
+    every later registry-iterating test in the session unless *both* maps are
+    restored — restoring only ``CORE_VOCABULARY`` leaves the ``CORE_TYPE_MAP``
+    entry behind (#3789).  Restoration is in-place (``clear()`` + ``update()``)
+    because production code holds references to the module-level dicts.
+    """
+    vocab_snapshot = dict(CORE_VOCABULARY)
+    type_map_snapshot = dict(CORE_TYPE_MAP)
+    try:
+        yield
+    finally:
+        CORE_VOCABULARY.clear()
+        CORE_VOCABULARY.update(vocab_snapshot)
+        CORE_TYPE_MAP.clear()
+        CORE_TYPE_MAP.update(type_map_snapshot)
+
 
 #: The instant synthesised for a required datetime field.
 PINNED_INSTANT = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)

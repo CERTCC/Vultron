@@ -330,11 +330,11 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
     refuses one boundary earlier, and the reason two replicas disagreed about
     which status was current (ISSUE-3257, CLP-15-007).
 
-    Interim helper for the handful of core sync/effect nodes that rebuild core
-    objects from inline snapshots.  It becomes redundant once the wire→core
-    ``WireParsePort`` designed in ADR-0082 (#2938) lands and owns wire→core
-    projection centrally; this is not a reintroduction of the retired
-    persistence-boundary normalisation (#2940).
+    Helper for the handful of core sync/effect nodes that rebuild core
+    objects from inline snapshots.  The ``WireParsePort`` ADR-0082 designed to
+    own this centrally (#2938) was rejected by ADR-0099, so this stays the
+    seam; it is not a reintroduction of the retired persistence-boundary
+    normalisation (#2940).
     """
     if not isinstance(data, dict):
         return data

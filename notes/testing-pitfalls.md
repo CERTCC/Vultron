@@ -383,8 +383,14 @@ def test_something(isolated_core_registries):
     ...
 ```
 
-The fixture lives in `test/core/conftest.py` and is available to all tests
-under `test/core/`.
+The fixture lives in the root `test/conftest.py`, so it is available to every
+test in the suite — such subclasses appear under `test/core/`, `test/adapters/`
+and `test/architecture/` alike. The snapshot/restore itself is
+`test.support.core_vocab.restore_core_registries()`, a context manager the
+fixture wraps, so the restore is tested directly rather than by test ordering.
+Do not hand-roll a `dict(CORE_VOCABULARY)` snapshot or a `CORE_TYPE_MAP.pop()`
+in a test body: those restore one map and miss the other (#3789, fixed
+by #3801).
 
 This mirrors the py_trees rule (see `### py_trees BT Subclasses in Tests MUST
 Be Defined at Module Level` above): both patterns protect process-global
