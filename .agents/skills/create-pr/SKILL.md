@@ -210,8 +210,8 @@ URL — token included — as the branch's remote in `.git/config` (#3893).
 ### Draft-with-conflict path (unresolvable conflicts)
 
 If Phase 2 exited with code `1` (cherry-pick conflict): push the un-freshened
-branch as-is with the same `git push -u origin HEAD`, then open a draft PR with `needs-rebase` label per
-[REFERENCE.md](REFERENCE.md) § "Conflict PR template".
+branch as-is with the same `git push -u origin HEAD`, then open a draft PR with
+`needs-rebase` label per [REFERENCE.md](REFERENCE.md) § "Conflict PR template".
 
 ---
 
