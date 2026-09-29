@@ -28,11 +28,12 @@ Spec: ``specs/case-proposal.yaml`` CP-01-001 through CP-01-006.
 
 from typing import ClassVar, TypeAlias
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from vultron.enums.object_types import VultronObjectType as VO_type
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.base import ActivityStreamRequiredRef
 from vultron.wire.as2.vocab.objects.base import as_VultronObject
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -71,11 +72,19 @@ class as_CaseProposal(as_VultronObject):
         offer_id: Optional URI of the ``Offer(VulnerabilityReport)`` this
             proposal descends from, with ``offer_actor_id`` naming its sender
             (CP-01-007).
+        in_reply_to: The ``Offer(VulnerabilityReport)`` itself, inline, when
+            the proposer holds it (CP-01-008).  The proposal answers the
+            Reporter's submission, which is what AS2's ``inReplyTo`` says; and
+            a sender inlines the objects it introduces (ADR-0107), the
+            case-actor having never seen the Offer.  It is how the Reporter's
+            proposed embargo terms (EP-04-004) reach case creation.
     """
 
     # CP-01-004 / AKM-03-001: the report is carried, not referenced. Declared
     # here so persistence keeps it inline; see as_VultronObject's docstring.
-    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset(
+        {"object_", "in_reply_to"}
+    )
 
     type_: VO_type = Field(
         default=VO_type.CASE_PROPOSAL,
@@ -147,6 +156,62 @@ class as_CaseProposal(as_VultronObject):
         serialization_alias="offerActorId",
         description="URI of the actor that sent the Offer named by offer_id.",
     )
+    # CP-01-008: the Offer itself, carried whole.  ``offer_id``/``offer_actor_id``
+    # are its bare-reference twin; when both forms are present they MUST agree.
+    # Typed on the base ``as_Offer``: the parser expands an inline Offer to the
+    # class the wire registry holds for ``type: Offer``, which is the base.
+    in_reply_to: as_Offer | None = (
+        Field(  # pyright: ignore[reportIncompatibleVariableOverride]
+            default=None,
+            validation_alias="inReplyTo",
+            serialization_alias="inReplyTo",
+            description=(
+                "The Offer(VulnerabilityReport) this proposal answers, inline"
+                " (CP-01-008)."
+            ),
+        )
+    )
+
+    @model_validator(mode="after")
+    def _offer_reference_agrees_with_inline_offer(self) -> "as_CaseProposal":
+        """The bare provenance and the inline Offer name the same submission.
+
+        Raises ``ValueError`` (a Pydantic validation error) when both forms are
+        present and disagree: one proposal cannot descend from two Offers.
+        """
+        offer = self.in_reply_to
+        if offer is None:
+            return self
+        if self.offer_id is not None and offer.id_ != self.offer_id:
+            raise ValueError(
+                f"as_CaseProposal offerId {self.offer_id!r} does not name the"
+                f" inline Offer {offer.id_!r} carried in inReplyTo (CP-01-008)"
+            )
+        offer_actor = getattr(offer.actor, "id_", offer.actor)
+        if (
+            self.offer_actor_id is not None
+            and offer_actor is not None
+            and offer_actor != self.offer_actor_id
+        ):
+            raise ValueError(
+                f"as_CaseProposal offerActorId {self.offer_actor_id!r} does"
+                f" not name the inline Offer's actor {offer_actor!r}"
+                " (CP-01-008)"
+            )
+        # The Offer must be the one that brought *this* report: otherwise the
+        # case-actor would read another report's proposed terms (EP-04-009).
+        offered_report = getattr(offer.object_, "id_", offer.object_)
+        proposed_report = getattr(self.object_, "id_", self.object_)
+        if (
+            offered_report is not None
+            and proposed_report is not None
+            and offered_report != proposed_report
+        ):
+            raise ValueError(
+                f"as_CaseProposal object {proposed_report!r} is not the report"
+                f" the inline Offer submitted ({offered_report!r}) (CP-01-008)"
+            )
+        return self
 
 
 as_CaseProposalRef: TypeAlias = ActivityStreamRef[as_CaseProposal]

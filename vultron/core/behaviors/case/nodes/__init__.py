@@ -114,6 +114,9 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseNotEmbargoEligibleNode,
     ResolveEmbargoDurationNode,
 )
+from vultron.core.behaviors.case.nodes.embargo_revision import (
+    RegisterLongerProposalAsRevisionNode,
+)
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
     create_guarded_commit_case_ledger_entry_tree,
@@ -246,6 +249,7 @@ __all__ = [
     "AttachEmbargoToCaseNode",
     "CaseNotEmbargoEligibleNode",
     "CreateEmbargoEventNode",
+    "RegisterLongerProposalAsRevisionNode",
     "ResolveEmbargoDurationNode",
     "SeedOwnerAsSignatoryNode",
     # embargo_tree (composite subtree — lazy via __getattr__)

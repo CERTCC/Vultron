@@ -13,6 +13,7 @@ related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md
   - notes/bt-integration.md
+  - notes/embargo-default-semantics.md
   - notes/bt-pitfalls.md
   - notes/call-out-configuration.md
   - notes/demo-scenario-authoring.md
@@ -200,6 +201,13 @@ the emit in `.../proposal_admission_actions.py` (BTND-07-003).
 | `object_` | `as_VulnerabilityReport` or URI | Yes | The report for the case |
 | `target` | URI | Yes | The prospective case-actor service URI |
 | `summary` | str | No | Human-readable proposal description |
+| `offer_id` / `offer_actor_id` | URI | No | Bare provenance of the `Offer(VulnerabilityReport)` that brought the report (CP-01-007) |
+| `in_reply_to` | `as_Offer` | No | That Offer itself, carried whole (CP-01-008); must agree with the bare provenance and carry this report |
+
+`in_reply_to` is how a Reporter's proposed embargo terms (`proposedEmbargo` on
+the Offer, EP-04-004) reach the case-actor, which never saw the Offer; see
+`notes/embargo-default-semantics.md` for the shortest-wins comparison they enter
+at case creation (#3392, ADR-0096 amendment).
 
 All classes in `vultron/wire/as2/vocab/objects/` use the `as_` prefix
 (ARCH-14-001). The new type is `as_CaseProposal`; the bare name `CaseProposal`

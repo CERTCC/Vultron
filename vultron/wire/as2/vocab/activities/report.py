@@ -44,6 +44,9 @@ class _RmSubmitReportActivity(as_Offer):
     This corresponds to the Vultron RS message type when no case exists.
     See also _RmInviteToCaseActivity for the scenario when a case already exists.
     object_: as_VulnerabilityReport
+    proposed_embargo: the Reporter's proposed ``EmbargoEvent`` for this report,
+        if any (EP-04-004); inherited from ``as_Offer``, ``context`` is the
+        report URI (EP-04-009).
     """
 
     object_: as_VulnerabilityReport = Field(

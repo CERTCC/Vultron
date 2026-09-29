@@ -167,3 +167,32 @@ class TestCoreEmbargoEventRegistration:
     def test_registered_in_core_vocabulary(self):
         assert "EmbargoEvent" in CORE_VOCABULARY
         assert CORE_VOCABULARY["EmbargoEvent"] is EmbargoEvent
+
+
+@pytest.mark.spec("EP-04-004")
+def test_with_subject_relabels_a_derived_name_for_the_new_subject() -> None:
+    """The label ``_set_name`` derived for the report is not a sender's name;
+    the case-scoped copy is labelled by the case."""
+    event = EmbargoEvent(
+        context="https://example.org/reports/r-1",
+        end_time=datetime(2099, 6, 1, tzinfo=timezone.utc),
+    )
+    moved = event.with_subject("https://example.org/cases/c-1")
+    assert moved.id_ == event.id_
+    assert moved.end_time == event.end_time
+    assert moved.context == "https://example.org/cases/c-1"
+    assert moved.name is not None
+    assert "cases/c-1" in moved.name
+    assert "reports/r-1" not in moved.name
+
+
+@pytest.mark.spec("EP-04-004")
+def test_with_subject_keeps_a_name_the_sender_chose() -> None:
+    event = EmbargoEvent(
+        name="Widget parser embargo",
+        context="https://example.org/reports/r-1",
+        end_time=datetime(2099, 6, 1, tzinfo=timezone.utc),
+    )
+    moved = event.with_subject("https://example.org/cases/c-1")
+    assert moved.name == "Widget parser embargo"
+    assert moved.context == "https://example.org/cases/c-1"

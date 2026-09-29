@@ -31,7 +31,12 @@ from typing import Any, cast
 from unittest.mock import patch
 
 import py_trees
+from datetime import timedelta
+
 import pytest
+
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.states.em import EM
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -2346,3 +2351,257 @@ class TestCaseActorIsOneParticipantDistinctFromTheOwner:
 
         assert _VENDOR_URI not in self._managers(case)
         assert CVDRole.CASE_MANAGER not in owner.roles
+
+
+# ---------------------------------------------------------------------------
+# EP-04-003 / EP-04-004: the Reporter's proposed terms at case creation
+# ---------------------------------------------------------------------------
+
+
+class TestEP04SenderProposalAtCaseCreation:
+    """The Reporter's proposed embargo reaches creation and is compared.
+
+    The proposal arrives on the Offer the CaseProposal carries inline
+    (CP-01-008).  Shortest-wins runs between it and the case owner's actor
+    default (EP-04-003); the protocol default is never a candidate
+    (EP-04-006); the winning sender event keeps its identity with its
+    ``context`` rewritten to the case (EP-04-004); the loser becomes a pending
+    revision (EP-04-003).  #3392.
+    """
+
+    _SENDER_END_DAYS = 10
+    _ACTOR_DEFAULT = timedelta(days=30)
+
+    def _event_with_terms(
+        self,
+        make_payload,
+        *,
+        sender_days: int,
+        terms_context: str = _REPORT_URI,
+    ):
+        from datetime import datetime, timezone
+
+        from vultron.core.models.embargo_event import EmbargoEvent
+        from vultron.wire.as2.factories import rm_submit_report_activity
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Create,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            as_VulnerabilityReport,
+        )
+
+        report = as_VulnerabilityReport(
+            id_=_REPORT_URI, attributed_to=_REPORTER_URI, content="x"
+        )
+        terms = EmbargoEvent(
+            id_=f"{_REPORT_URI}/embargo_proposals/1",
+            context=terms_context,
+            end_time=datetime.now(tz=timezone.utc)
+            + timedelta(days=sender_days),
+        )
+        if terms_context == _REPORT_URI:
+            offer = rm_submit_report_activity(
+                report,
+                to=_VENDOR_URI,
+                actor=_REPORTER_URI,
+                proposed_embargo=terms,
+            )
+        else:
+            # The factory refuses terms about another subject on the sending
+            # side (EP-04-009); a non-conforming sender is simulated past it.
+            offer = rm_submit_report_activity(
+                report, to=_VENDOR_URI, actor=_REPORTER_URI
+            ).model_copy(update={"proposed_embargo": terms})
+        proposal = as_CaseProposal(
+            id_=_PROPOSAL_URI,
+            attributed_to=_VENDOR_URI,
+            object_=report,
+            target=_CASE_ACTOR_URI,
+            offer_id=offer.id_,
+            offer_actor_id=_REPORTER_URI,
+            in_reply_to=offer,
+        )
+        activity = as_Create(
+            actor=_VENDOR_URI, object_=proposal, to=[_CASE_ACTOR_URI]
+        )
+        event = make_payload(activity)
+        return (
+            event.model_copy(update={"receiving_actor_id": _CASE_ACTOR_URI}),
+            terms,
+        )
+
+    def _publish_owner_policy(self, dl: SqliteDataLayer) -> None:
+        from vultron.core.models.embargo_policy import EmbargoPolicy
+
+        dl.create(
+            EmbargoPolicy(
+                actor_id=_CASE_ACTOR_URI,
+                inbox=f"{_CASE_ACTOR_URI}/inbox",
+                preferred_duration=self._ACTOR_DEFAULT,
+            )
+        )
+
+    def _run(
+        self,
+        make_payload,
+        dl: SqliteDataLayer,
+        *,
+        sender_days: int,
+        **terms_kwargs,
+    ):
+        from vultron.core.use_cases.received.case_proposal import (
+            CreateCaseProposalReceivedUseCase,
+        )
+
+        event, terms = self._event_with_terms(
+            make_payload, sender_days=sender_days, **terms_kwargs
+        )
+        CreateCaseProposalReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        (case,) = [
+            c
+            for c in dl.list_objects("VulnerabilityCase")
+            if isinstance(c, VulnerabilityCase)
+        ]
+        return case, terms
+
+    @staticmethod
+    def _store() -> SqliteDataLayer:
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        return dl
+
+    @pytest.mark.spec("EP-04-004")
+    @pytest.mark.spec("EP-04-007")
+    def test_a_lone_sender_proposal_becomes_the_active_embargo_about_the_case(
+        self, make_payload
+    ):
+        """No actor default: the sender's terms win outright, at their stated
+        length (shorter than nothing competes with, EP-04-007), and the event
+        the Reporter sent is the case's embargo with its context rewritten."""
+        from vultron.core.models.embargo_event import EmbargoEvent
+
+        dl = self._store()
+        case, terms = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS
+        )
+
+        assert case.current_status.em.state == EM.ACTIVE
+        assert case.active_embargo_id == terms.id_
+        embargo = dl.read(terms.id_)
+        assert isinstance(embargo, EmbargoEvent)
+        assert embargo.context == case.id_
+        assert embargo.end_time == terms.end_time
+        assert case.proposed_embargoes == []
+
+    @pytest.mark.spec("EP-04-003")
+    def test_shorter_sender_proposal_wins_and_the_actor_default_is_a_revision(
+        self, make_payload
+    ):
+        from vultron.core.models.embargo_event import EmbargoEvent
+
+        dl = self._store()
+        self._publish_owner_policy(dl)
+        case, terms = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS
+        )
+
+        assert case.active_embargo_id == terms.id_
+        assert case.current_status.em.state == EM.REVISE
+        (revision_id,) = case.proposed_embargoes
+        revision = dl.read(revision_id)
+        assert isinstance(revision, EmbargoEvent)
+        assert revision.context == case.id_
+        assert revision.end_time > terms.end_time
+        assert revision.end_time - terms.end_time > timedelta(days=19)
+
+    @pytest.mark.spec("EP-04-003")
+    @pytest.mark.spec("EP-04-004")
+    def test_shorter_actor_default_wins_and_the_sender_proposal_is_a_revision(
+        self, make_payload
+    ):
+        from vultron.core.models.embargo_event import EmbargoEvent
+
+        dl = self._store()
+        self._publish_owner_policy(dl)
+        case, terms = self._run(make_payload, dl, sender_days=60)
+
+        assert case.active_embargo_id != terms.id_
+        active = dl.read(case.active_embargo_id or "")
+        assert isinstance(active, EmbargoEvent)
+        assert active.end_time < terms.end_time
+        assert case.current_status.em.state == EM.REVISE
+        # The Reporter's own event is the pending revision, now about the case.
+        assert case.proposed_embargoes == [terms.id_]
+        revision = dl.read(terms.id_)
+        assert isinstance(revision, EmbargoEvent)
+        assert revision.context == case.id_
+        assert revision.end_time == terms.end_time
+
+    @pytest.mark.spec("EP-04-004")
+    def test_an_expired_proposal_is_no_proposal(self, make_payload):
+        """Terms that have already run out do not stop the case; the owner's
+        default applies and nothing is registered as a revision."""
+        dl = self._store()
+        case, terms = self._run(make_payload, dl, sender_days=-1)
+
+        assert case.current_status.em.state == EM.ACTIVE
+        assert case.active_embargo_id != terms.id_
+        assert case.proposed_embargoes == []
+
+    @pytest.mark.spec("EP-04-003")
+    @pytest.mark.spec("CM-14-005")
+    def test_contested_creation_leaves_vendor_and_reporter_as_signatories(
+        self, make_payload
+    ):
+        """Consent is seeded to the active terms even though a revision is
+        pending: CM-14-005 seeds SIGNATORY on the *active* embargo, and the
+        revision registered inside ``InitializeDefaultEmbargoNode`` precedes
+        those seeds (see notes/embargo-default-semantics.md)."""
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.participant_embargo_consent import PEC
+
+        dl = self._store()
+        self._publish_owner_policy(dl)
+        case, _terms = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS
+        )
+        assert case.current_status.em.state == EM.REVISE
+
+        states = {}
+        for actor_uri in (_VENDOR_URI, _REPORTER_URI):
+            pid = case.actor_participant_index[actor_uri]
+            participant = dl.read(pid)
+            assert isinstance(participant, CaseParticipant)
+            states[actor_uri] = participant.embargo_consent_state
+        assert states == {
+            _VENDOR_URI: PEC.SIGNATORY.value,
+            _REPORTER_URI: PEC.SIGNATORY.value,
+        }
+
+    @pytest.mark.spec("EP-04-009")
+    def test_terms_about_another_subject_are_no_proposal(
+        self, make_payload, caplog
+    ):
+        """A proposal whose context is not this report is not terms for it:
+        the case is created under the owner's default and nothing is
+        registered, with the reason logged."""
+        import logging
+
+        dl = self._store()
+        with caplog.at_level(logging.WARNING):
+            case, terms = self._run(
+                make_payload,
+                dl,
+                sender_days=self._SENDER_END_DAYS,
+                terms_context="https://example.org/reports/someone-elses",
+            )
+
+        assert case.current_status.em.state == EM.ACTIVE
+        assert case.active_embargo_id != terms.id_
+        assert case.proposed_embargoes == []
+        assert any(
+            "not the proposal's report" in r.getMessage()
+            for r in caplog.records
+        )

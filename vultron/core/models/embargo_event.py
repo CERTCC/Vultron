@@ -48,6 +48,31 @@ class EmbargoEvent(CoreObject):
     end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
 
+    def with_subject(self, subject_id: str) -> "EmbargoEvent":
+        """Return this embargo re-scoped to *subject_id*, identity kept.
+
+        The rewrite EP-04-004 prescribes at case creation: the Reporter's
+        proposed terms name the report until a case exists, then the case.
+        Everything else — id, times, the sender's name — is carried as it was,
+        and the copy goes through validation rather than around it.
+        """
+        # Field-name spelling on purpose: core never produces the wire shape
+        # itself (ARCH-20-001), and ``populate_by_name`` accepts this dump.
+        data = {**self.model_dump(), "context": subject_id}
+        if self.name == self._derived_name():
+            # The label ``_set_name`` derived for the old subject is not a name
+            # the sender chose; drop it so the copy is labelled by the new one.
+            data.pop("name")
+        return type(self).model_validate(data)
+
+    def _derived_name(self) -> str:
+        """The label ``_set_name`` gives an unnamed embargo: subject and window."""
+        parts = ["Embargo for", self.context]
+        if self.start_time:
+            parts.append(f"start: {self.start_time.isoformat()}")
+        parts.append(f"end: {self.end_time.isoformat()}")
+        return " ".join(parts)
+
     @model_validator(mode="after")
     def _set_name(self) -> "EmbargoEvent":
         """Label the embargo by its case and window when it carries no name.
@@ -60,9 +85,5 @@ class EmbargoEvent(CoreObject):
         """
         if self.name is not None:
             return self
-        parts = ["Embargo for", self.context]
-        if self.start_time:
-            parts.append(f"start: {self.start_time.isoformat()}")
-        parts.append(f"end: {self.end_time.isoformat()}")
-        object.__setattr__(self, "name", " ".join(parts))
+        object.__setattr__(self, "name", self._derived_name())
         return self

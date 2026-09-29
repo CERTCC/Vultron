@@ -340,6 +340,42 @@ def _build_embargo_event_object(
     return {}
 
 
+def proposed_embargo_from(carrier: object, *, activity_id: str) -> Any:
+    """Return the proposed ``EmbargoEvent`` *carrier* holds, or ``None``.
+
+    *carrier* is an ``Offer(VulnerabilityReport)`` (its ``proposed_embargo``,
+    EP-04-004) or a ``CaseProposal`` (the same field on the Offer it carries in
+    ``in_reply_to``, CP-01-008).  The parser has already expanded an inline
+    ``EmbargoEvent`` dict to the core class, so an ``EmbargoEvent`` is passed
+    through; an ``as_Event``-shaped object is projected the same way an
+    ``Invite(EmbargoEvent)``'s object is.  A bare reference is *not* a
+    proposal: the sender inlines what it introduces (ADR-0107), and a
+    receiver that fetched terms nobody sent would be inventing them — so a
+    string is logged and read as absent (receive side, Postel's maxim).
+    """
+    raw = getattr(carrier, "proposed_embargo", None)
+    if raw is None:
+        offer = getattr(carrier, "in_reply_to", None)
+        raw = getattr(offer, "proposed_embargo", None)
+    if raw is None:
+        return None
+    if isinstance(raw, EmbargoEvent):
+        return raw
+    if isinstance(raw, str):
+        logger.warning(
+            "extract_intent: activity '%s' names its proposed embargo by"
+            " reference (%r) instead of inlining it; read as no proposal"
+            " (EP-04-004, ADR-0107)",
+            activity_id,
+            raw,
+        )
+        return None
+    built = _build_embargo_event_object(
+        raw, getattr(raw, "context", None), None
+    )
+    return built.get("object_")
+
+
 def _build_participant_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     attributed_to = _get_id(getattr(obj, "attributed_to", None))

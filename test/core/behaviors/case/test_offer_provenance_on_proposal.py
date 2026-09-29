@@ -34,6 +34,7 @@ The symptom surfaced four steps and one container away, as the invitee's
 ``validate-report`` answering ``404 Offer not found`` (#2548, fcvcv).
 """
 
+from datetime import datetime, timezone
 from typing import Any
 
 import pytest
@@ -43,6 +44,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.nodes import ProposeReportCaseToActorNode
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.semantic_registry import extract_event
@@ -287,3 +289,96 @@ class TestCaseActorCommitsTheProvenance:
         snapshot = _add_report_snapshot(dl)
         assert "offerId" not in snapshot
         assert "offerActorId" not in snapshot
+
+
+class TestProposalCarriesTheOfferItself:
+    """CP-01-008: the store that holds the Offer puts it on the wire whole.
+
+    ``offerId``/``offerActorId`` are the bare-reference form (CP-01-007); when
+    the vendor still has the ``Offer(VulnerabilityReport)`` it received, the
+    proposal carries it inline under ``inReplyTo`` — a sender inlines what it
+    introduces (ADR-0107) — and with it the Reporter's proposed embargo terms
+    (EP-04-004, #3392).
+    """
+
+    _END = datetime(2099, 6, 1, tzinfo=timezone.utc)
+
+    def _stored_offer(self, datalayer, report, *, with_terms: bool) -> str:
+        """Store the Reporter's Offer (as the inbox does) and its record."""
+        from vultron.wire.as2.factories import rm_submit_report_activity
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            as_VulnerabilityReport,
+        )
+
+        wire_report = as_VulnerabilityReport.model_validate(
+            report.model_dump(by_alias=True)
+        )
+        terms = (
+            EmbargoEvent(context=report.id_, end_time=self._END)
+            if with_terms
+            else None
+        )
+        offer = rm_submit_report_activity(
+            wire_report,
+            to=_VENDOR_URI,
+            actor=_REPORTER_URI,
+            proposed_embargo=terms,
+        )
+        datalayer.create(offer)
+        datalayer.save(
+            VultronOfferRecord(
+                offer_id=offer.id_,
+                report_id=report.id_,
+                offer_actor_id=_REPORTER_URI,
+                offer_to=[_VENDOR_URI],
+            )
+        )
+        return offer.id_
+
+    def _propose(self, bridge, datalayer, actor_id, report_id):
+        node = ProposeReportCaseToActorNode(report_id=report_id)
+        result = bridge.execute_with_setup(tree=node, actor_id=actor_id)
+        assert result.status == Status.SUCCESS, node.feedback_message
+        (proposal,) = [
+            p
+            for p in datalayer.list_objects("CaseProposal")
+            if isinstance(p, as_CaseProposal)
+        ]
+        return proposal
+
+    @pytest.mark.spec("CP-01-008")
+    @pytest.mark.spec("EP-04-004")
+    def test_the_offer_and_its_proposed_terms_are_carried_inline(
+        self, datalayer, actor, report, bridge
+    ):
+        offer_id = self._stored_offer(datalayer, report, with_terms=True)
+        proposal = self._propose(bridge, datalayer, actor.id_, report.id_)
+
+        assert proposal.offer_id == offer_id
+        offer = proposal.in_reply_to
+        assert offer is not None
+        assert offer.id_ == offer_id
+        terms = offer.proposed_embargo
+        assert isinstance(terms, EmbargoEvent)
+        assert terms.context == report.id_
+        assert terms.end_time == self._END
+
+    @pytest.mark.spec("CP-01-008")
+    def test_the_inline_offer_survives_the_wire_dump(
+        self, datalayer, actor, report, bridge
+    ):
+        self._stored_offer(datalayer, report, with_terms=True)
+        proposal = self._propose(bridge, datalayer, actor.id_, report.id_)
+        dumped = proposal.model_dump(by_alias=True, serialize_as_any=True)
+        assert dumped["inReplyTo"]["type"] == "Offer"
+        assert dumped["inReplyTo"]["id"] == dumped["offerId"]
+        assert dumped["inReplyTo"]["proposedEmbargo"]["context"] == report.id_
+
+    def test_a_record_without_its_offer_carries_the_bare_provenance_only(
+        self, datalayer, actor, report, bridge
+    ):
+        """The Offer can be absent (a record replicated from a ledger entry)."""
+        datalayer.save(_offer_record(report.id_))
+        proposal = self._propose(bridge, datalayer, actor.id_, report.id_)
+        assert proposal.offer_id == _OFFER_URI
+        assert proposal.in_reply_to is None

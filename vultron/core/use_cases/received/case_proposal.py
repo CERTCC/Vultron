@@ -70,6 +70,9 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
 )
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._sender_embargo_proposal import (
+    sender_embargo_proposal_inputs,
+)
 from vultron.core.use_cases.received._bt_verdict import (
     find_node,
     node_succeeded,
@@ -260,6 +263,7 @@ class CreateCaseProposalReceivedUseCase:
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
+            **sender_embargo_proposal_inputs(request),
         )
         verdict = verdict_from_bt(
             tree, result, label="CreateCaseProposalReceivedBT"
