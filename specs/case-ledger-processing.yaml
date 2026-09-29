@@ -893,9 +893,10 @@ groups:
       (ISSUE-3339, ADR-0111).
     verification: '`test/architecture/test_receive_side_bt_commit_ordering.py` asserts
       that every receive-side tree factory under `vultron/core/behaviors/` composes
-      through `create_receive_activity_tree`, and that the tree it returns has the
-      intake node as its first child, the guarded commit after every guard, and no
-      protocol-effect node ahead of the commit.'
+      through `create_receive_activity_tree` (including the factories that composed
+      `create_case_manager_gated_tree` directly before #3870), and that the tree it
+      returns has the intake node as its first child, the guarded commit after every
+      guard, and no protocol-effect node ahead of the commit.'
     adr:
     - ADR-0111
     - ADR-0022
@@ -1097,9 +1098,10 @@ groups:
       the received activity and every object inlined in it exactly as received, and
       MUST perform no other write.
     rationale: 'One node, composed once by the shared factory, replaces the handler-local
-      store helpers that eight received-side use cases called from `execute()`
-      (ISSUE-3339). What intake stores is also the raw material for deferred replay and
-      for backfilling an object a later entry names only by reference (ADR-0107).'
+      store helpers that received-side use cases called from `execute()` — the files
+      `KNOWN_VIOLATIONS` enumerates once #3869 widens the ratchet (ISSUE-3339). What
+      intake stores is also the raw material for deferred replay and for backfilling
+      an object a later entry names only by reference (ADR-0107).'
     verification: '`test/architecture/test_receive_side_bt_commit_ordering.py` asserts
       the intake node is the first child of every tree `create_receive_activity_tree`
       returns. A unit test for the intake node stores a received activity with an
@@ -1119,7 +1121,7 @@ groups:
     rationale: Receipt is a fact and refusal is a verdict on the assertion, not on the
       record of receipt. A receiver that declines to create a case still needs the
       report and the Offer for a later acknowledgement or an explicit decision
-      (CM-15-001), and the refusal itself belongs in the process log, never the ledger
+      (CM-15-002), and the refusal itself belongs in the process log, never the ledger
       (CLP-05-002).
     verification: A received-side handler test posts an activity that a precondition
       guard refuses, asserts the handler disposition is REFUSED, and asserts the
@@ -1136,8 +1138,9 @@ groups:
     statement: A received-side use case MUST NOT store the received activity or its
       inlined objects through any path other than the intake node — not through a
       handler-local helper, a per-tree store node, or a call in `execute()`.
-    rationale: The store-what-arrived step was implemented separately in eight received
-      handlers and one shared use-case helper, each invisible to the mutation ratchet
+    rationale: The store-what-arrived step was implemented separately across the
+      received handlers `KNOWN_VIOLATIONS` enumerates (#3869) and one shared use-case
+      helper, each invisible to the mutation ratchet
       because the write sat in a helper rather than in `execute()` itself (ISSUE-3339).
       One shared node is the DRY form (CS-22-001) and the only one the ratchet can
       see.
@@ -1154,16 +1157,17 @@ groups:
     priority: MUST
     kind: process
     statement: '`test/architecture/test_no_dl_mutations_in_execute.py` MUST treat a
-      DataLayer write that an `execute()` body reaches through any function or method
+      DataLayer write that a received-side `execute()` body (a use case under
+      `vultron/core/use_cases/received/`) reaches through any function or method
       defined under `vultron/core/use_cases/`, resolved transitively, as a violation of
       that `execute()`, and MUST enumerate the remaining violations as an exact
       `KNOWN_VIOLATIONS` set.'
-    rationale: The detector previously matched only a write whose receiver was literally
-      the use case's DataLayer inside the body of `execute()`. A helper defined in the
-      same package that performed the write was excluded by design, which let eleven
-      `execute()` bodies in eight files reach a write the ratchet never saw
-      (ISSUE-3339). A write inside a BT node is not a violation, so resolution stops
-      at the use-case package boundary.
+    rationale: The detector matched only a write whose receiver was literally the use
+      case's DataLayer inside `execute()`; a same-package helper that performed the
+      write was excluded by design, which let eleven `execute()` bodies in nine files
+      reach a write it never saw (ISSUE-3339). A write inside a BT node is not a
+      violation, so resolution stops at the use-case package boundary. Trigger-side
+      `execute()` and `_prepare()` bodies are governed by BT-15-001, not this rule.
     verification: Detector self-tests in the same module write synthetic sources to a
       temporary directory and assert that a helper containing a DataLayer write and
       called from `execute()` is flagged, that a helper two calls deep is flagged, and

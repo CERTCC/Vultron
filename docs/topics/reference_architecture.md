@@ -68,7 +68,7 @@ flowchart TD
     rehydrate["rehydrate<br/>resolve referenced objects"]
     extract["semantic extractor<br/>AS2 pattern → MessageSemantics"]
     dispatch["behavior dispatcher<br/>semantics → use case"]
-    bt["use case runs a behavior tree<br/>guards → commit → effects"]
+    bt["use case runs a behavior tree<br/>intake → guards → commit → effects"]
     persist["persist via DataLayer<br/>and queue outbound messages"]
 
     http --> parse
@@ -117,7 +117,7 @@ Inside a use case, protocol-significant work runs as a **behavior tree** (BT).
 A behavior tree is a hierarchy of nodes ticked from the root; each node returns *Success*, *Failure*, or *Running*, and the control-flow nodes above them compose those results into higher-level behavior.
 Vultron uses this structure because CVD activities compose the same way: validate a report, propose an embargo, publish an advisory — each is a small tree that slots into a larger one ([ADR-0002](../adr/0002-model-processes-with-behavior-trees.md)).
 
-On the received side, a tree runs guards first, commits the ledger entry, then fires effects, in that order (CLP-10-006).
+On the received side, a tree first stores what arrived (intake), then runs guards, commits the ledger entry, and fires effects, in that order (CLP-10-006, [ADR-0111](../adr/0111-intake-is-the-first-received-side-stage.md)).
 A read or write of Report Management (RM), Embargo Management (EM), or Case State (CS) goes through a dedicated state node rather than touching state inline, which keeps every transition auditable.
 
 This page stays at the summary level by design.

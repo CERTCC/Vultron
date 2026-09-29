@@ -326,10 +326,10 @@ Nothing domain-significant lives outside the tree. In particular, a call from
 `execute()` to a helper function that writes to the DataLayer is **not** glue:
 the write is outside the tree whatever the helper is named, and the mutation
 ratchet (`test/architecture/test_no_dl_mutations_in_execute.py`) resolves such
-calls through the use-case package transitively (CLP-10-020). Eight received
-handlers once stored the inbound object this way, through one shared
-`_idempotent_create` helper and a few bespoke ones, invisible to the ratchet
-because the write sat one call away (ISSUE-3339, ADR-0111).
+calls through the use-case package transitively (CLP-10-020). Eleven received
+`execute()` bodies in nine files once reached a write this way, most through one
+shared `_idempotent_create` helper and the rest through bespoke ones, invisible to
+the ratchet because the write sat one call away (ISSUE-3339, ADR-0111).
 
 ### The Four Received-Side Stages (ADR-0111)
 
@@ -352,10 +352,12 @@ stages in a fixed order (CLP-10-006, CLP-10-010):
 
 Intake is the only path that stores the received activity (CLP-10-019). Do not
 add a per-tree store node or a handler-local store helper; the factory already
-supplies the intake node as the first child of every tree it builds. Intake is
-also where the receiver keeps the raw material ADR-0107 needs: the sealed
-received evidence for deferred replay, and the objects a later ledger entry may
-name only by reference.
+supplies the intake node as the first child of every tree it builds. A receive
+tree that composes `create_case_manager_gated_tree` directly bypasses intake, so
+every receive tree composes through the factory (#3870 moves the two that do
+not). Intake is also where the receiver keeps the raw material ADR-0107 needs:
+the sealed received evidence for deferred replay, and the objects a later ledger
+entry may name only by reference.
 
 ### Trigger/Received Parity
 

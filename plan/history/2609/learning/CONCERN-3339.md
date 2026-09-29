@@ -52,8 +52,11 @@ effects (ADR-0111; CLP-10-006/010 amended; CLP-10-017 through CLP-10-020 added).
 shared intake node stores the received activity and its inlined objects verbatim,
 runs first in every tree the shared factory builds, and is the only store path. The
 mutation ratchet follows use-case helpers transitively; its allow-list is seeded with
-the nine files and emptied by the migration issues, each of which carries the
-allow-list shrink as an acceptance criterion.
+those nine files plus the two direct-write files it already held, and emptied by the
+migration issues, each of which carries the allow-list shrink as an acceptance
+criterion. CM-15-005 is amended: the `auto_create_case` gate is an in-tree condition
+node, since the routing-level short-circuit existed only to store the report and
+Offer before the tree ran.
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3868>.
 Spec: `specs/case-ledger-processing.yaml`.
