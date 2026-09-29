@@ -1871,6 +1871,39 @@ groups:
     verification: Integration tests in `test/demo/` confirm that in the suggest-actor path the
       invitee's `CaseParticipant.case_roles` is populated from the persisted `Invite` wire
       object on `Accept(Invite)` processing.
+  - id: CM-17-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Any canonical `CaseLedgerEntry` the CASE_MANAGER commits while admitting an
+      invitee whose fan-out reaches that invitee — the `Add(CaseParticipant)` entry
+      in particular, because the invitee is already in `actor_participant_index`
+      when it is committed — MUST be committed after CM-17-004 steps (5)
+      `Announce(VulnerabilityCase)` and (6) the join backfill, so the invitee's first
+      ledger entries arrive after its case seed and in log-index order.
+    rationale: >-
+      CM-17-004 orders the announce and the backfill with no fan-out to the invitee
+      in between, but says nothing about the add-participant entry, which the
+      implementation committed before the announce. Its fan-out includes the freshly
+      persisted invitee, so the late joiner received a ledger entry before its case
+      (SYNC-15 pre-genesis `Reject`, then a from-genesis replay that interleaved with
+      the backfill): in the fcvcv scenario vendor2 received entry 19 one second before
+      the case, and vendor-deployer received entries 26 and 0 before it (#2898).
+      Committed last, the entry reaches the invitee as the next entry in chain order.
+    verification: >-
+      `test/core/use_cases/received/actor/test_invite.py::TestInviteActorUseCases::test_accept_invite_seeds_the_case_before_any_ledger_entry_reaches_the_invitee`
+      asserts `Announce(VulnerabilityCase)` precedes every `Announce(CaseLedgerEntry)`
+      addressed to the invitee, and `test_accept_invite_backfills_canonical_ledger_from_genesis`
+      asserts the invitee receives entries 0, 1, 2, 3 in order;
+      `test/core/behaviors/case/test_accept_invite_tree.py::test_case_announce_and_backfill_precede_the_add_participant_fanout`
+      pins the effect order in the tree.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-17-004
+    - rel_type: depends_on
+      spec_id: SYNC-15-004
+    lint_suppress:
+    - missing_story_reference
 - id: CM-18
   title: Participant Embargo Consent State Machine
   specs:

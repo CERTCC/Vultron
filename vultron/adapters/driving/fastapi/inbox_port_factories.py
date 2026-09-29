@@ -148,6 +148,12 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     ``_EmitRejectCaseProposalNode`` builds ``Reject(as_CaseProposal)`` through
     the shared emit seam (CP-05-002, CP-05-004).  The accept path never reads it.
 
+    The sync port carries the accept path's native ledger fan-out
+    (``CommitNativeLedgerEntriesNode``, ADR-0041 AC-4).  It is injected here
+    rather than inherited from the blackboard so the fan-out — and the outbox
+    order it produces relative to ``Create(VulnerabilityCase)`` (CP-09-009) —
+    is part of the use case's declared contract.
+
     ``call_out`` is the admission-policy injection point (CP-05-002).  This
     adapter wires the core DETERMINISTIC bundle, which admits every well-formed
     proposal — the behaviour the service had before the seam existed
@@ -159,6 +165,10 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
         "wire_render_port": As2WireRenderAdapter(),
         "call_out": CASE_PROPOSAL_DETERMINISTIC,
         **_trigger_activity_port_factory(dl),
+        # The accept path commits the genesis ledger entries natively and fans
+        # them out to every participant (ADR-0041 AC-4, SYNC-02-003); the
+        # sync port is that fan-out's only channel (ARCH-04-004).
+        **_sync_port_factory(dl),
     }
     actor_config = _resolve_actor_config()
     if actor_config is not None:

@@ -1643,8 +1643,10 @@ class TestADR0041GenesisCommitFailure:
         """A failed genesis create_case commit returns FAILURE (not SUCCESS).
 
         The genesis entry is the root of the CaseActor's hash chain; a
-        best-effort SUCCESS here would tell the vendor a case exists while the
-        canonical ledger has no root.
+        best-effort SUCCESS would hide that the canonical ledger has no root.
+        Since CP-09-009 the node runs after the emits, so the FAILURE no
+        longer withholds Accept/Create — it makes the broken ledger visible
+        (see test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued).
         """
         from py_trees.common import Status
 
@@ -2605,3 +2607,127 @@ class TestEP04SenderProposalAtCaseCreation:
             "not the proposal's report" in r.getMessage()
             for r in caplog.records
         )
+
+
+# ---------------------------------------------------------------------------
+# Outbound ordering: the case reaches a participant before its ledger entries
+# ---------------------------------------------------------------------------
+
+
+def _outbox_labels(dl: SqliteDataLayer) -> list[str]:
+    """Describe the case-actor outbox as ``Verb(ObjectType)`` labels, in order."""
+    labels: list[str] = []
+    for activity_id in dl.outbox_list():
+        activity = dl.read(activity_id)
+        obj = getattr(activity, "object_", None)
+        obj_type = (
+            obj.get("type")
+            if isinstance(obj, dict)
+            else getattr(obj, "type_", None)
+        )
+        labels.append(f"{getattr(activity, 'type_', '?')}({obj_type})")
+    return labels
+
+
+@pytest.mark.spec("CP-09-009")
+@pytest.mark.spec("CM-14-011")
+@pytest.mark.spec("CP-05-003")
+def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
+    """Accept, then Create(VulnerabilityCase), then the ledger fan-out.
+
+    The outbox is FIFO (OX-01-002), so enqueue order is wire order.  If the
+    native ledger commits fan out first, every recipient receives
+    ``Announce(CaseLedgerEntry)`` for a case it does not hold yet, enters the
+    pre-genesis path (SYNC-15), sends a ``Reject``, and the CASE_MANAGER
+    replays the whole ledger — while ``Create(VulnerabilityCase)`` waits at
+    the back of the queue.  That queue position is what timed out the fv and
+    fcv-reject replica gates (#3033) and congested the CaseActor outbox in
+    fcvcv (#2898).  CM-14-011's rationale states the rule: the reporter's
+    system must hold the case object before any fan-out that references it.
+    """
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.core.use_cases.received.case_proposal import (
+        CreateCaseProposalReceivedUseCase,
+    )
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+    _seed_report(dl)
+    event = _make_full_event(make_payload)
+    CreateCaseProposalReceivedUseCase(
+        dl,
+        event,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+
+    labels = _outbox_labels(dl)
+    announces = [lbl for lbl in labels if lbl.startswith("Announce(")]
+
+    # Not vacuous: without an injected sync port the fan-out is skipped and
+    # any order assertion would pass trivially.
+    assert len(announces) >= 2, (
+        "expected the native ledger fan-out to reach the outbox, got"
+        f" {labels}"
+    )
+    assert labels[:2] == [
+        "Accept(CaseProposal)",
+        "Create(VulnerabilityCase)",
+    ], f"Accept and Create must head the outbox, got {labels}"
+    assert labels[2:] == announces, (
+        "every Announce(CaseLedgerEntry) must follow Create(VulnerabilityCase),"
+        f" got {labels}"
+    )
+
+
+@pytest.mark.spec("CP-09-009")
+def test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued(
+    make_payload,
+):
+    """A genesis-commit failure is surfaced, not prevented, once the commit runs last.
+
+    Before CP-09-009 the ledger commit preceded the emits, so a failed genesis
+    ``create_case`` commit aborted the Sequence before ``Accept`` and
+    ``Create`` were queued.  Now the commit runs after them (so the fan-out
+    queues behind the ``Create``), and the trade-off is explicit: on genesis
+    failure the handler does not report APPLIED, but ``Accept`` and ``Create``
+    are already in the FIFO outbox, no ``Announce(CaseLedgerEntry)`` follows
+    them, and the retry marker has already been cleared.  This test pins that
+    shape so a future change to either half is a deliberate one.
+    """
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.core.behaviors.case.nodes import (
+        CommitNativeLedgerEntriesNode,
+    )
+    from vultron.core.models.use_case_result import HandlerDisposition
+    from vultron.core.use_cases.received.case_proposal import (
+        CreateCaseProposalReceivedUseCase,
+    )
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+    _seed_report(dl)
+    event = _make_full_event(make_payload)
+    with patch.object(
+        CommitNativeLedgerEntriesNode, "_commit_one", return_value=False
+    ):
+        result = CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    assert (
+        result.disposition is not HandlerDisposition.APPLIED
+    ), "a failed genesis commit must not read as a successful case creation"
+    assert "genesis create_case ledger commit failed" in (result.reason or "")
+    assert _outbox_labels(dl) == [
+        "Accept(CaseProposal)",
+        "Create(VulnerabilityCase)",
+    ], "Accept and Create are queued before the commit runs, and nothing follows"
+    assert (
+        list(dl.list_objects("PendingCreateCaseActivity")) == []
+    ), "the retry marker is cleared before the commit runs"

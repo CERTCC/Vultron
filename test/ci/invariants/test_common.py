@@ -707,6 +707,124 @@ class TestLoadDevlogsManifestHandling:
         assert "no case-ledger" in message.lower()
         assert "The scenario failed before a case existed." in message
 
+    @pytest.mark.spec("DEMOCI-10-014")
+    def test_upstream_abort_is_not_called_a_real_invariant_failure(
+        self, tmp_path, monkeypatch
+    ):
+        """A manifest with no case says the demo aborted, not that an invariant broke.
+
+        When the scenario failed before a case existed, no participant ledger
+        could have been exported and no ledger invariant was exercised.  The
+        harness must still fail (DEMOCI-10-003) but must say which layer
+        failed — a triager reading "real invariant failure" over a delivery
+        flake was the cost recorded on #2898 (ISSUE-3879).
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "fcvcv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "fcvcv",
+                    "caseId": None,
+                    "ledgerFileCount": 0,
+                    "targetCount": 0,
+                    "reason": (
+                        "The scenario failed before a case existed, so no "
+                        "participant ledgers could be exported."
+                    ),
+                    "actors": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("fcvcv")
+        message = excinfo.value.msg or ""
+        assert "real invariant failure" not in message
+        assert "not exercised" in message
+        assert "before a case existed" in message
+
+    @pytest.mark.spec("DEMOCI-10-014")
+    def test_missing_ledgers_for_an_existing_case_stay_a_real_invariant_failure(
+        self, tmp_path, monkeypatch
+    ):
+        """A manifest that names a case but captured no ledgers keeps the strong wording."""
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "fvv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "fvv",
+                    "caseId": CASE_URI,
+                    "ledgerFileCount": 0,
+                    "targetCount": 2,
+                    "reason": None,
+                    "actors": [
+                        {
+                            "actorName": "finder",
+                            "routeKey": "finder",
+                            "captured": False,
+                            "reason": "HTTP 500",
+                        },
+                        {
+                            "actorName": "vendor",
+                            "routeKey": "vendor",
+                            "captured": False,
+                            "reason": "HTTP 500",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("fvv")
+        message = excinfo.value.msg or ""
+        assert "real invariant failure" in message
+        assert "not exercised" not in message
+
+    @pytest.mark.spec("DEMOCI-10-014")
+    def test_crashed_dump_is_not_called_an_upstream_abort_or_an_invariant_failure(
+        self, tmp_path, monkeypatch
+    ):
+        """The harness's crashed-dump backstop has the no-case shape but a
+        different meaning.
+
+        ``ScenarioHarness`` writes ``caseId: null`` / ``targetCount: 0`` with
+        ``DUMP_CRASHED_REASON`` when ``dump_case_ledgers`` raised before it
+        could record results — for a run whose case may well have existed.
+        Keying the wording on shape alone would call that "aborted before a
+        case existed" over a reason line that says the dump crashed.
+        """
+        from vultron.demo.helpers.harness import DUMP_CRASHED_REASON
+
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "fcv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "fcv",
+                    "caseId": None,
+                    "ledgerFileCount": 0,
+                    "targetCount": 0,
+                    "reason": DUMP_CRASHED_REASON,
+                    "actors": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("fcv")
+        message = excinfo.value.msg or ""
+        assert "real invariant failure" not in message
+        assert "before a case existed" not in message
+        assert "dump raised" in message
+        assert "not exercised" in message
+        assert DUMP_CRASHED_REASON in message
+
     def test_failure_message_names_each_missing_actor(
         self, tmp_path, monkeypatch
     ):

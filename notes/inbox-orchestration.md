@@ -9,6 +9,7 @@ related_specs:
   - specs/inbox-orchestration.yaml
   - specs/use-case-organization.yaml
   - specs/handler-protocol.yaml
+  - specs/inbox-endpoint.yaml
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/use-case-protocol.md
@@ -35,6 +36,12 @@ inbox endpoint becomes thin glue that:
 1. Parses the HTTP request body into a raw payload.
 2. Calls `process_payload(payload, ingress_adapter, dispatch_adapter)`.
 3. Returns HTTP 202 immediately and schedules the call via `BackgroundTasks`.
+   The scheduled task is a coroutine, so it runs `process_payload` (and the
+   pending-queue replay loop) through `asyncio.to_thread` rather than inline:
+   an `async` background task executes on the event loop, and a synchronous
+   BT tick there stalls every other request, delivery, and outbox drain on
+   the container for its duration (IE-06-003; #3033, #2898). See
+   [bt-integration](bt-integration.md) § "Concurrency Model".
 
 The CLI, tests, and any future inbox entry point do the same but supply
 different adapter implementations.

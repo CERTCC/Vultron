@@ -5,8 +5,11 @@ description: "Design notes for sync log replication: append-only case activity l
 related_specs:
   - specs/sync-ledger-replication.yaml
   - specs/case-ledger-processing.yaml
+  - specs/case-proposal.yaml
+  - specs/case-management.yaml
 related_notes:
   - notes/case-ledger-authority.md
+  - notes/flaky-tests.md
   - notes/case-state-model.md
   - notes/message-type-reference.md
   - notes/testing-pitfalls.md
@@ -497,9 +500,20 @@ This is tracked as issue #1446.
 ## Genesis-Unavailable Buffer-and-Reject (SYNC-15)
 
 `Announce(CaseLedgerEntry)` can arrive at a participant replica before
-`Create(VulnerabilityCase)` has been processed (a delivery-order race under HTTP
-BackgroundTasks). When that happens, `ReconstructChainTailNode` cannot derive the
-per-case genesis hash (CLP-08-005) and returns FAILURE.
+`Create(VulnerabilityCase)` has been processed. When that happens,
+`ReconstructChainTailNode` cannot derive the per-case genesis hash (CLP-08-005)
+and returns FAILURE.
+
+**Until 2026-09 this was the normal path, not a race.** The CaseProposal accept
+tree committed the five initialization entries — each fanned out through the
+FIFO outbox — *before* it queued `Create(VulnerabilityCase)`, and the
+accept-invite tree fanned out the add-participant entry to a late joiner before
+`Announce(VulnerabilityCase)`. Every recipient of every new case therefore hit
+this path, rejected, and was replayed from genesis; the `Create` waited behind
+the whole fan-out (17 s in the fv CI log) and missed the demo's replica gate
+(#3033, #2898). Both trees now emit the case seed first (CP-09-009, CM-17-009),
+so the machinery below is what it was designed to be: recovery for genuine
+transport reordering and loss, not the steady state.
 
 **Before the fix (issue #1873)**: FAILURE from `ReconstructChainTailNode` exited
 the `ProcessAndStore` Sequence without reaching `CheckHashOrRejectOnMismatchNode`,

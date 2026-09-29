@@ -11,7 +11,8 @@ after step 1 and cleared on successful completion of step 2 so that a retry
 runner (#1139) can recover the obligation if delivery of step 2 fails.
 
 The normal-path Sequence performs CaseActor-native initialization per
-ADR-0041 before emitting outbound activities:
+ADR-0041, emits the outbound activities, and commits the canonical ledger
+entries last (CP-09-009):
 
   1. Resolve (or create) the VulnerabilityCase
   2. Add the proposing actor (report receiver) as CASE_OWNER participant at
@@ -21,11 +22,14 @@ ADR-0041 before emitting outbound activities:
   4. Initialize the default embargo (AC-3)
   5. Seed vendor (CASE_OWNER) as embargo SIGNATORY (CM-13)
   6. Seed reporter as embargo SIGNATORY (CM-14-005)
-  7. Commit canonical ledger entries natively (AC-4)
-  8. Emit ``Accept(as_CaseProposal)``
-  9. Write durable retry marker (CP-05-005)
-  10. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
-  11. Clear retry marker on success
+  7. Emit ``Accept(as_CaseProposal)``
+  8. Write durable retry marker (CP-05-005)
+  9. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
+  10. Clear retry marker on success
+  11. Commit canonical ledger entries natively (AC-4) — last, so their
+      fan-out queues behind the Create and every participant holds the case
+      before its first ``Announce(CaseLedgerEntry)`` arrives (CM-14-011,
+      CP-09-009)
 
 Admission (CP-05-002) and idempotency (CP-05-006):
 
@@ -243,18 +247,24 @@ def create_case_proposal_received_tree(
          embargo SIGNATORY (CM-13)
       8. ``SeedReporterSignatoryNode`` — reporter seeded as embargo
          SIGNATORY (CM-14-005); implicit consent per ADR-0048
-      9. ``CommitNativeLedgerEntriesNode`` — canonical ledger entries
-         committed (ADR-0041 AC-4)
-
       Then the outbound messaging steps:
 
-      10. ``EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
-      11. ``WriteCreateCaseMarkerNode`` — writes durable retry marker with
+      9. ``EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
+      10. ``WriteCreateCaseMarkerNode`` — writes durable retry marker with
          inline case object (CP-05-005, ADR-0041 AC-5)
-      12. ``EmitCreateVulnerabilityCaseNode`` — emits
+      11. ``EmitCreateVulnerabilityCaseNode`` — emits
          Create(VulnerabilityCase) with inline participants
-      13. ``ClearCreateCaseMarkerNode`` — removes marker on success
+      12. ``ClearCreateCaseMarkerNode`` — removes marker on success
          (CP-05-005)
+
+      Then, last:
+
+      13. ``CommitNativeLedgerEntriesNode`` — canonical ledger entries
+         committed (ADR-0041 AC-4).  Each commit fans out through the FIFO
+         outbox, so it runs after the Create: every recipient must hold the
+         case object before its first ``Announce(CaseLedgerEntry)`` arrives
+         (CM-14-011, CP-09-009), or it enters the SYNC-15 pre-genesis
+         reject/replay path on the normal case-creation route (#3033, #2898).
 
     If node 11 fails, the marker written in node 10 remains in the DataLayer so
     that a retry runner (#1139) can complete the ``Create(VulnerabilityCase)``
@@ -358,14 +368,11 @@ def create_case_proposal_received_tree(
             # Reporter consent is implicit in submitting the report (ADR-0048);
             # no invitation round-trip is needed or appropriate.
             SeedReporterSignatoryNode(report_id=report_id),
-            # ADR-0041 AC-4: commit canonical ledger entries natively
-            CommitNativeLedgerEntriesNode(
-                vendor_uri=vendor_uri,
-                report_id=report_id,
-                offer_id=offer_id,
-                offer_actor_id=offer_actor_id,
-            ),
-            # Outbound messaging
+            # Outbound messaging.  The case object is fully initialised at this
+            # point (participants, roles, embargo — CBT-01-009), so the
+            # bootstrap Create is a faithful record of a completed
+            # initialisation even though the canonical ledger entries that
+            # describe it are committed below.
             EmitAcceptCaseProposalNode(
                 proposal_id=proposal_id,
                 vendor_uri=vendor_uri,
@@ -380,6 +387,24 @@ def create_case_proposal_received_tree(
                 vendor_uri=vendor_uri,
             ),
             ClearCreateCaseMarkerNode(proposal_id=proposal_id),
+            # ADR-0041 AC-4: commit canonical ledger entries natively — AFTER
+            # the emits above, deliberately.  Each commit fans its entry out to
+            # every participant, and the outbox is FIFO (OX-01-002), so a commit
+            # placed ahead of Create(VulnerabilityCase) hands every recipient
+            # ledger entries for a case it does not hold yet: each one takes
+            # the SYNC-15 pre-genesis path (buffer, Reject, from-genesis
+            # replay) while the Create waits behind the whole fan-out.  That
+            # queue position is what timed out the replica gates in fv and
+            # fcv-reject (#3033) and congested the CaseActor outbox in fcvcv
+            # (#2898).  CM-14-011 states the rule and its rationale: the
+            # receiver's system must hold the case object before any
+            # Announce(CaseLedgerEntry) fan-out that references it.
+            CommitNativeLedgerEntriesNode(
+                vendor_uri=vendor_uri,
+                report_id=report_id,
+                offer_id=offer_id,
+                offer_actor_id=offer_actor_id,
+            ),
         ],
     )
 

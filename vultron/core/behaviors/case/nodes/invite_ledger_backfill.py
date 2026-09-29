@@ -56,11 +56,14 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
     This node writes ``pre_commit_backfill_target`` to the blackboard.
 
     **Fresh case** (invitee not yet registered, ``invitee_already_participant
-    = False``): the commit fan-out will NOT include the invitee (they are not
-    yet a participant), so backfill must include the newly committed entry in
-    its window.  This node does *not* write ``pre_commit_backfill_target``,
-    leaving ``BackfillCanonicalLedgerToInviteeNode`` to compute its target
-    from the post-commit ledger state.
+    = False``): the receipt commit's fan-out will NOT include the invitee (they
+    are not yet a participant), so backfill must include the newly committed
+    receipt entry in its window.  This node does *not* write
+    ``pre_commit_backfill_target``, leaving
+    ``BackfillCanonicalLedgerToInviteeNode`` to compute its target from the
+    ledger tail at backfill time.  The add-participant entry
+    (``EmitAddCaseParticipantNode``) is committed *after* the backfill and
+    reaches the invitee through its own fan-out, in chain order (CM-17-004).
 
     Always returns ``SUCCESS``.
     """
@@ -102,10 +105,11 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
         already_participant = self._already_participant_bb
 
         if not already_participant:
-            # Fresh case: commit fan-out won't reach invitee (not yet
-            # registered).  Write None to pre_commit_backfill_target so that
-            # BackfillCanonicalLedgerToInviteeNode uses the post-commit target,
-            # and any stale value from a prior resume test is overwritten.
+            # Fresh case: the receipt commit's fan-out won't reach the invitee
+            # (not yet registered).  Write None to pre_commit_backfill_target so
+            # that BackfillCanonicalLedgerToInviteeNode uses the ledger tail at
+            # backfill time, and any stale value from a prior resume test is
+            # overwritten.
             self._set_output("pre_commit_backfill_target", None)
             self.logger.debug(
                 "%s: fresh invite — clearing pre-commit backfill target"
