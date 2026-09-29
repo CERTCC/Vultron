@@ -6,8 +6,8 @@ description: >
   run under `uv run`, why `PYTHONPATH` must be cleared, the `UV_NO_SYNC=1`
   workaround for root-owned venvs, the 10-minute commit timeout the whole-tree
   flake8 hook demands, the hanging `actionlint` hook, pushing to `origin`
-  with `-u` rather than a token URL, and the hard-linked `.agents/` and
-  `.claude/` skill trees.
+  with `-u` rather than a token URL, and the `.claude/skills` symlink to
+  `.agents/skills`.
 related_notes:
   - notes/docker-build.md
   - notes/git-workflow-pitfalls.md
@@ -91,19 +91,25 @@ Sources: ISSUE-2627
 
 Skills push with `git push -u origin HEAD`. The credential helper
 (`!/usr/local/bin/gh auth git-credential`) resolves in this devcontainer, so no
-token needs to be embedded in the URL. Do **not** push to
-`https://x-access-token:$(gh auth token)@github.com/...`: a URL push cannot
-record upstream tracking, so every later bare `git push` fails with "no
-upstream configured" (#3893). Prefer `-u origin HEAD` over bare `git push` even
-when tracking exists — a branch created with `git switch -c <b> origin/main`
-tracks `origin/main`, and a bare push then refuses the name mismatch.
+token needs to be embedded in the URL. Skills used to push to
+`https://x-access-token:$(gh auth token)@github.com/...` without `-u`, so the
+branch got no upstream and every later bare `git push` failed with "has no
+upstream branch" (#3893). Adding `-u` to the URL form is no fix: git would
+record the URL, token included, as the branch's remote in `.git/config`.
+A bare push also fails on a branch created with `git switch -c <b> origin/main`:
+it tracks `origin/main`, and the default `push.default=simple` refuses the name
+mismatch. `-u origin HEAD` handles both.
 
 If a push ever fails with `gh: not found` (the helper path drifted from where
 `gh` is installed), do **not** run `gh auth setup-git` — `~/.gitconfig` is
-bind-mounted read-only. Pass a one-shot override with the real path instead:
+bind-mounted read-only. Pass a one-shot override with the real path instead.
+The empty first value clears the configured helper (a bare `-c` would only add
+a second one after it), and the single-quoted `'!'` keeps an interactive shell
+from reading `!$` as history expansion:
 
 ```bash
-git -c credential.https://github.com.helper="!$(command -v gh) auth git-credential" \
+git -c credential.https://github.com.helper= \
+  -c credential.https://github.com.helper='!'"$(command -v gh)"' auth git-credential' \
   push -u origin HEAD
 ```
 

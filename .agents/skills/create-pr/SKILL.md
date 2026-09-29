@@ -202,14 +202,15 @@ gh pr create --repo CERTCC/Vultron \
 
 Capture and return the PR URL emitted by `gh pr create`.
 
-Push to the named remote with `-u`, never to a token-embedded URL: a URL push
-cannot record upstream tracking, so every later bare `git push` (e.g.
-`pr-execute` Step 4) fails with "no upstream configured" (#3893).
+Always push with `-u` to the named remote `origin`. Without `-u` the branch
+gets no upstream, so every later bare `git push` fails ("has no upstream
+branch"). Never push to a token-embedded URL: with `-u`, git would record that
+URL — token included — as the branch's remote in `.git/config` (#3893).
 
 ### Draft-with-conflict path (unresolvable conflicts)
 
 If Phase 2 exited with code `1` (cherry-pick conflict): push the un-freshened
-branch as-is, then open a draft PR with `needs-rebase` label per
+branch as-is with the same `git push -u origin HEAD`, then open a draft PR with `needs-rebase` label per
 [REFERENCE.md](REFERENCE.md) § "Conflict PR template".
 
 ---

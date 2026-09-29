@@ -754,7 +754,7 @@ the current set of known-flaky tests.
 Environment-level pitfalls in this devcontainer: why every tool runs under
 `uv run`, why `PYTHONPATH` must be cleared, the `UV_NO_SYNC=1` workaround for a
 root-owned venv, pushing to `origin` with `-u` rather than a token URL, and the
-hard-linked `.agents/` and `.claude/` skill trees.
+`.claude/skills` symlink to `.agents/skills`.
 **Load when**: a tool fails to start, `git push` fails (auth or no upstream), or you are
 about to edit a skill file.
 
