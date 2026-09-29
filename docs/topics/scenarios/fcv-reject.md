@@ -20,7 +20,7 @@ causal_edges:
       is active.
   - antecedent: invite_actor_to_case
     consequent: reject_invite_actor_to_case
-    consequent_actor: coordinator
+    consequent_actor: vendor
     note: >
       The Vendor's rejection of the invitation is recorded by the CaseActor
       as a reject_invite_actor_to_case entry.  This must follow the invite.

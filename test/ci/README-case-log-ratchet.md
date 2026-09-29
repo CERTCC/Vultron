@@ -41,6 +41,11 @@ demo artifacts: `test_universal_event_types.py` and `test_diagnostic_map_sync.py
 are structural ratchets over the harness constants, the DEMOMA-16-001 spec
 statement and the diagnostic map, while `test_common.py`, `test_late_joiner.py`
 and `test_causal_edges_negative.py` unit-test the `common.py` check helpers.
+`test_narrative_edges.py` checks the committed `causal_edges:` blocks
+themselves — that each handoff narrative orders the ownership acceptance
+before the new owner's invite, and that no invitation response is attributed
+to the inviter — so an authoring slip fails here rather than waiting for a
+demo run.
 
 ---
 

@@ -22,11 +22,24 @@ causal_edges:
     note: >
       The Coordinator accepts Vendor1's invitation; acceptance follows the invite.
   - antecedent: accept_invite_actor_to_case
+    consequent: accept_case_ownership_transfer
+    consequent_actor: coordinator
+    note: >
+      The Coordinator accepts the ownership transfer from Vendor1 only after
+      it has joined the case; the ownership-transfer acceptance must follow
+      the Coordinator's participation acceptance.
+  - antecedent: accept_case_ownership_transfer
     consequent: invite_actor_to_case
     consequent_actor: coordinator
     note: >
-      After the ownership transfer, the Coordinator (as new case owner) invites
-      Vendor2.  This second invite follows the Coordinator's own acceptance.
+      As the new case owner, the Coordinator invites Vendor2.  This second
+      invite must follow the ownership acceptance.
+  - antecedent: invite_actor_to_case
+    consequent: accept_invite_actor_to_case
+    consequent_actor: vendor2
+    note: >
+      Vendor2 accepts the Coordinator's invitation; acceptance follows the
+      invite.
   - antecedent: validate_report
     consequent: close_case
     consequent_actor: coordinator
@@ -133,8 +146,7 @@ Coordinator.
 The Coordinator, now the case owner, identifies Vendor2 as affected and sends
 a second `invite_actor_to_case` entry.
 
-*Antecedent:* The Coordinator's `accept_invite_actor_to_case` entry is in the
-ledger (the Coordinator must have joined before inviting others).
+*Antecedent:* `accept_case_ownership_transfer` is in the ledger (the Coordinator must own the case before inviting others as its owner).
 
 ### 9. Vendor2 accepts the invitation
 
