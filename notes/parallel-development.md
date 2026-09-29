@@ -146,7 +146,7 @@ value and `sync-epic-schedules.sh` still raises leaves to their Epic's tier.
 7. Implement, validate, code-review (address [BLOCKING] findings),
    pushing the branch at each checkpoint (PAD-04-004)
 8. git fetch origin main && git rebase origin/main
-9. git push
+9. git push --force-with-lease -u origin HEAD
 10. gh pr create --title "..." --body "Closes #<N>\n\n..."
     → a draft PR keeps the issue In Progress; a ready PR moves it to In Review
     → the pr-size-label workflow measures the diff and labels the PR
