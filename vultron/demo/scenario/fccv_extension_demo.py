@@ -451,21 +451,23 @@ def _phase_c2_suggests_vendor(
 
     # CaseActor receives Accept → emits Invite(Actor, Case) to Vendor.  Poll
     # Vendor's DataLayer for the arriving Invite, then puppeteer Vendor's accept.
-    invite_id = None
-    with demo_check("Vendor received invite from CaseActor (ADR-0026 path)"):
+    # The invite is the causal precondition for the accept, so this is a
+    # demo_gate with the accept nested inside it — a timeout skips the accept
+    # instead of posting ``invite_id: None`` (EDF-06-005, #3038).
+    with demo_gate("Vendor received invite from CaseActor (ADR-0026 path)"):
         invite_id = find_case_invite_for_actor(
             client=vendor_client,
             case_id=case.id_,
             invitee_id=vendor.id_,
             timeout_seconds=20.0,
         )
-    logger.info("Vendor received CaseActor invite: %s", invite_id)
+        logger.info("Vendor received CaseActor invite: %s", invite_id)
 
-    with demo_step("Vendor accepts the CaseActor invitation"):
-        ActorSession(
-            client=vendor_client, actor=vendor_in_vendor
-        ).quiet().accept_case_invite(invite_id=invite_id)
-    logger.info("Vendor sent Accept(Invite) to CaseActor")
+        with demo_step("Vendor accepts the CaseActor invitation"):
+            ActorSession(
+                client=vendor_client, actor=vendor_in_vendor
+            ).quiet().accept_case_invite(invite_id=invite_id)
+        logger.info("Vendor sent Accept(Invite) to CaseActor")
 
     # Vendor's replica is seeded by the CaseActor's Announce(VulnerabilityCase)
     # sent in response to the Accept above.

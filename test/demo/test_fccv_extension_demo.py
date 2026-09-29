@@ -641,6 +641,61 @@ class TestFccvExtensionCausalGates:
             f"cp_offer gate fails: {accept_calls}"
         )
 
+    def test_vendor_accept_not_called_when_invite_gate_fails(self):
+        """demo_gate skips Vendor's accept-case-invite when find_case_invite_for_actor times out (#3038)."""
+        finder_client = self._client()
+        c1_client = self._client()
+        c2_client = self._client()
+        vendor_client = self._client()
+        c1_in_c1 = self._actor("urn:test:c1-in-c1")
+        c2_in_c2 = self._actor("urn:test:c2-in-c2")
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor-in-vendor")
+        finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        accept_invite = MagicMock()
+
+        with (
+            patch.object(ActorSession, "suggest_actor_to_case"),
+            patch.object(ActorSession, "accept_actor_recommendation"),
+            patch.object(ActorSession, "accept_case_invite", accept_invite),
+            patch.object(
+                demo,
+                "find_cp_offer_for_case",
+                return_value="urn:test:cp-offer",
+            ),
+            patch.object(
+                demo,
+                "find_case_actor_participant_id",
+                return_value="urn:test:case-actor",
+            ),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                side_effect=AssertionError("timed out polling for Invite"),
+            ),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "run_invite_path_rm_triage"),
+        ):
+            demo._phase_c2_suggests_vendor(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                c2_client=c2_client,
+                vendor_client=vendor_client,
+                c1_in_c1=c1_in_c1,
+                c2_in_c2=c2_in_c2,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                case=case,
+                offer=MagicMock(),
+                report=MagicMock(),
+                finder=finder,
+            )
+
+        accept_invite.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # Regression test — ISSUE-2811 timeout fix

@@ -1079,6 +1079,89 @@ class TestFccvHandoffCausalGates:
 
         coverage_wait_called.assert_not_called()
 
+    def _run_ownership_handoff(self, *, invite_lookup, offer_lookup):
+        """Drive _phase_ownership_handoff with the two lookups substituted.
+
+        Returns the (accept_case_invite, accept_case_ownership_transfer) mocks.
+        """
+        finder_client = self._client()
+        c1_client = self._client()
+        c2_client = self._client()
+        c1 = self._actor("urn:test:c1")
+        c1_in_c1 = self._actor("urn:test:c1-in-c1")
+        c2 = self._actor("urn:test:c2")
+        c2_in_c2 = self._actor("urn:test:c2-in-c2")
+        finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        accept_invite = MagicMock()
+        accept_transfer = MagicMock()
+
+        with (
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "wait_for_case_attributed_to"),
+            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(
+                ActorSession,
+                "invite_actor_to_case",
+                return_value=SimpleNamespace(
+                    activity=MagicMock(id_="urn:test:invite")
+                ),
+            ),
+            patch.object(
+                ActorSession,
+                "offer_case_ownership_transfer",
+                return_value=SimpleNamespace(
+                    activity=MagicMock(id_="urn:test:ownership-offer")
+                ),
+            ),
+            patch.object(ActorSession, "accept_case_invite", accept_invite),
+            patch.object(
+                ActorSession, "accept_case_ownership_transfer", accept_transfer
+            ),
+            patch.object(demo, "find_case_invite_for_actor", **invite_lookup),
+            patch.object(
+                demo, "find_ownership_transfer_offer_for_actor", **offer_lookup
+            ),
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+        ):
+            mock_vc.model_validate.return_value = case
+            demo._phase_ownership_handoff(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                c2_client=c2_client,
+                c1=c1,
+                c1_in_c1=c1_in_c1,
+                c2=c2,
+                c2_in_c2=c2_in_c2,
+                case=case,
+                finder=finder,
+            )
+        return accept_invite, accept_transfer
+
+    def test_c2_accept_invite_not_called_when_invite_gate_fails(self):
+        """demo_gate skips C2's accept-case-invite when find_case_invite_for_actor times out (#3038)."""
+        accept_invite, _ = self._run_ownership_handoff(
+            invite_lookup={
+                "side_effect": AssertionError("timed out polling for Invite")
+            },
+            offer_lookup={"return_value": "urn:test:ownership-offer"},
+        )
+        accept_invite.assert_not_called()
+
+    def test_c2_accept_transfer_not_called_when_offer_gate_fails(self):
+        """demo_gate skips C2's accept-case-ownership-transfer when the offer lookup times out (#3038)."""
+        _, accept_transfer = self._run_ownership_handoff(
+            invite_lookup={"return_value": "urn:test:invite"},
+            offer_lookup={
+                "side_effect": AssertionError(
+                    "timed out polling for Offer(VulnerabilityCase)"
+                )
+            },
+        )
+        accept_transfer.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # Regression test — ISSUE-2811 timeout fix

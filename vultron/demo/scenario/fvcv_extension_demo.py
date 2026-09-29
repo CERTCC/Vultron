@@ -448,22 +448,24 @@ def _phase_coordinator_suggests_vendor2(
     # must Accept(Invite) so the CaseActor sends the trust-bootstrap
     # Announce(VulnerabilityCase) (MV-10-003).  Poll Vendor2's DataLayer for the
     # arriving Invite, then puppeteer Vendor2's accept (ADR-0026 invite/accept/
-    # bootstrap chain; DEMOMA-10-005 / CM-16-006).
-    invite_id = None
-    with demo_check("Vendor2 received invite from CaseActor (ADR-0026 path)"):
+    # bootstrap chain; DEMOMA-10-005 / CM-16-006).  The invite is the causal
+    # precondition for the accept, so this is a demo_gate with the accept nested
+    # inside it — a timeout skips the accept instead of posting
+    # ``invite_id: None`` (EDF-06-005, #3038).
+    with demo_gate("Vendor2 received invite from CaseActor (ADR-0026 path)"):
         invite_id = find_case_invite_for_actor(
             client=vendor2_client,
             case_id=case.id_,
             invitee_id=vendor2.id_,
             timeout_seconds=60.0,
         )
-    logger.info("Vendor2 received CaseActor invite: %s", invite_id)
+        logger.info("Vendor2 received CaseActor invite: %s", invite_id)
 
-    with demo_step("Vendor2 accepts the CaseActor invitation"):
-        ActorSession(
-            client=vendor2_client, actor=vendor2_in_vendor2
-        ).quiet().accept_case_invite(invite_id=invite_id)
-    logger.info("Vendor2 sent Accept(Invite) to CaseActor")
+        with demo_step("Vendor2 accepts the CaseActor invitation"):
+            ActorSession(
+                client=vendor2_client, actor=vendor2_in_vendor2
+            ).quiet().accept_case_invite(invite_id=invite_id)
+        logger.info("Vendor2 sent Accept(Invite) to CaseActor")
 
     # Vendor2's replica is seeded by the CaseActor's Announce(VulnerabilityCase)
     # sent in response to the Accept above.  Poll Vendor2's container for it.

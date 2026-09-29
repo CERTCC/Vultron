@@ -567,6 +567,128 @@ class TestFcvcvCausalGates(_Helpers):
             f"cp_offer gate fails: {accept_calls}"
         )
 
+    def test_v1_accept_not_called_when_invite_gate_fails(self):
+        """demo_gate skips V1's accept-case-invite when find_case_invite_for_actor times out (#3038)."""
+        finder_client = self._client()
+        c1_client = self._client()
+        v1_client = self._client()
+        c2_client = self._client()
+        v2_client = self._client()
+        finder = self._actor("urn:test:finder")
+        c1 = self._actor("urn:test:c1")
+        v1 = self._actor("urn:test:v1")
+        c2 = self._actor("urn:test:c2")
+        v2 = self._actor("urn:test:v2")
+        case = self._case()
+
+        accept_invite = MagicMock()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fcvcv",
+                return_value=(finder, c1, v1, c2, v2),
+            ),
+            patch.object(demo, "get_actor_by_id", side_effect=[c1, v1, c2]),
+            patch.object(
+                demo,
+                "reporter_submits_report",
+                return_value=(MagicMock(), MagicMock()),
+            ),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "verify_case_active"),
+            patch.object(demo, "drain_phase1_ledger"),
+            patch.object(demo, "run_invite_path_rm_triage"),
+            patch.object(
+                ActorSession,
+                "invite_actor_to_case",
+                return_value=SimpleNamespace(
+                    activity=MagicMock(id_="urn:test:invite")
+                ),
+            ),
+            patch.object(ActorSession, "accept_case_invite", accept_invite),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                side_effect=AssertionError("timed out polling for Invite"),
+            ),
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+        ):
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                v1_client=v1_client,
+                c2_client=c2_client,
+                v2_client=v2_client,
+                finder_id=None,
+                c1_id=None,
+                v1_id=None,
+                c2_id=None,
+                v2_id=None,
+            )
+
+        accept_invite.assert_not_called()
+
+    def test_v2_accept_not_called_when_invite_gate_fails(self):
+        """demo_gate skips V2's accept-case-invite when find_case_invite_for_actor times out (#3038)."""
+        finder_client = self._client()
+        c1_client = self._client()
+        c2_client = self._client()
+        v2_client = self._client()
+        c1_in_c1 = self._actor("urn:test:c1-in-c1")
+        c2_in_c2 = self._actor("urn:test:c2-in-c2")
+        v1 = self._actor("urn:test:v1")
+        v2 = self._actor("urn:test:v2")
+        finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        accept_invite = MagicMock()
+
+        with (
+            patch.object(ActorSession, "suggest_actor_to_case"),
+            patch.object(ActorSession, "accept_actor_recommendation"),
+            patch.object(ActorSession, "accept_case_invite", accept_invite),
+            patch.object(
+                demo,
+                "find_cp_offer_for_case",
+                return_value="urn:test:cp-offer",
+            ),
+            patch.object(
+                demo,
+                "find_case_actor_participant_id",
+                return_value="urn:test:case-actor",
+            ),
+            patch.object(demo, "get_actor_by_id", return_value=MagicMock()),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                side_effect=AssertionError("timed out polling for Invite"),
+            ),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "run_invite_path_rm_triage"),
+        ):
+            demo._phase_c2_suggests_v2(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                c2_client=c2_client,
+                v2_client=v2_client,
+                c1_in_c1=c1_in_c1,
+                c2_in_c2=c2_in_c2,
+                v2=v2,
+                case=case,
+                offer=MagicMock(),
+                report=MagicMock(),
+                finder=finder,
+                v1=v1,
+            )
+
+        accept_invite.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # Regression test — ISSUE-2811 timeout fix

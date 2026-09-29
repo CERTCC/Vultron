@@ -699,6 +699,60 @@ class TestAddCaseStatusTree:
         assert saved_status.em.state == EM.PROPOSED
         assert saved_status.pxa.state == CS_pxa.Pxa
 
+    @pytest.mark.spec("RSH-05-019")
+    @pytest.mark.spec("SL-03-001")
+    def test_pxa_refusal_warning_names_case_id_not_status_id(
+        self, dl, make_payload, caplog
+    ):
+        """The PXA refusal WARNING reports the case ID, with the status ID labelled.
+
+        Bug #3039: FilterCsPxaDimensionNode filled the ``for case '%s'``
+        placeholder with the *status* ID, so an operator correlating the
+        warning against case IDs saw a URI that matched no case.  The sibling
+        EM refusal warning already reports ``case_id``; the two must agree.
+        """
+        import logging
+
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="PXA Refusal Log", attributed_to=ACTOR_ID
+        )
+        case.append_case_status(pxa_state=CS_pxa.Pxa)
+        dl.create(case)
+
+        # Valid EM advance + PXA regression → PXA dimension refused, tree
+        # still SUCCEEDS (partial accept), and the refusal is logged.
+        asserted = as_CaseStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em=EmDimension(state=EM.PROPOSED),
+            pxa=PxaDimension(state=CS_pxa.pxa),
+        )
+        dl.create(asserted)
+
+        activity = add_status_to_case_activity(
+            asserted, target=case.id_, actor=ACTOR_ID
+        )
+        event = make_payload(activity)
+        tree = add_case_status_tree(
+            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+        )
+        bridge = BTBridge(datalayer=dl)
+
+        with caplog.at_level(logging.WARNING):
+            result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        pxa_refusals = [
+            r.getMessage()
+            for r in caplog.records
+            if r.levelno == logging.WARNING and "refused PXA" in r.getMessage()
+        ]
+        assert len(pxa_refusals) == 1, pxa_refusals
+        msg = pxa_refusals[0]
+        assert f"for case '{CASE_ID}'" in msg, msg
+        assert f"status '{STATUS_ID}'" in msg, msg
+        assert f"for case '{STATUS_ID}'" not in msg, msg
+
     @pytest.mark.spec("RSH-05-012")
     def test_finalize_cs_filter_node_emstate_uses_name_serialization(
         self, dl, make_payload

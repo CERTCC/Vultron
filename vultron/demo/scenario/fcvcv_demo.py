@@ -340,7 +340,8 @@ def _phase_report_submission(
         invite_v1 = invite_v1_result.activity
         logger.info("V1 invite created: %s", invite_v1.id_)
 
-        invite_v1_id = None
+        # The accept is nested inside the gate so a lookup timeout skips it
+        # instead of posting ``invite_id: None`` (EDF-06-005, #3038).
         with demo_gate(
             "CaseActor-routed Invite for V1 stored in V1's DataLayer"
         ):
@@ -349,12 +350,12 @@ def _phase_report_submission(
                 case_id=case.id_,
                 invitee_id=v1.id_,
             )
-        logger.info("CaseActor Invite for V1: %s", invite_v1_id)
+            logger.info("CaseActor Invite for V1: %s", invite_v1_id)
 
-        with demo_step("V1 accepts the case invitation"):
-            ActorSession(
-                client=v1_client, actor=v1_in_v1
-            ).quiet().accept_case_invite(invite_id=invite_v1_id)
+            with demo_step("V1 accepts the case invitation"):
+                ActorSession(
+                    client=v1_client, actor=v1_in_v1
+                ).quiet().accept_case_invite(invite_id=invite_v1_id)
 
         with demo_check("V1's DataLayer received case replica"):
             wait_for_case_on_container(
@@ -531,11 +532,13 @@ def _phase_c2_suggests_v2(
     logger.info("C1 sent Accept(Offer(CaseParticipant)) to CaseActor")
 
     # CaseActor sends Invite to V2.  Poll V2's DataLayer for the arriving
-    # invite, then puppeteer V2's accept (DEMOMA-19-009: polling only).
+    # invite, then puppeteer V2's accept (DEMOMA-19-009: polling only).  The
+    # invite is the causal precondition for the accept, so this is a demo_gate
+    # with the accept nested inside it — a timeout skips the accept instead of
+    # posting ``invite_id: None`` (EDF-06-005, #3038).
     v2_in_v2 = get_actor_by_id(v2_client, v2.id_)
 
-    invite_id = None
-    with demo_check("V2 received invite from CaseActor (ADR-0026 path)"):
+    with demo_gate("V2 received invite from CaseActor (ADR-0026 path)"):
         invite_id = find_case_invite_for_actor(
             client=v2_client,
             case_id=case.id_,
@@ -544,11 +547,11 @@ def _phase_c2_suggests_v2(
         )
         logger.info("V2 received CaseActor invite: %s", invite_id)
 
-    with demo_step("V2 accepts the CaseActor invitation"):
-        ActorSession(
-            client=v2_client, actor=v2_in_v2
-        ).quiet().accept_case_invite(invite_id=invite_id)
-    logger.info("V2 sent Accept(Invite) to CaseActor")
+        with demo_step("V2 accepts the CaseActor invitation"):
+            ActorSession(
+                client=v2_client, actor=v2_in_v2
+            ).quiet().accept_case_invite(invite_id=invite_id)
+        logger.info("V2 sent Accept(Invite) to CaseActor")
 
     with demo_check("V2's DataLayer received case replica"):
         wait_for_case_on_container(

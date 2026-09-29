@@ -355,7 +355,8 @@ def _phase_ownership_handoff(
     invite = invite_result.activity
     logger.info("C2 invite created: %s", invite.id_)
 
-    invite_id = None
+    # The accept is nested inside the gate so a lookup timeout skips it
+    # instead of posting ``invite_id: None`` (EDF-06-005, #3038).
     with demo_gate("CaseActor-routed Invite for C2 stored in C2's DataLayer"):
         invite_id = find_case_invite_for_actor(
             client=c2_client,
@@ -363,13 +364,13 @@ def _phase_ownership_handoff(
             invitee_id=c2.id_,
             timeout_seconds=90.0,
         )
-    logger.info("CaseActor Invite for C2: %s", invite_id)
+        logger.info("CaseActor Invite for C2: %s", invite_id)
 
-    # C2 accepts the invite.
-    with demo_step("C2 accepts the case invitation"):
-        ActorSession(
-            client=c2_client, actor=c2_in_c2
-        ).quiet().accept_case_invite(invite_id=invite_id)
+        # C2 accepts the invite.
+        with demo_step("C2 accepts the case invitation"):
+            ActorSession(
+                client=c2_client, actor=c2_in_c2
+            ).quiet().accept_case_invite(invite_id=invite_id)
 
     # Wait for C2's case replica.
     with demo_check("C2's DataLayer received case replica"):
@@ -416,7 +417,8 @@ def _phase_ownership_handoff(
             ownership_offer.id_,
         )
 
-        ownership_offer_id = None
+        # The accept is nested inside the gate so a lookup timeout skips it
+        # instead of posting ``offer_id: None`` (EDF-06-005, #3038).
         with demo_gate(
             "CaseActor-forwarded Offer(VulnerabilityCase) delivered to C2 (TRIG-11-001)"
         ):
@@ -425,21 +427,21 @@ def _phase_ownership_handoff(
                 case_id=case.id_,
                 transferee_id=c2.id_,
             )
-        logger.info("Ownership transfer offer ID: %s", ownership_offer_id)
+            logger.info("Ownership transfer offer ID: %s", ownership_offer_id)
 
-        # C2 accepts the ownership transfer (TRIG-11-002).
-        accept_ownership = None
-        with demo_step("C2 accepts case ownership transfer (TRIG-11-002)"):
-            accept_result = (
-                ActorSession(client=c2_client, actor=c2_in_c2)
-                .quiet()
-                .accept_case_ownership_transfer(offer_id=ownership_offer_id)
-            )
-            accept_ownership = accept_result.activity
-            logger.info(
-                "C2 sent Accept(Offer(VulnerabilityCase)): %s",
-                accept_ownership.id_,
-            )
+            # C2 accepts the ownership transfer (TRIG-11-002).
+            with demo_step("C2 accepts case ownership transfer (TRIG-11-002)"):
+                accept_result = (
+                    ActorSession(client=c2_client, actor=c2_in_c2)
+                    .quiet()
+                    .accept_case_ownership_transfer(
+                        offer_id=ownership_offer_id
+                    )
+                )
+                logger.info(
+                    "C2 sent Accept(Offer(VulnerabilityCase)): %s",
+                    accept_result.activity.id_,
+                )
 
     # C2's outbox delivers the Accept to the CaseActor automatically (ADR-0042,
     # ADR-0053).  The CaseActor processes it and propagates the change via ledger
