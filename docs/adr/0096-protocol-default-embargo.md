@@ -423,3 +423,15 @@ CM-12-004, CM-14-006, CM-14-010 and CM-28-002 (amended);
 `specs/vultron-protocol-spec.yaml` VP-07-001 (amended);
 `specs/vultron-as2-mapping.yaml` VAM-05-001 (amended). Design notes:
 `notes/embargo-default-semantics.md`.
+
+## Amendment — 2026-09-28
+
+The decision named the carrier of a Reporter's terms (a proposed `EmbargoEvent` on `Offer(VulnerabilityReport)`) but not how those terms reach the actor that creates the case.
+The Offer is received by the vendor; the case is created by the case-actor service when it accepts the vendor's `CaseProposal`, and nothing carried the terms across that hop.
+
+Resolved in #3392: the `CaseProposal` carries the Offer itself, whole, as `inReplyTo` (CP-01-008).
+This is the inline twin of the bare provenance CP-01-007 already carried (`offerId`, `offerActorId`), and it follows ADR-0107's rule that a sender inlines the objects it introduces — the case-actor has never seen the Offer.
+The Reporter's terms therefore arrive as the Reporter stated them, not as the vendor's paraphrase of one field, and the case-actor extracts them with the same extractor the vendor used.
+The proposed event keeps its identity at case creation; only its `context` is rewritten from the report to the case (EP-04-004).
+The losing side of shortest-wins is registered as a pending revision through `EmbargoLifecycle.propose_embargo`, so a contested creation leaves the case at `EM.REVISE` (EP-04-003).
+The decision itself is unchanged.

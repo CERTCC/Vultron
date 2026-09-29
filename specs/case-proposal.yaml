@@ -97,6 +97,38 @@ groups:
       `test/core/behaviors/case/test_offer_provenance_on_proposal.py`
     adr:
     - ADR-0073
+  - id: CP-01-008
+    lint_suppress:
+    - missing_story_reference
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the proposing actor holds the `Offer(VulnerabilityReport)` that brought it the report,
+      `as_CaseProposal` MUST carry that Offer whole, inline, as `inReplyTo`. When both `inReplyTo` and
+      the bare provenance of CP-01-007 are present they MUST name the same Offer. The case-actor MUST
+      read the Reporter's proposed embargo terms (EP-04-004) from the Offer so carried, and MUST NOT
+      fetch or reconstruct them from anywhere else.
+    rationale: >-
+      The case-actor has never seen the Offer, and a sender inlines the objects it introduces
+      (ADR-0107); the bare `offerId` of CP-01-007 lets the case-actor *name* the submission but not
+      read it. Carrying the Offer whole is what lets the Reporter's terms arrive as the Reporter stated
+      them — the same activity the vendor received, not the vendor's paraphrase of one field — and it
+      is the only path by which EP-04-003's shortest-wins comparison at case creation ever gets a sender
+      candidate. `inReplyTo` is AS2's own name for the relationship: the proposal answers the report
+      submission.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-01-007
+    - rel_type: implements
+      spec_id: EP-04-004
+    verification: >-
+      `test/wire/as2/test_report_offer_proposed_embargo.py` (parse round trip of an Offer nested in a
+      CaseProposal; provenance/inline consistency) and
+      `test/core/behaviors/case/test_offer_provenance_on_proposal.py`
+      (`TestProposalCarriesTheOfferItself`).
+    adr:
+    - ADR-0096
+    - ADR-0107
 - id: CP-02
   title: MessageSemantics Values
   specs:

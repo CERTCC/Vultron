@@ -143,7 +143,8 @@ class AcceptEmbargoRequest(BaseModel):
     TB-03-001: Must include case_id to identify the target case.
     TB-03-002: Unknown fields are silently ignored (extra="ignore").
     Optional proposal_id identifies the specific EmProposeEmbargoActivity to accept;
-    if omitted, the first pending proposal for the case is used.
+    if omitted, the earliest-expiring open proposal for the case is used
+    (EP-08-002) — never the first recorded.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -163,7 +164,8 @@ class RejectEmbargoRequest(BaseModel):
     TB-03-001: Must include case_id to identify the target case.
     TB-03-002: Unknown fields are silently ignored (extra="ignore").
     Optional proposal_id identifies the specific EmProposeEmbargoActivity to reject;
-    if omitted, the first pending proposal for the case is used.
+    if omitted, the earliest-expiring open proposal for the case is used
+    (EP-08-002) — never the first recorded.
     """
 
     model_config = ConfigDict(extra="ignore")

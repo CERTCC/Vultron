@@ -118,12 +118,10 @@ class _ProposalOperationsMixin(_PecEffectsMixin):
             case.current_status.em = EmDimension(state=em_after)
             case_mutated = True
 
-        # Idempotent append: normalise existing refs to strings before checking
-        existing_embargo_ids = {
-            _as_id(e) for e in case.proposed_embargoes if _as_id(e) is not None
-        }
-        if embargo_id not in existing_embargo_ids:
-            case.proposed_embargoes.append(embargo_id)
+        # Idempotent append, by validated assignment (the pruner
+        # ``discard_proposed_embargo`` writes the same record the same way).
+        if embargo_id not in case.proposed_embargo_ids:
+            case.proposed_embargoes = [*case.proposed_embargoes, embargo_id]
             case_mutated = True
 
         if case_mutated or participant_changes:
@@ -234,6 +232,11 @@ class _ProposalOperationsMixin(_PecEffectsMixin):
                 case.set_embargo(embargo_id)
                 case_mutated = True
                 case_embargo_changed = True
+
+        if is_owner and case.discard_proposed_embargo(embargo_id):
+            # The owner's accept decides the proposal: it is no longer open
+            # (EP-08-003).  A participant's accept is consent, not a decision.
+            case_mutated = True
 
         # Record acceptance in actor's participant record (owner or non-owner)
         participant_changes = self._record_actor_pec_acceptance(
@@ -347,6 +350,9 @@ class _ProposalOperationsMixin(_PecEffectsMixin):
             )
             if em_after != em_before:
                 case.current_status.em = EmDimension(state=em_after)
+                case_mutated = True
+            if case.discard_proposed_embargo(embargo_id):
+                # The owner's reject decides the proposal (EP-08-003).
                 case_mutated = True
 
         participant_changes = self._record_actor_pec_rejection(

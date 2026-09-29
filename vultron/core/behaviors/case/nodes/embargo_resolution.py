@@ -116,8 +116,10 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
     proposal, so a policy some other actor published is never a candidate
     (EP-04-010).
 
-    ``sender_proposed_embargo_duration`` is the seam for EP-04-004's embedded
-    sender proposal; nothing writes it until that mechanism lands (#3392).
+    ``sender_proposed_embargo_duration`` is EP-04-004's sender proposal: the
+    case-proposal use case derives it from the ``EmbargoEvent`` the Reporter
+    embedded on the report Offer (carried on the proposal, CP-01-008) and
+    seeds it on the blackboard alongside ``sender_proposed_embargo`` (#3392).
     """
 
     def __init__(

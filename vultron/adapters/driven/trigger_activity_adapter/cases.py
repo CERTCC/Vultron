@@ -272,10 +272,17 @@ class _CasesMixin:
         ``Create(as_CaseProposal)`` to the DataLayer.
 
         ``offer_id``/``offer_actor_id`` are the report's offer provenance and are
-        carried through when supplied (CP-01-007).
+        carried through when supplied (CP-01-007).  When this store holds the
+        ``Offer(VulnerabilityReport)`` itself, it is carried whole under
+        ``inReplyTo`` (CP-01-008): the case-actor has never seen it, and a
+        sender inlines what it introduces (ADR-0107).  That is how the
+        Reporter's proposed embargo terms reach case creation (EP-04-004).
 
         Per CP-04-001, CP-04-002.
         """
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Offer,
+        )
         from vultron.wire.as2.vocab.objects.case_proposal import (
             as_CaseProposal,
         )
@@ -287,6 +294,20 @@ class _CasesMixin:
                 " in DataLayer"
             )
         report = _to_wire(report_obj, as_VulnerabilityReport)
+        offer: as_Offer | None = None
+        if offer_id is not None:
+            stored_offer = self._dl.read(offer_id)
+            if isinstance(stored_offer, as_Offer):
+                offer = stored_offer
+            else:
+                logger.warning(
+                    "create_case_proposal: offer '%s' for report '%s' is not"
+                    " in this store as an Offer (got %s); the proposal carries"
+                    " the bare provenance only (CP-01-007)",
+                    offer_id,
+                    report_id,
+                    type(stored_offer).__name__,
+                )
         proposal = as_CaseProposal(
             attributed_to=actor,
             object_=report,
@@ -294,6 +315,7 @@ class _CasesMixin:
             summary=summary,
             offer_id=offer_id,
             offer_actor_id=offer_actor_id,
+            in_reply_to=offer,
         )
         # Persist the proposal so the outbox expansion path can find it
         # when the as_Create activity is read back from the DataLayer.

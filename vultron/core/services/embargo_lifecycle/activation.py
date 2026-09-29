@@ -94,6 +94,9 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
 
         case.current_status.em = EmDimension(state=em_after)
         case.active_embargo = None
+        if embargo_id is not None:
+            # A torn-down embargo is no longer an open proposal (EP-08-003).
+            case.discard_proposed_embargo(embargo_id)
 
         participant_changes = self._cascade_pec_reset(case)
 
@@ -163,6 +166,8 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
         case.current_status.em = EmDimension(state=em_after)
 
         case.set_embargo(embargo_id)
+        # Activation decides the proposal that carried it (EP-08-003).
+        case.discard_proposed_embargo(embargo_id)
         self._persistence.save(case)
 
         logger.info(

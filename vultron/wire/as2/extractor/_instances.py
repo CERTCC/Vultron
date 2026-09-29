@@ -27,7 +27,9 @@ CreateEmbargoEventPattern = ActivityPattern(
     ),
     activity_=TAtype.CREATE,
     object_=AOtype.EVENT,
-    context_=VOtype.VULNERABILITY_CASE,
+    # The subject may be a case or, before a case exists, the report the
+    # embargo is about (VAM-05-001, EP-04-009, ADR-0096).
+    context_=(VOtype.VULNERABILITY_CASE, VOtype.VULNERABILITY_REPORT),
 )
 AddEmbargoEventToCasePattern = ActivityPattern(
     description=(

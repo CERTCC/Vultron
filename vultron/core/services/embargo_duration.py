@@ -36,6 +36,7 @@ from pydantic import BaseModel, ConfigDict
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.embargo_ordering import earliest_ending
 
 
 class EmbargoDurationSource(StrEnum):
@@ -114,9 +115,9 @@ def resolve_initial_embargo_duration(
             duration=protocol_default,
             source=EmbargoDurationSource.PROTOCOL_DEFAULT,
         )
-    # min() keeps the first of equal durations, so a tie resolves to the
-    # sender's terms — the same duration either way.
-    duration, source = min(candidates, key=lambda c: c[0])
+    # A tie keeps the first candidate, so it resolves to the sender's terms —
+    # the same duration either way.  One comparator with EP-08 (#3470).
+    duration, source = earliest_ending(candidates, end=lambda c: c[0])
     return InitialEmbargoDuration(duration=duration, source=source)
 
 

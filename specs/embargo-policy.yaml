@@ -244,10 +244,18 @@ groups:
       the contested portion. This is strictly better than rejecting outright: both parties
       secure the overlap they both wanted. See docs/topics/process_models/em/formal_model.md
       § "Why the shortest proposal wins" for the full vector-agreement derivation.
+    note: >-
+      An exact tie between the sender's terms and the actor default leaves nothing contested,
+      so no revision is registered and the case stays at `EM.ACTIVE`. The comparison is of the
+      time remaining at creation: the actor default is a duration from creation, and the
+      sender's remaining time is `end_time` minus now, so comparing them is comparing end dates.
     verification: >-
-      A unit test confirms that `InitializeDefaultEmbargoNode` sets `em_state` to
-      `EM.ACTIVE` for the shorter duration and records the longer as `EM.REVISE`
-      when both parties carry a proposal at case creation.
+      `test/core/behaviors/case/test_case_proposal_received_tree.py`
+      (`TestEP04SenderProposalAtCaseCreation`) confirms that when both parties carry a
+      proposal at case creation the shorter is the active embargo and the longer is registered
+      through `EmbargoLifecycle.propose_embargo`, leaving `em_state` at `EM.REVISE` with the
+      loser in `proposed_embargoes`; `test/core/behaviors/case/nodes/test_embargo_resolution.py`
+      pins the duration table.
     relationships:
     - rel_type: refines
       spec_id: EP-08-001
@@ -265,7 +273,9 @@ groups:
     rationale: >-
       This discharges the contingency this requirement previously recorded. Until ADR-0096 no
       sender-proposal mechanism existed, so EP-04-003 was unreachable and only the
-      no-sender-proposal path applied.
+      no-sender-proposal path applied. Implemented by #3392: the Offer carries the proposal as
+      `proposedEmbargo`; the vendor's `CaseProposal` carries the Offer whole (CP-01-008); the
+      case-actor's `CreateEmbargoEventNode` keeps the Reporter's event and rewrites its context.
     note: >-
       Embedding the proposal on the report offer was chosen over two alternatives. An
       activity-level `end_time` on the `Offer` would add a third meaning to a field CM-28-001
@@ -273,9 +283,11 @@ groups:
       a standing preference, not terms for this report — "I generally prefer 30 days" is not
       "for this report I propose 30 days". Amended by ADR-0096.
     verification: >-
-      A unit test confirms that `Offer(VulnerabilityReport)` carrying a proposed `EmbargoEvent`
-      is extracted with the proposal intact, and that the context is rewritten from the report
-      URI to the case URI when the case is created.
+      `test/wire/as2/test_report_offer_proposed_embargo.py` confirms that `Offer(VulnerabilityReport)`
+      carrying a proposed `EmbargoEvent` is extracted with the proposal intact, on the Offer and on the
+      `CaseProposal` that carries it; `test/core/behaviors/case/test_case_proposal_received_tree.py`
+      (`TestEP04SenderProposalAtCaseCreation`) confirms the context is rewritten from the report URI to
+      the case URI when the case is created, with the event's identity kept.
     relationships:
     - rel_type: refines
       spec_id: EP-04-003
@@ -413,9 +425,10 @@ groups:
       `vultron/core/models/events/embargo.py` are on that field, for `Announce`/`Invite` events
       whose context genuinely is a case, and are unaffected by this widening.
     verification: >-
-      A unit test confirms an `EmbargoEvent` constructed with a report URI context validates, and
-      that every consumer of `EmbargoEvent.context` resolves the referent type rather than
-      assuming a case.
+      `test/wire/as2/test_report_offer_proposed_embargo.py` confirms an `EmbargoEvent` constructed with
+      a report URI context validates and travels on the Offer; `CreateEmbargoEventPattern` admits both
+      subjects (VAM-05-001). No consumer of `EmbargoEvent.context` casts it to a case: the field is read
+      as an identifier only.
     adr:
     - ADR-0096
     stories:
@@ -730,7 +743,9 @@ groups:
       `docs/topics/process_models/em/defaults.md` but existed nowhere in `specs/`.
       Because `spec-dump` is the corpus agents read, the rule was invisible to
       implementation and the code diverged from it — `find_embargo_proposal_id`
-      selected by arrival order instead. Recording it here is the correction.
+      selected by arrival order until #3470. Recording it here is the correction; the
+      shared comparator is `earliest_ending` in `vultron/core/services/embargo_ordering.py`,
+      which EP-04-003's case-creation merge also uses.
     verification: >-
       A unit test asserts that, given three open proposals with distinct embargo
       `end_time` values, the proposal selected for acceptance is the earliest-expiring
@@ -788,14 +803,19 @@ groups:
       answer, which is why the retention rule is stated alongside the ordering rule
       rather than left as hygiene.
     note: >-
-      Two records of overlapping state are involved and **neither** is fully
-      pruned. `pending_embargo_proposal_index` has one writer and no remover at
-      all, so it grows without bound.
-      `VulnerabilityCase.proposed_embargoes` is pruned only on teardown, by
-      `RemoveFromProposedEmbargoesNode` in `remove_embargo_from_case_tree`;
-      `reject_proposed_embargo_bt` does not include that node, so a rejected
-      proposal stays in both records. This requirement therefore covers every
-      record of open proposals, not just the index.
+      Two records of overlapping state are involved: `pending_embargo_proposal_index`
+      and `VulnerabilityCase.proposed_embargoes`. Before #3470 **neither** was fully
+      pruned — the index had one writer and no remover, and `proposed_embargoes` was
+      pruned only on teardown by `RemoveFromProposedEmbargoesNode`, which
+      `reject_proposed_embargo_bt` did not include, so a rejected proposal stayed in
+      both records. Both are now pruned together by
+      `VulnerabilityCase.discard_proposed_embargo`, called from every `EmbargoLifecycle`
+      decision (owner accept, owner reject, activation, termination) and from
+      `RemoveFromProposedEmbargoesNode` — on teardown unconditionally, and in the
+      received `Reject(Invite)` tree gated on the rejecting actor being the case owner,
+      so a replica forgets the proposal the owner rejected while a participant's
+      Reject (consent, not a decision) prunes nothing. This requirement covers every
+      record of open proposals on every replica, not just the index.
     verification: >-
       A unit test asserts that accepting a proposal, rejecting a proposal, and
       tearing down an embargo each leave no corresponding entry in the open-proposal
