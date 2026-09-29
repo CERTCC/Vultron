@@ -324,13 +324,14 @@ may be sent as a stub or must be inlined or referenced by URI, or scoping
 privacy/redaction features.
 
 **`bt-integration.md`**
-Core BT design decisions: when to use BTs vs procedural code, py_trees
+Core BT design decisions: when to use BTs vs procedural code, the four
+received-side stages (intake → guards → commit → effects, ADR-0111), py_trees
 patterns, simulation-to-prototype translation strategy, actor isolation,
 concurrency model, RM state machine context, EvaluateCasePriority direction,
 composability, and open architecture questions.
 **Load when**: making architecture decisions about BT structure, deciding
-whether a new use case needs a BT, or implementing a BT-backed use case
-from scratch.
+whether a new use case needs a BT, implementing a BT-backed use case from
+scratch, or deciding where a DataLayer write belongs in a received-side tree.
 
 **`bt-canonical-reference.md`**
 Canonical CVD Protocol Behavior Tree structural reference: trunk-removed

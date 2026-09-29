@@ -8,8 +8,10 @@ description: >
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
+  - specs/case-ledger-processing.yaml
 related_notes:
   - notes/bt-canonical-reference.md
+  - notes/case-ledger-authority.md
   - notes/bt-pitfalls.md
   - notes/bt-fuzzer-nodes.md
   - notes/protocol-event-cascades.md
@@ -320,7 +322,42 @@ The `execute()` method MAY contain infrastructure glue only:
 - Check BT status
 - Extract output from the blackboard
 
-Nothing domain-significant lives outside the tree.
+Nothing domain-significant lives outside the tree. In particular, a call from
+`execute()` to a helper function that writes to the DataLayer is **not** glue:
+the write is outside the tree whatever the helper is named, and the mutation
+ratchet (`test/architecture/test_no_dl_mutations_in_execute.py`) resolves such
+calls through the use-case package transitively (CLP-10-020). Eleven received
+`execute()` bodies in nine files once reached a write this way, most through one
+shared `_idempotent_create` helper and the rest through bespoke ones, invisible to
+the ratchet because the write sat one call away (ISSUE-3339, ADR-0111).
+
+### The Four Received-Side Stages (ADR-0111)
+
+A received-side tree composed via `create_receive_activity_tree` runs four
+stages in a fixed order (CLP-10-006, CLP-10-010):
+
+1. **Intake** — one shared node stores the received activity and every object
+   the sender inlined in it, exactly as received, idempotently. It decides
+   nothing and ledgers nothing (CLP-10-017). It runs first, so a refusal a
+   moment later still leaves the receiver holding what arrived (CLP-10-018).
+2. **Guards** — read-only precondition checks that return FAILURE to refuse.
+   They write nothing. A refusal goes to the process log and, where the
+   protocol calls for it, a `Reject` back to the sender — never to the ledger
+   (CLP-05-002).
+3. **Commit** — the CASE_MANAGER ledgers the received activity as received, a
+   postmark on the envelope (ADR-0107, CLP-07-011). It never rebuilds the
+   assertion from processed state.
+4. **Effects** — apply the accepted assertion to the local replica and enqueue
+   any cascades.
+
+Intake is the only path that stores the received activity (CLP-10-019). Do not
+add a per-tree store node or a handler-local store helper; the factory already
+supplies the intake node as the first child of every tree it builds. A receive
+tree that composes `create_case_manager_gated_tree` directly bypasses intake, so
+every receive tree composes through the factory (#3870 moves the two that do
+not). Intake is also where the receiver keeps the raw material ADR-0107 needs:
+the sealed received evidence for deferred replay, and the objects a later ledger
+entry may name only by reference.
 
 ### Trigger/Received Parity
 
