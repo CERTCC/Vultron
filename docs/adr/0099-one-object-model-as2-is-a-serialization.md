@@ -8,14 +8,14 @@ stakeholder_type: [project-contributor]
 
 # One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy
 
-> **Implementation status as of 2026-09-29: decided and built, with details 7
-> and 8 open.** The decision details below are in the present tense because
-> they state the decision, not the state of the code — that is the MADR
-> convention. Every migration issue under #2670 is closed and the record is
-> `accepted` (#3491). [Validation](#validation) maps each of the ten details to
-> the test that holds it, and records that details 7 and 8 are not what the
-> code does. [Migration](#migration) is kept as the record of how the work
-> landed and of the amendments made along the way.
+> **Implementation status as of 2026-09-29: decided and built.** The decision
+> details below are in the present tense because they state the decision, not
+> the state of the code — that is the MADR convention. Every migration issue
+> under #2670 is closed and the record is `accepted` (#3491).
+> [Validation](#validation) maps each of the ten details to the test that holds
+> it; details 7 and 8 were amended there to say what was built (#3888).
+> [Migration](#migration) is kept as the record of how the work landed and of
+> the amendments made along the way.
 
 ## Context and Problem Statement
 
@@ -188,22 +188,46 @@ spelling, and both are the status classes covered by ADR-0036.
    relocating a file cannot evade it, and it is an allow-list so a new core
    package is forbidden by default. ARCH-01-001 (core MUST NOT import wire) is
    unchanged and remains fully satisfied.
-7. **Reading is strict, with unknown fields set aside.** Recognised fields are
-   validated strictly and a violation is refused at the edge (ADR-0032).
-   Unrecognised fields are set aside before validation, not rejected — AS2 is
-   designed to be extended, and refusing on an unknown key would make Vultron
-   unable to federate with any implementation that adds a property. Their
-   values are already preserved verbatim in the ledger payload snapshot
-   (CLP-07-001), so no core class gains a loose "extras" field.
-8. **Set-aside fields are reported, and near misses are warnings.** Every
-   unrecognised field is noted at `INFO`. A `WARNING` is raised when the field
-   matches a known field name or alias on the class being read after
-   lowercasing and stripping non-alphanumerics, or when it matches a name the
-   project has retired. Fuzzy/edit-distance matching is explicitly **not**
-   adopted: it needs a tuned threshold, and AS2 has many two- and three-letter
-   field names (`to`, `cc`, `bto`, `bcc`, `id`, `url`, `tag`) within one
-   character of each other. The two deterministic checks catch every failure of
-   this kind the project has actually had, including #2262.
+7. **Reading is strict, and an unrecognised field on a core object is
+   refused.** Recognised fields are validated strictly and a violation is
+   refused at the edge (ADR-0032). An unrecognised field is refused the same
+   way: `CoreObject` resolves `extra="forbid"` (ARCH-12-003), so a key that
+   matches no field and no alias raises rather than being dropped, and the
+   sender learns of it from the 422 rather than from silence. This is the
+   fail-loudly driver applied to the read path — #2232 and #2262 were both a
+   key vanishing without a trace. No core class gains a loose "extras" field.
+
+   **Amended 2026-09-29 (#3888).** As first written this detail said
+   unrecognised fields were "set aside before validation, not rejected",
+   because AS2 is designed to be extended and refusing an unknown key would keep
+   Vultron from federating with an implementation that adds a property. That
+   was never built: #2940 landed `extra="forbid"` on every core object, inbound
+   and stored alike, and ARCH-12-003 made it a MUST. The federation argument is
+   answered differently. An extension a peer wants Vultron to *read* is a
+   vocabulary change, and vocabulary changes ship through the versioned context
+   document (ADR-0106) under the governance #3368 decides — not through a reader
+   that tolerates undeclared keys, which is the mechanism that lost data twice.
+   The activity envelope is the one place a peer's extension property still
+   lands without refusal: `as_Base` keeps Pydantic's default `extra="ignore"`,
+   so an unknown envelope key is dropped, today silently. #3900 tracks reporting
+   it.
+8. **Every legitimate AS2 field is declared, so "unrecognised" means
+   unknown.** The AS2 object and activity field sets are declared in full on
+   the core roots — including fields Vultron does not use, such as `bto`,
+   `bcc`, `icon`, `image` — so a recognised-but-ignored field is distinguished
+   structurally from an unknown one, and only the unknown one is refused under
+   detail 7. A refusal names the key (EH-07-001 lists every violation), so the
+   report *is* the error.
+
+   **Amended 2026-09-29 (#3888).** As first written this detail said set-aside
+   fields were reported at `INFO`, with a `WARNING` when the key was a near
+   miss for a declared field or alias (after lowercasing and stripping
+   non-alphanumerics) or matched a retired name; fuzzy/edit-distance matching
+   was rejected because AS2 has many two- and three-letter field names within
+   one character of each other. With detail 7 refusing instead of setting aside,
+   there is nothing on a core object left to report. The deterministic
+   near-miss check remains the right shape for the envelope, where keys are
+   still dropped, and moves with that work to #3900.
 9. **Object slots hold the whole object, not an ID.** Reading resolves an IRI
    reference to the referenced object; an unresolvable reference is deferred or
    refused. **`rehydrate()` owns that materialisation** — VM-06-007, in
@@ -459,8 +483,8 @@ migration issue under #2670 closed and the annotated architecture requirements
 (see *More Information*) were rewritten to the one-object model. Detail 5 was validated by
 the spike above before anything else was built; the other details were built
 under their own issues, and each is held by a test the way the table records.
-Two are not: details 7 and 8 are not what the code does, and the paragraph
-after the table says exactly how they differ.
+Details 7 and 8 were amended in #3888 to say what was built; the paragraph
+after the table records why.
 
 | detail | held by |
 |---|---|
@@ -470,26 +494,23 @@ after the table says exactly how they differ.
 | 4 — the shared root is deleted | `test/wire/as2/vocab/base/test_wire_base_hierarchy.py`: `as_Base` stands directly on `pydantic.BaseModel`. `TestCoreRoots` and `test_wire_vocabulary_inherits_nothing_from_core` (`test/architecture/test_hierarchy_invariants.py`): core has exactly two roots and wire inherits neither. |
 | 5 — dimensions serialize as a bare value | `test/core/models/test_dimension_bare_serialization.py`, including the parity of core and wire AS2 output. |
 | 6 — wire→core allow-list | `test/architecture/test_wire_core_import_allowlist.py`, replacing the deleted ratchet. `test/architecture/test_core_no_wire_imports.py` holds ARCH-01-001 unchanged. |
-| 7 — strict reading, unknown fields set aside | **Not built as written.** `test_unknown_key_raises_for_every_core_vocabulary_entry` (`test/architecture/test_core_extra_forbid.py`) holds the *opposite* of the detail's second sentence: an unrecognised key on a core object is refused, not set aside. See below. |
-| 8 — set-aside fields reported, near misses warned | **Not built.** No path logs an unrecognised key at any level, and no near-miss check exists. `test_vultron_activity_accepts_every_wire_activity_key` (`test/adapters/driving/fastapi/test_outbox_helpers.py`) cites this detail but pins the complementary rule: every legitimate AS2 field is declared, so only a truly unknown key is unrecognised. |
+| 7 — strict reading, unknown fields refused (as amended) | `test_unknown_key_raises_for_every_core_vocabulary_entry` and `test_every_core_object_forbids_extra_with_no_exemption_list` (`test/architecture/test_core_extra_forbid.py`): every `CoreObject` subclass refuses an unknown key, with no exemption list. |
+| 8 — every AS2 field declared, so only unknown keys are refused (as amended) | `test_vultron_activity_accepts_every_wire_activity_key` (`test/adapters/driving/fastapi/test_outbox_helpers.py`): every key a wire activity dumps is a declared `VultronActivity` field, so a legitimate field is never the unknown one. Envelope-level reporting of dropped keys is #3900. |
 | 9 — object slots hold the whole object | `test/wire/as2/test_rehydration_materialisation.py`: `rehydrate()` materialises, refuses on a model-only slot, defers on a URI-admitting one. |
 | 10 — vocabulary and message set stay separate | `test/test_message_semantics_mapping.py` (MSM-03 to MSM-05): the formal shorthands map onto the semantic registry rather than onto AS2 types one-for-one. The reconciling artifact is `notes/message-type-reference.md` (ADR-0083). |
 
-**Details 7 and 8 diverge from the code, and the divergence is unadjudicated.**
-`CoreObject` resolves `extra="forbid"` (ARCH-12-003, #2940), so an unrecognised
-key on any core object — inbound in a message slot, or read back from a stored
-row — raises. `as_Base` keeps Pydantic's default `extra="ignore"`, so an
-unrecognised key on the wire *envelope* is dropped silently. Neither path sets
-the key aside, and nothing reports one. ARCH-12-003's rationale names detail 7
-as the argument its `forbid` clause enforces, which keeps the detail's first
-sentence (recognised fields are validated strictly) and inverts its second
-(unrecognised fields are not rejected); the disposition row for #2940 under
-*More Information* originally said inbound reading would be covered by details 7
-and 8, which did not happen. The detail's own reason for not refusing — that AS2 is
-designed to be extended and a peer adding a property must still federate — has
-not been answered anywhere in the record. Which behaviour the project means is
-a decision, not a documentation fix, so this section records the gap rather
-than resolving it; until it is resolved, no test can hold either detail.
+**Details 7 and 8 were amended to match the code (#3888).** As first written
+they described a set-aside-and-report design: unrecognised fields kept but not
+validated, logged at `INFO`, with near-miss warnings. It was never built. #2940
+put `extra="forbid"` on every core object instead, ARCH-12-003 made that a
+MUST, and its rationale cited detail 7 as the argument it enforced while the
+detail said the opposite — so the spec and the ADR each read the other as
+confirmation. The graduation in #3491 did not catch it: closing every issue
+under #2670 showed the *work items* were done, not that each detail had a test,
+and the `lint_suppress` added to get past the stale status sentence in
+Validation also silenced the gate that would have asked. The reconciliation adopts fail-loudly
+and answers the federation argument on the details themselves; the one path
+that still drops a key silently, the activity envelope, is #3900.
 
 ## Pros and Cons of the Options
 
@@ -681,7 +702,7 @@ which had previously held that pointer, was retired (#3492).
 | #2939 move projection to adapter-side translators | cancelled — no projection code |
 | #2942 relocate the semantic extractor | cancelled — it only moved to evade ARCH-22-001 |
 | #2944 / #2670 / #2673 the ARCH-22 ratchet and its exemption set | replaced by one allow-list test |
-| #2940 `extra="forbid"` on the core branch | landed as filed, not re-scoped: every core object refuses an unrecognised key, inbound and stored alike (ARCH-12-003). That leaves details 7 and 8 unbuilt — see [Validation](#validation) |
+| #2940 `extra="forbid"` on the core branch | landed as filed, not re-scoped: every core object refuses an unrecognised key, inbound and stored alike (ARCH-12-003). Details 7 and 8 were amended to match (#3888) |
 | #2947 evaluate `activitypubdantic` | unchanged, still deferred |
 
 Generated spec requirements: `SDO-01-004` (detail 5, new). `SDO-03-004`'s

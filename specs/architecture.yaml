@@ -300,8 +300,9 @@ groups:
       matching *no* field and being silently discarded, not a key having two spellings: a
       reader that accepts several spellings for the *same* field on the *same* class, as
       `ParticipantStatus.rm` does with `AliasChoices("rmState", "rm_state", "rm")`, never
-      decides what the data means. ADR-0099 detail 7 ("reading is strict, with unknown fields
-      set aside") is where that argument attaches, and `extra="forbid"` is its enforcement:
+      decides what the data means. ADR-0099 detail 7 ("reading is strict, and an unrecognised
+      field is refused", as amended in #3888) is where that argument attaches, and
+      `extra="forbid"` is its enforcement:
       Pydantic v2 defaults to `extra="ignore"`, so without it a wire-shaped payload handed to a
       core type silently loses every key it does not recognise, which is how a participant's RM
       ladder was reset without a trace. Forbidding unknown keys is strictly stronger than
