@@ -73,6 +73,7 @@ A change that is only proposed does not.
 - **EM returns to `Active` with revised terms.** The CASE_MANAGER MUST re-evaluate every participant's consent against the new terms.
   If the revised embargo ends no later than the one it replaces, every signatory is carried over unchanged.
   If it ends later, every `SIGNATORY` that has not accepted the revised terms MUST move to `LAPSED`.
+  In either case a participant in any other state that has already accepted the revised terms MUST move to `SIGNATORY`; only signatories to the replaced terms are carried over.
 - **EM returns to `Active` because the owner rejected the revision.** No consent changes; the prior terms stand.
 - **EM enters `Exited`.** The CASE_MANAGER MUST reset every participant's PEC
   machine to `UNBOUND`. No embargo is in scope, so no consent is either.

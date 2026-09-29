@@ -10,6 +10,7 @@ description: >
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
+  - specs/message-semantics-mapping.yaml
 related_notes:
   - notes/embargo-default-semantics.md
   - notes/participant-embargo-consent.md

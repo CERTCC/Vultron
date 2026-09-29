@@ -110,12 +110,16 @@ case differs from the one it agreed to.**
 | Event | Effect on consent |
 |---|---|
 | Revision B proposed (`ACTIVE → REVISE`, or a counter `REVISE → REVISE`) | none; the proposer's list gains B |
-| Non-owner accepts B while REVISE | list gains B; state unchanged (still signatory to A) |
-| Non-owner rejects B while REVISE | B absent from list; state unchanged — refusing B is not withdrawing from A |
+| Non-owner signatory accepts B while REVISE | list gains B; state unchanged (still signatory to A) |
+| Non-owner signatory rejects B while REVISE | B absent from list; state unchanged — refusing B is not withdrawing from A |
+| Non-signatory (`INVITED`/`UNBOUND`/`LAPSED`) accepts B while REVISE | list gains B; state unchanged until B activates |
+| Non-signatory rejects B while REVISE | `DECLINE` → `DECLINED` — there is no consent to A for the refusal to leave intact (MSM-07-004) |
 | Any participant rejects the *active* embargo | `DECLINE`: `SIGNATORY → DECLINED` (withdrawal, ADR-0093) |
 | Owner rejects B (EJ, `REVISE → ACTIVE` under A) | none — the owner is choosing to keep A, not declining it |
 | Owner activates B, and B ends **no later than** A | every A-signatory carried over: B added to their list, state unchanged |
 | Owner activates B, and B ends **later than** A | every `SIGNATORY` whose list lacks B → `LAPSED` (`REVISE` trigger); those with B stay |
+| Owner activates B (either arm); a non-signatory's list already holds B | `ACCEPT` → `SIGNATORY`: it accepted the embargo now in force |
+| Owner activates B; participant already `LAPSED` or `INVITED` to A without B | unchanged — only A-signatories are carried over; re-invite (`LAPSED → INVITED`, or the stale-terms path, EMB-17) |
 | Termination (`→ EXITED`) | `RESET` everyone to `UNBOUND` (unchanged) |
 
 The asymmetry is the same containment argument that makes shortest-wins safe

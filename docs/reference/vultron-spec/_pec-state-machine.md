@@ -39,10 +39,8 @@ A participant can therefore be a signatory to the active embargo and have alread
 
 ### 9.2 Transitions and Guards
 
-Five triggers drive the machine. **Invite** extends an invitation, **accept** and
-**decline** record the participant's answer, **revise** fires when the case owner
-activates revised terms that end later than the terms a signatory accepted, and
-**reset** fires when the embargo enters Exited.
+Five triggers drive the machine.
+**Invite** extends an invitation, **accept** and **decline** record the participant's answer, **revise** fires when the case owner activates revised terms that end later than the terms a signatory accepted, and **reset** fires when the embargo enters Exited.
 
 | From | Trigger | To |
 |---|---|---|
@@ -77,11 +75,13 @@ Only the case owner's accept or reject changes the embargo on the case; the othe
 When the owner activates the revision, consent is re-evaluated against the new terms, and the direction of the change matters.
 A revision that ends **no later than** the terms it replaces asks nothing new of anyone who agreed to the old terms, since agreeing to N days is agreeing to every shorter period; every signatory is carried over as a signatory to the new terms.
 A revision that ends **later** asks for more than they promised; every signatory that has not accepted it moves to Lapsed by the revise trigger, and those that did accept it stay Signatory.
+In either case a participant in any other state that had already accepted the revision becomes Signatory to it, because it has accepted the embargo now in force.
+Only signatories to the old terms are carried over: a participant already Lapsed stays Lapsed until it is invited again or accepts, and an Invited participant whose invitation the activation has made stale is handled as in [§9.4](index.md#94-deadlines-and-the-pocket-veto).
 If the owner rejects the revision instead, the old terms stand and nobody's consent changes.
 
 !!! warning "Lapsed is neither the proposal state nor the deadline state"
     Lapsed is reached only from Signatory, and only by the revise trigger.
-    That trigger fires when the case owner *activates* longer terms the participant has not accepted, never when a revision is merely proposed and never when the revision shortens the embargo.
+    That trigger fires when the case owner *activates* longer terms the participant has not accepted, never when a revision is merely proposed and never when the revision ends no later than the accepted terms.
     It means the participant did agree, and the embargo in force has since become something it did not agree to.
 
     A participant that lets an invitation deadline pass reaches **Declined**, not Lapsed.
@@ -102,10 +102,8 @@ Two consequences follow:
 
 - Accept and decline are valid directly from Unbound. No invitation is
   required.
-- The transition from Signatory to Invited MUST be rejected. Consent already
-  given cannot be withdrawn by re-inviting the participant; if longer terms the
-  participant has not accepted take effect, the revise trigger lapses the
-  consent instead.
+- The transition from Signatory to Invited MUST be rejected.
+  Consent already given cannot be withdrawn by re-inviting the participant; if longer terms the participant has not accepted take effect, the revise trigger lapses the consent instead.
 
 Unbound is also the state every participant returns to when an embargo ends,
 which is independent evidence for the absence reading: reset fires when the

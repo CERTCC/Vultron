@@ -795,12 +795,21 @@ groups:
   - id: CM-10-001
     priority: MUST
     kind: protocol
-    statement: '`CaseParticipant` MUST track which embargo(es) a participant has explicitly accepted'
+    statement: >-
+      `CaseParticipant` MUST track which embargo(es) a participant has accepted — explicitly, by an
+      `Accept`, or by containment, when the case owner activates a revision that ends no later than
+      terms the participant had accepted (EP-05-001).
+    rationale: >-
+      Consent is per embargo (ADR-0093). The record is what the CM-10-004 content gate reads, so it
+      must name every embargo the participant is bound to, including one carried over by containment:
+      agreeing to N days is agreeing to every shorter period, so no explicit `Accept` is owed for it.
     verification: Inspection of `vultron/core/` confirms that `CaseParticipant` tracks embargo
       acceptances via the PEC consent state or an `accepted_embargo_ids` field.
     relationships:
     - rel_type: implements
       spec_id: VP-05-001
+    adr:
+    - ADR-0093
     stories:
     - story_2022_014
     - story_2022_023
@@ -823,8 +832,11 @@ groups:
   - id: CM-10-003
     priority: SHOULD
     kind: protocol
-    statement: 'The `CaseParticipant` model SHOULD include an `accepted_embargo_ids: list[str]` field recording the IDs of
-      `EmbargoEvent` objects the participant has explicitly accepted'
+    statement: >-
+      The `CaseParticipant` model SHOULD include an `accepted_embargo_ids: list[str]` field recording the IDs of
+      `EmbargoEvent` objects the participant has accepted, explicitly or by containment (CM-10-001).
+    adr:
+    - ADR-0093
   - id: CM-10-004
     priority: MUST
     kind: protocol
@@ -1915,6 +1927,9 @@ groups:
       `Invite.end_time`, that value is authoritative and supersedes this window
       (CM-28-002). The pocket veto and the explicit RSVP deadline are ONE
       mechanism at two levels of explicitness, not two competing timeouts.
+      The verification's lapse-at-activation clause describes the target state
+      decided by ADR-0093 (revised 2026-09-29); the implementation is tracked in
+      #3891, and until it lands `propose_embargo()` still cascades on proposal.
     rationale: >-
       Per ADR-0093 and `notes/participant-embargo-consent.md`: `LAPSED` means "the active embargo was replaced by longer
       terms I have not accepted." While a revision is merely proposed the prior embargo is still in force and every

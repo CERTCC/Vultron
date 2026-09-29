@@ -109,7 +109,7 @@ lapse-timing section.  The evidence:
 
 A `SIGNATORY` who explicitly rejects is exercising consent withdrawal, not
 a lapse triggered by a terms change.  The transition is valid on both the
-received side (participant rejects a revision proposal) and the trigger side
+received side (participant rejects the active embargo) and the trigger side
 (participant voluntarily terminates their embargo compliance, per VP-13-007).
 
 ### Lapse-timing: consent is per embargo; lapse fires when longer terms activate
@@ -129,11 +129,15 @@ consent has changed.  Therefore:
 2. **Proposing B is consent to B.**  The proposer's `accepted_embargo_ids`
    gains B at proposal time, so a proposer cannot lapse at activation of their
    own terms.
-3. **A participant's Accept or Reject of proposed B is about B only.**  Accept
+3. **A signatory's Accept or Reject of proposed B is about B only.**  Accept
    adds B to their list; their state does not change, because they were and
    remain a signatory to A.  Reject leaves them a signatory to A; B is simply
-   absent from their list.  Only the case owner's Accept or Reject moves the
-   shared EM machine; other participants' answers inform the owner's decision.
+   absent from their list.  A participant who is *not yet* a signatory
+   (`INVITED`, `UNBOUND`, `LAPSED`) records an Accept of B in their list with
+   no state change, and a Reject of B as `DECLINE` (MSM-07-004): they hold no
+   consent to A that the refusal could leave intact.  Only the case owner's
+   Accept or Reject moves the shared EM machine; other participants' answers
+   inform the owner's decision.
 4. **Activation is where consent is re-evaluated, and it is asymmetric.**  When
    the owner activates B in place of A (`REVISE → ACTIVE`, `active_embargo`
    changes from A to B):
@@ -143,6 +147,13 @@ consent has changed.  Therefore:
     - If B ends **later than** A, every `SIGNATORY` whose list lacks B moves to
       `LAPSED` via the `REVISE` trigger.  Those who accepted B stay
       `SIGNATORY`.
+    - In either arm, a participant in any other state (`INVITED`, `UNBOUND`,
+      `LAPSED`) whose list already contains B moves to `SIGNATORY` via
+      `ACCEPT`: it has accepted the embargo now in force.
+    - Only signatories to A are carried over.  A participant already `LAPSED`
+      when B activates stays `LAPSED` until re-invited or until it accepts B;
+      a participant `INVITED` to A whose invitation B has made stale is handled
+      by the stale-terms re-invite path (reference spec §9.4, EMB-17).
 
     The cascade runs in `STRICT` and `OBSERVED` modes alike, as the termination
     reset does.
@@ -233,8 +244,9 @@ that is not enforced.
 - Revised by Concern #3884 (2026-09-29): lapse timing moved from proposal to
   activation of longer terms; `SIGNATORY → DECLINED` narrowed to rejection of
   the active embargo.  Amends CM-18-001, CM-18-002, CM-18-003, CM-18-004,
-  MSM-07-003, MSM-07-004, MSM-07-005, EP-05-001 and EP-05-002.  Blocks #3836
-  and #3863.
+  MSM-07-003, MSM-07-004, MSM-07-005, MSM-07-007, EP-05-001 and EP-05-002;
+  CM-10-001 and CM-10-003 now read "accepted, explicitly or by containment".
+  Blocks #3836 and #3863.
 - Parent epic: #3125 (Embargo lifecycle protocol correctness)
 - Related: ADR-0048 (PEC `NO_EMBARGO` means absence of embargo),
   ADR-0091 (rename `PEC.NO_EMBARGO` to `UNBOUND`)

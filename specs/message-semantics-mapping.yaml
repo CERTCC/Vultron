@@ -802,6 +802,8 @@ groups:
       spec_id: CM-18-003
     - rel_type: refines
       spec_id: MSM-02-002
+    adr:
+    - ADR-0093
     lint_suppress:
     - missing_story_reference
   - id: MSM-07-004
@@ -845,6 +847,8 @@ groups:
       spec_id: CM-18-003
     - rel_type: refines
       spec_id: MSM-02-006
+    adr:
+    - ADR-0093
     lint_suppress:
     - missing_story_reference
   - id: MSM-07-005
@@ -858,7 +862,14 @@ groups:
       over as a signatory to B (B recorded in their `accepted_embargo_ids`, state
       unchanged); if B ends later than A, implementations MUST apply the PEC
       REVISE trigger to every SIGNATORY whose `accepted_embargo_ids` lacks B,
-      advancing them to LAPSED. A revision proposal (EV, ACTIVE → REVISE, or a
+      advancing them to LAPSED. In either arm, a participant in any other state
+      (INVITED, UNBOUND, or LAPSED) whose `accepted_embargo_ids` already contains
+      B MUST advance to SIGNATORY via the PEC ACCEPT trigger, because it has
+      accepted the embargo now in force. Only signatories to A are carried over:
+      a participant LAPSED before B activates stays LAPSED until it is re-invited
+      or accepts B, and a participant INVITED to A whose invitation B has made
+      stale is handled by the stale-terms re-invite path (EMB-17). A revision
+      proposal (EV, ACTIVE → REVISE, or a
       counter-revision REVISE → REVISE) MUST NOT change any participant's consent
       state, and the proposer's `accepted_embargo_ids` MUST gain the proposed
       embargo's id. The cascade MUST run whether the transition is driven
@@ -887,11 +898,17 @@ groups:
       the replaced embargo and moves signatories lacking a longer revision to
       LAPSED. Unit tests in test/core/services/embargo_lifecycle/ assert both
       arms and the no-op on proposal.
+    note: >-
+      The verification describes the target state decided by ADR-0093 (revised 2026-09-29). The
+      implementation is tracked in #3891; until it lands, inspection of the named modules shows the
+      superseded lapse-on-propose behaviour.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
     - rel_type: refines
       spec_id: MSM-02-003
+    adr:
+    - ADR-0093
     lint_suppress:
     - missing_story_reference
   - id: MSM-07-006
@@ -926,9 +943,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The timer-based pocket-veto transitions — INVITED to DECLINED and LAPSED
-      to DECLINED after the invitation deadline passes — MUST be enforced lazily
-      with no outbound wire message emitted for the PEC state change itself.
+      The timer-based pocket-veto transition — INVITED to DECLINED after the
+      invitation deadline passes — MUST be enforced lazily with no outbound wire
+      message emitted for the PEC state change itself. LAPSED has no timer path
+      (CM-18-002): a lapsed participant is re-invited, and the deadline attaches
+      to that invitation.
       The CASE_MANAGER MUST author a case-ledger entry recording the lapse (CM-28-005)
       so the consent change is visible in the canonical ledger, but no additional
       protocol wire activity is required.
@@ -943,11 +962,14 @@ groups:
       Inspection of vultron/core/services/embargo_lifecycle/ confirms
       detect_and_apply_lapse() applies PEC_Trigger.DECLINE without emitting
       an outbound wire activity, and that a CASE_MANAGER-authored ledger entry
-      is written per CM-28-005.
+      is written per CM-28-005, and that detect_and_apply_lapse() applies it
+      only to a participant in INVITED.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-002
     - rel_type: derives_from
       spec_id: CM-28-005
+    adr:
+    - ADR-0093
     lint_suppress:
     - missing_story_reference
