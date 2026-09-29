@@ -145,6 +145,21 @@ def test_qualifying_workflow_notify_step_has_workflow_label(wf: Path) -> None:
         )
 
 
+AGGREGATE_FAILURE = "contains(needs.*.result, 'failure')"
+AGGREGATE_CANCELLED_EXCLUSION = "!contains(needs.*.result, 'cancelled')"
+AGGREGATE_CANCELLED_INCLUSION = "|| contains(needs.*.result, 'cancelled')"
+
+
+def _notify_guards(wf: Path) -> list[str]:
+    """Return the normalized ``if:`` guard of every notify-mode step in ``wf``."""
+    data = _load_workflow(wf)
+    return [
+        _normalize_expr(str(step.get("if", "")))
+        for step in _notify_failure_steps(data)
+        if step.get("with", {}).get("mode") == "notify"
+    ]
+
+
 @pytest.mark.parametrize(
     "wf", _qualifying_workflow_files(), ids=lambda p: p.name
 )
@@ -154,37 +169,54 @@ def test_notify_step_does_not_file_on_cancellation(wf: Path) -> None:
 
     A push-to-main run cancelled by the concurrency group is not an actual
     failure — a newer run is authoritative. The notify step's ``if:`` guard
-    must therefore require a genuine failure AND exclude cancellation, and must
-    not use the ``|| contains(needs.*.result, 'cancelled')`` pattern that files
-    on cancellation directly.
+    must therefore require a genuine failure and must not use the
+    ``|| contains(needs.*.result, 'cancelled')`` pattern that files on
+    cancellation directly.
     """
-    data = _load_workflow(wf)
-    notify_steps = [
-        s
-        for s in _notify_failure_steps(data)
-        if s.get("with", {}).get("mode") == "notify"
-    ]
-    for step in notify_steps:
-        guard = _normalize_expr(str(step.get("if", "")))
-        # Never file on cancellation directly.
-        assert "|| contains(needs.*.result, 'cancelled')" not in guard, (
+    for guard in _notify_guards(wf):
+        assert AGGREGATE_CANCELLED_INCLUSION not in guard, (
             f"{wf.name}: the notify (file) step must NOT file on cancellation "
-            f"via `|| contains(needs.*.result, 'cancelled')` (CISEC-05-006, "
-            f"#3249). Current guard: {guard!r}"
+            f"via `{AGGREGATE_CANCELLED_INCLUSION}` (CISEC-05-006, #3249). "
+            f"Current guard: {guard!r}"
         )
-        # The `needs.*.result` aggregate idiom can observe a `failure` laundered
-        # from a cancelled run (a cancelled upstream job leaving a downstream job
-        # to hard-fail on a missing artifact, #3249), so it MUST pair the failure
-        # check with an explicit cancellation exclusion. The `failure()` status
-        # function excludes cancellation inherently and needs no extra guard.
-        if "contains(needs.*.result, 'failure')" in guard:
-            assert "!contains(needs.*.result, 'cancelled')" in guard, (
-                f"{wf.name}: a notify (file) step that keys on "
-                f"`contains(needs.*.result, 'failure')` must also exclude "
-                f"cancelled runs via `!contains(needs.*.result, 'cancelled')` "
-                f"so a superseded run does not file a spurious ci:main-failure "
-                f"issue (CISEC-05-006, #3249). Current guard: {guard!r}"
-            )
+
+
+@pytest.mark.parametrize(
+    "wf", _qualifying_workflow_files(), ids=lambda p: p.name
+)
+def test_notify_step_files_on_failure_mixed_with_cancellation(
+    wf: Path,
+) -> None:
+    """CISEC-05-006 (#3293, #3294): a genuine failure must be filed even when
+    a sibling job in the same run was cancelled.
+
+    When a job fails and a newer push then cancels the jobs still running,
+    ``needs.*.result`` holds both ``failure`` and ``cancelled``. A guard of
+    the form ``contains(needs.*.result, 'failure') &&
+    !contains(needs.*.result, 'cancelled')`` is false for that run, so the
+    observed failure is never filed — for python-app.yml when lint jobs are
+    cancelled alongside failing tests (#3293), and for demo-integration.yml
+    when the invariant harness is cancelled after a demo leg failed (#3294).
+
+    The cancellation exclusion was defense in depth against a *laundered*
+    failure (a cancelled upstream job leaving a downstream job to hard-fail
+    on a missing artifact, #3249). That path is closed at its source by the
+    harness skip guard (DEMOCI-04-007, checked by
+    ``test_invariant_harness_skipped_when_demo_cancelled``), so every
+    ``failure`` in the aggregate is genuine and the notify step must not
+    require the absence of ``cancelled``.
+    """
+    for guard in _notify_guards(wf):
+        if AGGREGATE_FAILURE not in guard:
+            continue  # keyed on failure(), which is immune to both hazards
+        assert AGGREGATE_CANCELLED_EXCLUSION not in guard, (
+            f"{wf.name}: a notify (file) step keyed on `{AGGREGATE_FAILURE}` "
+            f"must not also require `{AGGREGATE_CANCELLED_EXCLUSION}` — that "
+            f"suppresses a genuine failure whenever a sibling job in the same "
+            f"run was cancelled (CISEC-05-006, #3293, #3294). Skip artifact "
+            f"consumers on a cancelled producer instead (DEMOCI-04-007). "
+            f"Current guard: {guard!r}"
+        )
 
 
 def test_invariant_harness_skipped_when_demo_cancelled() -> None:

@@ -124,13 +124,18 @@ groups:
     kind: process
     statement: >-
       The failure-conditioned notify step (CISEC-05-001) MUST NOT file a failure
-      issue when the run was cancelled. A step keyed on the GitHub Actions
-      `failure()` status function already satisfies this, because `failure()` is
-      false on cancellation. A step keyed on the `needs.*.result` aggregate MUST
-      pair the failure check with an explicit cancellation exclusion, i.e.
-      `contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled')`, and MUST NOT file on cancellation
-      directly (e.g. via `|| contains(needs.*.result, 'cancelled')`).
+      issue when the run was cancelled, and MUST file when any job in the run
+      genuinely failed, even if a sibling job in the same run was cancelled. A
+      step keyed on the GitHub Actions `failure()` status function already
+      satisfies both, because `failure()` is false on cancellation. A step keyed
+      on the `needs.*.result` aggregate MUST key on
+      `contains(needs.*.result, 'failure')` alone: it MUST NOT file on
+      cancellation directly (e.g. via `|| contains(needs.*.result, 'cancelled')`)
+      and MUST NOT require the absence of `cancelled` (e.g. via
+      `&& !contains(needs.*.result, 'cancelled')`). Instead, every job that
+      consumes another job's artifact MUST be skipped when its producer was
+      cancelled (DEMOCI-04-007), so that a `failure` in the aggregate is always
+      genuine.
     rationale: >-
       A push-to-`main` run cancelled by the concurrency group (superseded by a
       newer merge) is not an actual CI failure — a newer run is authoritative and
@@ -139,14 +144,25 @@ groups:
       (e.g. `|| contains(needs.*.result, 'cancelled')`), and (2) a cancelled
       upstream job that leaves a downstream job to hard-fail on a missing
       artifact (#3249), laundering the cancellation into a `failure` result in
-      the `needs.*.result` aggregate. The `failure() ` status function is immune
-      to both; the `needs.*.result` aggregate is not, so it needs the explicit
-      `!contains(..., 'cancelled')` guard. This mirrors the close-step guard
-      (CISEC-05-002), which already excludes cancellation.
+      the `needs.*.result` aggregate. The `failure()` status function is immune
+      to both. The aggregate is not, but the remedy for (2) is to close the
+      laundering path at its source — skip the consumer when the producer was
+      cancelled — not to exclude every run that contains a `cancelled` result.
+      A blanket `!contains(needs.*.result, 'cancelled')` cannot tell a laundered
+      failure from a genuine one, so it suppresses the notification whenever a
+      newer push cancels a sibling job after a real failure has already been
+      observed: lint jobs cancelled alongside failing tests (#3293), or the
+      invariant harness cancelled after a demo leg failed (#3294). The
+      close-step guard (CISEC-05-002) keeps its cancellation exclusion because a
+      superseded run must not declare recovery either.
     verification: >-
-      The test `test_notify_step_does_not_file_on_cancellation` in
-      `test/ci/test_workflow_failure_notification.py` asserts each qualifying
-      workflow's notify step never files on cancelled runs.
+      In `test/ci/test_workflow_failure_notification.py`,
+      `test_notify_step_does_not_file_on_cancellation` asserts no qualifying
+      workflow's notify step files on cancellation directly,
+      `test_notify_step_files_on_failure_mixed_with_cancellation` asserts no
+      aggregate-keyed notify step requires the absence of `cancelled`, and
+      `test_invariant_harness_skipped_when_demo_cancelled` asserts the one
+      artifact consumer skips on a cancelled producer.
     relationships:
       - rel_type: refines
         spec_id: CISEC-05-001

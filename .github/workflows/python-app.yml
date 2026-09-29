@@ -137,8 +137,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # CISEC-05-006, #3249: file only on a genuine failure, never on a
       # cancelled (concurrency-superseded) run — a newer run is authoritative.
+      # A cancelled job reports `cancelled`, not `failure`, and no job here
+      # consumes another job's artifact, so every `failure` in the aggregate
+      # is genuine. Do NOT add `!contains(needs.*.result, 'cancelled')`: a
+      # newer push that cancels the lint jobs while the tests have already
+      # failed would then suppress the notification (#3293).
       - name: Notify CI failure
-        if: contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+        if: contains(needs.*.result, 'failure')
         uses: ./.github/actions/notify-failure
         with:
           mode: notify
