@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 200
+contents: generated
 ---
 
 # Vultron Protocol Tutorials
@@ -11,10 +12,10 @@ level: 200
 
 - [Submit a Report to a Vultron Actor](submit-a-report.md) — Start the reference implementation, construct a `Create(VulnerabilityReport)` message by hand, post it to an actor's inbox, and confirm the actor received it.
 - [Run the Receive-Report Demo](receive_report_demo.md) — Start the Vultron demo environment with Docker Compose and run three vulnerability-report workflows end to end.
-- [Running the Other Demos](other_demos.md) — Explore case initialization, actor management, embargo negotiation, acknowledgment, status updates, trigger endpoints, and the full Report Management (RM) case lifecycle using the remaining `vultron-demo` sub-commands.
-- [Running the Multi-Actor Container Demos](container_demos.md) — Run any of the multi-actor demo scenarios, from the two-party Finder + Vendor (FV) baseline to the five-party coordination cases, across isolated participant containers with Docker Compose.
 - [Run the FV Demo](fv-demo.md) — Step through a complete Coordinated Vulnerability Disclosure (CVD) case with the Finder + Vendor (FV) scenario, from report submission through fix readiness, public disclosure, embargo teardown, and case closure.
-- [Worked Example](worked_example.md) — Sequence diagrams of a few usage scenarios, from a finder becoming a reporter through embargo negotiation, coordination, publication, and case closure.
+- [Run the FVV Demo](../howto/demos/fvv-demo.md) — Run the three-actor Finder, Vendor, Vendor (FVV) demo, in which two vendors each advance an independent fix path with no coordinator.
+- [Running the Multi-Actor Container Demos](container_demos.md) — Run any of the multi-actor demo scenarios, from the two-party Finder + Vendor (FV) baseline to the five-party coordination cases, across isolated participant containers with Docker Compose.
+- [Running the Other Demos](other_demos.md) — Explore case initialization, actor management, embargo negotiation, acknowledgment, status updates, trigger endpoints, and the full Report Management (RM) case lifecycle using the remaining `vultron-demo` sub-commands.
 
 <!-- END GENERATED SECTION CONTENTS -->
 

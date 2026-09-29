@@ -2,6 +2,8 @@
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
 introduces: [Case Ownership Transfer]
+description: >
+  How the CASE_OWNER role moves between participants via the CASE_MANAGER.
 ---
 
 # Case Ownership Transfer

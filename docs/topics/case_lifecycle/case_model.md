@@ -2,6 +2,8 @@
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
 introduces: [VulnerabilityCase, CaseParticipant, Dimension Object, CVDRole]
+description: >
+  The domain objects that make up a case and how they relate.
 ---
 
 # The Case Model

@@ -2,10 +2,12 @@
 """
 Inbox processing helpers for the Vultron FastAPI actors router.
 
-Provides the ``parse_activity`` HTTP adapter and the private helpers the
-inbox route uses to gate and record receipt of an activity. No route
-handlers here. Storing the activity and its inline object is ingress work,
-done in ``vultron.adapters.driving.fastapi.inbox_storage`` (#3705).
+Provides the ``parse_activity`` HTTP adapter and the private addressing
+helpers the inbox route uses to gate an activity. No route handlers here.
+Storing the activity and its inline object is ingress work, done in
+``vultron.adapters.driving.fastapi.inbox_storage`` (#3705), and that is also
+where a redelivered activity is detected (IE-10-001); the route keeps no
+receipt bookkeeping of its own (IE-02-004).
 """
 
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
@@ -32,8 +34,6 @@ from vultron.adapters.driven.actor_hosts import (
     ACTORS_SEGMENT as _ACTORS_SEGMENT,
 )
 from vultron.adapters.utils import strip_id_prefix
-from vultron.core.models.actor import CoreActor
-from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingTypeError,
@@ -170,38 +170,6 @@ def _activity_addressed_to(
     return not all(_names_an_individual_actor(addr) for addr in addresses)
 
 
-def _activity_already_received(actor: CoreActor, activity_id: str) -> bool:
-    return bool(
-        getattr(actor, "inbox", None)
-        and hasattr(getattr(actor, "inbox", None), "items")
-        and activity_id in getattr(actor, "inbox").items
-    )
-
-
 def _get_body(body: dict[str, Any]) -> dict[str, Any]:
     """FastAPI dependency: return the raw JSON request body dict."""
     return body
-
-
-def _record_inbox_receipt(
-    dl: DataLayer,
-    actor: CoreActor,
-    activity_id: str,
-    canonical_actor_id: str,
-) -> None:
-    inbox = getattr(actor, "inbox", None)
-    if not inbox or not hasattr(inbox, "items"):
-        return
-
-    inbox.items.append(activity_id)
-    dl.update(
-        actor.id_,
-        StorableRecord(
-            id_=actor.id_,
-            type_=getattr(actor, "type_", None) or "Actor",
-            data_=actor.model_dump(mode="json"),
-        ),
-    )
-    logger.debug(
-        f"Added activity {activity_id} to actor {canonical_actor_id} inbox record"
-    )

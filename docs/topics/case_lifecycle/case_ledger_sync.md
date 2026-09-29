@@ -2,6 +2,8 @@
 stakeholder_type: [platform-developer]
 level: 400
 introduces: [LedgerGapBuffer]
+description: >
+  How replicas order ledger entries and catch up on the ones they missed.
 ---
 
 # Case Ledger Synchronization

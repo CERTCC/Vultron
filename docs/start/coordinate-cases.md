@@ -34,7 +34,7 @@ Each step builds on the one before it.
 
 ## Map it onto what you already do
 
-- [ISO Crosswalk](../reference/iso_crosswalks/index.md) — how the protocol lines up with the International Organization for Standardization (ISO) standards for vulnerability handling, disclosure, and multi-party coordination.
+- [Standards Crosswalks](../reference/iso_crosswalks/index.md) — how the protocol lines up with the International Organization for Standardization (ISO) standards for vulnerability handling, disclosure, and multi-party coordination.
 - [User Stories](../reference/user_stories/index.md) — the practitioner needs the protocol was designed against.
 - [Interactions Between the Vultron Protocol and SSVC](../reference/ssvc_crosswalk.md) — where a Stakeholder-Specific Vulnerability Categorization (SSVC) decision enters a case.
 - [Capability Model](../topics/capability_model/index.md) — every decision Vultron leaves to your organization, and where your answer plugs in.

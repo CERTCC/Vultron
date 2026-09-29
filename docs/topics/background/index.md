@@ -4,6 +4,7 @@ description: >
   Coordinated Vulnerability Disclosure case is trying to reach.
 stakeholder_type: [cvd-practitioner, platform-developer, process-researcher]
 level: 200
+contents: generated
 ---
 
 # Background
@@ -26,7 +27,11 @@ level: 200
 These pages explain the problem Vultron addresses and the goals it is designed toward.
 Each one builds on the ones before it.
 
-1. [What Is Vultron?](what-is-vultron.md) — what kind of thing the protocol is, and what it can and cannot do for you.
-2. [CVD as a Coordination Problem](cvd-coordination-problem.md) — why every CVD case is treated as a multi-party case, and the CERT Coordination Center (CERT/CC) work the protocol builds on.
-3. [The Need for Interoperability in Coordinated Vulnerability Disclosure](interoperability.md) — why the organizations in a case need shared meaning, not only a shared message format.
-4. [What Does *Success* Mean in CVD?](cvd_success.md) — the outcomes a case is trying to reach, stated as ordering preferences over six case events.
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+
+- [What Is Vultron?](what-is-vultron.md) — What kind of thing Vultron is: an open protocol that lets the systems organizations already use for vulnerability disclosure coordinate a case with each other, the way email servers exchange mail.
+- [CVD as a Coordination Problem](cvd-coordination-problem.md) — Why Vultron treats every Coordinated Vulnerability Disclosure case as a multi-party coordination problem, and where the protocol sits among the CERT/CC's other work on the CVD process.
+- [Interoperability](interoperability.md) — Why organizations coordinating a vulnerability case need shared meaning, not only a shared message format, and what this documentation gives you toward it.
+- [Defining CVD Success](cvd_success.md) — The outcomes a Coordinated Vulnerability Disclosure case is trying to reach, stated as twelve ordering preferences over six case events, and how a Coordinator acts on them during a case.
+
+<!-- END GENERATED SECTION CONTENTS -->

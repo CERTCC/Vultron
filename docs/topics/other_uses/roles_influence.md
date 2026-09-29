@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+description: >
+  Which events each role can cause, and how vendors, system owners, coordinators, and governments each rank the ordering preferences.
 ---
 
 # CVD Roles and Their Influence

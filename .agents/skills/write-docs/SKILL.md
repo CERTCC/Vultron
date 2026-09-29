@@ -43,6 +43,12 @@ Read, in order:
 3. `docs/reference/vultron-taxonomy.md` — concept names (SG-03). Skim the Quick
    Reference table unless the page is about a taxonomy concept.
 4. `docs/_acronyms/index.md` — which acronyms are already registered (SG-08).
+5. `notes/site-information-architecture.md` — the rules above the page: the
+   stakeholder types (§ "Stakeholder type is not CVD role" and § "The
+   stakeholder types"), the 100–500 level ladder (§ "Levels 100–500: a rule,
+   not a label"), and how the nav and routing pages relate (§ "Routing: nav
+   enumerates groups, routing pages carry leaves"). Phases 3 and 6 apply these;
+   do not re-derive them from taste.
 
 Load the DF requirements if not already in context:
 `PYTHONPATH= uv run spec-dump --topic DF --text`.
@@ -81,11 +87,28 @@ so each depends only on what precedes it (SG-10). Concepts the page will not
 introduce get a link to their canonical introduction instead (SG-11).
 
 Settle the page's frontmatter here, because the concept list decides it
-(SG-40):
+(SG-40). Both keys are required on every reader-facing page (DF-11-001); a
+working-record page declares `stakeholder_type: [project-contributor]` and no
+`level` (DF-11-012); a fragment declares neither (DF-11-010):
 
-- **`level`**: the page's prerequisite level (100–500). A page's level must be at
-  least the level of every page whose concepts it uses unlinked (DF-11-002).
-  Placement guidance is in `notes/site-information-architecture.md`.
+- **`stakeholder_type`**: who the page is *addressed to* — not what it is about,
+  and not who might find it useful. A list of members from
+  `docs/includes/stakeholder_types.md`, or the bare scalar `ALL` when it is
+  genuinely every type. This is a **stakeholder type, not a CVDRole**. A role
+  (Reporter, Vendor, Coordinator, Deployer, …) is a position an actor holds in
+  one case — assumable, inhabitable, temporal — and changes from case to case;
+  a stakeholder type is why the reader is here and does not. No value appears
+  in both vocabularies, so if you have written `vendor` or `coordinator` you have
+  reached for the wrong list: a page *about* vendors addressed to someone
+  building a tracker is `[platform-developer]`
+  (`notes/site-information-architecture.md` § "Stakeholder type is not CVD
+  role").
+- **`level`**: the page's prerequisite level (100–500), read off the ladder in
+  the note's § "Levels 100–500" — what the reader must already know, not how
+  advanced the topic feels. A page's level must be at least the level of every
+  page whose concepts it uses unlinked (DF-11-002). If the concept list forces
+  a level higher than the intended reader can meet, the page is doing two jobs:
+  split it, or link out (SG-11) instead of introducing.
 - **`introduces:`**: the glossary terms for which this page is the canonical
   introduction. Leave a term out if another page already introduces it: check
   with `grep -rn "introduces:" docs/`, since a term has one introducer.
@@ -147,6 +170,15 @@ Write against the style guide. The rules that most often get missed:
   it shows (SG-32, SG-33).
 - Cite spec IDs and ADR numbers for normative claims (SG-25).
 - American spelling (SG-37), sentence-case H2s (SG-39).
+- **Never render the page's own `level` or `stakeholder_type`** — not in prose,
+  a heading, an admonition, a badge, or the nav label (DF-11-004, DF-11-009).
+  Say who the page is for in the reader's situation ("if you are wiring a
+  tracker into a case"), never by the type's name; the level is invisible by
+  design, so "this is a 300-level page" is a defect, not orientation.
+- **Write the page for a deep-link arrival** (SG-44, DF-11-007). State the
+  prerequisites and expand the acronyms even though the previous page in the
+  nav already did. Do not thin an opening because a neighbor "already covers
+  it": the reader who arrived from search never saw the neighbor.
 
 Page furniture per SG-41: H1, a two-to-four sentence orientation paragraph,
 `---`-separated sections, and a `## Summary` table and/or `## Further reading`
@@ -172,20 +204,48 @@ Never coin a term without registering it.
 `--strict`, so a page absent from the nav fails the build. Every new page must
 be navved or explicitly listed under `not_in_nav`.
 
-Nav order carries **dependency and prominence**, not narrative flow, so
-**propose the slot and confirm it**: name the section, the position within it,
-and the label, with one sentence of reasoning. Maintainer-facing pages
+Nav order carries **dependency and prominence**, not narrative flow. A reader
+does not read the nav top to bottom (SG-44), so the order is not a story; what it
+encodes is which pages a page depends on and how prominent the group is on a
+stakeholder type's path. That is what makes a slot reviewable: a page placed
+before one it depends on is wrong, and a reviewer can check it from frontmatter
+(`notes/site-information-architecture.md` § "Routing: nav enumerates groups,
+routing pages carry leaves"; ADR-0102, DF-11).
+
+**Derive the slot from the frontmatter settled in Phase 3, then propose it and
+confirm it.** The recipe:
+
+1. **Section** — the Diátaxis quadrant from Phase 2 picks the top-level section.
+   Every section index that declares `contents: generated` is regenerated from
+   frontmatter (`uv run docs-site --write`, DF-11-005); do not hand-edit a
+   generated listing. The blurb beside a new page's link is its `description:`
+   frontmatter, so write one. A new `index.md` that opens a nav group must
+   declare `contents: generated | routing | rendered` or `docs-site --check`
+   fails; a `routing` index must link every member of its section. The
+   decision table is `notes/site-information-architecture.md`
+   § "Sub-section index decisions".
+2. **Group** — the page's `stakeholder_type` picks the group within the section:
+   the group whose other pages address the same reader, or the routing page
+   (`docs/start/*.md`, `docs/research/index.md`) that carries that type's path.
+   A large set of sibling leaves goes behind a routing page rather than into the
+   nav (DF-11-006).
+3. **Position** — the page's `level` fixes the position inside the group: after
+   every sibling whose level is lower and before every sibling whose level is
+   higher, and never before a page it depends on (DF-11-002). Equal levels order
+   by prominence on the reader's path, not by narrative.
+4. **Label** — the label matches the H1 in substance (SG-39) and carries neither
+   the level nor the stakeholder type (DF-11-004, DF-11-009).
+
+Propose it as: section, group, the sibling it follows and the one it precedes,
+the label, and one sentence naming the `level` and `stakeholder_type` that
+justify each choice. Then ask for confirmation. Maintainer-facing pages
 (`docs/developer/`, `docs/agents/`) are covered by existing `not_in_nav` patterns
 and need no nav entry.
 
-Propose the slot against `notes/site-information-architecture.md` (ADR-0102,
-DF-11) rather than against taste — it states the stakeholder types, the invisible
-100–500 prerequisite levels, and the rule that no page may depend on a page above
-its own level, which is what makes a wrong slot reviewable. Two traps it settles:
-a page's own level and stakeholder type are never rendered or navigated by
-(DF-11-004, DF-11-009), and repeated openings on adjacent pages are **required**
-for deep-link arrivals — never remove them to make neighbours read as a sequence
-(DF-11-007).
+Two traps the note settles, restated because they recur: a page's own level and
+stakeholder type are never rendered or navigated by (DF-11-004, DF-11-009), and
+repeated openings on adjacent pages are **required** for deep-link arrivals —
+never remove them to make neighbors read as a sequence (SG-44, DF-11-007).
 
 ## Phase 7 — Validate
 
@@ -217,6 +277,9 @@ In this order:
 - Only write under `docs/`, plus `docs/_acronyms/index.md`, `glossary.md`, and
   `mkdocs.yml`. Do not modify code, tests, or `specs/`.
 - One page, one quadrant (DF-01-002, DF-01-003). Split rather than blend.
+- Every reader-facing page declares `stakeholder_type` and `level` (DF-11-001)
+  and renders neither (DF-11-004, DF-11-009). `stakeholder_type` is a reader
+  type, never a CVDRole.
 - Never leave a new page out of the nav without a `not_in_nav` match.
 - Escalate judgment calls with a recommendation, not an open question. This
   applies to quadrant splits (Phase 2) and nav placement (Phase 6).

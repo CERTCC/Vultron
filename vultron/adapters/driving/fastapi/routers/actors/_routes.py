@@ -50,7 +50,6 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.adapters.utils import strip_id_prefix
-from vultron.core.models.base import CoreObject
 from vultron.core.models.actor import (
     CoreActor,
     VultronOrganization,
@@ -64,18 +63,11 @@ from vultron.core.use_cases.query.action_rules import (
     GetActionRulesUseCase,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
-from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.base.objects.collections import (
-    as_OrderedCollection,
-)
 
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _activity_addressed_to,
-    _activity_already_received,
     _get_body,
-    _record_inbox_receipt,
     parse_activity,
 )
 from vultron.adapters.driving.fastapi.routers.actors._lookup import (
@@ -484,25 +476,33 @@ def get_action_rules(
         )
 
 
-@router.get(
+_INBOX_REFUSED_METHODS = ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "DELETE"]
+
+
+@router.api_route(
     "/{actor_id:path}/inbox",
-    response_model=as_OrderedCollection,
-    summary="Get Actor Inbox",
-    description="Returns the Actor's Inbox. (stub implementation).",
-    operation_id="actors_get_inbox",
+    methods=_INBOX_REFUSED_METHODS,
+    include_in_schema=False,
 )
-def get_actor_inbox(
-    actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)
-) -> AS2JSONResponse:
-    """Returns the Actor's Inbox."""
-    # 404 if this node does not host the addressed actor.  No clone is needed:
-    # the injected DataLayer already *is* this actor's store (ADR-0073).
-    _resolve_actor_or_404(actor_id, datalayer)
-    items = cast(
-        list[as_Object | as_Link | str | CoreObject | None],
-        list(cast(Any, datalayer).inbox_list()),
+@router.api_route(
+    "/{actor_id:path}/inbox/",
+    methods=_INBOX_REFUSED_METHODS,
+    include_in_schema=False,
+)
+def refuse_non_post_inbox(actor_id: str) -> None:
+    """Answer 405 to every non-POST method on the inbox path (IE-02-003).
+
+    The inbox is a delivery target with no read surface (IE-02-004): what an
+    actor has received is read from its store through the datalayer router.
+    This route exists because ``actors_get`` below is a path catch-all
+    (``/{actor_id:path}``); without it an unrouted GET on ``/inbox`` or
+    ``/inbox/`` would land there and answer 404 instead of 405.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail="The inbox accepts POST only.",
+        headers={"Allow": "POST"},
     )
-    return AS2JSONResponse(as_OrderedCollection(items=items))
 
 
 @router.post(
@@ -555,18 +555,6 @@ def post_actor_inbox(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Activity is not addressed to actor {canonical_actor_id}.",
         )
-
-    if _activity_already_received(actor, activity.id_):
-        logger.debug(
-            "Activity %s already received by %s; ignoring duplicate submission.",
-            activity.id_,
-            canonical_actor_id,
-        )
-        return None
-
-    # Record receipt synchronously so the dedup guard on the next delivery
-    # of the same activity_id sees the updated actor inbox record.
-    _record_inbox_receipt(dl, actor, activity.id_, canonical_actor_id)
 
     emitter = getattr(request.app.state, "emitter", None)
     dispatcher = getattr(request.app.state, "dispatcher", None)

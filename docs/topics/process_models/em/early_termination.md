@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [cvd-practitioner]
 level: 300
+description: >
+  The events that end an embargo before its agreed time.
 ---
 
 # Early Termination

@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
+description: >
+  How published defaults and the protocol default start an embargo without a negotiation.
 ---
 
 # Default Embargoes

@@ -402,18 +402,43 @@ taxonomy that no longer existed being described to readers. Hand-maintained
 duplicates of a machine-readable structure always drift; the defect class is
 the duplication, not any individual omission.
 
-`uv run docs-site --write` generates the contents listing of each top-level
-section landing page — the `index.md` a top-level nav section opens with — and
-the `docs-site-sync` hook gates it (`vultron/metadata/docs/landing_pages.py`).
-The nav supplies what a section contains, each entry's label, and the fallback
+`uv run docs-site --write` generates the contents listing of each section
+landing page — an `index.md` a nav group opens with, at any depth — and the
+`docs-site-sync` hook gates it (`vultron/metadata/docs/landing_pages.py`). The
+nav supplies what a section contains, each entry's label, and the fallback
 order; each listed page's `description:` frontmatter supplies the text beside
 its link, and a declared `level` reorders the listing. Only the text between the
 generated-contents markers is replaced, so a landing page's framing,
 prerequisites, and cross-section pointers stay hand-written.
 
-The generator owns each top-level section landing page and nothing below it.
-Sub-section index pages are still hand-written: several carry a themed structure
-a flat generated list would lose, and which of them to generate is open (#3617).
+Not every section index is an enumeration, so each one declares which of three
+shapes it is in a `contents:` frontmatter key, and the declaration is required:
+an `index.md` that opens a nav group without one fails the check, so no
+sub-section can be left undecided by omission (#3617).
+
+- `contents: generated` — the listing above.
+- `contents: routing` — the page links its members inside framing prose or a
+  themed grouping that is editorial content. Nothing is generated; `--check`
+  fails when the page stops linking a member. The members it owes are the
+  group's nav members plus every reader page in its own directory that the nav
+  omits — the door pattern of the routing rule above — so a page added to the
+  directory without a link is caught. The same sibling rule makes a leaf
+  `index.md` accountable: one whose directory holds pages the nav omits must
+  declare `routing`, which is how the activity guides' index answers for the
+  thirteen guides behind it.
+- `contents: rendered` — the enumeration is rendered at build time from a
+  registry (DEMOCI-11-009), so nothing is committed to drift. The generator
+  records it and leaves it alone.
+
+What the generated form loses is recorded so nobody re-derives it: the
+grid-card icons three sub-indexes carried, the external standards links on the
+crosswalks index (each crosswalk page links the document it maps), and any
+table column beyond the per-page blurb, which moved into each child's
+`description:` — the frontmatter the rule says a listing is generated from. A
+`description:` is rendered on the landing page, so `docs-level-order` reads it
+at the landing page's level: a term the child may use unlinked at 400 is a
+finding when its blurb lands on a 200 index, and the fix is plainer wording in
+the description, not a link the generator cannot carry.
 
 It walks the nav itself rather than reusing `vultron.metadata.base.nav_paths`,
 because that helper flattens the nav to a path list, and a listing needs the
@@ -441,6 +466,46 @@ sidebar live on `what-is-vultron.md`, and the index, retitled "Background",
 keeps only the prerequisites admonition, the "New to Vultron?" pointer, and one
 line per child in dependency order.
 
+### Sub-section index decisions
+
+One row per `index.md` the nav carries, decided in #3617 against the nav
+shape that #3627 left. The decision is machine-readable on the page
+(`contents:`); this table carries the reason.
+`test_committed_generated_pages_are_the_decided_set` pins the three sets, so a
+new group index is decided here before it lands.
+
+| Index | Decision | Why |
+|---|---|---|
+| `tutorials/`, `topics/`, `howto/`, `reference/`, `research/` | generated | The five top-level landings from #3527, now declaring the shape they always had. |
+| `topics/background/index.md` | generated | A plain enumeration in dependency order; the blurbs moved to each child's `description:`. |
+| `topics/case_lifecycle/index.md` | generated | Was a grid of cards; the icons were decoration and the blurbs moved to `description:`. |
+| `topics/process_models/index.md` | routing | Routes its four sub-groups through a diagram-per-model argument; a list would repeat what each H2 already does. |
+| `topics/process_models/rm/index.md` | generated | A content page with an index filename (audit `extract` verdict, applied in part by #3680); its "In this section" list is generated so both sibling pages are always reached. |
+| `topics/process_models/em/index.md` | generated | The "In this section" list is generated; the "Doing it on the wire" pointers into How-to stay hand-written. |
+| `topics/process_models/cs/index.md` | generated | The table became the listing; the limits page sits in Research (#3627) and is linked from the framing. |
+| `topics/process_models/model_interactions/index.md` | generated | Two bullets became the listing. |
+| `topics/behavior_logic/index.md` | routing | Its "three views" table routes the notation page and the use-case group as part of an argument that also reaches the working record. |
+| `topics/behavior_logic/use-cases/index.md` | generated | The trigger-name column folded into each child's `description:`. |
+| `topics/scenarios/index.md` | rendered | Table rendered at build time from the scenario registry (DEMOCI-11-009); the leaves stay in the nav (DEMOCI-11-007). |
+| `topics/future_work/index.md` | generated | Two cards became the listing. |
+| `howto/activitypub/index.md` | routing | A content page on the AS2 grammar whose closing cards route its one child beside two reference pages. |
+| `howto/activitypub/activities/index.md` | routing | The themed grouping (report and case, participants and roles, embargoes and faults) is editorial; the leaves are out of the nav (DF-11-006, #3627), so the sibling rule holds the page to all thirteen. |
+| `reference/iso_crosswalks/index.md` | generated | The table became the listing; each crosswalk links the standard it maps, so the external links were redundant. |
+| `reference/formal_protocol/index.md` | generated | Bullets became the listing; the set-notation in the blurbs became prose in `description:`. |
+| `reference/messages/index.md` | generated | The shorthand codes each page covers folded into its `description:`. |
+| `reference/specs/index.md` | routing | Routes all four tiers, two of which (`project.md`, `process.md`) are working record the nav omits (DF-11-003); a nav-derived listing would drop them. |
+| `topics/measuring_cvd/index.md` | generated | The table became the listing; the reading-order sentence stays as framing. |
+| `topics/other_uses/index.md` | generated | As above. |
+
+Four `index.md` files the nav carries are not section indexes and declare
+nothing: `topics/capability_model/index.md` is a content page whose directory
+holds no other page; `reference/user_stories/index.md` routes the stories through
+an included table, and the stories themselves are working record reached from
+`traceability.md`; `reference/vultron-spec/index.md` is an assembly unit of
+fragments; `docs/index.md` is the front door (#3524). A leaf `index.md` becomes a
+section index the moment its directory gains a reader page the nav omits — the
+generator then requires it to declare `routing` and link the page.
+
 ### Entry pages are titled by situation, never by type
 
 There is one routing page per stakeholder type, under `docs/start/`, and its
@@ -461,6 +526,9 @@ cheap.
 The pages are hand-written, not generated. Each is a curated reading path, not
 an enumeration of a section's children, so DF-11-005's generate-and-gate rule
 does not apply to them (#3524 AC-11).
+They also sit in the nav as a *Start Here* section, labelled by situation, so
+a reader who lands mid-site reaches an entry path without going back to the
+home page (#3627).
 
 ### The coverage matrix is generated too
 

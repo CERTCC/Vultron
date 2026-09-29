@@ -2,6 +2,8 @@
 stakeholder_type: [platform-developer]
 level: 400
 introduces: [Embargo Consent, Pocket Veto]
+description: >
+  Triggers `propose_embargo`, `accept_embargo`, `reject_embargo`, and `terminate_embargo`: negotiating, joining, revising, and ending an embargo.
 ---
 
 # Embargo Lifecycle

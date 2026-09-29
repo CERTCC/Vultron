@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
+description: >
+  Why the CASE_MANAGER, not the vendor, creates the case.
 ---
 
 # Case Initialization

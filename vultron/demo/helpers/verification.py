@@ -430,12 +430,12 @@ def verify_activity_in_inbox(
 ) -> bool:
     """Check whether *activity_id* was received and stored by the actor.
 
-    Checks the DataLayer directly for the activity record — the authoritative
-    approach for single-backend exchange-demo tests.  The inbound pipeline
-    stores every processed activity in the DataLayer, so a lookup by ID is
-    sufficient to confirm receipt.  The actor-profile ``inbox.items`` path is
-    not used because ``_record_inbox_receipt`` is a no-op when ``inbox`` is a
-    string URI rather than a collection object.
+    Checks the actor's store directly for the activity record — the
+    authoritative approach for exchange-demo tests.  Ingress stores every
+    received activity in the receiving actor's store, so a lookup by ID is
+    sufficient to confirm receipt.  The inbox path itself has no read surface
+    (IE-02-004): receipt is verified through the actor's store, which is what
+    the datalayer client reads here.
 
     Args:
         client: DataLayerClient for the target container.

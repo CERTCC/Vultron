@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
+contents: generated
 ---
 
 # Future Work
@@ -18,12 +19,12 @@ This section gives those subjects, and the prototype does not supply them.
 Where a design exists, this section identifies it.
 Where the design is open, this section says so.
 
-<div class="grid cards" markdown>
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
-- :material-lan-connect: [Federation](federation.md)
-- :material-help-circle-outline: [Open questions](open_questions.md)
+- [Federation](federation.md) — The federation model for organizations that each operate their own coordination service: what the services interchange, who has authority for a case, and how trust is built.
+- [Open Questions](open_questions.md) — Every unresolved design question in the Future Work section, collected in one place with the issue or epic that records it.
 
-</div>
+<!-- END GENERATED SECTION CONTENTS -->
 
 ## How to read this section
 

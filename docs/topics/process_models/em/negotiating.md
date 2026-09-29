@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [cvd-practitioner]
 level: 300
+description: >
+  When an embargo can be proposed, accepted or rejected, and how long it can reasonably last.
 ---
 
 # Negotiating Embargoes

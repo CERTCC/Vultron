@@ -9,6 +9,7 @@ related_specs:
 related_notes:
   - notes/documentation-sweeps.md
   - notes/message-type-reference.md
+  - notes/site-information-architecture.md
 ---
 
 # Implementation Standards for Technical Documentation: The Diátaxis Framework
@@ -219,6 +220,15 @@ Two skills consume that guide:
   nav.
 - `lint-docs` audits existing pages, fixing mechanical findings and reporting
   judgment findings with a recommendation.
+
+The style guide rules on one page at a time. Both skills read the rules *above*
+the page — who a page is addressed to (`stakeholder_type`), how much it may
+assume (`level`), where it sits in the nav, and what a neighbor may repeat —
+from `notes/site-information-architecture.md` (ADR-0102, DF-11) rather than
+re-deriving them. `write-docs` settles the frontmatter before drafting and
+derives the nav slot from it; `lint-docs` reports level dependency (DF-11-002)
+and self-sufficiency on arrival (DF-11-007) as page-scoped findings, treating a
+repeated opening or re-expanded acronym on adjacent pages as compliant.
 
 `check-docs-sync` runs `lint-docs` as a blocking gate whenever a change touches
 `docs/`.
