@@ -13,9 +13,6 @@
 
 from datetime import datetime, timedelta
 
-from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
-    as_Question,
-)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -25,7 +22,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.examples._base import (
-    _COORDINATOR,
     case,
     vendor,
 )
@@ -34,7 +30,6 @@ from vultron.wire.as2.factories import (
     activate_embargo_activity,
     add_embargo_to_case_activity,
     announce_embargo_activity,
-    choose_preferred_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
@@ -78,26 +73,6 @@ def propose_embargo() -> as_Invite:
         actor=_vendor.id_,
         context=_case.id_,
         summary="We propose to embargo case 1 for 90 days.",
-    )
-    return activity
-
-
-def choose_preferred_embargo() -> as_Question:
-    # as_Question is the correct type: this is a poll sent to participants, not a direct API call
-    embargo_list = [
-        embargo_event(90),
-        embargo_event(45),
-    ]
-    _coordinator = _COORDINATOR
-
-    _case = case()
-    activity = choose_preferred_embargo_activity(
-        id_="https://vultron.example/cases/1/polls/1",
-        actor=_coordinator.id_,
-        one_of=embargo_list,
-        summary="Please accept or reject each of the proposed embargoes.",
-        to=f"{_case.id_}/participants",
-        context=_case.id_,
     )
     return activity
 

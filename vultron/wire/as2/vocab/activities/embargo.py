@@ -15,14 +15,11 @@
 Provides Vultron Activity Streams Vocabulary classes for Embargo activities
 """
 
-from typing import Sequence, TypeAlias
+from typing import TypeAlias
 
 from pydantic import Field
 
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
-    as_Question,
-)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -33,7 +30,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent,
-    as_EmbargoEventRef,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseRef,
@@ -87,19 +83,6 @@ class _EmRejectEmbargoActivity(as_Reject):
         default=..., validation_alias="object", serialization_alias="object"
     )
     context: as_VulnerabilityCaseRef = None
-
-
-class _ChoosePreferredEmbargoActivity(as_Question):
-    """The case owner is asking the participants to indicate their embargo preferences from among the proposed embargoes.
-    Case participants should respond with an _EmAcceptEmbargoActivity or _EmRejectEmbargoActivity activity for each proposed embargo.
-    Either anyOf or oneOf should be specified, but not both.
-    The Case owner will then need to decide which embargo to make active on the case.
-    """
-
-    # note: not specifying object_ here because Questions are intransitive
-
-    any_of: Sequence[as_EmbargoEventRef] | None = None
-    one_of: Sequence[as_EmbargoEventRef] | None = None
 
 
 class _ActivateEmbargoActivity(as_Add):

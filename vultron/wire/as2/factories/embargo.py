@@ -24,7 +24,7 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Sequence, cast
+from typing import cast
 
 from pydantic import ValidationError
 
@@ -39,14 +39,10 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
     _AddEmbargoToCaseActivity,
     _AnnounceEmbargoActivity,
-    _ChoosePreferredEmbargoActivity,
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
     _RemoveEmbargoFromCaseActivity,
-)
-from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
-    as_Question,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -58,7 +54,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent,
-    as_EmbargoEventRef,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseRef,
@@ -247,46 +242,6 @@ def em_reject_embargo_activity(
         )
         raise VultronActivityConstructionError(
             "em_reject_embargo_activity: invalid arguments"
-        ) from exc
-
-
-def choose_preferred_embargo_activity(
-    any_of: Sequence[as_EmbargoEventRef] | None = None,
-    one_of: Sequence[as_EmbargoEventRef] | None = None,
-    **kwargs,
-) -> as_Question:
-    """Build a Question asking participants to indicate embargo preferences.
-
-    Case participants should respond with
-    :func:`em_accept_embargo_activity` or :func:`em_reject_embargo_activity`
-    for each proposed embargo. Either ``any_of`` or ``one_of`` SHOULD be
-    specified but not both.
-
-    Args:
-        any_of: Sequence of ``as_EmbargoEventRef`` items — participants
-            may select any subset.
-        one_of: Sequence of ``as_EmbargoEventRef`` items — participants
-            must select exactly one.
-        **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``, ``to``).
-
-    Returns:
-        An ``as_Question`` whose ``any_of`` or ``one_of`` lists the
-        embargo choices.
-
-    Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
-    """
-    try:
-        return _ChoosePreferredEmbargoActivity(
-            any_of=any_of, one_of=one_of, **kwargs
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "choose_preferred_embargo_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "choose_preferred_embargo_activity: invalid arguments"
         ) from exc
 
 

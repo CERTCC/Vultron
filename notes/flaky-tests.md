@@ -118,8 +118,8 @@ No open entries.
 
 | Job name | Issue | Last blocked |
 |---|---|---|
-| `fcvcv Demo Integration` | #2819 | 2026-08-28 |
-| `fcvcv Invariant Harness` | #2819 | 2026-08-28 |
+| `fcvcv Demo Integration` | #2898 | 2026-09-28 |
+| `fcvcv Invariant Harness` | #2898 | 2026-09-28 |
 | `fvcv-extension` | #2422 | 2026-08-26 |
 | `fccv-extension` | #2422 | 2026-08-26 |
 | `fv Demo Integration` | #3033 | 2026-09-02 |
@@ -129,6 +129,15 @@ No open entries.
 | `fcv-reject Demo Integration` | #2390 | 2026-08-19 |
 | `fcv-reject Invariant Harness` | #2390 | 2026-08-19 |
 
+> `fcvcv Demo Integration` / `fcvcv Invariant Harness` were **repointed to
+> #2898 on 2026-09-28**. #2819 (CaseActor invite race, vendor v2) is closed; its
+> fix was a per-scenario ledger drain, and #2898 tracks the delivery-ordering
+> race underneath it. Fresh occurrence on PR #3819: the third `validate-report`
+> trigger POST (to `vendor-deployer`) hit the 30s client timeout while the vendor
+> replayed the ledger from genesis (`ReconstructChainTail` pre-genesis window,
+> then `SendRejectLogEntry` hash mismatches). `main` at the merge base passed;
+> the PR's diff never runs on that path.
+>
 > `fv Demo Integration` / `fv Invariant Harness` were **repointed to #3033 on
 > 2026-09-02**.  #2422 (vendor RM.RECEIVED timeout at M3, cascading
 > `notify-fix-ready` 422 from the cross-machine entailment guard, then vfd_state
