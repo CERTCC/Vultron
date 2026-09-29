@@ -9,11 +9,13 @@ description: >
   happy-path embargo requires no explicit negotiation exchange; why there is no
   pre-case embargo phase; why an RSVP deadline may not outlive its embargo; and
   how EP-04-003's two-party shortest-wins relates to EP-08's general
-  earliest-expiration ordering for N open proposals.
+  earliest-expiration ordering for N open proposals; and why the creation-time
+  revision's registration order no longer touches consent (ADR-0093).
 related_specs:
   - specs/case-management.yaml
   - specs/case-proposal.yaml
   - specs/embargo-policy.yaml
+  - specs/message-semantics-mapping.yaml
   - specs/vultron-as2-mapping.yaml
 related_notes:
   - notes/participant-embargo-consent.md
@@ -239,12 +241,13 @@ nothing contested.
 The revision is registered inside `InitializeDefaultEmbargoNode`, *before* the
 case-proposal tree seeds the vendor and the reporter as SIGNATORY. So a contested
 creation leaves the case at `EM.REVISE` with two SIGNATORY participants who never
-saw the revision. That is deliberate: CM-14-005 seeds consent to the *active*
-embargo, whose terms are still in force under REVISE, and the alternative —
-registering after the seeds — would lapse everyone and demand a re-accept round
-that no node drives. Whether the pending revision should also be announced to
-peers as an `Invite(EmbargoEvent)` — and so re-derive those consent states — is
-the decision tracked as #3863.
+saw the revision. That is correct: CM-14-005 seeds consent to the *active*
+embargo, whose terms are still in force under REVISE, and under ADR-0093 a
+proposal changes nobody's consent, so the order of registration and seeding no
+longer affects the consent record (it once did — the superseded lapse-on-propose
+cascade would have lapsed both seeds had the revision been registered after
+them). Whether the pending revision should also be announced to peers as an
+`Invite(EmbargoEvent)` is the decision tracked as #3863.
 
 The sender's event arrives under the sender's id, and an id is a sender-supplied
 value. `persist_creation_time_embargo` (`nodes/embargo.py`) therefore refuses a

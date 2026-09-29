@@ -11,9 +11,16 @@
 #   1 — one or more checks failed or were cancelled (bucket: fail or cancel)
 #   2 — timed out before all checks completed, or gh error
 #
+# Checks are only accepted once the PR head is the expected commit: right after
+# a push, `gh pr checks` still reports the previous head's completed run, which
+# would read as a false green (#3902). The expected commit is WAIT_CI_HEAD_SHA,
+# else local HEAD when the current branch is the PR's head branch; with
+# neither, the head is not checked.
+#
 # Environment:
 #   WAIT_CI_TIMEOUT_MINUTES  — max minutes to wait (default: 10)
 #   WAIT_CI_SLEEP            — seconds between polls (default: 30)
+#   WAIT_CI_HEAD_SHA         — commit the PR head must be at (default: see above)
 set -uo pipefail
 
 TIMEOUT_MINUTES=${WAIT_CI_TIMEOUT_MINUTES:-10}
@@ -25,7 +32,27 @@ if [ "$#" -gt 0 ] && [ -n "${1:-}" ]; then
   PR_ARG=("$1")
 fi
 
+EXPECTED_SHA=${WAIT_CI_HEAD_SHA:-}
+if [ -z "$EXPECTED_SHA" ]; then
+  PR_HEAD_REF=$(gh pr view "${PR_ARG[@]+"${PR_ARG[@]}"}" --json headRefName --jq .headRefName 2>/dev/null || true)
+  if [ -n "$PR_HEAD_REF" ] && [ "$PR_HEAD_REF" = "$(git branch --show-current 2>/dev/null)" ]; then
+    EXPECTED_SHA=$(git rev-parse HEAD)
+  fi
+fi
+
 for i in $(seq 1 "$MAX_ATTEMPTS"); do
+  if [ -n "$EXPECTED_SHA" ]; then
+    if ! HEAD_OID=$(gh pr view "${PR_ARG[@]+"${PR_ARG[@]}"}" --json headRefOid --jq .headRefOid 2>&1); then
+      echo "❌ wait-for-ci: gh pr view failed: $HEAD_OID" >&2
+      exit 2
+    fi
+    if [ "$HEAD_OID" != "$EXPECTED_SHA" ]; then
+      echo "… wait-for-ci: PR head is ${HEAD_OID:0:9}, waiting for ${EXPECTED_SHA:0:9} (attempt $i/$MAX_ATTEMPTS)" >&2
+      if [ "$i" -lt "$MAX_ATTEMPTS" ]; then sleep "$SLEEP"; fi
+      continue
+    fi
+  fi
+
   if ! JSON=$(gh pr checks "${PR_ARG[@]+"${PR_ARG[@]}"}" --json name,bucket,state,startedAt,completedAt 2>&1); then
     echo "❌ wait-for-ci: gh pr checks failed: $JSON" >&2
     exit 2

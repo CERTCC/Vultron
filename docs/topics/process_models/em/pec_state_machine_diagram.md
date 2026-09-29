@@ -11,11 +11,10 @@ stateDiagram-v2
     INVITED --> SIGNATORY: EA — accept
     INVITED --> DECLINED: ER — decline
     INVITED --> DECLINED: Timer — pocket veto
-    SIGNATORY --> LAPSED: EV cascade
+    SIGNATORY --> LAPSED: EC activates longer terms
     SIGNATORY --> DECLINED: ER — decline
     LAPSED --> INVITED: EP — re-invite
     LAPSED --> SIGNATORY: EA — accept
     LAPSED --> DECLINED: ER — decline
-    LAPSED --> DECLINED: Timer — pocket veto
     DECLINED --> INVITED: EP — re-invite
 ```

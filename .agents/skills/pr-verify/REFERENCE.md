@@ -24,7 +24,7 @@ This PR conflicts with `<base_ref>` and cannot be merged. Conflicting paths:
 
 Re-run `/pr-execute` (Phase 4 syncs and resolves), or resolve manually with
 `bash .agents/skills/shared/sync-with-main.sh <base_ref>`, then
-`git add <paths> && git commit --no-edit && git push`.
+`git add <paths> && git commit --no-edit && git push -u origin HEAD`.
 
 *Omit this section when merge state is clear.*
 
