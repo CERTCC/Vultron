@@ -143,6 +143,16 @@ groups:
     priority: SHOULD
     kind: architecture
     statement: Validation layer SHOULD reject exact duplicates (same ID, same content)
+    rationale: >-
+      "Reject" applies to the redelivered body, not the delivery: ingress storage
+      finds the id already held and does not re-store the body (IE-10-001), while the
+      stored copy is still routed to the handler and the response is the same 202 as
+      the original (ID-03-001). Rejecting the body is therefore not what prevents a
+      second side effect; the handler's own idempotency is (ID-02-003 rationale,
+      ID-04-004, ID-05-003).
+    relationships:
+    - rel_type: depends_on
+      spec_id: IE-10-001
   - id: ID-05-002
     priority: MAY
     kind: architecture
