@@ -27,6 +27,19 @@ groups:
     priority: MUST
     kind: architecture
     statement: System MUST detect duplicate activity submissions by ID
+    rationale: >-
+      Detection lives at ingress storage (IE-10-001): the receiving actor's store
+      already holds the id, so the redelivered body is not re-stored and the stored
+      copy is routed. It does not live at the HTTP route. A route-level check keyed on
+      the actor record's inbox collection was a production no-op, because the core
+      actor's `inbox` is a URI string (ARCH-12-006), and its tests passed only by
+      supplying a wire actor shape the route never receives (#3638).
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_redelivery.py` posts the same activity twice to a
+      real `CoreActor` over the FastAPI route and asserts a single stored record
+      under that id after the second post.
+    lint_suppress:
+    - phantom_path_ref
   - id: ID-02-002
     priority: SHOULD
     kind: architecture
@@ -35,6 +48,18 @@ groups:
     priority: MUST
     kind: architecture
     statement: Detection MUST occur before handler business logic execution
+    rationale: >-
+      Detection precedes dispatch, but does not replace it: the stored copy is still
+      routed to the handler, so the handler's own idempotency (ID-04-004, ID-05-003)
+      is what keeps a redelivery from producing a second side effect. Detection is
+      the evidence; handler idempotency is the guarantee.
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_redelivery.py` asserts that the second delivery of a
+      state-changing activity leaves the actor's store and outbox unchanged, and
+      that a second pipeline run over every dispatchable example activity on a
+      fresh store changes nothing.
+    lint_suppress:
+    - phantom_path_ref
 - id: ID-03
   title: Idempotent Response
   specs:
@@ -42,6 +67,11 @@ groups:
     priority: MUST
     kind: architecture
     statement: Duplicate submissions MUST return same HTTP status as original
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_redelivery.py` asserts that the second post of an
+      already-delivered activity is answered with the same HTTP 202 as the first.
+    lint_suppress:
+    - phantom_path_ref
   - id: ID-03-002
     priority: MUST_NOT
     kind: architecture
@@ -49,7 +79,12 @@ groups:
   - id: ID-03-003
     priority: SHOULD
     kind: architecture
-    statement: System SHOULD log duplicate submissions at WARNING level
+    statement: System SHOULD log duplicate submissions at INFO level
+    rationale: >-
+      A redelivery is ordinary ActivityPub behaviour — a peer retry after a lost
+      acknowledgement — not a fault the operator must act on, so it is a lifecycle
+      event, not a WARNING (SL-03-001). The ingress adapter already logs the routed
+      stored copy at INFO with the activity and actor ids (IE-10-001, #3638).
     relationships:
     - rel_type: depends_on
       spec_id: SL-03-001
@@ -108,6 +143,16 @@ groups:
     priority: SHOULD
     kind: architecture
     statement: Validation layer SHOULD reject exact duplicates (same ID, same content)
+    rationale: >-
+      "Reject" applies to the redelivered body, not the delivery: ingress storage
+      finds the id already held and does not re-store the body (IE-10-001), while the
+      stored copy is still routed to the handler and the response is the same 202 as
+      the original (ID-03-001). Rejecting the body is therefore not what prevents a
+      second side effect; the handler's own idempotency is (ID-02-003 rationale,
+      ID-04-004, ID-05-003).
+    relationships:
+    - rel_type: depends_on
+      spec_id: IE-10-001
   - id: ID-05-002
     priority: MAY
     kind: architecture
