@@ -190,8 +190,7 @@ failing tests or lint errors.
 ### Happy path
 
 ```bash
-git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git" \
-  "$(git branch --show-current)"
+git push -u origin HEAD
 
 gh pr create --repo CERTCC/Vultron \
   --head "$(git branch --show-current)" \
@@ -202,6 +201,10 @@ gh pr create --repo CERTCC/Vultron \
 ```
 
 Capture and return the PR URL emitted by `gh pr create`.
+
+Push to the named remote with `-u`, never to a token-embedded URL: a URL push
+cannot record upstream tracking, so every later bare `git push` (e.g.
+`pr-execute` Step 4) fails with "no upstream configured" (#3893).
 
 ### Draft-with-conflict path (unresolvable conflicts)
 

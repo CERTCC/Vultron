@@ -244,8 +244,12 @@ After tests pass, run the xfail ratchet per [REFERENCE.md](REFERENCE.md)
 #### Step 4 — Push
 
 ```bash
-git push
+git push -u origin HEAD
 ```
+
+`-u origin HEAD` (not bare `git push`) so a branch with no upstream, or one
+that tracks `origin/main` because it was created from it, still pushes to its
+own remote branch on the first try (#3893).
 
 If git demands a force-push, stop — something rewrote history and that needs
 a human.

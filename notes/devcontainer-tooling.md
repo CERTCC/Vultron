@@ -5,9 +5,9 @@ description: >
   Environment-level pitfalls specific to this devcontainer: why every tool must
   run under `uv run`, why `PYTHONPATH` must be cleared, the `UV_NO_SYNC=1`
   workaround for root-owned venvs, the 10-minute commit timeout the whole-tree
-  flake8 hook demands, the hanging `actionlint` hook, the broken `gh`
-  credential-helper path, and the hard-linked `.agents/` and `.claude/` skill
-  trees.
+  flake8 hook demands, the hanging `actionlint` hook, pushing to `origin`
+  with `-u` rather than a token URL, and the hard-linked `.agents/` and
+  `.claude/` skill trees.
 related_notes:
   - notes/docker-build.md
   - notes/git-workflow-pitfalls.md
@@ -87,20 +87,27 @@ devcontainer image, `actionlint-docker` (blocked — no docker either), or a
 
 Sources: ISSUE-2627
 
-## Git Credential Helper May Point at a Nonexistent `gh` Path
+## Push to `origin` with `-u`, Not to a Token URL
 
-The git config sets
-`credential.https://github.com.helper = !/usr/local/bin/gh auth git-credential`,
-but in this devcontainer `gh` lives at `/usr/bin/gh`. If `git push` fails with
-`/usr/local/bin/gh: not found`, do **not** try `gh auth setup-git` —
-`~/.gitconfig` is bind-mounted read-only here. Instead pass a one-shot override:
+Skills push with `git push -u origin HEAD`. The credential helper
+(`!/usr/local/bin/gh auth git-credential`) resolves in this devcontainer, so no
+token needs to be embedded in the URL. Do **not** push to
+`https://x-access-token:$(gh auth token)@github.com/...`: a URL push cannot
+record upstream tracking, so every later bare `git push` fails with "no
+upstream configured" (#3893). Prefer `-u origin HEAD` over bare `git push` even
+when tracking exists — a branch created with `git switch -c <b> origin/main`
+tracks `origin/main`, and a bare push then refuses the name mismatch.
+
+If a push ever fails with `gh: not found` (the helper path drifted from where
+`gh` is installed), do **not** run `gh auth setup-git` — `~/.gitconfig` is
+bind-mounted read-only. Pass a one-shot override with the real path instead:
 
 ```bash
-git -c credential.https://github.com.helper='!/usr/bin/gh auth git-credential' \
-  push -u origin <branch>
+git -c credential.https://github.com.helper="!$(command -v gh) auth git-credential" \
+  push -u origin HEAD
 ```
 
-Source: ISSUE-2186
+Sources: ISSUE-2186, #3893
 
 ## `.claude/skills` Is a Symlink to `.agents/skills` — Edit Only `.agents/`
 
