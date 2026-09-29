@@ -13,7 +13,7 @@ causal_edges:
       Case engagement triggers participant status entries.
   - antecedent: engage_case
     consequent: invite_actor_to_case
-    consequent_actor: c1
+    consequent_actor: case-actor
     note: >
       C1 invites both V1 and C2 after the case is active.
   - antecedent: invite_actor_to_case

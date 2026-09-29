@@ -24,6 +24,12 @@ narratives disagree on how to label it: `fvcv-handoff.md` and
 Nothing surfaced the split because `check_causal_edges` reads the label only for
 its failure message (`notes/demo-ci-invariants.md` calls it "documentary"), so
 the field DEMOMA-22-004 makes mandatory is the one field of the edge that no
-test compares to anything. The ambiguity and the enforcement gap are tracked
-together in Concern #3882, filed from PR #3881; PR #3881 itself adds only a
-shape-local check (an invitation response is never attributed to its inviter).
+test compares to anything.
+
+Resolution: PR #3881 settled the semantics by the rule the wire format already
+had (CM-24-001/002, PCR-08-007) — the label is the entry's recorded `actor`, the
+literal emitter, so every `invite_actor_to_case` edge is `case-actor` and the
+requesting participant lives in `attributedTo` — amended DEMOMA-22-004 to say so,
+and relabelled the ten invite edges. Making the label load-bearing in
+`check_causal_edges` remains Concern #3882; PR #3881 adds only a shape-local
+check (an invitation response is never attributed to its inviter).

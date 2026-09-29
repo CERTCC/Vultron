@@ -14,7 +14,7 @@ causal_edges:
       each participant that has joined.
   - antecedent: engage_case
     consequent: invite_actor_to_case
-    consequent_actor: vendor
+    consequent_actor: case-actor
     note: >
       Vendor1 invites Vendor2 to the case only after the case has been engaged
       and Vendor2 has been identified as an affected party.

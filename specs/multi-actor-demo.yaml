@@ -3509,7 +3509,13 @@ groups:
     statement: >-
       Each scenario narrative MUST carry a machine-readable list of causal
       edges. Each edge MUST name the antecedent event, the consequent event,
-      and the actor that commits the consequent.
+      and the actor that commits the consequent. The actor label MUST name
+      the `actor` recorded on the consequent's ledger entry, the literal
+      emitter of the activity. For an activity the CASE_MANAGER emits on a
+      participant's behalf, such as every `invite_actor_to_case`, that is
+      the CASE_MANAGER (CM-24-001, PCR-08-007), and the requesting
+      participant is recoverable from the entry's `attributedTo`
+      (CM-24-002), not from the label.
     rationale: >-
       Prose alone drifts silently from the code it describes. A structured edge
       list is the part of the narrative a test can check, and it forces the

@@ -199,16 +199,54 @@ def test_invitee_response_edge_is_not_attributed_to_the_inviter(
     ``consequent_actor`` names the actor whose act the consequent entry
     records (DEMOMA-22-004).  An invitation is answered by its invitee, so
     the actor on an ``invite_actor_to_case → accept/reject`` edge must differ
-    from the actor on the invite edge it answers.  Edges carry no invite
-    identity, so the pairing is by position: each invite edge is followed by
-    exactly one response edge, a shape every narrative must keep (see
-    ``_invite_chain_violations``).  ISSUE-2753 attributed the Vendor's
-    rejection to the Coordinator who sent the invite; the ledger check reads
-    the label only for diagnostics, so nothing else would notice.
+    from the actor on the invite edge it answers (the Case Actor, which sends
+    every invitation, PCR-08-007).  Edges carry no invite identity, so the
+    pairing is by position: each invite edge is followed by exactly one
+    response edge, a shape every narrative must keep (see
+    ``_invite_chain_violations``); that shape is what surfaced the missing
+    V2 acceptance edge in fcvcv (ISSUE-3885).  The ledger check reads the
+    label only for diagnostics, so nothing else would notice either slip.
     """
     edges = load_narrative_edges(_rel(page))
     violations = _invite_chain_violations(edges)
     assert not violations, f"{_rel(page)}:\n" + "\n".join(violations)
+
+
+def test_fcv_reject_rejection_is_the_vendors() -> None:
+    """The fcv-reject narrative attributes the rejection to the Vendor.
+
+    The Coordinator asks for the invitation and the Case Actor sends it
+    (PCR-08-007); the Vendor is the one who declines, so the Vendor's actor is
+    on the recorded ``reject_invite_actor_to_case`` entry.  ISSUE-2753 had
+    the Coordinator on this edge; the inviter comparison above cannot see
+    that slip once every invite edge carries ``case-actor``, so the label is
+    pinned directly.
+    """
+    edges = load_narrative_edges("docs/topics/scenarios/fcv-reject.md")
+    rejections = [
+        e
+        for e in edges
+        if e.get("consequent") == "reject_invite_actor_to_case"
+    ]
+    assert len(rejections) == 1, rejections
+    assert rejections[0].get("consequent_actor") == "vendor", rejections[0]
+
+
+def test_every_invite_edge_is_emitted_by_the_case_actor() -> None:
+    """Every ``invite_actor_to_case`` edge carries ``case-actor``.
+
+    The CASE_MANAGER is the ActivityStreams actor on every invitation
+    (PCR-08-007, CM-24-001); the participant who asked for it is in the
+    entry's ``attributedTo``, not in the label (DEMOMA-22-004).
+    """
+    mislabelled = [
+        f"{_rel(page)}: {edge.get('consequent_actor')!r}"
+        for page in _narrative_pages()
+        for edge in load_narrative_edges(_rel(page))
+        if edge.get("consequent") == _INVITE
+        and edge.get("consequent_actor") != "case-actor"
+    ]
+    assert not mislabelled, "\n".join(mislabelled)
 
 
 def _edge(antecedent: str, consequent: str, actor: str) -> dict:

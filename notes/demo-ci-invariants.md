@@ -186,12 +186,15 @@ causal_edges:
 
 - `antecedent` — the `eventType` string of the causally-earlier ledger entry.
 - `consequent` — the `eventType` string of the causally-later ledger entry.
-- `consequent_actor` — label for the participant whose act the consequent entry
-  records. Invariant 16 reads it only for its diagnostic output; the one check on
-  its value is the structural rule in `test/ci/invariants/test_narrative_edges.py`
-  (an invitation response is never attributed to the inviter). Whether the label
-  names the payload `actor` or the delegating `attributedTo` for an entry the
-  Case Actor emits on a participant's behalf is open in Concern #3882.
+- `consequent_actor` — the `actor` recorded on the consequent's ledger entry, i.e.
+  the literal emitter (DEMOMA-22-004). For an activity the Case Actor emits on a
+  participant's behalf that is `case-actor`, and the participant who asked for it
+  is recoverable from the entry's `attributedTo` (CM-24-001/002, PCR-08-007); every
+  `invite_actor_to_case` edge is therefore labelled `case-actor`, while an
+  invitation response carries the invitee. Invariant 16 reads the label only for
+  its diagnostic output; the one check on its value is the structural rule in
+  `test/ci/invariants/test_narrative_edges.py` (a response is never attributed to
+  the inviter). Making it load-bearing against the recorded actor is Concern #3882.
 - `note` — optional prose explanation of the causal relationship.
 - `observable` — defaults to `true`. Set to `false` for edges whose antecedent
   or consequent is not directly captured as a case-ledger entry (for example,
