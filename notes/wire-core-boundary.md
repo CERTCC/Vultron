@@ -351,7 +351,12 @@ Pydantic keeps the `Annotated` wrapper, so code that classifies a branch with
 from the annotations (ARCH-23-004) and assert the refusal:
 `test/architecture/test_wire_reference_fields_reject_blank.py` and, for core
 string fields with a pinned sentinel set,
-`test_core_reference_fields_reject_blank.py`.
+`test_core_reference_fields_reject_blank.py`. The rule reaches only slots whose
+annotation spells a string branch: the `Any | None` AS2 properties on
+`as_Object` (`to`, `cc`, `bto`, `bcc`, `audience`, `attributedTo`, `inReplyTo`,
+`context`, `url`, …) still admit a blank inbound, and neither ratchet can see a
+string leaf in `Any`. Narrowing them is a design decision against ARCH-12-004's
+declared leniency, tracked in #3894.
 
 **`| CoreObject` was the kludge.** Added in PR #730 as a migration convenience, it
 placed a core type inside a wire annotation — and therefore inside the `object_`

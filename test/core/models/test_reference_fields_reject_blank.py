@@ -209,3 +209,33 @@ def test_protocol_pair_reply_object_id_stays_optional() -> None:
         case_id=CASE, request_event_type="offer", object_id=URI
     )
     assert pair.reply_object_id is None and pair.is_open()
+
+
+@pytest.mark.spec("CS-08-001")
+@pytest.mark.spec("CS-22-001")
+@pytest.mark.parametrize("blank", BLANKS)
+def test_one_blank_predicate_decides_every_spelling(blank: str) -> None:
+    """``is_blank_string`` is the single predicate the three checkers share.
+
+    ``NonEmptyString``'s validator, ``require_non_empty`` and the wire layer's
+    ``is_blank`` all decide through it, so a blank spelling any one of them
+    refuses, all of them refuse.
+    """
+    from pydantic import TypeAdapter
+
+    from vultron.primitives import (
+        NonEmptyString,
+        is_blank_string,
+        require_non_empty,
+    )
+    from vultron.wire.as2.vocab.base.utils import is_blank
+
+    assert is_blank_string(blank)
+    assert is_blank(blank)
+    with pytest.raises(ValueError, match="case_id must be a non-empty string"):
+        require_non_empty(blank, "case_id")
+    with pytest.raises(ValidationError):
+        TypeAdapter(NonEmptyString).validate_python(blank)
+
+    assert not is_blank_string("x")
+    assert require_non_empty("x", "case_id") == "x"

@@ -31,12 +31,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-
-from vultron.primitives import require_non_empty
 from datetime import datetime, timezone
 from typing import Literal
 
 from vultron.core.models.protocol_pair import ProtocolPair
+from vultron.primitives import require_non_empty
 
 logger = logging.getLogger(__name__)
 

@@ -19,8 +19,11 @@ wire and core one class hierarchy, core reference fields carry the same
 blank-string gap as the wire aliases did (#3877).  Core cannot derive "is a
 reference" from an ``as_Link`` branch the way the wire ratchet does — a case id
 is a bare string — so this ratchet asserts the rule CS-08-001 actually states,
-over every string-valued leaf of every core model: scalar, union member, list
-item or dict value.  Each must refuse ``""`` and ``"   "`` at construction.
+over every string-valued leaf of every field a core model *declares itself*:
+scalar, union member, list item or dict value.  Each must refuse ``""`` and
+``"   "`` at construction.  Fields a core class only inherits from the wire
+base (``as_Object.name``, for one) belong to their declaring class and are the
+wire ratchet's to judge; ``owner_of`` keeps them out of this scan.
 
 The only fields allowed to accept a blank are the ones where ``""`` is a
 documented sentinel meaning "not yet" (an unacknowledged hash, an endpoint the
