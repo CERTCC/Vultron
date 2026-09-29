@@ -199,16 +199,49 @@ def _read_dump_manifests(search_root: Path) -> list[dict]:
     return manifests
 
 
+def _demo_never_reached_a_case(manifest: dict) -> bool:
+    """True when the dump had nothing to target because no case ever existed.
+
+    The dump writes ``caseId: null`` and ``targetCount: 0`` when the scenario
+    aborted before a case was created (DEMOCI-10-002) — the same shape as the
+    pre-run sentinel (DEMOCI-10-012).  A manifest that names a case but
+    captured nothing is a different situation: the case existed and its
+    ledgers are missing.
+    """
+    return manifest.get("caseId") is None and not manifest.get(
+        "targetCount", 0
+    )
+
+
 def _fail_no_ledgers_despite_dump(
     search_root: Path,
     manifests: list[dict],
 ) -> None:
-    """Fail with the manifests' account of why no ledger files were captured."""
-    lines = [
-        f"No case-ledger files under {search_root}, but "
-        f"{len(manifests)} dump manifest(s) show the demo ran and dumped. "
-        "This is a real invariant failure, not missing test data."
-    ]
+    """Fail with the manifests' account of why no ledger files were captured.
+
+    The headline names the layer that failed (DEMOCI-10-014).  When every
+    manifest says the scenario never reached a case, the ledger invariants
+    were not exercised at all — the demo aborted upstream, and calling that a
+    "real invariant failure" sends a triager to the ledger when the fault is
+    in delivery or in the scenario (ISSUE-3879, #2898).  The job still fails
+    either way (DEMOCI-10-003).
+    """
+    if all(_demo_never_reached_a_case(m) for m in manifests):
+        headline = (
+            f"No case-ledger files under {search_root}: "
+            f"{len(manifests)} dump manifest(s) show the demo aborted before "
+            "a case existed, so the ledger invariants were not exercised. "
+            "This is an upstream demo failure — see the demo-integration job "
+            "for the cause — not a ledger invariant failure."
+        )
+    else:
+        headline = (
+            f"No case-ledger files under {search_root}, but "
+            f"{len(manifests)} dump manifest(s) show the demo ran and dumped "
+            "for an existing case. "
+            "This is a real invariant failure, not missing test data."
+        )
+    lines = [headline]
     for manifest in manifests:
         lines.append(
             f"- demo {manifest.get('demoName', '?')!r}: "

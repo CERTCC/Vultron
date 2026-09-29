@@ -1535,6 +1535,37 @@ groups:
           - rel_type: refines
             spec_id: DEMOCI-10-002
 
+      - id: DEMOCI-10-014
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          When `test/ci/invariants/common.py::load_devlogs()` fails because a
+          `dump-manifest.json` is present but no ledger files are, its failure
+          message MUST name the layer that failed: when every manifest records
+          `caseId: null` and `targetCount: 0` (the scenario aborted before a
+          case existed, or only the pre-run sentinel was written) the message
+          MUST say the ledger invariants were not exercised and point at the
+          demo-integration job for the cause; only when a manifest names a case
+          MAY the message call the outcome a ledger invariant failure.
+        rationale: >-
+          A demo that aborted upstream still fails the harness (DEMOCI-10-003),
+          but a headline that insists "this is a real invariant failure" over a
+          delivery flake sends the triager to the ledger when nothing about the
+          ledger was tested. The manifest already carries the discriminator
+          (DEMOCI-10-002, DEMOCI-10-012); the message reads it rather than
+          asserting a conclusion the evidence does not support (ISSUE-3879,
+          recorded on #2898).
+        verification: >-
+          `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling`
+          — `test_upstream_abort_is_not_called_a_real_invariant_failure` and
+          `test_missing_ledgers_for_an_existing_case_stay_a_real_invariant_failure`.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-10-003
+
   - id: DEMOCI-11
     title: Demo Scenario Registry and Derived Artifacts
     description: >-
