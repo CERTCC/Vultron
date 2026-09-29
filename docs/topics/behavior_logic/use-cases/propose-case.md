@@ -58,9 +58,15 @@ The accepting service does eleven things, and the order is not interchangeable.
 | Initialize the default embargo | A case begins embargoed rather than open (EP-04-001) |
 | Seed the owner's consent | SIGNATORY, without an invitation round-trip |
 | Seed the reporter's consent | SIGNATORY — submitting a report is implicit consent ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md)) |
-| Commit the canonical ledger entries | The case's history starts here |
 | Emit `Accept(as_CaseProposal)` | The proposer learns its request succeeded |
 | Emit `Create(VulnerabilityCase)` | The proposer receives the case replica, with Participants inline |
+| Commit the canonical ledger entries | The case's history starts here, and each entry fans out to every Participant |
+
+The ledger commits come last for a reason that is easy to miss.
+Each commit fans its entry out through the same first-in-first-out outbox that carries the `Create(VulnerabilityCase)`.
+A commit placed ahead of the `Create` therefore hands every Participant ledger entries for a case it does not hold yet.
+Each such entry takes the pre-genesis recovery path — buffer, `Reject`, replay from genesis — while the replica waits behind the whole fan-out (CP-09-009).
+Emitting the case first makes that recovery path what it was designed to be: a backstop for transport reordering, not the normal route.
 
 The two emissions are separate steps for a reason worth understanding.
 The `Accept` is irrevocable once sent: the service has committed to managing the case.

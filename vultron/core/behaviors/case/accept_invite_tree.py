@@ -32,9 +32,9 @@ Tree structure::
             ├── MaybeSignEmbargoConsentNode          — sign when embargo is EM.ACTIVE
             ├── PersistInviteeParticipantNode        — dl.create, attach, save case
             ├── AdvanceInviteeToReceivedNode         — advance to RM.RECEIVED via writer
-            ├── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
             ├── EmitAnnounceCaseToInviteeNode        — queue Announce(VulnerabilityCase)
-            └── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
+            ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
+            └── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
 
 Admitting the invitee, announcing the case to it and backfilling the ledger
 are the CASE_MANAGER's (PCR-08-009); every other participant learns of the
@@ -138,9 +138,16 @@ def create_accept_invite_actor_to_case_tree(
                 ├── MaybeSignEmbargoConsentNode          — sign when EM.ACTIVE
                 ├── PersistInviteeParticipantNode        — persist, attach, save case
                 ├── AdvanceInviteeToReceivedNode         — advance to RM.RECEIVED via writer
-                ├── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
                 ├── EmitAnnounceCaseToInviteeNode        — queue Announce to invitee
-                └── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
+                ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
+                └── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
+
+    The last three follow CM-17-004 steps (5) and (6): the invitee receives the
+    case snapshot, then the prior ledger in log-index order, and only then the
+    add-participant entry — whose commit fans out to the invitee too, because
+    ``PersistInviteeParticipantNode`` has already put it in
+    ``actor_participant_index``.  Any other order hands the late joiner a ledger
+    entry before its case seed (SYNC-15 pre-genesis reject and replay, #2898).
 
     The idempotency guard ``CheckInviteeNotAlreadyParticipantNode`` uses
     :class:`~vultron.core.behaviors.idempotency.SilentIdempotencyGuardMixin`
@@ -184,13 +191,25 @@ def create_accept_invite_actor_to_case_tree(
                     AdvanceInviteeToReceivedNode(
                         case_id=case_id, invitee_id=invitee_id
                     ),
-                    EmitAddCaseParticipantNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
+                    # CM-17-004 steps (5) and (6): seed the invitee's case,
+                    # then backfill the prior ledger in log-index order.
                     EmitAnnounceCaseToInviteeNode(
                         case_id=case_id, invitee_id=invitee_id
                     ),
                     BackfillCanonicalLedgerToInviteeNode(
+                        case_id=case_id, invitee_id=invitee_id
+                    ),
+                    # The add-participant commit fans out through
+                    # ``actor_participant_index``, which already names the
+                    # invitee once PersistInviteeParticipantNode has run.
+                    # Placed before the announce it hands the invitee a ledger
+                    # entry for a case it does not hold yet (SYNC-15 pre-genesis
+                    # Reject, then a from-genesis replay interleaved with the
+                    # backfill — fcvcv V2/C2, #2898); placed between announce
+                    # and backfill it arrives as a forward gap ahead of the
+                    # entries it extends.  Last, it reaches the invitee as the
+                    # next entry in chain order.
+                    EmitAddCaseParticipantNode(
                         case_id=case_id, invitee_id=invitee_id
                     ),
                 ],

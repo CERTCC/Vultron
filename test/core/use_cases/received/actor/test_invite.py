@@ -80,6 +80,118 @@ def _seed_ledger_entry(
     return entry
 
 
+def _seed_late_joiner_case() -> dict[str, Any]:
+    """Case-actor store with a CASE_MANAGER, a two-entry ledger, and an Invite.
+
+    Shared by the late-joiner tests: the invitee is not yet a participant, so
+    ``Accept(Invite)`` drives the full admission sequence (CM-17-004).  Returns
+    the store and the objects the assertions need, plus a ``trigger_activity``
+    mock whose ``add_participant_to_case`` side effect stores a real
+    ``Add(CaseParticipant)`` so ``EmitAddCaseParticipantNode`` can snapshot it.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.enums.roles import CVDRole
+    from vultron.wire.as2.factories import add_participant_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.actors import (
+        as_Organization,
+        as_Service,
+    )
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case_actor_id = "https://example.org/actors/case-actor-lj1"
+    # The canonical ledger belongs to the case actor, so the backfill runs in
+    # the case actor's store.
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+    invitee_id = "https://example.org/users/late-joiner"
+    invitee = as_Organization(id_=invitee_id)
+    case_actor = as_Service(id_=case_actor_id, context="unused")
+    case = as_VulnerabilityCase(
+        id_="https://example.org/cases/caseLJ1",
+        name="TEST-LATE-JOIN-BACKFILL",
+        attributed_to=case_actor_id,
+    )
+    object.__setattr__(case_actor, "context", case.id_)
+    invite = rm_invite_to_case_activity(
+        invitee,
+        target=as_VulnerabilityCaseStub(id_=case.id_),
+        actor=case_actor_id,
+        id_=f"{case.id_}/invitations/1",
+    )
+    dl.create(invitee)
+    dl.create(case_actor)
+    dl.create(case)
+
+    case_manager_participant = as_CaseParticipant(
+        id_=f"{case.id_}/participants/case-actor-p",
+        attributed_to=case_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(case_manager_participant)
+    case.case_participants.append(case_manager_participant.id_)
+    case.actor_participant_index[case_actor_id] = case_manager_participant.id_
+    dl.save(case)
+    dl.create(invite)
+
+    first = _seed_ledger_entry(
+        dl,
+        case_id=case.id_,
+        object_id=f"{case.id_}/events/0",
+        event_type="submit_report",
+        actor_id=case_actor_id,
+        payload_snapshot={"index": 0},
+    )
+    second = _seed_ledger_entry(
+        dl,
+        case_id=case.id_,
+        object_id=f"{case.id_}/events/1",
+        event_type="add_participant_status",
+        actor_id=case_actor_id,
+        payload_snapshot={"index": 1},
+    )
+
+    add_activity_id = f"{case.id_}/activities/add-participant-1"
+
+    def _store_add_participant(**kwargs):
+        participant_id = kwargs.get("participant_id", invitee_id)
+        wire_p = as_CaseParticipant(
+            id_=participant_id,
+            attributed_to=invitee_id,
+            context=kwargs.get("case_id", case.id_),
+        )
+        activity = add_participant_to_case_activity(
+            participant=wire_p,
+            target=kwargs.get("case_id", case.id_),
+            actor=kwargs.get("actor", case_actor_id),
+            id_=add_activity_id,
+        )
+        dl.create(activity)
+        return add_activity_id
+
+    trigger_activity = MagicMock()
+    trigger_activity.announce_vulnerability_case.return_value = (
+        f"{case.id_}/announce/1"
+    )
+    trigger_activity.add_participant_to_case.side_effect = (
+        _store_add_participant
+    )
+    return {
+        "dl": dl,
+        "case": case,
+        "invitee_id": invitee_id,
+        "case_actor_id": case_actor_id,
+        "invite": invite,
+        "first": first,
+        "second": second,
+        "trigger_activity": trigger_activity,
+    }
+
+
 class TestInviteActorUseCases:
     """Tests for invite_actor_to_case, accept_invite_actor_to_case,
     and reject_invite_actor_to_case."""
@@ -716,109 +828,14 @@ class TestInviteActorUseCases:
     def test_accept_invite_backfills_canonical_ledger_from_genesis(
         self, make_payload
     ):
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.replication_state import (
             VultronReplicationState,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import (
-            as_Organization,
-            as_Service,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            # The canonical ledger belongs to the case actor, so the backfill
-            # runs in the case actor's store.
-            actor_id="https://example.org/actors/case-actor-lj1",
-        )
-        invitee_id = "https://example.org/users/late-joiner"
-        case_actor_id = "https://example.org/actors/case-actor-lj1"
-        invitee = as_Organization(id_=invitee_id)
-        case_actor = as_Service(id_=case_actor_id, context="unused")
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/caseLJ1",
-            name="TEST-LATE-JOIN-BACKFILL",
-            attributed_to=case_actor_id,
-        )
-        object.__setattr__(case_actor, "context", case.id_)
-        invite = rm_invite_to_case_activity(
-            invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
-            actor=case_actor_id,
-            id_=f"{case.id_}/invitations/1",
-        )
-        dl.create(invitee)
-        dl.create(case_actor)
-        dl.create(case)
-        from vultron.enums.roles import CVDRole
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-
-        case_manager_participant = as_CaseParticipant(
-            id_=f"{case.id_}/participants/case-actor-p",
-            attributed_to=case_actor_id,
-            context=case.id_,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        dl.create(case_manager_participant)
-        case.case_participants.append(case_manager_participant.id_)
-        case.actor_participant_index[case_actor_id] = (
-            case_manager_participant.id_
-        )
-        dl.save(case)
-        dl.create(invite)
-
-        first = _seed_ledger_entry(
-            dl,
-            case_id=case.id_,
-            object_id=f"{case.id_}/events/0",
-            event_type="submit_report",
-            actor_id=case_actor_id,
-            payload_snapshot={"index": 0},
-        )
-        second = _seed_ledger_entry(
-            dl,
-            case_id=case.id_,
-            object_id=f"{case.id_}/events/1",
-            event_type="add_participant_status",
-            actor_id=case_actor_id,
-            payload_snapshot={"index": 1},
-        )
-
-        from vultron.wire.as2.factories import add_participant_to_case_activity
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-
-        _add_activity_id = f"{case.id_}/activities/add-participant-1"
-
-        def _store_add_participant(**kwargs):
-            participant_id = kwargs.get("participant_id", invitee_id)
-            wire_p = as_CaseParticipant(
-                id_=participant_id,
-                attributed_to=invitee_id,
-                context=kwargs.get("case_id", case.id_),
-            )
-            activity = add_participant_to_case_activity(
-                participant=wire_p,
-                target=kwargs.get("case_id", case.id_),
-                actor=kwargs.get("actor", case_actor_id),
-                id_=_add_activity_id,
-            )
-            dl.create(activity)
-            return _add_activity_id
-
-        trigger_activity = MagicMock()
-        trigger_activity.announce_vulnerability_case.return_value = (
-            f"{case.id_}/announce/1"
-        )
-        trigger_activity.add_participant_to_case.side_effect = (
-            _store_add_participant
-        )
+        lj = _seed_late_joiner_case()
+        dl, case, invitee_id = lj["dl"], lj["case"], lj["invitee_id"]
+        invite, first, second = lj["invite"], lj["first"], lj["second"]
+        trigger_activity = lj["trigger_activity"]
         sync_port = MagicMock()
 
         accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
@@ -840,26 +857,75 @@ class TestInviteActorUseCases:
         ]
         # Entry 2 (accept_invite): committed before invitee is registered —
         #   fan-out does NOT include the invitee.
-        # Entry 3 (add_case_participant): committed AFTER invitee is persisted —
-        #   fan-out INCLUDES the invitee (they are now a case participant).
-        # Backfill: runs after invitee is registered with post-commit target (3),
-        #   sending entries 0, 1, 2, and 3.
-        # So invitee receives: [3 (fan-out), 0, 1, 2, 3 (backfill)].
-        assert announced_log_indices == [3, 0, 1, 2, 3]
-        # First backfill entry (index 1 in announced list) is the seeded entry 0.
-        assert announced_entries[1].entry_hash == first.entry_hash
-        assert announced_entries[2].entry_hash == second.entry_hash
+        # Backfill: runs BEFORE the add-participant commit (CM-17-004 steps 5
+        #   and 6 precede any further fan-out to the invitee), so its target is
+        #   the receipt entry (2) and it sends entries 0, 1, 2 in log order.
+        # Entry 3 (add_case_participant): committed after the invitee is
+        #   persisted AND after the backfill — its fan-out INCLUDES the invitee,
+        #   who receives it as the next entry in chain order, not out of order
+        #   ahead of genesis (#2898).
+        # So invitee receives: [0, 1, 2 (backfill), 3 (fan-out)].
+        assert announced_log_indices == [0, 1, 2, 3]
+        assert announced_entries[0].entry_hash == first.entry_hash
+        assert announced_entries[1].entry_hash == second.entry_hash
 
         state_id = VultronReplicationState(
             case_id=case.id_, peer_id=invitee_id
         ).id_
         state = cast(Any, dl.read(state_id))
         assert state is not None
-        # accept_invite (2) and add_case_participant (3) are both committed;
-        # backfill target is the post-commit last entry (3).
-        assert state.join_backfill_target_index == 3
-        assert state.join_backfill_last_sent_index == 3
+        # The backfill target is the ledger tail when the backfill ran: the
+        # accept_invite receipt (2).  add_case_participant (3) is committed
+        # afterwards and reaches the invitee by fan-out, not by backfill.
+        assert state.join_backfill_target_index == 2
+        assert state.join_backfill_last_sent_index == 2
         assert state.join_backfill_complete is True
+
+    @pytest.mark.spec("CM-17-009")
+    def test_accept_invite_seeds_the_case_before_any_ledger_entry_reaches_the_invitee(
+        self, make_payload
+    ):
+        """CM-17-004 (5) then (6): Announce(VulnerabilityCase) precedes every
+        Announce(CaseLedgerEntry) addressed to the invitee.
+
+        A late joiner that receives a ledger entry before its case seed enters
+        the SYNC-15 pre-genesis path — Reject, then a from-genesis replay that
+        interleaves with the join backfill (fcvcv V2/C2, #2898).  The two
+        channels are observed on one mock manager so their relative order is
+        what is asserted, not each channel alone.
+        """
+        lj = _seed_late_joiner_case()
+        dl, invitee_id, invite = lj["dl"], lj["invitee_id"], lj["invite"]
+        trigger_activity = lj["trigger_activity"]
+        sync_port = MagicMock()
+        manager = MagicMock()
+        manager.attach_mock(trigger_activity, "trigger")
+        manager.attach_mock(sync_port, "sync")
+
+        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        event = make_payload(accept)
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            trigger_activity=trigger_activity,
+        ).execute()
+
+        ordered = [
+            name
+            for name, _args, kwargs in manager.mock_calls
+            if name == "trigger.announce_vulnerability_case"
+            or (
+                name == "sync.send_announce_log_entry"
+                and invitee_id in kwargs.get("to", [])
+            )
+        ]
+        assert ordered, "neither channel reached the invitee"
+        assert ordered[0] == "trigger.announce_vulnerability_case", (
+            "the invitee must receive Announce(VulnerabilityCase) before any"
+            f" Announce(CaseLedgerEntry); observed order: {ordered}"
+        )
+        assert ordered.count("trigger.announce_vulnerability_case") == 1
 
     def test_accept_invite_resumes_backfill_without_duplicate_entries(
         self, make_payload
