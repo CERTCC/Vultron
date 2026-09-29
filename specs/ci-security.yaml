@@ -75,7 +75,7 @@ groups:
       include a step conditioned on failure that files or updates a GitHub Issue.
       The step MUST use the shared `.github/actions/notify-failure` composite
       action. The step MUST fire only on a genuine job `failure` and MUST NOT
-      fire when the run was cancelled (see CISEC-05-006).
+      fire on cancellation alone (see CISEC-05-006).
     rationale: >-
       Without structured failure notification, a broken `main` or a failed
       scheduled job goes undetected until a developer manually audits the Actions
@@ -88,12 +88,26 @@ groups:
     statement: >-
       Every qualifying workflow (per CISEC-05-001) MUST also include a separate
       step conditioned on success that closes any open failure issue for that
-      workflow, providing recovery visibility.
+      workflow, providing recovery visibility. The close step MUST NOT run on a
+      cancelled (concurrency-superseded) run: a step keyed on the `success()`
+      status function already satisfies this, and a step keyed on the
+      `needs.*.result` aggregate MUST require the absence of `cancelled`
+      (`!contains(needs.*.result, 'cancelled')`).
     rationale: >-
       A failure issue that stays open after the workflow recovers is misleading.
       Two dedicated steps (one on failure, one on success) keep each step
       single-purpose and avoid embedding workflow-status logic inside the
-      composite action itself.
+      composite action itself. A superseded run must not declare recovery: an
+      aggregate with no `failure` but a `cancelled` result proves nothing about
+      the commit, because the cancelled job might have failed had it run to
+      completion. This is the mirror image of CISEC-05-006, where the notify
+      step drops the same exclusion because a genuine `failure` beside a
+      `cancelled` sibling is still genuine.
+    verification: >-
+      `test_close_step_does_not_close_on_cancellation` in
+      `test/ci/test_workflow_failure_notification.py` asserts every
+      aggregate-keyed close step in a qualifying workflow requires the absence
+      of `cancelled`.
   - id: CISEC-05-003
     priority: MUST
     kind: process
@@ -124,7 +138,7 @@ groups:
     kind: process
     statement: >-
       The failure-conditioned notify step (CISEC-05-001) MUST NOT file a failure
-      issue when the run was cancelled, and MUST file when any job in the run
+      issue on cancellation alone, and MUST file when any job in the run
       genuinely failed, even if a sibling job in the same run was cancelled. A
       step keyed on the GitHub Actions `failure()` status function already
       satisfies both, because `failure()` is false on cancellation. A step keyed

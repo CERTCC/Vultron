@@ -150,13 +150,14 @@ AGGREGATE_CANCELLED_EXCLUSION = "!contains(needs.*.result, 'cancelled')"
 AGGREGATE_CANCELLED_INCLUSION = "|| contains(needs.*.result, 'cancelled')"
 
 
-def _notify_guards(wf: Path) -> list[str]:
-    """Return the normalized ``if:`` guard of every notify-mode step in ``wf``."""
+def _step_guards(wf: Path, mode: str) -> list[str]:
+    """Return the normalized ``if:`` guard of every notify-failure step in
+    ``wf`` running in ``mode`` (``"notify"`` or ``"close"``)."""
     data = _load_workflow(wf)
     return [
         _normalize_expr(str(step.get("if", "")))
         for step in _notify_failure_steps(data)
-        if step.get("with", {}).get("mode") == "notify"
+        if step.get("with", {}).get("mode") == mode
     ]
 
 
@@ -173,7 +174,7 @@ def test_notify_step_does_not_file_on_cancellation(wf: Path) -> None:
     ``|| contains(needs.*.result, 'cancelled')`` pattern that files on
     cancellation directly.
     """
-    for guard in _notify_guards(wf):
+    for guard in _step_guards(wf, "notify"):
         assert AGGREGATE_CANCELLED_INCLUSION not in guard, (
             f"{wf.name}: the notify (file) step must NOT file on cancellation "
             f"via `{AGGREGATE_CANCELLED_INCLUSION}` (CISEC-05-006, #3249). "
@@ -205,17 +206,49 @@ def test_notify_step_files_on_failure_mixed_with_cancellation(
     ``test_invariant_harness_skipped_when_demo_cancelled``), so every
     ``failure`` in the aggregate is genuine and the notify step must not
     require the absence of ``cancelled``.
+
+    The property holds for every notify guard, not only aggregate-keyed
+    ones: a ``failure()`` guard passes trivially, and a guard keyed on a
+    single job's result (``needs.test.result == 'failure'``) would be
+    suppressed by the exclusion just the same, so no guard is exempt.
     """
-    for guard in _notify_guards(wf):
-        if AGGREGATE_FAILURE not in guard:
-            continue  # keyed on failure(), which is immune to both hazards
+    for guard in _step_guards(wf, "notify"):
         assert AGGREGATE_CANCELLED_EXCLUSION not in guard, (
-            f"{wf.name}: a notify (file) step keyed on `{AGGREGATE_FAILURE}` "
-            f"must not also require `{AGGREGATE_CANCELLED_EXCLUSION}` — that "
+            f"{wf.name}: a notify (file) step must not require "
+            f"`{AGGREGATE_CANCELLED_EXCLUSION}` — that "
             f"suppresses a genuine failure whenever a sibling job in the same "
             f"run was cancelled (CISEC-05-006, #3293, #3294). Skip artifact "
             f"consumers on a cancelled producer instead (DEMOCI-04-007). "
             f"Current guard: {guard!r}"
+        )
+
+
+@pytest.mark.parametrize(
+    "wf", _qualifying_workflow_files(), ids=lambda p: p.name
+)
+def test_close_step_does_not_close_on_cancellation(wf: Path) -> None:
+    """CISEC-05-002 (#3293, #3294): the close step must not declare recovery
+    on a cancelled (concurrency-superseded) run.
+
+    The notify step dropped its cancellation exclusion because a genuine
+    ``failure`` sitting beside a ``cancelled`` result is still genuine
+    (``test_notify_step_files_on_failure_mixed_with_cancellation``). The
+    close step is the mirror image: an aggregate holding no ``failure`` but a
+    ``cancelled`` result proves nothing about the commit — the cancelled job
+    might have failed had it run to completion — so an aggregate-keyed close
+    guard MUST keep ``!contains(needs.*.result, 'cancelled')``. A guard keyed
+    on the ``success()`` status function is already safe: ``success()`` is
+    false on cancellation, so it never contains the aggregate at all.
+    """
+    for guard in _step_guards(wf, "close"):
+        if AGGREGATE_FAILURE not in guard:
+            continue  # keyed on success(), which is false on cancellation
+        assert AGGREGATE_CANCELLED_EXCLUSION in guard, (
+            f"{wf.name}: a close step keyed on the `needs.*.result` aggregate "
+            f"must also require `{AGGREGATE_CANCELLED_EXCLUSION}` — a "
+            f"superseded run must not retire the ci:main-failure issue on a "
+            f"commit it never finished checking (CISEC-05-002, #3293, "
+            f"#3294). Current guard: {guard!r}"
         )
 
 
@@ -231,7 +264,8 @@ def test_invariant_harness_skipped_when_demo_cancelled() -> None:
     cancelled demo runs so it is *skipped* (not failed) in that case, leaving
     the ``notify`` job to correctly defer to the superseding run.
 
-    See DEMOCI-04-007 and ``notes/ci-workflow-authoring.md``.
+    See DEMOCI-04-007 and ``notes/demo-ci-invariants.md`` § Cancellation
+    Safety.
     """
     data = _load_workflow(DEMO_WORKFLOW)
     job = data.get("jobs", {}).get("invariant-harness")

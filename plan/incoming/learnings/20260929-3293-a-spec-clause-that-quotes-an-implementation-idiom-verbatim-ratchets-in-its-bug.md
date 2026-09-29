@@ -1,10 +1,7 @@
 ---
-title: >-
-  A spec clause that quotes an implementation idiom verbatim, paired with a
-  ratchet test that asserts the quoted string, locks in whatever defect the
-  idiom carries — the ratchet then enforces the bug
+title: "A spec clause that quotes an implementation idiom verbatim, paired with a ratchet test that asserts the quoted string, locks in whatever defect the idiom carries — the ratchet then enforces the bug"
 type: learning
-timestamp: 2026-09-29T18:10:00+00:00
+timestamp: "2026-09-29T18:10:00Z"
 source: ISSUE-3293
 signal: theme-candidate
 ---
