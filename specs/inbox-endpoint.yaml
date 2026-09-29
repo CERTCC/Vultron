@@ -201,6 +201,38 @@ groups:
     priority: MUST
     kind: project
     statement: Background processing MUST be isolated from HTTP request/response cycle
+  - id: IE-06-003
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The inbox background task MUST NOT execute the synchronous BT pipeline
+      (`process_payload`, including the pending-queue replay loop) on the ASGI
+      event loop. It MUST run that work in a worker thread — as the synchronous
+      trigger routes already do — so that while one activity's handler executes
+      the process keeps accepting deliveries from peers, answering DataLayer and
+      trigger requests, and draining its own outboxes.
+    rationale: >-
+      Starlette runs an `async` background task on the event loop itself, and the
+      BT pipeline is synchronous (BT ticks, the BT global lock, SQLite I/O). Called
+      inline it stalls the whole container for every inbound activity, so IE-06-002's
+      isolation holds only for the request that scheduled it. The co-hosted
+      `OutboxMonitor` coroutine then pays one full BT tick per delivery — the
+      CaseActor's `Create(VulnerabilityCase)` was measured arriving 17 s after it was
+      queued on the vendor container (#3033) — and a trigger route waiting on the BT
+      lock from its threadpool thread starves until the client times out (#2898).
+      The per-actor asyncio lock is held across the thread hop, so BT-11-001's
+      per-actor FIFO is preserved.
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_orchestration_offloop.py` asserts
+      that `process_payload` runs on a thread other than the event-loop thread and
+      that a concurrent coroutine keeps progressing while a payload is processed.
+    relationships:
+    - rel_type: refines
+      spec_id: IE-06-002
+    - rel_type: depends_on
+      spec_id: BT-11-004
+    lint_suppress:
+    - missing_story_reference
 - id: IE-07
   title: Error Responses
   specs:

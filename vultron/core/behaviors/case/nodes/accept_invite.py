@@ -43,10 +43,17 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
     """Emit Add(CaseParticipant, Case) and commit a canonical ledger entry.
 
     Called by the CaseActor after persisting the new invitee participant
-    (``PersistInviteeParticipantNode``).  Fans the ``Add(CaseParticipant, Case)``
-    activity out to all current case participants so they can update their
-    local replica, and commits the corresponding canonical
-    ``CaseLedgerEntry`` to the hash chain.
+    (``PersistInviteeParticipantNode``), announcing the case to it and
+    backfilling the prior ledger (CM-17-004 steps 5 and 6).  Fans the
+    ``Add(CaseParticipant, Case)`` activity out to all current case
+    participants so they can update their local replica, and commits the
+    corresponding canonical ``CaseLedgerEntry`` to the hash chain.
+
+    The commit's own fan-out (``CollectLogEntryRecipientsNode``) reads
+    ``actor_participant_index`` and therefore *does* include the invitee.  That
+    is why this node runs last in the effects: earlier, the invitee would
+    receive this entry before its case seed (SYNC-15 pre-genesis) or before the
+    backfilled entries it extends (SYNC-14 forward gap) — #2898.
 
     Uses ``trigger_activity_factory.add_participant_to_case()`` to build and
     persist the activity.  The activity's ``payloadSnapshot`` is built with

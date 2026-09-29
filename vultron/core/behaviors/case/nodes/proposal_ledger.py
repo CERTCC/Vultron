@@ -65,8 +65,15 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
          entry would also validate)
 
     Best-effort: a single failed entry logs a warning but does not abort
-    the Sequence; initialization proceeds regardless (the ledger is an
-    audit record, not a precondition for the Accept/Create emissions).
+    the Sequence (the ledger is an audit record, not a precondition for the
+    Accept/Create emissions).
+
+    Runs *after* ``EmitCreateVulnerabilityCaseNode`` in the accept flow: every
+    commit fans its entry out through the FIFO outbox, and a participant must
+    hold the case object before its first ``Announce(CaseLedgerEntry)`` arrives
+    (CM-14-011, CP-09-009).  Committed ahead of the Create, the fan-out put ten
+    entries in front of it and every recipient took the SYNC-15 pre-genesis
+    path on the normal case-creation route (#3033, #2898).
 
     Reads ``case_id`` from the blackboard.
     """

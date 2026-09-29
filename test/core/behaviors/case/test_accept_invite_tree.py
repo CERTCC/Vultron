@@ -690,3 +690,47 @@ def test_every_accept_invite_effect_is_inside_the_case_manager_gate():
         if c.name == "GuardedCommitCaseLedgerEntryBT"
     )
     assert children.index(gate) > commit_index
+
+
+@pytest.mark.spec("CM-17-009")
+@pytest.mark.spec("CM-17-004")
+def test_case_announce_and_backfill_precede_the_add_participant_fanout():
+    """Effect order: seed the invitee's case before any ledger entry reaches it.
+
+    ``EmitAddCaseParticipantNode`` commits the add-participant entry and fans it
+    out through ``actor_participant_index`` — which already contains the invitee
+    once ``PersistInviteeParticipantNode`` has run.  Placed before
+    ``EmitAnnounceCaseToInviteeNode`` it hands the invitee a ledger entry for a
+    case it does not hold yet (SYNC-15 pre-genesis reject, then a replay that
+    interleaves with the join backfill).  CM-17-004 orders the announce (5)
+    and the backfill (6) with no fan-out to the invitee in between, so the
+    add-participant commit belongs after both (#2898, fcvcv late joiners).
+    """
+    from vultron.core.behaviors.case.accept_invite_tree import (
+        create_accept_invite_actor_to_case_tree,
+    )
+    from vultron.core.behaviors.case.nodes.accept_invite import (
+        EmitAddCaseParticipantNode,
+    )
+    from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
+        BackfillCanonicalLedgerToInviteeNode,
+        EmitAnnounceCaseToInviteeNode,
+    )
+
+    tree = create_accept_invite_actor_to_case_tree(
+        case_id="https://example.org/cases/order",
+        invitee_id="https://example.org/actors/late-joiner",
+    )
+    leaves = [
+        type(n)
+        for n in tree.iterate()
+        if not isinstance(n, py_trees.composites.Composite)
+    ]
+    announce = leaves.index(EmitAnnounceCaseToInviteeNode)
+    backfill = leaves.index(BackfillCanonicalLedgerToInviteeNode)
+    add_participant = leaves.index(EmitAddCaseParticipantNode)
+
+    assert announce < backfill < add_participant, (
+        "expected Announce(VulnerabilityCase) → backfill → add-participant"
+        f" commit, got {[t.__name__ for t in leaves]}"
+    )

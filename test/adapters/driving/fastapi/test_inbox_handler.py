@@ -865,6 +865,9 @@ def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
     admission decline path can emit Reject(as_CaseProposal) (CP-05-004), and
     ``call_out`` as the admission-policy injection point (CP-05-002).
     """
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
@@ -890,11 +893,13 @@ def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
     assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
     assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
     assert kwargs["call_out"] is CASE_PROPOSAL_DETERMINISTIC
+    assert isinstance(kwargs["sync_port"], SyncActivityAdapter)
     assert set(kwargs) == {
         "actor_config",
         "wire_render_port",
         "trigger_activity",
         "call_out",
+        "sync_port",
     }
 
 
@@ -908,6 +913,9 @@ def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
     decline path can still emit Reject(as_CaseProposal) (CP-05-004) under the
     default admission policy.
     """
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
@@ -929,10 +937,12 @@ def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
     assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
     assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
     assert kwargs["call_out"] is CASE_PROPOSAL_DETERMINISTIC
+    assert isinstance(kwargs["sync_port"], SyncActivityAdapter)
     assert set(kwargs) == {
         "wire_render_port",
         "trigger_activity",
         "call_out",
+        "sync_port",
     }
 
 

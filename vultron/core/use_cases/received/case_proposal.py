@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.case_proposal import (
         CaseProposalCallOutBundle,
     )
+    from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.behaviors.case.accept_case_proposal_received_tree import (
@@ -125,9 +126,17 @@ class CreateCaseProposalReceivedUseCase:
         wire_render_port: "WireRenderPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
         call_out: "CaseProposalCallOutBundle | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: CreateCaseProposalReceivedEvent = request
+        # The native ledger commits (CommitNativeLedgerEntriesNode) fan each
+        # entry out through this port.  It is injected explicitly so the
+        # fan-out is part of the use case's declared contract — and so a test
+        # can observe the outbox order it produces (CM-14-011, CP-05-003)
+        # rather than inheriting whatever port a previous execution left on
+        # the blackboard (BT-17-007 restores it, so normally: none).
+        self._sync_port = sync_port
         # CFG-07-002/CFG-07-004: the CVD roles the proposing actor receives
         # alongside CVDRole.CASE_OWNER come from the local actor config, not a
         # hard-coded assumption that every report receiver is a vendor.
@@ -250,6 +259,7 @@ class CreateCaseProposalReceivedUseCase:
             datalayer=self._dl,
             wire_render_port=self._wire_render_port,
             trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,

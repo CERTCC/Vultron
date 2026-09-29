@@ -2605,3 +2605,75 @@ class TestEP04SenderProposalAtCaseCreation:
             "not the proposal's report" in r.getMessage()
             for r in caplog.records
         )
+
+
+# ---------------------------------------------------------------------------
+# Outbound ordering: the case reaches a participant before its ledger entries
+# ---------------------------------------------------------------------------
+
+
+def _outbox_labels(dl: SqliteDataLayer) -> list[str]:
+    """Describe the case-actor outbox as ``Verb(ObjectType)`` labels, in order."""
+    labels: list[str] = []
+    for activity_id in dl.outbox_list():
+        activity = dl.read(activity_id)
+        obj = getattr(activity, "object_", None)
+        obj_type = (
+            obj.get("type")
+            if isinstance(obj, dict)
+            else getattr(obj, "type_", None)
+        )
+        labels.append(f"{getattr(activity, 'type_', '?')}({obj_type})")
+    return labels
+
+
+@pytest.mark.spec("CP-09-009")
+@pytest.mark.spec("CM-14-011")
+@pytest.mark.spec("CP-05-003")
+def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
+    """Accept, then Create(VulnerabilityCase), then the ledger fan-out.
+
+    The outbox is FIFO (OX-01-002), so enqueue order is wire order.  If the
+    native ledger commits fan out first, every recipient receives
+    ``Announce(CaseLedgerEntry)`` for a case it does not hold yet, enters the
+    pre-genesis path (SYNC-15), sends a ``Reject``, and the CASE_MANAGER
+    replays the whole ledger — while ``Create(VulnerabilityCase)`` waits at
+    the back of the queue.  That queue position is what timed out the fv and
+    fcv-reject replica gates (#3033) and congested the CaseActor outbox in
+    fcvcv (#2898).  CM-14-011's rationale states the rule: the reporter's
+    system must hold the case object before any fan-out that references it.
+    """
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.core.use_cases.received.case_proposal import (
+        CreateCaseProposalReceivedUseCase,
+    )
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+    _seed_report(dl)
+    event = _make_full_event(make_payload)
+    CreateCaseProposalReceivedUseCase(
+        dl,
+        event,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+
+    labels = _outbox_labels(dl)
+    announces = [lbl for lbl in labels if lbl.startswith("Announce(")]
+
+    # Not vacuous: without an injected sync port the fan-out is skipped and
+    # any order assertion would pass trivially.
+    assert len(announces) >= 2, (
+        "expected the native ledger fan-out to reach the outbox, got"
+        f" {labels}"
+    )
+    assert labels[:2] == [
+        "Accept(CaseProposal)",
+        "Create(VulnerabilityCase)",
+    ], f"Accept and Create must head the outbox, got {labels}"
+    assert labels[2:] == announces, (
+        "every Announce(CaseLedgerEntry) must follow Create(VulnerabilityCase),"
+        f" got {labels}"
+    )

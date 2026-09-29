@@ -8,6 +8,7 @@ description: >
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
+  - specs/inbox-endpoint.yaml
 related_notes:
   - notes/bt-canonical-reference.md
   - notes/bt-pitfalls.md
@@ -15,6 +16,7 @@ related_notes:
   - notes/protocol-event-cascades.md
   - notes/use-case-behavior-trees.md
   - notes/testing-pitfalls.md
+  - notes/inbox-orchestration.md
 relevant_packages:
   - py_trees
   - vultron/bt
@@ -239,9 +241,26 @@ while the receiver is canonical (#2667). See `resolve_invitee_id()` in
 **Prototype approach**: Sequential FIFO message processing per actor.
 
 **Implementation**: BackgroundTasks queues messages; inbox endpoint returns
-202 immediately. BT execution happens in the background via
-`anyio.to_thread.run_sync`, which places synchronous callables onto a
-**thread pool** — not a single thread.
+202 immediately. BT execution happens in the background on a **thread pool**
+— not a single thread, and never on the event loop — by two routes:
+
+- Trigger routes are synchronous `def` endpoints, so Starlette runs them via
+  `anyio.to_thread.run_sync`.
+- The inbox background task (`run_inbox_pipeline`) is an `async def`, which
+  Starlette runs *on the event loop*; it therefore hands the synchronous BT
+  pipeline (`process_payload` and the replay loop) to `asyncio.to_thread`
+  itself, inside the per-actor asyncio lock (IE-06-003).
+
+**Why the inbox hop matters** (#3033, #2898): before the hop, every inbound
+activity stalled the whole container for its BT tick. No HTTP response went
+out, peers' deliveries were not accepted, the co-hosted `OutboxMonitor`
+coroutine could not drain, and a trigger route waiting on the BT lock from
+its threadpool thread starved until the client timed out. In the fv demo the
+CaseActor's outbox paid one full BT tick per delivery on the vendor container
+(0.6–5 s each under CI load), and `Create(VulnerabilityCase)` was queued
+behind a ledger fan-out that took 17 s to drain. A stale version of this
+section said the inbox path already ran on the thread pool; it had, before
+the task became a coroutine.
 
 **Critical implication**: Two BT executions can and do run on different
 threads simultaneously. The `py_trees.blackboard.Blackboard.storage` dict
