@@ -216,6 +216,15 @@ the only path to a commit) by replacing the *external* pre-flight guard
 with an *internal* one. CLP-10-001 (every protocol-significant trigger
 tree emits to `case_manager_id`) is unaffected.
 
+> **Amended by ADR-0111 (2026-09-29).** The received-side tree gains a
+> fourth stage in front of the three this ADR ordered: a shared intake node
+> that stores the received activity and its inlined objects, exactly as
+> received, runs first, ahead of the precondition guards, the guarded commit,
+> and the protocol effects (CLP-10-006, CLP-10-010, CLP-10-017).
+> `create_receive_activity_tree` supplies the intake node; the single
+> `execute_with_setup()` call and the in-tree CASE_MANAGER gate decided here
+> are unchanged.
+
 ### New Normative Requirement
 
 `specs/case-ledger-processing.yaml` gains CLP-10-005: a received-side use

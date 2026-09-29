@@ -1455,17 +1455,31 @@ groups:
     lint_suppress:
     - missing_story_reference
   - id: CM-15-005
-    priority: MAY
-    kind: protocol
+    priority: MUST
+    kind: project
     statement: >-
-      The `auto_create_case` gate MAY be enforced as a routing-level short-circuit in
-      `SubmitReportReceivedUseCase` or as an in-tree condition node at the root of
-      `create_receive_report_case_tree`; the observable outcome (no case, no outbound
-      activities) is normative, not the enforcement location.
-    rationale: Case creation is protocol-significant behavior (BT-15-001), so the canonical
-      gate lives in the behavior tree as a condition node; the use-case short-circuit is an
-      equivalent optimization that avoids invoking the BT for a decision already known at
-      dispatch time. Either placement yields the same observable outcome.
+      The `auto_create_case` gate MUST be enforced as an in-tree condition node in
+      `create_receive_report_case_tree`, after the intake node and ahead of any
+      case-creating effect. A routing-level short-circuit in
+      `SubmitReportReceivedUseCase` is not a conforming enforcement location, because
+      it stores the report and the `Offer(Report)` before any tree runs (CLP-10-019).
+      The observable outcome (no case, no outbound activities; report and Offer
+      stored per CM-15-002) remains normative.
+    rationale: Case creation is protocol-significant behavior (BT-15-001), so the gate
+      lives in the behavior tree as a condition node. This requirement previously
+      allowed a use-case short-circuit as an equivalent optimization; ADR-0111 retired
+      that option because the short-circuit had to store the report and Offer itself,
+      which is the store path CLP-10-019 forbids. The intake node now stores them for
+      every inbound `Offer(Report)`, so the gate has nothing left to do outside the
+      tree (#3872).
+    verification: A received-side handler test posts an `Offer(Report)` to a receiver
+      with `auto_create_case=False`, asserts the disposition is SKIPPED, that no case
+      and no outbound activity exist, and that the report and the Offer are readable
+      from the receiver's DataLayer. The mutation ratchet
+      `test/architecture/test_no_dl_mutations_in_execute.py` (CLP-10-020) fails if
+      `SubmitReportReceivedUseCase.execute()` reaches a store helper.
+    adr:
+    - ADR-0111
 - id: CM-16
   title: Actor Suggestion Routing (Recommend-Actor Flow)
   specs:

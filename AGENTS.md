@@ -295,11 +295,11 @@ linked file before touching that area. New pitfalls MUST be routed per
   models; module splits re-import moved names for `monkeypatch` (`# noqa: F401`, #972);
   FastAPI router packages re-export `dependency_overrides` keys (#970). Deleting a
   module instead needs importer proof: no live importers in `vultron/` or `test/`.
-- **`dl.save/create/update/delete()` in `execute()` bypasses the BT audit trail** —
-  ratchet: `test/architecture/test_no_dl_mutations_in_execute.py` (#1071).
-- **Receive-side ordering is guards → commit → effects** (CLP-10-006); received
-  `execute()` never calls `commit_log_entry_trigger()` (BT-06-006, SYNC-02-002). **Stub
-  adapters raise `NotImplementedError`**, never docstring-only (OX-10-004, OX-11-004).
+- **`dl.save/create/update/delete()` in `execute()` bypasses the BT audit trail**, including
+  through a helper — ratchet: `test/architecture/test_no_dl_mutations_in_execute.py` (#1071, CLP-10-020, #3339).
+- **Receive-side ordering is intake → guards → commit → effects** (CLP-10-006, ADR-0111); the factory
+  supplies the intake node, never add a store helper or node (CLP-10-019); received `execute()` never calls
+  `commit_log_entry_trigger()` (BT-06-006, SYNC-02-002). **Stub adapters raise `NotImplementedError`**, never docstring-only (OX-10-004, OX-11-004).
 - **Protocol-declared fields stay in sync with concrete classes**, and `TypeGuard`
   discriminators may `hasattr`-check only Protocol-declared attributes (CS-20-001/002).
 - **Emit nodes in case-scoped trigger BTs fail fast on a missing CaseActor**
