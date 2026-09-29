@@ -49,6 +49,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 from vultron.core.models.dimensions import (
     PxaDimension,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_MANAGER_ID = "https://example.org/actors/case-actor"
@@ -101,7 +102,9 @@ def public_aware_status():
 
 @pytest.fixture
 def embargo():
-    return as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
+    return as_EmbargoEvent(
+        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
+    )
 
 
 @pytest.fixture
@@ -144,12 +147,16 @@ def _make_dl_with_em_state(
     case.append_case_status(em_state=em_state)
 
     if with_proposed_embargo or with_embargo:
-        embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
+        embargo = as_EmbargoEvent(
+            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
+        )
         case.proposed_embargoes = [embargo.id_]
         dl.create(embargo)
 
     if with_active_embargo or with_embargo:
-        embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
+        embargo = as_EmbargoEvent(
+            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
+        )
         case.active_embargo = embargo.id_
         try:
             dl.create(embargo)
@@ -300,7 +307,9 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
     ) -> tuple[SqliteDataLayer, BTBridge, PublicDisclosureBranchNode]:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
 
-        embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
+        embargo = as_EmbargoEvent(
+            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
+        )
         case = VulnerabilityCase(
             id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
         )

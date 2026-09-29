@@ -28,6 +28,7 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 
 class TestEmbargoTermRevise:
@@ -55,6 +56,7 @@ class TestEmbargoTermRevise:
             id_="https://example.org/cases/case_em1/embargo_events/e1",
             content="Embargo test",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         # Start from PROPOSED — the standard pre-condition for activation.
         case.append_case_status(em_state=EM.PROPOSED)
@@ -100,6 +102,7 @@ class TestEmbargoTermRevise:
             id_="https://example.org/cases/case_em1_warn/embargo_events/e1",
             content="Embargo test",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         # Default em_state is NONE — not a valid predecessor for ACTIVE.
         dl.create(case)
@@ -143,6 +146,7 @@ class TestEmbargoTermRevise:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_rem1/embargo_events/e1",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         case.proposed_embargoes.append(embargo.id_)
         case.append_case_status(em_state=EM.PROPOSED)
@@ -193,6 +197,7 @@ class TestEmbargoTermRevise:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_rem2/embargo_events/e2",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)
@@ -241,6 +246,7 @@ class TestEmbargoTermRevise:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_rem3/embargo_events/e3",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.PROPOSED)

@@ -241,7 +241,7 @@ groups:
   - id: CS-13-004
     priority: MUST
     kind: project
-    statement: Embargo deadline datetimes MUST be computed using the `days_from_now_utc(n)` helper in `vultron.core.models._helpers` rather than inline arithmetic
+    statement: Embargo deadline datetimes MUST be computed using the `from_now_utc(delta)` / `days_from_now_utc(n)` helpers in `vultron.core.models._helpers` rather than inline arithmetic
   - id: CS-13-005
     priority: MUST
     kind: protocol

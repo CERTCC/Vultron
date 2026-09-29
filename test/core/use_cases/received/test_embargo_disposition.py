@@ -41,6 +41,7 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 _COORD = "https://example.org/users/coord"
 _VENDOR = "https://example.org/users/vendor"
@@ -122,6 +123,7 @@ class TestEmbargoMessagesForUnknownCaseAreRefused:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/nope/embargo_events/e1",
             context="https://example.org/cases/nope",
+            end_time=days_from_now_utc(45),
         )
         activity = add_embargo_to_case_activity(
             embargo,
@@ -172,6 +174,7 @@ class TestFailedTeardownIsRefused:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_tdf/embargo_events/e1",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)

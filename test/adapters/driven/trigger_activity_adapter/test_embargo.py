@@ -15,6 +15,7 @@
 
 import json
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.core.models._helpers import days_from_now_utc
 
 _ACTOR = "https://example.org/actors/coordinator"
 _PEER = "https://example.org/actors/vendor"
@@ -22,7 +23,7 @@ _CASE_ID = "https://example.org/cases/case-001"
 
 
 def _make_embargo(dl) -> as_EmbargoEvent:
-    embargo = as_EmbargoEvent(context=_CASE_ID)
+    embargo = as_EmbargoEvent(context=_CASE_ID, end_time=days_from_now_utc(45))
     dl.create(embargo)
     return embargo
 

@@ -18,10 +18,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.use_cases.received.embargo import (
@@ -78,7 +79,9 @@ def _make_active_embargo_case(
         attributed_to=_COORD,
     )
     case.append_case_status(em_state=EM.ACTIVE)
-    embargo = as_EmbargoEvent(id_=embargo_id, context=case_id)
+    embargo = as_EmbargoEvent(
+        id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
+    )
     case.set_embargo(embargo_id)
 
     invitee_cp = WireCP(
@@ -265,7 +268,9 @@ class TestInviteStoresDeadline:
             id_=case_id, name="Store Deadline", attributed_to=_COORD
         )
         case.append_case_status(em_state=EM.PROPOSED)
-        embargo = as_EmbargoEvent(id_=embargo_id, context=case_id)
+        embargo = as_EmbargoEvent(
+            id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
+        )
 
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
@@ -332,7 +337,9 @@ class TestInviteeIsTheAddressee:
             id_=case_id, name="Addressee Test", attributed_to=_COORD
         )
         case.append_case_status(em_state=EM.PROPOSED)
-        embargo = as_EmbargoEvent(id_=embargo_id, context=case_id)
+        embargo = as_EmbargoEvent(
+            id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
+        )
 
         coord_cp = WireCP(
             attributed_to=_COORD,
@@ -809,6 +816,7 @@ class TestInviteeIdProperty:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/prop/embargos/e1",
             context="https://example.org/cases/prop",
+            end_time=days_from_now_utc(45),
         )
         invite = em_propose_embargo_activity(
             embargo=embargo,
@@ -909,7 +917,11 @@ class TestLateAcceptHandling:
         )
 
         # Also create the stale embargo in the DL
-        stale_embargo = as_EmbargoEvent(id_=stale_embargo_id, context=case_id)
+        stale_embargo = as_EmbargoEvent(
+            id_=stale_embargo_id,
+            context=case_id,
+            end_time=days_from_now_utc(45),
+        )
         dl.create(stale_embargo)
 
         # Proposal was for the stale embargo
@@ -1043,7 +1055,9 @@ class TestLateAcceptHandling:
             id_=case_id, name="Normal Accept", attributed_to=_COORD
         )
         case.append_case_status(em_state=EM.PROPOSED)
-        embargo = as_EmbargoEvent(id_=embargo_id, context=case_id)
+        embargo = as_EmbargoEvent(
+            id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
+        )
 
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
@@ -1088,7 +1102,9 @@ class TestLateAcceptHandling:
             id_=case_id, name="No Deadline Accept", attributed_to=_COORD
         )
         case.append_case_status(em_state=EM.PROPOSED)
-        embargo = as_EmbargoEvent(id_=embargo_id, context=case_id)
+        embargo = as_EmbargoEvent(
+            id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
+        )
 
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
@@ -1250,7 +1266,11 @@ class TestLateAcceptHandling:
             invitee_deadline=_PAST,
         )
 
-        stale_embargo = as_EmbargoEvent(id_=stale_embargo_id, context=case_id)
+        stale_embargo = as_EmbargoEvent(
+            id_=stale_embargo_id,
+            context=case_id,
+            end_time=days_from_now_utc(45),
+        )
         dl.create(stale_embargo)
 
         stale_proposal = em_propose_embargo_activity(

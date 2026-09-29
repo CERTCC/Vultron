@@ -31,6 +31,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Invite,
     as_Offer,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
@@ -175,7 +176,9 @@ class TestCoerceToSemanticClass:
         )
 
         case = as_VulnerabilityCase()
-        embargo = as_EmbargoEvent(context=case.id_)
+        embargo = as_EmbargoEvent(
+            context=case.id_, end_time=days_from_now_utc(45)
+        )
         proposal = em_propose_embargo_activity(
             embargo,
             context=case.id_,

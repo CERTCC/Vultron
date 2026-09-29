@@ -18,6 +18,7 @@ from vultron.semantic_registry import (
 from vultron.core.models.dimensions import (
     VfDimension,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 
 @pytest.mark.spec("SE-02-003")
@@ -168,6 +169,7 @@ def test_extract_intent_embargo_pass_through_fields():
         context="https://example.org/cases/1",
         published=now,
         updated=now,
+        end_time=days_from_now_utc(45),
     )
     # CreateEmbargoEvent pattern: Create + EVENT + context=VULNERABILITY_CASE
     activity = as_Create(

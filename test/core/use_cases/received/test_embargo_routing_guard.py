@@ -45,6 +45,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -105,6 +106,7 @@ def _make_embargo_case(
         id_=f"{case_id}/embargo_events/e1",
         content="Routing test embargo",
         context=case_id,
+        end_time=days_from_now_utc(45),
     )
     dl.create(embargo)
 

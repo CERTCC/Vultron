@@ -22,6 +22,7 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 
 class _FakeWireActivity:
@@ -40,7 +41,10 @@ def test_extract_activity_snapshot_returns_empty_without_activity() -> None:
 @pytest.mark.spec("CLP-07-006")
 @pytest.mark.spec("CLP-07-011")
 def test_extract_activity_snapshot_inlines_nested_reference_fields(datalayer):
-    embargo = as_EmbargoEvent(context="https://example.org/cases/case-001")
+    embargo = as_EmbargoEvent(
+        context="https://example.org/cases/case-001",
+        end_time=days_from_now_utc(45),
+    )
     report = as_VulnerabilityReport(
         name="TEST-REPORT-001",
         content="Demo content",
@@ -81,7 +85,10 @@ def test_extract_activity_snapshot_inlines_nested_reference_fields(datalayer):
 def test_extract_activity_snapshot_does_not_inline_cross_context_refs(
     datalayer,
 ):
-    embargo = as_EmbargoEvent(context="https://example.org/cases/other-case")
+    embargo = as_EmbargoEvent(
+        context="https://example.org/cases/other-case",
+        end_time=days_from_now_utc(45),
+    )
     datalayer.save(embargo)
 
     payload = {

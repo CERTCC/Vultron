@@ -46,10 +46,9 @@ class SvcProposeEmbargoRevisionUseCase(SvcEmbargoTriggerBase):
         self._actor_id = actor.id_
         self._case = resolve_case(request.case_id, dl)
 
-        embargo_kwargs: dict = {"context": self._case.id_}
-        if request.end_time is not None:
-            embargo_kwargs["end_time"] = request.end_time
-        self._embargo = EmbargoEvent(**embargo_kwargs)
+        self._embargo = EmbargoEvent(
+            context=self._case.id_, end_time=request.end_time
+        )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:

@@ -133,8 +133,9 @@ def _effective_rsvp_deadline(
     (EP-07-005).  Windows are measured from the invite's ``published`` time;
     an activity without one is measured from now.
 
-    ``resolve_rsvp_deadline`` normalises every input to UTC, including the
-    nested embargo's ``end_time``, which the wire edge does not.
+    Every input is already UTC-aware: the activity's fields by
+    ``as_Object.validate_datetime`` and the nested embargo's ``end_time`` by
+    ``CoreObject`` (CS-13-001, #3784).
     """
     raw_end_time = getattr(activity, "end_time", None)
     requested = raw_end_time if isinstance(raw_end_time, datetime) else None

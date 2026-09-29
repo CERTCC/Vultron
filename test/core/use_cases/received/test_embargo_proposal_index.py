@@ -61,6 +61,7 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 
 def _make_case_with_case_manager(dl, actor_id, em_state=EM.PROPOSED):
@@ -107,6 +108,7 @@ class TestInviteToEmbargoRecordsIndex:
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
 
@@ -148,6 +150,7 @@ class TestInviteToEmbargoRecordsIndex:
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e_idem",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
 
@@ -222,6 +225,7 @@ class TestAcceptRejectFromCoreState:
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
@@ -367,7 +371,9 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         actor_id = "https://example.org/actors/rejector"
         proposal_id = f"{case_id}/proposals/p1"
 
-        embargo = as_EmbargoEvent(id_=embargo_id, context=case_id)
+        embargo = as_EmbargoEvent(
+            id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
+        )
         proposal = em_propose_embargo_activity(
             embargo=embargo,
             context=case_id,
@@ -406,6 +412,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(

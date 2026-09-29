@@ -26,6 +26,7 @@ from vultron.core.behaviors.embargo.nodes.terminate import (
     SendTerminateEmbargoActivityNode,
 )
 from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.models._helpers import days_from_now_utc
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-001"
@@ -113,7 +114,9 @@ def _seed_case_with_manager(dl, executing_actor_id: str):
         dl.create(p)
         parts.append(p)
 
-    embargo = EmbargoEvent(id_=_EMBARGO_ID, context=CASE_ID)
+    embargo = EmbargoEvent(
+        id_=_EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
+    )
     dl.create(embargo)
 
     case = VulnerabilityCase(
@@ -142,7 +145,11 @@ def _seed_manager_only_case(dl):
         case_roles=[CVDRole.CASE_MANAGER],
     )
     dl.create(participant)
-    dl.create(EmbargoEvent(id_=_EMBARGO_ID, context=CASE_ID))
+    dl.create(
+        EmbargoEvent(
+            id_=_EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
+        )
+    )
 
     case = VulnerabilityCase(
         id_=CASE_ID,

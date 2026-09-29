@@ -30,6 +30,7 @@ from vultron.wire.as2.factories import (
     announce_embargo_activity,
     remove_embargo_from_case_activity,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 
 class TestAnnounceEmbargoEventToCaseReceivedUseCase:
@@ -54,6 +55,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_aem1/embargo_events/e1",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)
@@ -140,6 +142,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
         embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
             context=case_id,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
 

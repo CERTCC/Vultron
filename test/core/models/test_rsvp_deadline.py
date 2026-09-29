@@ -116,20 +116,15 @@ def test_clamp_up_and_clamp_down_agree(
     assert deadline.minimum <= deadline.effective <= embargo_end
 
 
-def test_naive_inputs_are_read_as_utc() -> None:
-    """Naive datetimes compare as UTC rather than raising ``TypeError``."""
-    naive = PUBLISHED.replace(tzinfo=None)
-    deadline = resolve_rsvp_deadline(
-        requested=naive + 20 * DAYS,
-        published=naive,
-        embargo_end=naive + 10 * DAYS,
-    )
-    assert deadline.effective == PUBLISHED + 10 * DAYS
-    assert deadline.effective.tzinfo is not None
+@pytest.mark.spec("CS-13-001")
+def test_non_utc_offsets_compare_by_instant() -> None:
+    """Aware non-UTC inputs are compared as instants and carried as given.
 
-
-def test_non_utc_offsets_are_returned_in_utc() -> None:
-    """An aware non-UTC input comes back converted, not merely compared."""
+    The function no longer normalises its inputs (#3784): the objects they are
+    read from — ``as_Object`` on the wire, ``CoreObject`` in core — guarantee
+    a UTC-aware value at construction, and an aware offset is the sender's
+    claim.  What this pins is that the arithmetic is offset-correct.
+    """
     plus_five = timezone(timedelta(hours=5))
     deadline = resolve_rsvp_deadline(
         requested=(PUBLISHED + 5 * DAYS).astimezone(plus_five),
@@ -137,6 +132,7 @@ def test_non_utc_offsets_are_returned_in_utc() -> None:
         embargo_end=(PUBLISHED + 30 * DAYS).astimezone(plus_five),
     )
     assert deadline.effective == PUBLISHED + 5 * DAYS
+    assert deadline.clamp is RsvpDeadlineClamp.NONE
     for value in (
         deadline.requested,
         deadline.computed,
@@ -144,7 +140,7 @@ def test_non_utc_offsets_are_returned_in_utc() -> None:
         deadline.effective,
     ):
         assert value is not None
-        assert value.utcoffset() == timedelta(0)
+        assert value.utcoffset() is not None
 
 
 def test_absent_published_measures_from_now() -> None:

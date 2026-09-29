@@ -194,12 +194,12 @@ def test_vultron_case_status_required_fields():
 def test_vultron_embargo_event_required_fields():
     # context is required; omitting it must raise
     with pytest.raises(Exception):
-        EmbargoEvent()
-    # end_time is optional (has a default); context alone is sufficient
-    em_default = EmbargoEvent(context="urn:uuid:case-123")
-    assert em_default.context == "urn:uuid:case-123"
-    assert em_default.end_time is not None
-    # explicit end_time is also accepted
+        EmbargoEvent(end_time=_FUTURE_DT)
+    # end_time is required too — no implicit default duration (EP-04-010,
+    # #3404); context alone is not sufficient
+    with pytest.raises(Exception):
+        EmbargoEvent(context="urn:uuid:case-123")
+    # both supplied is the only valid construction
     em = EmbargoEvent(context="urn:uuid:case-123", end_time=_FUTURE_DT)
     assert em.context == "urn:uuid:case-123"
     assert em.end_time == _FUTURE_DT

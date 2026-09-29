@@ -1280,14 +1280,46 @@ def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
 
 
 def _seed_active_embargo(case_obj, dl) -> None:
+    """Seed the active embargo ``InitializeDefaultEmbargoNode`` would have made.
+
+    The duration is resolved the way the case-creation tree resolves it
+    (EP-04-005 through EP-04-007): the owner's shortest published
+    ``EmbargoPolicy`` if there is one, else the protocol default.  A seeded
+    case carries no sender proposal.  ``EmbargoEvent`` has no default
+    duration (EP-04-010, #3404), so this is stated here rather than inherited.
+    """
+    from vultron.config.app import get_config
+    from vultron.core.models._helpers import _as_id, from_now_utc
     from vultron.core.models.dimensions import EmDimension
     from vultron.core.models.embargo_event import EmbargoEvent
+    from vultron.core.services.embargo_duration import (
+        owner_embargo_policies,
+        resolve_initial_embargo_duration,
+        select_actor_default,
+    )
     from vultron.core.states.em import EM
 
     case_id = case_obj.id_
     if case_obj.active_embargo:
         return
-    embargo = EmbargoEvent(context=case_id)
+    owner_id = _as_id(case_obj.attributed_to)
+    if not owner_id:
+        # ``ResolveEmbargoDurationNode`` fails on a case with no owner rather
+        # than scoping the policy lookup to nobody; the seeder mirrors it.
+        raise ValueError(
+            f"_seed_active_embargo: case {case_id!r} has no attributed_to,"
+            " so its owner's embargo policies cannot be resolved"
+        )
+    resolved = resolve_initial_embargo_duration(
+        sender_proposal=None,
+        actor_default=select_actor_default(
+            owner_embargo_policies(dl, owner_id)
+        ),
+        protocol_default=get_config().actor.protocol_default_embargo_duration,
+    )
+    embargo = EmbargoEvent(
+        context=case_id, end_time=from_now_utc(resolved.duration)
+    )
     try:
         dl.create(embargo)
     except ValueError:

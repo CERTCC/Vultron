@@ -54,6 +54,7 @@ from vultron.enums.roles import CVDRole
 from vultron.core.models.dimensions import (
     RmDimension,
 )
+from vultron.core.models._helpers import days_from_now_utc
 
 # ---------------------------------------------------------------------------
 # Module-level outbox suppression
@@ -245,7 +246,9 @@ def non_report_object(dl):
     """An as_EmbargoEvent stored in the datalayer — not an Offer."""
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    obj = as_EmbargoEvent(context="urn:uuid:some-case")
+    obj = as_EmbargoEvent(
+        context="urn:uuid:some-case", end_time=days_from_now_utc(45)
+    )
     dl.create(obj)
     return obj
 

@@ -466,12 +466,14 @@ def test_embargo_without_end_time_is_refused_at_parse():
     """``endTime`` is what embargo decisions read, so its absence is refused.
 
     The wire default was the receiver's clock plus 45 days — an expiry the
-    sender never proposed.
+    sender never proposed.  The field now has no default at all (#3404), so
+    the refusal is Pydantic's own "field required", reported under the wire
+    spelling ``endTime``.
     """
     obj, _ = KINDS["EmbargoEvent"]
     obj = {key: value for key, value in obj.items() if key != "endTime"}
 
-    with pytest.raises(VultronParseValidationError, match="end_time"):
+    with pytest.raises(VultronParseValidationError, match="endTime"):
         parse_activity(_body(obj))
 
 

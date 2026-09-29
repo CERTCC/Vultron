@@ -30,7 +30,6 @@ notes/protocol-event-cascades.md D5-6-EMBARGORCP.
 """
 
 import logging
-from datetime import datetime, timezone
 
 import isodate  # type: ignore[import-untyped]
 from py_trees.common import Status
@@ -47,7 +46,7 @@ from vultron.core.services.embargo_lifecycle import (
     TransitionMode,
 )
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import _as_id, from_now_utc
 from vultron.errors import (
     VultronAlreadyExistsError,
     VultronError,
@@ -104,7 +103,7 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
 
         resolved = self.initial_embargo_duration_bb
         duration = resolved.duration
-        end_time = datetime.now(tz=timezone.utc) + duration
+        end_time = from_now_utc(duration)
         embargo = EmbargoEvent(end_time=end_time, context=case_id)
         try:
             self.datalayer.create(embargo)

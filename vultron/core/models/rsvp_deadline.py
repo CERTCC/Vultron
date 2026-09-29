@@ -21,17 +21,18 @@ applies the moved value (EP-07-003, EP-07-006).  Keeping the two rules in one
 function is what makes them agree: the minimum is capped at the embargo's end,
 so raising a deadline to the minimum can never carry it past that end.
 
-Layer-neutral, so the wire extractor can call it (ADR-0099).  Every input is
-normalised to UTC here, so a naive timestamp on a nested object — which the
-wire edge does not normalise — cannot make the comparison raise.
+Layer-neutral, so the wire extractor can call it (ADR-0099).  Inputs are
+timezone-aware by contract: they are read from ``as_Object`` or ``CoreObject``
+fields, both of which normalise a naive timestamp to UTC at construction
+(CS-13-001, #3784), so no guard is repeated here.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from enum import StrEnum
 
 from pydantic import ConfigDict
 
-from vultron.core.models._helpers import as_utc, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import ValidatedAssignmentMixin
 
 DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
@@ -39,12 +40,6 @@ DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
 
 DEFAULT_RSVP_WINDOW = timedelta(days=7)
 """Default policy RSVP window when an invite names no deadline (EP-07-001)."""
-
-
-def _to_utc(value: datetime | None) -> datetime | None:
-    """Return *value* in UTC; naive values are taken to be UTC already."""
-    aware = as_utc(value)
-    return aware.astimezone(timezone.utc) if aware is not None else None
 
 
 class RsvpDeadlineClamp(StrEnum):
@@ -100,16 +95,17 @@ def resolve_rsvp_deadline(
         default_window: Configured policy window used when *requested* is
             ``None`` (EP-07-001, CM-18-002).
 
-    Naive datetimes are taken to be UTC (:func:`as_utc`) and aware ones are
-    converted to it, so every returned datetime is in UTC.
+    Every datetime argument MUST be timezone-aware (CS-13-001); the objects
+    they are read from guarantee it.  Results are correct instants and carry
+    the inputs' offsets; the wire serializer, not this function, decides how
+    an instant is rendered (CS-13-005).
 
     Returns:
         The resolved deadline.  ``effective`` never falls after
         *embargo_end* (EP-07-006, CM-28-011) and never before ``minimum``.
     """
-    requested = _to_utc(requested)
-    published = _to_utc(published) or now_utc()
-    embargo_end = _to_utc(embargo_end)
+    if published is None:
+        published = now_utc()
     computed = (
         requested if requested is not None else published + default_window
     )
