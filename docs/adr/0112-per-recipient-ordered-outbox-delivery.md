@@ -119,6 +119,17 @@ Measured: a `Reject(CaseLedgerEntry)` the CaseActor had just stored was "not fou
 The lock wraps the `Session` block rather than the pool's checkout/checkin events because two concurrent fairies on `StaticPool`'s single record confuse the pool's own checkin bookkeeping — a checkin can go missing, and a lock keyed on it stays held.
 This is not part of the outbox decision; it is the defect the outbox decision exposed, and it was already the shape the file-backed engine was hardened against in #659.
 
+### The served process runs the safety-net drain, and a delegated emit drains the outbox it wrote to
+
+The first CI run of this change failed at an *earlier* hop than #3602's: an ownership-transfer `Offer` sat unpopped in the CaseActor's outbox for 111 s (run 36643399281).
+Two pre-existing faults met the new serialisation.
+First, the trigger route drained the *requesting* actor's outbox, but a delegated emit (CM-24-001) is queued in the *CaseActor's*; `invite-actor-to-case` had fixed exactly this in #2484 and `offer-case-ownership-transfer` and `suggest-actor-to-case` had not.
+Second, `main.py`'s root lifespan — the one uvicorn serves in every container — was a hand-written copy of `app_v2`'s that omitted the `OutboxMonitor`, and Starlette does not run a mounted sub-app's lifespan, so no container ever ran the OX-09-002 safety-net poll.
+On `main` both were masked: with concurrent drains, some inline drain was almost always still looping when the Offer landed and picked it up within a second.
+With one drain per actor, an activity queued in an outbox that nothing is draining waits for the next inbound activity to that actor.
+The trigger routes now drain the outbox the trigger reports it wrote to (`_emitting_outbox`), and the root lifespan is `_make_lifespan(configure_globals=True)`, the same factory `app_v2` uses, so the two lists cannot drift again.
+The TestClient-driven demo tests stop the monitor after startup: they assert on a trigger's effect immediately after its 202 and rely on the inline drain running before the response returns, which a concurrent monitor would turn into a race; the monitor's behaviour has its own tests and the Docker matrix.
+
 ### Demo gates name the hop (EDF-06)
 
 `fvcv-handoff`'s ownership-transfer phase now gates on the CaseActor's own ledger holding `accept_case_ownership_transfer` (hop 1: trigger → CaseActor inbox → commit), read through the container that hosts the CaseActor, and only then checks the three replicas (hop 2: CaseActor outbox → each participant), all three against one shared budget with an EDF-06-008 comment.
@@ -136,6 +147,8 @@ No timeout was widened.
 - Neutral — `OutboxMonitor.drain_all` still visits actors sequentially, so a long drain of one actor under the lock delays the monitor's *safety-net* pass for the others; their own inbound-triggered drains are unaffected.
 - Neutral — an inline drain that finds the slot held returns before the rows are delivered; a caller that needs the effect must observe it (EDF-06-001), not assume the 202 implied it.
 - Good — in-memory stores are safe to use from a worker thread and the event loop at once, which every `TestClient`-driven test has done since #3883 moved the inbound BT off the loop.
+- Good — production containers run the OX-09-002 safety-net drain for the first time; a row that no inline drain picks up is delivered within the monitor's poll interval instead of waiting for the next inbound activity.
+- Good — every trigger route drains the outbox its emit actually landed in; three delegated emitters share one helper instead of one having the fix and two not.
 - Deferred — whether the in-pass retry ladder should back off per recipient rather than per row is left to a future revision of ADR-0066.
 
 ## Generated Requirements

@@ -23,6 +23,8 @@ relevant_packages:
   - vultron/adapters/driving/fastapi/outbox_lanes.py
   - vultron/adapters/driven/sync_activity_adapter.py
   - vultron/adapters/driven/datalayer_sqlite/engine.py
+  - vultron/adapters/driving/fastapi/main.py
+  - vultron/adapters/driving/fastapi/routers/trigger_actor.py
 ---
 
 # Outbox Delivery Reliability
@@ -134,6 +136,20 @@ runs). `SqliteDataLayer._session()` now serializes every adapter session per
 engine (`engine.session_guard`); do not open `Session(dl._engine)` directly.
 Do not hang the lock on pool checkout/checkin events: two fairies on
 `StaticPool`'s one record make a checkin go missing.
+
+**Serializing the drain exposed two orphaned-row faults (first CI run of
+ADR-0112, run 36643399281).** An ownership-transfer `Offer` sat unpopped in the
+CaseActor's outbox for 111 s: (1) the trigger route drained the *requesting*
+actor's outbox while the delegated emit (CM-24-001) had gone into the
+*CaseActor's* — `invite-actor-to-case` had this fixed in #2484, `offer-…` and
+`suggest-…` did not; every trigger route now goes through
+`_emitting_outbox()`; (2) `main.py`'s root lifespan never started the
+`OutboxMonitor` (a hand-copied list that drifted from `app_v2`'s; Starlette does
+not run a mounted sub-app's lifespan), so *no container ever ran the OX-09-002
+safety-net poll*. On `main` some concurrent drain was almost always still
+looping and picked the row up by accident. **When you serialize a queue, audit
+who else was relying on the churn.** The root app now shares `_make_lifespan`.
+TestClient demo tests stop the monitor after startup (see `test/demo/conftest.py`).
 
 **Demo gates** (EDF-06): gate on the CaseActor's own ledger holding the entry
 (`wait_for_case_actor_ledger_event`, hop 1), then check the replicas against
