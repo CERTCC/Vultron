@@ -76,9 +76,7 @@ from vultron.demo.helpers.polling import (
     resolve_case_actor_store_id,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
-    wait_for_case_on_container,
     wait_for_case_participants,
-    wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
 )
 from vultron.demo.helpers.seeding import (
@@ -87,7 +85,8 @@ from vultron.demo.helpers.seeding import (
     seed_containers_fcv,
 )
 from vultron.demo.helpers.sync import (
-    _get_log_entries_for_case,
+    run_sync_verification_phase,
+    wait_for_replica_ledger_coverage,
 )
 from vultron.demo.helpers.workflow import (
     reporter_submits_report,
@@ -372,42 +371,34 @@ def _phase_invite_vendor_reject(
 def _phase_sync_verification(
     finder_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    finder: as_Actor,
+    coordinator: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
     """Wait for Finder to replicate all Phase 2 ledger entries before Phase 3.
 
-    Mirrors the sync-verification phase in ``fv_demo.py`` (SYNC-15-001).  The
-    Finder must hold the case and all coordinator-committed ledger entries
+    The Finder must hold the case and all coordinator-committed ledger entries
     before the notes exchange begins; without this gate the
     ``add-note-to-case`` trigger on the Finder container may fail because the
     Finder's DataLayer has not yet received the case replica or the
-    post-rejection ledger tail from the CaseActor fan-out.
+    post-rejection ledger tail from the CaseActor fan-out (SYNC-15-001).
+
+    The rejected Vendor never joins, so this scenario declares no participant
+    expectation and no replica state check.
     """
     logger.info("─" * 80)
     logger.info("Phase 2.5: Finder ledger sync verification")
     logger.info("─" * 80)
 
-    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
-        wait_for_case_on_container(
-            client=finder_client,
-            case_id=case.id_,
-        )
-        coordinator_entries = _get_log_entries_for_case(
-            coordinator_client, case.id_
-        )
-        if coordinator_entries:
-            coord_tail = max(coordinator_entries, key=lambda e: e["log_index"])
-            coord_tail_index: int = coord_tail["log_index"]
-            logger.info(
-                "Waiting for Finder to replicate coordinator entries (0…%d)",
-                coord_tail_index,
-            )
-            with demo_gate("Finder ledger coverage (pre-notes sync)"):
-                wait_for_contiguous_ledger_coverage(
-                    client=finder_client,
-                    case_id=case.id_,
-                    expected_tail_index=coord_tail_index,
-                )
+    run_sync_verification_phase(
+        auth_client=coordinator_client,
+        auth_label="Coordinator",
+        auth_actor_id=coordinator.id_,
+        finder_client=finder_client,
+        finder_actor_id=finder.id_,
+        replicas=[(finder_client, "Finder")],
+        case_id=case.id_,
+    )
 
 
 def _phase_notes_exchange(
@@ -547,25 +538,17 @@ def _phase_case_closure(
             case_id=case.id_,
             event_type="close_case",
         )
-    coordinator_entries = _get_log_entries_for_case(
-        coordinator_client, case.id_
+    # Temporal (EDF-06-006): after close_case the authority's outbox fans out
+    # Announce(CaseLedgerEntry) to each replica via BackgroundTasks; nothing
+    # but the ledger dump depends on it. Bounded per replica by
+    # LEDGER_COVERAGE_TIMEOUT / LATE_JOINER_COVERAGE_TIMEOUT (EDF-06-008).
+    wait_for_replica_ledger_coverage(
+        auth_client=coordinator_client,
+        replicas=[(finder_client, "Finder")],
+        case_id=case.id_,
+        phase_label="close phase",
+        causal=False,
     )
-    if coordinator_entries:
-        coord_tail = max(coordinator_entries, key=lambda e: e["log_index"])
-        coord_tail_index: int = coord_tail["log_index"]
-        coord_tail_hash: str = coord_tail["entry_hash"]
-        logger.info(
-            "Waiting for Finder replica to receive coordinator tail after closure"
-            " (hash=%s… index=%d)",
-            coord_tail_hash[:16],
-            coord_tail_index,
-        )
-        with demo_check("Finder ledger coverage (close phase)"):
-            wait_for_contiguous_ledger_coverage(
-                client=finder_client,
-                case_id=case.id_,
-                expected_tail_index=coord_tail_index,
-            )
 
 
 def _phase_dump_case_ledgers(
@@ -673,6 +656,8 @@ def run_fcv_reject_demo(
         _phase_sync_verification(
             finder_client=finder_client,
             coordinator_client=coordinator_client,
+            finder=_finder,
+            coordinator=_coordinator,
             case=case,
         )
 

@@ -35,6 +35,7 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fv_demo as demo
+from vultron.demo.helpers.sync import verify_replica_state
 from test.demo._helpers import (
     make_client,
     make_testclient_call,
@@ -792,8 +793,8 @@ class TestWaitForFinderLogEntry:
             )
 
 
-class TestVerifyFinderReplicaState:
-    """Tests for verify_finder_replica_state."""
+class TestVerifyReplicaState:
+    """Tests for verify_replica_state against a live TestClient."""
 
     def test_passes_when_replica_matches(self, client: TestClient, base: str):
         """Passes without error when vendor and finder share the same DataLayer.
@@ -830,9 +831,9 @@ class TestVerifyFinderReplicaState:
         )
 
         # Should not raise — single server means replica is trivially consistent
-        demo.verify_finder_replica_state(
-            finder_client=vendor_client,
-            vendor_client=vendor_client,
+        verify_replica_state(
+            auth_client=vendor_client,
+            replica_client=vendor_client,
             case_id=case.id_,
             vendor_actor_id=vendor.id_,
             reporter_actor_id=finder.id_,
@@ -849,9 +850,9 @@ class TestVerifyFinderReplicaState:
         vendor_client = make_client(base, actor_id=vendor_actor_id)
 
         with pytest.raises(AssertionError):
-            demo.verify_finder_replica_state(
-                finder_client=vendor_client,
-                vendor_client=vendor_client,
+            verify_replica_state(
+                auth_client=vendor_client,
+                replica_client=vendor_client,
                 case_id="https://example.org/non-existent-case-vrfs",
                 vendor_actor_id=vendor_actor_id,
                 reporter_actor_id="https://example.org/finder",
@@ -2272,7 +2273,7 @@ class TestFvMilestoneAssertions:
             patch.object(demo, "wait_for_all_participants_rm_closed"),
             patch.object(demo, "verify_case_closed") as mock_m7,
             patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 demo,
                 "demo_check",
@@ -2378,86 +2379,6 @@ class TestFvCausalGates:
 
         verify_case_active_called.assert_not_called()
 
-    def test_sync_verification_skips_coverage_wait_when_finder_case_not_seeded(
-        self,
-    ):
-        """demo_gate skips ledger coverage wait when wait_for_case_on_container times out."""
-        finder_client = self._client()
-        vendor_client = self._client()
-        vendor = self._actor("urn:test:vendor")
-        finder = self._actor("urn:test:finder")
-        case = self._case()
-
-        coverage_wait_called = MagicMock()
-
-        with (
-            patch.object(
-                demo,
-                "wait_for_case_on_container",
-                side_effect=AssertionError(
-                    "timed out waiting for case on container"
-                ),
-            ),
-            patch.object(
-                demo,
-                "wait_for_contiguous_ledger_coverage",
-                side_effect=coverage_wait_called,
-            ),
-        ):
-            demo._phase_sync_verification(
-                finder_client=finder_client,
-                vendor_client=vendor_client,
-                vendor=vendor,
-                finder=finder,
-                case=case,
-                case_actor_client=None,
-            )
-
-        coverage_wait_called.assert_not_called()
-
-    def test_sync_verification_skips_replica_check_when_ledger_coverage_times_out(
-        self,
-    ):
-        """Inner demo_gate skips verify_finder_replica_state when ledger coverage times out."""
-        finder_client = self._client()
-        vendor_client = self._client()
-        vendor = self._actor("urn:test:vendor")
-        finder = self._actor("urn:test:finder")
-        case = self._case()
-
-        replica_check_called = MagicMock()
-
-        with (
-            patch.object(demo, "wait_for_case_on_container"),
-            patch.object(
-                demo,
-                "_get_log_entries_for_case",
-                return_value=[{"log_index": 0}],
-            ),
-            patch.object(
-                demo,
-                "wait_for_contiguous_ledger_coverage",
-                side_effect=AssertionError(
-                    "timed out waiting for ledger coverage"
-                ),
-            ),
-            patch.object(
-                demo,
-                "verify_finder_replica_state",
-                side_effect=replica_check_called,
-            ),
-        ):
-            demo._phase_sync_verification(
-                finder_client=finder_client,
-                vendor_client=vendor_client,
-                vendor=vendor,
-                finder=finder,
-                case=case,
-                case_actor_client=None,
-            )
-
-        replica_check_called.assert_not_called()
-
     def test_case_closure_skips_coverage_wait_when_close_case_entry_absent(
         self,
     ):
@@ -2487,7 +2408,7 @@ class TestFvCausalGates:
             ),
             patch.object(
                 demo,
-                "wait_for_contiguous_ledger_coverage",
+                "wait_for_replica_ledger_coverage",
                 side_effect=coverage_wait_called,
             ),
             patch.object(

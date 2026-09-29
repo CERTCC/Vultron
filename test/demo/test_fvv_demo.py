@@ -32,6 +32,7 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fvv_demo as demo
+import vultron.demo.helpers.sync as sync_module
 from test.demo._helpers import make_client, make_testclient_call
 from vultron.demo.cli import main
 from vultron.demo.helpers.polling import (
@@ -344,8 +345,8 @@ class TestWaitForContiguousLedgerCoverage:
         The fv Demo Integration job intermittently failed with 2 cascading
         demo_check failures when wait_for_contiguous_ledger_coverage timed out
         after 15s in _phase_sync_verification under CI load (issue #1911).
-        The second failure (verify_finder_replica_state) cascades because it
-        runs immediately after and finds an empty replica.
+        The second failure (the replica state check) cascaded because it ran
+        immediately after and found an empty replica.
 
         Regression: ensure the default is at least 30s so the inter-container
         Announce(CaseLedgerEntry) fan-out has time to complete under load.
@@ -368,11 +369,13 @@ class TestWaitForContiguousLedgerCoverage:
 
 
 class TestCoverageWaitInsideDemoCheck:
-    """Regression: bare wait_for_contiguous_ledger_coverage outside demo_check
-    crashes demo with exit code 1 when it times out.
+    """Regression: a bare wait_for_contiguous_ledger_coverage outside a demo
+    context crashed the demo with exit code 1 when it timed out.
 
-    After the fix, a timeout should accumulate to _demo_failures and allow
-    _phase_dump_case_ledgers to run (exit 0 with a failure summary).
+    The closure phase now routes the wait through the shared
+    ``wait_for_replica_ledger_coverage`` helper (DEMOMA-23-005), which wraps
+    each per-replica poll in ``demo_check`` itself, so a timeout accumulates to
+    _demo_failures and lets the ledger dump run (exit 0 with a failure summary).
     """
 
     def test_coverage_wait_timeout_accumulates_to_demo_failures_not_raises(
@@ -382,13 +385,13 @@ class TestCoverageWaitInsideDemoCheck:
 
         Bug A: the bare wait_for_contiguous_ledger_coverage call propagated
         AssertionError through _phase_case_closure, crashing the demo runner.
-        After the fix, every coverage wait is inside a demo_check context,
-        so the timeout is recorded in _demo_failures and the phase returns
+        Every coverage wait now runs inside the shared helper's demo_check, so
+        the timeout is recorded in _demo_failures and the phase returns
         normally.
 
-        We verify this by patching wait_for_contiguous_ledger_coverage to
-        always raise AssertionError and confirming _phase_case_closure does
-        not propagate the exception.
+        We verify this end to end: the primitive is patched *on the helper's
+        module* to always raise AssertionError, the scenario's real closure
+        phase calls the real helper, and the exception does not propagate.
         """
         import vultron.demo.utils as utils_module  # noqa: PLC0415
 
@@ -429,7 +432,7 @@ class TestCoverageWaitInsideDemoCheck:
                 "vultron.demo.scenario.fvv_demo.wait_for_event_type_in_ledger"
             ),
             patch(
-                "vultron.demo.scenario.fvv_demo.wait_for_contiguous_ledger_coverage",
+                "vultron.demo.helpers.sync.wait_for_contiguous_ledger_coverage",
                 side_effect=AssertionError(
                     "contiguous ledger coverage timeout"
                 ),
@@ -843,7 +846,7 @@ class TestFvvMilestoneAssertions:
             patch.object(demo, "wait_for_all_participants_rm_closed"),
             patch.object(demo, "verify_case_closed") as mock_m7,
             patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 demo,
                 "demo_check",
@@ -981,78 +984,6 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
         )
 
 
-class TestFvvCausalGates:
-    """Verify causal demo_gate sites skip dependent steps on timeout.
-
-    Each test simulates an async-commit timeout at the precondition and
-    confirms the dependent step is never reached.
-    """
-
-    def _actor(self, id_: str = "urn:test:actor"):
-        a = MagicMock()
-        a.id_ = id_
-        return a
-
-    def _case(self, id_: str = "urn:test:case"):
-        c = MagicMock()
-        c.id_ = id_
-        return c
-
-    def _client(self):
-        c = MagicMock()
-        c.get.return_value = {}
-        return c
-
-    def test_sync_verification_skips_coverage_wait_when_finder_case_not_seeded(
-        self,
-    ):
-        """demo_gate skips ledger coverage wait when wait_for_case_on_container times out."""
-        finder_client = self._client()
-        vendor_client = self._client()
-        vendor2_client = self._client()
-        vendor = self._actor("urn:test:vendor")
-        finder = self._actor("urn:test:finder")
-        vendor2 = self._actor("urn:test:vendor2")
-        case = self._case()
-
-        coverage_wait_called = MagicMock()
-
-        with (
-            patch.object(
-                demo,
-                "_get_log_entries_for_case",
-                return_value=[
-                    {"log_index": 5, "entry_hash": "abc123def456789a"}
-                ],
-            ),
-            patch.object(
-                demo,
-                "wait_for_case_on_container",
-                side_effect=AssertionError(
-                    "timed out waiting for case on container"
-                ),
-            ),
-            patch.object(
-                demo,
-                "wait_for_contiguous_ledger_coverage",
-                side_effect=coverage_wait_called,
-            ),
-            patch.object(demo, "wait_for_participants_on_replicas"),
-            patch.object(demo, "verify_replica_state"),
-        ):
-            demo._phase_sync_verification(
-                finder_client=finder_client,
-                vendor_client=vendor_client,
-                vendor2_client=vendor2_client,
-                vendor=vendor,
-                finder=finder,
-                vendor2=vendor2,
-                case=case,
-            )
-
-        coverage_wait_called.assert_not_called()
-
-
 class TestFvvParticipantWaitTimeout:
     """#2852: sync-verification must give the Vendor2 replica the late-joiner
     participant-propagation budget (>=30 s), not the 15 s default.
@@ -1100,20 +1031,20 @@ class TestFvvParticipantWaitTimeout:
 
         with (
             patch.object(
-                demo,
+                sync_module,
                 "_get_log_entries_for_case",
                 return_value=[
                     {"log_index": 5, "entry_hash": "abc123def456789a"}
                 ],
             ),
-            patch.object(demo, "wait_for_case_on_container"),
-            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(sync_module, "wait_for_case_on_container"),
+            patch.object(sync_module, "wait_for_contiguous_ledger_coverage"),
             # Patch the polling-module global so the real
             # wait_for_participants_on_replicas records the timeout it assigns.
             patch.object(
                 polling_module, "wait_for_case_participants", _capture
             ),
-            patch.object(demo, "verify_replica_state"),
+            patch.object(sync_module, "verify_replica_state"),
         ):
             demo._phase_sync_verification(
                 finder_client=finder_client,
@@ -1199,14 +1130,14 @@ class TestParticipantWaitInsideDemoCheck:
 
         with (
             patch.object(
-                demo,
+                sync_module,
                 "_get_log_entries_for_case",
                 return_value=[
                     {"log_index": 5, "entry_hash": "abc123def456789a"}
                 ],
             ),
-            patch.object(demo, "wait_for_case_on_container"),
-            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(sync_module, "wait_for_case_on_container"),
+            patch.object(sync_module, "wait_for_contiguous_ledger_coverage"),
             # Patch the polling-module global so the real
             # wait_for_participants_on_replicas runs its internal demo_check
             # wrap around a raising per-replica poll.
@@ -1214,7 +1145,7 @@ class TestParticipantWaitInsideDemoCheck:
                 polling_module, "wait_for_case_participants", _timeout
             ),
             patch.object(
-                demo,
+                sync_module,
                 "verify_replica_state",
                 side_effect=lambda **kw: verify_calls.append(kw),
             ),

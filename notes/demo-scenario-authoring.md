@@ -312,31 +312,47 @@ unit test. The guard was never missing; the single place to fix it was.
 
 **How to apply:**
 
-1. The read-authority-tail-then-poll-each-replica loop lives once in
-   `vultron/demo/helpers/sync.py`. It takes the authority client, an ordered
-   list of replica clients with labels, and the late-joiner clients; it applies
-   the named timeout constants from `vultron/demo/helpers/polling.py` and wraps
+1. The read-authority-tail-then-poll-each-replica loop lives once, as
+   `wait_for_replica_ledger_coverage` in `vultron/demo/helpers/sync.py`. It
+   takes the authority client, an ordered list of `(replica_client, label)`
+   pairs, the case id and the late-joiner clients; it applies the named timeout
+   constants from `vultron/demo/helpers/polling.py` (`LEDGER_COVERAGE_TIMEOUT`
+   by default, `LATE_JOINER_COVERAGE_TIMEOUT` for a late joiner — the widest
+   budgets any copy carried, so sharing the loop tightened nothing) and wraps
    each per-replica wait in a demo context itself, the same way
-   `wait_for_participants_on_replicas` and `drain_phase1_ledger` do.
-2. A scenario's `_phase_sync_verification` is a thin call to the shared phase
-   helper, declaring only its authority, replicas, late joiners, expected
-   participant set, and which replica pairs to state-check. Scenario-specific
-   extras — the two-actor fv scenario's check that the dedicated case-actor
-   container stayed unused — follow the helper call as separate steps.
+   `wait_for_participants_on_replicas` and `drain_phase1_ledger` do. Called
+   with `causal=True` (the default) it is the `demo_gate` before the notes
+   phase; with `causal=False` and `phase_label="close phase"` it is the
+   `demo_check` after case closure, labelled temporal per EDF-06-006. It
+   returns the replicas whose wait passed, so a dependent step can be gated on
+   coverage per replica.
+2. A scenario's `_phase_sync_verification` is a thin call to
+   `run_sync_verification_phase`, declaring only its authority (client, label,
+   actor id), the Finder, its replicas, late joiners, expected participant set,
+   and which replica pairs to state-check. A replica whose coverage gate failed
+   is not state-checked: the gate already recorded the failure and the
+   comparison would only cascade (EDF-06-005, #1911). Scenario-specific extras
+   — the two-actor fv scenario's check that the dedicated case-actor container
+   stayed unused — follow the helper call as separate steps. A scenario with no
+   participant expectation (fcv-reject) declares none and no participant wait
+   runs.
 3. A scenario module never calls `wait_for_contiguous_ledger_coverage` or
    `_get_log_entries_for_case` directly (DEMOMA-23-006). The architecture
-   ratchet fails if one does.
+   ratchet `test/architecture/test_demo_scenario_coverage_via_shared_helper.py`
+   fails if one does, on a call or an import.
 4. Timeouts are named constants passed as parameters, never literals in a
-   scenario file. A scenario that needs a wider budget (fcvcv's non-late-joiner
-   replicas, #2337) passes a different constant and its regression test asserts
-   the parameter, not a literal.
+   scenario file. The shared defaults already carry the widest budget any
+   scenario needed (fcvcv's non-late-joiner replicas, #2337, are covered by
+   `LEDGER_COVERAGE_TIMEOUT`); a scenario that needs another budget passes a
+   different constant, and its regression test asserts the parameter the helper
+   applies, not a literal.
 
 Normative: `specs/multi-actor-demo.yaml` DEMOMA-23-005 (the shared coverage
 helper), DEMOMA-23-006 (no direct primitive call from a scenario module), and
 DEMOMA-23-007 (the thin phase), refining DEMOMA-17-001, DEMOMA-22-002, and
 DEMOCI-01-011.
 
-Source: CONCERN-3042
+Source: CONCERN-3042, #3846
 
 ---
 

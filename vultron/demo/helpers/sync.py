@@ -13,27 +13,33 @@
 
 """LedgerFanout log-replication helpers for demo workflows.
 
-Provides :func:`trigger_log_commit` to commit a log entry and fan it out to
-all case participants, and :func:`verify_replica_state` to assert that a
-replica actor's case state matches the authoritative actor.
-
-``verify_finder_replica_state`` is a backward-compatible wrapper that maps
-the FV demo roles (Vendor = authoritative, Finder = replica) onto
-the generic ``verify_replica_state`` parameters.
+Provides :func:`verify_replica_state` to assert that a replica actor's case
+state matches the authoritative actor, and the two shared
+scenario-phase helpers of DEMOMA-23: :func:`wait_for_replica_ledger_coverage`
+(the read-authority-tail-then-poll-each-replica loop, DEMOMA-23-005) and
+:func:`run_sync_verification_phase` (the whole replica sync-verification
+phase, DEMOMA-23-007). A scenario module never calls
+``wait_for_contiguous_ledger_coverage`` or ``_get_log_entries_for_case``
+itself (DEMOMA-23-006).
 """
 
 import logging
+from collections.abc import Collection, Sequence
 from typing import Optional
 
 import httpx2 as httpx
 
 from vultron.demo.helpers.polling import (
     CROSS_CONTAINER_TIMEOUT,
+    LATE_JOINER_COVERAGE_TIMEOUT,
+    LEDGER_COVERAGE_TIMEOUT,
+    _client_in,
     _poll_until,
+    wait_for_case_on_container,
+    wait_for_contiguous_ledger_coverage,
+    wait_for_participants_on_replicas,
 )
-from vultron.demo.actor_session import ActorSession
-from vultron.demo.utils import DataLayerClient
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.demo.utils import DataLayerClient, demo_check, demo_gate
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -83,50 +89,6 @@ def _get_log_entries_for_case(
 # ---------------------------------------------------------------------------
 # Public LedgerFanout helpers
 # ---------------------------------------------------------------------------
-
-
-def trigger_log_commit(
-    client: DataLayerClient,
-    actor_id: str,
-    case_id: str,
-    event_type: str,
-    object_id: str | None = None,
-) -> str:
-    """Commit a log entry for *case_id* and return the entry hash.
-
-    POSTs to ``/actors/{actor_id}/demo/sync-log-entry`` and returns the
-    ``entry_hash`` from the response.  The entry is also fanned out to all
-    case participants via ``Announce(CaseLedgerEntry)`` activities queued in the
-    actor's outbox.
-
-    Args:
-        client: DataLayerClient connected to the CaseActor container.
-        actor_id: Full URI of the actor committing the log entry.
-        case_id: Full URI of the ``as_VulnerabilityCase``.
-        event_type: Short machine-readable event descriptor.
-        object_id: Optional URI of the primary object.  Defaults to
-            *case_id* when not supplied.
-
-    Returns:
-        The ``entry_hash`` of the newly committed log entry.
-
-    Spec: SYNC-02-002, SYNC-02-003.
-    """
-    session = ActorSession(
-        client=client, actor=as_Actor(id_=actor_id)
-    ).with_case(as_VulnerabilityCase(id_=case_id))
-    result = session.sync_log_entry(
-        object_id=object_id if object_id is not None else case_id,
-        event_type=event_type,
-    )
-    entry_hash = result.entry_hash
-    logger.info(
-        "Log entry committed for case '%s': hash=%s, index=%d",
-        case_id,
-        entry_hash[:16],
-        result.log_index if result.log_index is not None else -1,
-    )
-    return entry_hash
 
 
 def _case_or_none(client: DataLayerClient, case_id: str) -> Optional[dict]:
@@ -301,34 +263,202 @@ def verify_replica_state(
     )
 
 
-def verify_finder_replica_state(
-    finder_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    case_id: str,
-    vendor_actor_id: str,
-    reporter_actor_id: str,
-    auth_coverage_timeout_seconds: float = CROSS_CONTAINER_TIMEOUT,
-    poll_interval_seconds: float = 0.5,
-) -> None:
-    """Backward-compatible wrapper for :func:`verify_replica_state`.
+# ---------------------------------------------------------------------------
+# Shared scenario-phase helpers (DEMOMA-23-005, DEMOMA-23-007)
+# ---------------------------------------------------------------------------
 
-    In the FV demo the Vendor is the authoritative case owner and the
-    Finder holds a replicated copy, so *vendor_client* maps to *auth_client*
-    and *finder_client* maps to *replica_client*.
+#: ``(replica_client, display_label)`` pairs, in the order they are polled.
+ReplicaSpec = Sequence[tuple[DataLayerClient, str]]
+
+
+def wait_for_replica_ledger_coverage(
+    auth_client: DataLayerClient,
+    replicas: ReplicaSpec,
+    case_id: str,
+    *,
+    late_joiners: Sequence[DataLayerClient] = (),
+    late_joiner_timeout: float = LATE_JOINER_COVERAGE_TIMEOUT,
+    default_timeout: float = LEDGER_COVERAGE_TIMEOUT,
+    phase_label: str = "sync-verification phase",
+    causal: bool = True,
+) -> list[DataLayerClient]:
+    """Wait for every replica to hold the authority's ledger tail contiguously.
+
+    Reads the authority's ``CaseLedgerEntry`` tail once, then polls each replica
+    in *replicas* order until it holds indices ``0…tail`` (SYNC-10-004). When
+    the authority holds no entries there is nothing to cover: every replica
+    wait is skipped and every replica counts as covered, so a dependent state
+    check still runs and reports the empty ledger loudly.
+
+    This is the single implementation of the loop that every scenario module
+    used to carry twice — once as the causal gate before the notes phase and
+    once as the temporal check after case closure (DEMOMA-23-005, #3042).
+
+    Each per-replica wait runs inside its own demo context so a timeout is
+    recorded by the failure accumulator and the loop continues to the next
+    replica instead of propagating (DEMOCI-01-011):
+
+    - ``causal=True`` wraps in ``demo_gate`` — the wait is a precondition for
+      the steps that follow (EDF-06-005, DEMOCI-01-007).
+    - ``causal=False`` wraps in ``demo_check`` and labels the wait as temporal
+      (EDF-06-006): after case closure nothing depends on coverage except the
+      forensic ledger dump, which the harness runs regardless.
+
+    Timeouts (EDF-06-008): the chain being bounded is the authority's outbox →
+    ``Announce(CaseLedgerEntry)`` ``BackgroundTasks`` delivery → replica inbox,
+    one hop per entry, all containers on one Compose network. An early
+    participant has been receiving entries as they were committed and gets
+    ``LEDGER_COVERAGE_TIMEOUT`` (15 s fired under CI load, #1911, #2337). A
+    late joiner catches up from genesis through the CM-17-004 backfill — one
+    ``Announce`` per prior entry — and gets ``LATE_JOINER_COVERAGE_TIMEOUT``.
+    Neither is below any budget a scenario carried before the loop was shared;
+    a scenario that needs a different budget passes another named constant,
+    never a literal.
 
     Args:
-        finder_client: DataLayerClient connected to the Finder (replica).
-        vendor_client: DataLayerClient connected to the Vendor (authoritative).
-        case_id: Full URI of the ``as_VulnerabilityCase`` being verified.
-        vendor_actor_id: Full URI of the Vendor actor.
-        reporter_actor_id: Full URI of the Reporter/Finder actor.
+        auth_client: Client for the container whose ledger is authoritative
+            for *case_id* (the CASE_MANAGER's host).
+        replicas: ``(client, label)`` pairs to poll, in order. The label
+            appears in the demo context description and the log.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        late_joiners: Subset of the replica clients that joined after earlier
+            entries were committed. Membership is tested by object identity.
+        late_joiner_timeout: Per-replica budget for late joiners.
+        default_timeout: Per-replica budget for every other replica.
+        phase_label: Names the phase in each context description.
+        causal: ``True`` for a ``demo_gate`` per replica, ``False`` for a
+            ``demo_check``.
+
+    Returns:
+        The replica clients whose wait passed, in *replicas* order. A caller
+        gating a dependent step on coverage (EDF-06-005) tests membership by
+        identity; a temporal caller ignores it.
     """
-    verify_replica_state(
-        auth_client=vendor_client,
-        replica_client=finder_client,
-        case_id=case_id,
-        vendor_actor_id=vendor_actor_id,
-        reporter_actor_id=reporter_actor_id,
-        auth_coverage_timeout_seconds=auth_coverage_timeout_seconds,
-        poll_interval_seconds=poll_interval_seconds,
+    entries = _get_log_entries_for_case(auth_client, case_id)
+    if not entries:
+        logger.warning(
+            "Authority %s holds no ledger entries for case %s; skipping "
+            "replica coverage waits (%s)",
+            auth_client.base_url,
+            case_id,
+            phase_label,
+        )
+        return [client for client, _ in replicas]
+    tail = max(entries, key=lambda e: e["log_index"])
+    tail_index: int = tail["log_index"]
+    logger.info(
+        "Waiting for %d replica(s) to cover authority tail (hash=%s… index=%d)",
+        len(replicas),
+        tail["entry_hash"][:16],
+        tail_index,
     )
+    context = demo_gate if causal else demo_check
+    temporal = "" if causal else " — temporal wait (EDF-06-006)"
+    covered: list[DataLayerClient] = []
+    for replica_client, label in replicas:
+        is_late = _client_in(replica_client, late_joiners)
+        with context(f"{label} ledger coverage ({phase_label}){temporal}"):
+            wait_for_contiguous_ledger_coverage(
+                client=replica_client,
+                case_id=case_id,
+                expected_tail_index=tail_index,
+                timeout_seconds=(
+                    late_joiner_timeout if is_late else default_timeout
+                ),
+            )
+            logger.info("  %s ledger synchronized", label)
+            covered.append(replica_client)
+    return covered
+
+
+def run_sync_verification_phase(
+    *,
+    auth_client: DataLayerClient,
+    auth_label: str,
+    auth_actor_id: str,
+    finder_client: DataLayerClient,
+    finder_actor_id: str,
+    replicas: ReplicaSpec,
+    case_id: str,
+    expected_participant_ids: Collection[str] = frozenset(),
+    late_joiners: Sequence[DataLayerClient] = (),
+    state_checks: ReplicaSpec = (),
+    default_coverage_timeout: float = LEDGER_COVERAGE_TIMEOUT,
+) -> None:
+    """Run a scenario's replica sync-verification phase (DEMOMA-23-007).
+
+    Composes, in order:
+
+    1. The Finder-case gate: the Finder must hold the ``VulnerabilityCase`` (and
+       so its per-case genesis hash) before any coverage wait, or every
+       ``Announce(CaseLedgerEntry)`` is rejected and replayed rather than
+       accepted and the coverage timeout reports the wrong problem
+       (SYNC-15-001, CLP-08-005, #1873).
+    2. :func:`wait_for_replica_ledger_coverage` as the causal gate, nested in
+       the Finder gate so an unseeded Finder skips it (EDF-06-005).
+    3. ``wait_for_participants_on_replicas`` for *expected_participant_ids*,
+       when the scenario declares any — a temporal wait (EDF-06-006) that gives
+       *late_joiners* the extended participant-index budget (#2852).
+    4. :func:`verify_replica_state` in a ``demo_check`` for each replica in
+       *state_checks* whose coverage gate passed, against *auth_client*. A
+       replica whose coverage timed out already recorded a ``GATE FAILED``;
+       comparing its state would only add the cascading second failure #1911
+       and #2361 removed (EDF-06-005).
+
+    The helper declares no scenario facts of its own: which container is the
+    authority, which replicas exist, who joined late, which participants are
+    expected and which replicas to state-check all come from the caller.
+
+    Args:
+        auth_client: Client for the authoritative container.
+        auth_label: Display name of the authority (``"Vendor1"``, ``"C1"``).
+        auth_actor_id: Full URI of the authoritative actor.
+        finder_client: Client for the Finder container, gated first.
+        finder_actor_id: Full URI of the Finder (reporter) actor.
+        replicas: ``(client, label)`` pairs to wait for coverage on.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        expected_participant_ids: Actor URIs every replica must index. Empty
+            means the scenario declares no participant expectation.
+        late_joiners: Replica clients that joined late (identity-tested).
+        state_checks: ``(client, label)`` pairs to compare against the authority.
+        default_coverage_timeout: Coverage budget for non-late-joiner replicas.
+    """
+    covered: list[DataLayerClient] = []
+    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
+        wait_for_case_on_container(client=finder_client, case_id=case_id)
+        covered = wait_for_replica_ledger_coverage(
+            auth_client,
+            replicas,
+            case_id,
+            late_joiners=late_joiners,
+            default_timeout=default_coverage_timeout,
+        )
+
+    if expected_participant_ids:
+        # Temporal (EDF-06-006): participant-index propagation budget, with the
+        # extended late-joiner allowance; see wait_for_participants_on_replicas.
+        wait_for_participants_on_replicas(
+            replica_clients=[client for client, _ in replicas],
+            case_id=case_id,
+            expected_actor_ids=set(expected_participant_ids),
+            late_joiners=late_joiners,
+        )
+
+    for replica_client, label in state_checks:
+        if not _client_in(replica_client, covered):
+            logger.info(
+                "  %s replica state check skipped: its ledger coverage gate "
+                "did not pass",
+                label,
+            )
+            continue
+        with demo_check(
+            f"{label} replica matches authoritative {auth_label} state"
+        ):
+            verify_replica_state(
+                auth_client=auth_client,
+                replica_client=replica_client,
+                case_id=case_id,
+                vendor_actor_id=auth_actor_id,
+                reporter_actor_id=finder_actor_id,
+            )

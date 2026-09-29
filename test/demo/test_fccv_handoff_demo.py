@@ -778,7 +778,7 @@ class TestFccvHandoffMilestoneAssertions:
             patch.object(demo, "wait_for_all_participants_rm_closed"),
             patch.object(demo, "verify_case_closed") as mock_m7,
             patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 demo,
                 "demo_check",
@@ -834,7 +834,7 @@ class TestFccvHandoffMilestoneAssertions:
             patch.object(demo, "wait_for_all_participants_rm_closed"),
             patch.object(demo, "verify_case_closed"),
             patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 demo,
                 "demo_check",
@@ -1002,82 +1002,6 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
             "Finder replica wait must precede run_invite_path_rm_triage; "
             f"got order: {call_order}"
         )
-
-
-class TestFccvHandoffCausalGates:
-    """Verify causal demo_gate sites skip dependent steps on timeout.
-
-    Each test simulates an async-commit timeout at the precondition and
-    confirms the dependent step is never reached.
-    """
-
-    def _actor(self, id_: str = "urn:test:actor"):
-        a = MagicMock()
-        a.id_ = id_
-        return a
-
-    def _case(self, id_: str = "urn:test:case"):
-        c = MagicMock()
-        c.id_ = id_
-        return c
-
-    def _client(self):
-        c = MagicMock()
-        c.get.return_value = {}
-        return c
-
-    def test_sync_verification_skips_coverage_wait_when_finder_case_not_seeded(
-        self,
-    ):
-        """demo_gate skips ledger coverage wait when wait_for_case_on_container times out."""
-        finder_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        vendor_client = self._client()
-        c1 = self._actor("urn:test:c1")
-        finder = self._actor("urn:test:finder")
-        c2 = self._actor("urn:test:c2")
-        vendor = self._actor("urn:test:vendor")
-        case = self._case()
-
-        coverage_wait_called = MagicMock()
-
-        with (
-            patch.object(
-                demo,
-                "_get_log_entries_for_case",
-                return_value=[
-                    {"log_index": 5, "entry_hash": "abc123def456789a"}
-                ],
-            ),
-            patch.object(
-                demo,
-                "wait_for_case_on_container",
-                side_effect=AssertionError(
-                    "timed out waiting for case on container"
-                ),
-            ),
-            patch.object(
-                demo,
-                "wait_for_contiguous_ledger_coverage",
-                side_effect=coverage_wait_called,
-            ),
-            patch.object(demo, "wait_for_participants_on_replicas"),
-            patch.object(demo, "verify_replica_state"),
-        ):
-            demo._phase_sync_verification(
-                finder_client=finder_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                vendor_client=vendor_client,
-                c1=c1,
-                finder=finder,
-                c2=c2,
-                vendor=vendor,
-                case=case,
-            )
-
-        coverage_wait_called.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

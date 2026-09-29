@@ -595,7 +595,7 @@ class TestFvcvHandoffMilestoneAssertions:
             patch.object(demo, "wait_for_all_participants_rm_closed"),
             patch.object(demo, "verify_case_closed") as mock_m7,
             patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 demo,
                 "demo_check",
@@ -655,7 +655,7 @@ class TestFvcvHandoffMilestoneAssertions:
             patch.object(demo, "wait_for_all_participants_rm_closed"),
             patch.object(demo, "verify_case_closed"),
             patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 demo,
                 "demo_check",
@@ -1546,59 +1546,6 @@ class TestFvcvHandoffCausalGates:
             )
 
         case_on_container_called.assert_not_called()
-
-    def test_sync_verification_skips_coverage_wait_when_finder_case_not_seeded(
-        self,
-    ):
-        """demo_gate skips ledger coverage wait when wait_for_case_on_container times out."""
-        finder_client = self._client()
-        vendor_client = self._client()
-        coordinator_client = self._client()
-        vendor2_client = self._client()
-        vendor = self._actor("urn:test:vendor")
-        finder = self._actor("urn:test:finder")
-        coordinator = self._actor("urn:test:coordinator")
-        vendor2 = self._actor("urn:test:vendor2")
-        case = self._case()
-
-        coverage_wait_called = MagicMock()
-
-        with (
-            patch.object(
-                demo,
-                "_get_log_entries_for_case",
-                return_value=[
-                    {"log_index": 5, "entry_hash": "abc123def456789a"}
-                ],
-            ),
-            patch.object(
-                demo,
-                "wait_for_case_on_container",
-                side_effect=AssertionError(
-                    "timed out waiting for case on container"
-                ),
-            ),
-            patch.object(
-                demo,
-                "wait_for_contiguous_ledger_coverage",
-                side_effect=coverage_wait_called,
-            ),
-            patch.object(demo, "wait_for_participants_on_replicas"),
-            patch.object(demo, "verify_replica_state"),
-        ):
-            demo._phase_sync_verification(
-                finder_client=finder_client,
-                vendor_client=vendor_client,
-                coordinator_client=coordinator_client,
-                vendor2_client=vendor2_client,
-                vendor=vendor,
-                finder=finder,
-                coordinator=coordinator,
-                vendor2=vendor2,
-                case=case,
-            )
-
-        coverage_wait_called.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

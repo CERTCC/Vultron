@@ -77,8 +77,6 @@ from vultron.demo.helpers.polling import (
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
-    wait_for_contiguous_ledger_coverage,
-    wait_for_participants_on_replicas,
     wait_for_event_type_in_ledger,
     wait_for_finder_case,
     wait_for_participant_rm_state,
@@ -91,8 +89,8 @@ from vultron.demo.helpers.seeding import (
 )
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.sync import (
-    _get_log_entries_for_case,
-    verify_replica_state,
+    run_sync_verification_phase,
+    wait_for_replica_ledger_coverage,
 )
 from vultron.demo.helpers.workflow import (
     reporter_submits_report,
@@ -369,75 +367,19 @@ def _phase_sync_verification(
     logger.info("Phase 2: Replica synchronization verification")
     logger.info("─" * 80)
 
-    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
-        wait_for_case_on_container(client=finder_client, case_id=case.id_)
-        vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
-        if vendor_entries:
-            vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-            vendor_tail_index: int = vendor_tail["log_index"]
-            vendor_tail_hash: str = vendor_tail["entry_hash"]
-            logger.info(
-                "Waiting for Finder to replicate Vendor1 tail (hash=%s… index=%d)",
-                vendor_tail_hash[:16],
-                vendor_tail_index,
-            )
-            with demo_gate("Finder ledger coverage (sync-verification phase)"):
-                wait_for_contiguous_ledger_coverage(
-                    client=finder_client,
-                    case_id=case.id_,
-                    expected_tail_index=vendor_tail_index,
-                )
-            logger.info(
-                "Waiting for Vendor2 to replicate Vendor1 tail (hash=%s… index=%d)",
-                vendor_tail_hash[:16],
-                vendor_tail_index,
-            )
-            with demo_gate(
-                "Vendor2 ledger coverage (sync-verification phase)"
-            ):
-                wait_for_contiguous_ledger_coverage(
-                    client=vendor2_client,
-                    case_id=case.id_,
-                    expected_tail_index=vendor_tail_index,
-                )
-
-    # Temporal (EDF-06-006): Vendor2 is a late joiner — allow extra time for
-    # participant-index propagation; see wait_for_participants_on_replicas.
-    # The finder + vendor2 replicas were previously polled with two bare
-    # wait_for_case_participants calls that used the 15 s default, so Vendor2
-    # never got the extended budget and could time out spuriously (#2852).
-    wait_for_participants_on_replicas(
-        replica_clients=(finder_client, vendor2_client),
+    run_sync_verification_phase(
+        auth_client=vendor_client,
+        auth_label="Vendor1",
+        auth_actor_id=vendor.id_,
+        finder_client=finder_client,
+        finder_actor_id=finder.id_,
+        replicas=[(finder_client, "Finder"), (vendor2_client, "Vendor2")],
         case_id=case.id_,
-        expected_actor_ids={
-            finder.id_,
-            vendor.id_,
-            vendor2.id_,
-        },
+        expected_participant_ids={finder.id_, vendor.id_, vendor2.id_},
+        # Vendor2 joins by invitation after the report is accepted (#2852).
         late_joiners=(vendor2_client,),
+        state_checks=[(finder_client, "Finder"), (vendor2_client, "Vendor2")],
     )
-
-    with demo_check(
-        "Finder replica state matches authoritative Vendor1 state"
-    ):
-        verify_replica_state(
-            auth_client=vendor_client,
-            replica_client=finder_client,
-            case_id=case.id_,
-            vendor_actor_id=vendor.id_,
-            reporter_actor_id=finder.id_,
-        )
-
-    with demo_check(
-        "Vendor2 replica state matches authoritative Vendor1 state"
-    ):
-        verify_replica_state(
-            auth_client=vendor_client,
-            replica_client=vendor2_client,
-            case_id=case.id_,
-            vendor_actor_id=vendor.id_,
-            reporter_actor_id=finder.id_,
-        )
 
     logger.info(
         "✓ M2: Finder and Vendor2 DataLayers synchronized (LedgerFanout verified)"
@@ -748,29 +690,21 @@ def _phase_case_closure(
             case_id=case.id_,
             event_type="close_case",
         )
-    vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
-    if vendor_entries:
-        vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-        vendor_tail_index: int = vendor_tail["log_index"]
-        vendor_tail_hash: str = vendor_tail["entry_hash"]
-        logger.info(
-            "Waiting for replicas to receive vendor1 tail after closure"
-            " (hash=%s… index=%d)",
-            vendor_tail_hash[:16],
-            vendor_tail_index,
-        )
-        with demo_check("Finder ledger coverage (close phase)"):
-            wait_for_contiguous_ledger_coverage(
-                client=finder_client,
-                case_id=case.id_,
-                expected_tail_index=vendor_tail_index,
-            )
-        with demo_check("Vendor2 ledger coverage (close phase)"):
-            wait_for_contiguous_ledger_coverage(
-                client=vendor2_client,
-                case_id=case.id_,
-                expected_tail_index=vendor_tail_index,
-            )
+    # Temporal (EDF-06-006): after close_case the authority's outbox fans out
+    # Announce(CaseLedgerEntry) to each replica via BackgroundTasks; nothing
+    # but the ledger dump depends on it. Bounded per replica by
+    # LEDGER_COVERAGE_TIMEOUT / LATE_JOINER_COVERAGE_TIMEOUT (EDF-06-008).
+    wait_for_replica_ledger_coverage(
+        auth_client=vendor_client,
+        replicas=[
+            (finder_client, "Finder"),
+            (vendor2_client, "Vendor2"),
+        ],
+        case_id=case.id_,
+        late_joiners=(vendor2_client,),
+        phase_label="close phase",
+        causal=False,
+    )
 
 
 def _phase_dump_case_ledgers(
