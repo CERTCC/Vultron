@@ -133,9 +133,61 @@ def test_handoff_edges_reject_invite_before_ownership_acceptance(
         f"{_OWNERSHIP_ACCEPTED!r} before the new owner's {_INVITE!r}; a "
         "ledger with the invite first passes its causal-edge check"
     )
-    assert any(
-        _OWNERSHIP_ACCEPTED in v and _INVITE in v for v in violations
-    ), "\n".join(violations)
+    ordering_edge = f"Edge [{_OWNERSHIP_ACCEPTED!r} → {_INVITE!r}]"
+    assert any(v.startswith(ordering_edge) for v in violations), "\n".join(
+        violations
+    )
+
+
+def _invite_chain_violations(edges: list[dict]) -> list[str]:
+    """Structural violations in the invite/response sub-sequence of ``edges``.
+
+    Considers only the edges whose consequent is ``invite_actor_to_case`` and
+    the edges that answer one (antecedent ``invite_actor_to_case``, consequent
+    an accept or reject).  In that sub-sequence every invite edge MUST be
+    followed by exactly one response edge before the next invite edge or the
+    end of the list, and the response's ``consequent_actor`` MUST differ from
+    the invite's.  The alternation is enforced rather than assumed: a response
+    edge moved away from its invite fails as misplaced instead of being
+    compared against a different invite's actor.
+    """
+    violations: list[str] = []
+    awaiting_response = False
+    inviter: str | None = None
+    for edge in edges:
+        consequent = edge.get("consequent")
+        actor = edge.get("consequent_actor")
+        if consequent == _INVITE:
+            if awaiting_response:
+                violations.append(
+                    f"{_INVITE!r} edge (actor {inviter!r}) has no following "
+                    "accept or reject edge"
+                )
+            inviter = actor
+            awaiting_response = True
+            continue
+        if (
+            consequent in _INVITE_RESPONSES
+            and edge.get("antecedent") == _INVITE
+        ):
+            if not awaiting_response:
+                violations.append(
+                    f"{consequent!r} edge (actor {actor!r}) does not directly "
+                    f"follow the {_INVITE!r} edge it answers"
+                )
+                continue
+            if actor == inviter:
+                violations.append(
+                    f"{consequent!r} attributed to {actor!r}, who sent the "
+                    "invitation it answers"
+                )
+            awaiting_response = False
+    if awaiting_response:
+        violations.append(
+            f"{_INVITE!r} edge (actor {inviter!r}) has no following accept "
+            "or reject edge"
+        )
+    return violations
 
 
 @pytest.mark.parametrize("page", _narrative_pages(), ids=lambda p: p.stem)
@@ -147,32 +199,102 @@ def test_invitee_response_edge_is_not_attributed_to_the_inviter(
     ``consequent_actor`` names the actor whose act the consequent entry
     records (DEMOMA-22-004).  An invitation is answered by its invitee, so
     the actor on an ``invite_actor_to_case → accept/reject`` edge must differ
-    from the actor on the invite edge it answers — the nearest preceding
-    ``invite_actor_to_case`` consequent in the list, which is how every
-    narrative orders its chain.  ISSUE-2753 attributed the Vendor's rejection
-    to the Coordinator who sent the invite; the ledger check reads the label
-    only for diagnostics, so nothing else would notice.
+    from the actor on the invite edge it answers.  Edges carry no invite
+    identity, so the pairing is by position: each invite edge is followed by
+    exactly one response edge, a shape every narrative must keep (see
+    ``_invite_chain_violations``).  ISSUE-2753 attributed the Vendor's
+    rejection to the Coordinator who sent the invite; the ledger check reads
+    the label only for diagnostics, so nothing else would notice.
     """
     edges = load_narrative_edges(_rel(page))
-    inviter: str | None = None
-    mismatches: list[str] = []
-    for edge in edges:
-        consequent = edge.get("consequent")
-        actor = edge.get("consequent_actor")
-        if consequent == _INVITE:
-            inviter = actor
-            continue
-        if (
-            consequent in _INVITE_RESPONSES
-            and edge.get("antecedent") == _INVITE
-        ):
-            assert inviter is not None, (
-                f"{_rel(page)}: {consequent!r} edge has no preceding "
-                f"{_INVITE!r} edge to answer"
-            )
-            if actor == inviter:
-                mismatches.append(
-                    f"{consequent!r} attributed to {actor!r}, who sent the "
-                    "invitation it answers"
-                )
-    assert not mismatches, f"{_rel(page)}:\n" + "\n".join(mismatches)
+    violations = _invite_chain_violations(edges)
+    assert not violations, f"{_rel(page)}:\n" + "\n".join(violations)
+
+
+def _edge(antecedent: str, consequent: str, actor: str) -> dict:
+    return {
+        "antecedent": antecedent,
+        "consequent": consequent,
+        "consequent_actor": actor,
+    }
+
+
+_ACCEPT = "accept_invite_actor_to_case"
+_REJECT = "reject_invite_actor_to_case"
+
+#: A handoff-shaped chain: the first invitee later invites someone else, so a
+#: rule that merely forbade every inviter's label on every response would
+#: reject it.
+_WELL_FORMED_CHAIN = [
+    _edge("engage_case", _INVITE, "vendor"),
+    _edge(_INVITE, _ACCEPT, "coordinator"),
+    _edge(_ACCEPT, _OWNERSHIP_ACCEPTED, "coordinator"),
+    _edge(_OWNERSHIP_ACCEPTED, _INVITE, "coordinator"),
+    _edge(_INVITE, _ACCEPT, "vendor2"),
+    _edge("engage_case", "add_note_to_case", "finder"),
+]
+
+
+def test_invite_chain_accepts_a_well_formed_chain() -> None:
+    assert _invite_chain_violations(_WELL_FORMED_CHAIN) == []
+
+
+def test_invite_chain_ignores_pages_without_invitations() -> None:
+    edges = [_edge("validate_report", "engage_case", "vendor")]
+    assert _invite_chain_violations(edges) == []
+
+
+@pytest.mark.parametrize(
+    ("edges", "expected_fragment"),
+    [
+        pytest.param(
+            [
+                _edge("engage_case", _INVITE, "coordinator"),
+                _edge(_INVITE, _REJECT, "coordinator"),
+            ],
+            "who sent the invitation it answers",
+            id="response-attributed-to-inviter",
+        ),
+        pytest.param(
+            # The coordinator's acceptance edge, mislabelled with its real
+            # inviter and moved to the end of the list the way the handoff
+            # pages append their ownership-offer edge.  A nearest-preceding
+            # heuristic pairs it with the coordinator's own invite and passes.
+            [
+                _edge("engage_case", _INVITE, "vendor"),
+                _edge(_OWNERSHIP_ACCEPTED, _INVITE, "coordinator"),
+                _edge(_INVITE, _ACCEPT, "vendor2"),
+                _edge("engage_case", "add_note_to_case", "finder"),
+                _edge(_INVITE, _ACCEPT, "vendor"),
+            ],
+            "does not directly follow",
+            id="response-moved-away-from-its-invite",
+        ),
+        pytest.param(
+            [
+                _edge("engage_case", _INVITE, "c1"),
+                _edge(_INVITE, _ACCEPT, "v1"),
+                _edge("accept_actor_recommendation", _INVITE, "case-actor"),
+            ],
+            "has no following accept or reject edge",
+            id="invite-without-response",
+        ),
+        pytest.param(
+            [
+                _edge("engage_case", _INVITE, "c1"),
+                _edge(_INVITE, _ACCEPT, "v1"),
+                _edge(_INVITE, _ACCEPT, "c2"),
+            ],
+            "does not directly follow",
+            id="two-responses-to-one-invite-edge",
+        ),
+    ],
+)
+def test_invite_chain_rejects_malformed_chains(
+    edges: list[dict], expected_fragment: str
+) -> None:
+    violations = _invite_chain_violations(edges)
+    assert violations, "malformed chain produced no violation"
+    assert any(expected_fragment in v for v in violations), "\n".join(
+        violations
+    )

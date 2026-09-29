@@ -186,8 +186,12 @@ causal_edges:
 
 - `antecedent` — the `eventType` string of the causally-earlier ledger entry.
 - `consequent` — the `eventType` string of the causally-later ledger entry.
-- `consequent_actor` — documentary label identifying which participant commits
-  the consequent event; used in diagnostic output when a check fails.
+- `consequent_actor` — label for the participant whose act the consequent entry
+  records. Invariant 16 reads it only for its diagnostic output; the one check on
+  its value is the structural rule in `test/ci/invariants/test_narrative_edges.py`
+  (an invitation response is never attributed to the inviter). Whether the label
+  names the payload `actor` or the delegating `attributedTo` for an entry the
+  Case Actor emits on a participant's behalf is open in Concern #3882.
 - `note` — optional prose explanation of the causal relationship.
 - `observable` — defaults to `true`. Set to `false` for edges whose antecedent
   or consequent is not directly captured as a case-ledger entry (for example,
@@ -202,6 +206,17 @@ such that `a.log_index < b.log_index`. The check uses the case-actor's
 authoritative replica, which is the canonical causal order (ADR-0079).
 Diagnostic output on failure names the unsatisfied edge and the log indices
 that were observed. Unobservable edges are skipped and never cause a failure.
+
+**Pre-devlogs structural checks.** `test/ci/invariants/test_narrative_edges.py`
+runs in the unit suite against the committed `causal_edges:` lists with synthetic
+ledgers, so an authoring slip fails on the PR instead of waiting for a demo run.
+Every `*-handoff` narrative must declare an edge that orders
+`accept_case_ownership_transfer` before the new owner's `invite_actor_to_case`
+(#2754), and the invite/response edges must alternate: each
+`invite_actor_to_case` edge is followed by exactly one accept or reject edge, whose
+actor differs from the inviter's (#2753). The alternation is enforced, not
+assumed, so a response edge moved away from its invite fails as misplaced rather
+than being compared against the wrong inviter.
 
 **Update-together rule (DEMOMA-22-006).** The causal edges declared in a
 narrative page and the scenario's invariant test file
