@@ -774,16 +774,24 @@ groups:
       The wire activity ACCEPT_INVITE_TO_EMBARGO_ON_CASE (EA wire form:
       Accept(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
       (1) when the sending actor is the case owner it MUST advance the shared EM
-      state from PROPOSED to ACTIVE (or from REVISE to ACTIVE for EC); (2) for
-      any accepting participant it MUST apply the PEC ACCEPT trigger, advancing
-      their consent state from INVITED, UNBOUND, or LAPSED to SIGNATORY.
+      state from PROPOSED to ACTIVE (or from REVISE to ACTIVE for EC, replacing
+      the active embargo and applying the MSM-07-005 consent re-evaluation);
+      (2) for any accepting participant it MUST record the accepted embargo's
+      id in their `accepted_embargo_ids` and, when the accepted embargo is the
+      case's active embargo, apply the PEC ACCEPT trigger, advancing their
+      consent state from INVITED, UNBOUND, or LAPSED to SIGNATORY. A participant
+      already SIGNATORY who accepts a *proposed* revision records the id with no
+      state change: they were and remain a signatory to the embargo in force.
     rationale: >-
       The same wire activity simultaneously drives the case-level EM machine
       (for the case owner) and the participant-level PEC machine (for the accepting
       actor). An implementer handling this activity MUST update both machines, not
       just the EM state. The PEC ACCEPT trigger is valid directly from UNBOUND
       because consent can be self-determined without an invitation (ADR-0048,
-      ADR-0091, CM-18-003).
+      ADR-0091, CM-18-003). Consent is per embargo (CM-10-001, ADR-0093): the
+      scalar state reports the participant's position on the active embargo, so
+      accepting a revision that is not yet active is recorded on the list and
+      becomes the participant's position only if the owner activates it.
     verification: >-
       Inspection of vultron/core/use_cases/received/embargo.py confirms
       AcceptInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle
@@ -803,18 +811,35 @@ groups:
       The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (ER wire form:
       Reject(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
       (1) when the sending actor is the case owner it MUST advance the shared EM
-      state from PROPOSED to NONE (for ER) or leave EM in ACTIVE (for EJ); (2)
-      for any rejecting participant it MUST apply the PEC DECLINE trigger, advancing
-      their consent state from INVITED, UNBOUND, or LAPSED to DECLINED.
+      state from PROPOSED to NONE (for ER) or from REVISE back to ACTIVE with the
+      prior terms still in force (for EJ), and an EJ MUST NOT change any
+      participant's consent state or `accepted_embargo_ids`, the owner's included;
+      (2) for any rejecting participant the effect depends on which embargo the
+      Reject names: rejecting the case's *active* embargo MUST apply the PEC
+      DECLINE trigger (consent withdrawal; valid from INVITED, UNBOUND, LAPSED,
+      or SIGNATORY); rejecting a *proposed* embargo that is not active MUST
+      remove that id from the participant's `accepted_embargo_ids` if present,
+      MUST apply DECLINE to a participant not yet SIGNATORY (INVITED, UNBOUND,
+      or LAPSED → DECLINED), and MUST leave a SIGNATORY's state unchanged — a
+      signatory's rejection of a proposed revision refuses those terms; it is not
+      withdrawal from the embargo in force.
     rationale: >-
       Symmetric with MSM-07-003: the reject wire activity drives both the EM machine
       (case-owner path) and the PEC machine (rejecting participant path). The PEC
       DECLINE trigger is valid directly from UNBOUND for symmetric reasons to
-      ACCEPT (ADR-0048, ADR-0091, CM-18-003).
+      ACCEPT (ADR-0048, ADR-0091, CM-18-003), and from SIGNATORY as first-class
+      consent withdrawal (ADR-0093, VP-13-007, VP-13-008). Consent is per embargo,
+      so a signatory who refuses proposed terms is still bound by, and still
+      consents to, the embargo that remains active; only the case owner decides
+      whether the proposal replaces it. The owner's own EJ is a decision to keep
+      the standing embargo and therefore cannot be a decline of it.
     verification: >-
-      Inspection of vultron/core/use_cases/received/embargo.py confirms
-      RejectInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle
-      with the sending actor's PEC updated to DECLINED regardless of EM ownership.
+      Inspection of vultron/core/use_cases/received/embargo.py and
+      vultron/core/services/embargo_lifecycle/proposals.py confirms
+      RejectInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle, which
+      applies DECLINE to the rejecting actor only when the rejected embargo is the
+      case's active embargo or the actor is not yet SIGNATORY, and records no
+      consent change for an owner's EJ.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
@@ -826,26 +851,42 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the shared EM state transitions from ACTIVE to REVISE (driven by an
-      EV / INVITE_TO_EMBARGO_ON_CASE wire activity), implementations MUST
-      automatically apply the PEC REVISE trigger to every participant currently
-      in SIGNATORY state, advancing them to LAPSED. No separate outbound wire
-      activity is emitted for these per-participant PEC transitions; the cascade
-      is an internal side-effect of the EM state change.
+      When the case owner's Accept(Invite(Event)) (EC) replaces active embargo A
+      with revision B (shared EM REVISE → ACTIVE, `active_embargo` changes),
+      implementations MUST re-evaluate every participant's consent against B:
+      if B ends no later than A, every participant SIGNATORY to A MUST be carried
+      over as a signatory to B (B recorded in their `accepted_embargo_ids`, state
+      unchanged); if B ends later than A, implementations MUST apply the PEC
+      REVISE trigger to every SIGNATORY whose `accepted_embargo_ids` lacks B,
+      advancing them to LAPSED. A revision proposal (EV, ACTIVE → REVISE, or a
+      counter-revision REVISE → REVISE) MUST NOT change any participant's consent
+      state, and the proposer's `accepted_embargo_ids` MUST gain the proposed
+      embargo's id. The cascade MUST run whether the transition is driven
+      locally or observed from the wire. No separate outbound wire activity is
+      emitted for these per-participant PEC transitions; the cascade is an
+      internal side-effect of the EM state change.
     rationale: >-
-      LAPSED means "I accepted the prior embargo terms, but those terms have
-      changed and my prior consent no longer applies." Because the revision is
-      a case-level event the cascade must be atomic with the EM transition —
-      leaving any SIGNATORY participant in place while EM is REVISE would allow
-      the case to proceed as though all prior signatories had re-accepted the
-      revised terms, which they have not. The REVISE cascade is performed by
-      EmbargoLifecycle._cascade_pec_revise() inside propose_embargo().
+      LAPSED means "the active embargo was replaced by longer terms I have not
+      accepted." While a revision is merely proposed the prior embargo is still
+      in force and every signatory to it is still bound by it, so nothing about
+      their consent has changed (ADR-0093). Agreeing to N days is agreeing to
+      every shorter period — the containment that makes shortest-wins safe
+      (EP-04-003) and lets termination reset consent without asking — so a
+      shorter revision asks nothing new of an existing signatory and carries
+      them over. Longer terms ask for more than they promised, so only those
+      who accepted B are bound by B. Only the owner's acceptance changes the
+      embargo on the case; other participants' accepts and rejects are recorded
+      per embargo and inform that decision. Running the cascade in the observed
+      path too keeps every replica's consent record in step with the
+      CASE_MANAGER's, as the termination reset already does.
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms that
-      propose_embargo() calls _cascade_pec_revise() and that SIGNATORY
-      participants are transitioned to LAPSED before the EM REVISE transition
-      is persisted. Unit tests in test/core/services/embargo_lifecycle/
-      assert the cascade.
+      propose_embargo() applies no PEC cascade and records the proposer's
+      consent to the proposed id, and that accept_embargo_invite() on the
+      owner path carries signatories over to a revision that ends no later than
+      the replaced embargo and moves signatories lacking a longer revision to
+      LAPSED. Unit tests in test/core/services/embargo_lifecycle/ assert both
+      arms and the no-op on proposal.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003

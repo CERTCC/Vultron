@@ -106,8 +106,8 @@ both are needed.
 They are coupled at two points, because consent is given to specific terms rather
 than to the idea of an embargo:
 
-- **Entering Revised** lapses consent. Every participant at Signatory moves to
-  Lapsed: their agreement covered the previous terms.
+- **Leaving Revised for Active with longer terms** lapses consent. Every participant at Signatory that has not accepted the revised terms moves to Lapsed: their agreement covered the previous, shorter terms.
+  Entering Revised changes nothing, and a revision that ends no later than the terms it replaces carries every signatory over.
 - **Entering Exited** resets consent. Every participant returns to Unbound:
   with no embargo in scope, there is nothing to consent to.
 

@@ -27,6 +27,8 @@ case, alongside the participant's other case state.
 
 Each participant has one consent state, recording its position on the case's current
 embargo terms.
+Consent is given to specific terms, so beside that state the CASE_MANAGER records which embargo terms, active or proposed, each participant has accepted.
+A participant can therefore be a signatory to the active embargo and have already accepted a proposed revision of it.
 
 {% include-markdown "./includes/_pec-states-table.md" %}
 
@@ -38,8 +40,9 @@ embargo terms.
 ### 9.2 Transitions and Guards
 
 Five triggers drive the machine. **Invite** extends an invitation, **accept** and
-**decline** record the participant's answer, **revise** fires when the case
-embargo enters Revised, and **reset** fires when it enters Exited.
+**decline** record the participant's answer, **revise** fires when the case owner
+activates revised terms that end later than the terms a signatory accepted, and
+**reset** fires when the embargo enters Exited.
 
 | From | Trigger | To |
 |---|---|---|
@@ -54,7 +57,6 @@ embargo enters Revised, and **reset** fires when it enters Exited.
 | Lapsed | invite | Invited |
 | Lapsed | accept | Signatory |
 | Lapsed | decline | Declined |
-| Lapsed | deadline passes | Declined |
 | Declined | invite | Invited |
 | any state | reset | Unbound |
 
@@ -66,13 +68,24 @@ reset is valid from any state.
 Neither Lapsed nor Declined is terminal. A participant in either can be invited
 again, which is what makes renegotiation possible.
 
-!!! warning "Lapsed is not the deadline state"
-    Lapsed is reached only from Signatory, and only by the revise trigger. It
-    means the participant did agree, and the terms it agreed to have since
-    changed.
+A revision does not move a signatory until it takes effect.
+While a revision is only proposed, the prior embargo is still in force and every signatory to it remains Signatory; the proposer is recorded as having accepted the terms it proposed.
+A signatory that accepts the proposed terms records that acceptance and stays Signatory to the embargo in force.
+A signatory that declines the proposed terms refuses them and nothing more: it stays Signatory, because only declining the **active** embargo is withdrawal.
+Only the case owner's accept or reject changes the embargo on the case; the other participants' answers inform that decision.
 
-    A participant that lets a deadline pass reaches **Declined**, not Lapsed —
-    from Invited and from Lapsed alike. Both timer paths end in Declined.
+When the owner activates the revision, consent is re-evaluated against the new terms, and the direction of the change matters.
+A revision that ends **no later than** the terms it replaces asks nothing new of anyone who agreed to the old terms, since agreeing to N days is agreeing to every shorter period; every signatory is carried over as a signatory to the new terms.
+A revision that ends **later** asks for more than they promised; every signatory that has not accepted it moves to Lapsed by the revise trigger, and those that did accept it stay Signatory.
+If the owner rejects the revision instead, the old terms stand and nobody's consent changes.
+
+!!! warning "Lapsed is neither the proposal state nor the deadline state"
+    Lapsed is reached only from Signatory, and only by the revise trigger.
+    That trigger fires when the case owner *activates* longer terms the participant has not accepted, never when a revision is merely proposed and never when the revision shortens the embargo.
+    It means the participant did agree, and the embargo in force has since become something it did not agree to.
+
+    A participant that lets an invitation deadline pass reaches **Declined**, not Lapsed.
+    A Lapsed participant has no deadline until it is invited again.
 
 ### 9.3 What Unbound Means
 
@@ -90,8 +103,9 @@ Two consequences follow:
 - Accept and decline are valid directly from Unbound. No invitation is
   required.
 - The transition from Signatory to Invited MUST be rejected. Consent already
-  given cannot be withdrawn by re-inviting the participant; if the terms change,
-  the revise trigger lapses the consent instead.
+  given cannot be withdrawn by re-inviting the participant; if longer terms the
+  participant has not accepted take effect, the revise trigger lapses the
+  consent instead.
 
 Unbound is also the state every participant returns to when an embargo ends,
 which is independent evidence for the absence reading: reset fires when the
