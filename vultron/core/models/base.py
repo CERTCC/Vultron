@@ -439,8 +439,8 @@ class CoreObject(CoreRecord):
         actors on different spellings disagree about the canonical snapshot of an
         identical event.
 
-        Every one of the 226 timestamps in ``docs/reference/examples`` uses the
-        offset form, so that is the published contract.  Promoting a core class
+        Every timestamp in ``docs/reference/examples`` uses the offset form,
+        so that is the published contract.  Promoting a core class
         onto the wire must not quietly renegotiate it.
         """
         if value is None:

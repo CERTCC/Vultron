@@ -9,13 +9,15 @@ description: >
   vultron/core/ports/AGENTS.md.
 related_specs:
   - specs/datalayer.yaml
-  - specs/architecture.yaml
+  - specs/architecture.yaml (ARCH-12-006, ARCH-23-003, ARCH-23-005)
 related_notes:
   - notes/domain-model-separation.md
   - notes/architecture-hexagonal.md
   - notes/activitystreams-semantics.md
   - notes/wire-core-boundary.md
   - notes/testing-pitfalls.md
+  - notes/flaky-tests.md
+  - notes/vocabulary-registry.md
 relevant_packages:
   - vultron/core/ports
   - vultron/adapters/driven
@@ -461,3 +463,51 @@ empty one. Declare the executor with `@pytest.mark.executes_as(ACTOR)` —
 test names.
 
 Source: ISSUE-2238
+
+---
+
+## A Default Minted From the Clock Cannot Round-Trip Through a Field That Does Not Store It
+
+(ISSUE-3732, ISSUE-3726, 2026-09-29)
+
+`as_Object.published`/`updated` default to `now_utc()` so that an object this
+process *authors* is stamped (ADR-0103). `as_Actor` derived an actor's
+`inbox`/`outbox` `OrderedCollection` through that default, so a freshly built
+`as_Person` carried two clock stamps that were never anyone's claim. The
+datalayer keeps an actor as `CoreActor`, whose endpoints are URI strings
+(ARCH-12-006, ADR-0034): the stamps were dropped on write, and the wire form
+minted new ones when the URI was coerced back to a collection on read. The
+stored actor therefore read back equal to itself only when write and read
+landed in the same wall-clock second — a full-suite flake that reproduced
+deterministically with a `time.sleep(1.1)` between the two calls, and that
+seven PRs — none touching the actor read path — were blocked on before
+anyone traced it.
+
+The general shape: **a value a wire default mints at construction cannot
+survive a round trip through a core field that does not store it**, and the
+symptom is an equality that depends on timing. Neither "store more" nor
+"re-mint on read" is the fix — the core field is URI-only by design, and a
+re-minted value is by definition not what was stored. The fix is to stop
+minting: an endpoint is an *address*, so `_address_collection()` in
+`vultron/wire/as2/vocab/base/objects/actors.py` builds a derived one with
+`published=None, updated=None`, a collection dict reads an absent stamp as
+`None` in every validation context (so the `to_json()` form, which
+`exclude_none` strips, re-validates equal too), and a collection that *arrives*
+carrying its own times keeps them as received. `ARCH-23-003`'s pin on the endpoint wire form
+had been popping both keys before it could claim "address, type and items —
+nothing else"; it no longer needs to.
+
+Two rules for the next instance:
+
+- **A round-trip equality test must cross a second boundary on purpose.**
+  Pin the clock ahead between write and read with `test/support/clock.py`'s
+  `SteppingClock` (patch `vultron.core.models._helpers.datetime`); never
+  `time.sleep()`. A test that passes only because both calls share a second
+  is not testing the round trip.
+- **Ask which side of the boundary owns a default before adding one.** If a
+  field defaults on the wire branch and the core branch reduces the object to
+  a reference, the default is unstorable and every read will disagree with
+  every write. The committed `docs/reference/examples` are the visible record
+  of the wire form: the endpoint stamps had to be removed from twelve of them,
+  and the key-shape ratchet (`test_vocab_examples_current.py`) is what would
+  have caught the mismatch had it existed when the default was added.
