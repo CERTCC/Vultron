@@ -13,7 +13,7 @@ causal_edges:
       Case engagement triggers participant status entries.
   - antecedent: engage_case
     consequent: invite_actor_to_case
-    consequent_actor: c1
+    consequent_actor: case-actor
     note: >
       C1 invites both V1 and C2 after the case is active.
   - antecedent: invite_actor_to_case
@@ -40,6 +40,12 @@ causal_edges:
     note: >
       After C1 approves, the CaseActor sends V2 a formal invitation
       (ADR-0026 path).  This invite follows the recommendation acceptance.
+  - antecedent: invite_actor_to_case
+    consequent: accept_invite_actor_to_case
+    consequent_actor: v2
+    note: >
+      V2 accepts the Case Actor's invitation; acceptance follows the
+      invite.
   - antecedent: validate_report
     consequent: close_case
     consequent_actor: c1

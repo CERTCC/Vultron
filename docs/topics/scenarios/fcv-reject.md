@@ -14,13 +14,13 @@ causal_edges:
       Participant status records are created after case engagement.
   - antecedent: engage_case
     consequent: invite_actor_to_case
-    consequent_actor: coordinator
+    consequent_actor: case-actor
     note: >
       The Coordinator sends the Vendor an invitation only after the case
       is active.
   - antecedent: invite_actor_to_case
     consequent: reject_invite_actor_to_case
-    consequent_actor: coordinator
+    consequent_actor: vendor
     note: >
       The Vendor's rejection of the invitation is recorded by the CaseActor
       as a reject_invite_actor_to_case entry.  This must follow the invite.

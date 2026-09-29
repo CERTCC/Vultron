@@ -13,7 +13,7 @@ causal_edges:
       Case engagement triggers participant status entries.
   - antecedent: engage_case
     consequent: invite_actor_to_case
-    consequent_actor: c1
+    consequent_actor: case-actor
     note: >
       C1 invites C2 after the case is active.
   - antecedent: invite_actor_to_case
@@ -30,7 +30,7 @@ causal_edges:
       acceptance.
   - antecedent: accept_case_ownership_transfer
     consequent: invite_actor_to_case
-    consequent_actor: c2
+    consequent_actor: case-actor
     note: >
       As the new case owner, C2 invites the Vendor.  This invite must follow
       the ownership acceptance.
