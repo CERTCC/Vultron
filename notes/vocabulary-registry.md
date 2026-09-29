@@ -16,6 +16,7 @@ related_notes:
   - notes/wire-core-boundary.md
   - notes/core-wire-rendering-port.md
   - notes/documentation-strategy.md
+  - notes/datalayer-design.md
 relevant_packages:
   - vultron/wire/as2/vocab
   - vultron/adapters/driven/wire_render
@@ -278,7 +279,12 @@ returns only what the wire registry holds unless the caller passes
 reference, not an integer. Its removal is the one intended change to an actor's
 serialized form. The other change is that an actor built without an
 inbox/outbox now gets `{id}/inbox` and `{id}/outbox`, as `set_collections`
-always intended, instead of a fresh `urn:uuid:`.
+always intended, instead of a fresh `urn:uuid:`. A third followed in #3732:
+those endpoint collections no longer carry a `published`/`updated` — an
+endpoint is an address, and a clock stamp minted on it could never round-trip
+through the URI-only core actor (see `notes/datalayer-design.md` § "A Default
+Minted From the Clock Cannot Round-Trip Through a Field That Does Not Store
+It").
 
 Separately, 32 `CORE_TYPE_MAP` keys (27 distinct classes) resolved through
 the then-default `find_in_vocabulary` fallback to a class that is not an `as_Base` subclass when this was

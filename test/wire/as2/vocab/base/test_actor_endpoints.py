@@ -32,7 +32,7 @@ import pytest
 
 from test.support.clock import SteppingClock
 from vultron.core.models import _helpers
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import INBOUND_CONTEXT_KEY, now_utc
 from vultron.core.models.actor import (
     VultronApplication,
     VultronGroup,
@@ -95,9 +95,6 @@ def _arrival_shapes(field_name: str) -> dict[str, dict[str, Any]]:
 
 
 _SHAPES = list(_arrival_shapes("inbox"))
-#: Every shape but the one that arrives as a complete, addressed collection:
-#: for these the actor *derives* the endpoint rather than receiving it.
-_DERIVED_SHAPES = [shape for shape in _SHAPES if shape != "collection-dict"]
 _ARRIVED_AT = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
 
 
@@ -267,17 +264,21 @@ def test_serialized_endpoints_carry_only_address_type_and_items():
 
 @pytest.mark.parametrize("actor_cls", _ACTOR_CLASSES)
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
-@pytest.mark.parametrize("shape", _DERIVED_SHAPES)
-def test_derived_endpoint_carries_no_clock_stamp(actor_cls, field_name, shape):
-    """A derived endpoint is an address, so it is not stamped with the clock.
+@pytest.mark.parametrize("shape", _SHAPES)
+def test_endpoint_without_arrived_stamp_carries_no_clock_stamp(
+    actor_cls, field_name, shape
+):
+    """An endpoint is an address, so no arrival shape gets a clock stamp.
 
     ``as_Object`` mints ``published`` and ``updated`` from ``now_utc()`` on
-    every construction.  An endpoint the actor derives — from a bare URI, from
-    its own ``id_``, or around an id-less collection — is not an object this
-    process authored, and a clock value minted there can never round-trip:
-    ``CoreActor`` keeps only the URI (ARCH-12-006), so an actor stored and read
-    back through the datalayer compared unequal to itself whenever a second
-    boundary fell between the write and the read (#3732, #3726).
+    every construction.  An endpoint — derived from a bare URI or the actor's
+    own ``id_``, or arriving as a collection dict with no stamps of its own —
+    is not an object this process authored, and a clock value minted there
+    can never round-trip: ``CoreActor`` keeps only the URI (ARCH-12-006), so
+    an actor stored and read back through the datalayer compared unequal to
+    itself whenever a second boundary fell between the write and the read
+    (#3732, #3726), and an addressed dict that ``to_json()`` had dumped
+    without its ``None`` stamps was re-minted on re-validation.
     """
     data = {"id": ACTOR_ID, **_arrival_shapes(field_name)[shape]}
 
@@ -330,22 +331,41 @@ def test_endpoint_collection_keeps_the_time_it_arrived_with(
     assert endpoint.updated == _ARRIVED_AT
 
 
-@pytest.mark.parametrize("actor_cls", _ALL_WIRE_ACTOR_CLASSES)
-def test_actor_round_trips_through_uri_endpoints_across_a_clock_tick(
-    actor_cls, monkeypatch
-):
-    """AS2 actor → URI-only endpoints → AS2 actor is equal whatever the clock.
+def _as_uri_endpoints(actor: as_Actor) -> dict[str, Any]:
+    """The datalayer path in miniature: each endpoint reduced to its URI.
 
-    This is the datalayer path in miniature: ``CoreActor`` reduces each
-    endpoint to its URI (ARCH-12-006) and the AS2 form is rebuilt from that
-    URI on read.  The rebuild happens an hour later here, so any clock stamp
-    minted on the way would show up as an inequality (#3732, #3726).  Every
-    wire actor class shares ``as_Actor``'s coercion, so every one is checked.
+    ``CoreActor`` keeps only the URI (ARCH-12-006), and the AS2 form is
+    rebuilt from that URI on read.
     """
-    actor = actor_cls(id_=ACTOR_ID, name="Alice")
     as_stored = actor.model_dump(by_alias=True)
     for field_name in _ENDPOINTS:
         as_stored[field_name] = as_stored[field_name]["id"]
+    return as_stored
+
+
+def _as_wire_json(actor: as_Actor) -> dict[str, Any]:
+    """The wire path: ``to_json()`` drops the ``None`` stamps with ``exclude_none``."""
+    dumped: dict[str, Any] = json.loads(actor.to_json())
+    return dumped
+
+
+@pytest.mark.parametrize(
+    "dump",
+    [_as_uri_endpoints, _as_wire_json],
+    ids=["uri-endpoints", "to_json"],
+)
+@pytest.mark.parametrize("actor_cls", _ALL_WIRE_ACTOR_CLASSES)
+def test_actor_round_trips_across_a_clock_tick(actor_cls, dump, monkeypatch):
+    """AS2 actor → stored/wire form → AS2 actor is equal whatever the clock.
+
+    The rebuild happens an hour later here, so any clock stamp minted on the
+    way back would show up as an inequality (#3732, #3726).  Every wire actor
+    class shares ``as_Actor``'s coercion, so every one is checked, on both the
+    URI-only form the datalayer hands back and the ``to_json()`` form a peer
+    receives.
+    """
+    actor = actor_cls(id_=ACTOR_ID, name="Alice")
+    as_stored = dump(actor)
     monkeypatch.setattr(
         _helpers,
         "datetime",
@@ -353,6 +373,36 @@ def test_actor_round_trips_through_uri_endpoints_across_a_clock_tick(
     )
 
     assert actor_cls.model_validate(as_stored) == actor
+
+
+@pytest.mark.parametrize("with_id", [True, False], ids=["addressed", "idless"])
+@pytest.mark.parametrize("field_name", _ENDPOINTS)
+def test_inbound_rule_reaches_an_item_nested_in_an_endpoint_dict(
+    field_name, with_id
+):
+    """The inbound context survives the endpoint coercion into nested items.
+
+    ``_coerce_uri_to_collection`` validates a collection dict itself, so it
+    must hand Pydantic the caller's context: under ``INBOUND_CONTEXT_KEY`` an
+    inline item's absent ``published`` stays ``None`` (ADR-0103) rather than
+    being fabricated from the local clock — at every depth, as
+    ``carry_absent_times_on_inbound`` promises.
+    """
+    collection: dict[str, Any] = {
+        "type": "OrderedCollection",
+        "items": [{"type": "Note", "id": "https://example.org/notes/1"}],
+    }
+    if with_id:
+        collection["id"] = f"{ACTOR_ID}/{field_name}"
+
+    actor = as_Service.model_validate(
+        {"id": ACTOR_ID, field_name: collection},
+        context={INBOUND_CONTEXT_KEY: True},
+    )
+
+    (item,) = getattr(actor, field_name).items
+    assert item.published is None
+    assert item.updated is None
 
 
 @pytest.mark.parametrize("actor_cls", _ACTOR_CLASSES)

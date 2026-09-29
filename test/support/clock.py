@@ -47,4 +47,4 @@ class SteppingClock:
 
     def now(self, tz: timezone | None = None) -> datetime:
         self._t += self._step
-        return self._t
+        return self._t.astimezone(tz) if tz is not None else self._t

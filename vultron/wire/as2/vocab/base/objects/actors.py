@@ -26,6 +26,11 @@ from vultron.wire.as2.vocab.base.objects.collections import (
 )
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
+#: The ``as_Object`` fields an endpoint collection leaves unset unless the value
+#: arrived with them.  Spelled as a mapping so it can seed a dict the arrived
+#: value then overrides.
+_NO_CLOCK_STAMP: dict[str, None] = {"published": None, "updated": None}
+
 
 class as_Actor(as_Object):
     """Base class for all ActivityPub actors.
@@ -55,6 +60,8 @@ class as_Actor(as_Object):
           ``as_OrderedCollection`` at ``{actor_id}/{field}``, the same
           address ``set_collections`` derives when the field is absent
         - ``str`` → ``as_OrderedCollection(id_=v)``
+        - ``dict`` → validated as an ``as_OrderedCollection`` with an absent
+          ``published``/``updated`` read as ``None``
         - anything else → returned as-is for Pydantic to validate
 
         A collection model whose ``id_`` was never set counts as having no
@@ -62,18 +69,24 @@ class as_Actor(as_Object):
         runs, and its ``default_factory`` id is a ``urn:uuid:`` nobody
         routes to.
 
-        Every collection derived here is an *address* and carries no clock
-        stamp (see :func:`_address_collection`); a ``published``/``updated``
-        the value arrived with is kept as received.
+        An endpoint is an *address*, so no branch here mints a clock stamp
+        (see :func:`_address_collection`): a collection dict — addressed or
+        not — reads an absent ``published``/``updated`` as ``None`` whichever
+        validation context it is in, and keeps the stamps it arrived with.
+        The dict is validated under the caller's ``info.context`` so the
+        inbound rule (ADR-0103) still reaches any item nested inside it.
         """
         derived = _endpoint_collection(info.data.get("id_"), info.field_name)
         if v is None:
             return derived
         if isinstance(v, str):
             return _address_collection(v.strip()) if v.strip() else derived
-        if isinstance(v, dict) and not (v.get("id") or v.get("id_")):
+        if isinstance(v, dict):
+            addressed = {**_NO_CLOCK_STAMP, **v}
+            if not (v.get("id") or v.get("id_")):
+                addressed["id"] = derived.id_
             return as_OrderedCollection.model_validate(
-                {**_NO_CLOCK_STAMP, **v, "id": derived.id_}
+                addressed, context=info.context
             )
         if isinstance(v, as_OrderedCollection) and (
             "id_" not in v.model_fields_set
@@ -106,11 +119,6 @@ class as_Actor(as_Object):
                 )
                 self.model_fields_set.add(field_name)
         return self
-
-
-#: The ``as_Object`` fields a derived endpoint leaves unset.  Spelled as a
-#: mapping so it can seed a dict the arrived value then overrides.
-_NO_CLOCK_STAMP: dict[str, None] = {"published": None, "updated": None}
 
 
 def _address_collection(uri: str | None) -> as_OrderedCollection:

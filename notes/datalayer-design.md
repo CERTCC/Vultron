@@ -9,7 +9,7 @@ description: >
   vultron/core/ports/AGENTS.md.
 related_specs:
   - specs/datalayer.yaml
-  - specs/architecture.yaml
+  - specs/architecture.yaml (ARCH-12-006, ARCH-23-003, ARCH-23-005)
 related_notes:
   - notes/domain-model-separation.md
   - notes/architecture-hexagonal.md
@@ -17,6 +17,7 @@ related_notes:
   - notes/wire-core-boundary.md
   - notes/testing-pitfalls.md
   - notes/flaky-tests.md
+  - notes/vocabulary-registry.md
 relevant_packages:
   - vultron/core/ports
   - vultron/adapters/driven
@@ -479,17 +480,20 @@ minted new ones when the URI was coerced back to a collection on read. The
 stored actor therefore read back equal to itself only when write and read
 landed in the same wall-clock second — a full-suite flake that reproduced
 deterministically with a `time.sleep(1.1)` between the two calls, and that
-three docs-only PRs were blocked on before anyone traced it.
+seven PRs — none touching the actor read path — were blocked on before
+anyone traced it.
 
 The general shape: **a value a wire default mints at construction cannot
 survive a round trip through a core field that does not store it**, and the
 symptom is an equality that depends on timing. Neither "store more" nor
 "re-mint on read" is the fix — the core field is URI-only by design, and a
 re-minted value is by definition not what was stored. The fix is to stop
-minting: a derived endpoint is an *address*, so `_address_collection()` in
-`vultron/wire/as2/vocab/base/objects/actors.py` builds it with
-`published=None, updated=None`, while a collection that *arrives* carrying its
-own times keeps them as received. `ARCH-23-003`'s pin on the endpoint wire form
+minting: an endpoint is an *address*, so `_address_collection()` in
+`vultron/wire/as2/vocab/base/objects/actors.py` builds a derived one with
+`published=None, updated=None`, a collection dict reads an absent stamp as
+`None` in every validation context (so the `to_json()` form, which
+`exclude_none` strips, re-validates equal too), and a collection that *arrives*
+carrying its own times keeps them as received. `ARCH-23-003`'s pin on the endpoint wire form
 had been popping both keys before it could claim "address, type and items —
 nothing else"; it no longer needs to.
 
