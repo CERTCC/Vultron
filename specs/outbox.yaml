@@ -36,7 +36,7 @@ groups:
       Every inbound activity's background task and the OutboxMonitor call the drain, and
       concurrent drains each pop the next row and await its POST, so rows complete delivery
       in an order unrelated to their enqueue order (28 in flight at once, a 14-row backfill
-      arriving as 4, 7, 1, 8, 5, 2, … in CI run 35917721682, #3602). Serialising the drain is
+      arriving as 4, 7, 1, 8, 5, 2, … in CI run 35917721682, #3602). Serializing the drain is
       what makes OX-01-002's FIFO mean anything at the recipient. See ADR-0112.
     verification: >-
       `test/adapters/driving/fastapi/test_outbox_handler_lanes.py` runs two drains of one

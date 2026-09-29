@@ -71,7 +71,7 @@ Source: CONCERN-2962.
 
 **Trap**: `outbox_handler` is called after *every* inbound activity
 (`inbox_orchestration.run_inbox_pipeline`), from the legacy inbox handler, and
-from `OutboxMonitor.drain_all`. Before ADR-0112 nothing serialised those calls.
+from `OutboxMonitor.drain_all`. Before ADR-0112 nothing serialized those calls.
 Each concurrent drain popped the next row of the same FIFO and awaited its
 POST, so rows *completed* delivery in an order unrelated to enqueue order —
 run 35917721682 had 28 in flight at once from the CASE_MANAGER's outbox, and a
@@ -111,7 +111,7 @@ returns `False` and queues nothing when an `Announce` of that entry to that
 peer is already pending in the outbox; `SendMissingEntriesNode` counts only
 `True` as sent (SYNC-15-011). The outbox read is the adapter's, not the
 node's — core must not read activities back (DL-06-001). SYNC-15-010 stands —
-the `Reject` still replays — it just cannot queue the same row twice. Defence in depth: a
+the `Reject` still replays — it just cannot queue the same row twice. Defense in depth: a
 `Reject` delayed in the *peer's* outbox can still arrive after the gap drained.
 
 **Skip, do not wait, when the slot is held.** The first version made a second
@@ -130,7 +130,7 @@ shared by every `Session` (`StaticPool`, `check_same_thread=False`) and the pool
 rolls it back on checkin — so one thread's `Session.close()` discarded another's
 uncommitted insert: a just-stored `Reject` read back as "not found", was
 dropped, and the peer's buffered entry never drained (2/4 `test_fv_demo.py`
-runs). `SqliteDataLayer._session()` now serialises every adapter session per
+runs). `SqliteDataLayer._session()` now serializes every adapter session per
 engine (`engine.session_guard`); do not open `Session(dl._engine)` directly.
 Do not hang the lock on pool checkout/checkin events: two fairies on
 `StaticPool`'s one record make a checkin go missing.

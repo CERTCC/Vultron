@@ -107,6 +107,8 @@ This keeps the transport uniform: the same JSON payload is deliverable whether t
 Delivery is treated as unreliable and bounded.
 The outbox retries with backoff, classifies `4xx` responses as terminal, and moves an activity to a dead-letter store once its per-activity attempt budget is exhausted rather than retrying forever ([ADR-0066](../adr/0066-outbox-terminal-state.md)).
 When the exhausted activity is an `Announce(CaseLedgerEntry)`, the dead-letter record also carries the URI of the canonical ledger entry being replicated, so replica divergence is observable without log access (OX-14-001, OX-14-003).
+Delivery is also ordered per recipient: one drain runs per actor outbox at a time, rows addressed to the same recipient are delivered in the order they were enqueued with at most one in flight, and a row that fails is re-queued ahead of the rows behind it for that recipient, while rows for other recipients proceed ([ADR-0112](../adr/0112-per-recipient-ordered-outbox-delivery.md)).
+This is what keeps a ledger fan-out from reaching a replica out of order and turning the receiver's gap recovery into the normal path.
 An outbound activity always carries a non-empty `to:` field (OX-08-001) and full inline objects, because a recipient can only act on what it has received — it cannot read the sender's store (see the [Actor Knowledge Model](actor-knowledge-model.md)).
 
 ---
