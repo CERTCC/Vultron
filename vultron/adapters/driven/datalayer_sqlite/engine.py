@@ -20,6 +20,9 @@ import logging
 import re
 from datetime import date, datetime
 from pathlib import Path
+import threading
+import weakref
+from contextlib import AbstractContextManager, nullcontext
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -299,6 +302,42 @@ def reset_store_claimants() -> None:
     outlives the engine.
     """
     _STORE_CLAIMANTS.clear()
+
+
+_SESSION_LOCKS: "weakref.WeakKeyDictionary[Engine, threading.RLock]" = (
+    weakref.WeakKeyDictionary()
+)
+_SESSION_LOCKS_GUARD = threading.Lock()
+
+
+def session_guard(engine: Engine) -> AbstractContextManager[Any]:
+    """Return what a ``Session`` on *engine* must hold for its whole lifetime.
+
+    An in-memory engine uses ``StaticPool``: every ``Session`` gets the *same*
+    DB-API connection, and ``check_same_thread=False`` lets it cross threads.
+    Nothing else stopped two threads from interleaving logical transactions on
+    that one connection — and the pool resets (rolls back) the connection when a
+    ``Session`` returns it, so one thread's ``Session.close()`` discarded another
+    thread's uncommitted insert.  That is how a ``Reject(CaseLedgerEntry)`` the
+    CaseActor's inbox worker had just stored was "not found" when the same
+    pipeline re-read it, while the CaseActor's outbox drain was reading the
+    store on the event loop (#3602, ADR-0112).  Two concurrent fairies on the
+    single record also confuse the pool's own checkin bookkeeping, so the lock
+    cannot hang off pool events; it wraps the ``Session`` block itself, which is
+    the one seam every adapter session passes through (``SqliteDataLayer._session``).
+
+    The lock is per *engine* — engines are shared per actor by
+    :func:`get_actor_engine` — and re-entrant, so a ``Session`` opened inside
+    another on the same thread still proceeds.  File-backed engines use
+    ``NullPool`` (one connection per ``Session``) and get a no-op.
+    """
+    if not isinstance(engine.pool, StaticPool):
+        return nullcontext()
+    with _SESSION_LOCKS_GUARD:
+        lock = _SESSION_LOCKS.get(engine)
+        if lock is None:
+            lock = _SESSION_LOCKS[engine] = threading.RLock()
+    return lock
 
 
 def make_engine(db_url: str) -> Engine:

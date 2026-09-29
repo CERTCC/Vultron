@@ -33,6 +33,7 @@ See also:
 
 import logging
 
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import add_activity_to_outbox
@@ -107,19 +108,60 @@ class SyncActivityAdapter:
             to,
         )
 
+    def _pending_announce_recipients(self, entry_id: str) -> set[str]:
+        """Recipients whose ``Announce`` of *entry_id* is still queued here.
+
+        A Reject that reaches the CASE_MANAGER after the peer's gap has already
+        drained still names an advanced position, so SYNC-15-010 makes it
+        replay; without this check every such Reject re-queued a suffix the
+        outbox already held for that peer — ten late Rejects put 116 duplicate
+        rows ahead of the next entry's fan-out to every other peer (#3602).
+        The outbox is this adapter's own store (ADR-0073), and reading a queued
+        activity's envelope back is the adapter's to do (DL-06-004), not core's
+        (DL-06-001).
+        """
+        pending: set[str] = set()
+        for activity_id in self._dl.outbox_list():
+            activity = self._dl.read(activity_id)
+            if getattr(activity, "type_", None) != "Announce":
+                continue
+            obj = getattr(activity, "object_", None)
+            if getattr(obj, "type_", None) != "CaseLedgerEntry":
+                continue
+            if _as_id(obj) != entry_id:
+                continue
+            for recipient in getattr(activity, "to", None) or []:
+                recipient_id = _as_id(recipient)
+                if recipient_id:
+                    pending.add(recipient_id)
+        return pending
+
     def send_announce_log_entry(
         self,
         entry: CaseLedgerEntry,
         actor_id: str,
         to: list[str],
-    ) -> None:
+    ) -> bool:
         """Build and queue an ``Announce(CaseLedgerEntry)`` activity.
 
         Uses actor-aware outbox queueing via
         :func:`~vultron.core.use_cases._helpers.add_activity_to_outbox`.
 
-        Spec: SYNC-02-002, SYNC-03-002.
+        Returns ``False`` without queueing when an ``Announce`` of *entry* to
+        every recipient in *to* is already pending in this outbox
+        (SYNC-15-012); ``True`` when a row was queued.
+
+        Spec: SYNC-02-002, SYNC-03-002, SYNC-15-012.
         """
+        pending = self._pending_announce_recipients(entry.id_)
+        if to and all(recipient in pending for recipient in to):
+            logger.debug(
+                "sync adapter: Announce(CaseLedgerEntry) '%s' → %s already"
+                " pending in outbox; not queued again (SYNC-15-012)",
+                entry.id_,
+                to,
+            )
+            return False
         wire_entry = self._to_wire(entry)
         announce = announce_log_entry_activity(
             entry=wire_entry,
@@ -133,3 +175,4 @@ class SyncActivityAdapter:
             announce.id_,
             to,
         )
+        return True

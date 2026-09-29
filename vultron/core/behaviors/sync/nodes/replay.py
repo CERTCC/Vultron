@@ -319,16 +319,25 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         ):
             return Status.SUCCESS
 
+        # SYNC-15-012: a Reject that arrives after the peer's gap already
+        # drained still replays (its position advanced), but the suffix it
+        # asks for may already sit in the outbox from the previous replay.
+        # The sync port declines to queue a row it already holds for this
+        # peer and says so, so only rows actually queued count as sent
+        # (SYNC-15-011, #3602).
         replayed = 0
+        skipped = 0
         for log_entry in entries:
             if log_entry.log_index <= from_index:
                 continue
-            self._sync_port.send_announce_log_entry(
+            if self._sync_port.send_announce_log_entry(
                 entry=log_entry,
                 actor_id=self.case_actor_id_bb,
                 to=[peer_id],
-            )
-            replayed += 1
+            ):
+                replayed += 1
+            else:
+                skipped += 1
 
         # Record the position only when entries actually went out; a
         # zero-entry replay must not start a cooldown (SYNC-15-003).
@@ -341,11 +350,13 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             )
 
         self.logger.info(
-            "%s: replayed %d entries to peer '%s' for case '%s'",
+            "%s: replayed %d entries to peer '%s' for case '%s'"
+            " (%d already pending in outbox, not re-queued — SYNC-15-012)",
             self.name,
             replayed,
             peer_id,
             entry.case_id,
+            skipped,
         )
         return Status.SUCCESS
 

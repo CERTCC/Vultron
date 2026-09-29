@@ -75,6 +75,8 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.polling import (
     find_case_actor_participant_id,
     LATE_JOINER_TIMEOUT,
+    SharedBudget,
+    wait_for_case_actor_ledger_event,
     find_case_invite_for_actor,
     find_ownership_transfer_offer_for_actor,
     wait_for_all_participants_rm_closed,
@@ -453,41 +455,71 @@ def _phase_ownership_handoff(
                 accept_ownership.id_,
             )
 
-    # Verify Vendor1's case now shows Coordinator as attributed_to.
-    with demo_check(
-        "Case attributed_to updated to Coordinator on Vendor1's DataLayer (AC-1)"
+    # The transfer reaches a replica in two hops: Accept → CaseActor inbox →
+    # AcceptOwnershipTransferBT commit (CM-21-007), then CaseActor outbox →
+    # Announce(CaseLedgerEntry) → each participant's
+    # ApplyOwnershipTransferFromLedgerNode.  Nothing else updates a replica —
+    # the CaseActor's own node writes only the CaseActor's store (ADR-0073), so
+    # Vendor1 learns of its own loss of ownership from the fan-out like anyone
+    # else.  Gate on the commit first, read from the CaseActor's own store, so
+    # a slow fan-out is reported as the fan-out being slow and not as the
+    # transfer never having happened (EDF-06-002, #3602).
+    with demo_gate(
+        "CaseActor committed accept_case_ownership_transfer (CM-21-007)"
     ):
-        wait_for_case_attributed_to(
+        wait_for_case_actor_ledger_event(
             client=vendor_client,
             case_id=case.id_,
-            expected_attributed_to=coordinator.id_,
-        )
-
-    # Also verify on Coordinator's side.
-    with demo_check(
-        "Case attributed_to updated to Coordinator on Coordinator's DataLayer"
-    ):
-        wait_for_case_attributed_to(
-            client=coordinator_client,
-            case_id=case.id_,
-            expected_attributed_to=coordinator.id_,
-        )
-
-    # ADR-0053's own validation criterion: an actor outside the negotiation
-    # learns of the completed transfer from the ledger broadcast alone.  The
-    # Finder is neither the old nor the new owner, so its replica can only hold
-    # this entry if the CaseActor committed it and fanned out
-    # Announce(CaseLedgerEntry) to every participant (CM-21-007).
-    with demo_check(
-        "Finder replica received the ownership-transfer ledger entry"
-        " via Announce(CaseLedgerEntry) (CM-21-007, ADR-0053)"
-    ):
-        wait_for_event_type_in_ledger(
-            client=finder_client,
-            case_id=case.id_,
             event_type="accept_case_ownership_transfer",
-            timeout_seconds=90.0,
         )
+
+        # Temporal bound on the second hop (EDF-06-006, EDF-06-008): one
+        # budget for the whole fan-out, because all three replicas are fed by
+        # the same CaseActor outbox and the fan-out queues behind whatever
+        # that outbox already holds (ADR-0112).  LATE_JOINER_TIMEOUT is the
+        # budget the Finder check below has bounded this same fan-out with
+        # since #2789; sharing it caps the phase's worst case at 90 s instead
+        # of 20 + 20 + 90 while no single replica is starved.
+        fanout_budget = SharedBudget(LATE_JOINER_TIMEOUT)
+
+        # Verify Vendor1's (the transferor's) replica shows the new owner.
+        with demo_check(
+            "Case attributed_to updated to Coordinator on Vendor1's DataLayer (AC-1)"
+        ):
+            wait_for_case_attributed_to(
+                client=vendor_client,
+                case_id=case.id_,
+                expected_attributed_to=coordinator.id_,
+                timeout_seconds=fanout_budget.remaining(),
+            )
+
+        # Also verify on Coordinator's side.
+        with demo_check(
+            "Case attributed_to updated to Coordinator on Coordinator's DataLayer"
+        ):
+            wait_for_case_attributed_to(
+                client=coordinator_client,
+                case_id=case.id_,
+                expected_attributed_to=coordinator.id_,
+                timeout_seconds=fanout_budget.remaining(),
+            )
+
+        # ADR-0053's own validation criterion: an actor outside the
+        # negotiation learns of the completed transfer from the ledger
+        # broadcast alone.  The Finder is neither the old nor the new owner, so
+        # its replica can only hold this entry if the CaseActor committed it
+        # and fanned out Announce(CaseLedgerEntry) to every participant
+        # (CM-21-007).
+        with demo_check(
+            "Finder replica received the ownership-transfer ledger entry"
+            " via Announce(CaseLedgerEntry) (CM-21-007, ADR-0053)"
+        ):
+            wait_for_event_type_in_ledger(
+                client=finder_client,
+                case_id=case.id_,
+                event_type="accept_case_ownership_transfer",
+                timeout_seconds=fanout_budget.remaining(),
+            )
 
     logger.info(
         "✓ Ownership transfer complete: Coordinator is now CASE_OWNER for %s",
