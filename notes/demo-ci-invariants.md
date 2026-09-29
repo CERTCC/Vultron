@@ -575,24 +575,39 @@ expand it to a map that explicitly includes `issues: write`.
 
 A push-to-`main` run cancelled by the concurrency group (superseded by a newer
 merge) is **not** a CI failure — a newer run is authoritative — so the `notify`
-step MUST NOT file a `ci:main-failure` issue on cancellation.
+step MUST NOT file a `ci:main-failure` issue on cancellation *alone*. A genuine
+failure observed in the same run before the cancellation arrived is still filed
+(#3293, #3294).
 
 - A step keyed on the GitHub Actions **`failure()` status function** is already
   safe: `failure()` is false on cancellation. The idealized two-step interface
   above uses this and needs no extra guard.
-- A step keyed on the **`needs.*.result` aggregate** is not safe on its own. It
-  MUST pair the failure check with an explicit cancellation exclusion:
-  `contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')`.
-  Never file on cancellation directly (`|| contains(needs.*.result, 'cancelled')`).
+- A step keyed on the **`needs.*.result` aggregate** keys on
+  `contains(needs.*.result, 'failure')` alone. Never file on cancellation
+  directly (`|| contains(needs.*.result, 'cancelled')`), and never require the
+  absence of `cancelled` (`&& !contains(needs.*.result, 'cancelled')`).
 
-The aggregate needs the guard because a *cancelled upstream job* can launder a
-cancellation into a `failure` result downstream: when the `demo` job is cancelled
-mid-run it uploads no case-log artifact, so the `invariant-harness` job (which
-runs under `if: always()`) hard-fails at `download-artifact`, and that `failure`
-lands in `needs.*.result`. The fix is two layers: skip the harness on a cancelled
-demo job (`needs.demo.result != 'cancelled'`, DEMOCI-04-007) to remove the
-laundered failure at its source, plus the `!contains(..., 'cancelled')` guard on
-`notify` as defense-in-depth. See #3249 and CISEC-05-006.
+The aggregate is exposed to a *cancelled upstream job* laundering a cancellation
+into a `failure` result downstream: when the `demo` job is cancelled mid-run it
+uploads no case-log artifact, so an `invariant-harness` job running under a bare
+`if: always()` hard-fails at `download-artifact`, and that `failure` lands in
+`needs.*.result`. The fix is to close that path at its source: skip the harness
+on a cancelled demo job (`needs.demo.result != 'cancelled'`, DEMOCI-04-007), and
+apply the same skip to any future job that consumes another job's artifact.
+See #3249 and CISEC-05-006.
+
+The `!contains(needs.*.result, 'cancelled')` exclusion that #3249 added to the
+`notify` step as defense-in-depth was removed in #3880 (issues #3293 and #3294).
+It cannot tell a laundered failure from a genuine one, so it suppressed the
+notification whenever a newer push cancelled a sibling job *after* a real failure
+had already been observed: lint jobs cancelled alongside failing tests
+(`python-app.yml`), or the harness cancelled after a demo leg failed
+(`demo-integration.yml`). A genuine failure in a superseded run is still a
+genuine failure; the superseding run's
+close step retires the issue if the newer commit is green. Only the *close* step
+keeps its cancellation exclusion, because a superseded run must not declare
+recovery either (CISEC-05-002, ratcheted by
+`test_close_step_does_not_close_on_cancellation`).
 
 ### Qualifying Workflows and Their Labels
 
