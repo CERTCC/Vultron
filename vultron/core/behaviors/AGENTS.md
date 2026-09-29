@@ -151,7 +151,7 @@ All EM state reads MUST go through `ReadEmStateNode`
 
 **Never write `case.current_status.em` directly inside a BT node** (EMB-18-001).
 All EM state writes MUST route through `EmbargoLifecycle`
-(`vultron/core/services/embargo_lifecycle.py`) — the service owns the write.
+(`vultron/core/services/embargo_lifecycle/`) — the service owns the write.
 
 Direct field access (`case.current_status.em.state`) bypasses the canonical
 channel: the read is invisible to the BT audit trail and creates paths where

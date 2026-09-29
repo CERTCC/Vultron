@@ -18,7 +18,7 @@ related_notes:
   - notes/protocol-asks.md
 relevant_packages:
   - vultron/core/states/em.py
-  - vultron/core/services/embargo_lifecycle.py
+  - vultron/core/services/embargo_lifecycle/
   - vultron/core/use_cases/triggers/embargo.py
   - vultron/core/use_cases/received/embargo.py
   - vultron/bt/embargo_management
@@ -55,7 +55,8 @@ A correct embargo lifecycle transition must update **all three** consistently.
 
 ## Current Architecture (Implemented)
 
-`EmbargoLifecycle` exists at `vultron/core/services/embargo_lifecycle.py` and
+`EmbargoLifecycle` exists at `vultron/core/services/embargo_lifecycle/` (a package
+since #3760, one module per responsibility; see its `__init__` docstring) and
 owns all EM + PEC transition logic (implemented per
 [#538](https://github.com/CERTCC/Vultron/issues/538),
 [#746](https://github.com/CERTCC/Vultron/issues/746),
@@ -139,7 +140,7 @@ catch `VultronError` and return `Status.FAILURE`.
 
 When implementing any code that transitions embargo state:
 
-1. **Always use `EmbargoLifecycle`** (`vultron/core/services/embargo_lifecycle.py`).
+1. **Always use `EmbargoLifecycle`** (`vultron/core/services/embargo_lifecycle/`).
    Never instantiate `create_em_machine()` + `EMAdapter` inline.
    BT nodes MUST NOT directly assign `EmDimension` to `case.current_status.em`
    and call `dl.save(case)` as a substitute — route through `EmbargoLifecycle`

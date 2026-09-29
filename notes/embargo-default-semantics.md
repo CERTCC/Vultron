@@ -272,7 +272,7 @@ than "not implemented":
 | EM is defined as a global **per-case** state machine | `docs/reference/glossary.md` |
 | EM state exists only as `CaseStatus.em` (an `EmDimension`) | `vultron/core/models/dimensions.py` |
 | `EmbargoEvent.context` is required, and every core construction site set it to `case_id` | `case/nodes/embargo.py`, `triggers/embargo/{propose,revise}.py` |
-| `propose_embargo(case_id=…)` raises `VultronNotFoundError` when the case does not resolve | `vultron/core/services/embargo_lifecycle.py` |
+| `propose_embargo(case_id=…)` raises `VultronNotFoundError` when the case does not resolve | `vultron/core/services/embargo_lifecycle/proposals.py` |
 
 So the documented $q^{em} \in N \xrightarrow{p} P$ before any case exists named a
 machine instance that could not exist. `rm_em.md` has been corrected: its
