@@ -26,7 +26,8 @@ relevant_packages:
 (machine), `PecDimension` in `vultron/core/models/dimensions.py` (validated
 transitions), `ParticipantStatus.consent` (persistence)
 **Source**: `archived_notes/demo-review-26042001.md` + architectural review
-2026-04-20; transition table revised by ADR-0048 (Issue #1714)
+2026-04-20; transition table revised by ADR-0048 (Issue #1714); lapse timing
+revised by ADR-0093 (Concern #3884)
 **See also**: `specs/case-management.yaml` CM-18 (authoritative), CM-03-008,
 CM-04-003; `docs/adr/0048-pec-no-embargo-is-absence-not-pre-consent.md`;
 `notes/stub-objects.md`
@@ -55,7 +56,7 @@ pocket vetoes).
 | `UNBOUND` | This participant is not bound by any embargo terms (initial state) |
 | `INVITED` | Received embargo invitation; awaiting response |
 | `SIGNATORY` | Has accepted current embargo terms |
-| `LAPSED` | Was signatory; embargo revised; not yet re-accepted |
+| `LAPSED` | Was signatory; the case owner activated longer terms it has not accepted |
 | `DECLINED` | Has explicitly declined, or timed out without responding |
 
 `embargo_adherence: bool` is a **derived property**: `True` iff the
@@ -78,16 +79,70 @@ participant's consent state is `SIGNATORY`; `False` for all other states.
 | `INVITED` | `Accept(Invite(Embargo))` received | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
 | `INVITED` | `Reject(Invite(Embargo))` received | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` |
 | `INVITED` | Invitation deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CASE_MANAGER authors ledger entry (CM-28-005) |
-| `SIGNATORY` | Shared EM enters `REVISE` state | `LAPSED` | Cascade: `EV` side-effect; no outbound PEC message |
-| `SIGNATORY` | Explicit consent withdrawal (per VP-13-007/008) | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` (ADR-0093) |
+| `SIGNATORY` | Case owner activates revised terms ending later than the accepted ones; this participant has not accepted them | `LAPSED` | Cascade: `EC` side-effect at activation; no outbound PEC message |
+| `SIGNATORY` | Explicit consent withdrawal: rejects the *active* embargo (per VP-13-007/008) | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` (ADR-0093) |
 | `LAPSED` | Re-invited for revised embargo terms | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
 | `LAPSED` | Direct `Accept` of revised terms | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
-| `LAPSED` | Re-acceptance deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CASE_MANAGER authors ledger entry (CM-28-005) |
 | `DECLINED` | Case owner re-extends invitation | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
 | Any | Shared EM exits (`EXITED`) | `UNBOUND` | Cascade: `ET` side-effect; no outbound PEC message |
 
 Normative: `specs/case-management.yaml` CM-18-003. Decision: ADR-0048.
 MSM coupling: `specs/message-semantics-mapping.yaml` MSM-07.
+
+---
+
+## Consent Is Per Embargo; Lapse Fires at Activation
+
+*Spec: CM-18-001, CM-18-002, MSM-07-003, MSM-07-004, MSM-07-005, EP-05.
+Decision: ADR-0093 (revised 2026-09-29, Concern #3884).*
+
+Consent is given to specific terms — an `EmbargoEvent` — and there are two
+records of it. `CaseParticipant.accepted_embargo_ids` (CM-10-001) lists every
+embargo, active or proposed, the participant has accepted; it is what the
+content gate reads (`find_excluded_actor_ids`, CM-10-004). The scalar PEC state
+answers one question only: *is this participant bound by the active embargo?*
+A participant can be `SIGNATORY` to active embargo A and have B, a proposed
+revision, in its list at the same time.
+
+The rule that follows: **a participant cannot lapse until the embargo on the
+case differs from the one it agreed to.**
+
+| Event | Effect on consent |
+|---|---|
+| Revision B proposed (`ACTIVE → REVISE`, or a counter `REVISE → REVISE`) | none; the proposer's list gains B |
+| Non-owner signatory accepts B while REVISE | list gains B; state unchanged (still signatory to A) |
+| Non-owner signatory rejects B while REVISE | B absent from list; state unchanged — refusing B is not withdrawing from A |
+| Non-signatory (`INVITED`/`UNBOUND`/`LAPSED`) accepts B while REVISE | list gains B; state unchanged until B activates |
+| Non-signatory rejects B while REVISE | `DECLINE` → `DECLINED` — there is no consent to A for the refusal to leave intact (MSM-07-004) |
+| Any participant rejects the *active* embargo | `DECLINE`: `SIGNATORY → DECLINED` (withdrawal, ADR-0093) |
+| Owner rejects B (EJ, `REVISE → ACTIVE` under A) | none — the owner is choosing to keep A, not declining it |
+| Owner activates B, and B ends **no later than** A | every A-signatory carried over: B added to their list, state unchanged |
+| Owner activates B, and B ends **later than** A | every `SIGNATORY` whose list lacks B → `LAPSED` (`REVISE` trigger); those with B stay |
+| Owner activates B (either arm); a non-signatory's list already holds B | `ACCEPT` → `SIGNATORY`: it accepted the embargo now in force |
+| Owner activates B; participant already `LAPSED` or `INVITED` to A without B | unchanged — only A-signatories are carried over; re-invite (`LAPSED → INVITED`, or the stale-terms path, EMB-17) |
+| Termination (`→ EXITED`) | `RESET` everyone to `UNBOUND` (unchanged) |
+
+The asymmetry is the same containment argument that makes shortest-wins safe
+(EP-04-003) and lets termination reset consent without asking: agreeing to N
+days is agreeing to every shorter period, so a shorter revision asks nothing
+new of an existing signatory, while a longer one asks for more than they
+promised. Only the case owner's accept or reject changes the embargo on the
+case (MSM-07-003/004); the other participants' answers arrive first and inform
+that decision.
+
+### Pitfall: Never Cascade on Propose
+
+The original design lapsed every `SIGNATORY` the moment EM entered `REVISE`
+(`_cascade_pec_revise()` inside `propose_embargo()`). That contradicted the EM
+model, in which coverage never breaks during a revision, and it had concrete
+costs: a rejected revision stranded every signatory (no trigger restores
+`LAPSED → SIGNATORY`, and the `LAPSED → DECLINED` timer was never
+implemented); `embargo_adherence` read false for participants still bound by A
+and still receiving embargoed content, because the gate reads the list and not
+the scalar; the proposer lapsed too; and the owner's own EJ recorded the owner
+as `DECLINED`. The cascade also ran only in the proposer's store, since no
+received path drives a replica's EM to `REVISE`. Treat any code that changes a
+participant's consent inside a *proposal* path as a defect.
 
 ---
 
@@ -104,8 +159,8 @@ This is the key distinction between PEC and the other per-participant state mach
     `SIGNATORY` for the sending participant.
   - The CASE_MANAGER observes a `Reject(...)` and records `DECLINED`.
   - The CASE_MANAGER enforces the pocket-veto deadline and records `DECLINED` on lapse.
-  - The CASE_MANAGER cascades `LAPSED` to all SIGNATORY participants when EM enters
-    `REVISE`, and `UNBOUND` to all when EM exits.
+  - The CASE_MANAGER cascades `LAPSED` to every SIGNATORY that has not accepted a
+    longer revision when the owner activates it, and `UNBOUND` to all when EM exits.
 
 The participant never pushes their own PEC value. There is no "I am now SIGNATORY"
 self-report activity; the participant's intent is inferred from the Accept/Reject
@@ -206,7 +261,7 @@ and #538), so its five sites remain the most critical to keep correct.
 
 *Spec: CM-18-002, CM-28. Decision: ADR-0065.*
 
-The `INVITED → DECLINED` and `LAPSED → DECLINED` transitions are timer-based.
+The `INVITED → DECLINED` transition is timer-based.
 A configurable **embargo invitation timeout** policy window bounds how long an
 invitation stays open. If the participant does not respond within the window,
 they move to `DECLINED` — inaction is recorded as rejection so one
@@ -241,10 +296,13 @@ Do not introduce a second timeout notion — they will drift.
 
 ### Pitfall: `LAPSED` Is Not the Timer Destination
 
-Both timer paths end at `DECLINED`. `LAPSED` is reached only from `SIGNATORY`
-via the `REVISE` trigger — it means "terms changed, prior consent no longer
-applies", not "timed out". CM-18-001 and CM-18-002 both flag conflating the two
-as a known documentation pitfall.
+The timer path ends at `DECLINED`, and only from `INVITED`. `LAPSED` is reached
+only from `SIGNATORY` via the `REVISE` trigger, fired when the case owner
+activates longer terms the participant has not accepted — it means neither
+"timed out" nor "a revision was proposed". A lapsed participant has no deadline
+until it is re-invited (`LAPSED → INVITED`), at which point the invitation's
+deadline applies. CM-18-001 and CM-18-002 both flag conflating these as a known
+documentation pitfall.
 
 ---
 
@@ -404,8 +462,10 @@ The `AcceptEmbargoReceivedUseCase` MUST:
 3. For all accepting actors (owner or non-owner): transition their
    `ParticipantStatus.embargo_adherence` consent state to `SIGNATORY`
 4. Idempotent: if already `SIGNATORY`, succeed silently (HTTP 2xx)
-5. When shared EM enters `REVISE`: transition all `SIGNATORY` participants
-   to `LAPSED` (bulk operation, not per-participant message)
+5. When the owner's accept replaces the active embargo with *longer* terms:
+   transition every `SIGNATORY` whose list lacks the new id to `LAPSED` (bulk
+   operation, not per-participant message); a replacement that ends no later
+   carries every signatory over. A proposal changes nobody's consent.
 
 ### Trigger-Side Ownership Gate (BUG-26042101, 2026-04-22)
 

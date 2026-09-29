@@ -70,7 +70,7 @@ The transitions themselves are small and fixed:
 | Embargo Termination (ET) | `EM.ACTIVE` or `EM.REVISE` | `EM.EXITED`, immediately |
 
 `EM.REVISE` is worth a second look.
-A revision under negotiation does not suspend the embargo — the existing terms remain binding until the revision is accepted.
+A revision under negotiation does not suspend the embargo — the existing terms remain binding until the revision is accepted, and every signatory to them remains a signatory.
 That is what makes renegotiation safe, and it is why the recommended practice is to accept and then revise rather than to counter-propose.
 
 ---
@@ -83,15 +83,18 @@ Every Participant Embargo Consent transition is a side effect of an EM activity,
 | Activity | Effect on the case's EM state | Effect on consent |
 |---|---|---|
 | Embargo Proposal (EP), `Invite(Event)` on the case | `NONE` to `PROPOSED`; a further proposal leaves it `PROPOSED` | the invited Participant moves from `UNBOUND`, `DECLINED` or `LAPSED` to `INVITED` (MSM-07-002) |
-| Embargo Acceptance (EA) or Embargo Revision Acceptance (EC), `Accept(Invite(Event))` | from the case owner: `PROPOSED` (EA) or `REVISE` (EC) to `ACTIVE` | the accepting Participant moves to `SIGNATORY` (MSM-07-003) |
+| Embargo Acceptance (EA), `Accept(Invite(Event))` | from the case owner: `PROPOSED` to `ACTIVE` | the accepting Participant records the terms and moves to `SIGNATORY` (MSM-07-003) |
+| Embargo Revision Acceptance (EC), `Accept(Invite(Event))` | from the case owner: `REVISE` to `ACTIVE` with the revised terms | a non-owner accepting a proposed revision records it and stays `SIGNATORY` to the terms in force; when the owner activates a revision that ends later than the old terms, every `SIGNATORY` that has not accepted it moves to `LAPSED`, and a revision that ends no later carries every signatory over (MSM-07-003, MSM-07-005) |
 | Embargo Rejection (ER), `Reject(Invite(Event))` | from the case owner: `PROPOSED` to `NONE` | the rejecting Participant moves to `DECLINED` (MSM-07-004) |
-| Embargo Revision Rejection (EJ), `Reject(Invite(Event))` | from the case owner: `REVISE` back to `ACTIVE`; the prior terms stand | the rejecting Participant moves to `DECLINED` (MSM-07-004) |
-| Embargo Revision (EV) | `ACTIVE` to `REVISE` | every `SIGNATORY` moves to `LAPSED`, with no further message (MSM-07-005) |
+| Embargo Revision Rejection (EJ), `Reject(Invite(Event))` | from the case owner: `REVISE` back to `ACTIVE`; the prior terms stand | none: a signatory that refuses proposed terms remains a signatory to the terms in force, the owner included (MSM-07-004) |
+| Embargo Revision (EV) | `ACTIVE` to `REVISE` | none; the proposer is recorded as having accepted the terms it proposed (MSM-07-005, EP-05-002) |
 | Embargo Termination (ET) | `ACTIVE` or `REVISE` to `EXITED` | every Participant returns to `UNBOUND`, with no further message (MSM-07-006) |
-| Invitation deadline passes | none | `INVITED` or `LAPSED` moves to `DECLINED`, recorded in the case ledger (MSM-07-007) |
+| Invitation deadline passes | none | `INVITED` moves to `DECLINED`, recorded in the case ledger (MSM-07-007) |
 
 One activity can therefore move both scopes at once: an Accept from the case owner activates the embargo *and* makes the owner a signatory.
-A `SIGNATORY` that rejects is withdrawing its own consent: its record moves to `DECLINED` ([§9.2](../../../reference/vultron-spec/index.md#92-transitions-and-guards)), and the case's embargo does not change, because only the case owner's reject moves EM (MSM-07-004).
+A `SIGNATORY` that rejects the *active* embargo is withdrawing its own consent: its record moves to `DECLINED` ([§9.2](../../../reference/vultron-spec/index.md#92-transitions-and-guards)).
+A `SIGNATORY` that rejects a *proposed* revision is refusing those terms only: it stays a signatory to the embargo in force.
+In neither case does the case's embargo change, because only the case owner's reject moves EM (MSM-07-004).
 The full consent transition table is in [§9.2 of the specification](../../../reference/vultron-spec/index.md#92-transitions-and-guards).
 
 ---
@@ -156,7 +159,7 @@ They are notification and integration hooks that fire after the transition and c
 ## Inaction is an answer
 
 An `Invite(EmbargoEvent)` carries a respond-by instant, and silence past it is treated as a refusal — the **pocket veto**.
-A Participant at `INVITED` or `LAPSED` that does not answer within the window moves to `DECLINED`.
+A Participant at `INVITED` that does not answer within the window moves to `DECLINED`.
 
 The window has two forms and they are one mechanism, not two ([ADR-0065](../../../adr/0065-embargo-invite-rsvp-deadline.md)).
 When the invitation carries an explicit `Invite.end_time`, that value governs (CM-28-002).
