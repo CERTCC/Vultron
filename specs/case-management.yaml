@@ -795,12 +795,21 @@ groups:
   - id: CM-10-001
     priority: MUST
     kind: protocol
-    statement: '`CaseParticipant` MUST track which embargo(es) a participant has explicitly accepted'
+    statement: >-
+      `CaseParticipant` MUST track which embargo(es) a participant has accepted — explicitly, by an
+      `Accept`, or by containment, when the case owner activates a revision that ends no later than
+      terms the participant had accepted (EP-05-001).
+    rationale: >-
+      Consent is per embargo (ADR-0093). The record is what the CM-10-004 content gate reads, so it
+      must name every embargo the participant is bound to, including one carried over by containment:
+      agreeing to N days is agreeing to every shorter period, so no explicit `Accept` is owed for it.
     verification: Inspection of `vultron/core/` confirms that `CaseParticipant` tracks embargo
       acceptances via the PEC consent state or an `accepted_embargo_ids` field.
     relationships:
     - rel_type: implements
       spec_id: VP-05-001
+    adr:
+    - ADR-0093
     stories:
     - story_2022_014
     - story_2022_023
@@ -823,8 +832,11 @@ groups:
   - id: CM-10-003
     priority: SHOULD
     kind: protocol
-    statement: 'The `CaseParticipant` model SHOULD include an `accepted_embargo_ids: list[str]` field recording the IDs of
-      `EmbargoEvent` objects the participant has explicitly accepted'
+    statement: >-
+      The `CaseParticipant` model SHOULD include an `accepted_embargo_ids: list[str]` field recording the IDs of
+      `EmbargoEvent` objects the participant has accepted, explicitly or by containment (CM-10-001).
+    adr:
+    - ADR-0093
   - id: CM-10-004
     priority: MUST
     kind: protocol
@@ -1898,48 +1910,74 @@ groups:
   - id: CM-18-001
     priority: MUST
     kind: protocol
-    statement: 'Each participant''s embargo consent MUST be tracked as a `ParticipantEmbargoConsent` (PEC) value with five
+    statement: >-
+      Each participant's embargo consent MUST be tracked as a `ParticipantEmbargoConsent` (PEC) value with five
       possible states: `UNBOUND` (this participant is not bound by any embargo terms), `INVITED` (invite sent, awaiting response),
-      `SIGNATORY` (accepted the current terms), `LAPSED` (was `SIGNATORY`; the case embargo entered `REVISE`, so prior consent
-      no longer covers the revised terms), and `DECLINED` (explicitly refused, or timed out without responding).'
-    rationale: 'The five-state PEC machine formalizes the "pocket veto" mechanism: a participant who is invited but never
+      `SIGNATORY` (accepted the case's active embargo), `LAPSED` (was `SIGNATORY` to the previous active embargo; the case
+      owner replaced it with longer terms this participant has not accepted), and `DECLINED` (explicitly refused, or timed out
+      without responding). The scalar state answers one question — is this participant bound by the *active* embargo? — while
+      `CaseParticipant.accepted_embargo_ids` (CM-10-001) records which embargo terms, active or proposed, the participant has
+      accepted.
+    rationale: >-
+      The five-state PEC machine formalizes the "pocket veto" mechanism: a participant who is invited but never
       responds is recorded as `DECLINED` when the timer fires, rather than blocking progress indefinitely.
-      Source: `notes/participant-embargo-consent.md`.
-      `LAPSED` is NOT the timer path — it is reached only from `SIGNATORY` via the `REVISE` trigger (CM-18-002, CM-18-003).
-      Confusing `LAPSED` with the pocket-veto timeout is a known documentation pitfall; both timer paths
-      (`INVITED → DECLINED`, `LAPSED → DECLINED`) terminate in `DECLINED`.
+      Source: `notes/participant-embargo-consent.md`, ADR-0093.
+      `LAPSED` is NOT the timer path and NOT a proposal-time state. It is reached only from `SIGNATORY` via the `REVISE`
+      trigger, and that trigger fires only when the case owner activates a revised embargo that ends later than the one the
+      participant accepted (CM-18-002, MSM-07-005, EP-05-001). A participant cannot lapse while the embargo they agreed to is
+      still the one in force. Confusing `LAPSED` with the pocket-veto timeout is a known documentation pitfall; the only timer
+      path is `INVITED → DECLINED`.
       Per ADR-0048 and ADR-0091, `UNBOUND` means the participant is not bound by any embargo terms — not a "not yet consented"
       pre-consent state. It is correct for a participant in a case with `EM.NONE`, and it is the `RESET` destination when an
-      embargo is terminated. It MUST NOT be read as implying that consent is pending or that an invitation is owed.'
-    verification: 'Inspection of `vultron/core/states/participant_embargo_consent.py` confirms
+      embargo is terminated. It MUST NOT be read as implying that consent is pending or that an invitation is owed.
+    verification: >-
+      Inspection of `vultron/core/states/participant_embargo_consent.py` confirms
       that `ParticipantEmbargoConsent` declares exactly five states: `UNBOUND`, `INVITED`,
-      `SIGNATORY`, `LAPSED`, and `DECLINED`.'
+      `SIGNATORY`, `LAPSED`, and `DECLINED`. Inspection of `vultron/core/models/case_participant.py`
+      confirms `accepted_embargo_ids` is the per-embargo consent record beside the scalar state.
     adr:
     - ADR-0048
     - ADR-0091
+    - ADR-0093
     stories:
     - story_2022_023
     - story_2022_014
   - id: CM-18-002
     priority: MUST
     kind: protocol
-    statement: 'The `INVITED → DECLINED` and `LAPSED → DECLINED` transitions MAY be driven by a timer expiry (pocket veto)
+    statement: >-
+      The `INVITED → DECLINED` transition MAY be driven by a timer expiry (pocket veto)
       rather than requiring an explicit participant action. The timer period SHOULD be a configurable policy window (default:
       7 days). The pocket veto materialises when the timer fires without a prior acceptance; the system records the transition
-      to `DECLINED` as if the participant had declined. The `SIGNATORY → LAPSED` transition is NOT timer-based: it fires when
-      the embargo enters the `REVISE` state, invalidating prior consent for the new terms.'
+      to `DECLINED` as if the participant had declined. The `SIGNATORY → LAPSED` transition is NOT timer-based and does NOT
+      fire when a revision is proposed: it fires when the case owner activates a revised embargo that ends later than the
+      one the participant accepted, and only for signatories who have not accepted the revised terms. `LAPSED` has no timer
+      path of its own — a lapsed participant is re-invited (`LAPSED → INVITED`), and the deadline attaches to that
+      invitation.
     note: >-
       The policy window is the FALLBACK, not the primary mechanism. When the
       inviting `Invite(EmbargoEvent)` activity carries an explicit
       `Invite.end_time`, that value is authoritative and supersedes this window
       (CM-28-002). The pocket veto and the explicit RSVP deadline are ONE
       mechanism at two levels of explicitness, not two competing timeouts.
-    rationale: 'Per `notes/participant-embargo-consent.md`: `LAPSED` means "embargo terms changed; prior consent no longer
-      applies." `DECLINED` includes both explicit refusals and timeout-based implicit refusals. Confusing `LAPSED` with the
-      timer path is a known documentation pitfall.'
-    verification: Inspection of `vultron/core/` confirms that the PEC state machine implements
-      timer-driven `INVITED->DECLINED` and `LAPSED->DECLINED` transitions with a configurable
-      policy window.
+      The verification's lapse-at-activation clause describes the target state
+      decided by ADR-0093 (revised 2026-09-29); the implementation is tracked in
+      #3891, and until it lands `propose_embargo()` still cascades on proposal.
+    rationale: >-
+      Per ADR-0093 and `notes/participant-embargo-consent.md`: `LAPSED` means "the active embargo was replaced by longer
+      terms I have not accepted." While a revision is merely proposed the prior embargo is still in force and every
+      signatory to it is still bound by it, so nothing about their consent has changed. `DECLINED` includes both explicit
+      refusals and timeout-based implicit refusals. A pocket veto exists so that an unanswered *invitation* cannot stall
+      coordination; nothing stalls on a lapsed participant, who is already excluded from embargoed content by the
+      CM-10-004 gate, and there is no invitation from which to derive a deadline. Confusing `LAPSED` with the timer path
+      is a known documentation pitfall.
+    verification: >-
+      Inspection of `vultron/core/services/embargo_lifecycle/consent.py` confirms that `detect_and_apply_lapse()` applies
+      `DECLINE` only to a participant in `INVITED` whose `invite_rsvp_deadline` has passed. Inspection of
+      `vultron/core/services/embargo_lifecycle/` confirms that `propose_embargo()` applies no PEC cascade and that the
+      owner's revision acceptance is the only path that moves a signatory to `LAPSED`.
+    adr:
+    - ADR-0093
     stories:
     - story_2022_027
     - story_2022_014
@@ -1952,16 +1990,20 @@ groups:
       INVITED, or LAPSED), DECLINE (from UNBOUND, INVITED, LAPSED, or SIGNATORY),
       REVISE (from SIGNATORY only), and RESET (from any state).
     rationale: 'The `LAPSED` and `DECLINED` states are not terminal: a participant who lapsed or declined can be re-invited
-      (e.g., when embargo terms change). `SIGNATORY → LAPSED` occurs when the embargo enters REVISE and the participant''s
-      prior consent no longer covers the revised terms. Per ADR-0048, `ACCEPT` and `DECLINE` are valid directly from
+      (e.g., when embargo terms change). `SIGNATORY → LAPSED` occurs when the case owner activates a revised embargo that
+      ends later than the one the participant accepted and the participant has not accepted the revised terms (ADR-0093,
+      MSM-07-005); a revision that is merely proposed, or one that ends no later than the accepted terms, moves nobody.
+      Per ADR-0048, `ACCEPT` and `DECLINE` are valid directly from
       `UNBOUND`, because consent is not always mediated by an invitation: a Finder who sets the embargo on their own case
       has no inviter; participants added during case initialization already have an embargo in scope (ADR-0041); and the
       reporter''s consent is implicit in submitting the report (CM-14-005). Requiring a synthetic `INVITED` step for these
       paths would record an invitation event that never occurred. `DECLINE` is valid from `UNBOUND` for symmetry, so a
       participant added to an embargoed case can refuse without a formal invitation. Per ADR-0093, `DECLINE` is also valid
-      from `SIGNATORY`: a participant who is already bound by an embargo MAY explicitly withdraw consent (VP-13-007,
-      VP-13-008). `SIGNATORY → DECLINED` is a volitional, first-class PEC action distinct from `SIGNATORY → LAPSED`
-      (which is automatic when revision terms change under the participant). See
+      from `SIGNATORY`: a participant who is already bound by an embargo MAY explicitly withdraw consent by rejecting the
+      *active* embargo (VP-13-007, VP-13-008). `SIGNATORY → DECLINED` is a volitional, first-class PEC action distinct from
+      `SIGNATORY → LAPSED` (which is automatic when longer terms the participant has not accepted replace the active
+      embargo). A signatory''s rejection of a *proposed* revision is neither: it refuses those terms and leaves the
+      participant a signatory to the embargo in force (MSM-07-004). See
       `vultron/core/states/participant_embargo_consent.py`.
       Open question: whether `UNBOUND` and `DECLINED` should collapse into a single "not bound" state — see
       `docs/reference/vultron-spec/_oq-pec-unbound-declined-collapse.md`.'
@@ -1978,11 +2020,18 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: A participant's PEC state MUST NOT move from `SIGNATORY` to `INVITED` directly (bypassing `LAPSED`). The only
-      path back to `INVITED` from resolved states is via `LAPSED → INVITED` (after a REVISE trigger) or `DECLINED → INVITED`
-      (re-invite after explicit decline). `SIGNATORY → INVITED` is not a valid transition.
+      path back to `INVITED` from resolved states is via `LAPSED → INVITED` (after the case owner has activated longer terms
+      the participant has not accepted) or `DECLINED → INVITED` (re-invite after explicit decline). `SIGNATORY → INVITED`
+      is not a valid transition.
+    rationale: >-
+      Consent already given cannot be withdrawn by re-inviting the participant. A signatory to the active embargo is
+      bound by it; only replacing that embargo with longer terms (the `REVISE` trigger, fired at activation — ADR-0093)
+      or the participant's own withdrawal (`DECLINE`) ends that position.
     relationships:
     - rel_type: refines
       spec_id: CM-18-003
+    adr:
+    - ADR-0093
   - id: CM-18-005
     priority: MUST
     kind: project

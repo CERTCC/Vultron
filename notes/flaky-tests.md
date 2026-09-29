@@ -6,6 +6,7 @@ related_notes:
   - notes/sync-ledger-replication.md
   - notes/bt-integration.md
   - notes/outbox-delivery-reliability.md
+  - notes/datalayer-design.md
 ---
 
 # Known Flaky Tests
@@ -32,9 +33,19 @@ and fall through to Level 2 (GitHub label search).
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
 | `test/demo/test_delivery_fallback_speed.py::test_demo_completes_under_5_seconds` | #2738 | 2026-08-26 |
-| `test/adapters/driving/fastapi/test_api.py::test_datalayer_get_existing_actor_by_id` | #3732 | 2026-09-25 |
-| `test/adapters/driving/fastapi/test_api.py::test_datalayer_get_existing_actor` | #3726 | 2026-09-28 |
 
+> Note: the two `test_datalayer_get_existing_actor*` entries (#3732, #3726)
+> were **a wire-format defect, not nondeterminism**, and were removed
+> 2026-09-29 with the fix. `as_Actor` derived an actor's `inbox`/`outbox`
+> collections stamped with `now_utc()`; the datalayer read path keeps only the
+> endpoint URI (ARCH-12-006) and rebuilt the collection — stamped again — on
+> read, so the round-trip equality held only when create and read shared a
+> wall-clock second. A derived endpoint is an address and now carries no
+> stamp. The two tests pin the clock an hour ahead between create and read
+> (`test/support/clock.py`), so they now fail deterministically if the
+> regression returns. See `notes/datalayer-design.md` § "A Default Minted
+> From the Clock Cannot Round-Trip Through a Field That Does Not Store It".
+>
 > Note: the two `test_integration_script_scenarios` entries were **hard-broken
 > on `main`, not flaky** — they failed deterministically. #2114 added a test that
 > scrapes `DEMO=` from `demo-integration.yml` while #2118/#2119 moved the

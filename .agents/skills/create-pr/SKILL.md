@@ -190,8 +190,7 @@ failing tests or lint errors.
 ### Happy path
 
 ```bash
-git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git" \
-  "$(git branch --show-current)"
+git push -u origin HEAD
 
 gh pr create --repo CERTCC/Vultron \
   --head "$(git branch --show-current)" \
@@ -203,11 +202,16 @@ gh pr create --repo CERTCC/Vultron \
 
 Capture and return the PR URL emitted by `gh pr create`.
 
+Always push with `-u` to the named remote `origin`. Without `-u` the branch
+gets no upstream, so every later bare `git push` fails ("has no upstream
+branch"). Never push to a token-embedded URL: with `-u`, git would record that
+URL — token included — as the branch's remote in `.git/config` (#3893).
+
 ### Draft-with-conflict path (unresolvable conflicts)
 
 If Phase 2 exited with code `1` (cherry-pick conflict): push the un-freshened
-branch as-is, then open a draft PR with `needs-rebase` label per
-[REFERENCE.md](REFERENCE.md) § "Conflict PR template".
+branch as-is with the same `git push -u origin HEAD`, then open a draft PR with
+`needs-rebase` label per [REFERENCE.md](REFERENCE.md) § "Conflict PR template".
 
 ---
 

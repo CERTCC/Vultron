@@ -28,16 +28,12 @@
       "inbox": {
         "id": "https://vultron.example/organizations/coordinator/inbox",
         "type": "OrderedCollection",
-        "published": "2026-09-24T14:21:06+00:00",
-        "updated": "2026-09-24T14:21:06+00:00",
         "@context": "https://www.w3.org/ns/activitystreams",
         "items": []
       },
       "outbox": {
         "id": "https://vultron.example/organizations/coordinator/outbox",
         "type": "OrderedCollection",
-        "published": "2026-09-24T14:21:06+00:00",
-        "updated": "2026-09-24T14:21:06+00:00",
         "@context": "https://www.w3.org/ns/activitystreams",
         "items": []
       }
