@@ -43,6 +43,20 @@ def _non_empty(v: str) -> str:
 
 NonEmptyString = Annotated[str, AfterValidator(_non_empty)]
 
+
+def require_non_empty(value: str, field_name: str) -> str:
+    """Return *value* if it is non-blank, else raise ``ValueError`` naming the field.
+
+    The plain-function form of ``NonEmptyString`` for the few core records that
+    are stdlib dataclasses rather than Pydantic models (CS-08-001 reaches them
+    too, but an ``Annotated`` validator does not).  Call it from
+    ``__post_init__``.
+    """
+    if not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return value
+
+
 _URI_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+\-.]*:[^\s]")
 
 
@@ -54,4 +68,4 @@ def _valid_uri(v: str) -> str:
 
 UriString = Annotated[NonEmptyString, AfterValidator(_valid_uri)]
 
-__all__ = ["NonEmptyString", "UriString"]
+__all__ = ["NonEmptyString", "UriString", "require_non_empty"]

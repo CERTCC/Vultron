@@ -11,6 +11,7 @@ description: >
 related_specs:
   - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-20-008, ARCH-20-009,
     ARCH-22-001, ARCH-23-005)
+  - specs/code-style.yaml (CS-08-001, CS-08-002)
   - specs/error-handling.yaml (EH-07-001, EH-07-003)
   - specs/vocabulary-model.yaml
 related_notes:
@@ -339,6 +340,18 @@ as_ObjectRef = ActivityStreamRef[as_Object] | CoreObject | None
 property to hold either an embedded object or an IRI reference — that is how you
 avoid shipping a whole case inside every message. `rehydrate()` (VM-06-001)
 resolves it at a defined point.
+
+**The `str` branch is `NonEmptyString`** (#3876, CS-08-001). A blank IRI names
+nothing, so `ActivityStreamRef`/`ActivityStreamRequiredRef` refuse it inbound
+rather than carry it and let VM-07-001 drop it silently outbound. Inside a union
+Pydantic keeps the `Annotated` wrapper, so code that classifies a branch with
+`is str` or by set equality — `db_record._is_generic_object_ref`,
+`rehydration._annotation_branches` — goes through `strip_annotated()`
+(`vultron/core/models/_helpers.py`) first. Two ratchets derive the field set
+from the annotations (ARCH-23-004) and assert the refusal:
+`test/architecture/test_wire_reference_fields_reject_blank.py` and, for core
+string fields with a pinned sentinel set,
+`test_core_reference_fields_reject_blank.py`.
 
 **`| CoreObject` was the kludge.** Added in PR #730 as a migration convenience, it
 placed a core type inside a wire annotation — and therefore inside the `object_`

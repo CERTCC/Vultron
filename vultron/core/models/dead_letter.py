@@ -54,5 +54,5 @@ class DeadLetterRecord(CoreRecord):
     actor_id: NonEmptyString
     activity_id: NonEmptyString
     activity_type: NonEmptyString | None = None
-    activity_summary: dict[str, Any] | None = None
+    activity_summary: dict[NonEmptyString, Any] | None = None
     received_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

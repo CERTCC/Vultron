@@ -22,6 +22,7 @@ from typing import Any, get_args
 
 from pydantic import BaseModel, ValidationError
 
+from vultron.core.models._helpers import strip_annotated
 from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
@@ -41,10 +42,10 @@ def _is_generic_object_ref(annotation: Any) -> bool:
     """True when *annotation* is a reference to the *generic* ``as_Object``.
 
     The generic AS2 object-reference alias ``as_ObjectRef`` expands to
-    ``as_Object | as_Link | str | None`` and its required form
-    ``as_ObjectRequiredRef`` to ``as_Object | as_Link | str`` (no ``None``).
-    Both are matched; a *narrowed* reference (``as_ActorRef`` →
-    ``as_Actor | as_Link | str | None``) is not, because its ``T`` is a
+    ``as_Object | as_Link | NonEmptyString | None`` and its required form
+    ``as_ObjectRequiredRef`` to ``as_Object | as_Link | NonEmptyString`` (no
+    ``None``).  Both are matched; a *narrowed* reference (``as_ActorRef`` →
+    ``as_Actor | as_Link | NonEmptyString | None``) is not, because its ``T`` is a
     subclass of ``as_Object`` rather than ``as_Object`` itself.  This is the
     single property that separates the AS2 Activity object-reference fields
     from narrowed refs, JSON-LD ``context``/``in_reply_to`` (typed ``Any``),
@@ -56,8 +57,14 @@ def _is_generic_object_ref(annotation: Any) -> bool:
     ``target``, ``origin`` and ``instrument`` from dehydration, so a stored
     activity's inline object reads back as a bare ``as_Object`` and semantic
     matching no longer recognises the activity.
+
+    The IRI branch is ``NonEmptyString`` (CS-08-001), an ``Annotated`` wrapper
+    around ``str`` that the union keeps; it is unwrapped before the set
+    comparison, or every reference field would silently stop being dehydrated.
     """
-    args = set(get_args(annotation)) - {CoreObject}
+    args = {strip_annotated(arg) for arg in get_args(annotation)} - {
+        CoreObject
+    }
     return args in (
         {as_Object, as_Link, str},
         {as_Object, as_Link, str, type(None)},

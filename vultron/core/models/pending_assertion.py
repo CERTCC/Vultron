@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+
+from vultron.primitives import require_non_empty
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -68,6 +70,11 @@ class PendingAssertion:
         default_factory=lambda: datetime.now(timezone.utc)
     )
     status: Literal["pending", "cleared", "timed_out"] = "pending"
+
+    def __post_init__(self) -> None:
+        # CS-08-001 for a stdlib dataclass: both ids are references.
+        require_non_empty(self.case_id, "case_id")
+        require_non_empty(self.object_id, "object_id")
 
 
 class PendingAssertionStore:
