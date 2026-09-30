@@ -211,15 +211,15 @@ Only the final step, switching the routes and deleting the service, port, and du
 
 ## Validation
 
-Not yet built.
-This ADR is provisional until the trigger side conforms and the tests named here exist.
+Only the first, gating step is built: the golden OpenAPI snapshot test at `test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py` covers the trigger and demo paths, and its first commit (#3828) predates the route rewrite.
+The rest is not yet built.
+This ADR is provisional until the trigger side conforms and the remaining tests named here exist.
 
 Expected, once built:
 
 - `test/architecture/test_use_case_execute_returns_result.py` scans `triggers/` with no exclusion.
 - A trigger-registry test module asserts the route-to-registry and use-case-to-row bijections as exact set equalities, exactly one non-BT-backed row, and that row declaring no `emitting_actor_id`.
 - An exact-response-key test parametrized over the registry asserts `set(response.json()) == expected_keys` per verb.
-- A golden OpenAPI snapshot test covers the trigger and demo paths, and its first commit predates the route rewrite.
 - A `response_model` coverage test fails on any trigger route without one.
 - A topic-scoped citation ratchet fails on any `TB-` citation under `vultron/`.
 - One outbox-ordering test asserts the flush is queued only after `trigger()` returns and not when it raises.
