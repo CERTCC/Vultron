@@ -423,9 +423,9 @@ groups:
     statement: >-
       A module under `vultron/` MUST NOT cite a requirement from the Testability
       topic (`TB-` prefix) as one it implements. `Implements:` citations are
-      topic-scoped: a cited ID MUST both resolve (SR-04-008) and belong to a topic
-      the citing module can implement, and a resolving citation of a topic that
-      governs tests is a defect, not traceability.
+      topic-scoped: resolving in the registry (SR-04-008) is necessary but not
+      sufficient, and a resolving citation of a topic that governs tests is a
+      defect, not traceability.
     rationale: >-
       Every ID cited under `vultron/` resolves to some requirement, so an
       existence-only check (SR-04-008) cannot see a wrong-topic citation. When the

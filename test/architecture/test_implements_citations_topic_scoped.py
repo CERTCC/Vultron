@@ -76,6 +76,7 @@ _TB_CITATION_RE = re.compile(r"\bTB-\d{2}-\d{3}\b")
 _SPEC_ID_RE = SPEC_ID_CITATION_RE
 
 _IMPLEMENTS_MARKER = "Implements:"
+_DOCSTRING_QUOTES = '"""'
 
 
 def _tb_citations(source: str) -> Iterator[tuple[int, str]]:
@@ -91,7 +92,10 @@ def _implements_ids(source: str) -> Iterator[tuple[int, str]]:
     A block starts on the line carrying ``Implements:`` and runs through the
     following lines until a blank line or the closing docstring quotes. IDs on
     the marker line itself count, so a one-line
-    ``Implements: DEMOMA-07-001, TRIG-09-001.`` is read in full.
+    ``Implements: DEMOMA-07-001, TRIG-09-001.`` is read in full. The closing
+    quotes may share a line with citations — on the marker line or on a
+    continuation line — and the IDs before them are still read; the block
+    closes after that line.
     """
     in_block = False
     for lineno, line in enumerate(source.splitlines(), start=1):
@@ -99,12 +103,15 @@ def _implements_ids(source: str) -> Iterator[tuple[int, str]]:
             in_block = True
             text = line.split(_IMPLEMENTS_MARKER, 1)[1]
         elif in_block:
-            if not line.strip() or '"""' in line:
+            if not line.strip():
                 in_block = False
                 continue
             text = line
         else:
             continue
+        if _DOCSTRING_QUOTES in text:
+            text = text.split(_DOCSTRING_QUOTES, 1)[0]
+            in_block = False
         for match in _SPEC_ID_RE.finditer(text):
             yield lineno, match.group(0)
 
@@ -234,4 +241,37 @@ def test_implements_parser_stops_at_closing_quotes() -> None:
     assert list(_implements_ids(source)) == [
         (4, "TRIG-09-001"),
         (4, "TRIG-06-001"),
+    ]
+
+
+def test_implements_parser_reads_ids_before_closing_quotes_on_same_line() -> (
+    None
+):
+    """IDs on a line that also closes the docstring are read; nothing after leaks in."""
+    source = (
+        '    """Do it.\n'
+        "\n"
+        "    Implements:\n"
+        '        TRIG-09-001, TRIG-06-001"""\n'
+        "    x = 'SL-01-001'\n"
+        "    y = 'HP-01-001'\n"
+    )
+    assert list(_implements_ids(source)) == [
+        (4, "TRIG-09-001"),
+        (4, "TRIG-06-001"),
+    ]
+
+
+def test_implements_parser_marker_line_that_closes_docstring_ends_block() -> (
+    None
+):
+    """A marker line carrying the closing quotes is read and closes the block."""
+    source = (
+        '    """Implements: DEMOMA-07-001, TRIG-09-001."""\n'
+        "    x = 'SL-01-001'\n"
+        "    y = 'HP-01-001'\n"
+    )
+    assert list(_implements_ids(source)) == [
+        (1, "DEMOMA-07-001"),
+        (1, "TRIG-09-001"),
     ]
