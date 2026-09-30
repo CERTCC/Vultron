@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel
 
+from vultron.adapters.driven.db_record import _AS_LIST_REF_FIELDS
 from vultron.adapters.outbox_sealed_body import (
     outbound_activity_id,
     seal_outbound_body,
@@ -112,50 +113,80 @@ def _to_wire_object(core_obj: Any, object_id: str) -> Any:
 def _case_for_wire(
     dl: CasePersistence, case_id: str
 ) -> "as_VulnerabilityCase":
-    """Return the stored case as a wire object, with its embargo carried inline.
+    """Return the stored case as a wire object with its references carried inline.
 
     Takes the narrow read port rather than the full ``DataLayer``: reading is all
     this does, and every caller holds a ``CaseOutboxPersistence``
     (``_TriggerAdapterBase._dl``), which is a ``CasePersistence``.
 
-    Every activity that puts a case on the wire goes through here, because
-    ``active_embargo`` is a reference the *receiver* cannot dereference: it may
-    not hold the ``EmbargoEvent``, and no dereferencing mechanism is specified
-    (AKM-03-001, the same rule as CP-01-004). Sending the id alone therefore
-    hands the recipient a case pointing at an object it can never read.
+    Every activity that puts a case on the wire goes through here, because a
+    reference in the case is one the *receiver* cannot dereference: it may not
+    hold the object, and no dereferencing mechanism is specified (AKM-03-001,
+    the same rule as CP-01-004). Sending an id alone therefore hands the
+    recipient a case pointing at an object it can never read. Three fields
+    carry references the recipient needs:
 
-    That is not hypothetical. A CaseActor holding such a case tore the embargo
-    down locally and then could not announce it: ``terminate_embargo`` begins by
-    reading the ``EmbargoEvent`` it is about, so it raised
-    ``VultronNotFoundError`` mid-sequence and no ``Remove(EmbargoEvent, Case)``
-    was ever emitted. Every other participant's replica kept an embargo the
-    manager had already removed, EM stayed ACTIVE for all of them, and nothing
-    surfaced — the receiving side had no way to tell a missing object from an
-    embargo that was genuinely still active.
+    - ``active_embargo``: a CaseActor holding a case with only the id tore the
+      embargo down locally and then could not announce it — ``terminate_embargo``
+      begins by reading the ``EmbargoEvent``, so it raised
+      ``VultronNotFoundError`` mid-sequence and no ``Remove(EmbargoEvent, Case)``
+      was ever emitted; every other replica kept an embargo the manager had
+      already removed.
+    - ``case_participants``: the recipient of a bootstrap ``Create`` or
+      ``Announce`` stores each embedded participant as its own record
+      (CBT-05-005, CBT-01-007). With ids alone it has no participant at
+      ``RM.RECEIVED`` to move to ``VALID`` and no CASE_MANAGER participant to
+      route its reply to. The outbox used to expand these at delivery time
+      (``dl.hydrate()``); the sealed body is delivered as built (VM-08-003), so
+      the expansion belongs here, where the body is made.
+    - ``vulnerability_reports``: the same, for the reports the case names.
 
-    ``as_VulnerabilityCase.active_embargo`` is an ``as_EmbargoEventRef``, so it
-    admits the object; ``to_core()`` reduces it back to an id, so a receiver's
-    stored case is unchanged in shape. The recipient stores the carried object
-    separately (see ``_store_embedded_embargo``), which is what makes the id
-    resolve on its side too.
+    The stored case is untouched — the carried objects live on a ``model_copy``.
+    ``as_VulnerabilityCase`` admits the objects in every one of these slots, and
+    ``to_core()`` reduces them back to ids, so a receiver's stored case is
+    unchanged in shape; the recipient stores each carried object separately
+    (``_store_embedded_embargo``, ``_store_embedded_participants``).
+
+    A reference the sender's own store cannot resolve is left as the id with a
+    WARNING: this function's job is to carry what is there, and a sender-side
+    gap is the business of whoever wrote the dangling reference.
+    ``announce_vulnerability_case`` then refuses to send a case whose report is
+    missing (CBT-01-007).
     """
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         as_VulnerabilityCase,
     )
 
     case = _to_wire(dl.read(case_id), as_VulnerabilityCase)
-    embargo_ref = getattr(case, "active_embargo", None)
-    if not isinstance(embargo_ref, str) or not embargo_ref:
-        # Already an object, or no embargo at all — nothing to carry.
-        return case
+    updates: dict[str, Any] = {}
+    embargo = _carried_embargo(dl, case, case_id)
+    if embargo is not None:
+        updates["active_embargo"] = embargo
+    for field_name in _CARRIED_LIST_FIELDS:
+        carried = _carried_list(dl, case, case_id, field_name)
+        if carried is not None:
+            updates[field_name] = carried
+    return case.model_copy(update=updates) if updates else case
 
+
+#: Case list fields whose bare ids are carried as objects by ``_case_for_wire``.
+#: ``_AS_LIST_REF_FIELDS`` is the DataLayer's own list of list-reference fields
+#: (the ones its retired delivery-time ``hydrate()`` expanded); the reports are
+#: added because a recipient seeding a case needs them too (CBT-01-007).
+_CARRIED_LIST_FIELDS: frozenset[str] = _AS_LIST_REF_FIELDS | {
+    "vulnerability_reports"
+}
+
+
+def _carried_embargo(dl: CasePersistence, case: Any, case_id: str) -> Any:
+    """The case's ``active_embargo`` as a wire object, or ``None`` to leave it."""
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
+    embargo_ref = getattr(case, "active_embargo", None)
+    if not isinstance(embargo_ref, str) or not embargo_ref:
+        return None  # already an object, or no embargo at all
     stored = dl.read(embargo_ref)
     if stored is None:
-        # The sender does not hold it either. Left as an id: this function's job
-        # is to carry what is there, and a sender-side gap is the business of
-        # whoever wrote the dangling reference.
         logger.warning(
             "_case_for_wire: case '%s' references active_embargo '%s' which is"
             " absent from the sending actor's own store, so it cannot be"
@@ -164,11 +195,9 @@ def _case_for_wire(
             case_id,
             embargo_ref,
         )
-        return case
+        return None
     try:
-        case = case.model_copy(
-            update={"active_embargo": _to_wire(stored, as_EmbargoEvent)}
-        )
+        return _to_wire(stored, as_EmbargoEvent)
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "_case_for_wire: could not project active_embargo '%s' of case"
@@ -177,7 +206,38 @@ def _case_for_wire(
             case_id,
             exc,
         )
-    return case
+        return None
+
+
+def _carried_list(
+    dl: CasePersistence, case: Any, case_id: str, field_name: str
+) -> list[Any] | None:
+    """*field_name*'s items with every resolvable bare id replaced by its object.
+
+    Returns ``None`` when nothing changed, so the caller copies nothing.
+    """
+    items = getattr(case, field_name, None)
+    if not isinstance(items, list):
+        return None
+    carried: list[Any] = []
+    changed = False
+    for item in items:
+        stored = dl.read(item) if isinstance(item, str) and item else None
+        if stored is None:
+            if isinstance(item, str):
+                logger.warning(
+                    "_case_for_wire: case '%s' names %s '%s' which is absent"
+                    " from the sending actor's own store, so it cannot be"
+                    " carried inline (AKM-03-001, CBT-01-007)",
+                    case_id,
+                    field_name,
+                    item,
+                )
+            carried.append(item)
+            continue
+        carried.append(stored)
+        changed = True
+    return carried if changed else None
 
 
 def _seal(dl: CaseOutboxPersistence, activity: BaseModel) -> tuple[str, str]:

@@ -80,11 +80,7 @@ class _World:
     def __init__(self, dl: SqliteDataLayer) -> None:
         self.dl = dl
         self.adapter = TriggerActivityAdapter(dl)
-        self.case = as_VulnerabilityCase(
-            name="CVE-2026-1", attributed_to=_ACTOR
-        )
-        dl.create(self.case)
-        self.case_id: str = str(self.case.id_)
+        self.case_id: str = "https://example.org/cases/audit-case"
         self.vendor = as_Service(id_=_PEER, name="Vendor")
         dl.create(self.vendor)
         self.report = as_VulnerabilityReport(name="CVE-2026-1", content="PoC")
@@ -93,6 +89,16 @@ class _World:
             context=self.case_id, attributed_to=_PEER
         )
         dl.create(self.participant)
+        # The case names its participant and report by id, as a stored case
+        # does; a case put on the wire must carry them inline (CBT-01-007).
+        self.case = as_VulnerabilityCase(
+            id_=self.case_id,
+            name="CVE-2026-1",
+            attributed_to=_ACTOR,
+            case_participants=[str(self.participant.id_)],
+            vulnerability_reports=[str(self.report.id_)],
+        )
+        dl.create(self.case)
         self.status = ParticipantStatus(context=self.case_id)
         dl.create(self.status)
         self.embargo = as_EmbargoEvent(
@@ -171,7 +177,20 @@ class _World:
         return offer_id
 
     def prepared_create_case(self) -> dict[str, Any]:
-        case_dict = As2WireRenderAdapter().render(self.dl.read(self.case_id))
+        # Mirrors ``WriteCreateCaseMarkerNode._build_case_object``: the
+        # marker's payload carries the participants and reports as objects
+        # (ADR-0041 AC-5, CBT-01-007); the adapter re-sends it unchanged
+        # (CP-05-005), so the audit hands it the shape production does.
+        stored = self.dl.read(self.case_id, raise_on_missing=True)
+        assert stored is not None
+        case_dict = As2WireRenderAdapter().render(
+            stored.model_copy(
+                update={
+                    "case_participants": [self.participant],
+                    "vulnerability_reports": [self.report],
+                }
+            )
+        )
         return VultronCreateCaseActivity(
             actor=_CASE_ACTOR,
             object_=case_dict,
@@ -470,6 +489,17 @@ def test_the_activity_is_sealed_complete(world, method):
     # URI or the selective-disclosure stub — never the full object.  Checked
     # at every depth: an Accept embeds the Offer or Invite it answers, and a
     # read-back-rehydrated embedded activity is where a full case leaked.
+    # CBT-01-007: a case carried as the ``object`` carries its participants and
+    # reports as objects — the recipient seeds its replica from them, and the
+    # outbox no longer expands ids at delivery time.
+    obj = body.get("object")
+    if isinstance(obj, dict) and obj.get("type") == "VulnerabilityCase":
+        for field in ("caseParticipants", "vulnerabilityReports"):
+            bare = [x for x in obj.get(field, []) if not isinstance(x, dict)]
+            assert not bare, (
+                f"{method} put a VulnerabilityCase in object whose {field}"
+                f" holds bare ids {bare} (CBT-01-007)"
+            )
     leaks = _full_case_paths(body)
     assert not leaks, (
         f"{method} put a full VulnerabilityCase in a reference slot:"
