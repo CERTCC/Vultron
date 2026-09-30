@@ -41,7 +41,7 @@ from vultron.core.models.events.report import (
     InvalidateReportReceivedEvent,
 )
 from vultron.core.behaviors.case.nodes.case_lookup import RequireCaseForReport
-from vultron.core.behaviors.case.nodes.lifecycle import (
+from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.case.nodes.conditions import (
@@ -202,10 +202,12 @@ def create_ack_report_received_tree(
 
     Steps (Sequence via :func:`create_receive_activity_tree`):
 
-    1. Guarded commit (only when ``case_id`` is provided and the receiving
+    1. Intake archives the ``Read`` as received (CLP-10-017); the per-tree
+       ``StoreActivityNode`` it once carried duplicated intake and was
+       removed (CLP-10-019).
+    2. Guarded commit (only when ``case_id`` is provided and the receiving
        actor holds ``CVDRole.CASE_MANAGER``) — records receipt before any
        effects run (CLP-10-006).
-    2. Store AckReport activity idempotently.
     3. Forward the ack to the CASE_MANAGER — only when it is the executing
        actor's *own* ack and that actor is not itself the CASE_MANAGER.
 
@@ -259,14 +261,7 @@ def create_ack_report_received_tree(
         name="AckReportReceivedBT",
         case_id=case_id,
         precondition_guards=[],
-        effect_nodes=[
-            StoreActivityNode(
-                activity_id=activity_id,
-                activity_obj=request.activity,
-                label="AckReport",
-            ),
-            maybe_emit,
-        ],
+        effect_nodes=[maybe_emit],
     )
     logger.debug(
         "Created AckReportReceivedBT for activity=%s case=%s",

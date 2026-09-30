@@ -3,6 +3,8 @@
 
 import logging
 
+from typing import cast
+
 import py_trees
 import pytest
 
@@ -15,10 +17,21 @@ from test.core.behaviors.sync.nodes.conftest import (
     CASE_ID,
     _make_entry,
 )
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.nodes import (
     CreateLogEntryNode,
     PersistLogEntryNode,
     ReconstructChainTailNode,
+    UpdateReplicationStateNode,
+)
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
+from vultron.core.models.replication_state import VultronReplicationState
+from vultron.semantic_registry import extract_event
+from vultron.wire.as2.factories import reject_log_entry_activity
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
@@ -323,3 +336,84 @@ class TestPersistLogEntryNodeLogging:
             r.levelno == logging.DEBUG and expected_prefix in r.message
             for r in caplog.records
         )
+
+
+# ---------------------------------------------------------------------------
+# UpdateReplicationStateNode — per-peer replication state (SYNC-04)
+# ---------------------------------------------------------------------------
+
+
+def _reject_event(
+    entry: CaseLedgerEntry, peer_id: str, last_accepted_hash: str
+) -> RejectLogEntryReceivedEvent:
+    wire_entry = WireCaseLedgerEntry.model_validate(
+        entry.model_dump(mode="json")
+    )
+    activity = reject_log_entry_activity(
+        wire_entry, context=last_accepted_hash, actor=peer_id
+    )
+    return cast(RejectLogEntryReceivedEvent, extract_event(activity))
+
+
+def _replication_state_id(peer_id: str) -> str:
+    return VultronReplicationState(case_id=CASE_ID, peer_id=peer_id).id_
+
+
+@pytest.fixture
+def owner_store() -> SqliteDataLayer:
+    """The CASE_MANAGER's own store: replication state is the leader's record.
+
+    The package ``datalayer`` fixture is the participant's replica; a tree
+    executing as the owner writes to the owner's store (BT-05-005), so these
+    tests read back from that store.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER_ACTOR_ID)
+
+
+@pytest.fixture
+def owner_bridge(owner_store: SqliteDataLayer) -> BTBridge:
+    return BTBridge(datalayer=owner_store)
+
+
+@pytest.mark.spec("SYNC-04-001")
+def test_update_replication_state_node_creates_state_for_peer(
+    owner_bridge, owner_store
+):
+    entry = _make_entry(0)
+    event = _reject_event(entry, PARTICIPANT_ACTOR_ID, entry.entry_hash)
+
+    result = owner_bridge.execute_with_setup(
+        tree=UpdateReplicationStateNode(name="UpdateReplicationState"),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+    )
+
+    assert result.status == Status.SUCCESS
+    stored = owner_store.read(_replication_state_id(PARTICIPANT_ACTOR_ID))
+    assert isinstance(stored, VultronReplicationState)
+    assert stored.last_acknowledged_hash == entry.entry_hash
+
+
+@pytest.mark.spec("SYNC-04-001")
+@pytest.mark.spec("SYNC-04-002")
+def test_update_replication_state_node_upserts_existing_state(
+    owner_bridge, owner_store
+):
+    """A second rejection updates the one persisted record, never a second."""
+    entry0 = _make_entry(0)
+    entry1 = _make_entry(1, prev_hash=entry0.entry_hash)
+
+    for entry in (entry0, entry1):
+        result = owner_bridge.execute_with_setup(
+            tree=UpdateReplicationStateNode(name="UpdateReplicationState"),
+            actor_id=OWNER_ACTOR_ID,
+            activity=_reject_event(
+                entry, PARTICIPANT_ACTOR_ID, entry.entry_hash
+            ),
+        )
+        assert result.status == Status.SUCCESS
+
+    assert len(owner_store.by_type("ReplicationState")) == 1
+    stored = owner_store.read(_replication_state_id(PARTICIPANT_ACTOR_ID))
+    assert isinstance(stored, VultronReplicationState)
+    assert stored.last_acknowledged_hash == entry1.entry_hash

@@ -344,9 +344,7 @@ class TestFilterCsEmDimensionNodeBug2704:
         activity = add_status_to_case_activity(
             status_obj, target=wire_case, actor=CASE_MANAGER_ID_2704
         )
-        event = make_payload(activity).model_copy(
-            update={"activity": activity}
-        )
+        event = make_payload(activity)
 
         # Patch request.status to None so status_obj_fallback=None in the tree factory.
         with patch.object(
@@ -480,9 +478,7 @@ class TestFilterCsPxaDimensionNodeBug2706:
         activity = add_status_to_case_activity(
             status_obj, target=wire_case, actor=CASE_MANAGER_ID_2706
         )
-        event = make_payload(activity).model_copy(
-            update={"activity": activity}
-        )
+        event = make_payload(activity)
 
         # Patch get_input on FilterCsPxaDimensionNode to return a DEEP COPY of any dict,
         # simulating a blackboard that never returns mutable references.
@@ -542,7 +538,9 @@ class TestAddCaseStatusTree:
             request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
         )
         bridge = BTBridge(datalayer=populated_dl)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.SUCCESS
 
         updated_case = populated_dl.read(CASE_ID)
@@ -564,7 +562,9 @@ class TestAddCaseStatusTree:
 
         tree = add_case_status_tree(request=event)
         bridge = BTBridge(datalayer=populated_dl)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.FAILURE
         assert BTBridge.get_failure_reason(tree) == CASE_STATUS_ALREADY_PRESENT
 
@@ -593,7 +593,9 @@ class TestAddCaseStatusTree:
 
         tree = add_case_status_tree(request=event)
         bridge = BTBridge(datalayer=dl)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.FAILURE
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
@@ -634,7 +636,9 @@ class TestAddCaseStatusTree:
 
         tree = add_case_status_tree(request=event)
         bridge = BTBridge(datalayer=dl)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.FAILURE
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
@@ -683,7 +687,9 @@ class TestAddCaseStatusTree:
             request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
         )
         bridge = BTBridge(datalayer=dl)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
 
         assert result.status == Status.SUCCESS
 
@@ -739,7 +745,9 @@ class TestAddCaseStatusTree:
         bridge = BTBridge(datalayer=dl)
 
         with caplog.at_level(logging.WARNING):
-            result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+            result = bridge.execute_with_setup(
+                tree=tree, actor_id=ACTOR_ID, activity=event
+            )
         assert result.status == Status.SUCCESS
 
         pxa_refusals = [
@@ -792,7 +800,9 @@ class TestAddCaseStatusTree:
         bridge = BTBridge(datalayer=dl)
 
         with caplog.at_level(logging.WARNING):
-            result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+            result = bridge.execute_with_setup(
+                tree=tree, actor_id=ACTOR_ID, activity=event
+            )
         assert result.status == Status.SUCCESS
 
         em_refusals = [
@@ -863,7 +873,9 @@ class TestAddCaseStatusTree:
             children=[tree, _CaptureOverride(name="CaptureOverride")],
         )
         bridge = BTBridge(datalayer=dl)
-        result = bridge.execute_with_setup(tree=probed, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=probed, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.SUCCESS
 
         override = cast(dict, captured.get("override"))
@@ -1508,9 +1520,7 @@ class TestCaseLedgerEntryCreation:
         activity = add_status_to_case_activity(
             status_obj, target=wire_case, actor=CASE_MANAGER_ID_2254
         )
-        event = make_payload(activity).model_copy(
-            update={"activity": activity}
-        )
+        event = make_payload(activity)
 
         tree = add_case_status_tree(
             request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
