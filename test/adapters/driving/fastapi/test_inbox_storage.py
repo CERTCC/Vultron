@@ -20,14 +20,17 @@ the router package.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from typing import Any
+
 import pytest
 
 from vultron.adapters.driving.fastapi.inbox_storage import (
-    _reparse_as_specific_type,
     _store_inbox_activity,
     _store_nested_inbox_object,
 )
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.case import VulnerabilityCase
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
     as_Create,
@@ -35,94 +38,150 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+    as_VulnerabilityCaseStub,
 )
 
 _ACTOR_URI = "https://example.org/actors/alice"
 
 
 # ---------------------------------------------------------------------------
-# _reparse_as_specific_type
+# _store_nested_inbox_object stores what the parser produced (MV-11-005)
 # ---------------------------------------------------------------------------
+#
+# These replace the tests of ``_reparse_as_specific_type``, which re-validated
+# an inline object from the raw request body and was deleted by #3922.  Each
+# drives a raw body through ``parse_activity`` — the only door inbound data
+# enters by — and asserts that the object handed to storage is the parsed one.
+
+_PUBLISHED = "2026-03-04T05:06:07+00:00"
 
 
-def test_reparse_as_specific_type_returns_specific_class_for_known_type():
-    from vultron.wire.as2.vocab.base.objects.base import as_Object
+def _parsed_announce(inline: dict[str, Any]) -> as_Announce:
+    activity = parse_activity(_announce_body(inline))
+    assert isinstance(activity, as_Announce)
+    return activity
 
-    case = as_VulnerabilityCase(
-        id_="urn:uuid:test-case-001",
-        name="Test CVD Case",
+
+def _announce_body(inline: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "type": "Announce",
+        "id": "https://example.org/activities/announce-1",
+        "actor": _ACTOR_URI,
+        "published": _PUBLISHED,
+        "object": inline,
+    }
+
+
+@pytest.fixture
+def persisted(monkeypatch) -> list[object]:
+    """Capture every object ``_store_nested_inbox_object`` hands to storage."""
+    from vultron.adapters.driving.fastapi import inbox_storage
+
+    captured: list[object] = []
+    real_object_to_record = inbox_storage.object_to_record
+
+    def _spy(obj):
+        captured.append(obj)
+        return real_object_to_record(obj)
+
+    monkeypatch.setattr(inbox_storage, "object_to_record", _spy)
+    return captured
+
+
+@pytest.mark.spec("MV-11-005")
+def test_store_nested_inbox_object_stores_the_parsed_inline_case(
+    datalayer, persisted
+):
+    """A full inline case is stored as the ``VulnerabilityCase`` parsed."""
+    activity = _parsed_announce(
+        {
+            "type": "VulnerabilityCase",
+            "id": "urn:uuid:case-parsed-001",
+            "name": "Parsed Case",
+        }
     )
-    raw_obj = case.model_dump(mode="json", by_alias=True, exclude_none=True)
-    # Pass as base as_Object to simulate what the wire parser produces
-    nested = as_Object.model_validate(raw_obj)
-    result = _reparse_as_specific_type(nested, raw_obj)
-    assert isinstance(result, as_VulnerabilityCase)
+
+    _store_nested_inbox_object(datalayer, activity)
+
+    assert persisted == [activity.object_]
+    assert type(persisted[0]) is as_VulnerabilityCase
+    stored = datalayer.read("urn:uuid:case-parsed-001")
+    assert isinstance(stored, VulnerabilityCase)
 
 
-def test_reparse_as_specific_type_returns_base_when_type_is_none():
-    from vultron.wire.as2.vocab.base.objects.base import as_Object
-
-    nested = as_Object()
-    result = _reparse_as_specific_type(nested, {})
-    assert result is nested  # type: ignore[comparison-overlap]
-
-
-def test_reparse_as_specific_type_returns_same_object_when_already_specific_class():
-    """Guard branch: nested is already the specific class → return unchanged."""
-    case = as_VulnerabilityCase(
-        id_="urn:uuid:test-case-already-specific",
-        name="Already Specific",
+@pytest.mark.spec("MV-11-005")
+def test_store_nested_inbox_object_stores_the_parsed_case_stub(
+    datalayer, persisted
+):
+    """A case stub is stored as the ``as_VulnerabilityCaseStub`` parsed."""
+    activity = _parsed_announce(
+        {"type": "VulnerabilityCase", "id": "urn:uuid:case-stub-001"}
     )
-    raw_obj = case.model_dump(mode="json", by_alias=True, exclude_none=True)
-    result = _reparse_as_specific_type(case, raw_obj)  # type: ignore[arg-type]
-    assert result is case
+    assert type(activity.object_) is as_VulnerabilityCaseStub
+
+    _store_nested_inbox_object(datalayer, activity)
+
+    assert persisted == [activity.object_]
 
 
-@pytest.mark.spec("VM-06-008")
-def test_reparse_as_specific_type_never_returns_a_core_class():
-    """A core-only ``type`` name must not re-parse as a core class (ISSUE-3565).
+@pytest.mark.spec("MV-11-005")
+@pytest.mark.spec("MV-11-003")
+def test_store_nested_inbox_object_stores_parsed_class_after_a_set_aside_key(
+    datalayer, persisted, caplog
+):
+    """A set-aside foreign key does not demote the stored class (#3922).
 
-    ``CoreActor`` is registered only in the core map, and a minimal dict
-    validates as it, so before the lookup went wire-only the inbox handed a core
-    object to the DataLayer for an inbound ``{"type": "CoreActor"}``.
+    The retired re-parse validated the raw body again, met the key the parse
+    edge had set aside, failed the case's ``extra="forbid"``, and stored the
+    base ``as_Object`` instead.  Storage now sees only the parsed case, and the
+    stored record carries no trace of the key.
     """
-    from vultron.wire.as2.vocab.base.objects.base import as_Object
+    import logging
 
-    raw_obj = {"id": "urn:uuid:core-only-reparse", "type": "CoreActor"}
-    nested = as_Object.model_validate(raw_obj)
+    activity = _parsed_announce(
+        {
+            "type": "VulnerabilityCase",
+            "id": "urn:uuid:case-foreign-001",
+            "name": "Case With A Foreign Key",
+            "fooBar": 1,
+        }
+    )
 
-    result = _reparse_as_specific_type(nested, raw_obj)
+    with caplog.at_level(logging.DEBUG):
+        _store_nested_inbox_object(datalayer, activity)
 
-    assert result is nested  # type: ignore[comparison-overlap]
-    assert not isinstance(result, CoreActor)
+    assert persisted == [activity.object_]
+    assert type(persisted[0]) is as_VulnerabilityCase
+    stored = datalayer.read("urn:uuid:case-foreign-001")
+    assert isinstance(stored, VulnerabilityCase)
+    assert "fooBar" not in stored.model_dump(by_alias=True)
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    # The key survives only in the received evidence (VM-08-002).
+    evidence = activity.received_evidence
+    assert evidence is not None and evidence["object"]["fooBar"] == 1
 
 
 @pytest.mark.spec("VM-06-008")
 def test_store_nested_inbox_object_persists_no_core_class_for_core_only_name(
-    datalayer, monkeypatch
+    datalayer, persisted
 ):
-    """The object the inbox persists for a core-only name is not core."""
-    from vultron.adapters.driving.fastapi import inbox_storage
+    """The object the inbox persists for a core-only name is not core.
+
+    ``CoreActor`` is registered only in the core map.  Before the lookups went
+    wire-only the inbox handed a core object to the DataLayer for an inbound
+    ``{"type": "CoreActor"}`` (ISSUE-3565); the parser leaves an unresolved
+    type to its parent field, and storage keeps what the parser produced.
+    """
     from vultron.core.models.base import CoreObject
-    from vultron.wire.as2.vocab.base.objects.base import as_Object
 
-    persisted: list[object] = []
-    real_object_to_record = inbox_storage.object_to_record
-
-    def _spy(obj):
-        persisted.append(obj)
-        return real_object_to_record(obj)
-
-    monkeypatch.setattr(inbox_storage, "object_to_record", _spy)
-
-    raw_obj = {"id": "urn:uuid:core-only-store", "type": "CoreActor"}
-    activity = as_Announce(
-        actor=_ACTOR_URI, object_=as_Object.model_validate(raw_obj)
+    activity = _parsed_announce(
+        {"id": "urn:uuid:core-only-store", "type": "CoreActor"}
     )
-    _store_nested_inbox_object(datalayer, activity, {"object": raw_obj})
+
+    _store_nested_inbox_object(datalayer, activity)
 
     assert len(persisted) == 1
-    assert not isinstance(persisted[0], CoreObject)
+    assert not isinstance(persisted[0], (CoreObject, CoreActor))
 
 
 # ---------------------------------------------------------------------------
@@ -169,12 +228,7 @@ def test_store_nested_inbox_object_stores_inline_case(datalayer):
         actor=_ACTOR_URI,
         object_=case,
     )
-    raw_body = {
-        "object": case.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        )
-    }
-    _store_nested_inbox_object(datalayer, activity, raw_body)
+    _store_nested_inbox_object(datalayer, activity)
     stored = datalayer.read(case.id_)
     assert stored is not None
 
@@ -187,17 +241,7 @@ def test_store_nested_inbox_object_skips_string_object(datalayer):
 
     activity = as_Announce(actor=_ACTOR_URI, object_="urn:uuid:some-id")
     # Should not raise; DL should remain empty
-    _store_nested_inbox_object(datalayer, activity, None)
-
-
-def test_store_nested_inbox_object_skips_when_no_body(datalayer):
-    case = as_VulnerabilityCase(
-        id_="urn:uuid:case-nobody-001",
-        name="No Body Case",
-    )
-    activity = as_Announce(actor=_ACTOR_URI, object_=case)
-    # body=None: should fall back to base as_Object storage without crashing
-    _store_nested_inbox_object(datalayer, activity, None)
+    _store_nested_inbox_object(datalayer, activity)
 
 
 def test_store_nested_inbox_object_projection_failure_surfaces_on_read(
@@ -241,7 +285,7 @@ def test_store_nested_inbox_object_projection_failure_surfaces_on_read(
         actor=_ACTOR_URI, object_=unprojectable
     )
 
-    _store_nested_inbox_object(datalayer, activity, None)
+    _store_nested_inbox_object(datalayer, activity)
 
     with caplog.at_level(logging.WARNING):
         result = datalayer.read(unprojectable.id_)
@@ -260,10 +304,10 @@ def test_store_nested_inbox_object_duplicate_stays_at_debug(datalayer, caplog):
         name="Duplicate Case",
     )
     activity = as_Announce(actor=_ACTOR_URI, object_=case)
-    _store_nested_inbox_object(datalayer, activity, None)
+    _store_nested_inbox_object(datalayer, activity)
 
     with caplog.at_level(logging.DEBUG):
-        _store_nested_inbox_object(datalayer, activity, None)
+        _store_nested_inbox_object(datalayer, activity)
 
     assert "already exists" in caplog.text
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]

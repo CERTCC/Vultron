@@ -214,13 +214,13 @@ class TestAs2RoundTripPreservesFields(unittest.TestCase):
 
 
 class TestRetiredVfdKeyRejection(unittest.TestCase):
-    """_reject_retired_vfd_keys must raise ValidationError, not a raw
-    VultronProtocolViolationError that escapes Pydantic (issue #2905).
+    """A retired vfd key must raise ValidationError, not escape Pydantic (#2905).
 
-    Pydantic only absorbs ValueError/TypeError/AssertionError from validators.
-    When the validator raised VultronProtocolViolationError (a plain VultronError
-    subclass) the exception escaped model_validate() entirely, crashing the
-    inbox-processing loop rather than being treated as a validation failure.
+    The per-class ``_reject_retired_vfd_keys`` guard these rows were written
+    for is gone (#3921, SDO-03-005): ``extra="forbid"`` alone now refuses the
+    key on direct validation, and the parse edge refuses it by name on inbound
+    data (MV-11-002).  The rows still pin that the refusal is a Pydantic
+    ``ValidationError`` rather than an exception escaping ``model_validate()``.
     """
 
     def test_vfd_state_snake_raises_validation_error(self):

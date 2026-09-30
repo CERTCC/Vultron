@@ -536,15 +536,36 @@ is stated once there and holds everywhere:
 4. **Core `forbid` is unchanged** (MV-11-004). The parse edge is the only door
    inbound data enters by, so a core class never sees an inbound unknown key.
    The retired-name list lives on the wire side and is consulted only at the
-   parse edge; `ParticipantStatus._reject_retired_vfd_keys` is the one core
-   guard SDO-03-005 already forbids, and it goes when the wire list arrives.
+   parse edge (`unknown_keys.RETIRED_NAMES`);
+   `ParticipantStatus._reject_retired_vfd_keys`, the one core guard SDO-03-005
+   already forbade, was deleted when the wire list arrived (#3921).
 5. **Never re-validate from the raw body after parse** (MV-11-005, #3922).
-   `inbox_storage._reparse_as_specific_type` re-parses an inline object from
-   the raw request dict and falls back to a base class on failure with a DEBUG
-   line. Once keys are set aside at parse, that path sees them again on a core
-   class and silently stores the wrong type. Its purpose ended when the parser
-   began resolving inline objects to their specific class (MV-04-003).
+   `inbox_storage._reparse_as_specific_type` re-parsed an inline object from
+   the raw request dict and fell back to a base class on failure with a DEBUG
+   line. Once keys are set aside at parse, that path would see them again on a
+   core class and silently store the wrong type. Its purpose ended when the
+   parser began resolving inline objects to their specific class (MV-04-003),
+   so #3922 deleted it along with the raw-body argument threaded from the inbox
+   endpoint to feed it; ingress storage persists the parsed object.
 
-Ratchet: `test/wire/as2/test_unknown_key_disposition.py` — one matrix over
-every position, `xfail(strict=True)` on the rows not yet built so the marks must
-come off with the implementation (#3921).
+**Landed (#3921, #3922).** The partition is `vultron/wire/as2/unknown_keys.py`,
+called by `parse_activity` after the received evidence is sealed and before
+anything validates. Three details the rule above leaves open are settled
+there:
+
+- **An untyped dict** (or one whose `type` is unresolved) is judged by the
+  class its parent field validates it into. The field's annotation is read
+  through unions, `Annotated` and sequences; when it names several model
+  classes the dict is judged against the union of their spellings, and when it
+  also admits `Any` or a plain `dict`, no class decides and the dict is carried
+  unexamined (its typed children are still partitioned by their type).
+- **The case stub** is chosen on the keys that survive the partition, so
+  `{"type": "VulnerabilityCase", "id": …, "fooBar": 1}` is a stub with one key
+  set aside, not a full case.
+- **One refusal names every near miss** in the body, at every depth
+  (EH-07-001), each with its dotted path.
+
+Ratchets: `test/wire/as2/test_unknown_key_disposition.py` — one matrix over
+every position (its `xfail(strict=True)` rows came off with #3921), plus
+`test_no_core_module_names_a_retired_key` for MV-11-004; and
+`test/architecture/test_no_receive_path_reparse.py` for MV-11-005.

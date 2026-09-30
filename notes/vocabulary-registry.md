@@ -11,6 +11,7 @@ related_specs:
   - specs/vocabulary-model.yaml (VM-01 through VM-03, VM-06, VM-10)
   - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-12-010, ARCH-20-002, ARCH-23-001, ARCH-23-002)
   - specs/docs-build-workflow.yaml (DOCBW-03-005)
+  - specs/message-validation.yaml (MV-11-005)
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/wire-core-boundary.md
@@ -273,8 +274,8 @@ exemption that no longer needs to exist.
 
 **The per-caller filter was not the fix.** #3232's guard in
 `parser._inline_vocab_class` closed one path, while the FastAPI inbox adapter's
-re-parse helper (`inbox_storage.py::_reparse_as_specific_type`) still
-resolved any name registered only in `CORE_TYPE_MAP` to a core class — measured
+re-parse helper (`inbox_storage.py::_reparse_as_specific_type`, since
+deleted by #3922 under MV-11-005) still resolved any name registered only in `CORE_TYPE_MAP` to a core class — measured
 at #3565, `{"type": "CoreActor"}` persisted a `CoreActor`. The general rule is
 VM-06-008, and since #3565 the lookup enforces it: `find_in_vocabulary()`
 returns only what the wire registry holds unless the caller passes
