@@ -81,8 +81,14 @@ def _capture_coverage_timeouts():
 
 class TestWaitForReplicaLedgerCoverage:
     def test_skips_every_replica_wait_when_authority_tail_is_empty(self):
-        """No authority entries → nothing to cover → no per-replica poll."""
+        """No authority entries → nothing to cover → no per-replica poll.
+
+        The one failure recorded names the *authority*: the writer is at
+        fault, not the fan-out, so no replica-side check may be left to blame
+        "replication did not complete" (EDF-06-005).
+        """
         coverage = MagicMock()
+        auth = _client("auth")
         with (
             patch.object(
                 sync_module, "_get_log_entries_for_case", return_value=[]
@@ -92,12 +98,37 @@ class TestWaitForReplicaLedgerCoverage:
             ),
         ):
             wait_for_replica_ledger_coverage(
-                auth_client=_client("auth"),
+                auth_client=auth,
                 replicas=[(_client("r1"), "R1"), (_client("r2"), "R2")],
                 case_id=_CASE_ID,
             )
         coverage.assert_not_called()
-        assert demo_utils._demo_failures == []
+        (failure,) = demo_utils._demo_failures
+        assert failure.startswith("GATE FAILED")
+        assert auth.base_url in failure
+        assert "holds no CaseLedgerEntry" in failure
+        assert "R1" not in failure and "R2" not in failure
+
+    def test_empty_authority_tail_is_a_temporal_check_failure_after_close(
+        self,
+    ):
+        """Closure use: the authority-empty failure is a CHECK, not a gate."""
+        auth = _client("auth")
+        with patch.object(
+            sync_module, "_get_log_entries_for_case", return_value=[]
+        ):
+            wait_for_replica_ledger_coverage(
+                auth_client=auth,
+                replicas=[(_client("r"), "Finder")],
+                case_id=_CASE_ID,
+                phase_label="close phase",
+                causal=False,
+            )
+        (failure,) = demo_utils._demo_failures
+        assert failure.startswith("CHECK FAILED")
+        assert auth.base_url in failure
+        assert "close phase" in failure
+        assert "EDF-06-006" in failure
 
     def test_polls_every_replica_in_order_against_the_authority_tail(self):
         replicas = [(_client(f"r{i}"), f"R{i}") for i in range(3)]
@@ -232,8 +263,8 @@ class TestWaitForReplicaLedgerCoverage:
             )
         assert covered == [second]
 
-    def test_empty_authority_tail_counts_every_replica_as_covered(self):
-        """Nothing to cover → dependent state checks still run and report loudly."""
+    def test_empty_authority_tail_covers_no_replica(self):
+        """Nothing to cover → nothing covered → dependent checks are skipped."""
         replicas = [(_client("r1"), "R1"), (_client("r2"), "R2")]
         with patch.object(
             sync_module, "_get_log_entries_for_case", return_value=[]
@@ -243,7 +274,7 @@ class TestWaitForReplicaLedgerCoverage:
                 replicas=replicas,
                 case_id=_CASE_ID,
             )
-        assert covered == [c for c, _ in replicas]
+        assert covered == []
 
     def test_causal_wait_records_gate_failure(self):
         """Pre-notes use: a coverage timeout is a GATE FAILED (EDF-06-005)."""
@@ -494,14 +525,16 @@ class TestRunSyncVerificationPhase:
         mocks["verify_replica_state"].assert_not_called()
         assert len(demo_utils._demo_failures) == 1
 
-    def test_state_checks_run_when_the_authority_tail_is_empty(self):
-        """An empty authority ledger is reported by the state check, not hidden."""
+    def test_state_checks_are_skipped_when_the_authority_tail_is_empty(self):
+        """An empty authority ledger is one GATE FAILED naming the authority.
+
+        The replica-state comparison is not run: it could only add a second,
+        misattributed failure ("Replica has no CaseLedgerEntry") for a fault
+        that sits with the writer (EDF-06-005).
+        """
         finder, auth = _client("finder"), _client("auth")
         mocks = _phase_patches(
             _get_log_entries_for_case=MagicMock(return_value=[]),
-            verify_replica_state=MagicMock(
-                side_effect=AssertionError("Replica has no CaseLedgerEntry")
-            ),
         )
         _run_phase(
             mocks,
@@ -513,9 +546,10 @@ class TestRunSyncVerificationPhase:
             ),
         )
         mocks["wait_for_contiguous_ledger_coverage"].assert_not_called()
-        mocks["verify_replica_state"].assert_called_once()
+        mocks["verify_replica_state"].assert_not_called()
         (failure,) = demo_utils._demo_failures
-        assert failure.startswith("CHECK FAILED")
+        assert failure.startswith("GATE FAILED")
+        assert auth.base_url in failure
 
     def test_state_check_failure_is_accumulated_with_authority_label(self):
         finder, auth = _client("finder"), _client("auth")

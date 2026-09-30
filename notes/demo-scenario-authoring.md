@@ -331,7 +331,11 @@ unit test. The guard was never missing; the single place to fix it was.
    actor id), the Finder, its replicas, late joiners, expected participant set,
    and which replica pairs to state-check. A replica whose coverage gate failed
    is not state-checked: the gate already recorded the failure and the
-   comparison would only cascade (EDF-06-005, #1911). Scenario-specific extras
+   comparison would only cascade (EDF-06-005, #1911). An authority with no
+   entries to cover is likewise one recorded failure naming the authority, and
+   no replica is state-checked — the writer is at fault, not the fan-out, so
+   the failure must not be left for a replica-side check to misattribute.
+   Scenario-specific extras
    — the two-actor fv scenario's check that the dedicated case-actor container
    stayed unused — follow the helper call as separate steps. A scenario with no
    participant expectation (fcv-reject) declares none and no participant wait

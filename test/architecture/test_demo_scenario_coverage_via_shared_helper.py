@@ -24,9 +24,11 @@ through ``wait_for_replica_ledger_coverage`` in ``vultron/demo/helpers/sync.py``
 module carried two copies of that loop, which is why one race-window fix had
 to touch most of them and why their timeouts drifted (Concern #3042).
 
-The forbidden names are the two primitives the spec itself lists.  Both a
-direct call and an import are flagged: an import is how the call gets there,
-and flake8 would only report it once it went unused.
+The forbidden names are the two primitives the spec itself lists.  A direct
+call, an import (however aliased) and any other reference to the name — a
+bound alias, an attribute read off the polling module, a ``functools.partial``
+argument — are all flagged: each is how the call gets there, and flake8 would
+only report the import once it went unused.
 
 Spec: ``specs/multi-actor-demo.yaml`` DEMOMA-23-005, DEMOMA-23-006, DEMOMA-23-007.
 """
@@ -59,19 +61,49 @@ def _callee_name(call: ast.Call) -> str:
     return getattr(func, "id", "")
 
 
-def _forbidden_references(tree: ast.AST) -> list[tuple[int, str, str]]:
-    """Return ``(line, kind, name)`` for every forbidden call or import."""
+def _call_and_import_hits(
+    tree: ast.AST,
+) -> tuple[list[tuple[int, str, str]], set[int]]:
+    """Forbidden names in call position or ``from … import``, plus callee ids."""
     hits: list[tuple[int, str, str]] = []
+    callees: set[int] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
+            callees.add(id(node.func))
             name = _callee_name(node)
             if name in _FORBIDDEN:
                 hits.append((node.lineno, "call", name))
         elif isinstance(node, ast.ImportFrom):
-            for alias in node.names:
-                if alias.name in _FORBIDDEN:
-                    hits.append((node.lineno, "import", alias.name))
-    return hits
+            hits.extend(
+                (node.lineno, "import", alias.name)
+                for alias in node.names
+                if alias.name in _FORBIDDEN
+            )
+    return hits, callees
+
+
+def _reference_name(node: ast.Name | ast.Attribute) -> str:
+    """The name a ``Name`` or ``Attribute`` node spells."""
+    return node.id if isinstance(node, ast.Name) else node.attr
+
+
+def _forbidden_references(tree: ast.AST) -> list[tuple[int, str, str]]:
+    """Return ``(line, kind, name)`` for every forbidden reference.
+
+    ``kind`` is ``"call"`` for a name in call position, ``"import"`` for a
+    ``from … import`` of the name (under any alias), and ``"reference"`` for
+    any other ``Name`` or ``Attribute`` that spells it — the forms a call is
+    smuggled through when it is not made directly.
+    """
+    hits, callees = _call_and_import_hits(tree)
+    hits.extend(
+        (node.lineno, "reference", _reference_name(node))
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Name, ast.Attribute))
+        and id(node) not in callees
+        and _reference_name(node) in _FORBIDDEN
+    )
+    return sorted(hits)
 
 
 _SCENARIO_TREES = {
@@ -140,6 +172,30 @@ def test_the_check_can_actually_fail():
         ("call", "_get_log_entries_for_case"),
         ("call", "wait_for_contiguous_ledger_coverage"),
         ("import", "_get_log_entries_for_case"),
+    ]
+
+
+def test_the_check_flags_smuggled_references():
+    """Guard: an aliased import, a bound name and an attribute read are hits."""
+    sample = _corpus.parse_inline(
+        "import functools\n"
+        "from vultron.demo.helpers import polling\n"
+        "from vultron.demo.helpers.sync import (\n"
+        "    _get_log_entries_for_case as read_tail,\n"
+        ")\n"
+        "def _phase_case_closure(client, case):\n"
+        "    wait = polling.wait_for_contiguous_ledger_coverage\n"
+        "    entries = read_tail(client, case.id_)\n"
+        "    later = functools.partial(\n"
+        "        polling.wait_for_contiguous_ledger_coverage, client=client\n"
+        "    )\n"
+        "    return wait, entries, later\n"
+    )
+    hits = _forbidden_references(sample)
+    assert sorted(h[1:] for h in hits) == [
+        ("import", "_get_log_entries_for_case"),
+        ("reference", "wait_for_contiguous_ledger_coverage"),
+        ("reference", "wait_for_contiguous_ledger_coverage"),
     ]
 
 

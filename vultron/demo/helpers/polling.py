@@ -1583,7 +1583,7 @@ def drain_phase1_ledger(
     auth_client: DataLayerClient,
     case_id: str,
     replica_pairs: list[tuple[DataLayerClient, str]],
-    timeout_seconds: float = 30.0,
+    timeout_seconds: float = LEDGER_COVERAGE_TIMEOUT,
 ) -> None:
     """Wait for each replica to reach the authoritative ledger tail.
 
@@ -1598,7 +1598,8 @@ def drain_phase1_ledger(
         case_id: Full URI of the ``as_VulnerabilityCase``.
         replica_pairs: ``(replica_client, label)`` pairs to check.  The label
             appears in gate descriptions and log messages.
-        timeout_seconds: Per-replica timeout.  Defaults to 30 s.
+        timeout_seconds: Per-replica budget.  Defaults to the shared
+            ``LEDGER_COVERAGE_TIMEOUT`` (EDF-06-008), never a literal.
     """
     from vultron.demo.helpers.sync import (  # noqa: PLC0415
         _get_log_entries_for_case,
@@ -1619,4 +1620,4 @@ def drain_phase1_ledger(
                 expected_tail_index=tail_index,
                 timeout_seconds=timeout_seconds,
             )
-        logger.info("  %s Phase 1 ledger synchronized", label)
+            logger.info("  %s Phase 1 ledger synchronized", label)

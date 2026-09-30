@@ -287,8 +287,11 @@ def wait_for_replica_ledger_coverage(
     Reads the authority's ``CaseLedgerEntry`` tail once, then polls each replica
     in *replicas* order until it holds indices ``0…tail`` (SYNC-10-004). When
     the authority holds no entries there is nothing to cover: every replica
-    wait is skipped and every replica counts as covered, so a dependent state
-    check still runs and reports the empty ledger loudly.
+    wait is skipped, one failure naming the *authority* is recorded in the same
+    demo context the waits would have used, and no replica counts as covered.
+    The fault is the writer's, not the fan-out's, so the failure must not be
+    left for a replica-side state check to report as "replication did not
+    complete" (EDF-06-005: one causal event, one recorded failure).
 
     This is the single implementation of the loop that every scenario module
     used to carry twice — once as the causal gate before the notes phase and
@@ -330,20 +333,26 @@ def wait_for_replica_ledger_coverage(
             ``demo_check``.
 
     Returns:
-        The replica clients whose wait passed, in *replicas* order. A caller
-        gating a dependent step on coverage (EDF-06-005) tests membership by
-        identity; a temporal caller ignores it.
+        The replica clients whose wait passed, in *replicas* order — empty when
+        the authority held nothing to cover. A caller gating a dependent step
+        on coverage (EDF-06-005) tests membership by identity; a temporal
+        caller ignores it.
     """
+    context = demo_gate if causal else demo_check
+    temporal = "" if causal else " — temporal wait (EDF-06-006)"
     entries = _get_log_entries_for_case(auth_client, case_id)
     if not entries:
-        logger.warning(
-            "Authority %s holds no ledger entries for case %s; skipping "
-            "replica coverage waits (%s)",
-            auth_client.base_url,
-            case_id,
-            phase_label,
-        )
-        return [client for client, _ in replicas]
+        with context(
+            f"authority {auth_client.base_url} holds ledger entries to cover "
+            f"({phase_label}){temporal}"
+        ):
+            raise AssertionError(
+                f"Authority {auth_client.base_url} holds no CaseLedgerEntry "
+                f"records for case {case_id!r}; nothing for "
+                f"{len(replicas)} replica(s) to cover — the writer, not "
+                "LedgerFanout replication, is at fault"
+            )
+        return []
     tail = max(entries, key=lambda e: e["log_index"])
     tail_index: int = tail["log_index"]
     logger.info(
@@ -352,8 +361,6 @@ def wait_for_replica_ledger_coverage(
         tail["entry_hash"][:16],
         tail_index,
     )
-    context = demo_gate if causal else demo_check
-    temporal = "" if causal else " — temporal wait (EDF-06-006)"
     covered: list[DataLayerClient] = []
     for replica_client, label in replicas:
         is_late = _client_in(replica_client, late_joiners)
@@ -401,9 +408,10 @@ def run_sync_verification_phase(
        *late_joiners* the extended participant-index budget (#2852).
     4. :func:`verify_replica_state` in a ``demo_check`` for each replica in
        *state_checks* whose coverage gate passed, against *auth_client*. A
-       replica whose coverage timed out already recorded a ``GATE FAILED``;
-       comparing its state would only add the cascading second failure #1911
-       and #2361 removed (EDF-06-005).
+       replica whose coverage timed out — or whose authority held nothing to
+       cover — already recorded a ``GATE FAILED``; comparing its state would
+       only add the cascading second failure #1911 and #2361 removed
+       (EDF-06-005).
 
     The helper declares no scenario facts of its own: which container is the
     authority, which replicas exist, who joined late, which participants are
