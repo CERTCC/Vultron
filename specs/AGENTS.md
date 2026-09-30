@@ -120,12 +120,20 @@ that bite most often:
   not infer a `kind` from the surrounding entries in the same file.
 - **`lint_suppress: [missing_story_reference]`** — a ratcheted escape hatch,
   not a free one. MS-12-007 pins the corpus-wide count to a ceiling that can
-  only fall, so adding a suppression fails the ratchet unless another one is
-  removed. If SR-11-003 fires on a new entry, the usual fix is a corrected
-  `kind:`, not a suppression.
+  only fall (the test is #3600's AC-4, not yet built), so adding a suppression
+  fails the ratchet unless another one is removed. If SR-11-003 fires on a new
+  entry, the usual fix is a corrected `kind:`, not a suppression.
 - **`priority:`** — underscores, not spaces: `MUST_NOT`, `SHOULD_NOT`. A space
   is a FATAL registry load error. A `MUST_NOT` is the MUST tier (MS-02-003), so
   it needs a `verification:` clause exactly as a `MUST` does (MS-10-003).
+- **`lint_suppress: [must_without_verification]`** — lowers nothing. Each kind's
+  count of unverified `MUST`/`MUST_NOT` items, suppressed ones included, is pinned
+  to the ceiling table in `vultron/metadata/specs/verification.py` (MS-10-006),
+  so a new one fails `test_must_verification_ratchet.py` until it carries a
+  `verification:` clause, and a backfill lowers the ceiling in the same change.
+  A kind with no table entry is at zero: an unverified MUST-tier item there is a
+  hard error (MS-10-007). `uv run spec-lint --list-unverified` names the IDs
+  behind each count.
 - **`rel_type:`** — one of the enumerated values; `related_to` is not among them.
 - **`references:`** — not a schema field, silently dropped. Use `adr:`.
 - **Item format is field presence, not a class you pick** (ADR-0101).

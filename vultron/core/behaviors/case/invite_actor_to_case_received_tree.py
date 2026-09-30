@@ -22,10 +22,9 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.lifecycle import (
+from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.report.nodes.storage import StoreActivityNode
 
 logger = logging.getLogger(__name__)
 
@@ -55,22 +54,17 @@ def create_reject_invite_actor_to_case_received_tree(
 
 
 def create_invite_actor_to_case_received_tree(
-    invite_id: str,
-    invite_obj: object,
     case_id: str,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for ``Invite(Actor, Case)`` on the CaseActor inbox.
 
-    Commits the canonical ``CaseLedgerEntry`` for the invite when the
-    receiving actor holds ``CVDRole.CASE_MANAGER`` (CLP-10-006), then
-    stores the Invite activity idempotently (CLP-10-001).  The tree is
-    composed by :func:`create_receive_activity_tree` which enforces the
-    ``precondition_guards → GuardedCommitCaseLedgerEntryBT → effect_nodes``
-    ordering (CLP-10-006).
+    Intake stores the Invite activity as received (CLP-10-017), then the
+    canonical ``CaseLedgerEntry`` for the invite is committed when the
+    receiving actor holds ``CVDRole.CASE_MANAGER`` (CLP-10-006).  The tree
+    has no effect nodes of its own: the per-tree ``StoreActivityNode`` it once
+    carried duplicated intake and was removed (CLP-10-019).
 
     Args:
-        invite_id: ID of the ``Invite(Actor, Case)`` activity.
-        invite_obj: The wire activity object to persist idempotently.
         case_id: ID of the VulnerabilityCase referenced by the invite.
 
     Returns:
@@ -80,11 +74,5 @@ def create_invite_actor_to_case_received_tree(
         name="InviteActorToCaseReceivedBT",
         case_id=case_id if case_id else None,
         precondition_guards=[],
-        effect_nodes=[
-            StoreActivityNode(
-                activity_id=invite_id,
-                activity_obj=invite_obj,
-                label="InviteActorToCase",
-            ),
-        ],
+        effect_nodes=[],
     )

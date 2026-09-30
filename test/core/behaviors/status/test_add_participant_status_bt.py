@@ -1001,7 +1001,9 @@ class TestAddParticipantStatusTree:
             if isinstance(case_before, CoreCase)
             else 0
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.SUCCESS
 
         p = populated_dl.read(PARTICIPANT_ID)
@@ -1519,9 +1521,7 @@ class TestRejectionValidatorBeforeCommit:
             actor=ACTOR_ID,
             context=as_VulnerabilityCase(id_=CASE_ID, name="Fix1 Regression"),
         )
-        event = make_payload(activity).model_copy(
-            update={"activity": activity}
-        )
+        event = make_payload(activity)
 
         bridge = self._bridge_with_factory(dl)
         tree = add_participant_status_tree(request=event, case_id=CASE_ID)

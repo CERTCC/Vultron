@@ -68,11 +68,15 @@ logger = logging.getLogger(__name__)
 DATALAYER_UNAVAILABLE = "DataLayer not available"
 DATALAYER_OR_ACTOR_UNAVAILABLE = "DataLayer or actor_id not available"
 TRIGGER_FACTORY_UNAVAILABLE = "trigger_activity_factory not available"
+# The received event was not placed on the blackboard (``activity=`` omitted
+# from ``execute_with_setup``): the intake node cannot record what arrived.
+ACTIVITY_UNAVAILABLE = "received activity not available"
 WIRING_UNAVAILABLE_MESSAGES = frozenset(
     {
         DATALAYER_UNAVAILABLE,
         DATALAYER_OR_ACTOR_UNAVAILABLE,
         TRIGGER_FACTORY_UNAVAILABLE,
+        ACTIVITY_UNAVAILABLE,
     }
 )
 

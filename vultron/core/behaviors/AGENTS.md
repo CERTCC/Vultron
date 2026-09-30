@@ -111,6 +111,26 @@ See `notes/participant-embargo-consent.md` § "Pitfall: Never Set
 
 ---
 
+## Received Trees: Four Stages, Intake First (ADR-0111)
+
+Every received tree is built by `create_receive_activity_tree`
+(`case/receive_activity_tree.py`): **intake → guards → guarded commit → effects**
+(CLP-10-006, CLP-10-010). The factory supplies `IntakeReceivedActivityNode`
+(`case/nodes/intake.py`) first. Intake **archives the mail** as a
+`ReceivedActivityRecord` keyed by the **receiver** (`build_id(sender_id)`, never
+the sender's id — a sender must not squat an id we derive), nothing else
+(CLP-10-017). An inline object (case, note, status, embargo) is a message shaped
+like a core object, not core's record — an effect node writes it from the event's
+copy after the guards; intake writing it would seed a replica ahead of trust
+(PCR-03-004). Never add a store node or helper for the received activity (CLP-10-019). Intake reads the `VultronEvent` from `/activity`: run any
+factory-built tree with `activity=<event>` or it fails with `ACTIVITY_UNAVAILABLE`.
+The commit runs only for a canonical `(type, object)` signature (CLP-10-013);
+`Update(VulnerabilityCase)` has none, so its tree passes `case_id=None`. Intake-only
+handlers report via `intake_verdict()`. Full write-up: `notes/bt-integration.md`
+§ "The Four Received-Side Stages".
+
+---
+
 ## Compose Before Create: Node Discovery Gate
 
 Before writing any new BT emit, send, or state-transition node in this
@@ -145,35 +165,15 @@ Specs: BTND-07-005, BTND-07-009, BTND-07-010, BTC-01-001.
 
 ## EM State Reads Must Use ReadEmStateNode; Writes Route Through EmbargoLifecycle
 
-**Never read `case.current_status.em` inline inside a BT node.**
-All EM state reads MUST go through `ReadEmStateNode`
-(`vultron/core/behaviors/embargo/nodes/em_state.py`).
-
-**Never write `case.current_status.em` directly inside a BT node** (EMB-18-001).
-All EM state writes MUST route through `EmbargoLifecycle`
-(`vultron/core/services/embargo_lifecycle/`) — the service owns the write.
-
-Direct field access (`case.current_status.em.state`) bypasses the canonical
-channel: the read is invisible to the BT audit trail and creates paths where
-state can diverge from what the canonical nodes report.
-`ReadEmStateNode` was introduced to centralize EM reads (AC-1, issue #1474);
-`WriteEmStateNode` was retired in issue #2712 — all writes now go through the
-service.
-
-**Pattern for reading EM state in an action node:**
-
-```python
-result_out: dict[str, object] = {}
-read_node = ReadEmStateNode(case_id=case_id, result_out=result_out)
-read_node.datalayer = self.datalayer
-if read_node.update() != Status.SUCCESS:
-    self.feedback_message = read_node.feedback_message
-    return Status.FAILURE
-current_em = result_out["em_before"]
-assert isinstance(current_em, EM)
-```
-
-Source: CONCERN-2559
+**Never read `case.current_status.em` inline inside a BT node** — go through
+`ReadEmStateNode` (`embargo/nodes/em_state.py`; AC-1, #1474). **Never write it
+directly** (EMB-18-001) — every EM write routes through `EmbargoLifecycle`
+(`vultron/core/services/embargo_lifecycle/`); `WriteEmStateNode` was retired
+in issue #2712. Direct field access bypasses the canonical channel: the read is
+invisible to the BT audit trail and lets state diverge from what the canonical
+nodes report. The in-node read pattern (a `ReadEmStateNode` with a `result_out`
+dict) is in `notes/embargo-lifecycle.md` § "Guidance for Agents". Source:
+CONCERN-2559
 
 ---
 
