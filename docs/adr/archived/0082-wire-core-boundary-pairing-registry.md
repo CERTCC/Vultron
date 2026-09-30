@@ -25,7 +25,7 @@ stakeholder_type: [project-contributor]
 > bottom layer") is the specific item ADR-0099 reverses, and issue #2933 was
 > its implementation.
 >
-> While ADR-0099 was `accepted-provisional` this ADR was only annotated as
+> Until ADR-0099 reached `accepted` this ADR was only annotated as
 > partially superseded and kept `status: accepted`; it was retired in full and
 > moved here when ADR-0099 reached `accepted` (#3492). The ARCH-23 requirements
 > that record the parts which landed and still hold (disjoint registry keys,
