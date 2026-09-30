@@ -20,7 +20,8 @@ Covers two async race patterns (Bugs #2134-adjacent and #2376):
 2. ``verify_publicly_disclosed`` — after ``actor_notifies_published`` returns
    HTTP 202, the CaseActor's ``Add(CaseStatus)`` broadcast may not have
    reached the reporter's DataLayer yet.  ``verify_publicly_disclosed`` must
-   poll for the reporter's pxa_state before asserting it (ADR-0058).
+   poll for pxa_state on every replica before asserting it (ADR-0058) —
+   the reporter's (#2376) and the receiver's (#3903).
 3. ``wait_for_participant_pxa_state`` — underlying pxa polling helper must
    retry until pxa_state is public-aware and raise on timeout.
 """
@@ -459,11 +460,28 @@ class TestWaitForParticipantPxaState:
                 )
 
 
-class TestVerifyPubliclyDisclosedPollsReporterPxa:
-    """verify_publicly_disclosed must poll reporter's pxa_state before asserting (Bug #2376)."""
+def _unaware_participant() -> MagicMock:
+    """A participant whose latest status has not yet reached public-aware."""
+    p = MagicMock()
+    object.__setattr__(p, "case_roles", [])
+    status = MagicMock()
+    cs = MagicMock()
+    cs.pxa_state = None
+    status.case_status = cs
+    p.participant_status = status
+    p.participant_statuses = [status]
+    return p
 
-    def test_calls_wait_for_participant_pxa_state_on_reporter(self):
-        """The pxa polling gate must be called with the reporter client, not the receiver."""
+
+class TestVerifyPubliclyDisclosedPollsEveryReplica:
+    """verify_publicly_disclosed polls pxa_state on every replica it asserts.
+
+    Bug #2376 gated only the reporter replica; Bug #3903 showed the receiver
+    replica races the same way — the CaseActor's ledger fan-out reaches each
+    replica independently, so an instant read of either can see ``None``.
+    """
+
+    def test_polls_pxa_state_on_both_replicas(self):
         receiver_client = MagicMock(name="receiver_client")
         reporter_client = MagicMock(name="reporter_client")
         receiver_client.get.return_value = _pxa_case_payload()
@@ -487,11 +505,119 @@ class TestVerifyPubliclyDisclosedPollsReporterPxa:
                 receiver_actor_id=_PXA_RECEIVER_ID,
             )
 
-        mock_poll.assert_called_once_with(
-            client=cast(DataLayerClient, reporter_client),
-            case_id=_PXA_CASE_ID,
-            actor_id=_PXA_RECEIVER_ID,
-        )
+        polled = [c.kwargs["client"] for c in mock_poll.call_args_list]
+        assert receiver_client in polled
+        assert reporter_client in polled
+        for c in mock_poll.call_args_list:
+            assert c.kwargs["case_id"] == _PXA_CASE_ID
+            assert c.kwargs["actor_id"] == _PXA_RECEIVER_ID
+
+    def test_polls_em_exited_on_both_replicas(self):
+        """EM.EXITED races the same fan-out, so it is polled per replica too."""
+        receiver_client = MagicMock(name="receiver_client")
+        reporter_client = MagicMock(name="reporter_client")
+
+        participant = _public_aware_participant(_PXA_RECEIVER_ID)
+
+        with (
+            patch(
+                "vultron.demo.helpers.milestones.wait_for_case_em_terminated"
+            ) as mock_em_poll,
+            patch(
+                "vultron.demo.helpers.milestones.wait_for_participant_pxa_state"
+            ),
+            patch(
+                "vultron.demo.helpers.milestones._fetch_participant",
+                return_value=participant,
+            ),
+        ):
+            verify_publicly_disclosed(
+                receiver_client=cast(DataLayerClient, receiver_client),
+                reporter_client=cast(DataLayerClient, reporter_client),
+                case_id=_PXA_CASE_ID,
+                receiver_actor_id=_PXA_RECEIVER_ID,
+            )
+
+        polled = [c.kwargs["client"] for c in mock_em_poll.call_args_list]
+        assert receiver_client in polled
+        assert reporter_client in polled
+        for c in mock_em_poll.call_args_list:
+            assert c.kwargs["case_id"] == _PXA_CASE_ID
+
+    def test_succeeds_when_receiver_replica_exits_em_late(self):
+        """The receiver replica still reads EM.ACTIVE for two polls."""
+        receiver_reads = 0
+
+        def _receiver_get(path: str) -> dict:
+            nonlocal receiver_reads
+            receiver_reads += 1
+            return _pxa_case_payload(
+                em_state="ACTIVE" if receiver_reads <= 2 else "EXITED"
+            )
+
+        receiver_client = MagicMock(name="receiver_client")
+        receiver_client.get.side_effect = _receiver_get
+        reporter_client = MagicMock(name="reporter_client")
+        reporter_client.get.return_value = _pxa_case_payload()
+
+        participant = _public_aware_participant(_PXA_RECEIVER_ID)
+
+        with (
+            patch(
+                "vultron.demo.helpers.milestones.wait_for_participant_pxa_state"
+            ),
+            patch(
+                "vultron.demo.helpers.milestones._fetch_participant",
+                return_value=participant,
+            ),
+            patch("vultron.demo.helpers.polling.time.sleep"),
+        ):
+            verify_publicly_disclosed(
+                receiver_client=cast(DataLayerClient, receiver_client),
+                reporter_client=cast(DataLayerClient, reporter_client),
+                case_id=_PXA_CASE_ID,
+                receiver_actor_id=_PXA_RECEIVER_ID,
+            )
+
+        assert receiver_reads > 2, "receiver replica must have been polled"
+
+    def test_succeeds_when_receiver_replica_applies_status_late(self):
+        """The receiver replica reads ``None`` for two polls, then catches up."""
+        receiver_client = MagicMock(name="receiver_client", base_url="r")
+        reporter_client = MagicMock(name="reporter_client", base_url="f")
+        receiver_client.get.return_value = _pxa_case_payload()
+        reporter_client.get.return_value = _pxa_case_payload()
+
+        public = _public_aware_participant(_PXA_RECEIVER_ID)
+        unaware = _unaware_participant()
+        receiver_reads = 0
+
+        def _fetch(client, case_id, actor_id):
+            nonlocal receiver_reads
+            if client is receiver_client:
+                receiver_reads += 1
+                return unaware if receiver_reads <= 2 else public
+            return public
+
+        with (
+            patch(
+                "vultron.demo.helpers.verification._fetch_participant",
+                side_effect=_fetch,
+            ),
+            patch(
+                "vultron.demo.helpers.milestones._fetch_participant",
+                side_effect=_fetch,
+            ),
+            patch("vultron.demo.helpers.polling.time.sleep"),
+        ):
+            verify_publicly_disclosed(
+                receiver_client=cast(DataLayerClient, receiver_client),
+                reporter_client=cast(DataLayerClient, reporter_client),
+                case_id=_PXA_CASE_ID,
+                receiver_actor_id=_PXA_RECEIVER_ID,
+            )
+
+        assert receiver_reads > 2, "receiver replica must have been polled"
 
 
 _IC_REPORT_ID = "urn:uuid:test-report-ic-0001"
