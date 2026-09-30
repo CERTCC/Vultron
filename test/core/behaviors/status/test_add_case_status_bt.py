@@ -749,7 +749,9 @@ class TestAddCaseStatusTree:
         bridge = BTBridge(datalayer=dl)
 
         with caplog.at_level(logging.WARNING):
-            result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+            result = bridge.execute_with_setup(
+                tree=tree, actor_id=ACTOR_ID, activity=event
+            )
         assert result.status == Status.SUCCESS
 
         pxa_refusals = [
@@ -802,7 +804,9 @@ class TestAddCaseStatusTree:
         bridge = BTBridge(datalayer=dl)
 
         with caplog.at_level(logging.WARNING):
-            result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+            result = bridge.execute_with_setup(
+                tree=tree, actor_id=ACTOR_ID, activity=event
+            )
         assert result.status == Status.SUCCESS
 
         em_refusals = [
