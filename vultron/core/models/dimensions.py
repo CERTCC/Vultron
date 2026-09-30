@@ -155,7 +155,7 @@ def _apply_transition(
     """
     for t in transitions:
         src = t.get("source")
-        if src != current_state and src != "*":
+        if src not in (current_state, "*"):
             continue
         if t.get("trigger") != trigger:
             continue
