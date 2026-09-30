@@ -154,10 +154,17 @@ before the CI loop:
    unless triage flagged it.
 4. Record the result in the artifact's `docs_refresh` block (see
    [REFERENCE.md](REFERENCE.md) § "Execute Artifact Schema").
+5. Add a `results` entry for every Phase 9 docs-currency finding this phase
+   owns, so `results` still covers every triage finding. A page update gets
+   `outcome: fixed` with the docs commit as `commit_ref`. A fix that only
+   rewrote the `Docs:` line (for example a placeholder replaced by
+   `Docs: no docs impact — …`) has no commit: record `commit_ref: null` and
+   `fix_kind: "pr-body"`, and `pr-verify` checks it against the live body.
 
 Phase 5's CI-fix commits land after this phase. Before Phase 6 writes the
-artifact, repeat steps 1–3 for any CI-fix commit, and add it to
-`docs_refresh.fix_commits_checked`.
+artifact, repeat steps 1–3 for any CI-fix commit, add it to
+`docs_refresh.fix_commits_checked`, and append any further docs commit to
+`docs_refresh.docs_commit_refs`.
 
 ### Phase 4 — Resolve Review Thread Comments
 

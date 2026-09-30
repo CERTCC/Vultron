@@ -173,8 +173,9 @@ Runs for every implementation or bug-fix PR (scope defined in
    | `updated <pages>; deferred to #N` | judge each half by the rows above | the worse of the two |
 
 3. Verify a deferral with
-   `gh issue view <N> --json state,body` and the issue type query in
-   `.agents/skills/shared/query-issue-type.sh`.
+   `gh issue view <N> --json state,stateReason,body` and the issue type query
+   in `.agents/skills/shared/query-issue-type.sh`. A closed issue passes only
+   with `stateReason: COMPLETED`; `NOT_PLANNED` fails.
 4. Name each affected page in the finding's `description`, so `pr-execute` can
    update it without re-running discovery.
 
@@ -248,6 +249,7 @@ File: `.claude/pr-{number}-triage.json`
   "pr_metadata": {
     "title": "...",
     "head_ref": "task/1234-slug",
+    "head_sha": "0123abc",
     "base_ref": "main",
     "linked_issues": [100, 101],
     "changed_files": ["vultron/core/behaviors/foo.py"],

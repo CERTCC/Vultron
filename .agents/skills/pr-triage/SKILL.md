@@ -79,8 +79,11 @@ grows the PR is simply `fix-now-file` (see the doctrine § "Clarity Over Size").
 2. Identify the target PR:
    - If a PR number was provided, use it.
    - Otherwise detect the PR for the current branch:
-     `gh pr view --json number,title,body,headRefName,baseRefName,files`
+     `gh pr view --json number,title,body,headRefName,headRefOid,baseRefName,files`
 3. Fetch PR metadata: title, body, linked issues, changed files, CI status.
+   Record `headRefOid` as `pr_metadata.head_sha` — the commit triage judged.
+   `pr-verify` treats every non-merge commit after it as an execute fix
+   commit.
 
 ### Phase 2 — Issue Linkage
 

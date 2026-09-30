@@ -135,9 +135,18 @@ will not link the issue in the sidebar and triage will flag a FAIL.
 Every implementation or bug-fix PR body carries a `Docs:` line (PD-03-008;
 scope defined in `.agents/skills/shared/pr-body-guide.md` § "Implementation PR
 rules"), whether the body was inferred above or supplied by the caller. Apply
-this whenever `type` is `implementation`, whether passed or inferred. If the body has no line
-beginning `Docs:`, insert this section immediately before `## Verification`
-(or at the end of the body if there is no Verification section):
+this whenever `type` is `implementation` (passed or inferred) **or** the
+closed issue is a `Task`, `Feature`, or `Bug` — a skill-only or docs-only PR
+that closes a Task is still in scope:
+
+```bash
+bash .agents/skills/shared/query-issue-type.sh <ISSUE_NUMBER> \
+  | jq -r '.data.repository.issue.issueType.name'
+```
+
+If the body has no line beginning `Docs:`, insert this section immediately
+before `## Verification` (or at the end of the body if there is no
+Verification section):
 
 ```markdown
 ## Docs
@@ -148,7 +157,8 @@ Docs: pending check-docs-sync
 A caller-supplied `Docs:` line is left as written. The placeholder is not a
 final value: the caller runs `check-docs-sync` after the push and replaces it
 with one of the final forms in `.agents/skills/shared/pr-body-guide.md`
-§ "Implementation PR rules". Docs PRs carry no `Docs:` line.
+§ "Implementation PR rules". A `docs` PR that closes no Task, Feature, or
+Bug issue carries no `Docs:` line.
 
 ---
 
