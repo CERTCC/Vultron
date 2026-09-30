@@ -132,7 +132,7 @@ def _demo_accumulate(
         yield
         logger.info(f"{on_pass} {description}")
     except Exception as exc:
-        logger.exception(f"{on_fail} {description}: {exc}")
+        logger.exception(f"{on_fail} {description}")
         _demo_failures.append(f"{prefix}: {description} — {exc}")
 
 

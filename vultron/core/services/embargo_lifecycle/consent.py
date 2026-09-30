@@ -128,10 +128,13 @@ class _ConsentOperationsMixin(_LifecycleBase):
                     )
                 )
                 changed = True
-        elif pec_trigger == PEC_Trigger.DECLINE and embargo_id is not None:
-            if embargo_id in participant.accepted_embargo_ids:
-                participant.accepted_embargo_ids.remove(embargo_id)
-                changed = True
+        elif (
+            pec_trigger == PEC_Trigger.DECLINE
+            and embargo_id is not None
+            and embargo_id in participant.accepted_embargo_ids
+        ):
+            participant.accepted_embargo_ids.remove(embargo_id)
+            changed = True
 
         if changed:
             self._persistence.save(participant)

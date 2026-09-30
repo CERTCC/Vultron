@@ -180,9 +180,11 @@ class AddCaseActorParticipantNode(DataLayerActionWithPorts):
         # register path, which hard-fails via _create_and_attach_participant
         # (returns None → FAILURE). Graceful ``is not None`` is intentional.
         stored_case = self.datalayer.read_case(case_id)
-        if stored_case is not None:
-            if self.actor_id in stored_case.actor_participant_index:
-                return Status.SUCCESS
+        if (
+            stored_case is not None
+            and self.actor_id in stored_case.actor_participant_index
+        ):
+            return Status.SUCCESS
 
         return self._register_participant(case_id)
 
@@ -262,16 +264,18 @@ class AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
         # truly-absent case falls through to _create_and_attach_participant
         # below, which hard-fails (returns None → FAILURE at the guard).
         stored_case = self.datalayer.read_case(case_id)
-        if stored_case is not None:
-            if self._vendor_uri in stored_case.actor_participant_index:
-                logger.debug(
-                    "%s: vendor '%s' already in actor_participant_index"
-                    " for case '%s' — skipping",
-                    self.name,
-                    self._vendor_uri,
-                    case_id,
-                )
-                return Status.SUCCESS
+        if (
+            stored_case is not None
+            and self._vendor_uri in stored_case.actor_participant_index
+        ):
+            logger.debug(
+                "%s: vendor '%s' already in actor_participant_index"
+                " for case '%s' — skipping",
+                self.name,
+                self._vendor_uri,
+                case_id,
+            )
+            return Status.SUCCESS
 
         # Roles come from the local ActorConfig (CFG-07-002, CFG-07-004) so
         # role guards (e.g. CheckVendorRoleNode) work for vendors without

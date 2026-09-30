@@ -59,9 +59,10 @@ def state_in(
     """
 
     def func(obj: BtNode) -> bool:
-        f"""True if the node's blackboard[{key}] == {state}"""
         return bool(getattr(obj.bb, key) == state)
 
+    # A docstring cannot be an f-string; the node factory reads __doc__.
+    func.__doc__ = f"True if the node's blackboard[{key}] == {state}"
     node_cls = condition_check(f"{key}_in_{state}", func)
 
     return node_cls

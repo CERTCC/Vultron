@@ -229,9 +229,11 @@ class _UseCaseCorpus:
         """True if any ``execute()`` in *module* reaches a DL write in-package."""
         index = self._modules[module]
         for cls, methods in index.methods.items():
-            if (execute := methods.get("execute")) is not None:
-                if self._reaches_mutation(module, cls, execute, set()):
-                    return True
+            execute = methods.get("execute")
+            if execute is not None and self._reaches_mutation(
+                module, cls, execute, set()
+            ):
+                return True
         return False
 
     def _reaches_mutation(

@@ -17,7 +17,8 @@ ROOT = Path(__file__).resolve().parent.parent
 SPECS_DIR = ROOT / "specs"
 sys.path.insert(0, str(ROOT))
 
-from vultron.metadata.specs.registry import (
+# Runs as a bare script: the import needs the sys.path entry above.
+from vultron.metadata.specs.registry import (  # noqa: E402
     effective_kind,
     load_registry,
 )

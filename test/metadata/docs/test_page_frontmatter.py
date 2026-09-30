@@ -81,7 +81,9 @@ class TestPageSchema:
 
     @pytest.mark.parametrize("level", [150, 0, 600, "100", 100.0, True])
     def test_level_off_the_ladder(self, level):
-        with pytest.raises(MetadataLoadError, match="level: .*must be one of"):
+        with pytest.raises(
+            MetadataLoadError, match=r"level: .*must be one of"
+        ):
             validate(
                 PageFrontmatter,
                 {"stakeholder_type": ["cvd-practitioner"], "level": level},

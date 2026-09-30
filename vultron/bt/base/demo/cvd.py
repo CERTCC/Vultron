@@ -92,8 +92,7 @@ def _run_simulation() -> bool:
             CVDRolesFlag.FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
         )
 
-        for tick in range(1000):
-            tick += 1
+        for tick in range(1, 1001):
             logger.debug(f"# tick {tick} #")
             tree.tick()
 

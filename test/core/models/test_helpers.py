@@ -34,11 +34,14 @@ def _imports_from_use_cases(path: str) -> list[str]:
     tree = ast.parse(src)
     violations = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            if node.module and "use_cases" in node.module:
-                violations.append(
-                    f"line {node.lineno}: from {node.module} import ..."
-                )
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and "use_cases" in node.module
+        ):
+            violations.append(
+                f"line {node.lineno}: from {node.module} import ..."
+            )
     return violations
 
 

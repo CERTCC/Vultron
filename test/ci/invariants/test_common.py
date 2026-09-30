@@ -107,7 +107,7 @@ def test_log_index_rejects_missing_and_negative(entry):
 
 
 def test_log_index_message_names_event_type_for_non_integer():
-    with pytest.raises(ValueError, match="'noop'.*non-integer"):
+    with pytest.raises(ValueError, match=r"'noop'.*non-integer"):
         common.log_index({"logIndex": "x", "eventType": "noop"})
 
 

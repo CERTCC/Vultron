@@ -42,7 +42,6 @@ def cs_state_change(
     """
 
     def _func(obj: BtNode) -> bool:
-        f"""Transition to the target state {target_state}"""
         # get the current state name
         current_state_name = obj.bb.q_cs.name
 
@@ -69,6 +68,8 @@ def cs_state_change(
         # action node functions return True for success
         return True
 
+    # A docstring cannot be an f-string; the node factory reads __doc__.
+    _func.__doc__ = f"Transition to the target state {target_state}"
     node_cls = action_node(name, _func)
     # add the target state as a class attribute (for testing)
     cast(Any, node_cls).target_state = target_state

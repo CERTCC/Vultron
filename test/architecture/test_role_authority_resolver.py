@@ -281,9 +281,10 @@ def _references_name(tree: ast.AST, name: str) -> bool:
             return True
         if isinstance(node, ast.Attribute) and node.attr == name:
             return True
-        if isinstance(node, ast.ImportFrom):
-            if any(alias.name == name for alias in node.names):
-                return True
+        if isinstance(node, ast.ImportFrom) and any(
+            alias.name == name for alias in node.names
+        ):
+            return True
     return False
 
 

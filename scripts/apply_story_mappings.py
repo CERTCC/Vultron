@@ -88,7 +88,7 @@ def apply_file_mappings(
             continue
 
         # Check it doesn't already have stories: (shouldn't, but guard)
-        if any(re.match(r"^\s+stories:", l) for l in item_lines):
+        if any(re.match(r"^\s+stories:", line) for line in item_lines):
             result.extend(item_lines)
             skipped += 1
             continue

@@ -204,7 +204,9 @@ def main():
     # check if parent dir exists
     parent_dir = os.path.abspath(os.path.dirname(outdir))
     if not os.path.exists(parent_dir):
-        raise Exception(f"Parent directory {parent_dir} does not exist")
+        raise FileNotFoundError(
+            f"Parent directory {parent_dir} does not exist"
+        )
 
     os.makedirs(outdir, exist_ok=True)
 

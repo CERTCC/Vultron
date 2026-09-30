@@ -179,9 +179,10 @@ def find_priority_comparisons(
                 literals.is_literal(n) for n in (node.left, *node.comparators)
             ):
                 hits.append((node.lineno, ast.unparse(node)))
-        elif isinstance(node, ast.MatchValue):
-            if literals.is_literal(node.value):
-                hits.append((node.lineno, f"case {ast.unparse(node)}"))
+        elif isinstance(node, ast.MatchValue) and literals.is_literal(
+            node.value
+        ):
+            hits.append((node.lineno, f"case {ast.unparse(node)}"))
     return hits
 
 

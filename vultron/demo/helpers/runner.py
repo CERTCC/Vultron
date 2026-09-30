@@ -90,7 +90,7 @@ def run_exchange_demos(
             assert_demo_success()
         except Exception as e:
             _note_accumulated_failures(e)
-            logger.exception("%s failed: %s", demo_name, e)
+            logger.exception("%s failed", demo_name)
             errors.append((demo_name, str(e)))
 
     logger.info("=" * 80)

@@ -135,7 +135,7 @@ def insert_stories_in_yaml(
             # Insert stories: if this spec needs it and doesn't already have one
             if spec_id in spec_to_stories:
                 has_stories = any(
-                    re.match(r"^\s+stories:", l) for l in item_lines
+                    re.match(r"^\s+stories:", line) for line in item_lines
                 )
                 if not has_stories:
                     stories = spec_to_stories[spec_id]
@@ -239,7 +239,7 @@ def insert_suppress_in_yaml(yaml_path: Path, to_suppress: set[str]) -> int:
             if spec_id in to_suppress:
                 # Check if already suppressed
                 already_suppressed = any(
-                    _SUPPRESS_ITEM_RE.match(l) for l in item_lines
+                    _SUPPRESS_ITEM_RE.match(line) for line in item_lines
                 )
                 if not already_suppressed:
                     # Find existing lint_suppress: block

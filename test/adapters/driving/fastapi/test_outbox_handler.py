@@ -52,8 +52,12 @@ def _make_queue(*ids: str) -> list[str]:
     return list(ids)
 
 
+# Stand-in actor for the resolved-actor default; ``None`` means "not found".
+_STUB_ACTOR = SimpleNamespace()
+
+
 def _mock_dl_with_queue(
-    queue: list[str], actor: SimpleNamespace | None = SimpleNamespace()
+    queue: list[str], actor: SimpleNamespace | None = _STUB_ACTOR
 ) -> MagicMock:
     """Return a MagicMock DataLayer backed by ``queue`` for outbox ops."""
     mock_dl = MagicMock()

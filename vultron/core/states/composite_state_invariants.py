@@ -250,14 +250,13 @@ def composite_state_violations(
         combination violates both.
     """
     violations: list[EntailmentViolation] = []
-    if vf is not None:
-        if (msg := violation_rm_vf_entailment(rm, vf)) is not None:
-            violations.append(
-                EntailmentViolation("vf", msg, reads=("rm", "vf"))
-            )
-    if d is not None:
-        if (msg := violation_rm_d_entailment(rm, d)) is not None:
-            violations.append(EntailmentViolation("d", msg, reads=("rm", "d")))
+    if (
+        vf is not None
+        and (msg := violation_rm_vf_entailment(rm, vf)) is not None
+    ):
+        violations.append(EntailmentViolation("vf", msg, reads=("rm", "vf")))
+    if d is not None and (msg := violation_rm_d_entailment(rm, d)) is not None:
+        violations.append(EntailmentViolation("d", msg, reads=("rm", "d")))
     if (msg := violation_vf_d_entailment(vf, d)) is not None:
         # VF↔D constrains a pair: `d` is preferred (deployment is the dependent
         # claim), but refusing `vf` resolves the same contradiction when `vf` is

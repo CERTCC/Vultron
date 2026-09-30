@@ -269,7 +269,7 @@ class CaseParticipant(CoreObject):
             )
             if raise_when_missing:
                 raise KeyError(
-                    f"Role {role} was not present to delete from participant.case_roles"
+                    f"Role {role} was not present in participant.case_roles"
                 )
         self.case_roles = list(roles)
         self._sync_latest_status_metadata()

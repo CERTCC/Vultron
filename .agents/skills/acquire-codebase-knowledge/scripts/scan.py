@@ -856,7 +856,7 @@ def main():
         # Linting config
         lint = find_lint_config()
         if lint:
-            lint_content = [f"Found: {l}" for l in lint]
+            lint_content = [f"Found: {path}" for path in lint]
             print_section(
                 "LINTING AND FORMATTING CONFIG", lint_content, output_file
             )

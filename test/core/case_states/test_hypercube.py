@@ -34,8 +34,8 @@ class MyTestCase(unittest.TestCase):
         for p, x, a in product("pP", "xX", "aA"):
             s = "".join([p, x, a])
             for allowed in ["vfd", "Vfd", "VFd", "VFD"]:
-                a = f"{allowed}{s}"
-                self.assertIn(a, states)
+                state = f"{allowed}{s}"
+                self.assertIn(state, states)
                 count += 1
             for disallowed in ["vFd", "vfD", "vFD", "VfD"]:
                 d = f"{disallowed}{s}"

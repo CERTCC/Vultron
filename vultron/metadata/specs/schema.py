@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 from enum import StrEnum
-from typing import Annotated, Union
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
 
@@ -378,7 +378,7 @@ class BehavioralSpec(StatementSpec):
         return v
 
 
-Spec = Union[BehavioralSpec, StatementSpec]
+Spec = BehavioralSpec | StatementSpec
 
 
 class SpecGroup(BaseModel):

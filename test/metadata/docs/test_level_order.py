@@ -385,7 +385,7 @@ class TestTargetSet:
         root = make_repo(tmp_path, {})
         (root / "docs" / "reference" / "glossary.md").unlink()
 
-        with pytest.raises(MetadataLoadError, match="glossary.*is missing"):
+        with pytest.raises(MetadataLoadError, match=r"glossary.*is missing"):
             check_level_order(root, baseline={})
 
 

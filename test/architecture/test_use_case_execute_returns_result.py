@@ -244,7 +244,8 @@ def _check(source: str) -> list[str]:
         "_SampleResult": _SampleResult,
         "UseCaseResult": UseCaseResult,
     }
-    exec(compile(source, "<sample>", "exec"), namespace)
+    # Executes the test's own inline sample source, never external input.
+    exec(compile(source, "<sample>", "exec"), namespace)  # noqa: S102
     return _violations_in(
         _corpus.parse_inline(source),
         lambda class_name: _return_hint(namespace, class_name),

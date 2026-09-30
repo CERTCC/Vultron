@@ -499,9 +499,10 @@ def test_mkdocs_keeps_directory_urls() -> None:
     renders would break — silently, since nothing validates those links. Pinned
     here because the assumption lives in a renderer, far from ``mkdocs.yml``.
     """
+    # mkdocs.yml carries !!python/name tags; the file is the repository's own.
     config = yaml.load(
         (_REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8"),
-        Loader=MkDocsYamlLoader,
+        Loader=MkDocsYamlLoader,  # noqa: S506
     )
     assert config.get("use_directory_urls", True) is True, (
         "use_directory_urls is disabled, so built pages are '<name>.html' and "

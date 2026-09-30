@@ -1414,7 +1414,7 @@ class TestDiscovery:
 
     def test_no_matching_files_raises(self, tmp_path):
         (tmp_path / "empty").mkdir()
-        with pytest.raises(ReportError, match="No.*files found"):
+        with pytest.raises(ReportError, match=r"No.*files found"):
             discover_replicas(tmp_path)
 
     def test_parse_error_raises(self, tmp_path):

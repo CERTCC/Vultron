@@ -89,11 +89,12 @@ def _count_broad_excepts_outside_update(tree: ast.AST) -> int:
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 visit(child, child.name == _SANCTIONED_METHOD)
             else:
-                if isinstance(child, ast.ExceptHandler) and _is_broad_except(
-                    child
+                if (
+                    isinstance(child, ast.ExceptHandler)
+                    and _is_broad_except(child)
+                    and not enclosing_is_update
                 ):
-                    if not enclosing_is_update:
-                        count += 1
+                    count += 1
                 visit(child, enclosing_is_update)
 
     visit(tree, False)

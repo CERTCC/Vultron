@@ -205,7 +205,7 @@ def test_wait_for_case_participants_does_not_count_id_strings():
     client = MagicMock()
     client.get.return_value = case_payload
 
-    with pytest.raises(AssertionError, match="[Tt]imed out"):
+    with pytest.raises(AssertionError, match=r"[Tt]imed out"):
         wait_for_case_participants(
             vendor_client=cast(DataLayerClient, client),
             case_id=_CASE_ID,

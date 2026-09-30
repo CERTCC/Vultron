@@ -368,15 +368,13 @@ def load_devlogs(
     manifest_case_ids = {m.get("caseId") for m in manifests if m.get("caseId")}
     if len(manifest_case_ids) == 1:
         (filter_id,) = manifest_case_ids
-        for actor in replicas:
-            replicas[actor] = [
-                e for e in replicas[actor] if case_id(e) == filter_id
-            ]
+        for actor, entries in replicas.items():
+            replicas[actor] = [e for e in entries if case_id(e) == filter_id]
 
     _fail_on_invalid_log_indices(replicas)
 
-    for actor in replicas:
-        replicas[actor] = sorted(replicas[actor], key=log_index)
+    for actor, entries in replicas.items():
+        replicas[actor] = sorted(entries, key=log_index)
 
     return replicas
 

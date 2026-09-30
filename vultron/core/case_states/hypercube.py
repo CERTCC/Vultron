@@ -555,16 +555,16 @@ class CVDmodel:
             for d, is_met in D_h.items():
                 # d is a tuple of A,B where A<B
                 # is_met is true/false, we want it as an int
-                is_met = int(is_met)
+                met = int(is_met)
 
                 # simple unweighted history-vs-desiderata columns
                 col = "<".join(d)
-                row[col] = is_met
+                row[col] = met
                 d_cols.add(col)
 
                 # history-vs-desiderata columns weighted by history likelihood
                 col2 = f"w{col}"
-                row[col2] = p * is_met
+                row[col2] = p * met
                 w_cols.add(col2)
 
             data.append(row)
@@ -585,8 +585,7 @@ class CVDmodel:
 
         f_d = {}
         for k, v in _f_d.items():
-            k = k.replace("w", "")
-            a, b = k.split("<")
+            a, b = k.replace("w", "").split("<")
             new_k = (a, b)
             f_d[new_k] = v
 

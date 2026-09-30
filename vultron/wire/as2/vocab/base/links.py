@@ -49,7 +49,7 @@ class as_Link(as_Base):
     hreflang: str | None = None
 
 
-T = TypeVar("T", covariant=True)
+T_co = TypeVar("T_co", covariant=True)
 
 # The IRI branch of every reference union is ``NonEmptyString`` (CS-08-001,
 # CS-08-002): a blank string names no resource, so it is refused inbound rather
@@ -58,13 +58,13 @@ T = TypeVar("T", covariant=True)
 # (``vultron.core.models._helpers.strip_annotated``) instead of testing
 # ``is str``.
 
-# an ActivityStreamRequiredRef is an object of type T, a Link, or a non-empty
+# an ActivityStreamRequiredRef is an object of type T_co, a Link, or a non-empty
 # string (IRI)
-ActivityStreamRequiredRef: TypeAlias = T | as_Link | NonEmptyString
+ActivityStreamRequiredRef: TypeAlias = T_co | as_Link | NonEmptyString
 
-# an ActivityStreamRef can be an object of type T, a Link, a non-empty string
+# an ActivityStreamRef can be an object of type T_co, a Link, a non-empty string
 # (IRI), or None (for optional fields)
-ActivityStreamRef: TypeAlias = T | as_Link | NonEmptyString | None
+ActivityStreamRef: TypeAlias = T_co | as_Link | NonEmptyString | None
 
 
 def main():
