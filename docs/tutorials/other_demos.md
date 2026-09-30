@@ -255,6 +255,42 @@ sequenceDiagram
 
 See [How to Establish an Embargo](../howto/activitypub/activities/establish_embargo.md) for background.
 
+### report-with-embargo
+
+```bash
+vultron-demo report-with-embargo
+```
+
+This demo exercises the negotiated embargo path, which no other demo reaches.
+The Reporter proposes embargo terms *with* the report: the Report Submission (RS), `Offer(VulnerabilityReport)`, carries a proposed `EmbargoEvent` as `proposedEmbargo`, sent through the `submit-report` trigger's `proposed_embargo_end_time`.
+The recipient's default is the `EmbargoPolicy` published on the CaseActor that creates its cases, through `PUT /actors/{actor_id}/embargo-policy`.
+When the case is created, the shorter of the two becomes the active embargo and the longer is left pending as a revision, so the EM state is `REVISE`; when the recipient has published no default, the Reporter's terms apply at their stated length and the EM state is `ACTIVE`.
+No proposal exchange is visible on the wire: the comparison is settled at case creation.
+
+```mermaid
+---
+title: report-with-embargo — shortest terms win at case creation
+---
+sequenceDiagram
+    participant R as Reporter
+    participant V as Vendor
+    participant CA as CaseActor
+
+    CA->>CA: Publish EmbargoPolicy (30 days)
+    R->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport) + proposedEmbargo
+    V->>CA: Create(CaseProposal)<br/>carrying the Offer
+    alt Reporter proposes 10 days
+        Note over CA: Reporter's terms ACTIVE<br/>30-day default pending, EM = REVISE
+    else Reporter proposes 60 days
+        Note over CA: 30-day default ACTIVE<br/>Reporter's terms pending, EM = REVISE
+    else No policy published
+        Note over CA: Reporter's terms ACTIVE<br/>nothing pending, EM = ACTIVE
+    end
+    CA->>V: Create(VulnerabilityCase)
+```
+
+See [How to Report a Vulnerability](../howto/activitypub/activities/report_vulnerability.md#submit-a-report) for the Offer that carries the terms, and [Default Embargoes](../topics/process_models/em/defaults.md) for why the shorter terms win.
+
 ### manage-embargo
 
 ```bash
