@@ -245,7 +245,7 @@ def load_requirements(spec_dir: Path) -> list[Requirement]:
             group.id,
             file.id,
             " ".join(spec.statement.split()),
-            spec.priority.value,
+            spec.priority,
         )
         for file in registry.files
         for group in file.groups

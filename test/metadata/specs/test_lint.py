@@ -5,9 +5,17 @@ mismatch) and advisory warnings (testable_without_steps, rationale_too_long,
 missing_tags) including lint_suppress suppression.
 """
 
+import sys
+
+import pytest
 import yaml
 
+import vultron.metadata.specs.lint as lint_module
 from vultron.metadata.specs.lint import lint
+from vultron.metadata.specs.schema import SpecKind
+from vultron.metadata.specs.verification import VerificationCeiling
+
+from test.metadata.specs.conftest import spec_file_data
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -204,61 +212,255 @@ def test_lint_suppress_missing_tags(tmp_path, capsys):
     assert "no tags" not in captured.out
 
 
-def test_lint_must_without_verification_warns(tmp_path, capsys):
-    """MUST requirement with no verification: field emits advisory warning."""
-    data = _minimal_spec(priority="MUST")
-    _write_yaml(tmp_path, data)
-    result = lint(tmp_path)
+# ---------------------------------------------------------------------------
+# MS-10-005 / MS-10-006 / MS-10-007: MUST-tier requirements with no verification:
+# ---------------------------------------------------------------------------
+
+
+def _verification_corpus(items):
+    """Rows with tags and a story, so only verification: is under test."""
+    rows = [
+        (
+            spec_id,
+            priority,
+            kind,
+            {"tags": ["testing"], "stories": ["story_2022_001"], **extra},
+        )
+        for spec_id, priority, kind, extra in items
+    ]
+    return spec_file_data(rows)
+
+
+_MIXED_ITEMS = [
+    ("TST-01-001", "MUST", "protocol", {}),
+    ("TST-01-002", "MUST_NOT", "protocol", {}),
+    ("TST-01-003", "MUST", "protocol", {"verification": "Checked by a test."}),
+    ("TST-01-004", "MUST_NOT", "process", {}),
+    ("TST-01-005", "SHOULD", "process", {}),
+    ("TST-01-006", "SHOULD_NOT", "architecture", {}),
+    ("TST-01-007", "MAY", "project", {}),
+]
+
+_MIXED_CEILINGS = {
+    SpecKind.PROTOCOL: VerificationCeiling(2, ("#1",)),
+    SpecKind.PROCESS: VerificationCeiling(1, ("#2",)),
+}
+
+
+def _summary_lines(out):
+    return [ln for ln in out.splitlines() if "must_without_verification" in ln]
+
+
+@pytest.mark.spec("MS-10-005")
+def test_lint_one_summary_line_per_kind_with_correct_count_and_ceiling(
+    tmp_path, capsys
+):
+    """MUST and MUST_NOT both count; one line per kind, count beside ceiling."""
+    _write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
+    result = lint(tmp_path, ceilings=_MIXED_CEILINGS)
     captured = capsys.readouterr()
     assert result == 0
-    assert "[WARN]" in captured.out
-    assert "must_without_verification" in captured.out
+    lines = _summary_lines(captured.out)
+    assert len(lines) == 2
+    protocol = next(ln for ln in lines if "kind=protocol" in ln)
+    process = next(ln for ln in lines if "kind=process" in ln)
+    assert "2 MUST-tier requirement(s)" in protocol
+    assert "(ceiling 2; owner #1)" in protocol
+    assert "1 MUST-tier requirement(s)" in process
+    assert "(ceiling 1; owner #2)" in process
 
 
-def test_lint_must_with_verification_no_warn(tmp_path, capsys):
-    """MUST requirement that has a verification: field does not warn."""
-    data = _minimal_spec(
-        priority="MUST",
-        extra={"verification": "Run the unit tests; assert no hard errors."},
+@pytest.mark.spec("MS-10-005")
+def test_lint_default_output_has_no_per_item_unverified_lines(
+    tmp_path, capsys
+):
+    """No `[WARN] <id>: priority is MUST but has no verification` lines."""
+    _write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
+    lint(tmp_path, ceilings=_MIXED_CEILINGS)
+    out = capsys.readouterr().out
+    assert "TST-01-001" not in out
+    assert "TST-01-002" not in out
+    assert "TST-01-004" not in out
+
+
+@pytest.mark.spec("MS-10-005")
+def test_lint_list_unverified_prints_ids_under_their_kind(tmp_path, capsys):
+    """The opt-in flag lists offending IDs; verified and SHOULD-tier ones stay out."""
+    _write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
+    lint(tmp_path, ceilings=_MIXED_CEILINGS, list_unverified=True)
+    out = capsys.readouterr().out
+    assert "TST-01-001" in out
+    assert "TST-01-002" in out
+    assert "TST-01-004" in out
+    assert "TST-01-003" not in out  # verified
+    assert "TST-01-005" not in out  # SHOULD tier
+    assert "TST-01-006" not in out  # SHOULD tier
+    assert "TST-01-007" not in out  # MAY
+    # IDs sit under their kind's summary line, not before it.
+    lines = out.splitlines()
+    protocol_at = next(
+        i for i, ln in enumerate(lines) if "kind=protocol" in ln
     )
-    _write_yaml(tmp_path, data)
-    result = lint(tmp_path)
-    captured = capsys.readouterr()
-    assert result == 0
-    assert "must_without_verification" not in captured.out
+    assert lines[protocol_at + 1].strip() == "TST-01-001"
+    assert lines[protocol_at + 2].strip() == "TST-01-002"
 
 
-def test_lint_should_without_verification_no_warn(tmp_path, capsys):
-    """SHOULD requirement with no verification: field does not trigger the MUST warning."""
-    data = _minimal_spec(priority="SHOULD")
-    _write_yaml(tmp_path, data)
-    result = lint(tmp_path)
-    captured = capsys.readouterr()
-    assert result == 0
-    assert "must_without_verification" not in captured.out
+@pytest.mark.spec("MS-10-005")
+def test_lint_kind_with_entry_prints_its_line_even_at_zero_items(
+    tmp_path, capsys
+):
+    """A kind with a ceiling entry but no unverified items still gets its line;
+    a kind with neither prints nothing."""
+    _write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
+    ceilings = dict(_MIXED_CEILINGS)
+    ceilings[SpecKind.ARCHITECTURE] = VerificationCeiling(0)
+    lint(tmp_path, ceilings=ceilings)
+    lines = _summary_lines(capsys.readouterr().out)
+    assert any("kind=architecture: 0 MUST-tier" in ln for ln in lines)
+    assert not any("kind=project" in ln for ln in lines)
 
 
-def test_lint_suppress_must_without_verification(tmp_path, capsys):
-    """lint_suppress: [must_without_verification] silences the advisory."""
-    data = _minimal_spec(
-        priority="MUST",
-        extra={"lint_suppress": ["must_without_verification"]},
+@pytest.mark.spec("MS-10-006")
+def test_lint_summary_counts_suppressed_items(tmp_path, capsys):
+    """lint_suppress: [must_without_verification] does not lower the count."""
+    items = [
+        ("TST-01-001", "MUST", "protocol", {}),
+        (
+            "TST-01-002",
+            "MUST_NOT",
+            "protocol",
+            {"lint_suppress": ["must_without_verification"]},
+        ),
+    ]
+    _write_yaml(tmp_path, _verification_corpus(items))
+    ceilings = {SpecKind.PROTOCOL: VerificationCeiling(2, ("#1",))}
+    lint(tmp_path, ceilings=ceilings, list_unverified=True)
+    out = capsys.readouterr().out
+    assert "2 MUST-tier requirement(s)" in out
+    assert "TST-01-002  (lint_suppress, still counted)" in out
+
+
+@pytest.mark.spec("MS-10-005")
+def test_lint_summary_says_when_count_differs_from_ceiling(tmp_path, capsys):
+    """A new unverified MUST shows up as a count above the pinned ceiling."""
+    _write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
+    ceilings = {
+        SpecKind.PROTOCOL: VerificationCeiling(1, ("#1",)),
+        SpecKind.PROCESS: VerificationCeiling(1, ("#2",)),
+    }
+    result = lint(tmp_path, ceilings=ceilings)
+    out = capsys.readouterr().out
+    assert result == 0  # the two-sided pin is the ratchet test's job
+    protocol = next(ln for ln in _summary_lines(out) if "kind=protocol" in ln)
+    assert protocol.startswith("[WARN]")
+    assert "2 MUST-tier requirement(s)" in protocol
+    assert "(ceiling 1;" in protocol
+    assert "differs from the ceiling" in protocol
+    process = next(ln for ln in _summary_lines(out) if "kind=process" in ln)
+    assert process.startswith("[INFO]")
+
+
+@pytest.mark.parametrize("priority", ["SHOULD", "SHOULD_NOT", "MAY"])
+def test_lint_should_tier_without_verification_not_counted(
+    tmp_path, capsys, priority
+):
+    """Only the MUST tier owes a verification: field (MS-10-003)."""
+    _write_yaml(
+        tmp_path,
+        _verification_corpus([("TST-01-001", priority, "protocol", {})]),
     )
-    _write_yaml(tmp_path, data)
-    result = lint(tmp_path)
+    result = lint(tmp_path, ceilings={})
     captured = capsys.readouterr()
     assert result == 0
     assert "must_without_verification" not in captured.out
+    assert "must_without_verification" not in captured.err
 
 
-def test_lint_must_not_without_verification_no_warn(tmp_path, capsys):
-    """MUST_NOT requirement does not trigger the MUST verification warning."""
-    data = _minimal_spec(priority="MUST_NOT")
-    _write_yaml(tmp_path, data)
-    result = lint(tmp_path)
+@pytest.mark.spec("MS-10-007")
+@pytest.mark.parametrize("priority", ["MUST", "MUST_NOT"])
+@pytest.mark.parametrize("suppressed", [False, True])
+def test_lint_unverified_must_tier_is_hard_error_without_ceiling(
+    tmp_path, capsys, priority, suppressed
+):
+    """A kind at zero has no ceiling entry; an unverified MUST or MUST_NOT is
+    then a hard error, and lint_suppress cannot silence it."""
+    extra = (
+        {"lint_suppress": ["must_without_verification"]} if suppressed else {}
+    )
+    _write_yaml(
+        tmp_path,
+        _verification_corpus([("TST-01-001", priority, "protocol", extra)]),
+    )
+    result = lint(tmp_path, ceilings={})
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "TST-01-001" in captured.err
+    assert "MS-10-007" in captured.err
+    assert "must_without_verification" not in captured.out
+
+
+@pytest.mark.spec("MS-10-007")
+def test_lint_verified_must_tier_passes_without_ceiling(tmp_path, capsys):
+    """Once a kind is at zero, verified MUST-tier items are simply clean."""
+    _write_yaml(
+        tmp_path,
+        _verification_corpus(
+            [
+                (
+                    "TST-01-001",
+                    "MUST",
+                    "protocol",
+                    {"verification": "A test."},
+                ),
+                (
+                    "TST-01-002",
+                    "MUST_NOT",
+                    "protocol",
+                    {"verification": "A test."},
+                ),
+            ]
+        ),
+    )
+    result = lint(tmp_path, ceilings={})
     captured = capsys.readouterr()
     assert result == 0
+    assert "[ERROR]" not in captured.err
     assert "must_without_verification" not in captured.out
+
+
+@pytest.mark.spec("MS-10-005")
+def test_main_list_unverified_flag(tmp_path, capsys, monkeypatch):
+    """`spec-lint <dir> --list-unverified` reaches lint() as the opt-in."""
+    _write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
+    monkeypatch.setattr(
+        lint_module,
+        "VERIFICATION_CEILINGS",
+        _MIXED_CEILINGS,
+    )
+    monkeypatch.setattr(
+        sys, "argv", ["spec-lint", str(tmp_path), "--list-unverified"]
+    )
+    with pytest.raises(SystemExit) as exc:
+        lint_module.main()
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert "TST-01-001" in out
+    assert "TST-01-004" in out
+
+
+@pytest.mark.spec("MS-10-005")
+def test_main_default_does_not_list_ids(tmp_path, capsys, monkeypatch):
+    """Without the flag, `spec-lint <dir>` prints the summary only (SR-06-002
+    runs it this way from the pre-commit hook)."""
+    _write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
+    monkeypatch.setattr(lint_module, "VERIFICATION_CEILINGS", _MIXED_CEILINGS)
+    monkeypatch.setattr(sys, "argv", ["spec-lint", str(tmp_path)])
+    with pytest.raises(SystemExit) as exc:
+        lint_module.main()
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert len(_summary_lines(out)) == 2
+    assert "TST-01-001" not in out
 
 
 # ---------------------------------------------------------------------------
@@ -1540,6 +1742,31 @@ def test_protocol_may_no_stories_is_advisory(tmp_path, capsys):
     assert result == 0
     assert "[WARN]" in captured.out
     assert "missing_story_reference" in captured.out
+
+
+@pytest.mark.spec("SR-11-004")
+def test_protocol_should_not_no_stories_is_advisory(tmp_path, capsys):
+    """kind=protocol + priority=SHOULD_NOT + no stories emits advisory [WARN]
+    (SR-11-004 — SHOULD_NOT is the SHOULD tier, MS-02-003)."""
+    _write_yaml(tmp_path, _minimal_spec_no_stories(priority="SHOULD_NOT"))
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "[WARN]" in captured.out
+    assert "missing_story_reference" in captured.out
+    assert "priority=SHOULD_NOT" in captured.out
+
+
+@pytest.mark.spec("SR-11-003")
+def test_protocol_must_not_no_stories_is_not_a_hard_error(tmp_path, capsys):
+    """SR-11-003 is MUST-only for now — the recorded MS-02-003 exception —
+    so a story-less protocol MUST_NOT neither hard-errors nor warns."""
+    _write_yaml(tmp_path, _minimal_spec_no_stories(priority="MUST_NOT"))
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "missing_story_reference" not in captured.err
+    assert "missing_story_reference" not in captured.out
 
 
 def test_protocol_should_with_stories_no_story_warn(tmp_path, capsys):

@@ -377,9 +377,10 @@ groups:
       (CLP-10-005, BT-15-001).
     verification: >-
       `test/architecture/test_no_dl_mutations_in_execute.py` scans every
-      `execute()` under `vultron/core/use_cases/` for a DataLayer mutation call
-      and pins the pre-existing sites in an exact `KNOWN_VIOLATIONS` set
-      (ARCH-18-001).
+      `execute()` under `vultron/core/use_cases/` — and, on the received side,
+      every helper it reaches inside the use-case package (CLP-10-020) — for a
+      DataLayer mutation call and pins the pre-existing sites in an exact
+      `KNOWN_VIOLATIONS` set (ARCH-18-001).
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005

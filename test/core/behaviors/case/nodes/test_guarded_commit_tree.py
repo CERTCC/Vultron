@@ -25,6 +25,8 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
+)
+from vultron.core.behaviors.case.receive_activity_tree import (
     create_guarded_commit_case_ledger_entry_tree,
 )
 from vultron.core.models.events.base import MessageSemantics

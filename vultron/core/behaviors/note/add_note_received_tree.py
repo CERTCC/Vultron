@@ -28,8 +28,8 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.lifecycle import (
-    CommitCaseLedgerEntryNode,
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
@@ -42,46 +42,54 @@ logger = logging.getLogger(__name__)
 def create_add_note_to_case_received_tree(
     note_id: str,
     case_id: str,
-) -> py_trees.composites.Selector:
-    """Single-BT received-side tree for AddNoteToCase (ADR-0022).
+) -> py_trees.composites.Sequence:
+    """Single-BT received-side tree for AddNoteToCase (ADR-0022, ADR-0111).
 
-    Only the CaseActor (actor holding ``CVDRole.CASE_MANAGER``) attaches the
-    note to the local case replica and commits a canonical
-    ``CaseLedgerEntry`` whose ``Announce`` fan-out (via ``sync_port``)
-    notifies all participants.  Non-CaseActors MUST NOT update their case
-    replica directly from ``Add(Note, Case)`` messages — they receive the
-    note attachment notification exclusively via ``Announce(CaseLedgerEntry)``
-    fan-out (SYNC-02-002).
+    Only the CaseActor (actor holding ``CVDRole.CASE_MANAGER``) commits a
+    canonical ``CaseLedgerEntry`` for the ``Add(Note, Case)`` and attaches the
+    note to the local case replica; the entry's ``Announce`` fan-out (via
+    ``sync_port``) notifies all participants.  Non-CaseActors MUST NOT update
+    their case replica directly from ``Add(Note, Case)`` messages — they
+    receive the note attachment notification exclusively via
+    ``Announce(CaseLedgerEntry)`` fan-out (SYNC-02-002).
 
-    Structure::
+    Structure (the four CLP-10-010 stages)::
 
-        GuardedAttachAndCommitBT (Selector)
-        ├── SkipIfNotCaseManager (Sequence)
-        │   └── Inverter(CheckIsCaseManagerNode)
-        └── AttachAndCommitIfCaseManager (Sequence)
-            ├── AttachNoteToCaseNode(note_id, case_id)
-            └── CommitCaseLedgerEntryNode(case_id)
+        GuardedAttachAndCommitBT (Sequence)
+        ├── IntakeReceivedActivityNode                 # intake
+        ├── GuardedCommitCaseLedgerEntryBT (Selector)  # commit
+        │   ├── SkipIfNotCaseManager
+        │   └── CommitCaseLedgerEntryNode(case_id)
+        └── GuardedAttachNoteBT (Selector)             # effect
+            ├── SkipIfNotCaseManager
+            └── AttachNoteToCaseNode(note_id, case_id)
 
-    Built via :func:`create_case_manager_gated_tree` rather than hand-rolled.
-    The previous inline form ended in ``Success("AttachAndCommitSkippedNotCase
-    Manager")``, which could not distinguish "not the case manager" from "am the
-    case manager and the attach or the commit failed" — so a genuinely failed
-    canonical commit was reported as a benign skip (BTND-07-005; cf. the
-    fake-SUCCESS rule in ``AGENTS.md``).
+    Composed through :func:`create_receive_activity_tree`, which supplies the
+    intake node and the guarded commit, so the tree cannot opt out of either
+    (CLP-10-017) and the ordering ratchet can assert factory coverage.  The
+    attach effect is gated by :func:`create_case_manager_gated_tree` rather
+    than hand-rolled: the obvious ``Success`` fallback could not distinguish
+    "not the case manager" from "am the case manager and the attach failed"
+    (BTND-07-005; cf. the fake-SUCCESS rule in ``AGENTS.md``).
 
     Args:
         note_id: ID of the Note being attached to the case.
         case_id: ID of the VulnerabilityCase receiving the note.
 
     Returns:
-        Root ``GuardedAttachAndCommitBT`` Selector node.
+        Root ``GuardedAttachAndCommitBT`` Sequence node.
     """
-    return create_case_manager_gated_tree(
+    return create_receive_activity_tree(
         name="GuardedAttachAndCommitBT",
         case_id=case_id,
-        children=[
-            AttachNoteToCaseNode(note_id=note_id, case_id=case_id),
-            CommitCaseLedgerEntryNode(case_id=case_id),
+        precondition_guards=[],
+        effect_nodes=[
+            create_case_manager_gated_tree(
+                name="GuardedAttachNoteBT",
+                case_id=case_id,
+                children=[
+                    AttachNoteToCaseNode(note_id=note_id, case_id=case_id)
+                ],
+            ),
         ],
-        body_name="AttachAndCommitIfCaseManager",
     )

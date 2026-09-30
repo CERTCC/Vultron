@@ -3720,20 +3720,26 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      A scenario module under `vultron/demo/scenario/` MUST NOT call
-      `wait_for_contiguous_ledger_coverage` or `_get_log_entries_for_case`
-      directly.
+      A module under `vultron/demo/` other than `vultron/demo/helpers/sync.py`
+      MUST NOT call or import `wait_for_contiguous_ledger_coverage` or
+      `_get_log_entries_for_case` directly. Defining the primitive and
+      re-exporting either name from a package `__init__` are exempt.
     rationale: >-
       The race guard that the concern behind this requirement (#3042) feared was
       missing was in fact present in every scenario module; what was missing was
       the single place to fix it. Forbidding the direct call is what stops the
       coverage loop from being copied back into the next scenario written from a
-      neighbour, which is how the copies arose.
+      neighbour, which is how the copies arose. The ban covers helper modules
+      too: when it named scenario modules only, a third copy of the loop
+      (`drain_phase1_ledger` in `vultron/demo/helpers/polling.py`) survived the
+      consolidation, because a copy moved into a helper module was invisible to
+      the check (#3906).
     verification: >-
       An architecture test under `test/architecture/` parses every module under
-      `vultron/demo/scenario/` and fails if one calls
-      `wait_for_contiguous_ledger_coverage` or `_get_log_entries_for_case`
-      directly.
+      `vultron/demo/` except `vultron/demo/helpers/sync.py` and fails if one
+      calls or imports `wait_for_contiguous_ledger_coverage` or
+      `_get_log_entries_for_case`, excluding the primitive's own definition and
+      package `__init__` re-exports.
     relationships:
     - rel_type: depends_on
       spec_id: DEMOMA-23-005
