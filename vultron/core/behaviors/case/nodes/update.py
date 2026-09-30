@@ -31,6 +31,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.core.models._helpers import _as_id
+from vultron.errors import VultronError
 
 
 class CheckCaseUpdateOwnerNode(DataLayerConditionWithPorts):
@@ -207,12 +208,24 @@ class BroadcastCaseUpdateNode(DataLayerActionWithPorts):
             return f
         assert self.trigger_activity_factory is not None
 
-        broadcast_case_update(
-            self.datalayer,
-            self.case_id,
-            case,
-            self.actor_id,
-            self.trigger_activity_factory,
-            excluded_actor_ids=self.excluded_actor_ids,
-        )
+        try:
+            broadcast_case_update(
+                self.datalayer,
+                self.case_id,
+                case,
+                self.actor_id,
+                self.trigger_activity_factory,
+                excluded_actor_ids=self.excluded_actor_ids,
+            )
+        except VultronError as exc:
+            # The adapter refuses to build an Announce it cannot complete —
+            # e.g. a report the case names that this store does not hold
+            # (CBT-01-007).  That is a reported outcome of this node, not a
+            # fault in the service (BT-HELPER-01).
+            self.feedback_message = (
+                f"{self.name}: could not broadcast case '{self.case_id}':"
+                f" {exc}"
+            )
+            self.logger.warning(self.feedback_message)
+            return Status.FAILURE
         return Status.SUCCESS

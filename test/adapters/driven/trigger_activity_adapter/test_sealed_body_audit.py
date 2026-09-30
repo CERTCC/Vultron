@@ -466,12 +466,56 @@ def test_the_activity_is_sealed_complete(world, method):
             f" {obj!r} (AKM-03-001)"
         )
     # MV-10-001 now lives in the factory: nothing downstream collapses a case
-    # in ``target`` any more, so a case there is either its URI or the
-    # selective-disclosure stub — never the full object.
-    target = body.get("target")
-    if isinstance(target, dict) and target.get("type") == "VulnerabilityCase":
-        assert set(target) <= _VULNERABILITY_CASE_STUB_KEYS, (
-            f"{method} put a full VulnerabilityCase in target"
-            f" (keys {sorted(set(target) - _VULNERABILITY_CASE_STUB_KEYS)});"
-            " address the case by URI or send the stub (MV-10-001)"
-        )
+    # in ``target`` or ``context`` any more, so a case there is either its
+    # URI or the selective-disclosure stub — never the full object.  Checked
+    # at every depth: an Accept embeds the Offer or Invite it answers, and a
+    # read-back-rehydrated embedded activity is where a full case leaked.
+    leaks = _full_case_paths(body)
+    assert not leaks, (
+        f"{method} put a full VulnerabilityCase in a reference slot:"
+        f" {leaks}; address the case by URI or send the stub"
+        " (MV-10-001, AKM-02-003)"
+    )
+
+
+def _full_case_paths(value: Any, path: str = "body") -> list[str]:
+    """Paths of every full-case dict in a ``target``/``context`` slot, any depth."""
+    found: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}"
+            if (
+                key in ("target", "context")
+                and isinstance(child, dict)
+                and child.get("type") == "VulnerabilityCase"
+                and not set(child) <= _VULNERABILITY_CASE_STUB_KEYS
+            ):
+                found.append(
+                    f"{child_path} (non-stub keys"
+                    f" {sorted(set(child) - _VULNERABILITY_CASE_STUB_KEYS)})"
+                )
+            found.extend(_full_case_paths(child, child_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            found.extend(_full_case_paths(item, f"{path}[{index}]"))
+    return found
+
+
+@pytest.mark.spec("CM-17-003")
+def test_invite_roles_survive_into_the_sealed_body(world):
+    """The roles the Invite carries reach the wire (regression: a role dropped
+    on the old re-read path blocked the invitee's CSB-15-002 admission)."""
+    _, blob = RECIPES["invite_actor_to_case"](world)
+    assert json.loads(blob)["roles"] == ["vendor"]
+
+
+@pytest.mark.spec("CM-16-003")
+def test_suggested_roles_survive_into_the_sealed_body(world):
+    _, blob = world.adapter.suggest_actor_to_case(
+        recommended_id=_PEER,
+        case_id=world.case_id,
+        actor=_PEER,
+        to=[_ACTOR],
+        roles=["deployer"],
+    )
+    assert json.loads(blob)["suggestedRoles"] == ["deployer"]

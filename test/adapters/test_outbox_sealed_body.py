@@ -26,10 +26,12 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import (
     OUTBOUND_DUMP_KWARGS,
     SealedOutboundBody,
+    parse_sealed_body,
     read_sealed_body,
     seal_outbound_body,
     sealed_body_id,
 )
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -109,3 +111,21 @@ def test_seal_refuses_an_activity_without_an_id(dl):
 
 def test_sealed_body_id_is_derived_from_the_activity_id():
     assert sealed_body_id("urn:uuid:abc") == "urn:uuid:abc#sealed-body"
+
+
+def test_parse_sealed_body_refuses_text_that_is_not_json():
+    """A seal that is not JSON is a defect, reported as one (not a bare
+    ``JSONDecodeError`` the retry loop would treat as transient)."""
+    sealed = SealedOutboundBody(
+        id_=sealed_body_id("urn:uuid:a1"), activity_id="urn:uuid:a1", body="{"
+    )
+    with pytest.raises(VultronValidationError, match="is not JSON"):
+        parse_sealed_body(sealed)
+
+
+def test_parse_sealed_body_refuses_a_json_scalar():
+    sealed = SealedOutboundBody(
+        id_=sealed_body_id("urn:uuid:a2"), activity_id="urn:uuid:a2", body="[]"
+    )
+    with pytest.raises(VultronValidationError, match="not a JSON object"):
+        parse_sealed_body(sealed)

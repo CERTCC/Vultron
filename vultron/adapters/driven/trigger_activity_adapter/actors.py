@@ -61,6 +61,39 @@ from ._base import _case_for_wire, _seal, _to_wire
 logger = logging.getLogger(__name__)
 
 
+def _active_embargo_of(
+    dl: CaseOutboxPersistence, case: VulnerabilityCase
+) -> Any:
+    """The case's active embargo as an object, whichever shape the field holds.
+
+    ``active_embargo`` is id-or-object: a case seeded from a sealed Announce
+    carries the ``EmbargoEvent`` inline (it is in the case's
+    ``inline_required_refs``), a locally built one holds the id.  Only the id
+    needs a store read.
+    """
+    active_embargo = case.active_embargo
+    if isinstance(active_embargo, str):
+        return dl.read(active_embargo)
+    return active_embargo
+
+
+def _stored_invite_by_case_uri(
+    dl: CaseOutboxPersistence, invite_id: str
+) -> Any:
+    """Read the stored Invite with its ``target`` reduced to the case URI.
+
+    Read-back rehydrates the Invite's ``target`` into whatever case this store
+    holds.  The Accept or Reject that embeds the Invite goes to the
+    CASE_MANAGER, which holds the case, so the embedded Invite addresses it by
+    URI (AKM-02-003) rather than carrying a reconstruction of it (VM-08-003).
+    """
+    invite = cast(Any, dl.read(invite_id))
+    target = getattr(invite, "target", None)
+    if target is not None and not isinstance(target, str):
+        invite = invite.model_copy(update={"target": _as_id(target)})
+    return invite
+
+
 class _ActorsMixin:
     """Trigger activity methods for actor invitations, recommendations,
     participant management, and CASE_MANAGER delegation.
@@ -108,11 +141,11 @@ class _ActorsMixin:
             if not isinstance(resolved, VulnerabilityCase):
                 resolved = case_id
 
-        embargo_obj = None
-        if isinstance(resolved, VulnerabilityCase):
-            active_embargo_uri = getattr(resolved, "active_embargo", None)
-            if active_embargo_uri:
-                embargo_obj = self._dl.read(active_embargo_uri)
+        embargo_obj = (
+            _active_embargo_of(self._dl, resolved)
+            if isinstance(resolved, VulnerabilityCase)
+            else None
+        )
 
         activity = rm_invite_to_case_activity(
             invitee=invitee_id,
@@ -145,7 +178,7 @@ class _ActorsMixin:
         hydrated AS2 object; a ``VultronValidationError`` is raised if the
         invite carries no routable actor reference.
         """
-        invite = cast(Any, self._dl.read(invite_id))
+        invite = _stored_invite_by_case_uri(self._dl, invite_id)
         invite_actor_id = _as_id(getattr(invite, "actor", None))
         if not invite_actor_id:
             raise VultronValidationError(
@@ -176,7 +209,7 @@ class _ActorsMixin:
         outbox handler.  Mirrors ``accept_case_invite`` but uses
         ``rm_reject_invite_to_case_activity``.
         """
-        invite = cast(Any, self._dl.read(invite_id))
+        invite = _stored_invite_by_case_uri(self._dl, invite_id)
         invite_actor_id = _as_id(getattr(invite, "actor", None))
         if not invite_actor_id:
             raise VultronValidationError(
@@ -220,6 +253,10 @@ class _ActorsMixin:
         # case; the Accept addresses the case by URI, as the Offer did on the
         # wire (AKM-02-002, VM-08-003).
         target = _as_id(getattr(cp_offer, "target", None))
+        if target is not None:
+            # The embedded Offer carries the same reconstruction one level
+            # down; it addressed the case by URI on the wire too.
+            cp_offer = cp_offer.model_copy(update={"target": target})
         activity = accept_case_participant_offer_activity(
             offer=cp_offer, actor=actor, to=to, target=target
         )

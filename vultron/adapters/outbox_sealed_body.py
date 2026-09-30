@@ -111,6 +111,22 @@ def dump_outbound_body(activity: BaseModel) -> str:
     return activity.model_dump_json(**OUTBOUND_DUMP_KWARGS)
 
 
+def outbound_activity_id(activity: BaseModel) -> str:
+    """Return the id an outbound *activity* is sealed under.
+
+    Raises:
+        VultronValidationError: when the activity carries no non-empty
+            ``id_`` — there is nothing to seal it under, and nothing the
+            outbox could queue.
+    """
+    activity_id = getattr(activity, "id_", None)
+    if not isinstance(activity_id, str) or not activity_id:
+        raise VultronValidationError(
+            "seal_outbound_body: activity has no id_ and cannot be sealed"
+        )
+    return activity_id
+
+
 def seal_outbound_body(dl: SealStore, activity: BaseModel) -> str:
     """Seal *activity*'s body in *dl* and return the text that is sealed.
 
@@ -119,11 +135,7 @@ def seal_outbound_body(dl: SealStore, activity: BaseModel) -> str:
     (which ``dl.create`` also refuses) hands core the text that was, or will
     be, delivered — not a second rendering of it.
     """
-    activity_id = getattr(activity, "id_", None)
-    if not isinstance(activity_id, str) or not activity_id:
-        raise VultronValidationError(
-            "seal_outbound_body: activity has no id_ and cannot be sealed"
-        )
+    activity_id = outbound_activity_id(activity)
     existing = read_sealed_body(dl, activity_id)
     if existing is not None:
         return existing.body
@@ -153,11 +165,18 @@ def parse_sealed_body(sealed: SealedOutboundBody) -> dict[str, Any]:
     """Decode a sealed body into the AS2 document it holds.
 
     Raises:
-        VultronValidationError: when the sealed text is not a JSON object —
-            a seal that cannot happen through :func:`seal_outbound_body`, so
-            it is reported as the defect it is rather than delivered.
+        VultronValidationError: when the sealed text is not JSON, or not a
+            JSON object — a seal that cannot happen through
+            :func:`seal_outbound_body`, so it is reported as the defect it is
+            rather than delivered.
     """
-    parsed = json.loads(sealed.body)
+    try:
+        parsed = json.loads(sealed.body)
+    except ValueError as exc:
+        raise VultronValidationError(
+            f"sealed body of activity '{sealed.activity_id}' is not JSON:"
+            f" {exc}"
+        ) from exc
     if not isinstance(parsed, dict):
         raise VultronValidationError(
             f"sealed body of activity '{sealed.activity_id}' is not a JSON"

@@ -20,7 +20,10 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel
 
-from vultron.adapters.outbox_sealed_body import seal_outbound_body
+from vultron.adapters.outbox_sealed_body import (
+    outbound_activity_id,
+    seal_outbound_body,
+)
 from vultron.core.models.base import CoreObject
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
@@ -184,7 +187,7 @@ def _seal(dl: CaseOutboxPersistence, activity: BaseModel) -> tuple[str, str]:
     text handed back to core is the text the outbox delivers (VM-08-003).
     """
     body = seal_outbound_body(dl, activity)  # refuses an activity with no id_
-    return str(activity.id_), body  # type: ignore[attr-defined]
+    return outbound_activity_id(activity), body
 
 
 class _TriggerAdapterBase:

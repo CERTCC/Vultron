@@ -32,6 +32,7 @@ from vultron.enums.roles import CVDRole
 from vultron.core.states.em import EM
 from vultron.wire.as2.factories._context import (
     case_target_ref,
+    case_uri_of,
     with_case_context,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
@@ -123,8 +124,11 @@ def _project_case_to_stub(
         em_state = current_status.em.state
     else:
         em_state = getattr(current_status, "em_state", None)
-    active_embargo_uri = getattr(case, "active_embargo", None)
-    if em_state != EM.ACTIVE or active_embargo_uri is None:
+    active_embargo = getattr(case, "active_embargo", None)
+    if em_state != EM.ACTIVE or active_embargo is None:
+        return as_VulnerabilityCaseStub(id_=case_id)
+    embargo_ref = _stub_embargo_ref(active_embargo, embargo_obj, case_id)
+    if embargo_ref is None:
         return as_VulnerabilityCaseStub(id_=case_id)
     # ``context`` names the case this status belongs to.  It is required on the
     # core class (fail-fast, ARCH-10-001); the deleted wire class allowed it to be
@@ -132,28 +136,49 @@ def _project_case_to_stub(
     wire_status = as_CaseStatus(
         context=case_id, em=EmDimension(state=em_state)
     )
-    embargo_ref: WireEmbargoEvent | str = active_embargo_uri
-    if embargo_obj is not None:
-        end_time = getattr(embargo_obj, "end_time", None)
-        if end_time is not None:
-            try:
-                embargo_ref = WireEmbargoEvent(
-                    id_=active_embargo_uri,
-                    end_time=end_time,
-                    context=case_id,
-                )
-            except ValidationError as exc:
-                logger.warning(
-                    "_project_case_to_stub: could not build WireEmbargoEvent"
-                    " for %r — falling back to bare URI: %s",
-                    active_embargo_uri,
-                    exc,
-                )
     return as_VulnerabilityCaseStub(
         id_=case_id,
         active_embargo=embargo_ref,
         case_status=wire_status,
     )
+
+
+def _stub_embargo_ref(
+    active_embargo: Any,
+    embargo_obj: Any,
+    case_id: str,
+) -> WireEmbargoEvent | str | None:
+    """The ``active_embargo`` an enriched stub carries (CM-17-002).
+
+    ``active_embargo`` is id-or-object: a case seeded from a sealed Announce
+    carries the ``EmbargoEvent`` inline, a locally built one holds the id.  The
+    stub names the embargo by id either way, and an inline object is its own
+    *embargo_obj* when the caller supplied none.  Returns the id alone when no
+    end time is known, and ``None`` when there is no usable id at all.
+    """
+    if isinstance(active_embargo, str):
+        active_embargo_uri: Any = active_embargo
+    else:
+        active_embargo_uri = getattr(active_embargo, "id_", None)
+        if embargo_obj is None:
+            embargo_obj = active_embargo
+    if not isinstance(active_embargo_uri, str) or not active_embargo_uri:
+        return None
+    end_time = getattr(embargo_obj, "end_time", None)
+    if end_time is None:
+        return active_embargo_uri
+    try:
+        return WireEmbargoEvent(
+            id_=active_embargo_uri, end_time=end_time, context=case_id
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "_project_case_to_stub: could not build WireEmbargoEvent"
+            " for %r — falling back to bare URI: %s",
+            active_embargo_uri,
+            exc,
+        )
+        return active_embargo_uri
 
 
 def add_report_to_case_activity(
@@ -423,7 +448,7 @@ def rm_close_case_activity(
 def offer_case_participant_role_activity(
     role: CVDRole,
     target_actor: as_Actor,
-    case: as_VulnerabilityCase,
+    case: as_VulnerabilityCase | str,
     **kwargs,
 ) -> as_Offer:
     """Build Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase).
@@ -441,14 +466,17 @@ def offer_case_participant_role_activity(
         role: The ``CVDRole`` to offer.  Becomes the ``role`` field on the
             ``as_CaseParticipantRole`` object.
         target_actor: The ``as_Actor`` that will receive the role offer.
-        case: The ``as_VulnerabilityCase`` context.  Passed as the AS2
-            ``context`` field so the receiver can identify the case.
+        case: The ``as_VulnerabilityCase`` (or its URI) the role is scoped
+            to.  Only its URI goes on the wire as ``context``: the recipient
+            is a participant and already holds the case (AKM-02-002), and the
+            blob is delivered and recorded as built (VM-08-003), so a full
+            case here would travel whole.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
     Returns:
         An ``as_Offer`` whose ``object_`` is an ``as_CaseParticipantRole``,
-        ``target`` is the target Actor, and ``context`` is the case URI/object.
+        ``target`` is the target Actor, and ``context`` is the case URI.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
@@ -458,7 +486,7 @@ def offer_case_participant_role_activity(
         return _OfferCaseParticipantRoleActivity(
             object_=role_obj,
             target=target_actor,
-            context=case,
+            context=case_uri_of(case) or case,
             **kwargs,
         )
     except ValidationError as exc:

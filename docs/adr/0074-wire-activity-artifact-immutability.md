@@ -91,9 +91,7 @@ This is why `status:` stays `accepted` with `partially_superseded_by:` rather th
    and outbox delivery.
 4. **Adapter** delivers the blob unchanged — no enrichment, no expansion.
 
-How step 4 gets the blob (amended by #2654/#2655): the outbox queues activity
-ids, and the activity *record* is a dehydrated, rehydrated-on-read
-reconstruction, not the blob.
+How step 4 gets the blob (amended by #2654/#2655): the outbox queues activity ids, and the activity *record* is a dehydrated, rehydrated-on-read reconstruction, not the blob.
 So the adapter that persists an outbound activity also *seals* the blob's text as a `SealedOutboundBody` record keyed by the activity id (`vultron/adapters/outbox_sealed_body.py`), and the outbox handler delivers that text without reading the activity record at all (OX-07-001).
 The `ActivityEmitter` port carries the sealed JSON text, not an activity object.
 

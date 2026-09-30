@@ -404,6 +404,59 @@ class TestAnnounceVulnerabilityCase:
         assert dl.read(activity_id) is not None
 
 
+class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
+    """CBT-01-007: the Announce embeds each report the case names, or is not
+    sent.  The sealed body is delivered as built, so a bare reference here
+    would reach a recipient that cannot resolve it."""
+
+    def _case_naming(self, dl, report_ids):
+        case = as_VulnerabilityCase(name="CVE-2025-020")
+        case.vulnerability_reports.extend(report_ids)
+        dl.create(case)
+        return case
+
+    @pytest.mark.spec("CBT-01-007")
+    def test_a_report_the_store_lacks_refuses_the_announce(self, adapter, dl):
+        case = self._case_naming(
+            dl, ["https://example.org/reports/not-in-this-store"]
+        )
+
+        with pytest.raises(VultronNotFoundError):
+            adapter.announce_vulnerability_case(
+                case_id=case.id_,
+                actor=_ACTOR,
+                context_id=_CONTEXT_ID,
+                to=[_PEER],
+            )
+
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CBT-01-007")
+    def test_a_held_report_is_embedded_inline(self, adapter, dl):
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            as_VulnerabilityReport,
+        )
+
+        report = as_VulnerabilityReport(name="CVE-2025-020", content="PoC")
+        dl.create(report)
+        case = self._case_naming(dl, [report.id_])
+
+        activity_id = adapter.announce_vulnerability_case(
+            case_id=case.id_,
+            actor=_ACTOR,
+            context_id=_CONTEXT_ID,
+            to=[_PEER],
+        )
+
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+        body = read_sealed_body_dict(dl, activity_id)
+        assert body is not None
+        [embedded] = body["object"]["vulnerabilityReports"]
+        assert embedded["id"] == report.id_
+        assert embedded["content"] == "PoC"
+
+
 class TestRejectCaseProposal:
     """CP-05-004: the case actor service's refusal of a proposal."""
 

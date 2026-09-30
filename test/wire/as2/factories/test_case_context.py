@@ -225,3 +225,34 @@ def test_factories_given_a_full_case_target_send_its_uri():
     dumped = activity.model_dump(by_alias=True, exclude_none=True)
     assert dumped["target"] == _CASE_ID
     assert dumped["context"] == _CASE_ID
+
+
+@pytest.mark.spec("AKM-02-002")
+@pytest.mark.spec("AKM-02-003")
+def test_role_offer_context_is_the_case_uri_not_the_case():
+    """The role offer goes to a participant, who holds the case; the blob is
+    delivered and recorded as built, so a case object in ``context`` would
+    travel whole (2 KB of participants and reports).  Only the URI goes."""
+    activity = offer_case_participant_role_activity(
+        role=CVDRole.CASE_MANAGER,
+        target_actor=as_Actor(id_=_VENDOR),
+        case=as_VulnerabilityCase(
+            id_=_CASE_ID, name="x", attributed_to=_ACTOR
+        ),
+        actor=_ACTOR,
+    )
+    assert activity.context == _CASE_ID
+    accept = accept_case_participant_role_activity(
+        offer=activity, actor=_VENDOR
+    )
+    assert accept.model_dump(by_alias=True)["object"]["context"] == _CASE_ID
+
+
+def test_role_offer_accepts_the_case_uri_directly():
+    activity = offer_case_participant_role_activity(
+        role=CVDRole.VENDOR,
+        target_actor=as_Actor(id_=_VENDOR),
+        case=_CASE_ID,
+        actor=_ACTOR,
+    )
+    assert activity.context == _CASE_ID

@@ -212,3 +212,36 @@ def test_find_case_by_report_id_returns_case_via_report_case_link(dl):
     assert result is not None
     assert isinstance(result, VulnerabilityCase)
     assert result.id_ == case.id_
+
+
+def test_find_case_by_report_id_matches_an_inline_report_stored_under_id(dl):
+    """A case seeded from a sealed Announce holds its reports inline.
+
+    ``announce_vulnerability_case`` embeds every report as a full object, and
+    the sealed body is delivered as built, so ``SeedAnnouncedCaseNode`` stores
+    the case with inline report dicts.  Rows are re-keyed to the wire spelling
+    on write, so the inline entry carries ``id``, not ``id_`` — the lookup
+    that read only ``id_`` returned ``None`` and the vendor's validate-report
+    trigger failed with "no VulnerabilityCase for report" (#3923).
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(
+        name="CVE-2025-003",
+        content="Announced inline",
+        attributed_to="https://example.org/finder",
+    )
+    case = as_VulnerabilityCase(vulnerability_reports=[report])
+    dl.save(case)
+
+    stored = dl.read(case.id_)
+    assert stored is not None, "the case round-trips with the inline report"
+
+    result = dl.find_case_by_report_id(report.id_)
+    assert result is not None
+    assert result.id_ == case.id_
