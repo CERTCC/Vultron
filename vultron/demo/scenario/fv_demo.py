@@ -75,10 +75,8 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     _poll_until,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
-    wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_finder_case,
-    wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
     wait_for_finder_log_entry,
     wait_for_note_in_case,
@@ -92,12 +90,11 @@ from vultron.demo.helpers.seeding import (  # noqa: F401
     seed_case_participants_for_demo,
     seed_containers,
 )
+from vultron.demo.helpers.ledger_commit import trigger_log_commit  # noqa: F401
 from vultron.demo.helpers.sync import (  # noqa: F401
     _extract_ref_id,
-    _get_log_entries_for_case,
-    trigger_log_commit,
-    verify_finder_replica_state,
-    verify_replica_state,
+    run_sync_verification_phase,
+    wait_for_replica_ledger_coverage,
 )
 from vultron.demo.helpers.verification import (  # noqa: F401
     _all_fetchable_participants_rm_closed,
@@ -595,64 +592,20 @@ def _phase_sync_verification(
     logger.info("Phase 2: Replica synchronization verification")
     logger.info("─" * 80)
 
-    # Synthetic checkpoint entries (demo_verification) are explicitly
-    # excluded from the canonical case ledger per ADR-0019 (CLP-07-004):
-    # only verbatim asserted protocol-significant AS2 activities belong on
-    # the chain. Diagnostic markers belong in Python `logging`. Replication
-    # is verified by comparing replica state directly rather than polling
-    # for a new entry.
-    #
-    # `trigger_log_commit` and `wait_for_finder_log_entry` remain available
-    # in `vultron.demo.helpers.sync` for tests that need to drive a *real*
-    # protocol event and wait for its replica; they are intentionally not
-    # called here — EXCEPT for the replica-state check below, where we must
-    # wait for finder to receive all canonical entries before comparing state.
-    # The vendor's report-acceptance creates canonical ledger entries whose
-    # Announce(CaseLedgerEntry) fan-out is an async BackgroundTask; without
-    # this wait intermediate entries may not have arrived yet (issue #1434).
-    # Checkpoint: ensure the Finder has the VulnerabilityCase (and its genesis
-    # hash) before waiting for ledger coverage.  If the Finder does not hold the
-    # case, ReconstructChainTailNode cannot anchor the chain (CLP-08-005), so
-    # Announce(CaseLedgerEntry) deliveries would be rejected and replayed rather
-    # than accepted, extending the time needed to reach full coverage.  Failing
-    # here fast surfaces the real problem instead of a confusing coverage timeout
-    # (SYNC-15-001, issue #1873).
-    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
-        wait_for_case_on_container(
-            client=finder_client,
-            case_id=case.id_,
-        )
-
-        vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
-        if vendor_entries:
-            vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-            vendor_tail_index: int = vendor_tail["log_index"]
-            logger.info(
-                "Waiting for finder to replicate all vendor entries (0…%d)",
-                vendor_tail_index,
-            )
-            with demo_gate("Finder ledger coverage (sync-verification phase)"):
-                wait_for_contiguous_ledger_coverage(
-                    client=finder_client,
-                    case_id=case.id_,
-                    expected_tail_index=vendor_tail_index,
-                )
-
-                logger.info(
-                    "Verifying LedgerFanout replication by comparing vendor ↔ finder replica"
-                    " state (ADR-0019: synthetic entries omitted from canonical ledger)"
-                )
-
-                with demo_check(
-                    "Finder replica state matches authoritative Vendor state"
-                ):
-                    verify_finder_replica_state(
-                        finder_client=finder_client,
-                        vendor_client=vendor_client,
-                        case_id=case.id_,
-                        vendor_actor_id=vendor.id_,
-                        reporter_actor_id=finder.id_,
-                    )
+    # Synthetic checkpoint entries (demo_verification) are excluded from the
+    # canonical case ledger (ADR-0019, CLP-07-004), so replication is verified
+    # by comparing replica state directly rather than polling for a new entry
+    # (issue #1434).
+    run_sync_verification_phase(
+        auth_client=vendor_client,
+        auth_label="Vendor",
+        auth_actor_id=vendor.id_,
+        finder_client=finder_client,
+        finder_actor_id=finder.id_,
+        replicas=[(finder_client, "Finder")],
+        case_id=case.id_,
+        state_checks=[(finder_client, "Finder")],
+    )
 
     with demo_check(
         "Dedicated external CaseActor container holds no case data "
@@ -861,21 +814,17 @@ def _phase_case_closure(
             case_id=case.id_,
             event_type="close_case",
         )
-        vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
-        if vendor_entries:
-            vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-            vendor_tail_index: int = vendor_tail["log_index"]
-            logger.info(
-                "Waiting for finder to replicate all vendor entries after closure"
-                " (0…%d)",
-                vendor_tail_index,
-            )
-            with demo_gate("Finder ledger coverage (close phase)"):
-                wait_for_contiguous_ledger_coverage(
-                    client=finder_client,
-                    case_id=case.id_,
-                    expected_tail_index=vendor_tail_index,
-                )
+        # Temporal (EDF-06-006): after close_case the authority's outbox fans out
+        # Announce(CaseLedgerEntry) to each replica via BackgroundTasks; nothing
+        # but the ledger dump depends on it. Bounded per replica by
+        # LEDGER_COVERAGE_TIMEOUT / LATE_JOINER_COVERAGE_TIMEOUT (EDF-06-008).
+        wait_for_replica_ledger_coverage(
+            auth_client=vendor_client,
+            replicas=[(finder_client, "Finder")],
+            case_id=case.id_,
+            phase_label="close phase",
+            causal=False,
+        )
 
 
 # ---------------------------------------------------------------------------

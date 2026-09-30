@@ -50,6 +50,25 @@ LATE_JOINER_TIMEOUT: float = 90.0
 LATE_JOINER_REPLICA_TIMEOUT: float = 30.0
 # 10 s: early participant's replica participant-index propagation budget.
 REPLICA_PARTICIPANT_TIMEOUT: float = 10.0
+# 30 s: contiguous ledger-coverage budget for a replica that has been receiving
+# Announce(CaseLedgerEntry) as each entry was committed. 15 s fired at 0/29
+# entries under CI load (#1911, #2337).
+LEDGER_COVERAGE_TIMEOUT: float = 30.0
+# 45 s: contiguous ledger-coverage budget for a late joiner, which catches up
+# from genesis through the CM-17-004 backfill — one Announce per prior entry.
+LATE_JOINER_COVERAGE_TIMEOUT: float = 45.0
+
+
+def _client_in(
+    client: DataLayerClient, clients: "Sequence[DataLayerClient]"
+) -> bool:
+    """Identity-based membership: is *client* one of *clients*?
+
+    Demo clients are plain objects with no equality of their own, and two
+    clients for the same container are still two clients, so membership in a
+    late-joiner or covered-replica list is decided by identity, not equality.
+    """
+    return any(client is candidate for candidate in clients)
 
 
 # ---------------------------------------------------------------------------
@@ -272,7 +291,7 @@ def wait_for_participants_on_replicas(
         contract for the unit tests that depend on it.
     """
     for replica_client in replica_clients:
-        is_late = any(replica_client is lj for lj in late_joiners)
+        is_late = _client_in(replica_client, late_joiners)
         label = replica_client.actor_id or replica_client.base_url
         with demo_check(f"replica {label!r} reflects all case participants"):
             wait_for_case_participants(
@@ -537,7 +556,7 @@ def wait_for_contiguous_ledger_coverage(
     client: DataLayerClient,
     case_id: str,
     expected_tail_index: int,
-    timeout_seconds: float = 30.0,
+    timeout_seconds: float = LEDGER_COVERAGE_TIMEOUT,
     poll_interval: float = 0.5,
 ) -> None:
     """Poll *client*'s DataLayer until it holds all log indices 0…*expected_tail_index*.
@@ -1647,7 +1666,7 @@ def drain_phase1_ledger(
     auth_client: DataLayerClient,
     case_id: str,
     replica_pairs: list[tuple[DataLayerClient, str]],
-    timeout_seconds: float = 30.0,
+    timeout_seconds: float = LEDGER_COVERAGE_TIMEOUT,
 ) -> None:
     """Wait for each replica to reach the authoritative ledger tail.
 
@@ -1662,7 +1681,8 @@ def drain_phase1_ledger(
         case_id: Full URI of the ``as_VulnerabilityCase``.
         replica_pairs: ``(replica_client, label)`` pairs to check.  The label
             appears in gate descriptions and log messages.
-        timeout_seconds: Per-replica timeout.  Defaults to 30 s.
+        timeout_seconds: Per-replica budget.  Defaults to the shared
+            ``LEDGER_COVERAGE_TIMEOUT`` (EDF-06-008), never a literal.
     """
     from vultron.demo.helpers.sync import (  # noqa: PLC0415
         _get_log_entries_for_case,
@@ -1683,4 +1703,4 @@ def drain_phase1_ledger(
                 expected_tail_index=tail_index,
                 timeout_seconds=timeout_seconds,
             )
-        logger.info("  %s Phase 1 ledger synchronized", label)
+            logger.info("  %s Phase 1 ledger synchronized", label)
