@@ -20,6 +20,7 @@ from vultron.metadata.specs.schema import (
     Postcondition,
     Precondition,
     RFC2119Priority,
+    RFC2119Tier,
     RelationType,
     Relationship,
     Scope,
@@ -1240,3 +1241,34 @@ def test_statement_spec_stories_yaml_round_trip(tmp_path):
 def test_story_id_str_type_is_exported():
     """StoryIdStr is importable from schema (SR-11-002)."""
     assert StoryIdStr is not None
+
+
+# ---------------------------------------------------------------------------
+# RFC2119Priority.tier — the shared tiering (MS-02-003, MS-02-004)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("priority", "tier", "is_must"),
+    [
+        (RFC2119Priority.MUST, RFC2119Tier.MUST, True),
+        (RFC2119Priority.MUST_NOT, RFC2119Tier.MUST, True),
+        (RFC2119Priority.SHOULD, RFC2119Tier.SHOULD, False),
+        (RFC2119Priority.SHOULD_NOT, RFC2119Tier.SHOULD, False),
+        (RFC2119Priority.MAY, RFC2119Tier.MAY, False),
+    ],
+)
+@pytest.mark.spec("MS-02-004")
+def test_priority_tier_pairs_each_negation_with_its_positive(
+    priority, tier, is_must
+):
+    """A negative keyword is the same tier as its positive (MS-02-003)."""
+    assert priority.tier is tier
+    assert priority.is_must_tier is is_must
+
+
+@pytest.mark.spec("MS-02-004")
+def test_priority_tier_mapping_is_total():
+    """Every member has a tier (a missing one raises KeyError here, not at the
+    first spec that carries it) and every tier has a member."""
+    assert {p.tier for p in RFC2119Priority} == set(RFC2119Tier)
