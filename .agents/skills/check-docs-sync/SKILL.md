@@ -5,14 +5,17 @@ description: >
   after an implementation or bug-fix change, applies small updates inline
   (PD-03-007) behind a blocking lint-docs gate, offers write-docs for large
   multi-page rewrites, and files a type:Concern issue when those are deferred.
-  Invoked after the PR is pushed (while CI runs), by build (Phase 8), bugfix
-  (Phase 4 finalize), and learn (Phase 8).
+  Emits the exact `Docs:` line the caller MUST write into an implementation or
+  bug-fix PR body in place of create-pr's placeholder (PD-03-008). Invoked after the PR is pushed (while
+  CI runs), by build (Phase 8), bugfix (Phase 4 finalize), and learn (Phase 8).
 ---
 
 # Skill: Check Docs Sync
 
 Verify that `docs/` is in sync with the current implementation changes.
-Normative requirement: `specs/project-documentation.yaml` **PD-03-007**.
+Normative requirements: `specs/project-documentation.yaml` **PD-03-007**
+(what the PR must contain) and **PD-03-008** (when this runs, and that its
+result is recorded).
 
 ## When to invoke
 
@@ -20,6 +23,16 @@ After the PR is pushed (CI starts in the cloud), while CI runs in parallel
 locally. Apply any small docs updates and commit them before the finalize steps
 (archive-history, learnings). Invoked by `build` (Phase 8), `bugfix` (Phase 4
 finalize), and `learn` (Phase 8) for consistency.
+
+**Recording the result is mandatory, not a courtesy**, on implementation and
+bug-fix PRs (`build`, `bugfix`). Running this skill is half the obligation:
+the caller MUST replace the PR body's
+`Docs: pending check-docs-sync` placeholder with the line Step 5 emits, and the
+session is not done while the placeholder remains (PD-03-008). `pr-triage`
+reports a missing or placeholder `Docs:` line as a FAIL (PD-03-009), so an
+unrecorded run is indistinguishable from no run. `learn` opens a docs-only
+PR, which carries no `Docs:` line, so it applies the updates and records
+nothing.
 
 Prose rules for every page this skill touches live in
 [`../shared/docs-style-guide.md`](../shared/docs-style-guide.md), made normative
@@ -50,11 +63,16 @@ architecture described in `docs/`?**
 
 Scan `docs/` for pages covering the changed area:
 
-- `docs/topics/` — protocol behavior descriptions
-- `docs/reference/` — API and data model reference
-- `docs/developer/` — developer guides and architecture
-- `docs/explanation/` — conceptual explanations
-- `docs/how-to/` — procedural how-to guides
+- `docs/topics/` — protocol behavior and conceptual explanations
+- `docs/reference/` — API, message, data model, and codebase reference
+- `docs/howto/` — procedural how-to guides, including demos
+- `docs/tutorials/` and `docs/start/` — learning paths and entry points
+- `docs/developer/` — developer guides (draft docs)
+
+Pages that regenerate from their source at build time need no hand edit: spec
+pages under `docs/reference/specs/` (rendered from `specs/*.yaml`), the
+mkdocstrings `:::` API pages, and `docs/reference/examples/*.json`. A change
+whose only described surface is one of these has no docs impact.
 
 If no relevant `docs/` page exists and none is needed, answer "no" and
 move to the next area.
@@ -139,8 +157,9 @@ details as context:
 
 `new-item` handles duplicate detection, parent epic selection, and creation.
 
-Record the Concern issue number for inclusion in the PR description:
-`Docs deferred: #<N>` (add to the PR body after the PR opens).
+The Concern body MUST list every affected page: `pr-triage` accepts a
+deferral only when the named issue lists the pages (PD-03-009). Record the
+issue number for the `Docs:` line Step 5 emits.
 
 ### Step 5 — Report
 
@@ -150,6 +169,28 @@ Return a summary of what was done:
 - List each Concern issue filed for large updates: issue number, title, and 1–2
   sentences describing what the concern entails and why the update was deferred
 - If no `docs/` updates were needed, state that explicitly
+
+End the report with the **exact `Docs:` line** for the PR body, in one of the
+forms defined in `.agents/skills/shared/pr-body-guide.md` § "Implementation PR
+rules":
+
+```text
+Docs: updated docs/reference/messages/em.md, docs/topics/process_models/em/index.md
+Docs: no docs impact — internal refactor; no page describes the changed helper
+Docs: deferred to #1234
+```
+
+Use `updated …; deferred to #N` when the PR did both. The reason in the
+`no docs impact` form names *why* no page applies — "none needed" alone does
+not tell a reviewer what was checked.
+
+The caller writes this line into the PR body, replacing the placeholder:
+
+```bash
+gh pr view <PR> --json body --jq .body > /tmp/pr-body-<PR>.md
+# Replace the "Docs: pending check-docs-sync" line with the emitted line, then:
+gh pr edit <PR> --body-file /tmp/pr-body-<PR>.md
+```
 
 ## Constraints
 
@@ -163,3 +204,6 @@ Return a summary of what was done:
 - File a Concern issue for every large update that is not done inline; never
   silently skip.
 - Cite PD-03-007 in every Concern issue body.
+- Always end with the `Docs:` line (Step 5). On an implementation or bug-fix
+  PR, a run that emits none leaves the caller nothing to record, and the
+  placeholder stays (PD-03-008).

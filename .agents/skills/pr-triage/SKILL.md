@@ -95,8 +95,11 @@ grows the PR is simply `fix-now-file` (see the doctrine § "Clarity Over Size").
 Check against `.claude/skills/shared/pr-body-guide.md`:
 
 - Closing references at the **top**, one per bullet
-- Required sections present (Summary, Changes, Specs, Verification for impl PRs)
+- Required sections present (Summary, Changes, Specs, Docs, Verification for
+  impl PRs)
 - Test counts in Verification are real numbers, not placeholders
+
+The `Docs:` line itself is judged in Phase 9, against the diff.
 
 ### Phase 4 — Domain Context
 
@@ -164,6 +167,22 @@ finding list before the artifact is written.
    `uv run mkdocs build --strict`.
 4. **Silent contradiction**: If the PR's behavior change conflicts with an
    `active` note without updating it: **FAIL**.
+5. **Docs currency (PD-03-009)** — for every implementation or bug-fix PR,
+   **whether or not the diff touches `docs/`**. Determine independently which
+   `docs/` pages describe the changed behavior: answer `check-docs-sync`'s Q1
+   and Q2 against the diff, using [REFERENCE.md](REFERENCE.md) § "Notes and
+   Docs Currency Criteria". Do not start from the PR's own `Docs:` line — the
+   check exists to catch the page the author forgot. Then compare with the
+   PR body's `Docs:` line:
+   - Missing, or still `Docs: pending check-docs-sync` → **FAIL**.
+   - An affected page the PR neither updated nor deferred → **IMPROVE**
+     (`fix-now`: execute updates the page and the line).
+   - `Docs: deferred to #N` → `#N` must be an existing `type:Concern` issue
+     (open, or closed as planned) whose body lists the affected pages, and the update must be a
+     multi-page rewrite PD-03-007 permits deferring. Otherwise **IMPROVE**.
+   - `Docs: no docs impact — <reason>` when your determination found an
+     affected page → **IMPROVE** (the page is affected but neither updated nor
+     deferred).
 
 ### Phase 10 — Test Coverage
 

@@ -27,7 +27,8 @@ missing from `git log origin/main..HEAD` and the current diff.
 | `issue_number` | Issue to close (parsed from branch name if omitted; optional) |
 | `draft` | `true` to open as draft (default: `false`) |
 
-**Returns**: the PR URL as a string. Callers own `archive-history`.
+**Returns**: the PR URL as a string. Callers own `archive-history`, and for
+implementation PRs they own replacing the `Docs:` placeholder (Phase 1c).
 
 ---
 
@@ -96,6 +97,10 @@ For `implementation`:
 
 <Spec manifest from deepen-context, verbatim>
 
+## Docs
+
+Docs: pending check-docs-sync
+
 ## Verification
 
 - All N unit tests pass (M new)
@@ -124,6 +129,26 @@ For `docs`:
 The `Closes #N` bullet **must be the very first line** of the body string
 passed to `gh pr create --body`. If it ends up after a `##` header, GitHub
 will not link the issue in the sidebar and triage will flag a FAIL.
+
+### 1c — Docs placeholder (implementation PRs)
+
+Every implementation or bug-fix PR body carries a `Docs:` line (PD-03-008;
+scope defined in `.agents/skills/shared/pr-body-guide.md` § "Implementation PR
+rules"), whether the body was inferred above or supplied by the caller. Apply
+this whenever `type` is `implementation`, whether passed or inferred. If the body has no line
+beginning `Docs:`, insert this section immediately before `## Verification`
+(or at the end of the body if there is no Verification section):
+
+```markdown
+## Docs
+
+Docs: pending check-docs-sync
+```
+
+A caller-supplied `Docs:` line is left as written. The placeholder is not a
+final value: the caller runs `check-docs-sync` after the push and replaces it
+with one of the final forms in `.agents/skills/shared/pr-body-guide.md`
+§ "Implementation PR rules". Docs PRs carry no `Docs:` line.
 
 ---
 
@@ -221,5 +246,7 @@ branch as-is with the same `git push -u origin HEAD`, then open a draft PR with
   mandatory and must run immediately before the push in Phase 4.
 - **Never open a non-draft PR with lint failures or failing tests.**
 - **Callers own `archive-history`.** This skill does not call it.
+- **Every implementation PR body gets a `Docs:` line** (Phase 1c). This skill
+  writes the placeholder; it never runs `check-docs-sync` itself.
 - If called from another skill, a dirty working tree is a hard stop, not a
   prompt — callers must arrive with a clean tree.

@@ -112,20 +112,30 @@ MS-11-001–MS-11-006):
 
 ## Notes and Docs Currency Criteria
 
-### Domain-to-notes mapping
+### Domain-to-notes-and-docs mapping
 
-| Changed domain | Potentially relevant notes files |
-|---|---|
-| `wire/as2/` | `activitystreams-semantics.md`, `vocabulary-registry.md` |
-| `core/behaviors/` | `bt-integration.md` |
-| `core/use_cases/` | `bt-integration.md`, `event-driven-control-flow.md` |
-| `core/models/case` | `case-state-model.md`, `case-communication-model.md` |
-| `adapters/` | `architecture-adapters.md`, `architecture-hexagonal.md` |
-| `core/ports/` | `architecture-hexagonal.md` |
-| Embargo logic | `participant-embargo-consent.md`, `embargo-lifecycle.md` |
-| Case ledger | `case-ledger-authority.md` |
-| Inbox processing | `inbox-orchestration.md` |
-| Participant routing | `case-communication-model.md` |
+A starting point, not an exhaustive list: also grep `docs/` for the names of
+changed classes, functions, messages, and CLI commands.
+
+| Changed domain | Potentially relevant notes files | Potentially relevant `docs/` pages |
+|---|---|---|
+| `wire/as2/` | `activitystreams-semantics.md`, `vocabulary-registry.md` | `docs/reference/messages/`, `docs/reference/activitypub/objects.md`, `docs/topics/activity_vocabulary_design.md`, `docs/topics/message_semantics.md` |
+| `core/behaviors/` | `bt-integration.md` | `docs/reference/behaviors/`, `docs/topics/behavior_logic/` |
+| `core/use_cases/` | `bt-integration.md`, `event-driven-control-flow.md` | `docs/reference/trigger-api.md`, `docs/reference/behaviors/` |
+| `core/models/case` | `case-state-model.md`, `case-communication-model.md` | `docs/reference/case_model_fields.md`, `docs/howto/case_object.md`, `docs/topics/case_lifecycle/` |
+| `core/states/` | `case-state-model.md` | `docs/topics/process_models/`, `docs/reference/case_states/` |
+| `adapters/` | `architecture-adapters.md`, `architecture-hexagonal.md` | `docs/topics/reference_architecture.md`, `docs/reference/codebase/` |
+| `core/ports/` | `architecture-hexagonal.md` | `docs/topics/reference_architecture.md`, `docs/reference/codebase/ARCHITECTURE.md` |
+| Embargo logic | `participant-embargo-consent.md`, `embargo-lifecycle.md` | `docs/topics/process_models/em/`, `docs/reference/messages/em.md` |
+| Case ledger | `case-ledger-authority.md` | `docs/topics/case_lifecycle/case_manager_and_ledger.md`, `docs/topics/case_lifecycle/case_ledger_sync.md`, `docs/reference/messages/ledger_replication.md` |
+| Inbox processing | `inbox-orchestration.md` | `docs/topics/protocol_flow.md`, `docs/topics/reference_architecture.md` |
+| Participant routing | `case-communication-model.md` | `docs/topics/protocol_flow.md`, `docs/topics/actor-knowledge-model.md` |
+| `demo/` | `demo-scenario-authoring.md` | `docs/tutorials/` demo pages, `docs/howto/demos/`, `docs/reference/fv-demo-protocol.md` |
+| Dev tooling, `metadata/`, `.agents/skills/` | — | `docs/developer/` (draft docs) |
+
+Spec pages under `docs/reference/specs/`, the mkdocstrings `:::` API pages,
+and `docs/reference/examples/*.json` regenerate at build time. A change whose
+only described surface is one of these has no docs impact.
 
 ### Check procedure
 
@@ -136,6 +146,37 @@ MS-11-001–MS-11-006):
    been moved to `archived_notes/` instead of edited.
 5. If `docs/` was modified: confirm `uv run mkdocs build --strict` passed
    (check CI or note it as pending).
+
+### Docs currency procedure (PD-03-009)
+
+Runs for every implementation or bug-fix PR (scope defined in
+`.agents/skills/shared/pr-body-guide.md` § "Implementation PR rules"), with
+**no** "if `docs/` was modified" precondition.
+
+1. From the diff and the table above, list the `docs/` pages that describe
+   the changed behavior, interfaces, or architecture (`check-docs-sync` Q1).
+   For each, state what would need to change (Q2). Read each candidate page;
+   a page that only mentions a name without describing the changed behavior
+   is not affected.
+2. Read the PR body's `Docs:` line and compare:
+
+   | `Docs:` line | Your determination | Finding |
+   |---|---|---|
+   | Missing, or `pending check-docs-sync` | any | **FAIL** |
+   | `updated <pages>` | every affected page is listed and changed in the diff | none |
+   | `updated <pages>` | an affected page is neither listed nor deferred | **IMPROVE** |
+   | `updated <pages>` | a listed page is not changed in the diff | **IMPROVE** — the line claims an update the diff lacks |
+   | `no docs impact — <reason>` | no affected page | none |
+   | `no docs impact — <reason>` | an affected page | **IMPROVE** |
+   | `deferred to #N` | `#N` exists (open, or closed as planned), is a `type:Concern` listing the pages, and the update rewrites several pages (PD-03-007) | none |
+   | `deferred to #N` | `#N` does not exist, is not a Concern, does not list the pages, or the update is a single-page edit | **IMPROVE** |
+   | `updated <pages>; deferred to #N` | judge each half by the rows above | the worse of the two |
+
+3. Verify a deferral with
+   `gh issue view <N> --json state,body` and the issue type query in
+   `.agents/skills/shared/query-issue-type.sh`.
+4. Name each affected page in the finding's `description`, so `pr-execute` can
+   update it without re-running discovery.
 
 ---
 

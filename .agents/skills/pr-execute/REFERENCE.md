@@ -297,6 +297,12 @@ File: `.claude/pr-{number}-execute.json`
     "merge_state_status_after_sync": "CLEAN",
     "undrafted": false
   },
+  "docs_refresh": {
+    "fix_commits_checked": ["abc1234"],
+    "pages_updated": ["docs/reference/messages/em.md"],
+    "docs_commit_ref": "bcd2345",
+    "docs_line": "Docs: updated docs/reference/messages/em.md"
+  },
   "results": [
     {
       "finding_id": "phase5-missing-nonemptystring-0",
@@ -361,6 +367,19 @@ diverge (indicating execute was interrupted before completion).
 block as a hard gate failure — an execute run that never checked mergeability
 cannot produce a READY-TO-MERGE verdict.
 
+### `docs_refresh` Fields
+
+| Field | Meaning |
+|---|---|
+| `fix_commits_checked` | Short SHAs of the non-merge fix commits Phase 3b diffed, including Phase 5 CI-fix commits; `[]` when execute made none |
+| `pages_updated` | `docs/` pages Phase 3b changed; `[]` when none were affected |
+| `docs_commit_ref` | SHA of the `docs: sync docs/ …` commit, or `null` |
+| `docs_line` | The PR body's `Docs:` line as execute left it |
+
+`docs_refresh` is **required** for implementation and bug-fix PRs. `pr-verify`
+reads it to check that the `Docs:` line is not stale relative to the fix
+commits.
+
 ---
 
 ## Execute Comment Format
@@ -375,6 +394,7 @@ cannot produce a READY-TO-MERGE verdict.
 **Tests run**: unit only / unit + integration
 **CI status**: ✅ passing / ❌ failing / ⏳ timed out
 **Base sync**: ✅ merged `<base_ref>` @ `def5678` — <N> conflicts resolved / ✅ already current / ❌ conflicts unresolved
+**Docs line**: `<docs_refresh.docs_line>` — <N> pages updated by execute
 
 ---
 

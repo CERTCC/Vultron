@@ -111,25 +111,17 @@ MS-11-001–MS-11-006):
 
 ## Notes and Docs Currency Criteria
 
-### Domain-to-notes mapping (common cases)
+### Domain mapping
 
-| Changed domain | Potentially relevant notes files |
-|---|---|
-| `wire/as2/` | `activitystreams-semantics.md`, `vocabulary-registry.md` |
-| `core/behaviors/` | `bt-integration.md` |
-| `core/use_cases/` | `bt-integration.md`, `event-driven-control-flow.md` |
-| `core/models/case` | `case-state-model.md`, `case-communication-model.md` |
-| `adapters/` | `architecture-adapters.md`, `architecture-hexagonal.md` |
-| `core/ports/` | `architecture-hexagonal.md` |
-| Embargo logic | `participant-embargo-consent.md`, `embargo-lifecycle.md` |
-| Case ledger | `case-ledger-authority.md` |
-| Inbox processing | `inbox-orchestration.md` |
-| Participant routing | `case-communication-model.md` |
+Use the domain-to-notes-and-docs table in
+[`../pr-triage/REFERENCE.md`](../pr-triage/REFERENCE.md) § "Notes and Docs
+Currency Criteria". It is kept in one place so the two reviewers cannot
+diverge.
 
 ### Check procedure
 
-1. Identify relevant notes from the table above.
-2. For each relevant note: was it modified in the PR diff? If not: **WARN**.
+1. Identify relevant notes from that table.
+2. For each relevant note: was it modified in the PR diff? If not: **IMPROVE**.
 3. For each `notes/*.md` file **modified** in the PR: validate frontmatter.
 4. If any modified note has `status: superseded`, flag that it should have
    been moved to `archived_notes/` instead of edited.
