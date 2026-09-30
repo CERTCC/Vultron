@@ -80,9 +80,7 @@ def _is_dl_mutation_call(node: ast.AST) -> bool:
     ):
         return True
     # dl.METHOD (local variable)
-    if isinstance(recv, ast.Name) and recv.id in _DL_RECEIVER_ATTRS:
-        return True
-    return False
+    return bool(isinstance(recv, ast.Name) and recv.id in _DL_RECEIVER_ATTRS)
 
 
 def _walk_own_scope(node: ast.AST) -> Iterator[ast.AST]:

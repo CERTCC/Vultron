@@ -58,9 +58,7 @@ def _is_forbidden_call(node: ast.AST) -> bool:
     func = node.func
     if isinstance(func, ast.Name) and func.id == FORBIDDEN_CALL:
         return True
-    if isinstance(func, ast.Attribute) and func.attr == FORBIDDEN_CALL:
-        return True
-    return False
+    return bool(isinstance(func, ast.Attribute) and func.attr == FORBIDDEN_CALL)
 
 
 def _find_violations() -> list[tuple[str, int]]:

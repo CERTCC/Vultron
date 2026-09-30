@@ -216,9 +216,7 @@ class BtNode:
             return True
         if self._children is None:
             return True
-        if len(list(self._children)) == 0:
-            return True
-        return False
+        return len(list(self._children)) == 0
 
     def _namestr(self, depth=0) -> str:
         """Returns a string representation of the node's name."""
