@@ -26,9 +26,9 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
 OWNER = "https://example.org/actors/owner"
 PEER_A = "https://example.org/actors/a"

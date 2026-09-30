@@ -55,7 +55,7 @@ _ledger_counter: dict[str, int] = {}
 
 def _seed_ledger_entry(
     dl, case_id, object_id, event_type, actor_id=ACTOR_ID
-):  # noqa: ARG001
+):
     """Insert a CaseLedgerEntry directly without traversing the hash chain.
 
     Uses a simple per-test counter for log_index so entries don't collide.

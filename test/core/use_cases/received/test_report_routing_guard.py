@@ -39,6 +39,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
@@ -46,7 +47,6 @@ from vultron.core.models.events.report import (
     InvalidateReportReceivedEvent,
 )
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM

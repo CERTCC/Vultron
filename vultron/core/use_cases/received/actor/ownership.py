@@ -18,9 +18,9 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     is_recipient,

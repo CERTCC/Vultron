@@ -26,7 +26,7 @@ from pathlib import Path
 from vultron.metadata.base import repo_root as _find_repo_root
 from vultron.metadata.history.readme_gen import format_month_index
 
-_UTC = datetime.timezone.utc
+_UTC = datetime.UTC
 
 
 def _month_dirs_descending(history_root: Path) -> list[Path]:

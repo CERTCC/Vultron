@@ -14,7 +14,6 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Type
 
 from vultron.bt.base.bt_node import ConditionCheck
 from vultron.bt.base.factory import fallback_node
@@ -22,7 +21,7 @@ from vultron.bt.common import show_graph, state_in
 from vultron.core.states.em import EM
 
 
-def em_state_in(state: EM) -> Type[ConditionCheck]:
+def em_state_in(state: EM) -> type[ConditionCheck]:
     if state not in EM:
         raise ValueError(f"{state} is not a valid Embargo Management state")
 

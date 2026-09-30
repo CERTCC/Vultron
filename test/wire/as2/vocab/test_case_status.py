@@ -18,7 +18,7 @@ Tests for as_CaseStatus and as_ParticipantStatus empty-string field validation
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -119,7 +119,7 @@ class TestAs2RoundTripPreservesPublished(unittest.TestCase):
     AS2 and reading it back is that path now, so that is what is asserted.
     """
 
-    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=UTC)
 
     def test_as2_round_trip_preserves_published(self):
         core = CoreCaseStatus(context=CASE_ID, published=self._FIXED_TIME)
@@ -187,7 +187,7 @@ class TestAs2RoundTripPreservesFields(unittest.TestCase):
     the round-trip is the successor path.
     """
 
-    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=UTC)
 
     def test_as2_round_trip_preserves_published(self):
         core = CoreParticipantStatus(

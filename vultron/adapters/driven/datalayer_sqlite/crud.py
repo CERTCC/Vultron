@@ -29,7 +29,7 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.errors import VultronAlreadyExistsError
 
-from .schema import VultronObjectRecord, QueueEntry, participant_status_summary
+from .schema import QueueEntry, VultronObjectRecord, participant_status_summary
 
 logger = logging.getLogger(__name__)
 

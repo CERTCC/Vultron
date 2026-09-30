@@ -31,6 +31,10 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.actor import (
+    EmitInviteActorToCaseNode,
+    EvaluateDefaultRolesNode,
+)
 from vultron.core.behaviors.case.suggest_actor_tree import (
     ActorAlreadyParticipantNode,
     EmitAcceptActorRecommendationNode,
@@ -42,10 +46,6 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_accept_actor_recommendation_received_tree,
     create_recommend_actor_to_case_received_tree,
     create_reject_actor_recommendation_received_tree,
-)
-from vultron.core.behaviors.case.nodes.actor import (
-    EmitInviteActorToCaseNode,
-    EvaluateDefaultRolesNode,
 )
 from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_CASE_REPLY_TYPES,
@@ -102,7 +102,7 @@ class TestEvaluateDefaultRolesNode:
     def test_writes_vendor_role_to_namespaced_blackboard_key(self):
         """AC-2: writes suggested_roles_{segment} = [CVDRole.VENDOR] to blackboard."""
         self.node.update()
-        expected_key = f"/suggested_roles_{_REC_ID.split('/')[-1]}"
+        expected_key = f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
         raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
         assert raw == [
             CVDRole.VENDOR
@@ -139,8 +139,8 @@ class TestEvaluateDefaultRolesNode:
         self.node.update()
         node2.update()
 
-        key1 = f"/suggested_roles_{_REC_ID.split('/')[-1]}"
-        key2 = f"/suggested_roles_{rec_id_2.split('/')[-1]}"
+        key1 = f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
+        key2 = f"/suggested_roles_{rec_id_2.rsplit('/', maxsplit=1)[-1]}"
 
         assert (
             key1 != key2
@@ -175,7 +175,7 @@ class TestEvaluateDefaultRolesNode:
         assert result == Status.FAILURE
         assert node.feedback_message, "feedback_message must be set on FAILURE"
         # blackboard key must not be written
-        expected_key = f"/suggested_roles_{_REC_ID.split('/')[-1]}"
+        expected_key = f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
         raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
         assert raw is None, (
             f"Blackboard key '{expected_key}' must not be written when "
@@ -311,7 +311,7 @@ class TestEmitOfferCaseParticipantToOwnerNodeEmptyRoles:
         # Simulate a pathological writer that bypasses EvaluateDefaultRolesNode's
         # non-empty invariant by writing [] to the namespaced blackboard key.
         # Must be written before initialise() so the ports cache sees the value.
-        id_segment = _REC_ID.split("/")[-1]
+        id_segment = _REC_ID.rsplit("/", maxsplit=1)[-1]
         py_trees.blackboard.Blackboard.storage[
             f"/suggested_roles_{id_segment}"
         ] = []

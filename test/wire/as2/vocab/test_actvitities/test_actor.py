@@ -11,9 +11,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 import unittest
-from typing import Type
 
-import vultron.wire.as2.vocab.activities.actor as actor  # noqa: F401
+from vultron.wire.as2.vocab.activities import actor
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -66,8 +65,8 @@ class MyTestCase(unittest.TestCase):
 
     def _test_accept_reject_actor_recommendation(
         self,
-        cls: Type[as_TransitiveActivity],
-        expect_class: Type[as_TransitiveActivity],
+        cls: type[as_TransitiveActivity],
+        expect_class: type[as_TransitiveActivity],
         expect_type: str,
     ):
         for actor_class in ACTOR_CLASSES:
@@ -99,8 +98,8 @@ class MyTestCase(unittest.TestCase):
 
     def _test_base_actor_activity(
         self,
-        cls: Type[as_TransitiveActivity],
-        expect_class: Type[as_TransitiveActivity],
+        cls: type[as_TransitiveActivity],
+        expect_class: type[as_TransitiveActivity],
         expect_type: str,
     ):
         for actor_class in ACTOR_CLASSES:
@@ -131,16 +130,19 @@ class MyTestCase(unittest.TestCase):
             # the type should be Reject, not RejectActorRecommendation, etc.
             self.assertEqual(reloaded.type_, expect_type)
 
-            self.assertEqual(getattr(reloaded.object_, "id_"), _actor.id_)
+            reloaded_object = reloaded.object_
+            assert not isinstance(reloaded_object, str)
+            self.assertEqual(reloaded_object.id_, _actor.id_)
             self.assertIsNotNone(_actor.type_)
-            self.assertIn(getattr(reloaded.object_, "type_"), [_actor.type_])
-            self.assertEqual(
-                getattr(reloaded.object_, "name"), actor_class.__name__
-            )
+            self.assertIn(reloaded_object.type_, [_actor.type_])
+            self.assertEqual(reloaded_object.name, actor_class.__name__)
 
-            self.assertEqual(getattr(reloaded.target, "id_"), _case.id_)
-            self.assertEqual(getattr(reloaded.target, "type_"), _case.type_)
-            self.assertEqual(getattr(reloaded.target, "name"), _case.name)
+            reloaded_target = reloaded.target
+            assert reloaded_target is not None
+            assert not isinstance(reloaded_target, str)
+            self.assertEqual(reloaded_target.id_, _case.id_)
+            self.assertEqual(reloaded_target.type_, _case.type_)
+            self.assertEqual(reloaded_target.name, _case.name)
 
 
 if __name__ == "__main__":

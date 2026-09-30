@@ -3,7 +3,6 @@
 import logging
 from typing import Any
 
-
 from vultron.core.behaviors.case.update_support import (
     find_excluded_actor_ids,
 )

@@ -21,16 +21,15 @@ import py_trees
 import pytest
 from py_trees.ports import NoDataAvailable
 
+from test.core.behaviors.embargo.nodes.conftest import (
+    setup_blackboard,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
 )
-from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
-
-from test.core.behaviors.embargo.nodes.conftest import (
-    setup_blackboard,
-)
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 
 
 def _make_core_embargo(suffix: str = "1") -> CoreEmbargoEvent:

@@ -18,21 +18,8 @@ import pytest
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.utils import strip_id_prefix
-from vultron.core.states.cs import CS_pxa, CS_vf
-from vultron.core.states.em import EM
-from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import (  # noqa: F401
-    as_CaseStatus,
-    as_ParticipantStatus,
-)
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    as_VulnerabilityCase,
-)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -42,7 +29,20 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
-from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.core.states.cs import CS_pxa, CS_vf
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import (  # noqa: F401
+    as_CaseStatus,
+    as_ParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
+    as_VulnerabilityCase,
+)
 
 _ACTOR_ID = "https://example.org/actors/alice"
 

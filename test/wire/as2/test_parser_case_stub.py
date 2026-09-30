@@ -59,7 +59,7 @@ def _enriched_stub() -> dict:
 
 def test_stub_keys_are_derived_from_the_stub_class():
     """The stub's own fields, in wire spelling, plus identity — nothing else."""
-    assert _VULNERABILITY_CASE_STUB_KEYS == frozenset(
+    assert frozenset(
         {
             "@context",
             "id",
@@ -70,7 +70,7 @@ def test_stub_keys_are_derived_from_the_stub_class():
             "activeEmbargo",
             "caseStatus",
         }
-    )
+    ) == _VULNERABILITY_CASE_STUB_KEYS
     # Inherited AS2 fields a full case also carries are deliberately absent,
     # so a minimal full case is not mistaken for a stub.
     assert "name" not in _VULNERABILITY_CASE_STUB_KEYS

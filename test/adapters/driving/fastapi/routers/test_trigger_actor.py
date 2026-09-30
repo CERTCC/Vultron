@@ -21,27 +21,25 @@ Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
 import pytest
-
-from test.conftest import seed_case_actor_replica
-from fastapi import FastAPI, status
-from fastapi import Path as FastAPIPath
+from fastapi import FastAPI, Path as FastAPIPath, status
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driving.fastapi.routers import (
-    trigger_actor as trigger_actor_router,
+import vultron.adapters.driving.fastapi.outbox_handler as _outbox_handler
+from test.conftest import seed_case_actor_replica
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
 )
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
     get_trigger_dl,
     get_trigger_service,
 )
-import vultron.adapters.driving.fastapi.outbox_handler as _outbox_handler
-from vultron.enums.roles import CVDRole
-from vultron.core.use_cases.triggers.service import TriggerService
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
+from vultron.adapters.driving.fastapi.routers import (
+    trigger_actor as trigger_actor_router,
 )
+from vultron.core.use_cases.triggers.service import TriggerService
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -56,7 +54,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 
 class _NoopEmitter:
-    async def emit(self, activity_id, json_body, recipients):  # noqa: ARG002
+    async def emit(self, activity_id, json_body, recipients):
         pass
 
 

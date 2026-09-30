@@ -22,18 +22,18 @@ the validator directly.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
 from test.core.behaviors.sync.nodes.conftest import (
-    OWNER_ACTOR_ID,
     CASE_ID,
+    OWNER_ACTOR_ID,
 )
-from vultron.core.models._helpers import now_utc
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.errors import VultronCanonicalEntryError
 
 
@@ -67,8 +67,8 @@ def test_validate_canonical_entry_rejects_empty_snapshot():
 # CLP-14 timestamp invariant tests
 # ---------------------------------------------------------------------------
 
-_CASE_PUBLISHED = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-_ENTRY_PUBLISHED = datetime(2026, 1, 1, 12, 1, 0, tzinfo=timezone.utc)
+_CASE_PUBLISHED = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+_ENTRY_PUBLISHED = datetime(2026, 1, 1, 12, 1, 0, tzinfo=UTC)
 
 
 def _ts_snapshot(published: str | datetime | None = _ENTRY_PUBLISHED) -> dict:
@@ -184,7 +184,7 @@ def test_clp14_006_message_renders_case_published_in_utc():
     """
     tz_530 = timezone(timedelta(hours=5, minutes=30))
     case_published = datetime(2026, 1, 1, 12, 0, 0, tzinfo=tz_530)  # 06:30 UTC
-    entry_before = datetime(2026, 1, 1, 6, 0, 0, tzinfo=timezone.utc)
+    entry_before = datetime(2026, 1, 1, 6, 0, 0, tzinfo=UTC)
     with pytest.raises(
         VultronCanonicalEntryError, match="CLP-14-006"
     ) as excinfo:
@@ -229,7 +229,7 @@ def test_clp15_003_accepts_equal_timestamps():
 
 @pytest.mark.spec("CLP-14-007")
 def test_clp14_007_rejects_future_timestamp():
-    far_future = datetime.now(tz=timezone.utc) + timedelta(hours=1)
+    far_future = datetime.now(tz=UTC) + timedelta(hours=1)
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-007"):
         _call_with_ts(
             _ts_snapshot(published=far_future),
@@ -240,7 +240,7 @@ def test_clp14_007_rejects_future_timestamp():
 
 @pytest.mark.spec("CLP-14-007")
 def test_clp14_007_skipped_when_tolerance_is_none():
-    far_future = datetime.now(tz=timezone.utc) + timedelta(hours=1)
+    far_future = datetime.now(tz=UTC) + timedelta(hours=1)
     _call_with_ts(
         _ts_snapshot(published=far_future),
         case_published=_CASE_PUBLISHED,
@@ -251,7 +251,7 @@ def test_clp14_007_skipped_when_tolerance_is_none():
 
 @pytest.mark.spec("CLP-14-008")
 def test_clp14_008_rejects_stale_timestamp():
-    stale = datetime.now(tz=timezone.utc) - timedelta(days=30)
+    stale = datetime.now(tz=UTC) - timedelta(days=30)
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-008"):
         _call_with_ts(
             _ts_snapshot(published=stale),
@@ -262,7 +262,7 @@ def test_clp14_008_rejects_stale_timestamp():
 
 @pytest.mark.spec("CLP-14-008")
 def test_clp14_008_skipped_when_window_is_none():
-    stale = datetime.now(tz=timezone.utc) - timedelta(days=30)
+    stale = datetime.now(tz=UTC) - timedelta(days=30)
     _call_with_ts(
         _ts_snapshot(published=stale),
         case_published=stale - timedelta(days=1),

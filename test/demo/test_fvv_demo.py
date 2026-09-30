@@ -26,14 +26,14 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-from vultron.demo.actor_session import ActorSession
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
-import vultron.demo.scenario.fvv_demo as demo
 import vultron.demo.helpers.sync as sync_module
+import vultron.demo.scenario.fvv_demo as demo
 from test.demo._helpers import make_client, make_testclient_call
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
 from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
@@ -393,7 +393,7 @@ class TestCoverageWaitInsideDemoCheck:
         module* to always raise AssertionError, the scenario's real closure
         phase calls the real helper, and the exception does not propagate.
         """
-        import vultron.demo.utils as utils_module  # noqa: PLC0415
+        import vultron.demo.utils as utils_module
 
         utils_module.reset_demo_failures()
 
@@ -1012,7 +1012,7 @@ class TestFvvParticipantWaitTimeout:
         return c
 
     def test_sync_verification_gives_vendor2_late_joiner_timeout(self):
-        import vultron.demo.helpers.polling as polling_module  # noqa: PLC0415
+        import vultron.demo.helpers.polling as polling_module
 
         finder_client = self._client()
         vendor_client = self._client()
@@ -1108,8 +1108,8 @@ class TestParticipantWaitInsideDemoCheck:
         AssertionError, (b) records the timeout in _demo_failures, and (c) still
         reaches the downstream verify_replica_state demo_check blocks.
         """
-        import vultron.demo.helpers.polling as polling_module  # noqa: PLC0415
-        import vultron.demo.utils as utils_module  # noqa: PLC0415
+        import vultron.demo.helpers.polling as polling_module
+        import vultron.demo.utils as utils_module
 
         utils_module.reset_demo_failures()
 

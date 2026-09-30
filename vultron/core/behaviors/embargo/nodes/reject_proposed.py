@@ -31,12 +31,12 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.services.embargo_ordering import (
-    earliest_expiring_embargo_id,
-)
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
+)
+from vultron.core.services.embargo_ordering import (
+    earliest_expiring_embargo_id,
 )
 from vultron.core.states.em import EM
 from vultron.errors import VultronError

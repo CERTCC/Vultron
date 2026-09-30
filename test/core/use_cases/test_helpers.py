@@ -41,23 +41,23 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.enums.roles import CVDRole
-from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.models.base import CoreObject
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
     _idempotent_create,
     resolve_case_participant_id_for_actor,
     resolve_receiving_actor_id,
 )
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
 
 _ACTOR_ID = "https://example.org/actors/vendor-001"

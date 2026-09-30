@@ -37,7 +37,7 @@ class _EntryMeta:
     entry_type: str = ""
     timestamp: datetime.datetime = field(
         default_factory=lambda: datetime.datetime(
-            1970, 1, 1, tzinfo=datetime.timezone.utc
+            1970, 1, 1, tzinfo=datetime.UTC
         )
     )
     source: str = ""

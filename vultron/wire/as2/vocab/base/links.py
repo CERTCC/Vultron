@@ -16,7 +16,7 @@ Provides classes representing ActivityStreams Vocabulary Link objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Literal, TypeVar, TypeAlias
+from typing import Literal, TypeAlias, TypeVar
 
 from pydantic import Field
 

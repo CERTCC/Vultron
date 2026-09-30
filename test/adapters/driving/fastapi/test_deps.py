@@ -47,6 +47,7 @@ import pytest
 from fastapi import Request
 from fastapi.params import Depends as params_Depends
 
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
@@ -55,7 +56,6 @@ from vultron.adapters.driving.fastapi.deps import (
     node_base_url,
 )
 from vultron.core.ports.datalayer import DataLayer
-from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 # Canonical *for this node*: an actor id is the URL that reaches it here, so a

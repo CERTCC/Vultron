@@ -7,13 +7,13 @@ and SpecTag.BEHAVIORAL detection.
 
 import re
 
-import yaml
 import pytest
+import yaml
 
 from vultron.metadata.docs.anchor_ids import anchor_ids_in
+from vultron.metadata.specs.docs_render import render_for_kind
 from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.schema import SpecKind, SpecTag
-from vultron.metadata.specs.docs_render import render_for_kind
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -38,8 +38,9 @@ Per specs/sync-ledger-replication.yaml:
 
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import py_trees
 from py_trees.common import Status

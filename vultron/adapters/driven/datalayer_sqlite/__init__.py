@@ -30,7 +30,7 @@ import logging
 
 from .datalayer import SqliteDataLayer
 from .engine import dispose_actor_engines, reset_store_claimants
-from .schema import VultronObjectRecord, QueueEntry
+from .schema import QueueEntry, VultronObjectRecord
 
 __all__ = [
     "SqliteDataLayer",

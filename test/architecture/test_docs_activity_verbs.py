@@ -82,6 +82,8 @@ import functools
 import re
 from types import MappingProxyType
 
+from test.architecture import _corpus
+
 # The complete pattern set lives in the private module.  ``extractor/__init__``
 # re-exports only 48 of the 51, so importing the public surface would leave the
 # unexported patterns invisible to this ratchet — the same silent gap a
@@ -89,8 +91,6 @@ from types import MappingProxyType
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.wire.as2.extractor import _instances
 from vultron.wire.as2.extractor._pattern import ActivityPattern
-
-from test.architecture import _corpus
 
 _ACTIVITIES_ROOT = (
     _corpus.REPO_ROOT / "vultron" / "wire" / "as2" / "vocab" / "activities"

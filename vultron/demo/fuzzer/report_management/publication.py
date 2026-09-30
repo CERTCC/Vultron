@@ -44,11 +44,11 @@ References
 
 from __future__ import annotations
 
-from vultron.core.behaviors.report.publish_artifact_tree import (
-    AdvisoryReviewDecision,
-)
 from vultron.core.behaviors.report.publication_tree import (
     PublicationIntentDecision,
+)
+from vultron.core.behaviors.report.publish_artifact_tree import (
+    AdvisoryReviewDecision,
 )
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,

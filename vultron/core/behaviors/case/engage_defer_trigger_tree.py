@@ -28,7 +28,7 @@ inside the BT so they are visible to BT analysis and auditing tools.
 ADR-0089 AC-4: bypass nodes deleted, canonical writer used directly.
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 import py_trees
 

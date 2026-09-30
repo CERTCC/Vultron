@@ -18,7 +18,6 @@ Vultron API v2 Application
 
 import logging
 from contextlib import asynccontextmanager
-
 from uuid import uuid4
 
 from fastapi import FastAPI
@@ -327,7 +326,7 @@ def create_app(
     Returns:
         A new :class:`FastAPI` instance with the Vultron router included.
     """
-    from vultron.config import RunMode, get_config  # noqa: E402
+    from vultron.config import RunMode, get_config
 
     application = FastAPI(
         title=title,

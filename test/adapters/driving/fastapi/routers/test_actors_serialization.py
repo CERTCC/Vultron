@@ -24,13 +24,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from vultron.adapters.utils import strip_id_prefix
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driving.fastapi.routers import actors as actors_router
 from vultron.adapters.driving.fastapi.routers import (
+    actors as actors_router,
     datalayer as datalayer_router,
 )
+from vultron.adapters.utils import strip_id_prefix
 from vultron.wire.as2.vocab.objects.embargo_policy import as_EmbargoPolicy
 from vultron.wire.as2.vocab.objects.vultron_actor import (
     as_VultronApplication,
@@ -67,6 +67,7 @@ def _host_actor(actor):
 @pytest.fixture
 def client_actors(datalayer):
     from fastapi import Path as FastAPIPath
+
     from vultron.adapters.driven.datalayer_sqlite import get_datalayer
     from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
@@ -95,6 +96,7 @@ def client_actors(datalayer):
 @pytest.fixture
 def client_datalayer(datalayer):
     from fastapi import Path as FastAPIPath
+
     from vultron.adapters.driven.datalayer_sqlite import get_datalayer
     from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
@@ -344,12 +346,11 @@ def test_datalayer_get_actors_includes_embargo_policy(
     Regression test for HTTP-08-001 violation where -> dict[str, as_Actor]
     return annotation stripped subclass fields.
     """
-    from vultron.core.ports.datalayer import StorableRecord
-
     # The debug router is actor-scoped in its path now (ADR-0073): there is no
     # node-wide store to inspect, so the record goes in this actor's own store
     # and the request names that actor.
     from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+    from vultron.core.ports.datalayer import StorableRecord
 
     hosted = get_datalayer(vultron_person.id_, db_url="sqlite:///:memory:")
     hosted.create(

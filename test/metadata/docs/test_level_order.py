@@ -18,8 +18,8 @@ from test.metadata.docs._level_tree import (
     VIOLATING,
     assert_passes,
     failures,
-    make_repo,
     leveled_page,
+    make_repo,
 )
 from vultron.metadata.base import repo_root
 from vultron.metadata.docs import level_order

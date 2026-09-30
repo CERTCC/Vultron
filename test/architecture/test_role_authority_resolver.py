@@ -404,9 +404,7 @@ def _mentions_segment(node: ast.AST, names: frozenset[str] | set[str]) -> bool:
                 and _COSMETIC_SUBSTRING in sub.value.lower()
             ):
                 return True
-        elif isinstance(sub, ast.Name) and sub.id in names:
-            return True
-        elif isinstance(sub, ast.Attribute) and sub.attr in names:
+        elif (isinstance(sub, ast.Name) and sub.id in names) or (isinstance(sub, ast.Attribute) and sub.attr in names):
             return True
     return False
 
@@ -467,9 +465,7 @@ def _identity_comparisons(tree: ast.AST) -> list[str]:
         mentions = False
         for operand in operands:
             for sub in ast.walk(operand):
-                if isinstance(sub, ast.Name) and sub.id in names:
-                    mentions = True
-                elif isinstance(sub, ast.Attribute) and sub.attr in names:
+                if (isinstance(sub, ast.Name) and sub.id in names) or (isinstance(sub, ast.Attribute) and sub.attr in names):
                     mentions = True
         if mentions:
             found.append(
@@ -634,9 +630,7 @@ def _service_hosting_scans(tree: ast.AST) -> list[str]:
 
     tests_context = False
     for node in ast.walk(tree):
-        if isinstance(node, ast.Attribute) and node.attr == _HOSTING_FIELD:
-            tests_context = True
-        elif (
+        if (isinstance(node, ast.Attribute) and node.attr == _HOSTING_FIELD) or (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
             and node.func.id == "getattr"

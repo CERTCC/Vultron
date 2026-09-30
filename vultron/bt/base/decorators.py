@@ -47,7 +47,7 @@ class Invert(BtDecorator):
 
         if child_status == NodeStatus.FAILURE:
             return NodeStatus.SUCCESS
-        elif child_status == NodeStatus.SUCCESS:
+        if child_status == NodeStatus.SUCCESS:
             return NodeStatus.FAILURE
         return NodeStatus.RUNNING
 

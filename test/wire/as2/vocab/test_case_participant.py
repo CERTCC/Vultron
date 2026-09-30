@@ -25,15 +25,15 @@ from vultron.adapters.driven.db_record import (
     object_to_record,
     record_to_object,
 )
-from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
-    CoordinatorParticipant,
-    FinderParticipant,
-    VendorParticipant,
-)
 from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
+)
+from vultron.wire.as2.vocab.objects.case_participant import (
+    CoordinatorParticipant,
+    FinderParticipant,
+    VendorParticipant,
+    as_CaseParticipant,
 )
 
 

@@ -21,7 +21,7 @@ from vultron.core.models.activity import (
     VultronCreateCaseActivity,
     VultronOffer,
 )
-from vultron.core.models.base import CoreRecord, CoreObject
+from vultron.core.models.base import CoreObject, CoreRecord
 
 # ---------------------------------------------------------------------------
 # CoreRecord.id_ alias tests

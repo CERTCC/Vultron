@@ -247,9 +247,9 @@ class TestUnitTierTimeout:
         assert self._configured_timeout(pytestconfig) <= 60
 
     def test_integration_tier_is_wider_than_the_unit_tier(self, pytestconfig):
-        assert INTEGRATION_TIMEOUT_SECONDS > self._configured_timeout(
+        assert self._configured_timeout(
             pytestconfig
-        )
+        ) < INTEGRATION_TIMEOUT_SECONDS
 
     def test_thread_method_is_still_in_use(self, pytestconfig):
         """Documents the coupling the tier values depend on.

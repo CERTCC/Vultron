@@ -27,8 +27,8 @@ from typing import Any, Literal
 from pydantic import Field
 
 from vultron.core.models.base import (
-    NonEmptyString,
     CoreRecord,
+    NonEmptyString,
 )
 
 

@@ -116,7 +116,7 @@ def collect_targets() -> list[tuple[str, Path]]:
     return targets
 
 
-def main() -> None:  # noqa: C901
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Backfill plan/history/2608 ISSUE-N.md files as GitHub comments."
     )

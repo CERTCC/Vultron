@@ -18,7 +18,6 @@ Provides messaging conditions for use in Vultron BTs.
 
 
 import logging
-from typing import Type
 
 from vultron.bt.base.bt_node import BtNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode
@@ -42,7 +41,7 @@ MsgQueueEmpty = invert(
 )
 
 
-def check_msg_type(msg_t: MessageTypes) -> Type[ConditionCheck]:
+def check_msg_type(msg_t: MessageTypes) -> type[ConditionCheck]:
     """Given a message type, return a condition check class for that message type"""
 
     if msg_t not in MessageTypes:

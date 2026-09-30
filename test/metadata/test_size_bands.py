@@ -97,19 +97,19 @@ class TestDerivation:
     """Nothing below may be written down twice."""
 
     def test_weights_derive_from_the_band_table(self):
-        assert SIZE_WEIGHTS == {
+        assert {
             b.label: b.weight for b in SIZE_BANDS if b.weight is not None
-        }
+        } == SIZE_WEIGHTS
 
     def test_unbundlable_labels_are_exactly_the_weightless_bands(self):
-        assert UNBUNDLABLE_LABELS == {
+        assert {
             b.label for b in SIZE_BANDS if b.weight is None
-        }
+        } == UNBUNDLABLE_LABELS
 
     def test_unsized_weight_is_the_largest_bundlable_weight(self):
         """Not the largest band. `size:` is on 91% of open Tasks, so treating
         the unlabelled 9% as unbundlable would fail closed, not safe."""
-        assert UNSIZED_WEIGHT == max(SIZE_WEIGHTS.values())
+        assert max(SIZE_WEIGHTS.values()) == UNSIZED_WEIGHT
         heaviest = max(SIZE_WEIGHTS, key=lambda label: SIZE_WEIGHTS[label])
         assert heaviest not in UNBUNDLABLE_LABELS
 

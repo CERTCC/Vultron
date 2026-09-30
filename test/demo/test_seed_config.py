@@ -17,9 +17,8 @@ Covers ``SeedConfig``, ``LocalActorConfig``, and ``PeerActorConfig`` loaded
 from environment variables and from a YAML file.
 """
 
-import yaml
-
 import pytest
+import yaml
 
 from vultron.demo.seed_config import (
     LocalActorConfig,

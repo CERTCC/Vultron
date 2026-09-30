@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 from vultron.metadata.specs.registry import (
     effective_kind,
     load_registry,
-)  # noqa: E402
+)
 
 # Matches file-level kind: (indent 0)
 _FILE_KIND_RE = re.compile(r"^kind:\s+\S")

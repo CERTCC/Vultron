@@ -53,18 +53,9 @@ When run as a script, this module will:
 
 # Standard library imports
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
-# Vultron imports
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
+from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -75,9 +66,10 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     logfmt,
     post_to_inbox_and_wait,
     ref_id,
-    verify_object_stored,
     setup_demo_logging,
+    verify_object_stored,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
     add_report_to_case_activity,
@@ -91,7 +83,15 @@ from vultron.wire.as2.factories import (
     rm_validate_report_activity,
 )
 
-from vultron.demo.helpers.runner import run_exchange_demos
+# Vultron imports
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ def setup_report_and_case(
     report_content: str,
     case_name: str,
     case_content: str,
-) -> Tuple[as_VulnerabilityReport, as_VulnerabilityCase]:
+) -> tuple[as_VulnerabilityReport, as_VulnerabilityCase]:
     """
     Shared setup: submit and validate a report, create a case, and add the
     vendor as a participant with the report linked.
@@ -168,7 +168,7 @@ def demo_engage_path(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates the full happy-path case management workflow:
@@ -230,7 +230,7 @@ def demo_defer_reengage_path(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates the defer-and-re-engage path:
@@ -307,7 +307,7 @@ def demo_invalidate_path(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates the invalidation path: submit → invalidate → close_report.
@@ -373,7 +373,7 @@ def demo_invalidate_path(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     ("Demo 1: Engage Path", demo_engage_path),
     ("Demo 2: Defer and Re-engage Path", demo_defer_reengage_path),
     ("Demo 3: Invalidate Path", demo_invalidate_path),
@@ -382,7 +382,7 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ) -> None:
     """Main entry point for the manage case demo demo script."""
     run_exchange_demos(

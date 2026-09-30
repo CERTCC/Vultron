@@ -134,7 +134,7 @@ def print_readme(model_dir="../../docs/case_states"):
         fp.write("| --- | --- | --- | --- | --- | --- | --- |\n")
 
         for state in sg.states:
-            explanation = "| ".join((_enum2title(x) for x in explain(state)))
+            explanation = "| ".join(_enum2title(x) for x in explain(state))
             fp.write(f"| [{state}]({_fname(state)}) | {explanation} |\n")
         fp.write("\n")
 

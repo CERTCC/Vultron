@@ -48,8 +48,8 @@ from __future__ import annotations
 import importlib
 import inspect
 import pkgutil
+from collections.abc import Iterable, Iterator
 from types import ModuleType
-from typing import Iterable, Iterator
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,

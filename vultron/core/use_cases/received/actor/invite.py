@@ -7,12 +7,12 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.accept_invite_tree import (
     create_accept_invite_actor_to_case_tree,
 )
-from vultron.core.behaviors.case.nodes.invite_participant import (
-    CheckInviteeNotAlreadyParticipantNode,
-)
 from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
     create_invite_actor_to_case_received_tree,
     create_reject_invite_actor_to_case_received_tree,
+)
+from vultron.core.behaviors.case.nodes.invite_participant import (
+    CheckInviteeNotAlreadyParticipantNode,
 )
 from vultron.core.behaviors.narrative_log import log_invite_received
 from vultron.core.models.events.actor import (

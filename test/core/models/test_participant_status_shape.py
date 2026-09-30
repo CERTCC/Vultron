@@ -53,6 +53,7 @@ sites).
 
 import pytest
 
+from test.support.participant_status import advance_participant_rm
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     DDimension,
@@ -60,7 +61,6 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_em_consent_state,
@@ -69,10 +69,10 @@ from vultron.core.models.participant_status import (
     participant_status_vf_state,
 )
 from vultron.core.states.cs import CS_d, CS_vf
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
-from test.support.participant_status import advance_participant_rm
 
 _ACTOR = "https://example.org/actors/alice"
 _CONTEXT = "https://example.org/cases/case-2232"

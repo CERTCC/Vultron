@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.conftest import TEST_ACTOR_ID
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -27,7 +28,6 @@ from vultron.core.use_cases.received.actor.suggest import (
 )
 from vultron.wire.as2.factories import recommend_actor_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from test.conftest import TEST_ACTOR_ID
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )

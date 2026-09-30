@@ -56,7 +56,6 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
 from vultron.core.behaviors.status.nodes import (
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
@@ -66,16 +65,17 @@ from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
     FilterCsPxaDimensionNode,
     FinalizeCsFilterNode,
 )
+from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
+    PxaEmInvariantDiagnosticNode,
+)
 from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
     CheckCsEphemeralStateNode,
     CheckCsHistoryPrefixNode,
 )
-from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
-    PxaEmInvariantDiagnosticNode,
-)
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
 )
+from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
 
 logger = logging.getLogger(__name__)
 

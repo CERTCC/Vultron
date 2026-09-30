@@ -40,12 +40,12 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers.report import (
     SvcCloseCaseUseCase,
     SvcCloseReportUseCase,
 )
 from vultron.core.use_cases.triggers.requests import CloseReportTriggerRequest
-from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories import rm_submit_report_activity

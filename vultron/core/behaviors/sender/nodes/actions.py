@@ -15,7 +15,7 @@
 
 """Action nodes for SenderSideBT."""
 
-from typing import Callable
+from collections.abc import Callable
 
 from py_trees.common import Status
 

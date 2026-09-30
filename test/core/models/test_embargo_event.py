@@ -20,7 +20,7 @@ fields (CS-13-001, #3784), including the inbound path where a nested
 """
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from pydantic import ValidationError
@@ -31,7 +31,7 @@ from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.wire.as2.factories.embargo import em_propose_embargo_activity
 from vultron.wire.as2.parser import parse_activity
 
-_FUTURE_DT = datetime(2099, 12, 31, tzinfo=timezone.utc)
+_FUTURE_DT = datetime(2099, 12, 31, tzinfo=UTC)
 _NAIVE_DT = datetime(2099, 12, 31, 12, 30)
 _CONTEXT = "urn:uuid:case-123"
 
@@ -89,7 +89,7 @@ class TestCoreEmbargoEventNoDefaultDuration:
         """The model bounds no duration: a 12-hour or 400-day end is the
         sender's claim (EP-04-007).  The bounded value is the protocol default
         alone, enforced on ``ActorConfig`` (EP-04-005, test_actor_config)."""
-        start = datetime(2030, 1, 1, tzinfo=timezone.utc)
+        start = datetime(2030, 1, 1, tzinfo=UTC)
         for delta in (timedelta(hours=12), timedelta(days=400)):
             e = EmbargoEvent(
                 context=_CONTEXT, start_time=start, end_time=start + delta
@@ -108,8 +108,8 @@ class TestCoreEmbargoEventTimesAreUtc:
     @pytest.mark.spec("CS-13-001")
     def test_naive_end_time_is_read_as_utc(self):
         e = EmbargoEvent(context=_CONTEXT, end_time=_NAIVE_DT)
-        assert e.end_time.tzinfo == timezone.utc
-        assert e.end_time == _NAIVE_DT.replace(tzinfo=timezone.utc)
+        assert e.end_time.tzinfo == UTC
+        assert e.end_time == _NAIVE_DT.replace(tzinfo=UTC)
 
     @pytest.mark.spec("CS-13-001")
     def test_aware_end_time_is_kept(self):
@@ -125,7 +125,7 @@ class TestCoreEmbargoEventTimesAreUtc:
             context=_CONTEXT, start_time=_NAIVE_DT, end_time=_FUTURE_DT
         )
         assert e.start_time is not None
-        assert e.start_time.tzinfo == timezone.utc
+        assert e.start_time.tzinfo == UTC
 
     @pytest.mark.spec("CLP-15-007")
     def test_absent_start_time_stays_none(self):
@@ -155,9 +155,9 @@ class TestCoreEmbargoEventTimesAreUtc:
 
         nested = getattr(parsed, "object_", None)
         assert isinstance(nested, EmbargoEvent)
-        assert nested.end_time.tzinfo == timezone.utc
+        assert nested.end_time.tzinfo == UTC
         assert nested.end_time == datetime(
-            2099, 12, 31, 12, 30, tzinfo=timezone.utc
+            2099, 12, 31, 12, 30, tzinfo=UTC
         )
 
 
@@ -175,7 +175,7 @@ def test_with_subject_relabels_a_derived_name_for_the_new_subject() -> None:
     the case-scoped copy is labelled by the case."""
     event = EmbargoEvent(
         context="https://example.org/reports/r-1",
-        end_time=datetime(2099, 6, 1, tzinfo=timezone.utc),
+        end_time=datetime(2099, 6, 1, tzinfo=UTC),
     )
     moved = event.with_subject("https://example.org/cases/c-1")
     assert moved.id_ == event.id_
@@ -191,7 +191,7 @@ def test_with_subject_keeps_a_name_the_sender_chose() -> None:
     event = EmbargoEvent(
         name="Widget parser embargo",
         context="https://example.org/reports/r-1",
-        end_time=datetime(2099, 6, 1, tzinfo=timezone.utc),
+        end_time=datetime(2099, 6, 1, tzinfo=UTC),
     )
     moved = event.with_subject("https://example.org/cases/c-1")
     assert moved.name == "Widget parser embargo"

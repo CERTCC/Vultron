@@ -25,8 +25,8 @@ Per DEMOMA-07-003 step 2.
 
 import logging
 
-import pytest
 import py_trees
+import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
@@ -40,13 +40,13 @@ from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 from vultron.core.behaviors.status.nodes.rm_validation import (
     ValidateRMTransitionNode,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 
 from .conftest import ACTOR_ID, CASE_ID, PARTICIPANT_ID, STATUS_ID
-from vultron.core.models.dimensions import (
-    RmDimension,
-)
 
 # ---------------------------------------------------------------------------
 # SkipIfIdempotentNode

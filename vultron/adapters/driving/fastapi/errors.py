@@ -1,12 +1,12 @@
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError as PydanticValidationError
 
 from vultron.errors import (
-    VultronInvalidStateTransitionError,
     VultronError,
+    VultronInvalidStateTransitionError,
     VultronNotFoundError,
     VultronValidationError,
 )

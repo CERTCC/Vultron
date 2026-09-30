@@ -55,9 +55,10 @@ import logging
 import sys
 import webbrowser
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -460,7 +461,7 @@ class CaseTimelineEvent(BaseModel):
     present_in: list[str] = Field(default_factory=list)
 
     @classmethod
-    def from_raw(cls, raw: dict[str, Any]) -> "CaseTimelineEvent":
+    def from_raw(cls, raw: dict[str, Any]) -> CaseTimelineEvent:
         """Build a distilled event from one raw JSONL entry dict.
 
         Tolerates camelCase and snake_case spellings throughout (DRPT-02-003).
@@ -834,8 +835,7 @@ def _format_delta(
     except ValueError:
         return "—"
     total_seconds = round((dt_curr - dt_prev).total_seconds())
-    if total_seconds < 0:
-        total_seconds = 0
+    total_seconds = max(total_seconds, 0)
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     if hours:

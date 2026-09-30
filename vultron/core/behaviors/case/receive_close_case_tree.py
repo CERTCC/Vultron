@@ -47,11 +47,11 @@ from vultron.core.behaviors.case.nodes.leave import (
     CommitCaseActorRMClosedEntryNode,
     EmitRejectCloseCaseNode,
 )
-from vultron.core.behaviors.case.receive_activity_tree import (
-    create_receive_activity_tree,
-)
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckIsCaseOwnerNode,
+)
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (
     HasCaseStatusesNode,

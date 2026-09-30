@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from vultron.metadata.history.types import HistoryEntryType, LearningSignalType
 
-_UTC = datetime.timezone.utc
+_UTC = datetime.UTC
 
 
 class TestNewHistoryEntry:

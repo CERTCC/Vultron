@@ -28,18 +28,18 @@ import pytest
 from py_trees.common import Status
 from pydantic import ValidationError
 
+from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckAutoCaseCreationEnabledNode,
     CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
 )
-from vultron.config.actor import ActorConfig
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report import VulnerabilityReport
 from vultron.enums.roles import CVDRole
-from test.core.behaviors.bt_harness import BTTestScenario
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -26,8 +26,8 @@ Spec coverage:
 
 from datetime import timedelta
 
-import yaml
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from vultron.config.actor import ActorConfig

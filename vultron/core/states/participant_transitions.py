@@ -52,6 +52,11 @@ PRM-06-002, SM-09-002.  ADR: ADR-0086, ADR-0084.
 
 from collections.abc import Sequence
 
+from vultron.core.predicates.participants import vendor_vf_invariant_ok
+from vultron.core.predicates.roles import (
+    has_deployer_role,
+    has_vendor_role,
+)
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
@@ -66,11 +71,6 @@ from vultron.core.states.cs import (
 from vultron.core.states.cs_invariants import (
     cs_from_dimensions,
     is_valid_cs_transition,
-)
-from vultron.core.predicates.participants import vendor_vf_invariant_ok
-from vultron.core.predicates.roles import (
-    has_deployer_role,
-    has_vendor_role,
 )
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole

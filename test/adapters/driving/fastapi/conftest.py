@@ -20,9 +20,9 @@ from collections.abc import Generator
 import pytest
 from fastapi.testclient import TestClient
 
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.app import app_v2 as app
-from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driving.fastapi.inbox_pipeline import (
     InboxPipeline,
     build_test_pipeline,

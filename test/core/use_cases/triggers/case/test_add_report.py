@@ -27,20 +27,20 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.use_cases.triggers.case import SvcAddReportToCaseUseCase
 from vultron.core.use_cases.triggers.requests import (
     AddReportToCaseTriggerRequest,
 )
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
-)
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
 )
 
 # ---------------------------------------------------------------------------

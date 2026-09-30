@@ -1,6 +1,6 @@
 """Tests for CoreObject base class and domain model inheritance."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -14,10 +14,10 @@ from vultron.core.models.activity import (
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.note import VultronNote
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 
@@ -35,7 +35,7 @@ DOMAIN_OBJECT_CLASSES = [
     VultronCreateCaseActivity,
 ]
 
-_FUTURE_DT = datetime(2030, 1, 1, tzinfo=timezone.utc)
+_FUTURE_DT = datetime(2030, 1, 1, tzinfo=UTC)
 
 REQUIRED_KWARGS: dict[type, dict] = {
     VultronNote: {"content": "test content"},

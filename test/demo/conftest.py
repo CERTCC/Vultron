@@ -14,12 +14,11 @@
 """Shared fixtures and helpers for demo tests."""
 
 import functools
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
-
-import logging
 
 import anyio.to_thread
 import pytest
@@ -27,18 +26,18 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
-from vultron.adapters.driven.http_delivery import DeliveryError
-from vultron.adapters.driving.fastapi.deps import get_actor_dl
+from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
+    make_testclient_call,
+)
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.http_delivery import DeliveryError
 from vultron.adapters.driving.fastapi.app import create_app
+from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.driving.fastapi.main import app as api_app
 from vultron.adapters.driving.fastapi.outbox_handler import get_default_emitter
-from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
-    make_testclient_call,
-)
 
 # Eliminate wait delays in all demo tests. The FastAPI TestClient processes
 # background tasks synchronously, so no sleep is needed between inbox posts
@@ -114,7 +113,7 @@ class _TestClientRouter:
     """
 
     def __init__(self) -> None:
-        self._clients: dict[str, "TestClient"] = {}
+        self._clients: dict[str, TestClient] = {}
         self._failing_hosts: set[str] = set()
 
     def register(self, base_url: str, client: "TestClient") -> None:
@@ -624,6 +623,7 @@ def client():
         # actor IDs hosted on api_app — regardless of which base URL was used
         # to construct them — route back to this TestClient.
         from urllib.parse import urlparse as _urlparse
+
         from vultron.config import get_config
 
         tc_base = str(test_client.base_url).rstrip("/")

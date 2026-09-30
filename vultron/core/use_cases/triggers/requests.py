@@ -12,7 +12,7 @@ field.  Leaf request classes subclass one of these intermediaries and only add
 fields (or override optionals to required) where the specific use case demands it.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -111,7 +111,7 @@ class ProposeEmbargoTriggerRequest(CaseTriggerRequest):
     def end_time_must_be_tz_aware_and_future(cls, v: datetime) -> datetime:
         if v.tzinfo is None or v.utcoffset() is None:
             raise ValueError("end_time must be timezone-aware")
-        if v <= datetime.now(tz=timezone.utc):
+        if v <= datetime.now(tz=UTC):
             raise ValueError("end_time must be in the future")
         return v
 
@@ -136,7 +136,7 @@ class ProposeEmbargoRevisionTriggerRequest(CaseTriggerRequest):
     def end_time_must_be_tz_aware_and_future(cls, v: datetime) -> datetime:
         if v.tzinfo is None or v.utcoffset() is None:
             raise ValueError("end_time must be timezone-aware")
-        if v <= datetime.now(tz=timezone.utc):
+        if v <= datetime.now(tz=UTC):
             raise ValueError("end_time must be in the future")
         return v
 

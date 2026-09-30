@@ -20,7 +20,6 @@ Per specs/configuration.yaml CFG-06-001 through CFG-06-005.
 
 import pytest
 
-from vultron.enums.roles import CVDRole
 from vultron.config import (
     RunMode,
     ServerConfig,
@@ -28,6 +27,7 @@ from vultron.config import (
     get_config,
     reload_config,
 )
+from vultron.enums.roles import CVDRole
 
 
 @pytest.fixture(autouse=True)

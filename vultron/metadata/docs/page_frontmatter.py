@@ -52,8 +52,8 @@ from vultron.metadata.base import (
     nav_exclusion_fault,
     nav_paths,
     not_in_nav_spec,
+    repo_root as _find_repo_root,
 )
-from vultron.metadata.base import repo_root as _find_repo_root
 from vultron.metadata.docs.page_schema import (
     PageFrontmatter,
     WorkingRecordFrontmatter,

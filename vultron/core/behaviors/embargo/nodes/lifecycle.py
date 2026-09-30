@@ -31,6 +31,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.models._helpers import _as_id
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
@@ -40,7 +41,6 @@ from vultron.core.states.em import (
     EM,
     is_em_embargo_active,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.errors import (
     VultronError,
     VultronInvalidStateTransitionError,

@@ -31,19 +31,9 @@ from vultron.core.models.events.actor import (
     RejectInviteActorToCaseReceivedEvent,
     RejectOfferCaseParticipantReceivedEvent,
 )
-from vultron.core.models.events.case_proposal import (
-    AcceptCaseProposalReceivedEvent,
-    CreateCaseProposalReceivedEvent,
-    RejectCaseProposalReceivedEvent,
-)
 from vultron.core.models.events.base import (
     MessageSemantics,
     VultronEvent,
-)
-from vultron.core.models.events.case_context import (
-    CASE_BOOTSTRAP_SEMANTICS,
-    is_case_bootstrap,
-    resolve_case_context_id,
 )
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
@@ -53,10 +43,20 @@ from vultron.core.models.events.case import (
     EngageCaseReceivedEvent,
     UpdateCaseReceivedEvent,
 )
+from vultron.core.models.events.case_context import (
+    CASE_BOOTSTRAP_SEMANTICS,
+    is_case_bootstrap,
+    resolve_case_context_id,
+)
 from vultron.core.models.events.case_participant import (
     AddCaseParticipantToCaseReceivedEvent,
     CreateCaseParticipantReceivedEvent,
     RemoveCaseParticipantFromCaseReceivedEvent,
+)
+from vultron.core.models.events.case_proposal import (
+    AcceptCaseProposalReceivedEvent,
+    CreateCaseProposalReceivedEvent,
+    RejectCaseProposalReceivedEvent,
 )
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
@@ -66,6 +66,9 @@ from vultron.core.models.events.embargo import (
     InviteToEmbargoOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
+)
+from vultron.core.models.events.fault import (
+    CreateProcessingFaultReceivedEvent,
 )
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
@@ -89,9 +92,6 @@ from vultron.core.models.events.status import (
 from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
-)
-from vultron.core.models.events.fault import (
-    CreateProcessingFaultReceivedEvent,
 )
 from vultron.core.models.events.unknown import (
     UnknownReceivedEvent,

@@ -1,5 +1,5 @@
-from typing import Any, Dict, cast
 import itertools
+from typing import Any, cast
 
 import pytest
 
@@ -71,7 +71,7 @@ def test_all_patterns_discriminate_on_activity_and_object():
     )
 
 
-def _pattern_dump(pattern: Any) -> Dict[str, Any]:
+def _pattern_dump(pattern: Any) -> dict[str, Any]:
     """
     Return a top-level dict representation of the given pattern.
 
@@ -118,7 +118,7 @@ def _elem_matches(a: Any, b: Any) -> bool:
     return bool(a == b)
 
 
-def _is_subset(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+def _is_subset(a: dict[str, Any], b: dict[str, Any]) -> bool:
     """
     Return True if dict 'a' is a top-level subset of dict 'b', comparing nested dicts/lists recursively.
     Only checks keys present in 'a' (assumes exclude_none was used).
@@ -764,9 +764,11 @@ def test_strict_target_rejects_bare_string_uri():
     that bare URI strings do not satisfy a typed target_ constraint when the
     pattern is in strict mode.
     """
-    from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
     from vultron.core.models.enums import VultronObjectType as VOtype
-    from vultron.wire.as2.enums import as_ObjectType as AOtype
+    from vultron.wire.as2.enums import (
+        as_ObjectType as AOtype,
+        as_TransitiveActivityType as TAtype,
+    )
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Offer,
     )
@@ -801,9 +803,11 @@ def test_strict_target_matches_typed_actor():
     Complement of test_strict_target_rejects_bare_string_uri — confirms that
     the fix only blocks bare strings, not properly typed target values.
     """
-    from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
     from vultron.core.models.enums import VultronObjectType as VOtype
-    from vultron.wire.as2.enums import as_ObjectType as AOtype
+    from vultron.wire.as2.enums import (
+        as_ObjectType as AOtype,
+        as_TransitiveActivityType as TAtype,
+    )
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Offer,
     )

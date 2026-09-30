@@ -1,7 +1,7 @@
 """Shared fixtures for test/metadata/specs/ tests (SR.1–SR.5)."""
 
-import yaml
 import pytest
+import yaml
 
 from vultron.metadata.specs.registry import load_registry
 

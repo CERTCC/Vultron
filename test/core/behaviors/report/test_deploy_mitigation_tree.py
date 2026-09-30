@@ -23,12 +23,11 @@ Covers all acceptance criteria from issue #1954:
 - AC-5: Integration — early-exit, stay-deferred, full-deploy arm, falls-through-to-monitor
 """
 
-from test.core.behaviors.bt_harness import BTTestScenario
-
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.deploy_mitigation import (
     DEPLOY_MITIGATION_DETERMINISTIC,
@@ -46,10 +45,10 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     CheckNoNewDeploymentInfoNode,
     RMinStateDeferred,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 

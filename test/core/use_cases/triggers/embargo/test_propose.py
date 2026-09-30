@@ -1,6 +1,6 @@
 """Tests for SvcProposeEmbargoUseCase."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -34,7 +34,7 @@ def test_propose_embargo_invalid_state_does_not_persist_embargo(
     request = ProposeEmbargoTriggerRequest(
         actor_id=finder.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=1),
+        end_time=datetime.now(tz=UTC) + timedelta(days=1),
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -63,7 +63,7 @@ def test_propose_embargo_updates_case_state_via_bt_path(
     request = ProposeEmbargoTriggerRequest(
         actor_id=finder.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=7),
+        end_time=datetime.now(tz=UTC) + timedelta(days=7),
     )
 
     result = SvcProposeEmbargoUseCase(

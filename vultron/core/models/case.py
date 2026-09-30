@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, ClassVar, Literal
 
 from pydantic import Field, ValidationInfo, model_validator
@@ -245,7 +245,7 @@ class VulnerabilityCase(CoreObject):
         return data
 
     @model_validator(mode="after")
-    def _set_cs_context(self) -> "VulnerabilityCase":
+    def _set_cs_context(self) -> VulnerabilityCase:
         """Point every inline :class:`CaseStatus` at this case.
 
         A case status belongs to the case that holds it, so a carried
@@ -340,7 +340,7 @@ class VulnerabilityCase(CoreObject):
         for actor_id in actors_to_remove:
             del self.actor_participant_index[actor_id]
 
-    def add_case_status(self, status: "CaseStatus") -> None:
+    def add_case_status(self, status: CaseStatus) -> None:
         """Append a CaseStatus to this case's history.
 
         Validates the appended item's shape and raises
@@ -372,7 +372,7 @@ class VulnerabilityCase(CoreObject):
         """
         current = self.current_status
         latest = current.updated or current.published
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if latest is not None and latest >= now:
             now = latest + timedelta(microseconds=1)
 
@@ -413,7 +413,7 @@ class VulnerabilityCase(CoreObject):
             )
         )
 
-    def set_embargo(self, embargo: "str | EmbargoEvent | None") -> None:
+    def set_embargo(self, embargo: str | EmbargoEvent | None) -> None:
         """Set the active embargo for this case.
 
         Args:

@@ -19,6 +19,7 @@ promotes base-vocab activities to subtypes).
 Fixtures (dl) come from conftest.
 """
 
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
@@ -31,7 +32,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Invite,
     as_Offer,
 )
-from vultron.core.models._helpers import days_from_now_utc
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
@@ -100,8 +100,10 @@ class TestRehydrateFields:
         Accepts as accept_case_manager_role (SE-08-001, ISSUE-2194).
         """
         from vultron.core.models.actor import CoreActor
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Actor,
+            as_Organization,
+        )
 
         org_id = "https://example.org/actors/target-org"
         org = as_Organization(id_=org_id, name="Target Org")

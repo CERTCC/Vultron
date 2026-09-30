@@ -59,8 +59,8 @@ Issue: #1139.
 """
 
 import logging
-from typing import cast
 from collections.abc import Callable
+from typing import cast
 
 from py_trees.common import Status
 

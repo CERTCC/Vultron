@@ -43,16 +43,15 @@ rather than looking the case up itself; the single lookup site is
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.states.rm import RM, is_valid_rm_transition
-
-from vultron.core.behaviors.case.nodes.participant.status import (
-    CreateParticipantStatusNode,
-)
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.states.rm import RM, is_valid_rm_transition
 
 
 def _read_report_case_link(

@@ -38,8 +38,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from vultron.enums.roles import CVDRole
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
@@ -87,9 +87,9 @@ from vultron.core.use_cases.triggers.requests import (
     CreateCaseTriggerRequest,
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
-    LeaveCaseTriggerRequest,
     InvalidateReportTriggerRequest,
     InviteActorToCaseTriggerRequest,
+    LeaveCaseTriggerRequest,
     OfferCaseOwnershipTransferTriggerRequest,
     OfferCaseParticipantRoleTriggerRequest,
     ProposeEmbargoRevisionTriggerRequest,
@@ -102,7 +102,7 @@ from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
     ValidateReportTriggerRequest,
 )
-from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -130,8 +130,8 @@ class TriggerService:
         self,
         dl: CaseOutboxPersistence,
         sync_port: SyncActivityPort | None = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._sync_port = sync_port

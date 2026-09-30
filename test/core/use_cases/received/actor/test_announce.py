@@ -22,15 +22,15 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
 from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )

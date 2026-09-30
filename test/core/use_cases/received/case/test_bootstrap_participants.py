@@ -27,15 +27,19 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.dimensions import (
+    VfDimension,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.cs import CS_vf
-from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.status import (
     AddParticipantStatusToParticipantReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_status_to_participant_activity,
     create_case_activity,
@@ -49,10 +53,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.core.models.dimensions import (
-    VfDimension,
-)
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 # ---------------------------------------------------------------------------
 # Shared constants
@@ -222,7 +222,7 @@ class TestBootstrapParticipantStorage:
         exception rather than being silently swallowed (leaves replica
         consistent — fail loudly instead of leaving participants missing).
         """
-        import unittest.mock as mock
+        from unittest import mock
 
         link = _build_link()
         dl.save(link)

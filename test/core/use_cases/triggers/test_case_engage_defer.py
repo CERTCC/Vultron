@@ -32,14 +32,15 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
-from vultron.errors import VultronValidationError
 from vultron.core.use_cases.triggers.case import (
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
@@ -50,16 +51,15 @@ from vultron.core.use_cases.triggers.note import (
     AddNoteToCaseTriggerRequest,
     SvcAddNoteToCaseUseCase,
 )
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
     FinderParticipant,
+    as_CaseParticipant,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
 )
 
 # ---------------------------------------------------------------------------

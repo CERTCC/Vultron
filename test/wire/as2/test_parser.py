@@ -1,11 +1,12 @@
 """Tests for vultron.wire.as2.parser."""
 
+from datetime import UTC
+
 import pytest
 
 from test.support.blank_strings import BLANKS
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import extract_event
-
 from vultron.wire.as2.errors import (
     VultronParseMissingPublishedError,
     VultronParseMissingTypeError,
@@ -168,7 +169,7 @@ def test_parse_activity_preserves_the_senders_published_verbatim():
     Pins the value against the receiver's clock: a regression that reinstated
     the default would produce ``now``, not the 2026 timestamp asserted here.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     result = parse_activity(
         {
@@ -180,9 +181,9 @@ def test_parse_activity_preserves_the_senders_published_verbatim():
     )
 
     assert result.published == datetime(
-        2026, 3, 4, 5, 6, 7, tzinfo=timezone.utc
+        2026, 3, 4, 5, 6, 7, tzinfo=UTC
     )
-    assert result.published != datetime.now(tz=timezone.utc)
+    assert result.published != datetime.now(tz=UTC)
 
 
 @pytest.mark.spec("MV-01-001")

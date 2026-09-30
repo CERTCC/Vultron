@@ -37,8 +37,9 @@ from vultron.demo.exchange import receive_report_demo as demo
 @pytest.fixture(scope="module")
 def demo_env(client: TestClient):
     """Patch the demo module to route through the TestClient."""
-    from _pytest.monkeypatch import MonkeyPatch
     import importlib
+
+    from _pytest.monkeypatch import MonkeyPatch
 
     mp = MonkeyPatch()
     base = str(client.base_url).rstrip("/") + "/api/v2"

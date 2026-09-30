@@ -24,7 +24,6 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from vultron.demo.actor_session import ActorSession
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
@@ -32,6 +31,7 @@ from fastapi.testclient import TestClient
 import vultron.demo.scenario.fvcv_handoff_demo as demo
 from test.demo._helpers import make_testclient_call
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
 
 
@@ -759,14 +759,14 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
         from vultron.config import config_override
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.factories.case import (
-            offer_case_ownership_transfer_activity,
             accept_case_ownership_transfer_activity,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
+            offer_case_ownership_transfer_activity,
         )
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
         )
 
         with config_override(

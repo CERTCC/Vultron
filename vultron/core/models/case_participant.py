@@ -40,7 +40,6 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.core.models._helpers import _new_urn
 from vultron.core.models.base import CoreObject, NonEmptyString
-from vultron.errors import VultronValidationError
 from vultron.core.models.dimensions import (
     PecDimension,
     RmDimension,
@@ -53,6 +52,7 @@ from vultron.core.models.participant_status import (
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 

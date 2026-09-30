@@ -15,7 +15,6 @@
 Provides condition nodes for report management states.
 """
 
-from typing import Type
 
 from vultron.bt.base.bt_node import ConditionCheck
 from vultron.bt.base.factory import fallback_node, invert
@@ -23,7 +22,7 @@ from vultron.bt.common import state_in
 from vultron.core.states.rm import RM
 
 
-def rm_state_in(state: RM) -> Type[ConditionCheck]:
+def rm_state_in(state: RM) -> type[ConditionCheck]:
     """
     Convenience function to create a ConditionCheck for a Report Management state.
 

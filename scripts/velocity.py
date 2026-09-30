@@ -19,7 +19,7 @@ import json
 import subprocess
 import sys
 from collections import defaultdict
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import httpx2 as httpx
@@ -268,7 +268,7 @@ def build_metrics(issues: list[dict], start: date) -> dict:
         "meta": {
             "repo": f"{REPO_OWNER}/{REPO_NAME}",
             "start_date": start.isoformat(),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "total_issues_fetched": len(issues),
             "issue_types": all_types,
         },

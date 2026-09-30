@@ -34,8 +34,8 @@ from typing import TYPE_CHECKING, Any, cast, get_args
 from pydantic import BaseModel, ValidationError
 
 from vultron.adapters.driven.db_record import (
-    Record,
     _AS_LIST_REF_FIELDS,
+    Record,
     object_ref_fields,
     record_to_object,
 )

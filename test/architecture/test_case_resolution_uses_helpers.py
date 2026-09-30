@@ -80,7 +80,7 @@ class _ReadCaseScopeVisitor(ast.NodeVisitor):
 
     def __init__(self) -> None:
         self._stack: list[str] = []
-        self.counts: "Counter[str]" = Counter()
+        self.counts: Counter[str] = Counter()
 
     @property
     def scopes(self) -> set[str]:
@@ -118,7 +118,7 @@ def _read_case_counts(tree: ast.AST) -> "Counter[str]":
 
 def _collect_sites() -> "Counter[tuple[str, str]]":
     """Return read_case call counts keyed by ``(relpath, scope)`` under behaviors/."""
-    sites: "Counter[tuple[str, str]]" = Counter()
+    sites: Counter[tuple[str, str]] = Counter()
     for py_file, tree in _corpus.files_mentioning(
         ".read_case(", under=_BEHAVIORS_ROOT
     ):
@@ -260,7 +260,7 @@ def test_case_resolution_routes_through_helpers():
     """
     actual = _collect_sites()
     # Each KNOWN_ALLOWLIST entry sanctions exactly one read_case in that scope.
-    expected: "Counter[tuple[str, str]]" = Counter(
+    expected: Counter[tuple[str, str]] = Counter(
         dict.fromkeys(KNOWN_ALLOWLIST, 1)
     )
     new_sites = actual - expected

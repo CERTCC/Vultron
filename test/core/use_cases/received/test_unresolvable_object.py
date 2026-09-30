@@ -19,8 +19,8 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events import MessageSemantics
-from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.models.events.unknown import UnresolvableObjectReceivedEvent
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.unknown import UnresolvableObjectUseCase
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Accept

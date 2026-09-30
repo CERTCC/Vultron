@@ -372,7 +372,7 @@ def _pxa_case_payload(em_state: str = "EXITED") -> dict:
 def _public_aware_participant(actor_id: str) -> MagicMock:
     """A participant whose latest status has a public-aware pxa_state."""
     p = MagicMock()
-    p.id_ = f"urn:uuid:participant-{actor_id.split('/')[-1]}"
+    p.id_ = f"urn:uuid:participant-{actor_id.rsplit('/', maxsplit=1)[-1]}"
     object.__setattr__(p, "case_roles", [])
     status = MagicMock()
     cs = MagicMock()

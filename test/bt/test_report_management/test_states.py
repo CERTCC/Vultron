@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
-from typing import Sequence
+from collections.abc import Sequence
 
 import pytest
 
@@ -31,7 +31,7 @@ class MyTestCase(unittest.TestCase):
 
         for (
             medname
-        ) in "START RECEIVED INVALID VALID DEFERRED ACCEPTED CLOSED".split():
+        ) in ["START", "RECEIVED", "INVALID", "VALID", "DEFERRED", "ACCEPTED", "CLOSED"]:
             shortname = medname[0]
             self.assertTrue(
                 hasattr(RM, shortname), f"RM does not have {shortname}"

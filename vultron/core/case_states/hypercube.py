@@ -24,21 +24,14 @@ Tech. Rep. CMU/SEI-2021-SR-021, Software Engineering Institute, Carnegie-Mellon 
 import logging
 import random
 import re
+from collections.abc import Generator
 from itertools import product
-from typing import Any, Generator, cast, overload
+from typing import Any, cast, overload
 
 import networkx as nx
 import numpy as np
 import pandas as pd
 
-from vultron.errors import (
-    CVDmodelError,
-    HistoryValidationError,
-    PatternValidationError,
-    ScoringError,
-    StateValidationError,
-    TransitionValidationError,
-)
 from vultron.core.case_states.patterns.embargo import (
     can_start_embargo,
     embargo_viable,
@@ -47,15 +40,21 @@ from vultron.core.case_states.patterns.explanations import explain
 from vultron.core.case_states.patterns.info import info
 from vultron.core.case_states.patterns.potential_actions import action
 from vultron.core.case_states.patterns.zerodays import zeroday_type
-from vultron.core.states.cs import pxa, vfd
 from vultron.core.case_states.validations import (
     ensure_valid_state_method_wrapper as ensure_valid_state,
-)
-from vultron.core.case_states.validations import (
     is_valid_history,
     is_valid_pattern,
     is_valid_state,
     is_valid_transition,
+)
+from vultron.core.states.cs import pxa, vfd
+from vultron.errors import (
+    CVDmodelError,
+    HistoryValidationError,
+    PatternValidationError,
+    ScoringError,
+    StateValidationError,
+    TransitionValidationError,
 )
 
 logger = logging.getLogger(__name__)

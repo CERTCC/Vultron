@@ -15,12 +15,12 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from vultron.core.scoring.utils import unique_enum_list
-from vultron.core.scoring.vep import VEP
 from vultron.core.case_states.patterns.base import compile_patterns
 from vultron.core.case_states.validations import (
     ensure_valid_state,
 )
+from vultron.core.scoring.utils import unique_enum_list
+from vultron.core.scoring.vep import VEP
 
 _VEP = {
     "V.....": (VEP.NOT_APPLICABLE,),

@@ -18,7 +18,7 @@ from unittest.mock import patch
 
 import pytest
 
-_UTC = datetime.timezone.utc
+_UTC = datetime.UTC
 
 # Body-only content (no frontmatter) — the tool now builds frontmatter.
 _IDEA_BODY = "This is a test idea body.\n"

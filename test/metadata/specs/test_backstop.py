@@ -15,12 +15,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from vultron.metadata.specs.schema import RFC2119Priority
+from vultron.metadata.specs import backstop
 from vultron.metadata.specs.backstop import (
     FileChange,
-    TestFile,
     GroupHit,
     Requirement,
+    TestFile,
     analyze,
     changed_nodes,
     changed_symbols,
@@ -32,7 +32,7 @@ from vultron.metadata.specs.backstop import (
     render_text,
     unresolved_groups,
 )
-from vultron.metadata.specs import backstop
+from vultron.metadata.specs.schema import RFC2119Priority
 
 # ---------------------------------------------------------------------------
 # Diff parsing (SR-12-001)

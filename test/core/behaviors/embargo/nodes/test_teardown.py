@@ -22,6 +22,12 @@ from unittest.mock import MagicMock, patch
 import py_trees
 import pytest
 
+from test.core.behaviors.embargo.nodes.conftest import (
+    CASE_MANAGER_ACTOR,
+    make_case_and_embargo,
+    make_case_with_manager,
+    setup_blackboard,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
@@ -31,19 +37,12 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
     ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-
-from test.core.behaviors.embargo.nodes.conftest import (
-    CASE_MANAGER_ACTOR,
-    make_case_and_embargo,
-    make_case_with_manager,
-    setup_blackboard,
 )
 
 ACTOR_ID = "https://example.org/actors/vendor"

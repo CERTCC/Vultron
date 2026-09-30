@@ -22,8 +22,8 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _find_case_actor_id
 
 

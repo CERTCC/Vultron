@@ -23,14 +23,15 @@ are normalised to full URIs before use.
 """
 
 import logging
-from test.conftest import seed_case_actor_replica
-from test.core.use_cases.received.conftest import (
-    seed_store_owner_as_case_manager,
-)
+from datetime import UTC
 from typing import cast
 
 import pytest
 
+from test.conftest import seed_case_actor_replica
+from test.core.use_cases.received.conftest import (
+    seed_store_owner_as_case_manager,
+)
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -38,6 +39,8 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
@@ -62,11 +65,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
     as_VulnerabilityCase,
+    as_VulnerabilityCaseStub,
 )
-from vultron.core.models._helpers import days_from_now_utc
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 _BASE = "http://coordinator:7999/api/v2/actors"
 _UUID = "24d63c7d-6b1e-4f61-a5e1-180d27192d0b"
@@ -485,14 +486,14 @@ class TestInviteRolesAndEmbargoEnrichment:
 
     def test_ac1_active_embargo_enriches_case_stub(self):
         """AC-1: Invite.target stub carries activeEmbargo.endTime and emState=ACTIVE."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
 
         actor, invitee, dl, case = self._setup_invite()
-        end_time = datetime(2030, 1, 1, tzinfo=timezone.utc)
+        end_time = datetime(2030, 1, 1, tzinfo=UTC)
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo/e1",
             content="Active embargo",

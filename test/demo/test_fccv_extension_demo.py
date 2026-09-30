@@ -28,13 +28,13 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from vultron.demo.actor_session import ActorSession
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fccv_extension_demo as demo
 from test.demo._helpers import make_testclient_call
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
 
 # ---------------------------------------------------------------------------

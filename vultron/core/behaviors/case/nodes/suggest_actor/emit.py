@@ -35,14 +35,14 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.participant.roles import (
+    resolve_case_owner_id,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
-)
-from vultron.core.behaviors.case.nodes.participant.roles import (
-    resolve_case_owner_id,
 )
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,

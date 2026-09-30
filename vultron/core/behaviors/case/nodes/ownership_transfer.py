@@ -45,9 +45,9 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models._helpers import _as_id
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.enums.roles import CVDRole
 

@@ -42,8 +42,8 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
     CheckPendingProposalExistsForReport,
-    ProposeReportCaseToActorNode,
     EnsureCaseActorHostedNode,
+    ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
 )
 from vultron.core.behaviors.case.receive_report_case_tree import (

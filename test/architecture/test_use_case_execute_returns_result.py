@@ -149,8 +149,8 @@ def _violations_in(
 
 def _return_hint(namespace: dict[str, object], class_name: str) -> object:
     """Return the resolved ``execute`` return type of *class_name*."""
-    cls = namespace[class_name]
-    return get_type_hints(getattr(cls, "execute"))["return"]
+    cls: Any = namespace[class_name]
+    return get_type_hints(cls.execute)["return"]
 
 
 def _module_resolver(path: Path) -> Callable[[str], object]:

@@ -54,8 +54,8 @@ from vultron.metadata.demo_scenarios.narrative_pages import (
     NARRATIVE_INDEX,
 )
 from vultron.metadata.demo_scenarios.prose_checks import (
-    SCENARIO_TABLES,
     SCENARIO_TABLE_CONSUMERS,
+    SCENARIO_TABLES,
     consistency_problems,
     missing_event_type_requirements,
     missing_narrative_nav_entries,

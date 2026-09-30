@@ -18,10 +18,10 @@ from test.core.behaviors.sync.nodes.conftest import (
 from vultron.core.behaviors.sync.nodes.close_case_effect import (
     ApplyCloseCaseFromLedgerNode,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )

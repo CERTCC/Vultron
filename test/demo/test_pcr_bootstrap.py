@@ -40,8 +40,11 @@ the handler's side effect (note appended to ``replica.notes``).
 import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
-from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
@@ -59,9 +62,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
 )
 
 # ---------------------------------------------------------------------------

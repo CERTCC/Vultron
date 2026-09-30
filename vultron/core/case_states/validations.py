@@ -16,8 +16,9 @@ This module contains functions to validate the various strings and patterns used
 """
 
 import re
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, TypeVar, Any
+from typing import Any, TypeVar
 
 from vultron.errors import (
     HistoryValidationError,

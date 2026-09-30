@@ -8,6 +8,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_status import CaseStatus
@@ -22,7 +23,6 @@ from vultron.wire.as2.vocab.objects.case_participant import (
     VendorParticipant,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.core.models._helpers import days_from_now_utc
 
 
 def _persist_actor(dl: SqliteDataLayer, name: str) -> as_Service:

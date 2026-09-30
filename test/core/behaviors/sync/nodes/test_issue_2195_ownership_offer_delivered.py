@@ -59,9 +59,9 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,

@@ -16,9 +16,9 @@ Vultron API Backend Helpers
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from fastapi import HTTPException
 from typing import cast
 
+from fastapi import HTTPException
 from pydantic import ValidationError
 
 from vultron.wire.as2.vocab.base.base import as_Base

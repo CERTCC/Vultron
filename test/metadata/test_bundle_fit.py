@@ -271,7 +271,7 @@ class TestSizeBudget:
     def test_unsized_candidate_is_weighted_as_largest_bundlable(self):
         """#3340 carried no size: label and was bundled with no accounting."""
         assert task(1, size=None).weight == UNSIZED_WEIGHT
-        assert UNSIZED_WEIGHT == max(SIZE_WEIGHTS.values())
+        assert max(SIZE_WEIGHTS.values()) == UNSIZED_WEIGHT
 
     def test_the_largest_size_label_wins_and_is_the_one_reported(self):
         """Two size labels resolved by `max` for the weight but by list order

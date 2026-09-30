@@ -23,12 +23,11 @@ Covers all acceptance criteria:
 - AC-3: Unit tests covering tree structure and factory delegation.
 """
 
-from test.core.behaviors.bt_harness import BTTestScenario
-
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
@@ -46,10 +45,10 @@ from vultron.core.behaviors.report.deploy_mitigation_tree import (
     create_deploy_mitigation_tree,
 )
 from vultron.core.behaviors.report.deploy_tree import create_deploy_tree
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole

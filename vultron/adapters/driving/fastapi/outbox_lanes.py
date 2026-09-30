@@ -75,7 +75,7 @@ def lane_keys(activity_id: str, dl: DataLayer) -> frozenset[str]:
         body = read_sealed_body_dict(dl, activity_id)
     except (
         Exception
-    ):  # noqa: BLE001 — a read fault is the delivery step's to report
+    ):  # a read fault is the delivery step's to report
         body = None
     recipients = _extract_recipients(body) if body is not None else []
     if not recipients:

@@ -76,9 +76,9 @@ from pathlib import Path
 
 from test.architecture import _corpus
 from test.architecture._use_case_call_graph import (
-    _UseCaseCorpus,
     _has_dl_mutation_in_execute,
     _has_dl_mutation_in_execute_tree,
+    _UseCaseCorpus,
 )
 
 _USE_CASES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "use_cases"

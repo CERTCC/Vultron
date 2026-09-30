@@ -19,7 +19,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from vultron.core.models.use_case_result import HandlerDisposition
-
 from vultron.core.use_cases.received.actor.accept_reject_case_participant_role import (
     AcceptCaseParticipantRoleReceivedUseCase,
     RejectCaseParticipantRoleReceivedUseCase,
@@ -136,6 +135,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
     ):
         """When receiving_actor_id is absent the store owner processes the offer."""
         import py_trees
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         py_trees.blackboard.Blackboard.storage.clear()
@@ -177,6 +177,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
     ):
         """OfferCaseParticipantRoleReceivedUseCase auto-accepts when trigger_activity provided."""
         from unittest.mock import MagicMock
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer(

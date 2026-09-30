@@ -27,16 +27,12 @@ AC-4: Verifies that
 """
 
 import logging
+from datetime import UTC, timedelta
 from typing import Any, cast
 from unittest.mock import patch
 
 import py_trees
-from datetime import timedelta
-
 import pytest
-
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.states.em import EM
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -48,12 +44,14 @@ from vultron.core.behaviors.case.nodes import (
     ClearCreateCaseMarkerNode,
     WriteCreateCaseMarkerNode,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
+from vultron.core.states.em import EM
 from vultron.semantic_registry import extract_event
 
-# noqa: F401 — imported for vocabulary registration side-effect
+# imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
@@ -568,7 +566,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
         # Patch the clear node to skip deletion so the marker stays in the DL.
         def _skip_delete(
             self_node: ClearCreateCaseMarkerNode,
-        ) -> py_trees.common.Status:  # noqa: N803
+        ) -> py_trees.common.Status:
             return py_trees.common.Status.SUCCESS
 
         with patch.object(ClearCreateCaseMarkerNode, "update", _skip_delete):
@@ -631,7 +629,7 @@ def _seed_report(dl: SqliteDataLayer) -> None:
     """Store a VulnerabilityReport attributed to the reporter."""
     from vultron.core.models.report import VulnerabilityReport
 
-    # noqa: F401 — ensure VulnerabilityReport is in the vocabulary registry
+    # ensure VulnerabilityReport is in the vocabulary registry
     from vultron.wire.as2.vocab.objects.vulnerability_report import (  # noqa: F401
         as_VulnerabilityReport,
     )
@@ -933,7 +931,7 @@ class TestADR0041EmbargoInit:
         self, make_payload
     ):
         """The tree hands ``actor_config`` to the embargo subtree (EP-04-005)."""
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         from vultron.config.actor import ActorConfig
         from vultron.core.models.case import VulnerabilityCase
@@ -942,7 +940,7 @@ class TestADR0041EmbargoInit:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
         _seed_report(dl)
         configured = timedelta(days=5)
-        before = datetime.now(tz=timezone.utc)
+        before = datetime.now(tz=UTC)
         _run_full_bt(
             make_payload,
             dl,
@@ -950,7 +948,7 @@ class TestADR0041EmbargoInit:
                 protocol_default_embargo_duration=configured
             ),
         )
-        after = datetime.now(tz=timezone.utc)
+        after = datetime.now(tz=UTC)
 
         case = next(iter(dl.list_objects("VulnerabilityCase")))
         assert isinstance(case, VulnerabilityCase)
@@ -1654,7 +1652,7 @@ class TestADR0041Idempotency:
         monkeypatch.setattr(
             _helpers,
             "datetime",
-            _AdvancingClock(datetime.now(timezone.utc)),
+            _AdvancingClock(datetime.now(UTC)),
         )
 
         dl = SqliteDataLayer(
@@ -2433,7 +2431,7 @@ class TestEP04SenderProposalAtCaseCreation:
         sender_days: int,
         terms_context: str = _REPORT_URI,
     ):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from vultron.core.models.embargo_event import EmbargoEvent
         from vultron.wire.as2.factories import rm_submit_report_activity
@@ -2450,7 +2448,7 @@ class TestEP04SenderProposalAtCaseCreation:
         terms = EmbargoEvent(
             id_=f"{_REPORT_URI}/embargo_proposals/1",
             context=terms_context,
-            end_time=datetime.now(tz=timezone.utc)
+            end_time=datetime.now(tz=UTC)
             + timedelta(days=sender_days),
         )
         if terms_context == _REPORT_URI:

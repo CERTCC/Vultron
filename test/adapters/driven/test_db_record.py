@@ -17,13 +17,14 @@ from typing import Any, cast
 import pytest
 
 from vultron.adapters.driven.db_record import (
-    Record,
     _KEEP_INLINE_NESTED_TYPES,
+    Record,
     _dehydrate_data,
     _rekey_wire_identity,
     object_to_record,
     record_to_object,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.errors import (
     VultronAlreadyExistsError,
     VultronValidationError,
@@ -33,7 +34,6 @@ from vultron.wire.as2.enums import (
     as_TransitiveActivityType,
 )
 from vultron.wire.as2.factories import rm_submit_report_activity
-from vultron.core.models._helpers import days_from_now_utc
 
 
 # Fixtures for reused test objects
@@ -332,7 +332,7 @@ def test_keep_inline_nested_types_matches_enum_union_exactly():
         | frozenset(e.value for e in as_IntransitiveActivityType)
         | {"CaseLedgerEntry"}
     )
-    assert _KEEP_INLINE_NESTED_TYPES == expected
+    assert expected == _KEEP_INLINE_NESTED_TYPES
 
 
 # ---------------------------------------------------------------------------

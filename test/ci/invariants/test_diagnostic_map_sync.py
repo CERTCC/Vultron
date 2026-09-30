@@ -53,9 +53,9 @@ import ast
 import functools
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Mapping
 
 import pytest
 import yaml

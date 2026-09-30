@@ -26,9 +26,9 @@ from vultron.bt.base.node_status import NodeStatus
 from vultron.bt.embargo_management.behaviors import EmbargoManagementBt
 from vultron.bt.messaging.inbound.behaviors import ReceiveMessagesBt
 from vultron.bt.report_management.behaviors import ReportManagementBt
-from vultron.core.states.rm import RM
 from vultron.bt.states import ActorState
 from vultron.bt.vul_discovery.behaviors import DiscoverVulnerabilityBt
+from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ class CvdProtocolBt(bt.BehaviorTree):
             if now != then:
                 changes.append(f"State change: {k}: {then} -> {now} ")
 
-        if len(changes):
+        if changes:
             logger.debug("--------")
         for change in changes:
             logger.debug(change)

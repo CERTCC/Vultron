@@ -41,6 +41,9 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.states.rm import RM
@@ -60,9 +63,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.core.models.dimensions import (
-    RmDimension,
-)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -79,7 +79,7 @@ FINDER_URL = "https://example.org/actors/finder-rt"
 
 
 def _make_actor_dl(url: str) -> tuple[as_Service, SqliteDataLayer]:
-    actor = as_Service(name=url.split("/")[-1], url=url)
+    actor = as_Service(name=url.rsplit("/", maxsplit=1)[-1], url=url)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
     dl.clear_all()
     dl.create(actor)

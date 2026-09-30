@@ -21,7 +21,7 @@ detail 3 a collapsed type validates into ``CoreObject`` directly, so the
 guarantee has to hold on this branch by itself.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -41,7 +41,7 @@ def test_core_object_naive_datetime_string_normalized_to_utc(field):
     obj = CoreObject.model_validate({field: NAIVE_ISO})
     value = getattr(obj, field)
     assert isinstance(value, datetime)
-    assert value.tzinfo == timezone.utc
+    assert value.tzinfo == UTC
     assert (value.year, value.hour) == (2026, 12)
 
 
@@ -53,8 +53,8 @@ def test_core_object_naive_datetime_object_normalized_to_utc(field):
     obj = CoreObject.model_validate({field: NAIVE_DT})
     value = getattr(obj, field)
     assert isinstance(value, datetime)
-    assert value.tzinfo == timezone.utc
-    assert value == NAIVE_DT.replace(tzinfo=timezone.utc)
+    assert value.tzinfo == UTC
+    assert value == NAIVE_DT.replace(tzinfo=UTC)
 
 
 @pytest.mark.spec("CS-13-001")
@@ -98,5 +98,5 @@ def test_subclass_inherits_normalisation():
     )
     assert participant.published is not None
     assert participant.updated is not None
-    assert participant.published.tzinfo == timezone.utc
-    assert participant.updated.tzinfo == timezone.utc
+    assert participant.published.tzinfo == UTC
+    assert participant.updated.tzinfo == UTC

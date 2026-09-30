@@ -31,6 +31,7 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes import (
     RecordCaseCreatedEventNode,
     RecordCaseCreationEvents,
@@ -46,7 +47,6 @@ from vultron.core.behaviors.report.nodes import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
-from test.core.behaviors.bt_harness import BTTestScenario
 
 # The URL used by tests as the CaseActor service base URL (CP-08-001).
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"

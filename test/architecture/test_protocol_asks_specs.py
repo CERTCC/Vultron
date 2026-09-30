@@ -36,10 +36,10 @@ See `notes/protocol-asks.md` and ADR-0080.
 """
 
 import importlib
-from test.architecture import _corpus
 
 import pytest
 
+from test.architecture import _corpus
 from vultron.core.behaviors.call_out import unwrap_call_out
 
 # ---------------------------------------------------------------------------

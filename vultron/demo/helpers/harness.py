@@ -51,9 +51,9 @@ ran".
 """
 
 import logging
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Callable, Generator
 
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpReport,

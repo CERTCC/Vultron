@@ -27,11 +27,10 @@ Covers:
   - BT-23-002: DETERMINISTIC bundle uses AlwaysSucceed/AlwaysFail
 """
 
-from test.core.behaviors.bt_harness import BTTestScenario
-
 import py_trees
 import pytest
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,

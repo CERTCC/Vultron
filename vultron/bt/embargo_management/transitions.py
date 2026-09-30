@@ -17,7 +17,7 @@ This module provides state transition definitions for the Embargo Management beh
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from vultron.bt.common import EnumStateTransition, show_graph, state_change
 from vultron.core.states.em import EM, EM_NEGOTIATING

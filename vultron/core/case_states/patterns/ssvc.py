@@ -15,6 +15,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
+from vultron.core.case_states.patterns.base import compile_patterns
+from vultron.core.case_states.validations import ensure_valid_state
 from vultron.core.scoring.ssvc_2 import (
     SSVC_2_Exploitation,
     SSVC_2_Public_Value_Added,
@@ -22,8 +24,6 @@ from vultron.core.scoring.ssvc_2 import (
     SSVC_2_Supplier_Contacted,
 )
 from vultron.core.scoring.utils import unique_enum_list
-from vultron.core.case_states.patterns.base import compile_patterns
-from vultron.core.case_states.validations import ensure_valid_state
 
 _SSVC = {
     "....xa": (SSVC_2_Exploitation.NONE,),

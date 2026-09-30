@@ -18,6 +18,7 @@ CASE_MANAGER delegation.
 """
 
 import json
+
 import pytest
 
 from vultron.errors import VultronValidationError

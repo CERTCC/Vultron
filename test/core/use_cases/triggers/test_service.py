@@ -20,25 +20,33 @@ directly (no HTTP layer) to verify domain behavior independently of the
 FastAPI adapter layer.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from test.conftest import TEST_ACTOR_ID
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
-)
-from vultron.core.use_cases.triggers.service import TriggerService
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
 )
 
 try:
     from pydantic import ValidationError as PydanticValidationError
 except ImportError:
     from pydantic_core import ValidationError as PydanticValidationError
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger import compute_genesis_hash
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.em import EM
@@ -55,19 +63,11 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_ledger import compute_genesis_hash
-from vultron.core.models.case_status import CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-from vultron.core.models.dimensions import (
-    RmDimension,
-)
-from vultron.core.models._helpers import days_from_now_utc
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
-FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=timezone.utc)
+FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=UTC)
 
 
 def _add_case_manager(case, dl) -> as_Service:
@@ -882,7 +882,7 @@ def test_propose_embargo_trigger_past_end_time_raises_422(
     dl, actor, case_no_participant
 ):
     """propose_embargo_trigger raises PydanticValidationError for a past end_time."""
-    past_dt = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    past_dt = datetime(2020, 1, 1, tzinfo=UTC)
     with pytest.raises(PydanticValidationError):
         TriggerService(
             dl,

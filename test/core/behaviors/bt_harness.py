@@ -34,7 +34,8 @@ Usage
 
 from __future__ import annotations
 
-from typing import Any, Callable, cast
+from collections.abc import Callable
+from typing import Any, cast
 
 import py_trees
 import pytest
@@ -90,7 +91,7 @@ class BTTestScenario:
     # Precondition setup
     # ------------------------------------------------------------------
 
-    def seed(self, *objects: Any) -> "BTTestScenario":
+    def seed(self, *objects: Any) -> BTTestScenario:
         """Persist domain objects as preconditions; returns self for chaining.
 
         Args:

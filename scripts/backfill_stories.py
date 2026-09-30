@@ -341,7 +341,7 @@ def main() -> None:
                 print(f"  {yaml_path.name}: suppressed {n} spec(s)")
                 total_suppressed += n
 
-    print(f"\nBackfill complete.")
+    print("\nBackfill complete.")
     print(f"  {total_stories} spec(s) got stories:")
     print(
         f"  {total_suppressed} spec(s) got lint_suppress: [missing_story_reference]"

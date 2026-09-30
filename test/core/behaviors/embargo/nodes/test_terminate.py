@@ -22,10 +22,10 @@ blackboard key is absent.
 import pytest
 from py_trees.ports import NoDataAvailable
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.embargo.nodes.terminate import (
     SendTerminateEmbargoActivityNode,
 )
-from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.models._helpers import days_from_now_utc
 
 ACTOR_ID = "https://example.org/actors/vendor"

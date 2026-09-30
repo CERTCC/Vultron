@@ -26,7 +26,7 @@ CLP-07-011.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from py_trees.common import Status
@@ -39,15 +39,15 @@ from test.core.behaviors.sync.nodes.conftest import (
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.config.app import config_override
 from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 
 _ZERO_HASH: str = "0" * 64
 
 # The case is created an hour ago so a snapshot can be stamped either side of
 # it without tripping the staleness window (CLP-14-008, default seven days).
-CASE_CREATED = datetime.now(tz=timezone.utc) - timedelta(hours=1)
+CASE_CREATED = datetime.now(tz=UTC) - timedelta(hours=1)
 
 
 def _note_snapshot(actor_id: str, published: datetime) -> dict[str, object]:
@@ -349,7 +349,7 @@ def test_create_log_entry_node_rejects_far_future_payload_published(
     result = _run(
         bridge,
         _note_snapshot(
-            PARTICIPANT_ACTOR_ID, datetime(2099, 1, 1, tzinfo=timezone.utc)
+            PARTICIPANT_ACTOR_ID, datetime(2099, 1, 1, tzinfo=UTC)
         ),
     )
 
@@ -385,7 +385,7 @@ def test_create_log_entry_node_honours_configured_skew_tolerance(
 # The staleness and future-tolerance checks run *after* CLP-14-006, so a stale
 # claim against the hour-old ``timed_case`` would trip that check first. These
 # use a long-lived case so the claim under test is comfortably after creation.
-OLD_CASE_CREATED = datetime.now(tz=timezone.utc) - timedelta(days=365)
+OLD_CASE_CREATED = datetime.now(tz=UTC) - timedelta(days=365)
 
 
 @pytest.fixture
@@ -414,7 +414,7 @@ def test_create_log_entry_node_rejects_stale_payload_published(
         bridge,
         _note_snapshot(
             PARTICIPANT_ACTOR_ID,
-            datetime.now(tz=timezone.utc) - timedelta(days=30),
+            datetime.now(tz=UTC) - timedelta(days=30),
         ),
     )
 
@@ -434,7 +434,7 @@ def test_create_log_entry_node_honours_configured_staleness_window(
     """
     snapshot = _note_snapshot(
         PARTICIPANT_ACTOR_ID,
-        datetime.now(tz=timezone.utc) - timedelta(days=30),
+        datetime.now(tz=UTC) - timedelta(days=30),
     )
 
     with config_override(VULTRON_LEDGER__STALENESS_WINDOW_DAYS="3650") as cfg:
@@ -451,7 +451,7 @@ def test_create_log_entry_node_honours_configured_future_tolerance(
     """CLP-14-009: the deployment can widen the CLP-14-007 future ceiling."""
     snapshot = _note_snapshot(
         PARTICIPANT_ACTOR_ID,
-        datetime.now(tz=timezone.utc) + timedelta(hours=2),
+        datetime.now(tz=UTC) + timedelta(hours=2),
     )
 
     # Default 300 s ceiling refuses a claim two hours ahead.

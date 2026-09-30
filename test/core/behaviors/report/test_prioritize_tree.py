@@ -28,25 +28,25 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import CoreObject
-from vultron.core.models.events import MessageSemantics
-from vultron.core.models.events.case import (
-    DeferCaseReceivedEvent,
-    EngageCaseReceivedEvent,
-)
-from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.report import VulnerabilityReport
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
     create_engage_case_tree,
     create_prioritize_subtree,
 )
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.base import CoreObject
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events.case import (
+    DeferCaseReceivedEvent,
+    EngageCaseReceivedEvent,
+)
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter

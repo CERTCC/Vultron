@@ -24,12 +24,11 @@ Covers:
 Per ``specs/architecture.yaml`` ARCH-20-001 through ARCH-20-004.
 """
 
-from datetime import timedelta
+from datetime import UTC, timedelta
 
 import pytest
 
 from vultron.adapters.driven.wire_render import As2WireRenderAdapter
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.core.models.actor import VultronPerson
 from vultron.core.models.base import VULTRON_CONTEXT_URI
 from vultron.core.models.case import VulnerabilityCase
@@ -43,6 +42,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 from vultron.errors import VultronValidationError
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -185,7 +185,7 @@ def test_render_same_object_twice_across_clock_tick_is_equal(
     the same object a new time on each render, and a snapshot of it compared
     unequal whenever a second boundary fell between two renders.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from test.support.clock import SteppingClock
     from vultron.core.models import _helpers
@@ -193,7 +193,7 @@ def test_render_same_object_twice_across_clock_tick_is_equal(
     obj = VulnerabilityCase(id_="https://example.org/cases/c1")
     obj.case_statuses = [CaseStatus(context=obj.id_)]
     monkeypatch.setattr(
-        _helpers, "datetime", SteppingClock(datetime.now(timezone.utc))
+        _helpers, "datetime", SteppingClock(datetime.now(UTC))
     )
 
     assert adapter.render(obj) == adapter.render(obj)

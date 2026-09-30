@@ -12,8 +12,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
+from collections.abc import Callable
 from itertools import product
-from typing import Callable, Any
+from typing import Any
 
 # noinspection PyProtectedMember
 import vultron.bt.messaging.inbound._behaviors.cs_messages as vmc

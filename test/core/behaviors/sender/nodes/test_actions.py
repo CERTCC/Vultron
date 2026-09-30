@@ -15,8 +15,8 @@
 
 """Tests for sender.nodes.actions."""
 
-import pytest
 import py_trees
+import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import (

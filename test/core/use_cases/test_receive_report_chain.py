@@ -25,10 +25,12 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.case import (
     EngageCaseTriggerRequest,
     SvcEngageCaseUseCase,
@@ -39,6 +41,7 @@ from vultron.core.use_cases.triggers.report import (
 from vultron.core.use_cases.triggers.requests import (
     ValidateReportTriggerRequest,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -53,9 +56,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
 )
 
 # ---------------------------------------------------------------------------

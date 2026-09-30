@@ -21,8 +21,8 @@ from vultron.metadata.specs.registry import (
 )
 from vultron.metadata.specs.schema import (
     BehavioralSpec,
-    RFC2119Priority,
     RelationType,
+    RFC2119Priority,
     Spec,
     SpecFile,
     SpecGroup,

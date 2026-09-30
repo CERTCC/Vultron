@@ -27,6 +27,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes import (
     CreateInviteeParticipantNode,
 )
@@ -42,7 +43,6 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
-from test.core.behaviors.bt_harness import BTTestScenario
 
 _ACTOR_ID = "https://example.org/actors/invitee"
 _EMBARGO_ID = "https://example.org/embargoes/embargo-001"
@@ -475,7 +475,7 @@ def test_invitee_birth_is_construct_attach_then_advance(
     )
     assert result.status == Status.SUCCESS
 
-    participant_id = f"{case.id_}/participants/{invitee_id.split('/')[-1]}"
+    participant_id = f"{case.id_}/participants/{invitee_id.rsplit('/', maxsplit=1)[-1]}"
     attached = bt_scenario.dl.read(participant_id)
     assert isinstance(attached, CaseParticipant)
     # AC-4: attached, but not yet advanced.
@@ -533,7 +533,7 @@ def _seed_case_with_persisted_invitee(
         invitee_already_participant=False,
     )
     assert result.status == Status.SUCCESS
-    participant_id = f"{case.id_}/participants/{invitee_id.split('/')[-1]}"
+    participant_id = f"{case.id_}/participants/{invitee_id.rsplit('/', maxsplit=1)[-1]}"
     return case, participant_id
 
 

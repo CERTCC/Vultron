@@ -31,8 +31,8 @@ from vultron.bt.embargo_management.conditions import (
     EMinStateNone,
     EMinStateNoneOrExited,
     EMinStateNoneOrPropose,
-    EMinStateProposeOrRevise,
     EMinStateProposed,
+    EMinStateProposeOrRevise,
     EMinStateRevise,
 )
 from vultron.bt.embargo_management.fuzzer import (

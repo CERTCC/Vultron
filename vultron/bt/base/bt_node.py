@@ -19,8 +19,9 @@ It also provides a number of core node types that can be used to build a Behavio
 
 import logging
 import re
+from collections.abc import Iterable
 from copy import deepcopy
-from typing import Any, Iterable
+from typing import Any
 
 import networkx as nx
 
@@ -341,7 +342,7 @@ class LeafNode(BtNode):
 
         if result is None:
             return NodeStatus.RUNNING
-        elif result:
+        if result:
             return NodeStatus.SUCCESS
         return NodeStatus.FAILURE
 

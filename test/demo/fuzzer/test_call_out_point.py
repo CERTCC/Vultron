@@ -22,8 +22,8 @@ Verifies:
 - NewValidationInfoSentinel is a valid Behaviour with correct success_rate
 """
 
-import pytest
 import py_trees
+import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
@@ -38,8 +38,6 @@ from vultron.demo.fuzzer.call_out_point import (
     RetrieverCallOutPoint,
     SentinelCallOutPoint,
 )
-from vultron.demo.fuzzer.report_management.prioritize import OnAccept, OnDefer
-from vultron.demo.fuzzer.report_management.publication import PrepareReport
 from vultron.demo.fuzzer.embargo import (
     CurrentEmbargoAcceptable,
     EmbargoTimerExpired,
@@ -93,10 +91,13 @@ from vultron.demo.fuzzer.report_management.monitor_threats import (
 from vultron.demo.fuzzer.report_management.prioritize import (
     EnoughPrioritizationInfo,
     GatherPrioritizationInfo,
+    OnAccept,
+    OnDefer,
 )
 from vultron.demo.fuzzer.report_management.publication import (
     PrepareExploit,
     PrepareFix,
+    PrepareReport,
     Publish,
     ReprioritizeExploit,
     ReprioritizeFix,

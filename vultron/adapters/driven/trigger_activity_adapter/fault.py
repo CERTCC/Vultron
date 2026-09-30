@@ -15,10 +15,11 @@
 
 import logging
 
-from ._base import _seal
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.wire.as2.factories.fault import create_processing_fault_activity
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
+
+from ._base import _seal
 
 logger = logging.getLogger(__name__)
 

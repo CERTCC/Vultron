@@ -40,9 +40,9 @@ import logging
 from typing import TYPE_CHECKING, Any, cast, overload
 
 import py_trees
-from pydantic import BaseModel
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
+from pydantic import BaseModel
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -50,8 +50,8 @@ from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
 from vultron.core.ports.case_persistence import (
-    CasePersistence,
     CaseOutboxPersistence,
+    CasePersistence,
 )
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.states.rm import RM
@@ -289,7 +289,7 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
         )
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
-        self.wire_render_port: "WireRenderPort | None" = None
+        self.wire_render_port: WireRenderPort | None = None
 
     def setup(self, **kwargs: Any) -> None:
         """Set up blackboard access for DataLayer and actor_id."""
@@ -393,8 +393,8 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         )
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
-        self.trigger_activity_factory: "TriggerActivityPort | None" = None
-        self.wire_render_port: "WireRenderPort | None" = None
+        self.trigger_activity_factory: TriggerActivityPort | None = None
+        self.wire_render_port: WireRenderPort | None = None
 
     def setup(self, **kwargs: Any) -> None:
         """Set up blackboard access for DataLayer, actor_id, and trigger_activity_factory."""
@@ -621,8 +621,8 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         )
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
-        self.trigger_activity_factory: "TriggerActivityPort | None" = None
-        self.wire_render_port: "WireRenderPort | None" = None
+        self.trigger_activity_factory: TriggerActivityPort | None = None
+        self.wire_render_port: WireRenderPort | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         "datalayer": PortInformation(data_type=object, required=True),
@@ -853,7 +853,7 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
         )
 
     def _participant_actor_id(self, participant: object) -> str:
-        actor_ref = getattr(participant, "attributed_to")
+        actor_ref = participant.attributed_to
         return (
             actor_ref
             if isinstance(actor_ref, str)
@@ -990,8 +990,8 @@ class ReadObject(DataLayerConditionWithPorts):
             name: Optional custom name (defaults to "ReadObject_{table}_{last_segment}")
         """
         # Use last part of ID for blackboard key (URL-safe)
-        self.blackboard_key = f"object_{object_id.split('/')[-1]}"
-        display_name = name or f"ReadObject_{table}_{object_id.split('/')[-1]}"
+        self.blackboard_key = f"object_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        display_name = name or f"ReadObject_{table}_{object_id.rsplit('/', maxsplit=1)[-1]}"
         super().__init__(name=display_name)
         self.table = table
         self.object_id = object_id
@@ -1066,8 +1066,8 @@ class UpdateObject(DataLayerActionWithPorts):
             name: Optional custom name (defaults to "UpdateObject_{last_segment}")
         """
         # Use last part of ID for blackboard key (URL-safe)
-        self.blackboard_key = f"object_{object_id.split('/')[-1]}"
-        display_name = name or f"UpdateObject_{object_id.split('/')[-1]}"
+        self.blackboard_key = f"object_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        display_name = name or f"UpdateObject_{object_id.rsplit('/', maxsplit=1)[-1]}"
         super().__init__(name=display_name)
         self.object_id = object_id
         self.updates = updates

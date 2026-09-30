@@ -38,13 +38,13 @@ from vultron.core.behaviors.case.nodes.communication import (
     CreateAndPersistCaseActivityNode,
 )
 from vultron.core.dispatcher import DirectActivityDispatcher
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.events import (
     AddNoteToCaseReceivedEvent,
     MessageSemantics,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.models.case_actor import CaseActor
-from vultron.core.models.case import VulnerabilityCase
 from vultron.errors import UnroutableActivityError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase as as_VulnerabilityCase,

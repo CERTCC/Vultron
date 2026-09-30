@@ -14,6 +14,7 @@
 """Unit tests for TriggerActivityAdapter report-domain methods."""
 
 import json
+
 import pytest
 
 from vultron.core.models.offer_record import VultronOfferRecord

@@ -21,8 +21,8 @@ and AppendCaseStatusToCaseNode imported directly from the submodule.
 Per issue #758 AC-1, AC-3.
 """
 
-import pytest
 import py_trees
+import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer

@@ -19,8 +19,8 @@ import json
 from vultron.metadata.specs.backstop._model import (
     MAX_EVIDENCE,
     MONOLITH_GROUP_SPAN,
-    GroupHit,
     BackstopReport,
+    GroupHit,
 )
 
 

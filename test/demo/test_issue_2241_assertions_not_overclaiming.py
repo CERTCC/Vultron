@@ -51,6 +51,10 @@ from unittest.mock import MagicMock
 import pytest
 
 import vultron.demo.utils as demo_utils
+from vultron.core.models.dimensions import (
+    RmDimension,
+    VfDimension,
+)
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.notes import participant_adds_note_to_case
@@ -64,10 +68,6 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
-    VfDimension,
 )
 
 # ---------------------------------------------------------------------------

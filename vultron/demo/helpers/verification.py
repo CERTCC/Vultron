@@ -19,7 +19,6 @@ avoids duplication when future multi-actor scenarios need the same checks.
 """
 
 import logging
-from typing import Optional
 
 import httpx2 as httpx
 
@@ -55,7 +54,7 @@ def _fetch_participant(
     case_id: str,
     actor_id: str,
     dl_actor_id: str | None = None,
-) -> Optional[as_CaseParticipant]:
+) -> as_CaseParticipant | None:
     """Fetch the as_CaseParticipant record for *actor_id* in *case_id*.
 
     Args:
@@ -478,8 +477,8 @@ def verify_receiver_case_state(
     report_id: str,
     receiver_actor_id: str,
     reporter_actor_id: str,
-    question_note_id: Optional[str] = None,
-    reply_note_id: Optional[str] = None,
+    question_note_id: str | None = None,
+    reply_note_id: str | None = None,
 ) -> as_VulnerabilityCase:
     """Assert the final authoritative case state on the receiver container.
 
@@ -549,7 +548,7 @@ def verify_receiver_case_state(
 
 
 def verify_case_actor_unused(
-    case_actor_client: Optional[DataLayerClient],
+    case_actor_client: DataLayerClient | None,
     case_id: str,
 ) -> None:
     """Verify the dedicated CaseActor container remains unused in D5-2.

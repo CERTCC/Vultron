@@ -39,18 +39,18 @@ from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.behaviors.case.nodes.participant.status import (
-    CreateParticipantStatusNode,
-)
-from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
-from vultron.core.behaviors.report.nodes.develop_fix_conditions import (  # noqa: F401
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
+)
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.report.nodes.develop_fix_conditions import (
     CheckCSFixNotYetReady,
     CheckIsVendorRoleNode,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.states.cs import CS_vf
 

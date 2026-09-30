@@ -18,6 +18,18 @@ Test the reporting workflow
 
 import pytest
 
+from vultron.core.models.events import MessageSemantics
+from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.use_cases.received.case import CreateCaseReceivedUseCase
+from vultron.core.use_cases.received.report import (
+    AckReportReceivedUseCase,
+    CloseReportReceivedUseCase,
+    CreateReportReceivedUseCase,
+    InvalidateReportReceivedUseCase,
+    SubmitReportReceivedUseCase,
+    ValidateReportReceivedUseCase,
+)
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Create,
@@ -26,7 +38,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_TentativeReject,
 )
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -34,17 +45,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-from vultron.core.models.events import MessageSemantics
-from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.use_cases.received.report import (
-    CreateReportReceivedUseCase,
-    SubmitReportReceivedUseCase,
-    ValidateReportReceivedUseCase,
-    InvalidateReportReceivedUseCase,
-    AckReportReceivedUseCase,
-    CloseReportReceivedUseCase,
-)
-from vultron.core.use_cases.received.case import CreateCaseReceivedUseCase
 
 
 # Fixtures

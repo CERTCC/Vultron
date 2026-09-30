@@ -62,14 +62,14 @@ from vultron.core.behaviors.status.nodes.dimension_filter import (
     FilterParticipantStatusDimensionsNode,
     resolve_dimension_filter,
 )
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
@@ -78,6 +78,7 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
+from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
@@ -99,7 +100,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )

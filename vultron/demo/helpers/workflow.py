@@ -21,10 +21,10 @@ persona (finder, vendor).
 """
 
 import logging
-from typing import Optional, Tuple
 
 from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import (
     _poll_until,
     case_actor_participant_id_in,
@@ -35,9 +35,7 @@ from vultron.demo.helpers.polling import (
     wait_for_initialized_case,
     wait_for_participant_rm_state,
 )
-from vultron.demo.actor_session import ActorSession
 from vultron.demo.utils import (
-    seed_case_actor_for_report,
     DataLayerClient,
     demo_check,
     demo_gate,
@@ -46,6 +44,7 @@ from vultron.demo.utils import (
     log_case_state,
     post_to_inbox_and_wait,
     ref_id,
+    seed_case_actor_for_report,
     verify_object_stored,
 )
 from vultron.enums.roles import CVDRole
@@ -111,8 +110,8 @@ def reporter_submits_report(
     receiver_client: DataLayerClient,
     reporter: as_Actor,
     receiver: as_Actor,
-    reporter_client: Optional[DataLayerClient] = None,
-) -> Tuple[as_VulnerabilityReport, as_Offer]:
+    reporter_client: DataLayerClient | None = None,
+) -> tuple[as_VulnerabilityReport, as_Offer]:
     """Reporter creates a vulnerability report and submits it to the receiver.
 
     When ``reporter_client`` is provided (e.g. in a multi-container Docker
@@ -581,7 +580,7 @@ def find_case_by_report_id(
     client: DataLayerClient,
     report_id: str,
     actor_id: str | None = None,
-) -> Optional[as_VulnerabilityCase]:
+) -> as_VulnerabilityCase | None:
     """Find the first ``as_VulnerabilityCase`` referencing *report_id*.
 
     Args:
@@ -626,7 +625,7 @@ def find_case_by_report_id(
 def find_case_for_offer(
     client: DataLayerClient,
     offer_id: str,
-) -> Optional[as_VulnerabilityCase]:
+) -> as_VulnerabilityCase | None:
     """Find the as_VulnerabilityCase associated with a report offer.
 
     Args:
@@ -810,7 +809,7 @@ def setup_canonical_case(
     report_name: str,
     report_content: str,
     validation_content: str,
-) -> Tuple[as_VulnerabilityCase, str]:
+) -> tuple[as_VulnerabilityCase, str]:
     """Create a **CaseActor-owned** case and return it with the CaseActor's URI.
 
     Unlike :func:`setup_initialized_case`, which has the vendor mint the case
@@ -950,7 +949,7 @@ def case_actor_invites_actor_to_case(
     inviter: as_Actor,
     invitee: as_Actor,
     case_actor_id: str,
-    roles: Optional[list[str]] = None,
+    roles: list[str] | None = None,
     timeout_seconds: float = 15.0,
 ) -> None:
     """Add *invitee* to *case* via the CaseActor-routed Invite/Accept handshake.

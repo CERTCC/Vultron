@@ -11,11 +11,10 @@ import pytest
 import yaml
 
 import vultron.metadata.specs.lint as lint_module
+from test.metadata.specs.conftest import spec_file_data
 from vultron.metadata.specs.lint import lint
 from vultron.metadata.specs.schema import SpecKind
 from vultron.metadata.specs.verification import VerificationCeiling
-
-from test.metadata.specs.conftest import spec_file_data
 
 # ---------------------------------------------------------------------------
 # Helpers

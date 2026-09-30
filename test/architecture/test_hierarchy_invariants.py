@@ -211,7 +211,7 @@ class TestCoreRoots:
     def test_core_object_sits_directly_on_core_record(self) -> None:
         """``CoreObject`` is the one AS2 root, directly on the record root;
         the old middle level is gone."""
-        import vultron.core.models.base as base
+        from vultron.core.models import base
 
         assert CoreObject.__bases__ == (CoreRecord,)
         for retired in ("VultronBase", "VultronObject"):
@@ -260,9 +260,8 @@ class TestCoreTypeMapHierarchy:
         concerns; the converse also holds: CORE_TYPE_MAP must not be
         contaminated with wire types.
         """
+        import vultron.wire.as2.vocab.activities
         import vultron.wire.as2.vocab.objects  # noqa: F401
-        import vultron.wire.as2.vocab.activities  # noqa: F401
-
         from vultron.core.models.registry import CORE_TYPE_MAP
 
         _WIRE_MODULE_PREFIX = "vultron.wire"

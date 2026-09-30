@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from vultron.metadata.history.types import HistoryEntryType, LearningSignalType
 
-_UTC = datetime.timezone.utc
+_UTC = datetime.UTC
 
 
 def _now_utc() -> datetime.datetime:

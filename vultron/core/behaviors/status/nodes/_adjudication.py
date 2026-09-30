@@ -30,6 +30,7 @@ from vultron.core.models.dimensions import (
     VfDimension,
 )
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.predicates.roles import has_deployer_role, has_vendor_role
 from vultron.core.states.composite_state_invariants import (
     EntailmentViolation,
     composite_state_violations,
@@ -46,7 +47,6 @@ from vultron.core.states.rm import (
     is_monotonic_rm_forward,
     is_valid_rm_transition,
 )
-from vultron.core.predicates.roles import has_deployer_role, has_vendor_role
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)

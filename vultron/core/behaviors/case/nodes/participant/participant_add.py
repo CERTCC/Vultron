@@ -25,14 +25,14 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     _queue_participant_add_notification,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     ParticipantStatus,
 )
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.enums.roles import CVDRole
-from vultron.core.models._helpers import _as_id
 
 
 class CreateParticipantInitialStatusNode(DataLayerActionWithPorts):

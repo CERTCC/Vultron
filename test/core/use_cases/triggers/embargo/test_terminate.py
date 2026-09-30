@@ -1,7 +1,8 @@
 """Tests for SvcTerminateEmbargoUseCase."""
 
-import pytest
 from typing import cast
+
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (

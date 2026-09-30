@@ -20,13 +20,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-from vultron.core.models.events.case import UpdateCaseReceivedEvent
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
-from vultron.core.models._helpers import _as_id
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -87,7 +87,7 @@ def broadcast_case_update(
     case_id: str,
     case: Any,
     actor_id: str,
-    trigger_activity: "TriggerActivityPort",
+    trigger_activity: TriggerActivityPort,
     excluded_actor_ids: set[str] | None = None,
 ) -> None:
     """Create and queue an ``Announce`` for a case update (CM-06-001).

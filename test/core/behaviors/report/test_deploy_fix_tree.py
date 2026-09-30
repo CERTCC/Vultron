@@ -26,12 +26,11 @@ Covers all acceptance criteria from issue #1825:
   early-exit short-circuit
 """
 
-from test.core.behaviors.bt_harness import BTTestScenario
-
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
@@ -59,10 +58,10 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
 from vultron.core.behaviors.report.nodes.develop_fix import (
     _EmitParticipantStatusActivityBase,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole

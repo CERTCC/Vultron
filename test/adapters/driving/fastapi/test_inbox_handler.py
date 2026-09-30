@@ -1,18 +1,19 @@
 import asyncio
+from datetime import UTC
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.errors import VultronProtocolViolationError
-from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.core.models.events import MessageSemantics, VultronEvent
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.use_case_result import HandlerResult
-from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.errors import VultronProtocolViolationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -20,10 +21,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 def test_prepare_for_dispatch_returns_vultron_event(monkeypatch):
     """prepare_for_dispatch should return a VultronEvent from extract_event."""
+    import vultron.semantic_registry as registry_mod
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
-    import vultron.semantic_registry as registry_mod
 
     monkeypatch.setattr(
         registry_mod,
@@ -546,7 +547,7 @@ def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     Covers CBT-05-003 (second bullet): expire safely.
     """
     import logging
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     actor_id = "https://example.org/actors/reporter"
     case_id = "https://example.org/cases/cbt-ac6"
@@ -558,7 +559,7 @@ def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     queue_dl = shared_dl.clone_for_actor(actor_id)
 
     # Create a pending queue entry that is already "old" (queued 10 minutes ago)
-    old_time = datetime.now(timezone.utc) - timedelta(minutes=10)
+    old_time = datetime.now(UTC) - timedelta(minutes=10)
     pending = VultronPendingCaseInbox(
         case_id=case_id,
         activity_ids=[activity_id],
@@ -693,9 +694,9 @@ def test_resolve_actor_config_delegates_to_load_actor_config(monkeypatch):
     The production adapter must not import SeedConfig; instead it delegates
     to load_actor_config() from vultron.config.
     """
-    from vultron.config.actor import ActorConfig
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
     import vultron.config.app as app_mod
+    from vultron.config.actor import ActorConfig
 
     called = []
 
@@ -721,8 +722,8 @@ def test_submit_report_port_factory_injects_actor_config(monkeypatch):
     honour the local actor's ``auto_create_case`` policy (CM-15-001,
     issue #1319).
     """
-    from vultron.config.actor import ActorConfig
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.config.actor import ActorConfig
 
     fake_actor_config = ActorConfig(auto_create_case=False)
     monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake_actor_config)
@@ -771,6 +772,7 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
     _SUBMIT_REPORT_SEMANTICS (issue #1319), so it must be wired to the
     factory that also injects actor_config.
     """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
@@ -778,7 +780,6 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
         TriggerActivityAdapter,
     )
     from vultron.config.actor import ActorConfig
-    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
     captured: dict = {}
 
@@ -907,6 +908,7 @@ def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
     admission decline path can emit Reject(as_CaseProposal) (CP-05-004), and
     ``call_out`` as the admission-policy injection point (CP-05-002).
     """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
@@ -919,7 +921,6 @@ def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
         CASE_PROPOSAL_DETERMINISTIC,
     )
     from vultron.enums.roles import CVDRole
-    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
     fake = ActorConfig(default_case_roles=[CVDRole.COORDINATOR])
     monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake)
@@ -955,17 +956,17 @@ def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
     decline path can still emit Reject(as_CaseProposal) (CP-05-004) under the
     default admission policy.
     """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
     from vultron.core.behaviors.call_out.bundles.case_proposal import (
         CASE_PROPOSAL_DETERMINISTIC,
     )
-    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
     monkeypatch.setattr(pf, "_resolve_actor_config", lambda: None)
 
@@ -991,9 +992,9 @@ def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
 def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):
     """make_dispatcher() must wire _case_proposal_port_factory for
     CREATE_CASE_PROPOSAL so the CaseActor sees ``default_case_roles``."""
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
     from vultron.config.actor import ActorConfig
     from vultron.enums.roles import CVDRole
-    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
     captured: dict = {}
 
@@ -1036,13 +1037,13 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     as_VulnerabilityCase and must leave the actor's outbox empty (CM-15-001,
     issue #1319).
     """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
     from vultron.config.actor import ActorConfig
     from vultron.core.models.activity import VultronActivity
     from vultron.core.models.case_actor import CaseActor
     from vultron.core.models.events.report import SubmitReportReceivedEvent
     from vultron.core.models.report import VulnerabilityReport
-    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
     VENDOR_ID = "https://example.org/actors/vendor-ac2"
     FINDER_ID = "https://example.org/users/finder-ac2"
@@ -1103,7 +1104,7 @@ def test_pending_case_queue_expiry_emits_question(monkeypatch):
 
     Covers CBT-05-003 (third bullet): generate a replay request.
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     actor_id = "https://example.org/actors/reporter"
     case_id = "https://example.org/cases/cbt-ac7"
@@ -1115,7 +1116,7 @@ def test_pending_case_queue_expiry_emits_question(monkeypatch):
     )
     queue_dl = shared_dl.clone_for_actor(actor_id)
 
-    old_time = datetime.now(timezone.utc) - timedelta(minutes=10)
+    old_time = datetime.now(UTC) - timedelta(minutes=10)
     pending = VultronPendingCaseInbox(
         case_id=case_id,
         activity_ids=[activity_id],
@@ -1154,10 +1155,13 @@ def test_pending_case_queue_expiry_emits_question(monkeypatch):
 @pytest.mark.spec("EP-07-001")
 def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
     """The local actor's default RSVP window reaches extraction (#3737)."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
     from vultron.config.actor import ActorConfig
+    from vultron.core.models.events.embargo import (
+        InviteToEmbargoOnCaseReceivedEvent,
+    )
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Invite,
     )
@@ -1168,7 +1172,7 @@ def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
         "_resolve_actor_config",
         lambda: ActorConfig(default_rsvp_window=timedelta(days=14)),
     )
-    published = datetime.now(tz=timezone.utc)
+    published = datetime.now(tz=UTC)
     case_id = "https://example.org/cases/rsvp"
     invite = as_Invite(
         object_=as_EmbargoEvent(
@@ -1181,4 +1185,5 @@ def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
 
     event = ih.prepare_for_dispatch(invite)
 
-    assert getattr(event, "rsvp_deadline") == published + timedelta(days=14)
+    assert isinstance(event, InviteToEmbargoOnCaseReceivedEvent)
+    assert event.rsvp_deadline == published + timedelta(days=14)

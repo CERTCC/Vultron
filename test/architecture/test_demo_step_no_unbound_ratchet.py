@@ -92,11 +92,7 @@ def _assigned_shallow(stmts: list) -> set:
         if isinstance(stmt, ast.Assign):
             for target in stmt.targets:
                 names.update(_store_names(target))
-        elif isinstance(stmt, ast.AugAssign):
-            names.update(_store_names(stmt.target))
-        elif isinstance(stmt, ast.AnnAssign) and stmt.value is not None:
-            names.update(_store_names(stmt.target))
-        elif isinstance(stmt, ast.For):
+        elif isinstance(stmt, ast.AugAssign) or (isinstance(stmt, ast.AnnAssign) and stmt.value is not None) or isinstance(stmt, ast.For):
             names.update(_store_names(stmt.target))
         elif isinstance(stmt, ast.With):
             for item in stmt.items:

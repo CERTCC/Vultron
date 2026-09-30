@@ -38,13 +38,13 @@ import py_trees
 import pytest
 
 import vultron.core.behaviors.case.nodes.participant as participant_pkg
-from vultron.core.models.case import VulnerabilityCase
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.core.behaviors.port_contract import (
     PortDecl,
     decl_id,
     discover_port_declarations,
 )
+from vultron.core.models.case import VulnerabilityCase
 
 PORT = "participant_case"
 #: Physical blackboard key the nodes bind ``participant_case`` to when

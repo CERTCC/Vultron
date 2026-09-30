@@ -1,6 +1,6 @@
 """Tests for SvcProposeEmbargoRevisionUseCase."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pytest
@@ -38,7 +38,7 @@ def test_propose_embargo_revision_transitions_em_to_revise(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+        end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
     result = SvcProposeEmbargoRevisionUseCase(
@@ -66,7 +66,7 @@ def test_propose_embargo_revision_queues_outbox_activity(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+        end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
     SvcProposeEmbargoRevisionUseCase(
@@ -90,7 +90,7 @@ def test_propose_embargo_revision_invalid_em_state_raises_error(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+        end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -114,7 +114,7 @@ def test_propose_embargo_revision_invalid_state_does_not_persist_embargo(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+        end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -151,7 +151,7 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=21),
+        end_time=datetime.now(tz=UTC) + timedelta(days=21),
     )
 
     result = SvcProposeEmbargoRevisionUseCase(

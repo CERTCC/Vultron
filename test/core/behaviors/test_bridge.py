@@ -18,15 +18,15 @@
 import logging
 from typing import Any, cast
 
-import pytest
 import py_trees
+import pytest
 from py_trees.common import Status
 
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.store_scope import same_authority
 from vultron.errors import VultronError
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 

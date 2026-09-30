@@ -96,8 +96,10 @@ class TestFindInVocabulary:
 class TestAutoRegistration:
     def test_concrete_subclass_registers_via_init_subclass(self):
         """A subclass with a concrete Literal type_ is auto-registered."""
-        from pydantic import Field
         from typing import Literal
+
+        from pydantic import Field
+
         from vultron.wire.as2.vocab.base.objects.base import as_Object
 
         class as_TestAutoRegType(as_Object):
@@ -128,6 +130,7 @@ class TestAutoRegistration:
     def test_union_type_annotation_not_registered(self):
         """Classes with type_: str | None are skipped (abstract bases)."""
         from pydantic import Field
+
         from vultron.wire.as2.vocab.base.base import as_Base
 
         class as_AbstractLike(as_Base):
@@ -184,12 +187,11 @@ class TestDynamicDiscovery:
         # This import triggers dynamic discovery — no explicit VulnerabilityCase
         # or as_VulnerabilityReport import is needed.
         import vultron.wire.as2.vocab  # noqa: F401
-
-        from vultron.wire.as2.vocab.objects.vulnerability_report import (
-            as_VulnerabilityReport,
-        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            as_VulnerabilityReport,
         )
 
         # WIRE_TYPE_MAP is keyed by wire type_ value (ARCH-23-002: disjoint from CORE_VOCABULARY)
@@ -217,7 +219,6 @@ class TestDynamicDiscovery:
         ``docs/ns/context.jsonld`` correctly grants the stub no term of its own.
         """
         import vultron.wire.as2.vocab  # noqa: F401 — dynamic discovery
-
         from vultron.wire.as2.vocab.base.registry import wire_type_value
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
@@ -279,8 +280,8 @@ class TestCoreTypeMapFallback:
 
     def test_actor_key_is_wire_type(self):
         """WIRE_TYPE_MAP['Actor'] must be the wire as_Actor, not CoreActor."""
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
         from vultron.core.models.actor import CoreActor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
         assert "Actor" in WIRE_TYPE_MAP
         assert WIRE_TYPE_MAP["Actor"] is as_Actor
@@ -608,7 +609,7 @@ def _classes_presenting_own_type() -> list[tuple[type, str]]:
     package, keeping classes defined under ``vultron.`` so throwaway subclasses
     other tests declare are not mistaken for production vocabulary.
     """
-    import vultron.wire.as2.vocab.activities  # noqa: F401 — defines subclasses
+    import vultron.wire.as2.vocab.activities  # defines subclasses
     import vultron.wire.as2.vocab.objects  # noqa: F401 — defines subclasses
     from vultron.wire.as2.vocab.base.base import as_Base
     from vultron.wire.as2.vocab.base.registry import wire_type_value
@@ -635,8 +636,10 @@ class TestSetTypeFromClassName:
 
     def test_removeprefix_not_lstrip_for_normal_class(self):
         """set_type_from_class_name strips 'as_' prefix exactly once."""
-        from pydantic import Field
         from typing import Literal
+
+        from pydantic import Field
+
         from vultron.wire.as2.vocab.base.objects.base import as_Object
 
         class as_Widget(as_Object):

@@ -29,8 +29,8 @@ import pytest
 from vultron.core.models.events.base import MessageSemantics
 from vultron.metadata.msm._mapping import (
     EXEMPTED_SEMANTICS,
-    ROW_SPECS,
     PAGE_SLUGS,
+    ROW_SPECS,
 )
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 

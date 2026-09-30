@@ -19,6 +19,6 @@ Exceptions raised by Vultron activity factory functions.
 re-exported here for backward compatibility.
 """
 
-from vultron.errors import VultronActivityConstructionError  # noqa: F401
+from vultron.errors import VultronActivityConstructionError
 
 __all__ = ["VultronActivityConstructionError"]

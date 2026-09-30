@@ -30,15 +30,15 @@ from vultron.core.behaviors.embargo.nodes import (
 )
 from vultron.core.behaviors.embargo.trigger_tree import (
     accept_embargo_trigger_bt,
-    propose_embargo_trigger_bt,
     propose_embargo_revision_trigger_bt,
+    propose_embargo_trigger_bt,
     reject_embargo_trigger_bt,
     reject_proposed_embargo_bt,
     terminate_embargo_bt,
 )
 from vultron.core.behaviors.status.nodes import EmitCaseStatusUpdateNode
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 CASE_ID = "https://example.org/cases/case-trigger-tree"
 EMBARGO_ID = "https://example.org/cases/case-trigger-tree/embargos/e1"

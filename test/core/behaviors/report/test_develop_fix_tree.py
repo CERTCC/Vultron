@@ -25,12 +25,11 @@ Covers all acceptance criteria from issue #1812:
 - AC-8: Tree root is a Fallback; guards short-circuit before inner Sequence
 """
 
-from test.core.behaviors.bt_harness import BTTestScenario
-
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.develop_fix import (
     DEVELOP_FIX_DETERMINISTIC,
@@ -50,10 +49,10 @@ from vultron.core.behaviors.report.nodes.develop_fix import (
     TransitionCStoFixReady,
     _EmitParticipantStatusActivityBase,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole

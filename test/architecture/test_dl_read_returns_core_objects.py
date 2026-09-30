@@ -50,13 +50,13 @@ read-back migration)
 
 from typing import cast
 
+from pydantic.alias_generators import to_camel
+
+from test.support.core_vocab import minimal_kwargs
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from pydantic.alias_generators import to_camel
-
-from test.support.core_vocab import minimal_kwargs
 from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.registry import CORE_VOCABULARY

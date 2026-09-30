@@ -1468,7 +1468,7 @@ class TestCheckPerActorReplicaCsStateTransitionsObserved:
 # CLP-14 timestamp invariants (check_clp14_timestamp_invariants)
 # ---------------------------------------------------------------------------
 
-from datetime import datetime, timedelta, timezone  # noqa: E402
+from datetime import UTC, datetime, timedelta  # noqa: E402
 
 
 def _ts_chain_entry(
@@ -1487,7 +1487,7 @@ def _ts_chain_entry(
     return entry
 
 
-_T0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+_T0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
 _T1 = _T0 + timedelta(minutes=1)
 _T2 = _T1 + timedelta(minutes=1)
 

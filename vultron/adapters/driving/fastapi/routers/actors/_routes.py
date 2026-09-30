@@ -37,8 +37,8 @@ from fastapi import (
 from pydantic import BaseModel, Field
 
 from vultron.adapters.driven import actor_hosts
-from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
     node_base_url,
@@ -49,6 +49,18 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
+from vultron.adapters.driving.fastapi.routers.actors._inbox import (
+    _activity_addressed_to,
+    parse_activity,
+)
+from vultron.adapters.driving.fastapi.routers.actors._lookup import (
+    _ACTOR_RECORD_TYPES,
+    _ACTOR_TYPE_MAP,
+    _actor_class_for_record,
+    _find_actor_record,
+    _find_actor_record_by_id,
+    _resolve_actor_or_404,
+)
 from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.actor import (
@@ -65,19 +77,6 @@ from vultron.core.use_cases.query.action_rules import (
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-
-from vultron.adapters.driving.fastapi.routers.actors._inbox import (
-    _activity_addressed_to,
-    parse_activity,
-)
-from vultron.adapters.driving.fastapi.routers.actors._lookup import (
-    _ACTOR_RECORD_TYPES,
-    _ACTOR_TYPE_MAP,
-    _actor_class_for_record,
-    _find_actor_record,
-    _find_actor_record_by_id,
-    _resolve_actor_or_404,
-)
 
 AnyActor = CoreActor
 
@@ -565,7 +564,6 @@ def post_actor_inbox(
         dispatcher,
         emitter,
     )
-    return None
 
 
 @router.post(
@@ -631,7 +629,6 @@ def post_actor_outbox(
         outbox_handler, canonical_actor_id, actor_dl, emitter=emitter
     )
 
-    return None
 
 
 @router.get(

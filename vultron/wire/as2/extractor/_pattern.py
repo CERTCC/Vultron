@@ -6,7 +6,7 @@ dispatch entries. This is the primitive building block imported by both
 (ordering guard and registry entries).
 """
 
-from typing import Optional, Union
+from typing import Union
 
 from pydantic import BaseModel
 
@@ -36,23 +36,16 @@ class ActivityPattern(BaseModel):
     URI-string ``object_`` values (e.g. ``Reject(CaseLedgerEntry)``).
     """
 
-    description: Optional[str] = None
+    description: str | None = None
     activity_: TAtype | IAtype
     strict: bool = False
 
-    to_: Optional[Union[AOtype, VOtype, "ActivityPattern"]] = None
-    object_: Optional[Union[AOtype, VOtype, "ActivityPattern"]] = None
-    target_: Optional[Union[AOtype, VOtype, "ActivityPattern"]] = None
+    to_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
+    object_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
+    target_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
     # A tuple admits any of several scalar types — the declared form of "this
     # activity's subject may be a case or a report" (VAM-05-001, EP-04-009).
-    context_: Optional[
-        Union[
-            AOtype,
-            VOtype,
-            "ActivityPattern",
-            tuple[Union[AOtype, VOtype], ...],
-        ]
-    ] = None
+    context_: Union[AOtype, VOtype, "ActivityPattern", tuple[AOtype | VOtype, ...]] | None = None
 
     def match(self, activity: as_Activity) -> bool:
         """Return True if the given activity matches this pattern."""

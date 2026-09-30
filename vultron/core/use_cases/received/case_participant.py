@@ -7,12 +7,12 @@ from vultron.core.behaviors.case.case_participant_received_tree import (
     create_add_case_participant_received_tree,
     create_remove_case_participant_received_tree,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.case_participant import (
     AddCaseParticipantToCaseReceivedEvent,
     CreateCaseParticipantReceivedEvent,
     RemoveCaseParticipantFromCaseReceivedEvent,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,

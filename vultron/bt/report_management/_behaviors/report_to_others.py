@@ -30,6 +30,7 @@ from vultron.bt.embargo_management.conditions import (
     EMinStateActiveOrRevise,
     EMinStateNoneOrProposeOrRevise,
 )
+from vultron.bt.messaging.message import Message
 from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.fuzzer.report_to_others import (
     AllPartiesKnown,
@@ -48,7 +49,6 @@ from vultron.bt.report_management.fuzzer.report_to_others import (
 )
 from vultron.core.states.cs import CS
 from vultron.errors import VultronError
-from vultron.bt.messaging.message import Message
 
 # from vultron.sim.communications import Message
 

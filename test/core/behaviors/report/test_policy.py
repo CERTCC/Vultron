@@ -24,11 +24,11 @@ import logging
 
 import pytest
 
-from vultron.core.models.report import VulnerabilityReport
 from vultron.core.behaviors.report.policy import (
     AlwaysAcceptPolicy,
     ValidationPolicy,
 )
+from vultron.core.models.report import VulnerabilityReport
 
 
 class TestValidationPolicy:

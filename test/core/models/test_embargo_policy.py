@@ -19,8 +19,8 @@ from datetime import timedelta
 import pytest
 from pydantic import ValidationError
 
-from vultron.core.models.embargo_policy import EmbargoPolicy, parse_duration
 from vultron.core.models.base import CoreObject
+from vultron.core.models.embargo_policy import EmbargoPolicy, parse_duration
 from vultron.core.models.registry import CORE_VOCABULARY
 
 ACTOR_ID = "https://example.org/actors/vendor"

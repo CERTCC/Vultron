@@ -43,9 +43,9 @@ import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from test.demo.test_remote_case_actor_invite import (
-    _Topology,
     _bootstrap,
     _invite,
+    _Topology,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body
 

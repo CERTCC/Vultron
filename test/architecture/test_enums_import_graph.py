@@ -71,7 +71,7 @@ class TestEnumsLayerImportGraph:
 
     @pytest.fixture(autouse=True)
     def _import_enums(self) -> None:
-        import vultron.enums  # noqa: F401 — side-effect: populates sys.modules
+        import vultron.enums  # side-effect: populates sys.modules
         import vultron.enums.roles  # noqa: F401
 
     def test_enums_does_not_import_vultron_core(self) -> None:

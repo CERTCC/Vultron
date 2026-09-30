@@ -36,12 +36,11 @@ import typing
 
 import pytest
 
-import vultron.wire.as2.vocab.activities  # noqa: F401 — trigger dynamic discovery
+import vultron.wire.as2.vocab.activities  # trigger dynamic discovery
 import vultron.wire.as2.vocab.objects  # noqa: F401
-
 from vultron.core.models.base import CoreObject
-from vultron.errors import VultronValidationError
 from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.errors import VultronValidationError
 
 
 def _hint_contains_core_object(hint: typing.Any) -> bool:

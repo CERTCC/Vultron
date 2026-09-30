@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
-from typing import Any, Type
+from typing import Any
 
 import vultron.bt.case_state.conditions as csc
 from vultron.bt.base.node_status import NodeStatus
@@ -40,7 +40,7 @@ class MyTestCase(unittest.TestCase):
 
     def _ab(
         self,
-        node_cls: Type[Any],
+        node_cls: type[Any],
         expect_true_when: str,
         extra: list[str] | None = None,
     ) -> None:

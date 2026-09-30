@@ -28,14 +28,17 @@ from vultron.adapters.driving.fastapi.deps import (
     get_hosted_actor_dls,
 )
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
+from vultron.core.models.actor import CoreActor
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
 )
 from vultron.wire.as2.vocab.objects.vultron_actor import (
     as_VultronApplication,
@@ -43,9 +46,6 @@ from vultron.wire.as2.vocab.objects.vultron_actor import (
     as_VultronOrganization,
     as_VultronPerson,
     as_VultronService,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
 )
 
 logger = logging.getLogger(__name__)

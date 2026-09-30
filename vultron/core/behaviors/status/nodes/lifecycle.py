@@ -42,16 +42,17 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.protocols import PersistableModel
-from vultron.core.predicates.roles import has_case_owner_role
-from vultron.core.states.em import EM
 from vultron.core.behaviors.status.nodes.threat_termination import (  # noqa: F401
     ThreatTerminationBranchNode,
     _ThreatTerminationSkipConditionNode,
+    read_pxa_state,
 )
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.protocols import PersistableModel
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.predicates.roles import has_case_owner_role
+from vultron.core.states.em import EM
 
 logger = logging.getLogger(__name__)
 
@@ -88,17 +89,7 @@ class _PublicDisclosureSkipConditionNode(DataLayerConditionWithPorts):
         from vultron.core.states.cs import CS_pxa
 
         case_status: object = getattr(self.status_obj, "case_status", None)
-        if case_status is None:
-            pxa_state = None
-        elif hasattr(case_status, "pxa"):
-            _pxa = getattr(case_status, "pxa")
-            if _pxa is None:
-                return False
-            pxa_state = _pxa.state
-        elif hasattr(case_status, "pxa_state"):
-            pxa_state = getattr(case_status, "pxa_state")
-        else:
-            pxa_state = None
+        pxa_state = read_pxa_state(case_status)
         if pxa_state is None:
             return False
         return pxa_state in (

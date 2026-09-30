@@ -19,7 +19,6 @@ Tests cover:
   - AC-3: Unit tests cover each node's success_rate and status distribution
 """
 
-from typing import Type
 
 import py_trees
 import pytest
@@ -61,7 +60,7 @@ _ALL_NODES = [spec[0] for spec in _NODE_SPECS]
 # ---------------------------------------------------------------------------
 
 
-def _run_trials(node_cls: "Type[WeightedBehavior]", n: int = _TRIALS) -> float:
+def _run_trials(node_cls: "type[WeightedBehavior]", n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
     successes = sum(1 for _ in range(n) if node.update() == Status.SUCCESS)
@@ -76,25 +75,25 @@ def _run_trials(node_cls: "Type[WeightedBehavior]", n: int = _TRIALS) -> float:
 class TestNodeIsWeightedBehavior:
     @pytest.mark.parametrize("node_cls", _ALL_NODES)
     def test_is_weighted_behavior_subclass(
-        self, node_cls: Type[WeightedBehavior]
+        self, node_cls: type[WeightedBehavior]
     ) -> None:
         assert issubclass(node_cls, WeightedBehavior)
 
     @pytest.mark.parametrize("node_cls", _ALL_NODES)
     def test_is_py_trees_behaviour(
-        self, node_cls: Type[WeightedBehavior]
+        self, node_cls: type[WeightedBehavior]
     ) -> None:
         assert isinstance(node_cls(), py_trees.behaviour.Behaviour)
 
     @pytest.mark.parametrize("node_cls", _ALL_NODES)
     def test_default_name_is_class_name(
-        self, node_cls: Type[WeightedBehavior]
+        self, node_cls: type[WeightedBehavior]
     ) -> None:
         assert node_cls().name == node_cls.__name__
 
     @pytest.mark.parametrize("node_cls", _ALL_NODES)
     def test_custom_name_respected(
-        self, node_cls: Type[WeightedBehavior]
+        self, node_cls: type[WeightedBehavior]
     ) -> None:
         assert node_cls(name="custom").name == "custom"
 
@@ -103,7 +102,7 @@ class TestNodeIsWeightedBehavior:
 
     @pytest.mark.parametrize("node_cls, expected_base, _", _NODE_SPECS)
     def test_base_type(
-        self, node_cls: Type[WeightedBehavior], expected_base: type, _: float
+        self, node_cls: type[WeightedBehavior], expected_base: type, _: float
     ) -> None:
         assert issubclass(node_cls, expected_base)
 
@@ -123,7 +122,7 @@ _REQUIRED_SECTIONS = [
 class TestDocstrings:
     @pytest.mark.parametrize("node_cls", _ALL_NODES)
     def test_has_non_empty_docstring(
-        self, node_cls: Type[WeightedBehavior]
+        self, node_cls: type[WeightedBehavior]
     ) -> None:
         doc = node_cls.__doc__ or ""
         assert len(doc.strip()) > 0
@@ -131,7 +130,7 @@ class TestDocstrings:
     @pytest.mark.parametrize("node_cls", _ALL_NODES)
     @pytest.mark.parametrize("section", _REQUIRED_SECTIONS)
     def test_docstring_has_required_section(
-        self, node_cls: Type[WeightedBehavior], section: str
+        self, node_cls: type[WeightedBehavior], section: str
     ) -> None:
         doc = (node_cls.__doc__ or "").lower()
         assert (
@@ -148,15 +147,15 @@ class TestSuccessRates:
     @pytest.mark.parametrize("node_cls, _, expected_rate", _NODE_SPECS)
     def test_success_rate_attribute(
         self,
-        node_cls: Type[WeightedBehavior],
-        _: Type[WeightedBehavior],
+        node_cls: type[WeightedBehavior],
+        _: type[WeightedBehavior],
         expected_rate: float,
     ) -> None:
         assert abs(node_cls.success_rate - expected_rate) < 1e-9
 
     @pytest.mark.parametrize("node_cls", _ALL_NODES)
     def test_update_returns_valid_status(
-        self, node_cls: Type[WeightedBehavior]
+        self, node_cls: type[WeightedBehavior]
     ) -> None:
         node = node_cls()
         result = node.update()
@@ -164,7 +163,7 @@ class TestSuccessRates:
 
     @pytest.mark.parametrize("node_cls", _ALL_NODES)
     def test_update_never_returns_running(
-        self, node_cls: Type[WeightedBehavior]
+        self, node_cls: type[WeightedBehavior]
     ) -> None:
         node = node_cls()
         results = {node.update() for _ in range(50)}
@@ -173,8 +172,8 @@ class TestSuccessRates:
     @pytest.mark.parametrize("node_cls, _, expected_rate", _NODE_SPECS)
     def test_empirical_distribution(
         self,
-        node_cls: Type[WeightedBehavior],
-        _: Type[WeightedBehavior],
+        node_cls: type[WeightedBehavior],
+        _: type[WeightedBehavior],
         expected_rate: float,
     ) -> None:
         # AlwaysSucceed is deterministic — verify directly instead of statistically

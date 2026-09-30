@@ -94,7 +94,7 @@ def _store_nested_inbox_object(dl: DataLayer, activity: as_Activity) -> None:
         # refs (#2233 write-path).  The Python object is never mutated —
         # downstream BT nodes must see the original inline objects so they can
         # project them to core and create standalone DataLayer records.
-        record: "StorableRecord | PersistableModel" = object_to_record(
+        record: StorableRecord | PersistableModel = object_to_record(
             typed_nested
         )
         if (

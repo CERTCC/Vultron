@@ -11,6 +11,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.wire.as2.factories import (
+    add_note_to_case_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
     as_Create,
@@ -21,9 +24,6 @@ from vultron.wire.as2.vocab.examples._base import (
     case,
     finder,
     vendor,
-)
-from vultron.wire.as2.factories import (
-    add_note_to_case_activity,
 )
 
 

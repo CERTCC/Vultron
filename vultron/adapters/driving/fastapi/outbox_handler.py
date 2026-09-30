@@ -56,14 +56,6 @@ from vultron.adapters.driven.http_delivery import (
     DeliveryError,
     HttpDeliveryAdapter,
 )
-from vultron.adapters.driving.fastapi.outbox_lanes import (
-    BatchInterrupted,
-    RowOutcome,
-    StallOrder,
-    deliver_batch,
-    lane_keys,
-)
-from vultron.adapters.outbox_dead_letter import OutboxRetryStore
 
 # ---------------------------------------------------------------------------
 # Re-exports from outbox_addressing (keep in this namespace for compat)
@@ -79,6 +71,14 @@ from vultron.adapters.driving.fastapi.outbox_delivery import (
     _validate_to_field,
     _warn_secondary_addressing,
 )
+from vultron.adapters.driving.fastapi.outbox_lanes import (
+    BatchInterrupted,
+    RowOutcome,
+    StallOrder,
+    deliver_batch,
+    lane_keys,
+)
+from vultron.adapters.outbox_dead_letter import OutboxRetryStore
 from vultron.adapters.outbox_sealed_body import (
     parse_sealed_body,
     read_sealed_body_dict,

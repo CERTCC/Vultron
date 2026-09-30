@@ -361,7 +361,7 @@ class DeferCheckNode(_InboxNodeWithPorts):
             KEY_QUEUE: f"/{KEY_QUEUE}",
         }
 
-    def update(self) -> Status:  # noqa: C901
+    def update(self) -> Status:
         try:
             event = self.get_input(KEY_EVENT)
         except (KeyError, NoDataAvailable) as exc:

@@ -29,13 +29,11 @@ from unittest.mock import MagicMock, call, patch
 
 import httpx2 as httpx
 import pytest
-from vultron.demo.actor_session import ActorSession
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fv_demo as demo
-from vultron.demo.helpers.sync import verify_replica_state
 from test.demo._helpers import (
     make_client,
     make_testclient_call,
@@ -43,7 +41,9 @@ from test.demo._helpers import (
 )
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.rm import RM
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
+from vultron.demo.helpers.sync import verify_replica_state
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,

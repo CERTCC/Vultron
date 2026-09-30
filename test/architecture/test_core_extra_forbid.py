@@ -19,6 +19,8 @@ ARCH-23-005), and that the mechanisms this contract subsumes cannot be
 reintroduced (AC-7).
 """
 
+from datetime import UTC
+
 import pytest
 from pydantic import ValidationError
 
@@ -301,7 +303,7 @@ def test_json_mode_dump_round_trips_for_non_bool_computed_field(
     the Python value.  A ``datetime`` computed field arrives from a JSON dump as
     a string and must still be recognised as matching.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
     from typing import Literal
 
     from pydantic import computed_field
@@ -312,7 +314,7 @@ def test_json_mode_dump_round_trips_for_non_bool_computed_field(
         @computed_field  # type: ignore[misc]
         @property
         def when(self) -> datetime:
-            return datetime(2026, 1, 1, tzinfo=timezone.utc)
+            return datetime(2026, 1, 1, tzinfo=UTC)
 
     obj = _DatetimeComputed()
     assert _DatetimeComputed.model_validate(obj.model_dump(mode="json")) == obj
@@ -331,8 +333,10 @@ def test_contradicted_embargo_adherence_refused_at_parse() -> None:
     """
     import pytest
 
-    from vultron.wire.as2.parser import VultronParseValidationError
-    from vultron.wire.as2.parser import parse_activity
+    from vultron.wire.as2.parser import (
+        VultronParseValidationError,
+        parse_activity,
+    )
 
     body = {
         "type": "Announce",

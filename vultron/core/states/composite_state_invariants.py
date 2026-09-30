@@ -53,14 +53,14 @@ Closes #2236.
 from typing import NamedTuple
 
 from vultron.core.states.cs import (
-    CS_d,
-    CS_pxa,
-    CS_vf,
     D_FIX_DEPLOYED,
     PXA_ATTACKS_OBSERVED,
     PXA_EXPLOIT_PUBLIC,
     PXA_PUBLIC_AWARE,
     VF_FIX_READY,
+    CS_d,
+    CS_pxa,
+    CS_vf,
 )
 from vultron.core.states.em import EM, EM_EMBARGO_ACTIVE
 from vultron.core.states.rm import RM

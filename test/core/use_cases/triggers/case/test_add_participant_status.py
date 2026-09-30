@@ -932,6 +932,7 @@ class TestCreateParticipantStatusNode:
         ValidateTriggerTransitionsNode.
         """
         from py_trees.common import Status
+
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.enums.roles import CVDRole
 
@@ -990,6 +991,7 @@ class TestCreateParticipantStatusNode:
     def test_ephemeral_pxa_pXa_promoted_before_write(self):
         """AC-1 / SM-09-001: pXa is promoted to PXa before writing."""
         from py_trees.common import Status
+
         from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.cs import CS_pxa
 
@@ -1011,6 +1013,7 @@ class TestCreateParticipantStatusNode:
         the ephemeral pXA is promoted to PXA at the write boundary.
         """
         from py_trees.common import Status
+
         from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.cs import CS_pxa
 
@@ -1036,6 +1039,7 @@ class TestCreateParticipantStatusNode:
         The write boundary must auto-promote VF to Vf before persisting.
         """
         from py_trees.common import Status
+
         from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.cs import CS_pxa, CS_vf
 
@@ -1065,6 +1069,7 @@ class TestCreateParticipantStatusNode:
         write must be refused at the persistence boundary.
         """
         from py_trees.common import Status
+
         from vultron.core.states.cs import CS_pxa, CS_vf
 
         self._seed_participant_vf_state(CS_vf.vf)
@@ -1082,6 +1087,7 @@ class TestCreateParticipantStatusNode:
     def test_single_vf_step_passes_compound_check(self):
         """AC-3 / SM-09-002: a valid single-dimension VF advance is accepted."""
         from py_trees.common import Status
+
         from vultron.core.states.cs import CS_vf
 
         self._seed_participant_vf_state(CS_vf.vf)
@@ -1101,6 +1107,7 @@ class TestCreateParticipantStatusNode:
         Regression test for the first-error-only bug.
         """
         from py_trees.common import Status
+
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.states.cs import CS_d, CS_vf
         from vultron.enums.roles import CVDRole
@@ -1940,10 +1947,9 @@ class TestCrossMachineEntailments:
         The trigger path must refuse it even when RM and individual VF/D
         transitions are valid in isolation (#2893).
         """
-        from vultron.errors import VultronValidationError
-
         # Register participant as VENDOR+DEPLOYER so the D dimension guard passes.
         from vultron.enums.roles import CVDRole
+        from vultron.errors import VultronValidationError
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
@@ -2161,6 +2167,7 @@ def test_validate_trigger_returns_failure_on_corrupt_participant_status():
     rehydration path — matching the test pattern at line 176 in this file.
     """
     from py_trees.common import Status
+
     from vultron.core.behaviors.case.nodes.participant.trigger_validation import (
         ValidateTriggerTransitionsNode,
     )

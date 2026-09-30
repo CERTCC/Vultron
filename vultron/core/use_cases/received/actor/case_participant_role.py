@@ -12,10 +12,10 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.offer_case_participant_role_received_tree import (
     create_offer_case_participant_role_received_tree,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.actor import (
     OfferCaseParticipantRoleReceivedEvent,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,

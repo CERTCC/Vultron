@@ -17,7 +17,7 @@
 
 """Provides a Record model for document database storage."""
 
-from functools import lru_cache
+from functools import cache, lru_cache
 from typing import Any, get_args
 
 from pydantic import BaseModel, ValidationError
@@ -89,7 +89,7 @@ def _activity_object_ref_properties() -> frozenset[str]:
     )
 
 
-@lru_cache(maxsize=None)
+@cache
 def object_ref_fields(cls: type[BaseModel]) -> frozenset[str]:
     """The generic AS2 object-reference fields *cls* actually declares.
 

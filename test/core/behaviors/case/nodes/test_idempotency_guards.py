@@ -23,18 +23,18 @@ AC-3: CLP-13-001 and CLP-13-002 satisfied.
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes import (
     CheckInviteeNotAlreadyParticipantNode,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.behaviors.status.nodes.case_status import (
-    CheckCaseStatusIdempotencyNode,
     CASE_STATUS_ALREADY_PRESENT,
+    CheckCaseStatusIdempotencyNode,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.case_participant import CaseParticipant
-from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.models.case_status import CaseStatus
 
 _CASE_ID = "https://example.org/cases/case-001"
 _INVITEE_ID = "https://example.org/actors/invitee"

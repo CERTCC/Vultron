@@ -27,10 +27,14 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.events.actor import (
     AcceptOfferCaseParticipantReceivedEvent,
     OfferCaseParticipantReceivedEvent,
@@ -53,10 +57,6 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from test.core.use_cases.received.conftest import (
-    seed_case_manager_participant,
-)
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 # ---------------------------------------------------------------------------
 # Shared helpers

@@ -23,7 +23,7 @@ Per-dimension adjudication nodes (RSH-05, ADR-0061, ISSUE-2256) live in
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from py_trees.common import Status
@@ -40,9 +40,9 @@ from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
-from vultron.core.states.cs import CS_pxa
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.states.cs import CS_pxa
 
 logger = logging.getLogger(__name__)
 
@@ -323,7 +323,7 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
             "type": "Add",
             "actor": self.actor_id,
             "context": self.case_id,
-            "published": datetime.now(tz=timezone.utc).isoformat(),
+            "published": datetime.now(tz=UTC).isoformat(),
             "object": status_dict,
         }
 

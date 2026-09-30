@@ -206,7 +206,7 @@ class OutboxMonitor:
                     await asyncio.wait_for(
                         event.wait(), timeout=self._poll_interval
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
                 event.clear()
                 self._register_new_actors()

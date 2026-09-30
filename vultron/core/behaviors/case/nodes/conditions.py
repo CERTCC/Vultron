@@ -33,6 +33,7 @@ import py_trees
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
@@ -40,7 +41,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
-from vultron.config.actor import ActorConfig
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
 

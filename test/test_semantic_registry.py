@@ -5,6 +5,7 @@ import inspect
 
 import pytest
 
+from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.base import VultronEvent
 from vultron.errors import RegistryOrderError
@@ -18,7 +19,6 @@ from vultron.semantic_registry import (
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import ActivityPattern
-from vultron.core.models.enums import VultronObjectType as VOtype
 
 
 @pytest.mark.spec("SE-03-001")

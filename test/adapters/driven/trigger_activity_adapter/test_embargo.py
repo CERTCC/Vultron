@@ -14,8 +14,9 @@
 """Unit tests for TriggerActivityAdapter embargo-domain methods."""
 
 import json
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _ACTOR = "https://example.org/actors/coordinator"
 _PEER = "https://example.org/actors/vendor"

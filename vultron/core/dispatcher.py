@@ -24,11 +24,11 @@ The ``get_dispatcher`` factory function is provided for adapter convenience.
 """
 
 import logging
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable, Mapping
+from typing import TYPE_CHECKING, Any
 
-from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.events import MessageSemantics
+from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.errors import (
@@ -196,10 +196,10 @@ class DispatcherBase:
         self, case_id: str, dl: "DataLayer"
     ) -> tuple[int, bool]:
         case_indices = sorted(
-            int(getattr(obj, "log_index"))
+            index
             for obj in dl.list_objects("CaseLedgerEntry")
             if getattr(obj, "case_id", None) == case_id
-            and isinstance(getattr(obj, "log_index", None), int)
+            and isinstance(index := getattr(obj, "log_index", None), int)
         )
         if not case_indices:
             return -1, False

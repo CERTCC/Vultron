@@ -36,8 +36,9 @@ own ``model_fields``, and checks each under its field name, ``alias`` and
 for either branch (ISSUE-3589).
 """
 
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 

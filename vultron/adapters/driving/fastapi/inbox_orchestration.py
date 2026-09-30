@@ -32,8 +32,8 @@ import asyncio
 import logging
 from typing import Any, cast
 
-from vultron.adapters.driving.fastapi.inbox_handler import dispatch
 from vultron.adapters.driving.fastapi import inbox_port_factories
+from vultron.adapters.driving.fastapi.inbox_handler import dispatch
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _expire_pending_case_activities,
     _queue_pending_case_activity,
@@ -44,8 +44,8 @@ from vultron.adapters.driving.fastapi.inbox_storage import (
     _store_nested_inbox_object,
 )
 from vultron.core.behaviors.inbox import InboxOutcome, InboxOutcomeStatus
-from vultron.core.models.events import VultronEvent
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher

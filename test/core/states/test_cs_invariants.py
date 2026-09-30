@@ -47,9 +47,9 @@ from vultron.core.states.cs import (
 from vultron.core.states.cs_invariants import (
     CS_EVENT_TO_PXA_TRIGGER,
     CS_EVENTS,
-    CSEvent,
     PXA_EVENTS,
     VFD_EVENTS,
+    CSEvent,
     apply_cs_event,
     cs_dimensions,
     cs_from_dimensions,
@@ -136,7 +136,7 @@ def test_cs_events_are_canonical_order():
 
 
 def test_event_dimension_partition():
-    assert VFD_EVENTS | PXA_EVENTS == set(CS_EVENTS)
+    assert set(CS_EVENTS) == VFD_EVENTS | PXA_EVENTS
     assert not VFD_EVENTS & PXA_EVENTS
 
 

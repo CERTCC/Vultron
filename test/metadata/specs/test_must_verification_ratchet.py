@@ -20,9 +20,9 @@ import re
 
 import pytest
 
+from test.metadata.specs.conftest import spec_file_data
 from vultron.metadata.specs.registry import SpecRegistry
 from vultron.metadata.specs.schema import SpecFile, SpecKind
-from test.metadata.specs.conftest import spec_file_data
 from vultron.metadata.specs.verification import (
     VERIFICATION_CEILINGS,
     VerificationCeiling,

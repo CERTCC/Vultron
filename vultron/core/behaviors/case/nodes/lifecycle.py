@@ -25,22 +25,21 @@ import logging
 from typing import Any, cast
 
 from py_trees.common import Status
-
-from vultron.core.behaviors.bridge import BTBridge
 from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.behaviors.sync.commit_tree import (
-    create_commit_log_entry_tree,
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.ledger_payload import (
+    _extract_payload_snapshot,
 )
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.ledger_patch import (
     PATCH_KEY_TWINS,
     drop_stale_twins,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.behaviors.case.nodes.ledger_payload import (
-    _extract_payload_snapshot,
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
 )
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.errors import VultronCanonicalEntryError, VultronValidationError
 
 logger = logging.getLogger(__name__)

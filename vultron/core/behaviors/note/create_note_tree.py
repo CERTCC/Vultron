@@ -33,11 +33,11 @@ import logging
 
 import py_trees
 
-from vultron.core.models.note import VultronNote
 from vultron.core.behaviors.note.nodes import (
     AttachNoteToCaseNode,
     SaveNoteNode,
 )
+from vultron.core.models.note import VultronNote
 
 logger = logging.getLogger(__name__)
 

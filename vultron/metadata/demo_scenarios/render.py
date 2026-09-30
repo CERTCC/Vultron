@@ -41,7 +41,7 @@ Requirements: ``specs/demo-ci.yaml`` DEMOCI-11.  Design: ADR-0098.
 from __future__ import annotations
 
 import json
-from typing import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 
 from vultron.demo.scenario.registry import (
     ScenarioSpec,

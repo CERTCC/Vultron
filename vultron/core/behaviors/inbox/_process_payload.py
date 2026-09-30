@@ -26,7 +26,7 @@ Per specs/inbox-orchestration.yaml IO-02-001 through IO-02-003.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import py_trees
 from py_trees.common import Status
@@ -56,9 +56,6 @@ from vultron.core.behaviors.inbox.nodes import (
     KEY_PAYLOAD,
     KEY_QUEUE,
 )
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

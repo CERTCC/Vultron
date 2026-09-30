@@ -23,9 +23,9 @@ AC-2: reconstruction uses CORE_VOCABULARY, not the wire VOCABULARY.
 AC-3: AS2 Activity types (no core counterpart) still reconstruct via wire path.
 """
 
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlmodel import Session
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -34,21 +34,24 @@ from vultron.adapters.driven.datalayer_sqlite.hydration import (
 )
 from vultron.adapters.driven.datalayer_sqlite.schema import VultronObjectRecord
 from vultron.core.models.actor import VultronService
-from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.core.models.note import VultronNote
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     participant_status_rm_state,
 )
+from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
-from vultron.core.models.note import VultronNote
 from vultron.wire.as2.vocab.base.objects.object_types import (
     as_Article,
     as_Note,
@@ -58,12 +61,9 @@ from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.core.models.dimensions import (
-    RmDimension,
-)
 
 _CASE_CONTEXT = "urn:uuid:case-context-fixture"
-_NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
+_NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def _make_instance(core_cls):

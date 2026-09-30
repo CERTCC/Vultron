@@ -21,12 +21,12 @@ from typing import cast
 
 import pytest
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _SignEmbargoConsentLeafNode,
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
-from test.core.behaviors.bt_harness import BTTestScenario
 
 # ---------------------------------------------------------------------------
 # Constants

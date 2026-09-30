@@ -46,8 +46,8 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_TentativeReject,
 )
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.base.objects.actors import as_Person
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )

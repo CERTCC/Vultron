@@ -17,8 +17,8 @@ import string
 import unittest
 from itertools import permutations, product
 
-import vultron.errors as err
 import vultron.core.case_states.validations as v
+import vultron.errors as err
 from vultron.core.case_states.hypercube import CVDmodel
 
 alpha = string.ascii_lowercase
@@ -71,7 +71,7 @@ class MyTestCase(unittest.TestCase):
                 continue
             for i in range(100):
                 test_str = "".join(
-                    (random.choice(alpha) for _ in range(length))
+                    random.choice(alpha) for _ in range(length)
                 )
                 self.assertEqual(length, len(test_str))
                 with self.assertRaises(err.PatternValidationError):
@@ -85,7 +85,7 @@ class MyTestCase(unittest.TestCase):
         # wrong chars
         for i in range(1000):
             ch = [a for a in alpha if a not in "vfdpxa"]
-            test_str = "".join((random.choice(ch) for _ in range(6)))
+            test_str = "".join(random.choice(ch) for _ in range(6))
             self.assertEqual(6, len(test_str))
             with self.assertRaises(err.PatternValidationError):
                 v.is_valid_pattern(test_str)
@@ -119,7 +119,7 @@ class MyTestCase(unittest.TestCase):
                 continue
             for i in range(100):
                 test_str = "".join(
-                    (random.choice(alpha) for _ in range(length))
+                    random.choice(alpha) for _ in range(length)
                 )
                 self.assertEqual(length, len(test_str))
                 with self.assertRaises(err.StateValidationError):
@@ -133,7 +133,7 @@ class MyTestCase(unittest.TestCase):
         # wrong chars
         for i in range(1000):
             ch = [a for a in alpha if a not in "vfdpxa"]
-            test_str = "".join((random.choice(ch) for _ in range(6)))
+            test_str = "".join(random.choice(ch) for _ in range(6))
             self.assertEqual(6, len(test_str))
             with self.assertRaises(err.StateValidationError):
                 v.is_valid_state(test_str)

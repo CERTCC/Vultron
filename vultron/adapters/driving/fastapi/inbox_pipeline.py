@@ -28,8 +28,8 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _queue_pending_case_activity,
     _replay_pending_case_activities,
 )
-from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.errors import (

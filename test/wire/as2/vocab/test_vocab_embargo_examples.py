@@ -15,6 +15,7 @@ import unittest
 from typing import cast
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -25,7 +26,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Remove,
 )
-from vultron.core.models.embargo_event import EmbargoEvent
 
 
 class TestVocabEmbargoExamples(unittest.TestCase):

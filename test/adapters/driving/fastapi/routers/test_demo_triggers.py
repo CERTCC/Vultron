@@ -25,7 +25,9 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.adapters.utils import strip_id_prefix
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
     get_trigger_dl,
@@ -33,14 +35,10 @@ from vultron.adapters.driving.fastapi.deps import (
 )
 from vultron.adapters.driving.fastapi.routers import (
     demo_triggers as demo_triggers_router,
-)
-from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
 )
+from vultron.adapters.utils import strip_id_prefix
 from vultron.core.use_cases.triggers.service import TriggerService
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant

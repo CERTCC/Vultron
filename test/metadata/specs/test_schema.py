@@ -4,14 +4,14 @@ Covers: SpecIdStr validation, StatementSpec, BehavioralSpec, SpecGroup,
 SpecFile, SpecRegistry round-trip, and load_registry helpers.
 """
 
-import yaml
 import pytest
+import yaml
 from pydantic import ValidationError
 
-from vultron.metadata.specs.registry import load_registry
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.schema import (
     AdrStatus,
     BehavioralSpec,
@@ -19,10 +19,10 @@ from vultron.metadata.specs.schema import (
     LintWarningCode,
     Postcondition,
     Precondition,
+    Relationship,
+    RelationType,
     RFC2119Priority,
     RFC2119Tier,
-    RelationType,
-    Relationship,
     Scope,
     SpecFile,
     SpecGroup,

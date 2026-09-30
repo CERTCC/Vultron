@@ -28,21 +28,20 @@ from typing import Any, cast
 from pydantic import ValidationError
 
 from vultron.core.models.case import VulnerabilityCase
-from vultron.enums.roles import CVDRole
+from vultron.core.models.dimensions import (
+    EmDimension,
+)
 from vultron.core.states.em import EM
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories._context import (
     case_target_ref,
     case_uri_of,
     with_case_context,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
-from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
-    as_Question,
-)
 from vultron.wire.as2.vocab.activities.case import (
-    _AcceptCaseParticipantRoleActivity,
-    _OfferCaseParticipantRoleActivity,
     _AcceptCaseOwnershipTransferActivity,
+    _AcceptCaseParticipantRoleActivity,
     _AddNoteToCaseActivity,
     _AddReportToCaseActivity,
     _AddStatusToCaseActivity,
@@ -50,8 +49,9 @@ from vultron.wire.as2.vocab.activities.case import (
     _CreateCaseActivity,
     _CreateCaseStatusActivity,
     _OfferCaseOwnershipTransferActivity,
-    _RejectCaseParticipantRoleActivity,
+    _OfferCaseParticipantRoleActivity,
     _RejectCaseOwnershipTransferActivity,
+    _RejectCaseParticipantRoleActivity,
     _RmAcceptInviteToCaseActivity,
     _RmCloseCaseActivity,
     _RmDeferCaseActivity,
@@ -60,6 +60,9 @@ from vultron.wire.as2.vocab.activities.case import (
     _RmRejectCloseCaseActivity,
     _RmRejectInviteToCaseActivity,
     _UpdateCaseActivity,
+)
+from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
+    as_Question,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -79,6 +82,7 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant_role import (
     as_CaseParticipantRole,
 )
+from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent as WireEmbargoEvent,
@@ -88,12 +92,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseRef,
     as_VulnerabilityCaseStub,
 )
-from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
-)
-from vultron.core.models.dimensions import (
-    EmDimension,
 )
 
 logger = logging.getLogger(__name__)

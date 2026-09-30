@@ -246,7 +246,7 @@ def _render_entry_markdown(
     """Render a backfilled implementation history entry."""
     ts = datetime.datetime(
         *datetime.date.fromisoformat(canonical_date).timetuple()[:3],
-        tzinfo=datetime.timezone.utc,
+        tzinfo=datetime.UTC,
     ).isoformat()
     metadata: dict[str, object] = {
         "title": title,

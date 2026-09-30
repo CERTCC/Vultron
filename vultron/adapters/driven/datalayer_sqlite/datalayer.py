@@ -25,23 +25,23 @@ submodules and tests call them by those names.
 """
 
 import logging
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
 
-from sqlmodel import SQLModel, Session
+from sqlmodel import Session, SQLModel
 
 from vultron.adapters.outbox_dead_letter import OutboxDeadLetterEntry
 from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 
-from .schema import VultronObjectRecord
-from .engine import dispose_actor_engines, get_actor_engine, session_guard
 from . import crud, hydration, queries, queues
+from .engine import dispose_actor_engines, get_actor_engine, session_guard
+from .schema import VultronObjectRecord
 
 logger = logging.getLogger(__name__)
 

@@ -35,9 +35,9 @@ from collections.abc import Callable
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.events import CreateCaseReceivedEvent, VultronEvent
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.models.events import CreateCaseReceivedEvent, VultronEvent
 from vultron.core.use_cases.received.actor import _find_case_actor_id
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
@@ -47,11 +47,11 @@ from vultron.core.use_cases.received.case.create import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronAlreadyExistsError
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     create_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
 )

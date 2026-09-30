@@ -15,8 +15,6 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from vultron.core.scoring.info import Info
-from vultron.core.scoring.utils import enum2title, unique_enum_list
 from vultron.core.case_states.patterns.base import compile_patterns
 from vultron.core.case_states.patterns.cvss31 import cvss_31 as cvss
 from vultron.core.case_states.patterns.embargo import embargo_viability
@@ -24,6 +22,8 @@ from vultron.core.case_states.patterns.explanations import explain
 from vultron.core.case_states.patterns.ssvc import ssvc
 from vultron.core.case_states.patterns.vep import vep
 from vultron.core.case_states.validations import ensure_valid_pattern
+from vultron.core.scoring.info import Info
+from vultron.core.scoring.utils import enum2title, unique_enum_list
 
 _INFO = {
     "vF....": (Info.INVALID_STATE,),
@@ -60,8 +60,8 @@ def info(state, include_ssvc=True, include_cvss=True, include_vep=True):
 
 
 def main():
-    from vultron.core.case_states.patterns.potential_actions import action
     from vultron.core.case_states.hypercube import CVDmodel
+    from vultron.core.case_states.patterns.potential_actions import action
 
     model = CVDmodel()
 

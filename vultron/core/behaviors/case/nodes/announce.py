@@ -26,15 +26,15 @@ The composite tree factory is in ``announce_case_received_tree.py`` at
 the process-area root per BTND-07-003.
 """
 
-from typing import Any, Union
+from typing import Any
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.case import VulnerabilityCase
 
 
 def _store_embedded_reports(case_obj, datalayer) -> None:
@@ -104,7 +104,7 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts):
     def __init__(
         self,
         case_id: str,
-        case_obj: Union[VulnerabilityCase, Any],
+        case_obj: VulnerabilityCase | Any,
         request: AnnounceVulnerabilityCaseReceivedEvent,
         name: str | None = None,
     ) -> None:

@@ -8,6 +8,7 @@ from vultron.core.behaviors.note.add_note_received_tree import (
     create_add_note_to_case_received_tree,
 )
 from vultron.core.behaviors.note.create_note_tree import create_note_tree
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
     CreateNoteReceivedEvent,
@@ -21,7 +22,6 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )

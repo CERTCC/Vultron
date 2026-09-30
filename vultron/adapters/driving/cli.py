@@ -22,8 +22,8 @@ from vultron.adapters.driving.fastapi.inbox_handler import (
     handle_inbox_item,
     init_dispatcher,
 )
-from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)

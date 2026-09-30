@@ -70,7 +70,7 @@ from vultron.metadata.history.types import (
     LearningSignalType,
 )
 
-_UTC = datetime.timezone.utc
+_UTC = datetime.UTC
 
 
 def _validate_frontmatter(content: str) -> HistoryEntryFrontmatter:

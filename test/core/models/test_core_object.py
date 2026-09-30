@@ -4,30 +4,29 @@ import importlib.util
 import pathlib
 import re
 import tokenize
+from datetime import UTC
 from typing import Literal
 
 import pytest
 from pydantic import BaseModel
 
 import vultron
-
+from test.support.core_vocab import restore_core_registries
 from vultron.core.models import (
     CORE_VOCABULARY,
     CoreObject,
     find_in_core_vocabulary,
 )
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import VULTRON_CONTEXT_URI, CoreRecord
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.registry import CORE_TYPE_MAP
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry as CoreCaseLedgerEntry,
 )
 from vultron.core.models.note import VultronNote
-from vultron.core.models.activity import VultronActivity
+from vultron.core.models.registry import CORE_TYPE_MAP
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
-
-from test.support.core_vocab import restore_core_registries
 
 # --- Inheritance shape ------------------------------------------------------
 
@@ -151,8 +150,8 @@ def test_restore_core_registries_restores_both_maps():
             CORE_TYPE_MAP["RestoreProbeTypeMapOnly"] is RestoreProbeTypeMapOnly
         )
 
-    assert CORE_VOCABULARY == vocab_before
-    assert CORE_TYPE_MAP == type_map_before
+    assert vocab_before == CORE_VOCABULARY
+    assert type_map_before == CORE_TYPE_MAP
     assert "RestoreProbeConcrete" not in CORE_TYPE_MAP
     assert "RestoreProbeTypeMapOnly" not in CORE_TYPE_MAP
 
@@ -533,11 +532,11 @@ def test_every_core_vocabulary_entry_spells_the_as2_envelope_in_camel_case():
     among them — dumped ``media_type`` / ``start_time`` / ``end_time`` /
     ``attributed_to`` verbatim.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from test.support.core_vocab import build_core_vocab
 
-    when = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    when = datetime(2026, 1, 2, tzinfo=UTC)
     built, unconstructible = build_core_vocab(
         "envelope",
         {

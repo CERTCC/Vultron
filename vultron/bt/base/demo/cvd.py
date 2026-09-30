@@ -22,7 +22,7 @@ from typing import Any, cast
 
 import pandas as pd
 
-from vultron.bt.behaviors import CvdProtocolBt, CvdProtocolRoot, STATELOG
+from vultron.bt.behaviors import STATELOG, CvdProtocolBt, CvdProtocolRoot
 from vultron.bt.common import show_graph
 from vultron.bt.messaging.behaviors import incoming_message
 from vultron.bt.messaging.inbound.fuzzer import generate_inbound_message

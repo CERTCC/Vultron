@@ -46,8 +46,9 @@ that actor's own store.  The ``{actor_id}`` path parameter is no longer
 "accepted but unused".
 """
 
-from fastapi import Depends, Path, Request
 from typing import cast
+
+from fastapi import Depends, Path, Request
 
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer import get_datalayer

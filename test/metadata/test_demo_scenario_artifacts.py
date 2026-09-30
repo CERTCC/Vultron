@@ -52,7 +52,6 @@ from vultron.metadata.demo_scenarios.render import (
     render_page,
     scenario_matrix_json,
 )
-from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.demo_scenarios.sync import (
     ARTIFACTS,
     BEGIN_MARKER,
@@ -66,6 +65,7 @@ from vultron.metadata.demo_scenarios.sync import (
     stale_artifacts,
     write_artifacts,
 )
+from vultron.metadata.specs.registry import load_registry
 
 _REPO_ROOT = Path(__file__).parents[2]
 

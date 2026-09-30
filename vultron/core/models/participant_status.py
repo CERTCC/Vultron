@@ -26,15 +26,6 @@ from pydantic import (
     model_validator,
 )
 
-
-from vultron.core.states.cs import CS_d, CS_vf
-from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.rm import RM, is_valid_rm_transition
-from vultron.enums.roles import CVDRole
-from vultron.errors import (
-    VultronProtocolViolationError,
-    VultronValidationError,
-)
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
@@ -44,6 +35,14 @@ from vultron.core.models.dimensions import (
     VfDimension,
 )
 from vultron.core.models.wire_keys import input_keys
+from vultron.core.states.cs import CS_d, CS_vf
+from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.rm import RM, is_valid_rm_transition
+from vultron.enums.roles import CVDRole
+from vultron.errors import (
+    VultronProtocolViolationError,
+    VultronValidationError,
+)
 
 
 def coerce_em_consent_state(value: object) -> PEC | None:

@@ -16,15 +16,15 @@ from vultron.core.use_cases.received.actor.invite import (
     InviteActorToCaseReceivedUseCase,
     RejectInviteActorToCaseReceivedUseCase,
 )
-from vultron.core.use_cases.received.actor.ownership import (
-    AcceptCaseOwnershipTransferReceivedUseCase,
-    OfferCaseOwnershipTransferReceivedUseCase,
-    RejectCaseOwnershipTransferReceivedUseCase,
-)
 from vultron.core.use_cases.received.actor.offer_case_participant import (
     AcceptOfferCaseParticipantReceivedUseCase,
     OfferCaseParticipantReceivedUseCase,
     RejectOfferCaseParticipantReceivedUseCase,
+)
+from vultron.core.use_cases.received.actor.ownership import (
+    AcceptCaseOwnershipTransferReceivedUseCase,
+    OfferCaseOwnershipTransferReceivedUseCase,
+    RejectCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,

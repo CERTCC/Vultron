@@ -7,7 +7,7 @@ run, preventing TinyDB from falling back to raw Documents.
 
 import pytest
 
-# noqa: F401 — imported for vocabulary registration side-effect
+# imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )

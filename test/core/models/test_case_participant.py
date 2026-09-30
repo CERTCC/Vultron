@@ -2,7 +2,6 @@
 
 import pytest
 
-from vultron.errors import VultronValidationError
 from vultron.core.models.case_participant import (
     CaseActorParticipant,
     CaseParticipant,
@@ -19,6 +18,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole, validate_roles
+from vultron.errors import VultronValidationError
 
 _ACTOR = "https://example.org/actors/alice"
 _CONTEXT = "https://example.org/cases/case-001"

@@ -21,13 +21,13 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
-from test.core.behaviors.bt_harness import BTTestScenario
 
 CASE_ID = "https://example.org/cases/case-001"
 MANAGER_ACTOR_ID = "https://example.org/actors/coordinator"

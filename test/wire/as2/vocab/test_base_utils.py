@@ -18,7 +18,6 @@ Tests for vultron.wire.as2.vocab.base.utils — OID-01-001 through OID-01-004.
 import re
 import uuid
 
-
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.utils import (
     URN_UUID_PREFIX,

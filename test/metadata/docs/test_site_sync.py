@@ -753,10 +753,10 @@ class TestStakeholderFragment:
         }
 
     def test_keys_are_every_member_then_all(self):
-        assert page_schema.AUDIENCE_KEYS == (
+        assert (
             *(m.value for m in page_schema.StakeholderType),
             ALL_STAKEHOLDERS,
-        )
+        ) == page_schema.AUDIENCE_KEYS
 
 
 # ---------------------------------------------------------------------------

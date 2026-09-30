@@ -64,6 +64,7 @@ from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.errors import RegistryOrderError
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+
 from . import (
     actor,
     case,

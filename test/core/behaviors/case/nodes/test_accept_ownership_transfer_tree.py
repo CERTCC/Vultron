@@ -29,6 +29,7 @@ from unittest.mock import patch
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
@@ -37,12 +38,11 @@ from vultron.core.behaviors.case.ownership_transfer_tree import (
 )
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
 )
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
-from test.core.behaviors.bt_harness import BTTestScenario
 
 CASE_ID = "https://example.org/cases/case-2252"
 CASE_ACTOR_ID = "https://example.org/actors/case-actor"

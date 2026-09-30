@@ -43,20 +43,24 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.models.case import VulnerabilityCase
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.report import ValidateReportReceivedEvent
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.received.report import (
     ValidateReportReceivedUseCase,
 )
 from vultron.core.use_cases.triggers.service import TriggerService
-from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -69,10 +73,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-from vultron.core.models.dimensions import (
-    RmDimension,
-)
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -485,8 +485,8 @@ class TestCaseActorReceivedWritesLedgerEntry:
         message sender regardless of which actor ``execute_with_setup`` runs
         under (receiving_actor_id=CASE_ACTOR_ID).
         """
-        from vultron.core.states.rm import RM
         from vultron.core.models.report_case_link import VultronReportCaseLink
+        from vultron.core.states.rm import RM
 
         dl = self._make_case_actor_dl()
 

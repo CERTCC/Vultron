@@ -19,28 +19,27 @@ import re
 from collections.abc import Iterable, Sequence
 from pathlib import Path, PurePosixPath
 
-from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.backstop._model import (
-    SOURCE_PREFIX,
-    TEST_PREFIX,
+    _ADVISORY,
     HUB_THRESHOLD,
     MONOLITH_GROUP_SPAN,
-    FileChange,
-    TestFile,
-    Requirement,
-    GroupHit,
+    SOURCE_PREFIX,
+    TEST_PREFIX,
     BackstopReport,
-    _ADVISORY,
+    FileChange,
+    GroupHit,
+    Requirement,
+    TestFile,
 )
-
 from vultron.metadata.specs.backstop._symbols import (
-    changed_symbols,
     changed_nodes,
-    spec_ids_in,
-    mirror_tests,
+    changed_symbols,
     imported_symbols,
+    mirror_tests,
     module_name,
+    spec_ids_in,
 )
+from vultron.metadata.specs.registry import load_registry
 
 _WORD_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _CODE_SPAN_RE = re.compile(r"`([^`]+)`")

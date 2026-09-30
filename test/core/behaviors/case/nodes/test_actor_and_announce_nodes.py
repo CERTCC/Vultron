@@ -16,14 +16,11 @@
 """Tests for AcceptCaseOwnershipTransferNode, SeedAnnouncedCaseNode,
 and EmitInviteActorToCaseNode._read_suggested_roles."""
 
+import json
 from typing import Any, cast
 
 import py_trees
-import json
-
 import pytest
-
-from vultron.core.models._helpers import now_utc
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -32,10 +29,11 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
 )
+from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptCaseOwnershipTransferNode,
 )
-from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.actor import (
@@ -1030,7 +1028,7 @@ class TestEmitOwnershipTransferNodes:
             f"got to={activity.get('to')!r}"
         )
         # The transferee is named as the intended new owner in the target field.
-        assert _OT_TRANSFEREE_ID == activity.get("target"), (
+        assert activity.get("target") == _OT_TRANSFEREE_ID, (
             f"Offer.target must name the transferee ({_OT_TRANSFEREE_ID}); "
             f"got target={activity.get('target')!r}"
         )

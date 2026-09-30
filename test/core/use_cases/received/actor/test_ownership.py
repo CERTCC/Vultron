@@ -19,8 +19,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from vultron.core.models.use_case_result import HandlerDisposition
-
-
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
@@ -228,11 +226,11 @@ class TestOwnershipTransferUseCases:
         the transferee's inbox (CM-21-005, ADR-0053).
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-        from vultron.enums.roles import CVDRole
 
         case_actor_id = "https://example.org/actors/case-actor"
         vendor_id = "https://example.org/users/vendor"
@@ -323,11 +321,11 @@ class TestOwnershipTransferUseCases:
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.use_cases.received.actor import ownership
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-        from vultron.enums.roles import CVDRole
 
         assert not hasattr(ownership, "add_activity_to_outbox"), (
             "OfferCaseOwnershipTransferReceivedUseCase must not import"
@@ -420,11 +418,11 @@ class TestOwnershipTransferUseCases:
         recover who offered.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-        from vultron.enums.roles import CVDRole
 
         case_actor_id = "https://example.org/actors/case-actor-attr"
         vendor_id = "https://example.org/users/vendor-attr"
@@ -500,11 +498,11 @@ class TestOwnershipTransferUseCases:
         not `attributed_to`.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-        from vultron.enums.roles import CVDRole
 
         case_actor_id = "https://example.org/actors/case-actor-spoof"
         vendor1_id = "https://example.org/users/vendor1-spoof"
@@ -576,11 +574,11 @@ class TestOwnershipTransferUseCases:
         WARNING and leave all outboxes empty (CM-21-005 forwarding skipped).
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-        from vultron.enums.roles import CVDRole
 
         case_actor_id = "https://example.org/actors/case-actor-w"
         vendor_id = "https://example.org/users/vendor-w"
@@ -671,6 +669,7 @@ class TestOwnershipTransferUseCases:
         to dl.actor_id, so the offer is persisted rather than dropped.
         """
         import py_trees
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         actor_id = "https://example.org/actors/store-owner-ot"
@@ -712,6 +711,7 @@ class TestOwnershipTransferUseCases:
         than dropped.
         """
         import py_trees
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         coordinator_id = "https://example.org/users/coordinator-nostamp"
@@ -745,7 +745,7 @@ class TestOwnershipTransferUseCases:
 
             updated = dl.get(case.type_, case.id_)
             assert updated is not None
-            from typing import cast, Any
+            from typing import Any, cast
 
             data = cast(Any, updated).get("data_", updated)
             assert data.get("attributed_to") == coordinator_id, (

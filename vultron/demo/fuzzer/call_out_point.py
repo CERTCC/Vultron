@@ -36,7 +36,7 @@ from py_trees.common import Access, Status
 
 from vultron.core.behaviors.call_out_point import (
     CallOutBackendFactory,
-)  # noqa: F401
+)
 from vultron.demo.fuzzer.base import WeightedBehavior
 
 __all__ = [

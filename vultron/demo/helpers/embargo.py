@@ -14,7 +14,6 @@
 """Embargo object factory helpers shared across demo scenarios."""
 
 from datetime import datetime, timedelta
-from typing import Optional
 
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -25,7 +24,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 def make_embargo_event(
     case: as_VulnerabilityCase,
     days: int = 90,
-    seq: Optional[int] = None,
+    seq: int | None = None,
 ) -> as_EmbargoEvent:
     """Create a deterministic :class:`as_EmbargoEvent` for *case*.
 

@@ -53,13 +53,13 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.ledger_patch import PARTICIPANT_STATUS_PATCH_KEYS
+from vultron.core.behaviors.status.nodes._adjudication import (
+    _adjudicate_dimensions,
+)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.behaviors.status.nodes._adjudication import (
-    _adjudicate_dimensions,
-)
 from vultron.core.states.rm import (
     RM,
     is_monotonic_rm_forward,
@@ -197,7 +197,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
         self.participant_id = participant_id
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
-        self.wire_render_port: "WireRenderPort | None" = None
+        self.wire_render_port: WireRenderPort | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,

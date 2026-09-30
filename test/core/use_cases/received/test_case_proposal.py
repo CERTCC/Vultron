@@ -32,13 +32,13 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models.pending_create_case_activity import (
-    PendingCreateCaseActivity,
-)
 from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CaseProposalCallOutBundle,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.pending_create_case_activity import (
+    PendingCreateCaseActivity,
+)
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -368,7 +368,7 @@ class TestCreateCaseProposalIdempotency:
         if isinstance(raw_result, str):
             result_val = raw_result
         elif raw_result is not None and hasattr(raw_result, "id_"):
-            result_val = getattr(raw_result, "id_")
+            result_val = raw_result.id_
         elif isinstance(raw_result, dict):
             result_val = raw_result.get("id_") or raw_result.get("id")
         else:

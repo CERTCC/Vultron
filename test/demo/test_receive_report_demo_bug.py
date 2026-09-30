@@ -14,8 +14,8 @@ Per ActivityStreams spec, collection items can be:
 The demo code needs to handle all these cases.
 """
 
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 
 def test_inbox_items_can_be_strings():

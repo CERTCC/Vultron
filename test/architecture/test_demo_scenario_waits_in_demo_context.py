@@ -215,10 +215,10 @@ def test_polling_module_has_raising_and_wrapping_helpers():
     helpers are recognised.
     """
     assert "wait_for_case_participants" in _RAISING_WAITS
-    assert _WRAPPING_WAITS >= {
+    assert {
         "wait_for_participants_on_replicas",
         "drain_phase1_ledger",
-    }, (
+    } <= _WRAPPING_WAITS, (
         "wait_for_participants_on_replicas and drain_phase1_ledger must wrap "
         f"their raising poll internally (DEMOCI-01-011); got {_WRAPPING_WAITS}"
     )

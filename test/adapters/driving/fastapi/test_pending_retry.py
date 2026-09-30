@@ -37,12 +37,12 @@ from collections.abc import Callable
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driving.fastapi.pending_retry import (
+    retry_pending_create_case_activities,
+)
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
-)
-from vultron.adapters.driving.fastapi.pending_retry import (
-    retry_pending_create_case_activities,
 )
 
 # ---------------------------------------------------------------------------

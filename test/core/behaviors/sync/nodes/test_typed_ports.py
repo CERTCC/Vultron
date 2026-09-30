@@ -31,6 +31,12 @@ import pytest
 from py_trees.ports import NoDataAvailable
 
 import vultron.core.behaviors.sync.nodes as sync_nodes_pkg
+from test.core.behaviors.bt_harness import BTTestScenario
+from test.core.behaviors.port_contract import (
+    PortDecl,
+    decl_id,
+    discover_port_declarations,
+)
 from vultron.core.behaviors.sync.nodes.chain import (
     PersistLogEntryNode,
     UpdateReplicationStateNode,
@@ -51,12 +57,6 @@ from vultron.core.behaviors.sync.nodes.receive import (
     LogDeliveryConfirmationNode,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from test.core.behaviors.bt_harness import BTTestScenario
-from test.core.behaviors.port_contract import (
-    PortDecl,
-    decl_id,
-    discover_port_declarations,
-)
 
 ACTOR_ID = "https://example.org/actors/vendor"
 LEDGER_CASE_ID = "https://example.org/cases/case-ledger"

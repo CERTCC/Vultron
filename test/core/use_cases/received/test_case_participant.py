@@ -13,10 +13,9 @@
 """Tests for case participant use-case classes."""
 
 from typing import cast
+from unittest.mock import MagicMock
 
 import pytest
-
-from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -304,11 +303,11 @@ class TestCaseParticipantUseCases:
     ):
         """RemoveCaseParticipantFromCaseReceivedUseCase clears actor_participant_index (SC-PRE-2)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_participant import CaseParticipant
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Remove,
         )
-        from vultron.core.models.case import VulnerabilityCase
-        from vultron.core.models.case_participant import CaseParticipant
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )

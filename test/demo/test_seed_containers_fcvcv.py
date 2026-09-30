@@ -28,6 +28,7 @@ def base(client: TestClient) -> str:
 @pytest.fixture(scope="module", autouse=True)
 def patch_datalayer_call(client: TestClient, base: str):
     from _pytest.monkeypatch import MonkeyPatch
+
     from vultron.demo.utils import DataLayerClient
 
     mp = MonkeyPatch()

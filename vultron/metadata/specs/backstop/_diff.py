@@ -20,9 +20,9 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from vultron.metadata.specs.backstop._model import (
-    GitRunner,
     BackstopError,
     FileChange,
+    GitRunner,
 )
 
 _HUNK_RE = re.compile(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@")

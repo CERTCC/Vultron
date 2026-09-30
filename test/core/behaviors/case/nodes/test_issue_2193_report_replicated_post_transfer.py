@@ -18,7 +18,7 @@ confirm that fix covers the post-ownership-transfer path.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from py_trees.common import Status
@@ -38,7 +38,7 @@ from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 
-_FIXED_CREATED_AT = datetime(2024, 6, 1, 0, 0, 0, tzinfo=timezone.utc)
+_FIXED_CREATED_AT = datetime(2024, 6, 1, 0, 0, 0, tzinfo=UTC)
 
 ORIGINAL_CASE_ACTOR_ID = "https://example.org/actors/original-vendor"
 NEW_OWNER_ACTOR_ID = "https://example.org/actors/new-owner-coordinator"

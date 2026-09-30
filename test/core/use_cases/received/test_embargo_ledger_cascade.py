@@ -15,6 +15,7 @@
 from typing import cast
 
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
@@ -31,7 +32,6 @@ from vultron.wire.as2.factories import (
     em_reject_embargo_activity,
     remove_embargo_from_case_activity,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )

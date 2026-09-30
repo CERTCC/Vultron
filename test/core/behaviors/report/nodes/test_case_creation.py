@@ -18,15 +18,15 @@
 import pytest
 from py_trees.composites import Sequence
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.helpers import UpdateActorOutbox
 from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseActivity,
     CreateCaseNode,
 )
+from vultron.core.models.activity import VultronOffer
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.activity import VultronOffer
-from test.core.behaviors.bt_harness import BTTestScenario
 
 
 def test_create_case_node(

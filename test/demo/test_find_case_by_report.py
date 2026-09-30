@@ -14,13 +14,13 @@
 
 from unittest.mock import Mock
 
+from vultron.demo.exchange.receive_report_demo import find_case_by_report
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-from vultron.demo.exchange.receive_report_demo import find_case_by_report
 
 
 def test_find_case_by_report_with_vulnerability_reports_field():

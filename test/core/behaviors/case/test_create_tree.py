@@ -30,15 +30,15 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.create_tree import create_create_case_tree
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.create_tree import create_create_case_tree
 
 # The URL used by tests as the CaseActor service base URL (CP-08-001).
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"

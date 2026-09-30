@@ -26,23 +26,23 @@ from typing import Any, cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.case_participant import (
+    CaseParticipant,
+    CaseParticipant as CoreCaseParticipant,
+)
 from vultron.core.models.dimensions import (
     RmDimension,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import create_case_activity
-from vultron.core.models.case_participant import (
-    CaseParticipant as CoreCaseParticipant,
-)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -142,12 +142,11 @@ class TestParticipantRmStateShapeGuard:
     _CONTEXT = "https://example.org/cases/case-2232"
 
     def test_returns_latest_state_for_core_shaped_participant(self):
+        from test.support.participant_status import advance_participant_rm
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.use_cases.received.case._helpers import (
             _participant_rm_state,
         )
-
-        from test.support.participant_status import advance_participant_rm
 
         actor = "https://example.org/actors/alice"
         participant = CaseParticipant(
@@ -182,10 +181,10 @@ class TestParticipantRmStateShapeGuard:
         ``test_participant_status_shape``, for objects that genuinely cannot supply
         a dimension.
         """
+        from vultron.core.states.rm import RM
         from vultron.core.use_cases.received.case._helpers import (
             _participant_rm_state,
         )
-        from vultron.core.states.rm import RM
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )

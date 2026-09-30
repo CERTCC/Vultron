@@ -17,9 +17,9 @@
 
 import random
 
+from vultron.core.states.cs import all_states
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM_UNCLOSED
-from vultron.core.states.cs import all_states
 
 
 def random_state():
