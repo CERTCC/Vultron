@@ -15,8 +15,8 @@ related_specs:
     ARCH-20-009, ARCH-21-002, ARCH-22-001, ARCH-23-005)
   - specs/code-style.yaml (CS-08-001, CS-08-002)
   - specs/error-handling.yaml (EH-07-001, EH-07-003)
-  - specs/message-validation.yaml (MV-04-003, MV-10-001, MV-11-001 through
-    MV-11-005)
+  - specs/message-validation.yaml (MV-01-001, MV-04-003, MV-10-001, MV-11-001
+    through MV-11-005)
   - specs/structured-logging.yaml (SL-02-001, SL-02-002, SL-03-001)
   - specs/status-dimension-objects.yaml (SDO-03-005)
   - specs/vocabulary-model.yaml
@@ -530,6 +530,27 @@ is stated once there and holds everywhere:
    well as by alias (CS-14-001, CS-14-002), so `attributed_to` is a declared
    spelling of `attributedTo`. The near misses are case and separator variants
    (`Actor`, `attributed-to`) and retired names.
+
+   **The JSON-LD keywords `@id` and `@type` are near misses by design**
+   (CONCERN-3958). They are not AS2 fields: AS2 spells them `id` and `type`
+   with no `@` prefix, because the normative AS2 context aliases `@id` and
+   `@type` to those names and AS2 Core § 2.1 requires the serialized form to be
+   consistent with compaction under that context. A conforming AS2 Note reads
+   `{"@context": ..., "id": "http://example.org/foo", "type": "Note", ...,
+   "attributedTo": {"id": ..., "type": "Person", ...}}` — unprefixed on the
+   envelope and on every inline object. A peer that sends `@id`/`@type` skipped
+   compaction or compacted under a context without the AS2 aliases; the message
+   is legal JSON-LD but not a conforming AS2 document, which MV-01-001 already
+   owes a refusal, and the peer meant the `id`/`type` Vultron reads. Setting the
+   keywords aside would strip the object's identity and type and cascade into
+   other refusals; declaring them as aliases would make Vultron a partial
+   JSON-LD processor with no principled place to stop (full-IRI property names
+   and `@value` objects are equally legal). So `@context` is the only JSON-LD
+   keyword that is a declared spelling, and the refusal naming `id`/`type`
+   tells the peer the compact spelling to send. Never "helpfully" add
+   `validation_alias="@id"` (or `"@type"`) to any root that declares `id` and
+   `type` — `as_Base`, `as_VultronObject`, `CoreRecord` or `CoreObject`; the
+   rule holds on both branches.
 3. Any **other** unknown key is **set aside and reported** at INFO with
    `activity_id`, the sender's `actor_id`, field path and key; the activity
    proceeds on its declared fields (MV-11-003). Never carry the key on the
