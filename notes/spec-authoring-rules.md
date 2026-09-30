@@ -93,9 +93,10 @@ requires lands (#3600, AC-4); once it does, its pinned constant under
 `test/architecture/` is the authoritative figure and it only goes down.
 Suppressing the story-traceability gate is almost never the right response to it
 firing; a spec that cannot be traced to a user story is usually mis-classified,
-not story-less. MS-12-006 makes the unambiguous cases a hard error and MS-12-007
-ratchets the suppression count downward (both built by #3600), but neither
-detects a misclassification whose statement names no code.
+not story-less. Once #3600 lands, MS-12-006 will make the unambiguous cases a
+hard error (its AC-2) and MS-12-007 will ratchet the suppression count downward
+(its AC-4); neither is built yet, and neither will detect a misclassification
+whose statement names no code.
 
 #### Why MS-12-006 is scoped the way it is
 
