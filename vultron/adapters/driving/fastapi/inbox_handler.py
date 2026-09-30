@@ -184,9 +184,12 @@ def make_dispatcher() -> ActivityDispatcher:
         }
     )
     # Every received use case gets a WireRenderPort, on top of whatever else
-    # its semantics needs: each received tree commits a ledger entry whose
-    # payload snapshot is an AS2 rendering, which core cannot produce itself
-    # (ARCH-20-001, CLP-07-009).  A semantic with no other port still needs it.
+    # its semantics needs.  A received tree's guarded ledger commit snapshots
+    # the activity as an AS2 rendering, which core cannot produce itself
+    # (ARCH-20-001, CLP-07-009).  The port is given to every use case rather
+    # than to a hand-kept list of those whose trees commit, because a list that
+    # falls behind is exactly how the snapshot path ran portless before #3930;
+    # a use case that runs no tree accepts it and has nothing to pass it to.
     use_cases = _use_case_map()
     port_factories = {
         sem: inbox_port_factories.with_wire_render_port(

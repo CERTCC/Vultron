@@ -491,9 +491,11 @@ groups:
     statement: A `payloadSnapshot` — and every object inlined into one under CLP-07-006
       — MUST be in the wire (AS2) shape, such that the wire vocabulary class for its
       `type_` can revalidate it without translation. When the object being captured
-      is a core domain object rather than a received activity, the wire shape MUST
-      be produced through the core→wire rendering port (ARCH-20-001), never by dumping
-      the core object with `by_alias=True` or by rewriting dumped keys in core.
+      is a core domain object, the wire shape MUST be produced through the core→wire
+      rendering port (ARCH-20-001), never by dumping the core object with `by_alias=True`
+      or by rewriting dumped keys in core. A received activity is such an object, since the
+      extractor rebuilds it as a core-branch `VultronActivity`; its snapshot is
+      rendered through the port too.
     rationale: 'CLP-07-001 requires the snapshot to be reconstitutable by receivers,
       and CLP-01-003/CLP-01-004 make it the replication substrate. Two distinct failure
       modes existed: core objects with no `alias_generator` were inlined in snake_case

@@ -256,10 +256,8 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         )
         # The marker's payload is the AS2 document the retry runner re-sends
         # over HTTP (#1139), and ``create_activity`` is a core-branch object, so
-        # its wire shape comes from the port (ARCH-20-001).  The port is known
-        # to be present: ``_build_case_object`` returned ``None`` without it.
-        assert self.wire_render_port is not None
-        payload = self.wire_render_port.render(create_activity)
+        # its wire shape comes from the port (ARCH-20-001).
+        payload = self._require_wire_render_port().render(create_activity)
 
         marker = PendingCreateCaseActivity(
             proposal_id=self._proposal_id,

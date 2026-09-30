@@ -36,6 +36,8 @@ from typing import TYPE_CHECKING, Any
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.helpers import WIRE_RENDER_PORT_UNAVAILABLE
+from vultron.errors import VultronWiringError
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.case_proposal import (
@@ -214,8 +216,9 @@ class CreateCaseProposalReceivedUseCase:
         # core-branch ``VultronActivity`` the extractor built; its ``object`` is
         # the as_CaseProposal as it arrived.  Core renders nothing itself
         # (ARCH-20-001): the port is the only route to the AS2 shape, so a
-        # proposal cannot be accepted without it — the accept path's
-        # ``WriteCreateCaseMarkerNode`` fails closed on the same condition.
+        # proposal cannot be handled without it.  A missing port is this
+        # actor's composition fault, never the sender's, so it raises rather
+        # than refusing the proposal (#2255, ADR-0095).
         #
         # The render keeps the proposal's inline ``object_`` — the vulnerability
         # report — because ``VultronActivity.object_`` is typed ``Any`` and so is
@@ -230,14 +233,7 @@ class CreateCaseProposalReceivedUseCase:
             and getattr(activity_obj, "object_", None) is not None
         ):
             if self._wire_render_port is None:
-                logger.warning(
-                    "create_case_proposal_received: no WireRenderPort —"
-                    " cannot render proposal '%s' (ARCH-20-001)",
-                    proposal_id,
-                )
-                return HandlerResult.refused(
-                    "no WireRenderPort to render the proposal (ARCH-20-001)"
-                )
+                raise VultronWiringError(WIRE_RENDER_PORT_UNAVAILABLE)
             rendered = self._wire_render_port.render(activity_obj).get(
                 "object"
             )

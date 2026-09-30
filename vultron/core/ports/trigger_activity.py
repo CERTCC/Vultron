@@ -475,8 +475,8 @@ class TriggerActivityPort(Protocol):
     ) -> tuple[str, str]:
         """Create and persist an ``Add(CaseParticipant, Case)`` activity.
 
-        Returns ``(activity_id, activity_dict)``.  The second element is the
-        activity's AS2 JSON, which a caller recording the ``Add`` in the case
+        Returns ``(activity_id, activity_json)``: the second element is the
+        activity's AS2 JSON text, which a caller recording the ``Add`` in the case
         ledger uses as its payload snapshot: core cannot produce that shape
         itself (ARCH-20-001).
         """

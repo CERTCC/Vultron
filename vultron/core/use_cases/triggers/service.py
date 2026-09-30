@@ -138,6 +138,18 @@ class TriggerService:
         self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
 
+    def _bt_ports(self) -> dict[str, Any]:
+        """The driven ports every BT-backed trigger use case is built with.
+
+        One place, so a port every trigger tree needs — the
+        ``WireRenderPort`` its ledger commits render through (ARCH-20-001) —
+        cannot be forgotten at one of the call sites below.
+        """
+        return {
+            "trigger_activity": self._trigger_activity,
+            "wire_render_port": self._wire_render_port,
+        }
+
     # -----------------------------------------------------------------------
     # Report triggers
     # -----------------------------------------------------------------------
@@ -159,8 +171,7 @@ class TriggerService:
         return SvcSubmitReportUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def validate_report(
@@ -176,8 +187,7 @@ class TriggerService:
         return SvcValidateReportUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def invalidate_report(
@@ -193,8 +203,7 @@ class TriggerService:
         return SvcInvalidateReportUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def reject_report(
@@ -210,8 +219,7 @@ class TriggerService:
         return SvcRejectReportUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def close_case(
@@ -227,8 +235,7 @@ class TriggerService:
         return SvcCloseCaseUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def close_report(
@@ -263,8 +270,7 @@ class TriggerService:
         return SvcCreateCaseUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def engage_case(
@@ -277,8 +283,7 @@ class TriggerService:
         return SvcEngageCaseUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def defer_case(
@@ -291,8 +296,7 @@ class TriggerService:
         return SvcDeferCaseUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def leave_case(
@@ -311,8 +315,7 @@ class TriggerService:
         return SvcLeaveCaseUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def add_report_to_case(
@@ -330,8 +333,7 @@ class TriggerService:
         return SvcAddReportToCaseUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def add_object_to_case(
@@ -349,8 +351,7 @@ class TriggerService:
         return SvcAddObjectToCaseUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def add_note_to_case(
@@ -372,8 +373,7 @@ class TriggerService:
         return SvcAddNoteToCaseUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def add_participant_status(
@@ -397,8 +397,7 @@ class TriggerService:
         return SvcAddParticipantStatusUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     # -----------------------------------------------------------------------
@@ -422,8 +421,7 @@ class TriggerService:
         return SvcProposeEmbargoUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def accept_embargo(
@@ -441,8 +439,7 @@ class TriggerService:
         return SvcAcceptEmbargoUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def reject_embargo(
@@ -460,8 +457,7 @@ class TriggerService:
         return SvcRejectEmbargoUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def propose_embargo_revision(
@@ -481,8 +477,7 @@ class TriggerService:
         return SvcProposeEmbargoRevisionUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def terminate_embargo(
@@ -497,8 +492,7 @@ class TriggerService:
         return SvcTerminateEmbargoUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     # -----------------------------------------------------------------------
@@ -526,8 +520,7 @@ class TriggerService:
         return SvcSuggestActorToCaseUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def accept_case_invite(
@@ -543,8 +536,7 @@ class TriggerService:
         return SvcAcceptCaseInviteUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def reject_case_invite(
@@ -560,8 +552,7 @@ class TriggerService:
         return SvcRejectCaseInviteUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def invite_actor_to_case(
@@ -581,8 +572,7 @@ class TriggerService:
         return SvcInviteActorToCaseUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def offer_case_participant_role(
@@ -625,8 +615,7 @@ class TriggerService:
         return SvcAcceptActorRecommendationUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def offer_case_ownership_transfer(
@@ -650,8 +639,7 @@ class TriggerService:
         return SvcOfferCaseOwnershipTransferUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
 
     def accept_case_ownership_transfer(
@@ -671,6 +659,5 @@ class TriggerService:
         return SvcAcceptCaseOwnershipTransferUseCase(
             self._dl,
             req,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
+            **self._bt_ports(),
         ).execute()
