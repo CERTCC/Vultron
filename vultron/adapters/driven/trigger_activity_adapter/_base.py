@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel
 
+from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.core.models.base import CoreObject
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
@@ -36,26 +37,6 @@ if TYPE_CHECKING:  # pragma: no cover - deferred to avoid a wire import cycle
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         as_VulnerabilityCase,
     )
-
-#: Serialisation options for every outbound activity dict this adapter returns.
-#:
-#: ``serialize_as_any=True`` is load bearing, not cosmetic. Without it Pydantic
-#: serialises each field by its *declared* type, so an inline nested object held
-#: in a field typed as a reference union is flattened — for
-#: ``as_CaseProposal.object_`` (declared ``ActivityStreamRequiredRef[
-#: as_VulnerabilityReport]``) the report came out as ``null``, putting a proposal
-#: on the wire with no report at all in breach of CP-01-004. The receiver then had
-#: nothing to store, and everything derived from the report — the reporter
-#: participant, its ledger entry, the SIGNATORY seed — skipped "best-effort", so
-#: the reporter silently never received a case replica.
-#:
-#: The same flag is required on the delivery path and in the test router, both of
-#: which say so; this is the third place that needs it.
-_DUMP_KWARGS: dict[str, Any] = {
-    "by_alias": True,
-    "exclude_none": True,
-    "serialize_as_any": True,
-}
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +175,16 @@ def _case_for_wire(
             exc,
         )
     return case
+
+
+def _seal(dl: CaseOutboxPersistence, activity: BaseModel) -> tuple[str, str]:
+    """Seal *activity*'s outbound body in *dl* and return ``(id, body)``.
+
+    Every adapter method that persists an outbound activity ends here, so the
+    text handed back to core is the text the outbox delivers (VM-08-003).
+    """
+    body = seal_outbound_body(dl, activity)  # refuses an activity with no id_
+    return str(activity.id_), body  # type: ignore[attr-defined]
 
 
 class _TriggerAdapterBase:

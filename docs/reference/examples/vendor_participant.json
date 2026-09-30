@@ -1,20 +1,20 @@
 {
-  "id": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae/participants/vendorco",
+  "id": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15/participants/vendorco",
   "type": "CaseParticipant",
   "name": "VendorCo",
-  "context": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
+  "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
   "attributedTo": "https://vultron.example/organizations/vendorco",
   "caseRoles": [
     "vendor"
   ],
   "participantStatuses": [
     {
-      "id": "urn:uuid:f465daee-ae10-4f4f-a6de-a6d9bff688ab",
+      "id": "urn:uuid:dac8bd17-8e9c-4a65-8bc3-fc7cd9b435de",
       "type": "ParticipantStatus",
       "name": "RECEIVED Vf",
-      "context": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
-      "published": "2026-09-24T14:21:06+00:00",
-      "updated": "2026-09-24T14:21:06+00:00",
+      "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
+      "published": "2026-09-30T14:34:16+00:00",
+      "updated": "2026-09-30T14:34:16+00:00",
       "attributedTo": "https://vultron.example/organizations/vendorco",
       "rmState": "RECEIVED",
       "vfState": "Vf",

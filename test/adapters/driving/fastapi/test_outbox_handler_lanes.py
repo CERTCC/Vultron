@@ -38,6 +38,7 @@ Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py``
 """
 
 import asyncio
+import json
 import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -45,23 +46,42 @@ from unittest.mock import MagicMock
 import pytest
 
 from vultron.adapters.driving.fastapi import outbox_handler as oh
+from vultron.adapters.outbox_sealed_body import (
+    SealedOutboundBody,
+    sealed_body_id,
+)
 
 ACTOR = "https://example.org/actors/case-manager"
 PEER_A = "https://example.org/actors/a"
 PEER_B = "https://example.org/actors/b"
 
 
+def _sealed_for(activity_id: str, row: SimpleNamespace) -> SealedOutboundBody:
+    """The sealed body ``lane_keys`` reads a row's recipients from."""
+    return SealedOutboundBody(
+        id_=sealed_body_id(activity_id),
+        activity_id=activity_id,
+        body=json.dumps(
+            {"id": activity_id, "type": row.type_, "to": list(row.to)}
+        ),
+    )
+
+
 def _mock_dl(
     queue: list[str], activities: dict[str, SimpleNamespace]
 ) -> MagicMock:
-    """A DataLayer double whose ``read`` resolves queued activities by id.
+    """A DataLayer double whose ``read`` resolves queued rows' sealed bodies.
 
-    Any id not in *activities* (the actor's own id) resolves to a bare actor
-    stub so ``outbox_handler``'s actor lookup succeeds.
+    Any other id (the actor's own id) resolves to a bare actor stub so
+    ``outbox_handler``'s actor lookup succeeds.
     """
     actor = SimpleNamespace(id_=ACTOR)
+    sealed = {
+        sealed_body_id(aid): _sealed_for(aid, row)
+        for aid, row in activities.items()
+    }
     dl = MagicMock()
-    dl.read.side_effect = lambda id_: activities.get(id_, actor)
+    dl.read.side_effect = lambda id_: sealed.get(id_, actor)
     dl.find_actor_by_short_id.return_value = actor
     dl.outbox_list.side_effect = lambda: list(queue)
     dl.outbox_pop.side_effect = lambda: queue.pop(0) if queue else None

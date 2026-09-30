@@ -1,25 +1,26 @@
 {
-  "id": "urn:uuid:7c3b4734-e944-484c-9c6e-68ef9ef180ca",
+  "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Offer",
-  "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:40a34026-4cdb-4771-8713-3c23307e7ee0 to Coordinator LLC",
+  "id": "urn:uuid:3659c877-58cb-40de-a194-86608a45be41",
+  "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:9f8edaef-aeaa-4f41-8a7c-075b44fe1acf to Coordinator LLC",
   "context": {
-    "id": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
+    "id": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
     "type": "VulnerabilityCase",
-    "name": "VendorCo Case #16418220",
-    "published": "2026-09-24T14:21:06+00:00",
-    "updated": "2026-09-24T14:21:06+00:00",
+    "name": "VendorCo Case #82112039",
+    "published": "2026-09-30T14:34:16+00:00",
+    "updated": "2026-09-30T14:34:16+00:00",
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "caseParticipants": [],
     "actorParticipantIndex": {},
     "vulnerabilityReports": [],
     "caseStatuses": [
       {
-        "id": "urn:uuid:28f461c3-af5f-48c3-836c-b233975d0d01",
+        "id": "urn:uuid:cc14e61e-20d4-4a13-ae55-38fec2a409e3",
         "type": "CaseStatus",
         "name": "NONE pxa",
-        "context": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
-        "published": "2026-09-24T14:21:06+00:00",
-        "updated": "2026-09-24T14:21:06+00:00",
+        "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
+        "published": "2026-09-30T14:34:16+00:00",
+        "updated": "2026-09-30T14:34:16+00:00",
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "emState": "NONE",
         "pxaState": "pxa",
@@ -31,44 +32,43 @@
     "pendingEmbargoProposalIndex": {},
     "recommendationRecommenderIndex": {},
     "caseActivity": [],
-    "genesisHash": "0cf46275f7fbaa2eb1cf9a3da4a096a86ea4f53128b50220ffa6ea4e523100d4",
+    "genesisHash": "0379ef1cb967c2895a558300653befaab2037dc7c165e2a98c36727bdf507757",
     "parentCases": [],
     "childCases": [],
     "siblingCases": [],
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   },
-  "content": "We're offering the coordinator role on case VendorCo Case #16418220 to Coordinator LLC.",
+  "content": "We're offering the coordinator role on case VendorCo Case #82112039 to Coordinator LLC.",
   "to": [
     "https://vultron.example/organizations/coordinator"
   ],
-  "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/vendorco",
   "target": {
-    "id": "https://vultron.example/organizations/coordinator",
-    "type": "Organization",
-    "name": "Coordinator LLC",
-    "published": "2026-09-24T14:21:06+00:00",
-    "updated": "2026-09-24T14:21:06+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "Organization",
+    "id": "https://vultron.example/organizations/coordinator",
+    "name": "Coordinator LLC",
+    "published": "2026-09-30T14:34:16+00:00",
+    "updated": "2026-09-30T14:34:16+00:00",
     "inbox": {
-      "id": "https://vultron.example/organizations/coordinator/inbox",
-      "type": "OrderedCollection",
       "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "OrderedCollection",
+      "id": "https://vultron.example/organizations/coordinator/inbox",
       "items": []
     },
     "outbox": {
-      "id": "https://vultron.example/organizations/coordinator/outbox",
-      "type": "OrderedCollection",
       "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "OrderedCollection",
+      "id": "https://vultron.example/organizations/coordinator/outbox",
       "items": []
     }
   },
   "object": {
-    "id": "urn:uuid:40a34026-4cdb-4771-8713-3c23307e7ee0",
-    "type": "CaseParticipantRole",
-    "published": "2026-09-24T14:21:06+00:00",
-    "updated": "2026-09-24T14:21:06+00:00",
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "type": "CaseParticipantRole",
+    "id": "urn:uuid:9f8edaef-aeaa-4f41-8a7c-075b44fe1acf",
+    "published": "2026-09-30T14:34:16+00:00",
+    "updated": "2026-09-30T14:34:16+00:00",
     "role": "coordinator"
   }
 }

@@ -201,23 +201,28 @@ class TestSuggestActorToCase:
 
 
 class TestAddParticipantToCase:
-    def test_returns_activity_id(self, adapter, dl):
+    def test_returns_id_and_blob(self, adapter, dl):
         case = _make_case(dl)
         participant = _make_participant(dl, case.id_)
 
-        activity_id = adapter.add_participant_to_case(
+        activity_id, blob = adapter.add_participant_to_case(
             participant_id=participant.id_,
             case_id=case.id_,
             actor=_ACTOR,
         )
 
         assert activity_id
+        body = json.loads(blob)
+        assert body["type"] == "Add"
+        assert body["object"]["type"] == "CaseParticipant"
+        # The factory, not the emitting node, completes ``context`` (#2654).
+        assert body["context"] == case.id_
 
     def test_persists_add_activity(self, adapter, dl):
         case = _make_case(dl)
         participant = _make_participant(dl, case.id_)
 
-        activity_id = adapter.add_participant_to_case(
+        activity_id, _blob = adapter.add_participant_to_case(
             participant_id=participant.id_,
             case_id=case.id_,
             actor=_ACTOR,

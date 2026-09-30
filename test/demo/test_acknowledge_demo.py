@@ -34,7 +34,7 @@ class _NoOpEmitter:
     path, so dropping the BT-emitted delivery loses no coverage.
     """
 
-    async def emit(self, activity, addressees):
+    async def emit(self, activity_id, json_body, recipients):
         pass
 
 

@@ -286,3 +286,104 @@ def test_timestamp_checks_are_not_gated_on_case_published():
             payload_snapshot=_ts_snapshot(published=None),
             event_type="note_added",
         )
+
+
+# ---------------------------------------------------------------------------
+# Bare ``target`` naming the entry's own case (CLP-07-006, VM-08-003, #2654)
+# ---------------------------------------------------------------------------
+
+
+def _offer_participant_snapshot(target: object) -> dict[str, object]:
+    """``Offer(CaseParticipant, target=<case>)`` as the factory emits it."""
+    return {
+        "type": "Offer",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "CaseParticipant",
+            "id": "https://example.org/actors/vendor#participant",
+        },
+        "target": target,
+        "context": CASE_ID,
+    }
+
+
+@pytest.mark.spec("CLP-07-006")
+@pytest.mark.spec("VM-08-003")
+def test_bare_target_equal_to_the_case_uri_is_accepted():
+    """A ``target`` that is the case URI names what every replica holds.
+
+    The factories address a case by its URI (AKM-02-003) and the snapshot is
+    the factory's exact blob (VM-08-003), so the commit boundary accepts it
+    rather than forcing core to strip it (#2654).
+    """
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=_offer_participant_snapshot(CASE_ID),
+        event_type="offer_case_participant",
+    )
+
+
+@pytest.mark.spec("CLP-07-006")
+def test_bare_target_naming_another_case_is_refused():
+    with pytest.raises(VultronCanonicalEntryError, match="target"):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            payload_snapshot=_offer_participant_snapshot(
+                "https://example.org/cases/some-other-case"
+            ),
+            event_type="offer_case_participant",
+        )
+
+
+@pytest.mark.spec("CLP-07-006")
+def test_bare_target_naming_the_case_is_accepted_when_nested():
+    """``Accept(Offer(..., target=<case>))`` carries the same bare target inside."""
+    inner = _offer_participant_snapshot(CASE_ID)
+    inner["id"] = "https://example.org/activities/offer-1"
+    snapshot = {
+        "type": "Accept",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": inner,
+        "target": CASE_ID,
+        "context": CASE_ID,
+    }
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=snapshot,
+        event_type="accept_actor_recommendation",
+    )
+
+
+@pytest.mark.spec("CLP-07-006")
+def test_bare_object_is_still_refused():
+    """Only ``target`` gets the case-URI allowance; ``object`` never does."""
+    snapshot = _offer_participant_snapshot(CASE_ID)
+    snapshot["object"] = "https://example.org/actors/vendor#participant"
+    with pytest.raises(VultronCanonicalEntryError, match="object"):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            payload_snapshot=snapshot,
+            event_type="offer_case_participant",
+        )
+
+
+def test_invite_with_a_bare_case_target_resolves_to_the_case_signature():
+    """``Invite(Actor, target=<case uri>)`` is ``("Invite", "VulnerabilityCase")``."""
+    snapshot = {
+        "type": "Invite",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "Organization",
+            "id": "https://example.org/actors/vendor",
+        },
+        "target": CASE_ID,
+        "context": CASE_ID,
+    }
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=snapshot,
+        event_type="invite_actor_to_case",
+    )

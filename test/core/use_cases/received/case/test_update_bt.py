@@ -17,6 +17,9 @@ from unittest.mock import MagicMock
 import py_trees
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
     BroadcastCaseUpdateNode,
@@ -138,7 +141,9 @@ class TestUpdateCaseBTStructure:
         # broadcast, behind a CASE_MANAGER role gate.  The assertion that made
         # the old monkeypatch guard meaningful is the one that matters: exactly
         # one Announce is queued, not two.
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         outbox_items = dl.outbox_list()
         assert len(outbox_items) == 1
@@ -157,7 +162,11 @@ class TestCollectionDefaultsCS21:
         object.__setattr__(case, "actor_participant_index", {})
         # Call without excluded_actor_ids; should not raise.
         broadcast_case_update(
-            dl, "urn:uuid:case-1", case, "https://example.org/actors/manager"
+            dl,
+            "urn:uuid:case-1",
+            case,
+            "https://example.org/actors/manager",
+            MagicMock(),
         )
 
     def test_broadcast_case_update_excludes_no_actors_by_default(self):
@@ -172,5 +181,9 @@ class TestCollectionDefaultsCS21:
         # No exclusions — the function should reach the participant-list
         # check (short-circuits only on missing CaseActor, not on empty list).
         broadcast_case_update(
-            dl, "urn:uuid:case-1", case, "https://example.org/actors/manager"
+            dl,
+            "urn:uuid:case-1",
+            case,
+            "https://example.org/actors/manager",
+            MagicMock(),
         )

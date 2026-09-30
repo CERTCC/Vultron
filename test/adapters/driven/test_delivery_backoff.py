@@ -17,6 +17,7 @@ Spec: SYNC-05-001, SYNC-05-002.
 """
 
 import asyncio
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx2 as httpx
@@ -29,18 +30,20 @@ from vultron.adapters.driven.http_delivery import (
     DEFAULT_MAX_RETRIES,
     HttpDeliveryAdapter,
 )
-from vultron.core.models.activity import VultronActivity
 
 RECIPIENT_URI = "https://example.org/actors/alice"
+ACTIVITY_ID = "https://example.org/activities/act1"
 
-
-def _make_activity() -> VultronActivity:
-    return VultronActivity(
-        id_="https://example.org/activities/act1",
-        type_="Announce",
-        actor="https://example.org/actors/case-actor",
-        object_="https://example.org/objects/obj1",
-    )
+#: The sealed body the outbox handler hands the adapter (VM-08-003).  The
+#: adapter POSTs it as-is, so its content is immaterial to these tests.
+BODY = json.dumps(
+    {
+        "id": ACTIVITY_ID,
+        "type": "Announce",
+        "actor": "https://example.org/actors/case-actor",
+        "object": {"id": "https://example.org/objects/obj1", "type": "Note"},
+    }
+)
 
 
 class TestDefaultConstants:
@@ -97,7 +100,6 @@ class TestDeliverySuccess:
 
     def test_delivers_on_first_attempt(self):
         adapter = HttpDeliveryAdapter(max_retries=2, initial_delay=0.0)
-        activity = _make_activity()
 
         mock_response = MagicMock()
         mock_response.status_code = 202
@@ -107,13 +109,12 @@ class TestDeliverySuccess:
             "httpx2.AsyncClient.post", new_callable=AsyncMock
         ) as mock_post:
             mock_post.return_value = mock_response
-            asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+            asyncio.run(adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI]))
 
         mock_post.assert_called_once()
 
     def test_delivers_to_all_recipients(self):
         adapter = HttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
-        activity = _make_activity()
         recipients = [
             "https://example.org/actors/alice",
             "https://example.org/actors/bob",
@@ -127,7 +128,7 @@ class TestDeliverySuccess:
             "httpx2.AsyncClient.post", new_callable=AsyncMock
         ) as mock_post:
             mock_post.return_value = mock_response
-            asyncio.run(adapter.emit(activity, recipients))
+            asyncio.run(adapter.emit(ACTIVITY_ID, BODY, recipients))
 
         assert mock_post.call_count == 2
 
@@ -139,7 +140,6 @@ class TestDeliveryRetry:
         adapter = HttpDeliveryAdapter(
             max_retries=2, initial_delay=0.0, backoff_multiplier=2.0
         )
-        activity = _make_activity()
 
         success_response = MagicMock()
         success_response.status_code = 202
@@ -156,7 +156,7 @@ class TestDeliveryRetry:
 
         with patch("httpx2.AsyncClient.post", side_effect=side_effect):
             with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-                asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                asyncio.run(adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI]))
 
         assert call_count == 3
         assert mock_sleep.call_count == 2
@@ -170,7 +170,6 @@ class TestDeliveryRetry:
             backoff_multiplier=2.0,
             max_delay=100.0,
         )
-        activity = _make_activity()
         sleep_calls: list[float] = []
 
         async def fail(*args, **kwargs):
@@ -183,7 +182,9 @@ class TestDeliveryRetry:
             with patch("asyncio.sleep", side_effect=fake_sleep):
                 with patch("random.uniform", return_value=0.0):
                     with pytest.raises(Exception):
-                        asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                        asyncio.run(
+                            adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
+                        )
 
         # 3 retries → 3 sleep calls with delays 1.0, 2.0, 4.0 (jitter zeroed)
         assert sleep_calls == [1.0, 2.0, 4.0]
@@ -197,7 +198,6 @@ class TestDeliveryRetry:
             backoff_multiplier=10.0,
             max_delay=30.0,
         )
-        activity = _make_activity()
         sleep_calls: list[float] = []
 
         async def fail(*args, **kwargs):
@@ -210,7 +210,9 @@ class TestDeliveryRetry:
             with patch("asyncio.sleep", side_effect=fake_sleep):
                 with patch("random.uniform", return_value=0.0):
                     with pytest.raises(Exception):
-                        asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                        asyncio.run(
+                            adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
+                        )
 
         # All delays after the first should be capped at max_delay (jitter zeroed)
         for delay in sleep_calls[1:]:
@@ -222,7 +224,6 @@ class TestDeliveryRetry:
         adapter = HttpDeliveryAdapter(
             max_retries=1, initial_delay=0.0, backoff_multiplier=1.0
         )
-        activity = _make_activity()
 
         async def fail(*args, **kwargs):
             raise httpx.ConnectError("always fails")
@@ -231,7 +232,9 @@ class TestDeliveryRetry:
             with patch("asyncio.sleep", new_callable=AsyncMock):
                 with caplog.at_level("ERROR"):
                     with pytest.raises(Exception):
-                        asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                        asyncio.run(
+                            adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
+                        )
 
         assert any("Failed to deliver" in r.message for r in caplog.records)
 
@@ -240,7 +243,6 @@ class TestDeliveryRetry:
         import pytest
 
         adapter = HttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
-        activity = _make_activity()
 
         delivered: list[str] = []
 
@@ -260,7 +262,7 @@ class TestDeliveryRetry:
 
         with patch("httpx2.AsyncClient.post", side_effect=side_effect):
             with pytest.raises(Exception):
-                asyncio.run(adapter.emit(activity, recipients))
+                asyncio.run(adapter.emit(ACTIVITY_ID, BODY, recipients))
 
         # bob was still delivered to before the exception was raised
         assert len(delivered) == 1
@@ -273,7 +275,6 @@ class TestDeliveryRetry:
         adapter = HttpDeliveryAdapter(
             max_retries=1, initial_delay=0.0, backoff_multiplier=1.0
         )
-        activity = _make_activity()
 
         async def fail(*args, **kwargs):
             raise httpx.ConnectError("always fails")
@@ -281,14 +282,15 @@ class TestDeliveryRetry:
         with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", new_callable=AsyncMock):
                 with pytest.raises(Exception):
-                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                    asyncio.run(
+                        adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
+                    )
 
     def test_4xx_raises_delivery_error_immediately_without_retry(self):
         """HTTP 4xx is terminal: DeliveryError raised on first attempt, no retries, no sleep (OX-13-005 AC-2/AC-4)."""
         import pytest
 
         adapter = HttpDeliveryAdapter(max_retries=3, initial_delay=0.0)
-        activity = _make_activity()
         call_count = 0
 
         async def four_xx(*args, **kwargs):
@@ -306,7 +308,9 @@ class TestDeliveryRetry:
         with patch("httpx2.AsyncClient.post", side_effect=four_xx):
             with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
                 with pytest.raises(Exception):
-                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                    asyncio.run(
+                        adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
+                    )
 
         assert call_count == 1, "4xx must not consume retry slots"
         mock_sleep.assert_not_called()
@@ -318,7 +322,6 @@ class TestDeliveryRetry:
         adapter = HttpDeliveryAdapter(
             max_retries=2, initial_delay=0.0, backoff_multiplier=1.0
         )
-        activity = _make_activity()
         call_count = 0
 
         async def five_xx(*args, **kwargs):
@@ -336,13 +339,14 @@ class TestDeliveryRetry:
         with patch("httpx2.AsyncClient.post", side_effect=five_xx):
             with patch("asyncio.sleep", new_callable=AsyncMock):
                 with pytest.raises(Exception):
-                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                    asyncio.run(
+                        adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
+                    )
 
         assert call_count == 3, "5xx must exhaust max_retries + 1 = 3 attempts"
 
     def test_zero_retries_attempts_once_only(self):
         adapter = HttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
-        activity = _make_activity()
 
         call_count = 0
 
@@ -354,7 +358,9 @@ class TestDeliveryRetry:
         with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
                 with __import__("pytest").raises(Exception):
-                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                    asyncio.run(
+                        adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
+                    )
 
         assert call_count == 1
         mock_sleep.assert_not_called()
@@ -374,7 +380,6 @@ class TestTimeoutParameter:
     def test_timeout_flows_to_post_call(self):
         """emit() passes self._timeout to client.post (AC-1, AC-4)."""
         adapter = HttpDeliveryAdapter(timeout=15.0)
-        activity = _make_activity()
 
         mock_response = MagicMock()
         mock_response.status_code = 202
@@ -384,7 +389,7 @@ class TestTimeoutParameter:
             "httpx2.AsyncClient.post", new_callable=AsyncMock
         ) as mock_post:
             mock_post.return_value = mock_response
-            asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+            asyncio.run(adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI]))
 
         call_kwargs = mock_post.call_args.kwargs
         assert call_kwargs.get("timeout") == 15.0
@@ -398,7 +403,6 @@ class TestJitter:
         adapter = HttpDeliveryAdapter(
             max_retries=1, initial_delay=1.0, backoff_multiplier=1.0
         )
-        activity = _make_activity()
         sleep_calls: list[float] = []
 
         success_response = MagicMock()
@@ -422,7 +426,9 @@ class TestJitter:
                 with patch(
                     "random.uniform", return_value=0.25
                 ) as mock_uniform:
-                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                    asyncio.run(
+                        adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
+                    )
 
         mock_uniform.assert_called_once_with(0, 0.5)
         assert len(sleep_calls) == 1
@@ -431,7 +437,6 @@ class TestJitter:
     def test_no_sleep_on_success_first_attempt(self):
         """No sleep is called when delivery succeeds on the first attempt."""
         adapter = HttpDeliveryAdapter(max_retries=2, initial_delay=1.0)
-        activity = _make_activity()
 
         mock_response = MagicMock()
         mock_response.status_code = 202
@@ -442,7 +447,7 @@ class TestJitter:
         ) as mock_post:
             mock_post.return_value = mock_response
             with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-                asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                asyncio.run(adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI]))
 
         mock_sleep.assert_not_called()
 
@@ -453,7 +458,6 @@ class TestConnectionPoolLimits:
     def test_connection_pool_limits_applied(self):
         """httpx.AsyncClient is constructed with max_connections=20, max_keepalive=5."""
         adapter = HttpDeliveryAdapter()
-        activity = _make_activity()
 
         mock_response = MagicMock()
         mock_response.status_code = 202
@@ -465,7 +469,7 @@ class TestConnectionPoolLimits:
         mock_client.post = AsyncMock(return_value=mock_response)
 
         with patch("httpx2.AsyncClient", return_value=mock_client) as mock_cls:
-            asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+            asyncio.run(adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI]))
 
         mock_cls.assert_called_once()
         call_kwargs = mock_cls.call_args.kwargs

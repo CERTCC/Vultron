@@ -1,9 +1,9 @@
 {
-  "id": "urn:uuid:49c5afc7-991d-4ad3-92a0-221c832a5913",
-  "type": "Create",
-  "name": "https://vultron.example/organizations/vendorco Create NONE pxa",
-  "context": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
   "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Create",
+  "id": "urn:uuid:3d532e35-f676-4a80-981c-c0e48941e48d",
+  "name": "https://vultron.example/organizations/vendorco Create NONE pxa",
+  "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
     "id": "https://vultron.example/cases/1/status/1",

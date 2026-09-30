@@ -44,7 +44,6 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
 from vultron.config.app import reload_config
-from vultron.core.models.activity import VultronActivity
 from test.demo.conftest import (
     _CASE_ACTOR_SERVICE_URL,
     _KNOWN_FICTIONAL_HOSTS,
@@ -240,12 +239,8 @@ class TestDemoSessionBaseline:
         )
 
 
-def _make_mock_activity() -> VultronActivity:
-    return VultronActivity(
-        id_="urn:test:act1",
-        type_="Create",
-        actor="urn:test:actor",
-    )
+_ACTIVITY_ID = "urn:test:act1"
+_BODY = '{"id": "urn:test:act1", "type": "Create", "actor": "urn:test:actor"}'
 
 
 class TestTestClientRouterDropLogging:
@@ -254,10 +249,12 @@ class TestTestClientRouterDropLogging:
     def test_warning_for_unregistered_non_allowlisted_host(self, caplog):
         """emit() logs WARNING when dropping to a host not in _KNOWN_FICTIONAL_HOSTS."""
         router = _TestClientRouter()
-        activity = _make_mock_activity()
         with caplog.at_level(logging.DEBUG):
             anyio.run(
-                router.emit, activity, ["http://stale-config.test/actors/a1"]
+                router.emit,
+                _ACTIVITY_ID,
+                _BODY,
+                ["http://stale-config.test/actors/a1"],
             )
         router_records = [
             r for r in caplog.records if r.name == "test.demo.conftest"
@@ -268,11 +265,11 @@ class TestTestClientRouterDropLogging:
         """emit() logs DEBUG (not WARNING) when dropping to a known-fictional host."""
         assert "vultron.example" in _KNOWN_FICTIONAL_HOSTS
         router = _TestClientRouter()
-        activity = _make_mock_activity()
         with caplog.at_level(logging.DEBUG):
             anyio.run(
                 router.emit,
-                activity,
+                _ACTIVITY_ID,
+                _BODY,
                 ["https://vultron.example/users/finder"],
             )
         router_records = [

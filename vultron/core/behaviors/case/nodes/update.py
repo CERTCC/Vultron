@@ -202,12 +202,17 @@ class BroadcastCaseUpdateNode(DataLayerActionWithPorts):
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1: case must exist (ADR-0087)
+        if (f := self._require_factory()) is not None:
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return f
+        assert self.trigger_activity_factory is not None
 
         broadcast_case_update(
             self.datalayer,
             self.case_id,
             case,
             self.actor_id,
+            self.trigger_activity_factory,
             excluded_actor_ids=self.excluded_actor_ids,
         )
         return Status.SUCCESS

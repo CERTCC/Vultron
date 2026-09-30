@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -16,17 +16,15 @@
 """
 Unit tests for outbox handler pure helper functions.
 
-Covers: ``_extract_recipients``, ``_format_object``, ``_dehydrate_references``,
-``_is_stub_object_dict``, and ``_coerce_reference_value``.
+Covers: ``_extract_recipients`` and ``_format_object`` over the parsed sealed
+body, and the ADR-0099 detail 8 check that ``VultronActivity`` declares every
+AS2 key a wire activity dumps.
 
 Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py``
 
 Spec coverage:
 - OX-08-001/002/003: ``to:`` field enforcement (recipient extraction path).
-- MV-10-001: VulnerabilityCase stub preservation.
 """
-
-from types import SimpleNamespace
 
 import pytest
 from pydantic import BaseModel
@@ -41,300 +39,66 @@ from vultron.adapters.driving.fastapi import outbox_handler as oh
 def test_extract_recipients_deduplicates():
     """_extract_recipients returns each actor ID at most once."""
     alice = "https://example.org/actors/alice"
-    activity = SimpleNamespace(
-        to=[alice],
-        cc=[alice],  # duplicate
-        bto=None,
-        bcc=None,
-    )
-    recipients = oh._extract_recipients(activity)
-    assert recipients == [alice]
+    body = {"to": [alice], "cc": [alice]}  # duplicate
+    assert oh._extract_recipients(body) == [alice]
 
 
 def test_extract_recipients_reads_to_field():
     """_extract_recipients reads recipients directly from `to`."""
     alice = "https://example.org/actors/alice"
     bob = "https://example.org/actors/bob"
-    activity = SimpleNamespace(
-        to=[alice, bob],
-        cc=None,
-        bto=None,
-        bcc=None,
-    )
-
-    recipients = oh._extract_recipients(activity)
-
-    assert recipients == [alice, bob]
+    assert oh._extract_recipients({"to": [alice, bob]}) == [alice, bob]
 
 
 def test_extract_recipients_handles_embedded_object():
-    """_extract_recipients extracts id_ from embedded actor objects."""
-    alice_id = "https://example.org/actors/alice"
-    alice_obj = SimpleNamespace(id_=alice_id)
-    activity = SimpleNamespace(
-        to=[alice_obj],
-        cc=None,
-        bto=None,
-        bcc=None,
-    )
-    recipients = oh._extract_recipients(activity)
-    assert recipients == [alice_id]
+    """An addressee given as an inline object contributes its ``id``."""
+    alice = "https://example.org/actors/alice"
+    body = {"to": [{"id": alice, "type": "Person"}]}
+    assert oh._extract_recipients(body) == [alice]
+
+
+def test_extract_recipients_accepts_a_single_string():
+    """A scalar ``to`` (not a list) is one recipient."""
+    alice = "https://example.org/actors/alice"
+    assert oh._extract_recipients({"to": alice}) == [alice]
 
 
 def test_extract_recipients_returns_empty_for_no_fields():
-    """_extract_recipients returns [] when all addressing fields are None."""
-    activity = SimpleNamespace(to=None, cc=None, bto=None, bcc=None)
-    recipients = oh._extract_recipients(activity)
-    assert recipients == []
+    """No addressing fields → no recipients."""
+    assert oh._extract_recipients({"type": "Offer"}) == []
+
+
+def test_extract_recipients_skips_unusable_items():
+    """Empty strings and objects without an ``id`` name nobody."""
+    bob = "https://example.org/actors/bob"
+    body = {"to": ["", {"type": "Person"}, bob]}
+    assert oh._extract_recipients(body) == [bob]
 
 
 # ---------------------------------------------------------------------------
-# _format_object (D5-7-LOGCLEAN-1)
+# _format_object
 # ---------------------------------------------------------------------------
 
 
-def test_format_object_returns_type_and_id_for_domain_object():
-    """_format_object produces '<TypeName> <id>' for objects with id_."""
-    obj = SimpleNamespace(id_="urn:uuid:abc-123")
-    result = oh._format_object(obj)
-    assert result == "SimpleNamespace urn:uuid:abc-123"
+def test_format_object_returns_type_and_id_for_inline_object():
+    obj = {"type": "VulnerabilityCase", "id": "urn:uuid:case-1"}
+    assert oh._format_object(obj) == "VulnerabilityCase urn:uuid:case-1"
 
 
 def test_format_object_passes_through_strings():
-    """_format_object returns strings unchanged."""
-    uri = "urn:uuid:def-456"
-    assert oh._format_object(uri) == uri
+    assert oh._format_object("urn:uuid:x") == "urn:uuid:x"
 
 
 def test_format_object_handles_none():
-    """_format_object returns 'None' for None."""
     assert oh._format_object(None) == "None"
 
 
 def test_format_object_handles_object_without_id():
-    """_format_object returns just the class name when id_ is absent."""
-    obj = SimpleNamespace()  # no id_ attribute
-    result = oh._format_object(obj)
-    assert result == "SimpleNamespace"
+    assert oh._format_object({"type": "Note"}) == "Note"
 
 
 # ---------------------------------------------------------------------------
-# _dehydrate_references (DR-01)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.spec("MV-10-001")
-def test_dehydrate_references_preserves_vulnerability_case_stub():
-    """_dehydrate_references preserves VulnerabilityCase stub dicts (MV-10-001).
-
-    A minimal {id, type} dict with type=VulnerabilityCase must survive
-    dehydration intact so that selective disclosure (stub-based invite.target)
-    is not erased before the activity reaches the outbox.
-    """
-    raw = {
-        "type": "Invite",
-        "actor": "https://example.org/actors/alice",
-        "target": {
-            "id": "https://example.org/cases/case-001",
-            "type": "VulnerabilityCase",
-        },
-    }
-    result = oh._dehydrate_references(raw)
-    assert result["target"] == {
-        "id": "https://example.org/cases/case-001",
-        "type": "VulnerabilityCase",
-    }
-
-
-def test_dehydrate_references_prefers_href_over_id():
-    """_dehydrate_references uses 'href' rather than 'id' for AS2 Link dicts."""
-    raw = {
-        "actor": "https://example.org/actors/alice",
-        "target": {
-            "id": "urn:uuid:link-object-id",
-            "href": "https://example.org/cases/case-002",
-        },
-    }
-    result = oh._dehydrate_references(raw)
-    assert result["target"] == "https://example.org/cases/case-002"
-
-
-def test_dehydrate_references_handles_list_field():
-    """_dehydrate_references collapses actor dicts in list fields element-wise."""
-    raw = {
-        "to": [
-            {"id": "https://example.org/actors/bob", "type": "Person"},
-            "https://example.org/actors/charlie",  # already a string
-        ]
-    }
-    result = oh._dehydrate_references(raw)
-    assert result["to"] == [
-        "https://example.org/actors/bob",
-        "https://example.org/actors/charlie",
-    ]
-
-
-def test_dehydrate_references_leaves_object_field_intact():
-    """_dehydrate_references does NOT touch the 'object' field (exempt)."""
-    inline_obj = {
-        "id": "urn:uuid:report-001",
-        "type": "VulnerabilityReport",
-        "name": "TEST",
-    }
-    raw = {
-        "actor": "https://example.org/actors/alice",
-        "object": inline_obj,
-    }
-    result = oh._dehydrate_references(raw)
-    assert result["object"] is inline_obj
-
-
-def test_dehydrate_references_leaves_string_fields_unchanged():
-    """_dehydrate_references does not alter fields that are already strings."""
-    raw = {
-        "actor": "https://example.org/actors/alice",
-        "target": "https://example.org/cases/case-already-string",
-    }
-    result = oh._dehydrate_references(raw)
-    assert result["actor"] == "https://example.org/actors/alice"
-    assert result["target"] == "https://example.org/cases/case-already-string"
-
-
-def test_dehydrate_references_leaves_none_fields_unchanged():
-    """_dehydrate_references skips fields that are None."""
-    raw = {"actor": "https://example.org/actors/alice", "target": None}
-    result = oh._dehydrate_references(raw)
-    assert result["target"] is None
-
-
-# ---------------------------------------------------------------------------
-# _is_stub_object_dict and _coerce_reference_value
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.spec("MV-10-001")
-def test_is_stub_object_dict_true_for_minimal_case_stub():
-    """_is_stub_object_dict identifies the selective-disclosure case stub."""
-    stub: dict[object, object] = {
-        "id": "https://example.org/cases/case-001",
-        "type": "VulnerabilityCase",
-    }
-    assert oh._is_stub_object_dict(stub) is True
-
-
-@pytest.mark.spec("MV-10-001")
-def test_coerce_reference_value_preserves_case_stub_dict():
-    """_coerce_reference_value keeps intentional case stubs inline."""
-    stub = {
-        "id": "https://example.org/cases/case-001",
-        "type": "VulnerabilityCase",
-    }
-    assert oh._coerce_reference_value(stub) == stub
-
-
-def test_coerce_reference_value_collapses_href_then_id():
-    """_coerce_reference_value prefers href over id for dict references."""
-    assert (
-        oh._coerce_reference_value(
-            {"id": "urn:uuid:obj-001", "href": "https://example.org/obj/1"}
-        )
-        == "https://example.org/obj/1"
-    )
-    assert (
-        oh._coerce_reference_value({"id": "https://example.org/obj/2"})
-        == "https://example.org/obj/2"
-    )
-
-
-# ---------------------------------------------------------------------------
-# _load_outbound_activity role preservation (CM-16-003 / CM-17-003)
-# ---------------------------------------------------------------------------
-
-
-def test_load_outbound_activity_preserves_suggested_roles():
-    """``suggestedRoles`` MUST survive the wire→VultronActivity conversion.
-
-    ``_load_outbound_activity`` converts a stored wire activity into a
-    ``VultronActivity`` before delivery.  The wire dump is camelCase
-    (``suggestedRoles``), so ``VultronActivity`` needs a matching validation
-    alias — otherwise the field silently validates to ``None`` and vanishes
-    from the delivered payload.
-
-    Regression guard: the DEPLOYER role was dropped here, so a suggested actor
-    joined a case with ``[VENDOR]`` only and CSB-15-002 then blocked its
-    d→D (VFD) transition.
-    """
-    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-    from vultron.adapters.driving.fastapi.outbox_delivery import (
-        _load_outbound_activity,
-    )
-    from vultron.wire.as2.factories.actor import recommend_actor_activity
-    from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-
-    dl = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
-    suggested = as_Actor(
-        id_="https://example.org/actors/v2", name="V2", type_="Organization"
-    )
-    activity = recommend_actor_activity(
-        recommended=suggested,
-        target="https://example.org/cases/c1",
-        suggested_roles=["vendor", "deployer"],
-        actor="https://example.org/actors/c2",
-        to=["https://example.org/actors/case-actor"],
-    )
-    dl.create(activity)
-
-    outbound = _load_outbound_activity(
-        "https://example.org/actors/c2", activity.id_, dl
-    )
-
-    assert outbound is not None
-    assert outbound.suggested_roles == ["vendor", "deployer"]
-
-
-def test_load_outbound_activity_preserves_roles():
-    """``roles`` MUST survive the wire→VultronActivity conversion.
-
-    Same failure mode as ``suggestedRoles`` on the Invite hop: the invitee's
-    roles are carried in the Invite's ``roles`` field, and losing them means
-    the participant record is created with default roles only (CM-17-003).
-    """
-    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-    from vultron.adapters.driving.fastapi.outbox_delivery import (
-        _load_outbound_activity,
-    )
-    from vultron.wire.as2.factories.case import rm_invite_to_case_activity
-    from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-
-    dl = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
-    invitee = as_Actor(
-        id_="https://example.org/actors/v2", name="V2", type_="Organization"
-    )
-    activity = rm_invite_to_case_activity(
-        invitee=invitee,
-        target="https://example.org/cases/c1",
-        roles=["vendor", "deployer"],
-        actor="https://example.org/actors/case-actor",
-        to=["https://example.org/actors/v2"],
-    )
-    dl.create(activity)
-
-    outbound = _load_outbound_activity(
-        "https://example.org/actors/case-actor", activity.id_, dl
-    )
-
-    assert outbound is not None
-    assert outbound.roles == ["vendor", "deployer"]
-
-
-# ---------------------------------------------------------------------------
-# _load_outbound_activity accepts every wire activity (ADR-0099 detail 8)
+# VultronActivity declares every wire activity key (ADR-0099 detail 8)
 # ---------------------------------------------------------------------------
 
 
@@ -373,13 +137,12 @@ def _wire_activity_classes() -> list[type[BaseModel]]:
 def test_vultron_activity_accepts_every_wire_activity_key(
     wire_cls: type[BaseModel],
 ) -> None:
-    """Every key a stored wire activity dumps is a ``VultronActivity`` field.
+    """Every key a wire activity dumps is a ``VultronActivity`` field.
 
-    ``VultronActivity`` inherits ``extra="forbid"`` from ``CoreObject``, and
-    ``_load_outbound_activity`` validates the stored wire dump into it, so an
-    undeclared key makes the activity undeliverable.  ``as_Question``'s
-    ``anyOf``/``oneOf``/``closed`` did exactly that to the CBT-03-004 replay
-    Question.
+    ``VultronActivity`` inherits ``extra="forbid"`` from ``CoreObject``, so an
+    undeclared AS2 key makes a received activity unstorable as a core
+    activity.  ``as_Question``'s ``anyOf``/``oneOf``/``closed`` did exactly
+    that to the CBT-03-004 replay Question (ADR-0099 detail 8).
     """
     from vultron.core.models.activity import VultronActivity
 
@@ -393,34 +156,3 @@ def test_vultron_activity_accepts_every_wire_activity_key(
         f"{wire_cls.__name__} dumps keys VultronActivity forbids: "
         f"{sorted(missing)} — declare them (ADR-0099 detail 8)"
     )
-
-
-def test_load_outbound_activity_delivers_bootstrap_replay_question():
-    """CBT-03-004: the replay Question survives the delivery conversion."""
-    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-    from vultron.adapters.driving.fastapi.outbox_delivery import (
-        _load_outbound_activity,
-    )
-    from vultron.wire.as2.factories.case import (
-        bootstrap_replay_question_activity,
-    )
-
-    dl = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
-    question = bootstrap_replay_question_activity(
-        actor="https://example.org/actors/v1",
-        to=["https://example.org/actors/case-actor"],
-        case_id="https://example.org/cases/c1",
-    )
-    dl.create(question)
-
-    outbound = _load_outbound_activity(
-        "https://example.org/actors/v1", question.id_, dl
-    )
-
-    assert outbound is not None
-    assert outbound.type_ == "Question"
-    assert outbound.to == ["https://example.org/actors/case-actor"]
-    assert outbound.context == "https://example.org/cases/c1"

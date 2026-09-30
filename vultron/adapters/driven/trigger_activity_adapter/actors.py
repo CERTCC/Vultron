@@ -56,7 +56,7 @@ from vultron.wire.as2.factories.case import (
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 
-from ._base import _DUMP_KWARGS, _case_for_wire, _to_wire
+from ._base import _case_for_wire, _seal, _to_wire
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_case_invite(
         self,
@@ -162,7 +162,7 @@ class _ActorsMixin:
                 "accept_case_invite: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def reject_case_invite(
         self,
@@ -193,7 +193,7 @@ class _ActorsMixin:
                 "reject_case_invite: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_case_participant_offer(
         self,
@@ -216,7 +216,10 @@ class _ActorsMixin:
         if raw is None:
             raise VultronNotFoundError("Offer(CaseParticipant)", cp_offer_id)
         cp_offer = cast(as_Offer, raw)
-        target = getattr(cp_offer, "target", None)
+        # Read-back rehydrates the offer's ``target`` into the full stored
+        # case; the Accept addresses the case by URI, as the Offer did on the
+        # wire (AKM-02-002, VM-08-003).
+        target = _as_id(getattr(cp_offer, "target", None))
         activity = accept_case_participant_offer_activity(
             offer=cp_offer, actor=actor, to=to, target=target
         )
@@ -228,7 +231,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def suggest_actor_to_case(
         self,
@@ -258,7 +261,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def offer_actor_to_case(
         self,
@@ -304,7 +307,7 @@ class _ActorsMixin:
                 "offer_actor_to_case: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def emit_accept_actor_recommendation(
         self,
@@ -341,7 +344,7 @@ class _ActorsMixin:
                 " exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def emit_reject_actor_recommendation(
         self,
@@ -378,7 +381,7 @@ class _ActorsMixin:
                 " exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_actor_recommendation(
         self,
@@ -416,7 +419,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def add_participant_to_case(
         self,
@@ -424,8 +427,12 @@ class _ActorsMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
-        """Create and persist an ``Add(as_CaseParticipant, Case)`` activity."""
+    ) -> tuple[str, str]:
+        """Create and persist an ``Add(as_CaseParticipant, Case)`` activity.
+
+        Returns ``(activity_id, activity_blob)``; the blob is what the emitting
+        node records as the ledger ``payloadSnapshot`` (VM-08-003).
+        """
         participant = _to_wire(
             self._dl.read(participant_id), as_CaseParticipant
         )
@@ -440,7 +447,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_
+        return _seal(self._dl, activity)
 
     def add_participant_status_to_participant(
         self,
@@ -477,7 +484,7 @@ class _ActorsMixin:
                 " exists — skipping",
                 activity.id_,
             )
-        return activity.id_
+        return _seal(self._dl, activity)[0]
 
     def offer_case_participant_role(
         self,
@@ -513,7 +520,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_case_participant_role(
         self,
@@ -542,7 +549,6 @@ class _ActorsMixin:
         activity = accept_case_participant_role_activity(
             offer=offer, actor=actor, to=to
         )
-        activity_json = activity.model_dump_json(**_DUMP_KWARGS)
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:
@@ -551,7 +557,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity_json
+        return _seal(self._dl, activity)
 
     def reject_case_participant_role(
         self,
@@ -588,7 +594,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def offer_case_ownership_transfer(
         self,
@@ -627,7 +633,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_case_ownership_transfer(
         self,
@@ -674,7 +680,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def _offer_from_core_record(
         self, record: "VultronOwnershipTransferOfferRecord"

@@ -1,24 +1,24 @@
 {
-  "id": "urn:uuid:ce4ca6f0-6f86-4121-aa25-d68c0dfe2580",
-  "type": "Announce",
-  "name": "https://vultron.example/organizations/vendorco Announce VendorCo Case #16418220",
   "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Announce",
+  "id": "urn:uuid:0bc9a7c3-2eed-446a-80e6-849a07b63099",
+  "name": "https://vultron.example/organizations/vendorco Announce VendorCo Case #82112039",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "id": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
+    "id": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
     "type": "VulnerabilityCase",
-    "name": "VendorCo Case #16418220",
-    "published": "2026-09-24T14:21:06+00:00",
-    "updated": "2026-09-24T14:21:06+00:00",
+    "name": "VendorCo Case #82112039",
+    "published": "2026-09-30T14:34:16+00:00",
+    "updated": "2026-09-30T14:34:16+00:00",
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "caseParticipants": [
       {
-        "id": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae/participants/finndervul",
+        "id": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15/participants/finndervul",
         "type": "CaseParticipant",
         "name": "Finn der Vul",
-        "context": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
-        "published": "2026-09-24T14:21:06+00:00",
-        "updated": "2026-09-24T14:21:06+00:00",
+        "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
+        "published": "2026-09-30T14:34:16+00:00",
+        "updated": "2026-09-30T14:34:16+00:00",
         "attributedTo": "https://vultron.example/users/finndervul",
         "caseRoles": [
           "finder",
@@ -26,12 +26,12 @@
         ],
         "participantStatuses": [
           {
-            "id": "urn:uuid:f106958d-db4b-4085-83f7-7a95369ec975",
+            "id": "urn:uuid:07244eff-01d6-4276-87b7-9eb56ef32266",
             "type": "ParticipantStatus",
             "name": "START",
-            "context": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
-            "published": "2026-09-24T14:21:06+00:00",
-            "updated": "2026-09-24T14:21:06+00:00",
+            "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
+            "published": "2026-09-30T14:34:16+00:00",
+            "updated": "2026-09-30T14:34:16+00:00",
             "attributedTo": "https://vultron.example/users/finndervul",
             "rmState": "START",
             "caseEngagement": true,
@@ -49,24 +49,24 @@
         "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
       },
       {
-        "id": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae/participants/vendorco",
+        "id": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15/participants/vendorco",
         "type": "CaseParticipant",
         "name": "VendorCo",
-        "context": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
-        "published": "2026-09-24T14:21:06+00:00",
-        "updated": "2026-09-24T14:21:06+00:00",
+        "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
+        "published": "2026-09-30T14:34:16+00:00",
+        "updated": "2026-09-30T14:34:16+00:00",
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "caseRoles": [
           "vendor"
         ],
         "participantStatuses": [
           {
-            "id": "urn:uuid:2a0c04d1-cfbc-49a0-bd78-5aec7210a21f",
+            "id": "urn:uuid:13fe956f-6a32-489b-a3e4-e64a7cd5f85a",
             "type": "ParticipantStatus",
             "name": "RECEIVED Vf",
-            "context": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
-            "published": "2026-09-24T14:21:06+00:00",
-            "updated": "2026-09-24T14:21:06+00:00",
+            "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
+            "published": "2026-09-30T14:34:16+00:00",
+            "updated": "2026-09-30T14:34:16+00:00",
             "attributedTo": "https://vultron.example/organizations/vendorco",
             "rmState": "RECEIVED",
             "vfState": "Vf",
@@ -84,16 +84,16 @@
       }
     ],
     "actorParticipantIndex": {
-      "https://vultron.example/users/finndervul": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae/participants/finndervul",
-      "https://vultron.example/organizations/vendorco": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae/participants/vendorco"
+      "https://vultron.example/users/finndervul": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15/participants/finndervul",
+      "https://vultron.example/organizations/vendorco": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15/participants/vendorco"
     },
     "vulnerabilityReports": [
       {
-        "id": "https://demo.vultron.local/VulnerabilityReport/7e9514d8-f9b0-48ea-b784-a2fbd3ad1ee9",
+        "id": "https://demo.vultron.local/VulnerabilityReport/161af5ad-cce3-4336-b978-6e5c5260b5ed",
         "type": "VulnerabilityReport",
         "name": "FDR-8675309",
-        "published": "2026-09-24T14:21:06+00:00",
-        "updated": "2026-09-24T14:21:06+00:00",
+        "published": "2026-09-30T14:34:16+00:00",
+        "updated": "2026-09-30T14:34:16+00:00",
         "content": "I found a vulnerability!",
         "attributedTo": "https://vultron.example/users/finndervul",
         "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
@@ -101,12 +101,12 @@
     ],
     "caseStatuses": [
       {
-        "id": "urn:uuid:08938a19-2dcc-46a9-8c6a-342bdaa6996d",
+        "id": "urn:uuid:599fc8de-d564-4a1a-8202-9aa2bde4ee0c",
         "type": "CaseStatus",
         "name": "NONE pxa",
-        "context": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
-        "published": "2026-09-24T14:21:06+00:00",
-        "updated": "2026-09-24T14:21:06+00:00",
+        "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
+        "published": "2026-09-30T14:34:16+00:00",
+        "updated": "2026-09-30T14:34:16+00:00",
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "emState": "NONE",
         "pxaState": "pxa",
@@ -118,7 +118,7 @@
     "pendingEmbargoProposalIndex": {},
     "recommendationRecommenderIndex": {},
     "caseActivity": [],
-    "genesisHash": "0cf46275f7fbaa2eb1cf9a3da4a096a86ea4f53128b50220ffa6ea4e523100d4",
+    "genesisHash": "0379ef1cb967c2895a558300653befaab2037dc7c165e2a98c36727bdf507757",
     "parentCases": [],
     "childCases": [],
     "siblingCases": [],

@@ -30,6 +30,10 @@ from pydantic import ValidationError
 from vultron.core.models.case import VulnerabilityCase
 from vultron.enums.roles import CVDRole
 from vultron.core.states.em import EM
+from vultron.wire.as2.factories._context import (
+    case_target_ref,
+    with_case_context,
+)
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
     as_Question,
@@ -175,7 +179,7 @@ def add_report_to_case_activity(
     """
     try:
         return _AddReportToCaseActivity(
-            object_=report, target=target, **kwargs
+            object_=report, target=case_target_ref(target), **kwargs
         )
     except ValidationError as exc:
         logger.warning(
@@ -208,7 +212,7 @@ def add_status_to_case_activity(
     """
     try:
         return _AddStatusToCaseActivity(
-            object_=status, target=target, **kwargs
+            object_=status, target=case_target_ref(target), **kwargs
         )
     except ValidationError as exc:
         logger.warning(
@@ -294,7 +298,9 @@ def add_note_to_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return _AddNoteToCaseActivity(object_=note, target=target, **kwargs)
+        return _AddNoteToCaseActivity(
+            object_=note, target=case_target_ref(target), **kwargs
+        )
     except ValidationError as exc:
         logger.warning("add_note_to_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
@@ -487,7 +493,7 @@ def accept_case_participant_role_activity(
     try:
         return _AcceptCaseParticipantRoleActivity(
             object_=cast(_OfferCaseParticipantRoleActivity, offer),
-            **kwargs,
+            **with_case_context(kwargs, getattr(offer, "context", None)),
         )
     except ValidationError as exc:
         logger.warning(
@@ -521,7 +527,7 @@ def reject_case_participant_role_activity(
     try:
         return _RejectCaseParticipantRoleActivity(
             object_=cast(_OfferCaseParticipantRoleActivity, offer),
-            **kwargs,
+            **with_case_context(kwargs, getattr(offer, "context", None)),
         )
     except ValidationError as exc:
         logger.warning(
@@ -689,7 +695,9 @@ def rm_invite_to_case_activity(
         kwargs["roles"] = roles
     try:
         return _RmInviteToCaseActivity(
-            object_=invitee, target=target, **kwargs
+            object_=invitee,
+            target=target,
+            **with_case_context(kwargs, target),
         )
     except ValidationError as exc:
         logger.warning(

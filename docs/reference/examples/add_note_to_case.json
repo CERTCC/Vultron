@@ -1,18 +1,18 @@
 {
-  "id": "urn:uuid:4de267bf-d123-4443-b61f-7df1573dddaa",
-  "type": "Add",
-  "name": "https://vultron.example/users/finndervul Add Note to urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
   "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Add",
+  "id": "urn:uuid:ffd338d7-1665-4193-a045-b75439e890ae",
+  "name": "https://vultron.example/users/finndervul Add Note to urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
   "actor": "https://vultron.example/users/finndervul",
-  "target": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
+  "target": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
   "object": {
-    "id": "https://vultron.example/notes/1",
+    "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Note",
+    "id": "https://vultron.example/notes/1",
     "name": "Note",
-    "context": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
-    "published": "2026-09-24T14:21:06+00:00",
-    "updated": "2026-09-24T14:21:06+00:00",
-    "content": "This is a note.",
-    "@context": "https://www.w3.org/ns/activitystreams"
+    "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
+    "published": "2026-09-30T14:34:16+00:00",
+    "updated": "2026-09-30T14:34:16+00:00",
+    "content": "This is a note."
   }
 }

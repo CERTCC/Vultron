@@ -1,29 +1,30 @@
 {
-  "id": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae/invitation/1",
-  "type": "Invite",
-  "name": "https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
-  "content": "We're inviting you to participate in case VendorCo Case #16418220.",
-  "to": "https://vultron.example/organizations/coordinator",
   "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Invite",
+  "id": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15/invitation/1",
+  "name": "https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
+  "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
+  "content": "We're inviting you to participate in case VendorCo Case #82112039.",
+  "to": "https://vultron.example/organizations/coordinator",
   "actor": "https://vultron.example/organizations/vendorco",
-  "target": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
+  "target": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
   "object": {
-    "id": "https://vultron.example/organizations/coordinator",
-    "type": "Organization",
-    "name": "Coordinator LLC",
-    "published": "2026-09-24T14:21:06+00:00",
-    "updated": "2026-09-24T14:21:06+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "Organization",
+    "id": "https://vultron.example/organizations/coordinator",
+    "name": "Coordinator LLC",
+    "published": "2026-09-30T14:34:16+00:00",
+    "updated": "2026-09-30T14:34:16+00:00",
     "inbox": {
-      "id": "https://vultron.example/organizations/coordinator/inbox",
-      "type": "OrderedCollection",
       "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "OrderedCollection",
+      "id": "https://vultron.example/organizations/coordinator/inbox",
       "items": []
     },
     "outbox": {
-      "id": "https://vultron.example/organizations/coordinator/outbox",
-      "type": "OrderedCollection",
       "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "OrderedCollection",
+      "id": "https://vultron.example/organizations/coordinator/outbox",
       "items": []
     }
   }

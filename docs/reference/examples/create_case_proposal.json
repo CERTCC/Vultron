@@ -1,8 +1,8 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Create",
-  "id": "urn:uuid:3bcaf154-3880-4be6-a06e-97c162297b3b",
-  "name": "https://vultron.example/organizations/vendorco Create urn:uuid:bef9f27c-f0ce-4db0-a7bb-d372dbd25067",
+  "id": "urn:uuid:2c77b716-6152-437c-811d-ee1e52d4ee86",
+  "name": "https://vultron.example/organizations/vendorco Create urn:uuid:4c7a8a65-0282-4b06-be83-89e821a97517",
   "to": [
     "https://example.org/case-actors/alpha"
   ],
@@ -10,17 +10,17 @@
   "object": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "CaseProposal",
-    "id": "urn:uuid:bef9f27c-f0ce-4db0-a7bb-d372dbd25067",
-    "published": "2026-09-25T19:54:47+00:00",
-    "updated": "2026-09-25T19:54:47+00:00",
+    "id": "urn:uuid:4c7a8a65-0282-4b06-be83-89e821a97517",
+    "published": "2026-09-30T14:34:16+00:00",
+    "updated": "2026-09-30T14:34:16+00:00",
     "summary": "Request case initialization for a new vulnerability.",
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "object": {
-      "id": "https://demo.vultron.local/VulnerabilityReport/43774e8b-2840-4c1a-b330-61e9e4a558ac",
+      "id": "https://demo.vultron.local/VulnerabilityReport/161af5ad-cce3-4336-b978-6e5c5260b5ed",
       "type": "VulnerabilityReport",
       "name": "FDR-8675309",
-      "published": "2026-09-25T19:54:47+00:00",
-      "updated": "2026-09-25T19:54:47+00:00",
+      "published": "2026-09-30T14:34:16+00:00",
+      "updated": "2026-09-30T14:34:16+00:00",
       "content": "I found a vulnerability!",
       "attributedTo": "https://vultron.example/users/finndervul",
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
