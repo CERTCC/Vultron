@@ -20,10 +20,9 @@ from typing import Any
 from pydantic import Field, PrivateAttr
 
 from vultron.core.models.actor import CoreActor
-from vultron.core.models.base import CoreObject
-from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
-from vultron.wire.as2.vocab.base.objects.base import as_Object
+from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
 from vultron.wire.as2.enums import as_ObjectType as O_type
 
 
@@ -59,13 +58,17 @@ class as_Activity(as_Object):
     # ``# type: ignore[assignment]`` rather than fixed, which is why mypy and
     # pyright stayed green while the wire protocol did not work. Widening here is
     # what lets those suppressions be deleted: a subclass narrowing
-    # ``target`` to ``VulnerabilityCase | as_Link | str | None`` is now a genuine
-    # narrowing of this union rather than an incompatible override.
+    # ``target`` to ``VulnerabilityCase | as_Link | NonEmptyString | None`` is
+    # now a genuine narrowing of this union rather than an incompatible override.
+    #
+    # The slots go through the shared reference aliases so the IRI branch is
+    # ``NonEmptyString`` (CS-08-001, CS-08-002) rather than a hand-spelled
+    # ``str`` that admits a blank reference.
     actor: as_ActorRef | CoreActor
-    target: as_Object | as_Link | str | CoreObject | None = None
-    origin: as_Object | as_Link | str | CoreObject | None = None
-    instrument: as_Object | as_Link | str | CoreObject | None = None
-    result: as_Object | as_Link | str | None = None
+    target: as_ObjectRef = None
+    origin: as_ObjectRef = None
+    instrument: as_ObjectRef = None
+    result: ActivityStreamRef[as_Object] = None
 
     #: The JSON body as received, decoded and re-serialized to text by
     #: ``parse_activity`` before anything reads or expands it (VM-08-002).

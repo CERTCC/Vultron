@@ -2,6 +2,7 @@
 
 import pytest
 
+from test.support.blank_strings import BLANKS
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import extract_event
 
@@ -22,12 +23,6 @@ from vultron.wire.as2.vocab.objects.vultron_actor import as_VultronOrganization
 #: fills in — see ``test_parse_activity_raises_missing_published_when_absent``.
 PUBLISHED = "2026-03-04T05:06:07+00:00"
 
-#: Every spelling of "the sender supplied no value".  Whitespace-only counts as
-#: blank by the project's canonical predicate (``not v.strip()``, see
-#: ``vultron.core.models.base._non_empty``): a guard that catches ``""`` but not
-#: ``"   "`` has the same blind spot one character over.
-BLANK = ("", " ", "   ", "\t", "\n", " \t\n ")
-
 
 @pytest.mark.spec("MV-01-001")
 def test_parse_activity_raises_missing_type_when_type_absent():
@@ -44,7 +39,7 @@ def test_parse_activity_raises_unknown_type_for_unrecognized_type():
 @pytest.mark.spec("MV-01-001")
 @pytest.mark.spec("MV-03-002")
 @pytest.mark.spec("CS-08-001")
-@pytest.mark.parametrize("blank", BLANK)
+@pytest.mark.parametrize("blank", BLANKS)
 def test_parse_activity_reads_blank_type_as_missing_not_unknown(blank: str):
     """A blank ``type`` names no type, so it is absence, not an unknown type.
 
@@ -104,7 +99,7 @@ def test_parse_activity_rejects_explicit_null_published():
 @pytest.mark.spec("CLP-15-006")
 @pytest.mark.spec("MV-03-002")
 @pytest.mark.spec("CS-08-001")
-@pytest.mark.parametrize("blank", BLANK)
+@pytest.mark.parametrize("blank", BLANKS)
 def test_parse_activity_rejects_blank_published(blank: str):
     """A blank ``published`` carries no claimed time, so it is absence.
 
@@ -481,3 +476,43 @@ def test_inline_ordered_collection_resolves_to_the_wire_class():
     inline = getattr(result, "object_", None)
     assert type(inline) is as_OrderedCollection
     assert inline.id_ == "https://example.org/collections/1"
+
+
+@pytest.mark.spec("CS-08-001")
+@pytest.mark.parametrize("field", ["target", "origin", "object", "actor"])
+@pytest.mark.parametrize("blank", BLANKS)
+def test_parse_activity_rejects_blank_reference(field: str, blank: str):
+    """A blank reference names no resource, so the activity is refused.
+
+    Before #3876 the wire reference aliases carried bare ``str``, so an inbound
+    ``"target": ""`` validated and reached the core, and VM-07-001 then dropped
+    it silently on the way out.  CS-08-001's "if present, then non-empty" is
+    now enforced by the aliases themselves, so the refusal surfaces here as a
+    schema fault on the offending field.
+    """
+    body = {
+        "type": "Create",
+        "actor": "https://example.org/alice",
+        "published": PUBLISHED,
+        "object": "https://example.org/notes/1",
+        "target": "https://example.org/cases/1",
+    }
+    body[field] = blank
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    assert field in str(exc_info.value)
+
+
+@pytest.mark.spec("CS-08-001")
+def test_parse_activity_keeps_a_non_blank_target():
+    """The control for the blank-reference refusal: a real IRI still parses."""
+    activity = parse_activity(
+        {
+            "type": "Create",
+            "actor": "https://example.org/alice",
+            "published": PUBLISHED,
+            "object": "https://example.org/notes/1",
+            "target": "https://example.org/cases/1",
+        }
+    )
+    assert activity.target == "https://example.org/cases/1"

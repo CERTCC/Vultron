@@ -118,7 +118,8 @@ class as_VultronObject(as_Object):
     the protocol to carry a whole object rather than a URI — ``as_CaseProposal``
     must inline its ``as_VulnerabilityReport`` (CP-01-004, AKM-03-001). The type
     annotation cannot express that: ``ActivityStreamRequiredRef[T]`` is
-    ``T | as_Link | str``, so ``str`` type-checks. Name such fields here::
+    ``T | as_Link | NonEmptyString``, so a URI type-checks. Name such fields
+    here::
 
         inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 

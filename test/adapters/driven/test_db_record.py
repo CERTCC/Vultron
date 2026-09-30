@@ -969,3 +969,35 @@ def test_from_obj_wire_identity_keys_apply_to_list_items():
         ), "ARCH-23-005: list item MUST NOT carry 'type_'"
         assert "id" in item
         assert "type" in item
+
+
+def test_activity_object_ref_properties_is_the_full_activity_slot_set():
+    """The derived set is exactly the five generic Activity slots.
+
+    ``_is_generic_object_ref`` matches the expanded alias by set equality, so
+    when the alias's IRI branch became ``NonEmptyString`` (CS-08-001, #3876)
+    a comparison against bare ``str`` would have matched nothing — and
+    ``test_dehydrate_data_dehydrates_all_object_ref_fields`` would have looped
+    over an empty set and passed.  Pinning the set keeps that loop honest.
+    """
+    from vultron.adapters.driven.db_record import (
+        _activity_object_ref_properties,
+    )
+
+    assert _activity_object_ref_properties() == frozenset(
+        {"object_", "target", "origin", "instrument", "result"}
+    )
+
+
+def test_is_generic_object_ref_sees_through_the_non_empty_string_branch():
+    from vultron.adapters.driven.db_record import _is_generic_object_ref
+    from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
+    from vultron.wire.as2.vocab.base.objects.base import (
+        as_ObjectRef,
+        as_ObjectRequiredRef,
+    )
+
+    assert _is_generic_object_ref(as_ObjectRef)
+    assert _is_generic_object_ref(as_ObjectRequiredRef)
+    # A *narrowed* reference is still not a generic one.
+    assert not _is_generic_object_ref(as_ActorRef)

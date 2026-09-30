@@ -25,7 +25,7 @@ from typing import Any, Literal, Optional
 from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.base import CoreRecord
+from vultron.core.models.base import CoreRecord, NonEmptyString
 from vultron.core.models.wire_keys import input_keys
 
 
@@ -44,10 +44,12 @@ class VultronReplicationState(CoreRecord):
         validation_alias="type",
         serialization_alias="type",
     )
-    case_id: str = Field(
+    case_id: NonEmptyString = Field(
         ..., description="URI of the parent VulnerabilityCase"
     )
-    peer_id: str = Field(..., description="Full URI of the participant actor")
+    peer_id: NonEmptyString = Field(
+        ..., description="Full URI of the participant actor"
+    )
     last_acknowledged_hash: str = Field(
         default="",
         description=(
@@ -86,7 +88,8 @@ class VultronReplicationState(CoreRecord):
         description=(
             "entry_hash the most recent Reject-triggered replay started from,"
             " used to suppress repeated full-ledger replays to a peer that has"
-            " made no progress; None means no replay has run yet"
+            " made no progress; None means no replay has run yet, and the"
+            " empty string means the replay started from genesis"
             " (SYNC-15-003)"
         ),
         validation_alias="lastReplayedFromHash",

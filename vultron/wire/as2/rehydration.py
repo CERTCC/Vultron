@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast, get_args, get_origin
 
 from pydantic import BaseModel, ValidationError
 
+from vultron.core.models._helpers import strip_annotated
 from vultron.core.models.base import CoreObject
 from vultron.core.models.wire_keys import input_keys
 from vultron.errors import VultronReferenceResolutionError
@@ -55,8 +56,12 @@ def _annotation_branches(annotation: Any) -> list[Any]:
 
     ``list[as_Activity]`` yields ``[as_Activity]``; ``as_Foo | as_Link | str``
     yields all three; ``list[as_Foo | str]`` yields both.  Used only to decide
-    whether a slot can hold a bare URI, so containers are transparent.
+    whether a slot can hold a bare URI, so containers are transparent — and so
+    is the ``Annotated`` wrapper of ``NonEmptyString``, the IRI branch of every
+    reference union (CS-08-001): it is stripped to ``str`` rather than
+    recursed into, or its validator metadata would be reported as a branch.
     """
+    annotation = strip_annotated(annotation)
     args = get_args(annotation)
     if not args:
         return [annotation]
@@ -72,7 +77,8 @@ def _slot_requires_object(annotation: Any) -> bool:
     """True when *annotation* can hold a model but cannot hold a bare URI.
 
     This is the test ADR-0099 detail 9 turns on.  A slot declared
-    ``ActivityStreamRef[as_Foo]`` expands to ``as_Foo | as_Link | str``, so a
+    ``ActivityStreamRef[as_Foo]`` expands to ``as_Foo | as_Link | NonEmptyString``
+    (a ``str`` branch once its ``Annotated`` wrapper is stripped), so a
     URI is a legal value there and an unresolvable reference is *deferred* —
     left as the string, warned about, and carried on (VM-06-004).  A slot
     declared ``as_Foo`` or ``list[as_Foo]`` admits no ``str`` branch at all, so

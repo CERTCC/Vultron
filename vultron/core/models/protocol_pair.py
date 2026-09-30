@@ -38,6 +38,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from vultron.primitives import require_non_empty
+
 #: Reply event types that close an ``Offer(CaseParticipant)`` protocol pair.
 OFFER_CASE_PARTICIPANT_REPLY_TYPES: frozenset[str] = frozenset(
     {
@@ -86,6 +88,15 @@ class ProtocolPair:
     reply_object_id: str | None = None
     reply_event_type: str | None = None
     request_found: bool = False
+
+    def __post_init__(self) -> None:
+        # CS-08-001 for a stdlib dataclass: the ids are references and a blank
+        # one names nothing.  ``reply_object_id`` is optional, so only a present
+        # value is checked.
+        require_non_empty(self.case_id, "case_id")
+        require_non_empty(self.object_id, "object_id")
+        if self.reply_object_id is not None:
+            require_non_empty(self.reply_object_id, "reply_object_id")
 
     def is_open(self) -> bool:
         """Return ``True`` if no matching reply has been recorded yet."""
