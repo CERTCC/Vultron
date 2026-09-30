@@ -17,14 +17,14 @@
 
 Split out of ``_helpers.py`` (#3515), which had grown past the CS-18-001 500-line
 cap by holding two unrelated concerns.  This is the self-contained one: building
-the AS2-shaped, self-inlining ``payloadSnapshot`` that CLP-07-001 defines and
+the AS2-shaped, self-inlining ``payloadSnapshot`` that CLP-07-011 defines and
 CLP-07-006 requires to carry full nested objects rather than bare ID strings.
 
 ``_helpers.py`` re-exports everything here, so no caller needs to change its
 import.  Kept private to the use-cases package (``_`` prefix) for the same reason
 ``_helpers`` is.
 
-Specs: CLP-07-001, CLP-07-006, ARCH-20-001.
+Specs: CLP-07-011, CLP-07-006, ARCH-20-001.
 """
 
 import logging
@@ -155,7 +155,7 @@ def build_activity_payload_snapshot(
 ) -> dict[str, Any]:
     """Return a normalized, self-contained payload snapshot for ledger entries.
 
-    The snapshot is the AS2 serialization of *activity* (CLP-07-001), obtained
+    The snapshot is the AS2 serialization of *activity* (CLP-07-011), obtained
     from *wire_render_port*: the activity core holds is the extractor's
     core-branch ``VultronActivity``, and core never produces its wire shape
     itself (ARCH-20-001, CLP-07-009).  The port refuses an object with no AS2

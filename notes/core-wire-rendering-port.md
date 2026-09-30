@@ -14,14 +14,14 @@ description: >
 related_specs:
   - architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-18-002, ARCH-20,
     ARCH-20-001, ARCH-20-002, ARCH-20-003, ARCH-20-004, ARCH-21-002)
-  - vocabulary-model.yaml (VM-10-001)
-  - case-ledger-processing.yaml (CLP-07-001, CLP-07-006, CLP-07-009, CLP-07-010,
-    CLP-07-011)
+  - vocabulary-model.yaml (VM-10-001, VM-08-002)
+  - case-ledger-processing.yaml (CLP-07-011, CLP-07-006, CLP-07-009, CLP-07-010)
   - status-dimension-objects.yaml (SDO-03-003, SDO-03-005)
   - datalayer.yaml (DL-05-001)
 related_notes:
   - notes/wire-core-boundary.md
   - notes/vocabulary-registry.md
+  - notes/wire-artifact-immutability.md
 related_adrs:
   - ADR-0017
   - ADR-0036
@@ -29,6 +29,7 @@ related_adrs:
   - ADR-0063
   - ADR-0082
   - ADR-0099
+  - ADR-0107
 ---
 
 # Core-to-Wire Rendering Port
@@ -80,7 +81,7 @@ were received or sent to/from the case manager in the course of managing the
 case*, and those things are by definition wire-shaped. The specs say so
 directly:
 
-- **CLP-07-001** — the snapshot MUST be the verbatim AS2 activity that was
+- **CLP-07-011** — the snapshot MUST be the verbatim AS2 activity that was
   asserted, or a deterministic canonical normalization of it.
 - **CLP-01-003 / CLP-01-004** — the ledger is the replication substrate;
   receivers project entries into their own replica.
@@ -216,14 +217,16 @@ Also vestigial: `CoreActor.to_json()` (`core/models/actor.py:76-77`) dumps
 always-available bypass of the port seam will be picked up by the next agent who
 needs camelCase (ARCH-20-005).
 
-`build_activity_payload_snapshot` in `core/use_cases/_snapshot_helpers.py` was
-once described here as capturing a received activity verbatim by duck-typing,
-needing no rendering. That was wrong under ADR-0099 detail 3: the activity it
-receives is the extractor's core-branch `VultronActivity`, so it renders through
-the port like every other snapshot, and so do the stored objects it inlines under
-CLP-07-006 (#3930). Its snapshot is therefore a rendering of what the extractor
-kept, not the bytes that arrived — CLP-07-011's "deterministic canonical
-normalization" branch, not its "verbatim" one.
+`build_activity_payload_snapshot` in `core/use_cases/_snapshot_helpers.py` does
+not capture what arrived. What it snapshots is the extractor's rebuilt
+`VultronActivity`, which keeps a chosen subset of the inbound fields, so the
+receive-side snapshot is the "deterministic canonical normalization" branch of
+CLP-07-011, not its "verbatim" one, and it is not the received evidence VM-08-002
+seals (see `notes/wire-artifact-immutability.md` § "Received Evidence",
+ISSUE-3947). Because that `VultronActivity` is a core-branch object, it renders
+through the port like every other snapshot, and so do the stored objects it
+inlines under CLP-07-006 (#3930). ADR-0107 step 5 (#3742) replaces the rendering
+with that evidence recorded unchanged, deleting this site.
 
 ## Deleting a flat-field shim: the guard is mandatory
 

@@ -6,7 +6,8 @@ description: >
   vocabulary and its route to InboxOutcome, the two semantically distinct request
   paths (VultronEvent vs TriggerRequest), and why a shared UseCaseRequest base
   was not introduced. Received side and dispatcher chain migrated; trigger side
-  decided (ADR-0110: one dispatcher method over a verb registry), not yet built.
+  decided (ADR-0110: one dispatcher method over a verb registry); only its first
+  step, the golden OpenAPI snapshot, is built.
 related_specs:
   - specs/use-case-organization.yaml
   - specs/handler-protocol.yaml
@@ -201,9 +202,12 @@ See ADR-0040 for the full decision record.
 
 ## Trigger Side: One Dispatcher Method over a Verb Registry
 
-Decided in ADR-0110, planned from concern #3354, not yet built. The trigger
-half does **not** get the mechanical "type the 27 methods" migration this note
-once described. The driving port collapses to one method and the two request
+Decided in ADR-0110, planned from concern #3354. The first, gating step — the
+golden OpenAPI snapshot of the trigger and demo endpoints (#3828,
+`test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py`) — is built;
+every later step lands behind it and is not yet built. The trigger half does
+**not** get the mechanical "type the 27 methods" migration this note once
+described. The driving port collapses to one method and the two request
 families become one:
 
 - `TriggerResult` becomes a fieldless `UseCaseResult` subtype in

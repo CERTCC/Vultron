@@ -67,7 +67,7 @@ def _assert_wire_dict(result: dict, expected_type: str) -> None:
     # camelCase key present (not snake_case)
     # The 'id' field is always emitted by as_VultronObject
     assert "id" in result, f"Missing 'id' key in wire dict for {expected_type}"
-    # AC-5 / CLP-07-001: output must be receiver-reconstitutable
+    # AC-5 / CLP-07-011: output must be receiver-reconstitutable
     try:
         wire_cls = find_in_vocabulary(expected_type)
     except KeyError:

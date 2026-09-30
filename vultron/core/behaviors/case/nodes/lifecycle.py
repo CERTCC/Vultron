@@ -236,7 +236,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
         un-adjudicated path produces — flat dimension values, a nested case
         status, ``@context``, the consent state and the CVD roles, each under its
         AS2 alias — which every replica and the invariant harness rely on
-        (RSH-05-009, CLP-07-001, CM-18-006).  A whole-object replacement built in
+        (RSH-05-009, CLP-07-011, CM-18-006).  A whole-object replacement built in
         core would instead emit core dimension objects, since core must not
         import the wire layer to convert (ADR-0009, ADR-0017).
 

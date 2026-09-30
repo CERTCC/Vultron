@@ -216,7 +216,8 @@ vs `TriggerRequest`), why `UseCaseRequest` was not introduced, the trigger-side
 collapse to a one-method `TriggerDispatcher` port over a verb registry with a
 typed result hierarchy, and the ratchet test design. Received side and
 dispatcher chain are implemented; the trigger side is decided (ADR-0110) and
-planned as staged tasks, none yet built. ADRs:
+planned as staged tasks, of which only the first — the golden OpenAPI snapshot
+(#3828) — is built. ADRs:
 `docs/adr/0040-use-case-result-envelope.md` (original),
 `docs/adr/0095-received-side-handler-result.md` (received-side half), and
 `docs/adr/0110-trigger-dispatcher-port-over-verb-registry.md` (trigger-side half).
