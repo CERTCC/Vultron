@@ -168,8 +168,3 @@ def _activity_addressed_to(
     # confirm names some *other* individual actor.  One unresolvable address is
     # enough uncertainty to accept the whole thing.
     return not all(_names_an_individual_actor(addr) for addr in addresses)
-
-
-def _get_body(body: dict[str, Any]) -> dict[str, Any]:
-    """FastAPI dependency: return the raw JSON request body dict."""
-    return body
