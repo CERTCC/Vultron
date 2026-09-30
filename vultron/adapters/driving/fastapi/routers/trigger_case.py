@@ -48,7 +48,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "Triggers the engage-case behavior for the given actor. "
         "Emits a Join(VulnerabilityCase) activity (RmEngageCaseActivity), "
         "transitions the actor's RM state to ACCEPTED in the case, "
-        "and returns the activity in the response body (TB-04-001)."
+        "and returns the activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_engage_case",
 )
@@ -63,8 +63,8 @@ def trigger_engage_case(
     Trigger the engage-case behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
-        TB-04-001, TB-06-001, TB-06-002, TB-07-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
     """
     with domain_error_translation():
         result = svc.engage_case(actor_id, body.case_id)
@@ -80,7 +80,7 @@ def trigger_engage_case(
         "Triggers the defer-case behavior for the given actor. "
         "Emits an Ignore(VulnerabilityCase) activity (RmDeferCaseActivity), "
         "transitions the actor's RM state to DEFERRED in the case, "
-        "and returns the activity in the response body (TB-04-001)."
+        "and returns the activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_defer_case",
 )
@@ -95,8 +95,8 @@ def trigger_defer_case(
     Trigger the defer-case behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
-        TB-04-001, TB-06-001, TB-06-002, TB-07-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
     """
     with domain_error_translation():
         result = svc.defer_case(actor_id, body.case_id)
@@ -128,8 +128,8 @@ def trigger_add_object_to_case(
     """Add an existing AS2 object to a case.
 
     Implements:
-        TRIG-10-001, TB-01-001, TB-01-002, HTTP-03-005, TB-02-001,
-        TB-03-001, TB-03-002, TB-04-001, TB-06-001, TB-06-002
+        TRIG-10-001, TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004,
+        TRIG-03-001, TRIG-03-002, TRIG-04-001, TRIG-06-001, TRIG-06-002
     """
     with domain_error_translation():
         result = svc.add_object_to_case(
@@ -164,8 +164,8 @@ def trigger_create_case(
     Trigger the create-case behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
-        TB-04-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001
     """
     with domain_error_translation():
         result = svc.create_case(
@@ -200,8 +200,8 @@ def trigger_add_report_to_case(
     Trigger the add-report-to-case behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
-        TB-04-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001
     """
     with domain_error_translation():
         result = svc.add_report_to_case(

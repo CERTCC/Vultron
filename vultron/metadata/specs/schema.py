@@ -10,6 +10,7 @@ absent fields.  ``kind`` is required on every individual spec item;
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from typing import Annotated, Union
 
@@ -19,6 +20,14 @@ from vultron.metadata.base import NonEmptyStr
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+
+#: A fully-qualified requirement ID as it appears in prose — ``PREFIX-NN-NNN``
+#: (MS-04-001): 2–8 uppercase letters, two-digit group, three-digit index.
+#: ``\b`` on both sides keeps ``ADR-0001``, semantic versions, and a prefix
+#: that merely ends in another topic's letters from matching. Shared by the
+#: spec linter, bundle-fit, and the citation ratchets so the ID grammar is
+#: defined once.
+SPEC_ID_CITATION_RE = re.compile(r"\b[A-Z]{2,8}-\d{2}-\d{3}\b")
 
 SpecIdStr = Annotated[
     str,

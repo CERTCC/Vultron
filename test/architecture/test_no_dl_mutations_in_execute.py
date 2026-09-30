@@ -62,7 +62,10 @@ The set is **exact** (ARCH-18-001): new violations fail the test immediately,
 and resolved violations (entries in ``KNOWN_VIOLATIONS`` that no longer appear
 in the scan) also fail — prompting the entry to be removed (ARCH-18-002).
 
-Spec: CLP-10-005, CLP-10-020 (``specs/case-ledger-processing.yaml``).
+Spec: CLP-10-005, CLP-10-020 (``specs/case-ledger-processing.yaml``); HP-08-002
+(``specs/handler-protocol.yaml``) — a handler's ``execute()`` MUST NOT mutate the
+DataLayer directly; the write runs inside a BT leaf node reached through
+``BTBridge``.
 BT specs: BT-06-001, BT-15-001 (``specs/behavior-tree-integration.yaml``).
 Corpus: TB-13-001, TB-13-003 (``specs/testability.yaml``).
 """
@@ -165,7 +168,7 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
 def test_no_dl_mutations_in_execute():
     """execute() methods in use_cases/ must not reach DataLayer mutations.
 
-    Spec: CLP-10-005, CLP-10-020. BT specs: BT-06-001, BT-15-001.
+    Spec: CLP-10-005, CLP-10-020, HP-08-002. BT specs: BT-06-001, BT-15-001.
 
     See module docstring for the ratchet strategy.
     """

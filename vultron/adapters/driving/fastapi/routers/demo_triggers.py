@@ -106,8 +106,8 @@ def demo_add_note_to_case(
 
     Implements:
         TRIG-09-001, TRIG-09-004, TRIG-10-003,
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001,
-        TB-03-001, TB-03-002, TB-04-001, TB-06-001, TB-06-002
+        TRIG-01-002, HTTP-03-005, TRIG-02-006,
+        TRIG-03-001, TRIG-03-002, TRIG-04-001, TRIG-06-001, TRIG-06-002
     """
     with domain_error_translation():
         result = svc.add_note_to_case(
@@ -143,7 +143,7 @@ def demo_notify_fix_ready(
 ) -> dict[str, Any]:
     """Report that the actor has a fix ready (demo scaffold).
 
-    Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
+    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-003, TRIG-06-001.
     """
     from vultron.core.states.cs import CS_vf
 
@@ -187,7 +187,7 @@ def demo_notify_fix_deployed(
 ) -> dict[str, Any]:
     """Report that the actor has deployed a fix (demo scaffold).
 
-    Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
+    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-003, TRIG-06-001.
     """
     from vultron.core.states.cs import CS_d
 
@@ -223,7 +223,7 @@ def demo_notify_published(
 ) -> dict[str, Any]:
     """Report that the vulnerability is publicly disclosed (demo scaffold).
 
-    Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
+    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-003, TRIG-06-001.
     """
     from vultron.core.states.cs import CS_pxa
 
@@ -263,7 +263,7 @@ def demo_close_case(
     Leave(VulnerabilityCase) to the Case Actor inbox, which commits a
     ``close_case`` CaseLedgerEntry and fans it out to all participants.
 
-    Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
+    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-006, TRIG-06-001.
     """
     with domain_error_translation():
         result = svc.leave_case(
