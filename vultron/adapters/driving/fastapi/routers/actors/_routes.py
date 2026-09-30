@@ -68,7 +68,6 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _activity_addressed_to,
-    _get_body,
     parse_activity,
 )
 from vultron.adapters.driving.fastapi.routers.actors._lookup import (
@@ -520,7 +519,6 @@ def post_actor_inbox(
     request: Request,
     background_tasks: BackgroundTasks,
     activity: as_Activity = Depends(parse_activity),
-    body: dict[str, Any] = Depends(_get_body),
     dl: DataLayer = Depends(get_actor_dl),
 ) -> None:
     """Adds an item to the Actor's Inbox.
@@ -536,7 +534,6 @@ def post_actor_inbox(
         actor_id: The ID of the Actor whose Inbox to add the item to.
         request: The FastAPI Request (used to resolve the per-app emitter/dispatcher).
         activity: The Activity item (parsed by the ``parse_activity`` dependency).
-        body: Raw JSON request body dict (needed for nested object re-parsing).
         background_tasks: FastAPI BackgroundTasks instance to schedule background tasks.
     Returns:
         None
@@ -563,7 +560,6 @@ def post_actor_inbox(
     background_tasks.add_task(
         run_inbox_pipeline,
         activity,
-        body,
         dl,
         canonical_actor_id,
         dispatcher,

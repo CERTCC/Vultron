@@ -482,7 +482,7 @@ def test_embargo_without_end_time_is_refused_at_parse():
 def test_inline_object_without_a_type_is_not_stamped_either(spelling: str):
     """An inline object that omits ``type`` is carried as received too.
 
-    ``_inline_vocab_class`` can only pre-resolve a dict that names its ``type``;
+    ``resolve_inline_class`` can only pre-resolve a dict that names its ``type``;
     without one the dict stays raw for the parent field to validate.  Reading
     absences in the parser therefore missed it, and the class the parent chose
     stamped the receiver's clock — which, being the newest value in the list,

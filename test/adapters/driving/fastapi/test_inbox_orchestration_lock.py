@@ -222,12 +222,8 @@ def test_concurrent_inbox_tasks_serialize_processing(seeded_dl) -> None:
 
     async def _run():
         await asyncio.gather(
-            run_inbox_pipeline(
-                body0, body0, dl, _PEER_ID, dispatcher, null_emitter
-            ),
-            run_inbox_pipeline(
-                body1, body1, dl, _PEER_ID, dispatcher, null_emitter
-            ),
+            run_inbox_pipeline(body0, dl, _PEER_ID, dispatcher, null_emitter),
+            run_inbox_pipeline(body1, dl, _PEER_ID, dispatcher, null_emitter),
         )
 
     asyncio.run(_run())

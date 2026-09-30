@@ -122,15 +122,10 @@ class FastAPIIngressAdapter:
 
     Args:
         dl: Shared DataLayer (for storing activities and rehydration).
-        body: Raw request-body dict, used to re-parse inline nested
-            objects with their specific vocabulary classes.
     """
 
-    def __init__(
-        self, dl: DataLayer, body: dict[str, Any] | None = None
-    ) -> None:
+    def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
-        self._body = body or {}
         # Whether ``parse`` wrote this delivery, or found the id already held.
         self._stored_this_delivery = False
 
@@ -144,7 +139,7 @@ class FastAPIIngressAdapter:
         """
         if isinstance(payload, as_Activity):
             # Already parsed (e.g., passed directly from the router DI).
-            _store_nested_inbox_object(self._dl, payload, self._body)
+            _store_nested_inbox_object(self._dl, payload)
             self._stored_this_delivery = _store_inbox_activity(
                 self._dl, payload
             )
@@ -165,7 +160,7 @@ class FastAPIIngressAdapter:
             )
             return None
 
-        _store_nested_inbox_object(self._dl, activity, payload)
+        _store_nested_inbox_object(self._dl, activity)
         self._stored_this_delivery = _store_inbox_activity(self._dl, activity)
         return activity
 
@@ -399,7 +394,6 @@ def _warn_if_rejected(
 
 async def run_inbox_pipeline(
     payload: dict[str, Any] | bytes | str | Any,
-    body: dict[str, Any] | None,
     actor_dl: DataLayer,
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
@@ -421,8 +415,6 @@ async def run_inbox_pipeline(
 
     Args:
         payload: Raw inbox payload (JSON body dict or as_Activity).
-        body: Raw JSON request body dict, forwarded from the endpoint for
-            nested-object re-parsing (preserves domain-specific fields).
         actor_dl: The receiving actor's DataLayer — ingress, dispatch, queues
             and stored activities alike.  Before ADR-0073 a separate shared
             DataLayer was threaded alongside it; the two only differed because
@@ -434,7 +426,7 @@ async def run_inbox_pipeline(
     from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
     from vultron.core.behaviors.inbox import process_payload
 
-    ingress = FastAPIIngressAdapter(dl=actor_dl, body=body)
+    ingress = FastAPIIngressAdapter(dl=actor_dl)
     dispatch_adp = FastAPIDispatchAdapter(
         dl=actor_dl, actor_id=actor_id, dispatcher=dispatcher
     )
