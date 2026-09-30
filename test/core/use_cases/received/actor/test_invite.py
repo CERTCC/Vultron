@@ -492,8 +492,12 @@ class TestInviteActorUseCases:
             update={"receiving_actor_id": case_actor_id}
         )
 
-        first = InviteActorToCaseReceivedUseCase(dl, event).execute()
-        second = InviteActorToCaseReceivedUseCase(dl, event).execute()
+        first = InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        second = InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert first.disposition is HandlerDisposition.APPLIED
         assert second.disposition is HandlerDisposition.SKIPPED

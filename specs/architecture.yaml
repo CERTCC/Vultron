@@ -850,16 +850,10 @@ groups:
     rationale: >-
       Under one object model the core object is its own wire form (ADR-0099 detail 1), so a
       counterpart lookup has nothing to find and any second translation path could only drift
-      from the class's own spelling, which is the defect ADR-0063 removes. ADR-0063's decision
-      that rendering happens behind this port stands; only the mechanism collapses. The switch
-      was measured as behaviour-preserving by capturing the render of every `CORE_VOCABULARY`
-      entry before the change; the per-entry goldens still hold after `serialize_as_any=True`
-      was added, which is the evidence it changed no top-level rendering.
-      `serialize_as_any=True` serialises each nested value by its
-      runtime type, as every other AS2 serialization path does; without it a received
-      activity's inline wire object whose field holds a value other than its declared type (an
-      actor's `inbox` as the IRI string) is a serializer warning rather than a rendering, which
-      surfaced once the port rendered every ledger snapshot (#3930).
+      from the class's own spelling, the defect ADR-0063 removes. `serialize_as_any=True`
+      renders nested values by runtime type, as every other AS2 path does; without it an inline
+      wire object holding an undeclared value type (an IRI `inbox`) is a serializer warning, not
+      a rendering (#3930).
     verification: >-
       `test_render_is_the_core_objects_own_alias_dump`,
       `test_render_serialises_nested_values_by_their_runtime_type` and
