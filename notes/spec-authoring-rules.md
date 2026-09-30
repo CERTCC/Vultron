@@ -87,14 +87,15 @@ is what produced the defect behind ISSUE-2601: MS-12 went unenforced from its
 adoption until 2026-09, and by then a large fraction of the `kind: protocol`
 corpus was carrying `lint_suppress: [missing_story_reference]` instead of a
 corrected `kind` — code naming conventions, test-coverage requirements, and
-build-file formats all tagged as wire-protocol obligations. For the live count,
-read the ratchet constant that MS-12-007 pins under `test/architecture/`; it is
-the authoritative figure and it only goes down. Suppressing the
-story-traceability gate is almost never the right response to it firing; a spec
-that cannot be traced to a user story is usually mis-classified, not story-less.
-MS-12-006 now makes the unambiguous cases a hard error, and MS-12-007 ratchets
-the suppression count downward, but neither detects a misclassification whose
-statement names no code.
+build-file formats all tagged as wire-protocol obligations. The live count is
+`grep -c missing_story_reference specs/*.yaml` until the ratchet MS-12-007
+requires lands (#3600, AC-4); once it does, its pinned constant under
+`test/architecture/` is the authoritative figure and it only goes down.
+Suppressing the story-traceability gate is almost never the right response to it
+firing; a spec that cannot be traced to a user story is usually mis-classified,
+not story-less. MS-12-006 makes the unambiguous cases a hard error and MS-12-007
+ratchets the suppression count downward (both built by #3600), but neither
+detects a misclassification whose statement names no code.
 
 #### Why MS-12-006 is scoped the way it is
 
