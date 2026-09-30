@@ -779,3 +779,100 @@ class TestFcvCausalGates:
             )
 
         coverage_wait_called.assert_not_called()
+
+
+class TestFcvInviteChainSkipsDependents:
+    """Phase 2: a failed invite trigger or delivery lookup skips the dependents.
+
+    Before the fix ``invite_result.activity`` was read on a ``None`` sentinel
+    after the suppressing ``demo_step`` (crash, #3038 sibling), and the
+    delivery wait was a ``demo_check`` that let the accept run regardless
+    (EDF-06-005).
+    """
+
+    @staticmethod
+    def _actor(id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    @staticmethod
+    def _case(id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    @staticmethod
+    def _client():
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def _run(self, *, invite_trigger, invite_lookup):
+        finder_client = self._client()
+        coordinator_client = self._client()
+        vendor_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+
+        with (
+            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch.object(demo, "run_invite_path_rm_triage"),
+            patch.object(
+                ActorSession, "invite_actor_to_case", **invite_trigger
+            ),
+            patch.object(ActorSession, "accept_case_invite") as accept_invite,
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(
+                demo, "find_case_invite_for_actor", **invite_lookup
+            ) as find_invite,
+            patch.object(demo, "get_actor_by_id", return_value=vendor),
+        ):
+            demo._phase_invite_vendor(
+                coordinator_client=coordinator_client,
+                vendor_client=vendor_client,
+                finder_client=finder_client,
+                coordinator_in_coordinator=self._actor("urn:test:coordinator"),
+                vendor=vendor,
+                case=self._case(),
+                offer=MagicMock(id_="urn:test:offer"),
+                report=MagicMock(),
+                finder=self._actor("urn:test:finder"),
+            )
+        return find_invite, accept_invite, replica_wait, vendor_client
+
+    def test_invite_trigger_failure_skips_lookup_and_accept(self):
+        find_invite, accept_invite, replica_wait, vendor_client = self._run(
+            invite_trigger={
+                "side_effect": RuntimeError("invite trigger failed")
+            },
+            invite_lookup={"return_value": "urn:test:invite"},
+        )
+        find_invite.assert_not_called()
+        accept_invite.assert_not_called()
+        assert not [
+            c
+            for c in replica_wait.call_args_list
+            if c.kwargs.get("client") is vendor_client
+        ], "replica_wait ran for the skipped dependent: " + str(
+            replica_wait.call_args_list
+        )
+
+    def test_invite_lookup_failure_skips_accept(self):
+        _, accept_invite, replica_wait, vendor_client = self._run(
+            invite_trigger={
+                "return_value": SimpleNamespace(
+                    activity=MagicMock(id_="urn:test:invite")
+                )
+            },
+            invite_lookup={
+                "side_effect": AssertionError("timed out polling for Invite")
+            },
+        )
+        accept_invite.assert_not_called()
+        assert not [
+            c
+            for c in replica_wait.call_args_list
+            if c.kwargs.get("client") is vendor_client
+        ], "replica_wait ran for the skipped dependent: " + str(
+            replica_wait.call_args_list
+        )

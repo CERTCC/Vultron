@@ -24,6 +24,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 import importlib
 import json
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -1079,6 +1080,133 @@ class TestFccvHandoffCausalGates:
 
         coverage_wait_called.assert_not_called()
 
+    def _run_ownership_handoff(
+        self,
+        *,
+        invite_lookup: dict[str, Any],
+        offer_lookup: dict[str, Any],
+        invite_trigger: dict[str, Any] | None = None,
+        offer_trigger: dict[str, Any] | None = None,
+    ):
+        """Drive _phase_ownership_handoff with the lookups (and optionally the
+        triggers) substituted.
+
+        Returns the (accept_case_invite, accept_case_ownership_transfer,
+        find_case_invite_for_actor, find_ownership_transfer_offer_for_actor)
+        mocks.
+        """
+        invite_trigger = invite_trigger or {
+            "return_value": SimpleNamespace(
+                activity=MagicMock(id_="urn:test:invite")
+            )
+        }
+        offer_trigger = offer_trigger or {
+            "return_value": SimpleNamespace(
+                activity=MagicMock(id_="urn:test:ownership-offer")
+            )
+        }
+        finder_client = self._client()
+        c1_client = self._client()
+        c2_client = self._client()
+        c1 = self._actor("urn:test:c1")
+        c1_in_c1 = self._actor("urn:test:c1-in-c1")
+        c2 = self._actor("urn:test:c2")
+        c2_in_c2 = self._actor("urn:test:c2-in-c2")
+        finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        accept_invite = MagicMock()
+        accept_transfer = MagicMock()
+
+        with (
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "wait_for_case_attributed_to"),
+            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(
+                ActorSession, "invite_actor_to_case", **invite_trigger
+            ),
+            patch.object(
+                ActorSession, "offer_case_ownership_transfer", **offer_trigger
+            ),
+            patch.object(ActorSession, "accept_case_invite", accept_invite),
+            patch.object(
+                ActorSession, "accept_case_ownership_transfer", accept_transfer
+            ),
+            patch.object(
+                demo, "find_case_invite_for_actor", **invite_lookup
+            ) as find_invite,
+            patch.object(
+                demo, "find_ownership_transfer_offer_for_actor", **offer_lookup
+            ) as find_offer,
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+        ):
+            mock_vc.model_validate.return_value = case
+            # Must not raise: every failure is accumulated, never escaped.
+            demo._phase_ownership_handoff(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                c2_client=c2_client,
+                c1=c1,
+                c1_in_c1=c1_in_c1,
+                c2=c2,
+                c2_in_c2=c2_in_c2,
+                case=case,
+                finder=finder,
+            )
+        return accept_invite, accept_transfer, find_invite, find_offer
+
+    def test_c2_accept_invite_not_called_when_invite_gate_fails(self):
+        """demo_gate skips C2's accept-case-invite when find_case_invite_for_actor times out (#3038)."""
+        accept_invite, _, _, _ = self._run_ownership_handoff(
+            invite_lookup={
+                "side_effect": AssertionError("timed out polling for Invite")
+            },
+            offer_lookup={"return_value": "urn:test:ownership-offer"},
+        )
+        accept_invite.assert_not_called()
+
+    def test_c2_accept_transfer_not_called_when_offer_gate_fails(self):
+        """demo_gate skips C2's accept-case-ownership-transfer when the offer lookup times out (#3038)."""
+        _, accept_transfer, _, _ = self._run_ownership_handoff(
+            invite_lookup={"return_value": "urn:test:invite"},
+            offer_lookup={
+                "side_effect": AssertionError(
+                    "timed out polling for Offer(VulnerabilityCase)"
+                )
+            },
+        )
+        accept_transfer.assert_not_called()
+
+    def test_invite_trigger_failure_skips_lookup_and_accept(self):
+        """A failed C1 invite trigger skips the lookup gate and C2's accept.
+
+        Before the fix ``invite_result.activity`` was read on a ``None``
+        sentinel after the suppressing ``demo_step`` and crashed the run
+        (DEMOCI-01-003, #3038 sibling).
+        """
+        accept_invite, _, find_invite, _ = self._run_ownership_handoff(
+            invite_trigger={
+                "side_effect": RuntimeError("invite trigger failed")
+            },
+            invite_lookup={"return_value": "urn:test:invite"},
+            offer_lookup={"return_value": "urn:test:ownership-offer"},
+        )
+        find_invite.assert_not_called()
+        accept_invite.assert_not_called()
+
+    def test_offer_trigger_failure_skips_lookup_and_accept(self):
+        """A failed C1 ownership-offer trigger skips the offer gate and C2's accept."""
+        _, accept_transfer, _, find_offer = self._run_ownership_handoff(
+            invite_lookup={"return_value": "urn:test:invite"},
+            offer_trigger={
+                "side_effect": RuntimeError("offer trigger failed")
+            },
+            offer_lookup={"return_value": "urn:test:ownership-offer"},
+        )
+        find_offer.assert_not_called()
+        accept_transfer.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # Regression test — ISSUE-2811 timeout fix
@@ -1167,4 +1295,111 @@ class TestFccvHandoffRmTriageTimeout:
         assert _call.kwargs.get("timeout_seconds") == 60.0, (
             "run_direct_path_rm_triage must receive timeout_seconds=60.0; "
             "the 20-second default races under 4-container CI load (ISSUE-2811)"
+        )
+
+
+class TestFccvHandoffVendorInviteChainSkipsDependents:
+    """Phase 3 (C2 invites Vendor): failed trigger or lookup skips the dependents.
+
+    The trigger result used to be read as ``invite_result.activity`` on a
+    ``None`` sentinel after the suppressing ``demo_step`` (crash, #3038
+    sibling), and the delivery wait was a ``demo_check`` that let the accept
+    post ``invite.id_`` regardless (EDF-06-005).
+    """
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def _run(self, *, invite_trigger, invite_lookup):
+        finder_client = self._client()
+        c1_client = self._client()
+        c2_client = self._client()
+        vendor_client = self._client()
+        case = self._case()
+
+        with (
+            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch.object(demo, "run_invite_path_rm_triage") as rm_triage,
+            patch.object(
+                ActorSession, "invite_actor_to_case", **invite_trigger
+            ),
+            patch.object(ActorSession, "accept_case_invite") as accept_invite,
+            patch.object(
+                demo, "find_case_invite_for_actor", **invite_lookup
+            ) as find_invite,
+            patch.object(demo, "wait_for_case_participants"),
+        ):
+            demo._phase_c2_invites_vendor(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                c2_client=c2_client,
+                vendor_client=vendor_client,
+                c2=self._actor("urn:test:c2"),
+                c2_in_c2=self._actor("urn:test:c2"),
+                case_actor_id="urn:test:case-actor",
+                vendor=self._actor("urn:test:vendor"),
+                vendor_in_vendor=self._actor("urn:test:vendor"),
+                case=case,
+                offer=MagicMock(),
+                report=MagicMock(),
+                finder=self._actor("urn:test:finder"),
+                c1=self._actor("urn:test:c1"),
+            )
+        return (
+            find_invite,
+            accept_invite,
+            replica_wait,
+            rm_triage,
+            vendor_client,
+        )
+
+    def test_invite_trigger_failure_skips_lookup_and_accept(self):
+        find_invite, accept_invite, replica_wait, _, vendor_client = self._run(
+            invite_trigger={
+                "side_effect": RuntimeError("invite trigger failed")
+            },
+            invite_lookup={"return_value": "urn:test:invite"},
+        )
+        find_invite.assert_not_called()
+        accept_invite.assert_not_called()
+        assert not [
+            c
+            for c in replica_wait.call_args_list
+            if c.kwargs.get("client") is vendor_client
+        ], "replica_wait ran for the skipped dependent: " + str(
+            replica_wait.call_args_list
+        )
+
+    def test_invite_lookup_failure_skips_accept(self):
+        _, accept_invite, replica_wait, _, vendor_client = self._run(
+            invite_trigger={
+                "return_value": SimpleNamespace(
+                    activity=MagicMock(
+                        id_="urn:test:invite", actor="urn:test:case-actor"
+                    )
+                )
+            },
+            invite_lookup={
+                "side_effect": AssertionError("timed out polling for Invite")
+            },
+        )
+        accept_invite.assert_not_called()
+        assert not [
+            c
+            for c in replica_wait.call_args_list
+            if c.kwargs.get("client") is vendor_client
+        ], "replica_wait ran for the skipped dependent: " + str(
+            replica_wait.call_args_list
         )

@@ -184,6 +184,7 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
             return Status.FAILURE
 
         acc: dict[str, Any] = {
+            "case_id": self.case_id,
             "status_id": self.status_id,
             "refused": [],
             "update_fields": {},
@@ -198,12 +199,16 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
         ):
             acc["refused"].append("em")
             acc["update_fields"]["em"] = EmDimension(state=current_em)
+            # Same shape as the PXA refusal warning below (#3039): the case
+            # in the ``for case`` slot, the status in its own labelled slot.
             self.logger.warning(
-                "%s: refused EM %s → %s for case '%s'; carrying forward",
+                "%s: refused EM %s → %s for case '%s' (status '%s');"
+                " carrying forward",
                 self.name,
                 current_em,
                 asserted_em,
                 self.case_id,
+                self.status_id,
             )
 
         self._set_output(_BB_CS_FILTER_ACC, acc)
@@ -269,12 +274,17 @@ class FilterCsPxaDimensionNode(DataLayerConditionWithPorts):
         ):
             acc["refused"].append("pxa")
             acc["update_fields"]["pxa"] = PxaDimension(state=current_pxa)
+            # The case ID comes from the accumulator: this node has no
+            # ``case_id`` of its own, and the sibling EM warning above reports
+            # the case — the two must agree (#3039).
             self.logger.warning(
-                "%s: refused PXA %s → %s for case '%s'; carrying forward",
+                "%s: refused PXA %s → %s for case '%s' (status '%s');"
+                " carrying forward",
                 self.name,
                 current_pxa,
                 asserted_pxa,
-                acc.get("status_id", "?"),
+                acc["case_id"],
+                acc["status_id"],
             )
 
         self._set_output(_BB_CS_FILTER_ACC_WRITE, acc)
