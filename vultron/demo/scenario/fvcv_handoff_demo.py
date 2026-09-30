@@ -338,39 +338,45 @@ def _phase_ownership_handoff(
     logger.info("─" * 80)
 
     # Vendor1 invites Coordinator with COORDINATOR role.
-    invite_result = None
+    # Every step that depends on the invite — the delivery gate, the accept
+    # and the replica wait — is nested inside the block that produces what it
+    # needs, so a failed trigger or lookup skips its dependents instead of
+    # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
     with demo_step("Vendor1 invites Coordinator with CVDRole.COORDINATOR"):
-        invite_result = (
+        invite = (
             ActorSession(client=vendor_client, actor=vendor_in_vendor)
             .with_case(case)
             .quiet()
             .invite_actor_to_case(
                 invitee_id=coordinator.id_, roles=[CVDRole.COORDINATOR]
             )
-        )
-    invite = invite_result.activity
-    logger.info("Coordinator invite created: %s", invite.id_)
+        ).activity
+        logger.info("Coordinator invite created: %s", invite.id_)
 
-    with demo_check("Coordinator invite delivered to Coordinator's DataLayer"):
-        find_case_invite_for_actor(
-            client=coordinator_client,
-            case_id=case.id_,
-            invitee_id=coordinator.id_,
-            timeout_seconds=90.0,
-        )
+        # The delivered Invite is the causal precondition for the accept: a
+        # demo_gate, with the accept using the ID it found.
+        with demo_gate(
+            "Coordinator invite delivered to Coordinator's DataLayer"
+        ):
+            invite_id = find_case_invite_for_actor(
+                client=coordinator_client,
+                case_id=case.id_,
+                invitee_id=coordinator.id_,
+                timeout_seconds=90.0,
+            )
 
-    # Coordinator accepts the invite.
-    with demo_step("Coordinator accepts the case invitation"):
-        ActorSession(
-            client=coordinator_client, actor=coordinator_in_coordinator
-        ).quiet().accept_case_invite(invite_id=invite.id_)
+            # Coordinator accepts the invite.
+            with demo_step("Coordinator accepts the case invitation"):
+                ActorSession(
+                    client=coordinator_client, actor=coordinator_in_coordinator
+                ).quiet().accept_case_invite(invite_id=invite_id)
 
-    # Wait for Coordinator's case replica.
-    with demo_check("Coordinator's DataLayer received case replica"):
-        wait_for_case_on_container(
-            client=coordinator_client,
-            case_id=case.id_,
-        )
+            # Wait for Coordinator's case replica.
+            with demo_check("Coordinator's DataLayer received case replica"):
+                wait_for_case_on_container(
+                    client=coordinator_client,
+                    case_id=case.id_,
+                )
 
     # All 4 participants (Finder + Vendor1 + Coordinator + CaseActor) present is
     # the causal precondition for the ownership-transfer offer/accept below: a
@@ -391,12 +397,15 @@ def _phase_ownership_handoff(
         )
         logger.info("Coordinator has joined the case")
 
-        # Vendor1 offers ownership transfer to Coordinator (TRIG-11-001).
-        ownership_offer_result = None
+        # Vendor1 offers ownership transfer to Coordinator (TRIG-11-001).  The
+        # delivery gate and the Coordinator's accept are nested inside the
+        # offer step so a failed trigger or lookup skips them instead of
+        # posting an empty ``offer_id`` (ADR-0058 nested-block model,
+        # EDF-06-005, #3038).
         with demo_step(
             "Vendor1 offers case ownership transfer to Coordinator (TRIG-11-001)"
         ):
-            ownership_offer_result = (
+            ownership_offer = (
                 ActorSession(client=vendor_client, actor=vendor_in_vendor)
                 .with_case(case)
                 .quiet()
@@ -407,51 +416,51 @@ def _phase_ownership_handoff(
                         " management."
                     ),
                 )
-            )
-        ownership_offer = ownership_offer_result.activity
-        logger.info(
-            "Vendor1 sent Offer(VulnerabilityCase) ownership transfer: %s",
-            ownership_offer.id_,
-        )
-
-        # Wait for the FORWARDED offer (CM-21-005).
-        # OfferCaseOwnershipTransferReceivedUseCase creates a NEW Offer
-        # (forwarded_id) when the CaseActor processes Vendor1's Offer.  The
-        # forwarded Offer lands in Coordinator's DataLayer under a different ID;
-        # the original Offer only exists in the CaseActor's DataLayer.  Polling
-        # for the original ID would never match.
-        ownership_offer_id: str = ""
-        with demo_check(
-            "Forwarded Offer(VulnerabilityCase) delivered to Coordinator's DataLayer (CM-21-005)"
-        ):
-            ownership_offer_id = find_ownership_transfer_offer_for_actor(
-                client=coordinator_client,
-                case_id=case.id_,
-                transferee_id=coordinator.id_,
-                timeout_seconds=90.0,
-            )
-        logger.info(
-            "Forwarded ownership transfer offer ID: %s", ownership_offer_id
-        )
-
-        # Coordinator accepts the ownership transfer (TRIG-11-002).
-        accept_ownership = None
-        with demo_step(
-            "Coordinator accepts case ownership transfer (TRIG-11-002)"
-        ):
-            accept_result = (
-                ActorSession(
-                    client=coordinator_client,
-                    actor=coordinator_in_coordinator,
-                )
-                .quiet()
-                .accept_case_ownership_transfer(offer_id=ownership_offer_id)
-            )
-            accept_ownership = accept_result.activity
+            ).activity
             logger.info(
-                "Coordinator sent Accept(Offer(VulnerabilityCase)): %s",
-                accept_ownership.id_,
+                "Vendor1 sent Offer(VulnerabilityCase) ownership transfer: %s",
+                ownership_offer.id_,
             )
+
+            # Wait for the FORWARDED offer (CM-21-005).
+            # OfferCaseOwnershipTransferReceivedUseCase creates a NEW Offer
+            # (forwarded_id) when the CaseActor processes Vendor1's Offer.  The
+            # forwarded Offer lands in Coordinator's DataLayer under a
+            # different ID; the original Offer only exists in the CaseActor's
+            # DataLayer.  Polling for the original ID would never match.
+            with demo_gate(
+                "Forwarded Offer(VulnerabilityCase) delivered to Coordinator's"
+                " DataLayer (CM-21-005)"
+            ):
+                ownership_offer_id = find_ownership_transfer_offer_for_actor(
+                    client=coordinator_client,
+                    case_id=case.id_,
+                    transferee_id=coordinator.id_,
+                    timeout_seconds=90.0,
+                )
+                logger.info(
+                    "Forwarded ownership transfer offer ID: %s",
+                    ownership_offer_id,
+                )
+
+                # Coordinator accepts the ownership transfer (TRIG-11-002).
+                with demo_step(
+                    "Coordinator accepts case ownership transfer (TRIG-11-002)"
+                ):
+                    accept_result = (
+                        ActorSession(
+                            client=coordinator_client,
+                            actor=coordinator_in_coordinator,
+                        )
+                        .quiet()
+                        .accept_case_ownership_transfer(
+                            offer_id=ownership_offer_id
+                        )
+                    )
+                    logger.info(
+                        "Coordinator sent Accept(Offer(VulnerabilityCase)): %s",
+                        accept_result.activity.id_,
+                    )
 
     # The transfer reaches a replica in two hops: Accept → CaseActor inbox →
     # AcceptOwnershipTransferBT commit (CM-21-007), then CaseActor outbox →
@@ -566,9 +575,13 @@ def _phase_coordinator_invites_vendor2(
     # CaseActor and Vendor2's Accept routes back to the CaseActor rather than to
     # the Coordinator, letting AcceptInviteActorToCaseBT run (PCR-08-007,
     # PCR-08-008).  The assertion below is what holds that property honest.
-    invite_result = None
+    #
+    # Every step that depends on the invite — the delivery gate, the accept
+    # and the replica wait — is nested inside the block that produces what it
+    # needs, so a failed trigger or lookup skips its dependents instead of
+    # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
     with demo_step("Coordinator invites Vendor2 to the case"):
-        invite_result = (
+        invite = (
             ActorSession(
                 client=coordinator_client, actor=coordinator_in_coordinator
             )
@@ -577,49 +590,57 @@ def _phase_coordinator_invites_vendor2(
             .invite_actor_to_case(
                 invitee_id=vendor2.id_, roles=[CVDRole.VENDOR]
             )
-        )
-    invite = invite_result.activity
-    logger.info("Vendor2 invite created by Coordinator: %s", invite.id_)
+        ).activity
+        logger.info("Vendor2 invite created by Coordinator: %s", invite.id_)
 
-    with demo_check(
-        "Vendor2 invite was emitted as the CaseActor (PCR-08-008)"
-    ):
-        emitting_actor = ref_id(invite.actor)
-        assert emitting_actor == case_actor_id, (
-            f"Invite '{invite.id_}' was emitted as '{emitting_actor}', not as"
-            f" the CaseActor '{case_actor_id}' — Vendor2's Accept would route"
-            " to the Coordinator and AcceptInviteActorToCaseBT would not run"
-        )
+        with demo_check(
+            "Vendor2 invite was emitted as the CaseActor (PCR-08-008)"
+        ):
+            emitting_actor = ref_id(invite.actor)
+            assert emitting_actor == case_actor_id, (
+                f"Invite '{invite.id_}' was emitted as '{emitting_actor}',"
+                f" not as the CaseActor '{case_actor_id}' — Vendor2's Accept"
+                " would route to the Coordinator and AcceptInviteActorToCaseBT"
+                " would not run"
+            )
 
-    with demo_check("Vendor2 invite delivered to Vendor2's DataLayer"):
-        find_case_invite_for_actor(
-            client=vendor2_client,
-            case_id=case.id_,
-            invitee_id=vendor2.id_,
-            timeout_seconds=90.0,
-        )
+        # The delivered Invite is the causal precondition for the accept: a
+        # demo_gate, with the accept using the ID it found.
+        with demo_gate("Vendor2 invite delivered to Vendor2's DataLayer"):
+            invite_id = find_case_invite_for_actor(
+                client=vendor2_client,
+                case_id=case.id_,
+                invitee_id=vendor2.id_,
+                timeout_seconds=90.0,
+            )
 
-    # Vendor2 accepts the invite.
-    with demo_step("Vendor2 accepts the case invitation"):
-        accept_result = (
-            ActorSession(client=vendor2_client, actor=vendor2_in_vendor2)
-            .quiet()
-            .accept_case_invite(invite_id=invite.id_)
-        )
-        accept = as_TransitiveActivity.model_validate(accept_result.activity)
-        logger.info("Vendor2 sent Accept(Invite): %s", accept.id_)
+            # Vendor2 accepts the invite.
+            with demo_step("Vendor2 accepts the case invitation"):
+                accept_result = (
+                    ActorSession(
+                        client=vendor2_client, actor=vendor2_in_vendor2
+                    )
+                    .quiet()
+                    .accept_case_invite(invite_id=invite_id)
+                )
+                accept = as_TransitiveActivity.model_validate(
+                    accept_result.activity
+                )
+                logger.info("Vendor2 sent Accept(Invite): %s", accept.id_)
 
-    # HttpDeliveryAdapter delivers Vendor2's Accept to the CaseActor inbox
-    # via the real HTTP path (PCR-08-008).  Poll for the case replica as proof
-    # that CaseActor processed the Accept and fanned out Announce(VulnerabilityCase).
-    # Wait for Vendor2's case replica.
-    with demo_check("Vendor2's DataLayer received case replica (AC-2)"):
-        wait_for_case_on_container(
-            client=vendor2_client,
-            case_id=case.id_,
-            timeout_seconds=90.0,
-        )
-    logger.info("Vendor2 received case replica")
+            # HttpDeliveryAdapter delivers Vendor2's Accept to the CaseActor
+            # inbox via the real HTTP path (PCR-08-008).  Poll for the case
+            # replica as proof that CaseActor processed the Accept and fanned
+            # out Announce(VulnerabilityCase).
+            with demo_check(
+                "Vendor2's DataLayer received case replica (AC-2)"
+            ):
+                wait_for_case_on_container(
+                    client=vendor2_client,
+                    case_id=case.id_,
+                    timeout_seconds=90.0,
+                )
+            logger.info("Vendor2 received case replica")
 
     # All 5 participants (Finder + Vendor1 + Coordinator + Vendor2 + CaseActor)
     # present is the causal precondition for Vendor2's RM triage below: a

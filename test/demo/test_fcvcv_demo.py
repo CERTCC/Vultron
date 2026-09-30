@@ -510,6 +510,151 @@ class TestFcvcvCausalGates(_Helpers):
             f"cp_offer gate fails: {accept_calls}"
         )
 
+    def test_v1_accept_not_called_when_invite_gate_fails(self):
+        """demo_gate skips V1's accept-case-invite when find_case_invite_for_actor times out (#3038)."""
+        finder_client = self._client()
+        c1_client = self._client()
+        v1_client = self._client()
+        c2_client = self._client()
+        v2_client = self._client()
+        finder = self._actor("urn:test:finder")
+        c1 = self._actor("urn:test:c1")
+        v1 = self._actor("urn:test:v1")
+        c2 = self._actor("urn:test:c2")
+        v2 = self._actor("urn:test:v2")
+        case = self._case()
+
+        accept_invite = MagicMock()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fcvcv",
+                return_value=(finder, c1, v1, c2, v2),
+            ),
+            patch.object(demo, "get_actor_by_id", side_effect=[c1, v1, c2]),
+            patch.object(
+                demo,
+                "reporter_submits_report",
+                return_value=(MagicMock(), MagicMock()),
+            ),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch.object(demo, "verify_case_active"),
+            patch.object(demo, "drain_phase1_ledger"),
+            patch.object(demo, "run_invite_path_rm_triage") as rm_triage,
+            patch.object(
+                ActorSession,
+                "invite_actor_to_case",
+                return_value=SimpleNamespace(
+                    activity=MagicMock(id_="urn:test:invite")
+                ),
+            ),
+            patch.object(ActorSession, "accept_case_invite", accept_invite),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                side_effect=AssertionError("timed out polling for Invite"),
+            ),
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+        ):
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                v1_client=v1_client,
+                c2_client=c2_client,
+                v2_client=v2_client,
+                finder_id=None,
+                c1_id=None,
+                v1_id=None,
+                c2_id=None,
+                v2_id=None,
+            )
+
+        accept_invite.assert_not_called()
+        # The replica waits and V1's RM triage depend on the accept, so the
+        # closed gate skips them too (EDF-06-005).
+        assert not [
+            c
+            for c in replica_wait.call_args_list
+            if c.kwargs.get("client") is v1_client
+        ], "replica_wait ran for the skipped dependent: " + str(
+            replica_wait.call_args_list
+        )
+        assert not [
+            c
+            for c in rm_triage.call_args_list
+            if c.kwargs.get("invited_client") is v1_client
+        ], "rm_triage ran for the skipped dependent: " + str(
+            rm_triage.call_args_list
+        )
+
+    def test_v2_accept_not_called_when_invite_gate_fails(self):
+        """demo_gate skips V2's accept-case-invite when find_case_invite_for_actor times out (#3038)."""
+        finder_client = self._client()
+        c1_client = self._client()
+        c2_client = self._client()
+        v2_client = self._client()
+        c1_in_c1 = self._actor("urn:test:c1-in-c1")
+        c2_in_c2 = self._actor("urn:test:c2-in-c2")
+        v1 = self._actor("urn:test:v1")
+        v2 = self._actor("urn:test:v2")
+        finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        accept_invite = MagicMock()
+
+        with (
+            patch.object(ActorSession, "suggest_actor_to_case"),
+            patch.object(ActorSession, "accept_actor_recommendation"),
+            patch.object(ActorSession, "accept_case_invite", accept_invite),
+            patch.object(
+                demo,
+                "find_cp_offer_for_case",
+                return_value="urn:test:cp-offer",
+            ),
+            patch.object(
+                demo,
+                "find_case_actor_participant_id",
+                return_value="urn:test:case-actor",
+            ),
+            patch.object(demo, "get_actor_by_id", return_value=MagicMock()),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                side_effect=AssertionError("timed out polling for Invite"),
+            ),
+            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "run_invite_path_rm_triage"),
+        ):
+            demo._phase_c2_suggests_v2(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                c2_client=c2_client,
+                v2_client=v2_client,
+                c1_in_c1=c1_in_c1,
+                c2_in_c2=c2_in_c2,
+                v2=v2,
+                case=case,
+                offer=MagicMock(),
+                report=MagicMock(),
+                finder=finder,
+                v1=v1,
+            )
+
+        accept_invite.assert_not_called()
+        assert not [
+            c
+            for c in replica_wait.call_args_list
+            if c.kwargs.get("client") is v2_client
+        ], "replica_wait ran for the skipped dependent: " + str(
+            replica_wait.call_args_list
+        )
+
 
 # ---------------------------------------------------------------------------
 # Regression test — ISSUE-2811 timeout fix
@@ -610,4 +755,87 @@ class TestFcvcvRmTriageTimeout(_Helpers):
         assert _call.kwargs.get("timeout_seconds") == 60.0, (
             "run_direct_path_rm_triage must receive timeout_seconds=60.0; "
             "the 20-second default races under 4-container CI load (ISSUE-2811)"
+        )
+
+
+class TestFcvcvInviteTriggerFailureSkipsDependents(_Helpers):
+    """A failed invite *trigger* skips the lookup gate and everything under it.
+
+    Before the fix the trigger result was pre-initialised to ``None`` and
+    ``.activity`` was read after the suppressing ``demo_step``, so a failed
+    trigger crashed the run with ``AttributeError`` outside the accumulator
+    (DEMOCI-01-003, #3038 sibling).
+    """
+
+    def test_v1_invite_trigger_failure_skips_lookup_accept_and_triage(self):
+        finder_client = self._client()
+        c1_client = self._client()
+        v1_client = self._client()
+        c2_client = self._client()
+        v2_client = self._client()
+        finder = self._actor("urn:test:finder")
+        c1 = self._actor("urn:test:c1")
+        v1 = self._actor("urn:test:v1")
+        c2 = self._actor("urn:test:c2")
+        v2 = self._actor("urn:test:v2")
+        case = self._case()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fcvcv",
+                return_value=(finder, c1, v1, c2, v2),
+            ),
+            patch.object(demo, "get_actor_by_id", side_effect=[c1, v1, c2]),
+            patch.object(
+                demo,
+                "reporter_submits_report",
+                return_value=(MagicMock(), MagicMock()),
+            ),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch.object(demo, "verify_case_active"),
+            patch.object(demo, "drain_phase1_ledger"),
+            patch.object(demo, "run_invite_path_rm_triage") as rm_triage,
+            patch.object(
+                ActorSession,
+                "invite_actor_to_case",
+                side_effect=RuntimeError("invite trigger failed"),
+            ),
+            patch.object(ActorSession, "accept_case_invite") as accept_invite,
+            patch.object(demo, "find_case_invite_for_actor") as find_invite,
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+        ):
+            mock_vc.model_validate.return_value = case
+            # Must not raise: the failure is accumulated, not escaped.
+            demo._phase_report_submission(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                v1_client=v1_client,
+                c2_client=c2_client,
+                v2_client=v2_client,
+                finder_id=None,
+                c1_id=None,
+                v1_id=None,
+                c2_id=None,
+                v2_id=None,
+            )
+
+        find_invite.assert_not_called()
+        accept_invite.assert_not_called()
+        assert not [
+            c
+            for c in replica_wait.call_args_list
+            if c.kwargs.get("client") is v1_client
+        ], "replica_wait ran for the skipped dependent: " + str(
+            replica_wait.call_args_list
+        )
+        assert not [
+            c
+            for c in rm_triage.call_args_list
+            if c.kwargs.get("invited_client") is v1_client
+        ], "rm_triage ran for the skipped dependent: " + str(
+            rm_triage.call_args_list
         )

@@ -1184,3 +1184,120 @@ class TestParticipantWaitInsideDemoCheck:
         )
         replica_clients = {kw["replica_client"] for kw in verify_calls}
         assert replica_clients == {finder_client, vendor2_client}
+
+
+class TestFvvInviteChainSkipsDependents:
+    """Phase 1 (Vendor1 invites Vendor2): failed trigger or lookup skips dependents.
+
+    Before the fix ``invite_result.activity`` was read on a ``None`` sentinel
+    after the suppressing ``demo_step`` (crash, #3038 sibling), and the
+    delivery wait was a ``demo_check`` that let the accept run regardless
+    (EDF-06-005).
+    """
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def _run(self, *, invite_trigger, invite_lookup):
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor2_client = self._client()
+        finder = self._actor("urn:test:finder")
+        vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        case = self._case()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fvv",
+                return_value=(finder, vendor, vendor2),
+            ),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                side_effect=[
+                    self._actor("urn:test:vendor"),
+                    self._actor("urn:test:vendor2"),
+                ],
+            ),
+            patch.object(
+                demo,
+                "reporter_submits_report",
+                return_value=(MagicMock(), MagicMock(id_="urn:test:offer")),
+            ),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_finder_case"),
+            patch.object(
+                ActorSession, "invite_actor_to_case", **invite_trigger
+            ),
+            patch.object(ActorSession, "accept_case_invite") as accept_invite,
+            patch.object(
+                demo, "find_case_invite_for_actor", **invite_lookup
+            ) as find_invite,
+            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(demo, "run_invite_path_rm_triage"),
+            patch.object(demo, "verify_case_active"),
+        ):
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor2_client=vendor2_client,
+                finder_id=None,
+                vendor_id=None,
+                vendor2_id=None,
+            )
+        return find_invite, accept_invite, replica_wait, vendor2_client
+
+    def test_invite_trigger_failure_skips_lookup_and_accept(self):
+        find_invite, accept_invite, replica_wait, vendor2_client = self._run(
+            invite_trigger={
+                "side_effect": RuntimeError("invite trigger failed")
+            },
+            invite_lookup={"return_value": "urn:test:invite"},
+        )
+        find_invite.assert_not_called()
+        accept_invite.assert_not_called()
+        assert not [
+            c
+            for c in replica_wait.call_args_list
+            if c.kwargs.get("client") is vendor2_client
+        ], "replica_wait ran for the skipped dependent: " + str(
+            replica_wait.call_args_list
+        )
+
+    def test_invite_lookup_failure_skips_accept(self):
+        _, accept_invite, replica_wait, vendor2_client = self._run(
+            invite_trigger={
+                "return_value": SimpleNamespace(
+                    activity=MagicMock(id_="urn:test:invite")
+                )
+            },
+            invite_lookup={
+                "side_effect": AssertionError("timed out polling for Invite")
+            },
+        )
+        accept_invite.assert_not_called()
+        assert not [
+            c
+            for c in replica_wait.call_args_list
+            if c.kwargs.get("client") is vendor2_client
+        ], "replica_wait ran for the skipped dependent: " + str(
+            replica_wait.call_args_list
+        )

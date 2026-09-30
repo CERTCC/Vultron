@@ -588,6 +588,68 @@ class TestFccvExtensionCausalGates:
             f"cp_offer gate fails: {accept_calls}"
         )
 
+    def test_vendor_accept_not_called_when_invite_gate_fails(self):
+        """demo_gate skips Vendor's accept-case-invite when find_case_invite_for_actor times out (#3038)."""
+        finder_client = self._client()
+        c1_client = self._client()
+        c2_client = self._client()
+        vendor_client = self._client()
+        c1_in_c1 = self._actor("urn:test:c1-in-c1")
+        c2_in_c2 = self._actor("urn:test:c2-in-c2")
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor-in-vendor")
+        finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        accept_invite = MagicMock()
+
+        with (
+            patch.object(ActorSession, "suggest_actor_to_case"),
+            patch.object(ActorSession, "accept_actor_recommendation"),
+            patch.object(ActorSession, "accept_case_invite", accept_invite),
+            patch.object(
+                demo,
+                "find_cp_offer_for_case",
+                return_value="urn:test:cp-offer",
+            ),
+            patch.object(
+                demo,
+                "find_case_actor_participant_id",
+                return_value="urn:test:case-actor",
+            ),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                side_effect=AssertionError("timed out polling for Invite"),
+            ),
+            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "run_invite_path_rm_triage"),
+        ):
+            demo._phase_c2_suggests_vendor(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                c2_client=c2_client,
+                vendor_client=vendor_client,
+                c1_in_c1=c1_in_c1,
+                c2_in_c2=c2_in_c2,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                case=case,
+                offer=MagicMock(),
+                report=MagicMock(),
+                finder=finder,
+            )
+
+        accept_invite.assert_not_called()
+        assert not [
+            c
+            for c in replica_wait.call_args_list
+            if c.kwargs.get("client") is vendor_client
+        ], "replica_wait ran for the skipped dependent: " + str(
+            replica_wait.call_args_list
+        )
+
 
 # ---------------------------------------------------------------------------
 # Regression test — ISSUE-2811 timeout fix
@@ -698,4 +760,130 @@ class TestFccvExtensionRmTriageTimeout:
         assert _call.kwargs.get("timeout_seconds") == 60.0, (
             "run_direct_path_rm_triage must receive timeout_seconds=60.0; "
             "the 20-second default races under 4-container CI load (ISSUE-2811)"
+        )
+
+
+class TestFccvExtensionInviteTriggerFailureSkipsDependents:
+    """A failed C2 invite trigger skips the lookup gate and everything under it.
+
+    Before the fix ``invite_result.activity`` was read after the suppressing
+    ``demo_step`` on a ``None`` sentinel, crashing the run with
+    ``AttributeError`` outside the accumulator (DEMOCI-01-003, #3038 sibling).
+    """
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def _run_report_submission(self, *, invite_trigger, invite_lookup):
+        finder_client = self._client()
+        c1_client = self._client()
+        c2_client = self._client()
+        vendor_client = self._client()
+        finder = self._actor("urn:test:finder")
+        c1 = self._actor("urn:test:c1")
+        c2 = self._actor("urn:test:c2")
+        vendor = self._actor("urn:test:vendor")
+        c1_in_c1 = self._actor("urn:test:c1")
+        c2_in_c2 = self._actor("urn:test:c2")
+        case = self._case()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fccv",
+                return_value=(finder, c1, c2, vendor),
+            ),
+            patch.object(
+                demo, "get_actor_by_id", side_effect=[c1_in_c1, c2_in_c2]
+            ),
+            patch.object(
+                demo,
+                "reporter_submits_report",
+                return_value=(MagicMock(), MagicMock(id_="urn:test:offer")),
+            ),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(
+                ActorSession, "invite_actor_to_case", **invite_trigger
+            ),
+            patch.object(ActorSession, "accept_case_invite") as accept_invite,
+            patch.object(ActorSession, "suggest_actor_to_case"),
+            patch.object(ActorSession, "accept_actor_recommendation"),
+            patch.object(demo, "post_to_inbox_and_wait"),
+            patch.object(demo, "verify_object_stored"),
+            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch.object(
+                demo, "find_case_invite_for_actor", **invite_lookup
+            ) as find_invite,
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(demo, "run_invite_path_rm_triage"),
+            patch.object(demo, "verify_case_active"),
+        ):
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                c2_client=c2_client,
+                vendor_client=vendor_client,
+                finder_id=None,
+                c1_id=None,
+                c2_id=None,
+                vendor_id=None,
+            )
+        return find_invite, accept_invite, replica_wait, c2_client
+
+    def test_c2_invite_trigger_failure_skips_lookup_and_accept(self):
+        find_invite, accept_invite, replica_wait, c2_client = (
+            self._run_report_submission(
+                invite_trigger={
+                    "side_effect": RuntimeError("invite trigger failed")
+                },
+                invite_lookup={"return_value": "urn:test:invite"},
+            )
+        )
+        find_invite.assert_not_called()
+        accept_invite.assert_not_called()
+        assert not [
+            c
+            for c in replica_wait.call_args_list
+            if c.kwargs.get("client") is c2_client
+        ], "replica_wait ran for the skipped dependent: " + str(
+            replica_wait.call_args_list
+        )
+
+    def test_c2_invite_lookup_failure_skips_accept_and_replica_wait(self):
+        _, accept_invite, replica_wait, c2_client = (
+            self._run_report_submission(
+                invite_trigger={
+                    "return_value": SimpleNamespace(
+                        activity=MagicMock(id_="urn:test:invite")
+                    )
+                },
+                invite_lookup={
+                    "side_effect": AssertionError(
+                        "timed out polling for Invite"
+                    )
+                },
+            )
+        )
+        accept_invite.assert_not_called()
+        assert not [
+            c
+            for c in replica_wait.call_args_list
+            if c.kwargs.get("client") is c2_client
+        ], "replica_wait ran for the skipped dependent: " + str(
+            replica_wait.call_args_list
         )
