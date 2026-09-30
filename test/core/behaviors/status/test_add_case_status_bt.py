@@ -344,9 +344,7 @@ class TestFilterCsEmDimensionNodeBug2704:
         activity = add_status_to_case_activity(
             status_obj, target=wire_case, actor=CASE_MANAGER_ID_2704
         )
-        event = make_payload(activity).model_copy(
-            update={"activity": activity}
-        )
+        event = make_payload(activity)
 
         # Patch request.status to None so status_obj_fallback=None in the tree factory.
         with patch.object(
@@ -480,9 +478,7 @@ class TestFilterCsPxaDimensionNodeBug2706:
         activity = add_status_to_case_activity(
             status_obj, target=wire_case, actor=CASE_MANAGER_ID_2706
         )
-        event = make_payload(activity).model_copy(
-            update={"activity": activity}
-        )
+        event = make_payload(activity)
 
         # Patch get_input on FilterCsPxaDimensionNode to return a DEEP COPY of any dict,
         # simulating a blackboard that never returns mutable references.
@@ -1524,9 +1520,7 @@ class TestCaseLedgerEntryCreation:
         activity = add_status_to_case_activity(
             status_obj, target=wire_case, actor=CASE_MANAGER_ID_2254
         )
-        event = make_payload(activity).model_copy(
-            update={"activity": activity}
-        )
+        event = make_payload(activity)
 
         tree = add_case_status_tree(
             request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE

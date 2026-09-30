@@ -1521,9 +1521,7 @@ class TestRejectionValidatorBeforeCommit:
             actor=ACTOR_ID,
             context=as_VulnerabilityCase(id_=CASE_ID, name="Fix1 Regression"),
         )
-        event = make_payload(activity).model_copy(
-            update={"activity": activity}
-        )
+        event = make_payload(activity)
 
         bridge = self._bridge_with_factory(dl)
         tree = add_participant_status_tree(request=event, case_id=CASE_ID)
