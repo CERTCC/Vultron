@@ -96,7 +96,8 @@ groups:
     verification: >-
       `build` and `bugfix` finalize invoke `check-docs-sync` after `create-pr` and edit the PR body
       to replace the `Docs:` placeholder; `create-pr` writes the placeholder into every
-      implementation PR body; no merged implementation or bug-fix PR body contains the placeholder.
+      implementation and bug-fix PR body; no merged implementation or bug-fix PR body contains the
+      placeholder.
     rationale: >-
       Running docs-sync after pushing lets CI and docs work proceed in parallel, reducing total
       wall-clock time. As a SHOULD with no record, the step was skippable without trace, and a
@@ -111,11 +112,14 @@ groups:
       PR's diff affects, whether or not the diff touches `docs/`, and compare that determination
       with the PR body's `Docs:` field. A missing or still-placeholder `Docs:` field is a FAIL
       finding; an affected page the PR neither updated nor deferred is an IMPROVE finding; a
-      deferral MUST name an existing issue that lists the affected pages.
+      deferral MUST name an existing follow-up `type:Concern` issue that lists the affected pages,
+      and is valid only where PD-03-007 permits deferring (an update that would rewrite multiple
+      `docs/` pages at once).
     verification: >-
-      `pr-triage` Phase 9 determines affected `docs/` pages from the diff without a
-      `docs/`-modified precondition, and its criteria emit FAIL for a missing or placeholder
-      `Docs:` field and IMPROVE for an affected page neither updated nor deferred.
+      `pr-triage`'s notes-and-docs currency review determines affected `docs/` pages from the diff
+      without a `docs/`-modified precondition, and its criteria emit FAIL for a missing or
+      placeholder `Docs:` field, IMPROVE for an affected page neither updated nor deferred, and a
+      finding for a deferral that names no existing multi-page `type:Concern` issue.
     rationale: >-
       A docs check that fires only when `docs/` was already modified can never catch a page the
       author forgot. Only the reviewer-side check reaches hand-authored PRs and `pr-execute` fix
