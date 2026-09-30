@@ -45,7 +45,7 @@ This ADR narrows the rule to what it meant.
   One half does it with a one-method port and a 51-row table; the other with 27 methods and 598 lines of procedure.
 - Adding a trigger verb today costs five edits across five files that can silently disagree.
 - Response bodies are a client-visible contract.
-  Five distinct body shapes exist, no route declares a `response_model`, and no test pins an exact key set, so the shapes are invisible to OpenAPI and to review.
+  Six distinct body shapes exist (five when this ADR was written; measuring each live body for #3831 found `create-case` also returning `case_id`), no route declares a `response_model`, and no test pins an exact key set, so the shapes are invisible to OpenAPI and to review.
 - `SvcBTTriggerBase` and everything below it is already correct and is the floor of this change.
   Its template (`_prepare` / `_build_tree` / `_handle_result`, `BTBridge` construction, the port and failure guards) does not move; only its final `return {...}` becomes the typed `ActivityResult`, so the use case itself satisfies UCORG-05-007.
 - A second driving adapter (CLI beyond the demo, MCP) is not on the current priority list.
@@ -114,12 +114,14 @@ The fields UCORG-05-005 previously required on the base move down to the subtype
 TriggerResult          (no fields)
   ActivityResult       activity, emitting_actor_id
     NoteResult         + note
+    CaseResult         + case_id
   StatusResult         activity_id, status_id
   OfferResult          offer
-  RoleOfferResult      activity, activity_id
+  RoleOfferResult      activity_id, activity
 ```
 
 Four verbs return bodies with no `emitting_actor_id` and one with no `activity`; a base requiring both could not be satisfied without changing live bodies.
+`CaseResult` was added when #3831 measured the live bodies: `create-case` returns the activity body plus the created case's id, which the demo layer reads.
 Every subtype forbids extra keys, so a use case whose return dict gains a key fails loudly rather than being filtered out of the response.
 
 `activity`, `offer`, and `note` are `dict[str, Any]`, not wire models.
@@ -196,7 +198,7 @@ Only the final step, switching the routes and deleting the service, port, and du
 
 - Good: driving-port method count across the hexagon drops from 28 to 2, and adding a trigger verb becomes one registry row plus one route.
 - Good: per-verb static typing survives and improves; the four `Any` state parameters become the core model's real types.
-- Good: five response shapes become five declared types, visible in OpenAPI and pinned by test.
+- Good: six response shapes become six declared types, visible in OpenAPI and pinned by test.
 - Good: the UCORG-05-004 ratchet's `triggers/` exclusion is deleted, and UCORG-05-006 is satisfied rather than violated 27 times.
 - Good: one validator copy, one request family, one `CaseTriggerRequest`.
 - Bad: `test/core/use_cases/triggers/test_service.py` (48 tests, real BT execution against a real store, covering 10 of 27 verbs) tests the facade being removed.
@@ -211,13 +213,20 @@ Only the final step, switching the routes and deleting the service, port, and du
 
 ## Validation
 
-Only the first, gating step is built: the golden OpenAPI snapshot test at `test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py` covers the trigger and demo paths, and its first commit (#3828) predates the route rewrite.
+Two steps are built.
+The gating step is the golden OpenAPI snapshot test at `test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py`, which covers the trigger and demo paths; its first commit (#3828) predates the route rewrite.
+The additive step (#3831) landed behind it with the snapshot unchanged: `TriggerResult` and its subtypes exist in `vultron/core/models/use_case_result.py`, every trigger `execute()` returns one, the two request families are one (`request_bodies.py` owns the bodies, `requests.py` derives the generic `TriggerRequest[ResultT_co]` requests from them), and `TriggerService` still delegates.
+Built and passing:
+
+- `test/architecture/test_use_case_execute_returns_result.py` scans `triggers/` with no exclusion.
+- `test/core/models/test_use_case_result.py` constructs each result subtype, asserts its exact field set, and asserts an unknown key raises.
+- `test/core/use_cases/triggers/test_requests.py` resolves each verb's result through one `trigger(request) -> ResultT_co` signature under mypy and pyright, and pins the `end_time` validator to one declaration.
+
 The rest is not yet built.
-This ADR is provisional until the trigger side conforms and the remaining tests named here exist.
+This ADR is provisional until the trigger side's port collapses and the remaining tests named here exist.
 
 Expected, once built:
 
-- `test/architecture/test_use_case_execute_returns_result.py` scans `triggers/` with no exclusion.
 - A trigger-registry test module asserts the route-to-registry and use-case-to-row bijections as exact set equalities, exactly one non-BT-backed row, and that row declaring no `emitting_actor_id`.
 - An exact-response-key test parametrized over the registry asserts `set(response.json()) == expected_keys` per verb.
 - A `response_model` coverage test fails on any trigger route without one.

@@ -30,6 +30,7 @@ from typing import cast
 
 import pytest
 
+from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -206,14 +207,14 @@ class TestProposeTriggerRecordsIndex:
             dl, request, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        assert "activity" in result
+        assert result.activity is not None
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
         assert len(updated_case.pending_embargo_proposal_index) == 1
         proposal_ids = list(
             updated_case.pending_embargo_proposal_index.values()
         )
-        assert proposal_ids[0] == result["activity"]["id"]
+        assert proposal_ids[0] == activity_of(result)["id"]
 
 
 class TestAcceptRejectFromCoreState:
@@ -261,7 +262,7 @@ class TestAcceptRejectFromCoreState:
             dl, request, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        assert "activity" in result
+        assert result.activity is not None
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
         assert updated_case.current_status.em.state == EM.ACTIVE
@@ -309,7 +310,7 @@ class TestAcceptRejectFromCoreState:
             dl, request, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        assert "activity" in result
+        assert result.activity is not None
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
         assert updated_case.current_status.em.state == EM.ACTIVE
@@ -339,7 +340,7 @@ class TestAcceptRejectFromCoreState:
             dl, request, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        assert "activity" in result
+        assert result.activity is not None
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
         # Owner-reject drives EM to NONE; non-owner records rejection only.

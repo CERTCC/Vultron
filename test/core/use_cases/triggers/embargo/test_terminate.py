@@ -49,7 +49,7 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
         owner_dl, request, trigger_activity=TriggerActivityAdapter(owner_dl)
     ).execute()
 
-    assert "activity" in result
+    assert result.activity is not None
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
     updated_participant = cast(
         as_CaseParticipant, owner_dl.read(participant_id)

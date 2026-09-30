@@ -1,4 +1,4 @@
-"""Tests for SvcBTTriggerBase and SvcEmbargoTriggerBase hook contracts."""
+"""Tests for the SvcBTTriggerBase family's hook contracts."""
 
 from unittest.mock import MagicMock
 
@@ -6,16 +6,18 @@ import py_trees.behaviour
 import pytest
 
 from vultron.core.use_cases.triggers._base import (
+    SvcActivityTriggerBase,
     SvcBTTriggerBase,
     SvcEmbargoTriggerBase,
 )
+from vultron.core.models.use_case_result import ActivityResult, OfferResult
 
 # ---------------------------------------------------------------------------
 # Minimal concrete subclasses for testing base-class hooks
 # ---------------------------------------------------------------------------
 
 
-class _MinimalTrigger(SvcBTTriggerBase):
+class _MinimalTrigger(SvcActivityTriggerBase):
     """Simplest concrete subclass: records hook calls and raises nothing."""
 
     def __init__(self, dl, request, trigger_activity=None):
@@ -96,7 +98,11 @@ def test_hooks_called_in_order():
     assert uc.prepare_called
     assert uc.build_tree_called
     assert uc.handle_result_called
-    assert result == {
+    assert result == ActivityResult(
+        activity=None,
+        emitting_actor_id="https://example.org/actor",
+    )
+    assert result.model_dump() == {
         "activity": None,
         "emitting_actor_id": "https://example.org/actor",
     }
@@ -117,10 +123,37 @@ def test_execute_returns_captured_activity():
         dl=MagicMock(), request=object(), trigger_activity=MagicMock()
     )
     result = uc.execute()
-    assert result == {
-        "activity": {"type": "TestActivity"},
-        "emitting_actor_id": "https://example.org/actor",
-    }
+    assert result == ActivityResult(
+        activity={"type": "TestActivity"},
+        emitting_actor_id="https://example.org/actor",
+    )
+
+
+def test_execute_returns_the_subtype_a_generic_subclass_binds():
+    """A verb whose body differs binds the generic base to its own subtype."""
+
+    class _OfferTrigger(SvcBTTriggerBase[OfferResult]):
+        def _prepare(self) -> None:
+            self._actor_id = "https://example.org/actor"
+
+        def _build_tree(self) -> py_trees.behaviour.Behaviour:
+            self._captured["offer"] = {"type": "Offer"}
+            from py_trees.behaviours import Success
+
+            return Success(name="offer-tree")
+
+        def _handle_result(self) -> None:
+            pass
+
+        def _build_result(self) -> OfferResult:
+            return OfferResult(offer=self._captured.get("offer"))
+
+    uc = _OfferTrigger(
+        dl=MagicMock(), request=object(), trigger_activity=MagicMock()
+    )
+    result = uc.execute()
+    assert result == OfferResult(offer={"type": "Offer"})
+    assert set(result.model_dump()) == {"offer"}
 
 
 # ---------------------------------------------------------------------------

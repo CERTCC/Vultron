@@ -30,6 +30,7 @@ from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
 )
+from vultron.core.models.use_case_result import ActivityResult
 from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -371,15 +372,14 @@ def non_report_object(dl):
 # ===========================================================================
 
 
-def test_validate_report_trigger_returns_activity_dict(
+def test_validate_report_trigger_returns_activity_result(
     dl, actor, offer, received_report
 ):
-    """validate_report_trigger returns dict with 'activity' key."""
+    """validate_report returns an ActivityResult whose activity was captured."""
     result = TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).validate_report(actor.id_, offer.id_, None)
-    assert isinstance(result, dict)
-    assert "activity" in result
+    assert result.activity is not None
 
 
 def test_validate_report_trigger_unknown_actor_raises_404(dl, offer):
@@ -436,15 +436,14 @@ def test_validate_report_trigger_non_report_offer_raises_404(
 # ===========================================================================
 
 
-def test_invalidate_report_trigger_returns_activity_dict(
+def test_invalidate_report_trigger_returns_activity_result(
     dl, actor, offer, received_report
 ):
-    """invalidate_report_trigger returns dict with non-None 'activity'."""
+    """invalidate_report returns an ActivityResult whose activity was captured."""
     result = TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).invalidate_report(actor.id_, offer.id_, None)
-    assert isinstance(result, dict)
-    assert result["activity"] is not None
+    assert result.activity is not None
 
 
 def test_invalidate_report_trigger_unknown_actor_raises_404(dl, offer):
@@ -496,15 +495,14 @@ def test_invalidate_report_trigger_non_report_offer_raises_404(
 # ===========================================================================
 
 
-def test_reject_report_trigger_returns_activity_dict(
+def test_reject_report_trigger_returns_activity_result(
     dl, actor, offer, rejected_report
 ):
-    """reject_report_trigger returns dict with non-None 'activity'."""
+    """reject_report returns an ActivityResult whose activity was captured."""
     result = TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).reject_report(actor.id_, offer.id_, "Out of scope.")
-    assert isinstance(result, dict)
-    assert result["activity"] is not None
+    assert result.activity is not None
 
 
 def test_reject_report_trigger_unknown_actor_raises_404(dl, offer):
@@ -556,15 +554,14 @@ def test_reject_report_trigger_non_report_offer_raises_404(
 # ===========================================================================
 
 
-def test_close_report_trigger_returns_activity_dict(
+def test_close_report_trigger_returns_activity_result(
     dl, actor, offer, accepted_report
 ):
-    """close_report_trigger returns dict with non-None 'activity'."""
+    """close_report returns an ActivityResult whose activity was captured."""
     result = TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).close_case(actor.id_, offer.id_, None)
-    assert isinstance(result, dict)
-    assert result["activity"] is not None
+    assert result.activity is not None
 
 
 def test_close_report_trigger_already_closed_raises_409(
@@ -604,15 +601,14 @@ def test_close_report_trigger_non_report_offer_raises_404(
 # ===========================================================================
 
 
-def test_engage_case_trigger_returns_activity_dict(
+def test_engage_case_trigger_returns_activity_result(
     dl, actor, case_with_participant
 ):
-    """engage_case_trigger returns dict with non-None 'activity'."""
+    """engage_case returns an ActivityResult whose activity was captured."""
     result = TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).engage_case(actor.id_, case_with_participant.id_)
-    assert isinstance(result, dict)
-    assert result["activity"] is not None
+    assert result.activity is not None
 
 
 def test_engage_case_trigger_unknown_actor_raises_404(
@@ -686,15 +682,14 @@ def test_engage_case_trigger_adds_activity_to_outbox(
 # ===========================================================================
 
 
-def test_defer_case_trigger_returns_activity_dict(
+def test_defer_case_trigger_returns_activity_result(
     dl, actor, case_with_participant
 ):
-    """defer_case_trigger returns dict with non-None 'activity'."""
+    """defer_case returns an ActivityResult whose activity was captured."""
     result = TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).defer_case(actor.id_, case_with_participant.id_)
-    assert isinstance(result, dict)
-    assert result["activity"] is not None
+    assert result.activity is not None
 
 
 def test_defer_case_trigger_unknown_actor_raises_404(
@@ -746,15 +741,14 @@ def test_defer_case_trigger_updates_participant_rm_state(
 # ===========================================================================
 
 
-def test_propose_embargo_trigger_returns_activity_dict(
+def test_propose_embargo_trigger_returns_activity_result(
     dl, actor, case_with_case_manager
 ):
-    """propose_embargo_trigger returns dict with non-None 'activity'."""
+    """propose_embargo returns an ActivityResult whose activity was captured."""
     result = TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).propose_embargo(actor.id_, case_with_case_manager.id_, FUTURE_DATETIME)
-    assert isinstance(result, dict)
-    assert result["activity"] is not None
+    assert result.activity is not None
 
 
 def test_propose_embargo_trigger_transitions_em_state_to_proposed(
@@ -831,16 +825,15 @@ def test_propose_embargo_trigger_invalid_case_id_raises_422(dl, actor):
 # ===========================================================================
 
 
-def test_evaluate_embargo_trigger_returns_activity_dict(
+def test_evaluate_embargo_trigger_returns_activity_result(
     dl, actor, case_with_proposal
 ):
-    """evaluate_embargo_trigger returns dict with non-None 'activity'."""
+    """evaluate_embargo returns an ActivityResult whose activity was captured."""
     case_obj, proposal, _ = case_with_proposal
     result = TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).accept_embargo(actor.id_, case_obj.id_, proposal.id_)
-    assert isinstance(result, dict)
-    assert result["activity"] is not None
+    assert result.activity is not None
 
 
 def test_evaluate_embargo_trigger_activates_embargo(
@@ -864,7 +857,7 @@ def test_evaluate_embargo_trigger_without_proposal_id_finds_first(
     result = TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).accept_embargo(actor.id_, case_obj.id_, None)
-    assert isinstance(result, dict)
+    assert isinstance(result, ActivityResult)
     updated = dl.read(case_obj.id_)
     assert updated.current_status.em.state == EM.ACTIVE
 
@@ -898,16 +891,15 @@ def test_evaluate_embargo_trigger_unknown_proposal_raises_404(
 # ===========================================================================
 
 
-def test_terminate_embargo_trigger_returns_activity_dict(
+def test_terminate_embargo_trigger_returns_activity_result(
     dl, actor, case_with_embargo
 ):
-    """terminate_embargo_trigger returns dict with non-None 'activity'."""
+    """terminate_embargo returns an ActivityResult whose activity was captured."""
     case_obj, _ = case_with_embargo
     result = TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).terminate_embargo(actor.id_, case_obj.id_)
-    assert isinstance(result, dict)
-    assert result["activity"] is not None
+    assert result.activity is not None
 
 
 def test_terminate_embargo_trigger_sets_em_state_to_exited(

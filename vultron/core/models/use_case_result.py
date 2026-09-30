@@ -13,16 +13,29 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Use-case result envelope: the ``UseCaseResult`` base and ``HandlerResult``.
+"""Use-case result envelope: ``UseCaseResult`` and both of its halves.
 
 ``UseCaseResult`` is the common parent of every use-case return value
 (UCORG-05-001, UCORG-05-008). This module defines it together with the
 received-side subtype, ``HandlerResult``, and the ``HandlerDisposition``
-vocabulary that subtype carries (ADR-0095).
+vocabulary that subtype carries (ADR-0095), and with the trigger-side
+hierarchy rooted at ``TriggerResult`` (ADR-0110)::
 
-The trigger-side sibling, ``TriggerResult``, is **not** defined here. It
-currently lives standalone in ``vultron/core/use_cases/triggers/results.py``;
-re-parenting it onto ``UseCaseResult`` is #3831.
+    TriggerResult          (no fields)
+      ActivityResult       activity, emitting_actor_id
+        NoteResult         + note
+        CaseResult         + case_id
+      StatusResult         activity_id, status_id
+      OfferResult          offer
+      RoleOfferResult      activity_id, activity
+
+Each trigger subtype declares exactly the keys its verb's HTTP response body
+carries (UCORG-05-005); the body is the subtype's ``model_dump()``, so a
+``None``-valued key is still emitted (TRIG-12-002). ``activity``, ``offer``
+and ``note`` are ``dict[NonEmptyString, Any]``: the JSON object a trigger BT captured on
+its blackboard. Core cannot type them as wire activities without importing
+the wire layer (ARCH-01-001); the demo layer's ``WireActivityResult`` is the
+typed view of the same body (UCORG-05-014).
 
 The envelope lives in ``core/models/`` rather than ``core/ports/`` because it
 is a Pydantic model, and ports avoid exposing ``BaseModel`` as their own API
@@ -35,7 +48,7 @@ pipeline, not to this module or to any handler (HP-01-004).
 """
 
 from enum import StrEnum
-from typing import Self
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -164,4 +177,88 @@ class HandlerResult(UseCaseResult):
         return cls(disposition=HandlerDisposition.REFUSED, reason=reason)
 
 
-__all__ = ["HandlerDisposition", "HandlerResult", "UseCaseResult"]
+class TriggerResult(UseCaseResult):
+    """Fieldless root of the trigger-side result hierarchy (UCORG-05-005).
+
+    A trigger use case returns the subtype whose fields are exactly its
+    verb's response-body keys; nothing returns the root itself. It exists so
+    ``TriggerRequest[ResultT_co]`` has a bound, the UCORG-05-004 ratchet has
+    a type to name, and every subtype inherits ``extra="forbid"`` — a use
+    case whose return grows a key fails at construction instead of the key
+    being silently dropped from the body (UCORG-05-007, UCORG-05-008).
+
+    Frozen like :class:`HandlerResult`: a result is not revised after the
+    use case returns it.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+class ActivityResult(TriggerResult):
+    """Result of a BT-backed trigger that emits one activity.
+
+    ``activity`` is the emitted activity's JSON object as the BT captured
+    it, or ``None`` when the tree completed without capturing one (an
+    idempotent no-op path); the key is emitted either way.
+    ``emitting_actor_id`` names the actor whose outbox holds the activity — on
+    a delegated emit that is the CASE_MANAGER, not the requesting actor
+    (CM-24-001), and the router drains that actor's outbox.
+    """
+
+    activity: dict[NonEmptyString, Any] | None = None
+    emitting_actor_id: NonEmptyString
+
+
+class NoteResult(ActivityResult):
+    """``add-note-to-case``: the activity plus the freshly minted note."""
+
+    note: dict[NonEmptyString, Any] | None = None
+
+
+class CaseResult(ActivityResult):
+    """``create-case``: the activity plus the id of the case it created."""
+
+    case_id: NonEmptyString | None = None
+
+
+class StatusResult(TriggerResult):
+    """``add-participant-status`` and the on-behalf variant.
+
+    Carries the ids of the ``Add(ParticipantStatus)`` activity and of the
+    stored status record; neither the activity body nor an emitting actor is
+    part of this verb's response.
+    """
+
+    activity_id: NonEmptyString | None = None
+    status_id: NonEmptyString | None = None
+
+
+class OfferResult(TriggerResult):
+    """``submit-report``: the ``Offer(VulnerabilityReport)`` JSON object."""
+
+    offer: dict[NonEmptyString, Any] | None = None
+
+
+class RoleOfferResult(TriggerResult):
+    """``offer-case-participant-role``: activity id and activity, no emitter.
+
+    The only trigger verb not backed by ``SvcBTTriggerBase`` (ADR-0110), so
+    its body carries no ``emitting_actor_id``.
+    """
+
+    activity_id: NonEmptyString
+    activity: dict[NonEmptyString, Any]
+
+
+__all__ = [
+    "ActivityResult",
+    "CaseResult",
+    "HandlerDisposition",
+    "HandlerResult",
+    "NoteResult",
+    "OfferResult",
+    "RoleOfferResult",
+    "StatusResult",
+    "TriggerResult",
+    "UseCaseResult",
+]

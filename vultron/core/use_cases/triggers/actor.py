@@ -44,7 +44,8 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.use_cases._helpers import _find_case_actor_id
-from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
+from vultron.core.models.use_case_result import RoleOfferResult
+from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     _prepare_delegated_context,
     resolve_actor,
@@ -65,7 +66,7 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 logger = logging.getLogger(__name__)
 
 
-class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
+class SvcSuggestActorToCaseUseCase(SvcActivityTriggerBase):
     """Recommend another actor for participation in an existing case.
 
     Emits a RecommendActorActivity routed through the Case Manager
@@ -130,7 +131,7 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcAcceptActorRecommendationUseCase(SvcBTTriggerBase):
+class SvcAcceptActorRecommendationUseCase(SvcActivityTriggerBase):
     """Accept an actor recommendation on behalf of the Case Owner.
 
     Emits Accept(Offer(CaseParticipant)) queued in the Case Owner's outbox for
@@ -257,7 +258,7 @@ def _record_named_peer(
     dl.create(CoreActor(id_=actor_id))
 
 
-class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
+class SvcInviteActorToCaseUseCase(SvcActivityTriggerBase):
     """Directly invite an actor to a case (case-owner action).
 
     Emits RmInviteToCaseActivity from the Case Actor's identity
@@ -333,7 +334,7 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcAcceptCaseInviteUseCase(SvcBTTriggerBase):
+class SvcAcceptCaseInviteUseCase(SvcActivityTriggerBase):
     """Accept a case invitation by emitting RmAcceptInviteToCaseActivity.
 
     The invitee actor reads the invite from the DataLayer and queues the
@@ -366,7 +367,7 @@ class SvcAcceptCaseInviteUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcRejectCaseInviteUseCase(SvcBTTriggerBase):
+class SvcRejectCaseInviteUseCase(SvcActivityTriggerBase):
     """Reject a case invitation by emitting RmRejectInviteToCaseActivity.
 
     The invitee actor reads the invite from the DataLayer and queues the
@@ -399,7 +400,7 @@ class SvcRejectCaseInviteUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
+class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
     """Offer case ownership to another actor (trigger-side path).
 
     Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
@@ -459,7 +460,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcAcceptCaseOwnershipTransferUseCase(SvcBTTriggerBase):
+class SvcAcceptCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
     """Accept a case ownership transfer offer (trigger-side path).
 
     Emits ``Accept(Offer(VulnerabilityCase))`` from the accepting actor back
@@ -530,7 +531,7 @@ class SvcOfferCaseParticipantRoleUseCase:
         self._request = request
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> dict[str, Any]:
+    def execute(self) -> RoleOfferResult:
         from vultron.core.ports.trigger_activity import TriggerActivityPort
 
         if self._trigger_activity is None:
@@ -553,7 +554,7 @@ class SvcOfferCaseParticipantRoleUseCase:
             req.role,
             req.target_actor_id,
         )
-        return {
-            "activity_id": activity_id,
-            "activity": json.loads(activity_dict),
-        }
+        return RoleOfferResult(
+            activity_id=activity_id,
+            activity=json.loads(activity_dict),
+        )

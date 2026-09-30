@@ -30,6 +30,7 @@ Verifies that the add-note-to-case trigger:
 
 import pytest
 
+from test.support.trigger_results import activity_of, note_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -219,19 +220,19 @@ class TestSvcAddNoteToCaseUseCase:
     # ------------------------------------------------------------------
 
     def test_execute_returns_note_key(self):
-        """execute() returns a dict with a 'note' key."""
+        """execute() returns a NoteResult carrying the minted note."""
         result = self._execute()
-        assert "note" in result
+        assert result.note is not None
 
     def test_execute_returns_activity_key(self):
-        """execute() returns a dict with an 'activity' key."""
+        """execute() returns a NoteResult carrying the Add activity."""
         result = self._execute()
-        assert "activity" in result
+        assert result.activity is not None
 
     def test_note_has_id(self):
         """Returned note dict contains an 'id' field."""
         result = self._execute()
-        assert result["note"].get("id") is not None
+        assert note_of(result).get("id") is not None
 
     # ------------------------------------------------------------------
     # DataLayer persistence
@@ -240,14 +241,14 @@ class TestSvcAddNoteToCaseUseCase:
     def test_note_stored_in_datalayer(self):
         """The note is persisted to the DataLayer after execute()."""
         result = self._execute()
-        note_id = result["note"]["id"]
+        note_id = note_of(result)["id"]
         stored = self.dl.read(note_id)
         assert stored is not None
 
     def test_note_added_to_case_notes(self):
         """The note ID appears in the actor's local case.notes list."""
         result = self._execute()
-        note_id = result["note"]["id"]
+        note_id = note_of(result)["id"]
         case_obj = self.dl.read(self.case.id_)
         assert isinstance(case_obj, VulnerabilityCase)
         note_ids = [
@@ -285,7 +286,7 @@ class TestSvcAddNoteToCaseUseCase:
     def test_add_note_activity_to_field_addresses_case_actor_only(self):
         """AddNoteToCase activity has to=[case_actor.id_] (PCR-08-001)."""
         result = self._execute(actor_id=self.vendor.id_)
-        activity_id = result["activity"].get("id")
+        activity_id = activity_of(result)["id"]
         assert activity_id is not None
 
         act_obj = self.dl.read(activity_id)
@@ -306,7 +307,7 @@ class TestSvcAddNoteToCaseUseCase:
     ):
         """AddNoteToCase must not include finder or vendor in the to field."""
         result = self._execute(actor_id=self.vendor.id_)
-        activity_id = result["activity"].get("id")
+        activity_id = activity_of(result)["id"]
         act_obj = self.dl.read(activity_id)
         recipients = _to_field(act_obj) or []
 
@@ -346,7 +347,7 @@ class TestSvcAddNoteToCaseUseCase:
     def test_in_reply_to_none_by_default(self):
         """Note is created without in_reply_to when not supplied."""
         result = self._execute()
-        note_id = result["note"]["id"]
+        note_id = note_of(result)["id"]
         stored = self.dl.read(note_id)
         assert getattr(stored, "in_reply_to", None) is None
 
@@ -362,7 +363,7 @@ class TestSvcAddNoteToCaseUseCase:
         self.dl.create(parent)
 
         result = self._execute(in_reply_to=parent.id_)
-        note_id = result["note"]["id"]
+        note_id = note_of(result)["id"]
         stored = self.dl.read(note_id)
         assert getattr(stored, "in_reply_to", None) == parent.id_
 
@@ -373,7 +374,7 @@ class TestSvcAddNoteToCaseUseCase:
     def test_duplicate_execute_does_not_duplicate_note_in_case(self):
         """Calling execute() twice with the same note does not add it twice."""
         result = self._execute()
-        note_id = result["note"]["id"]
+        note_id = note_of(result)["id"]
 
         case_obj = self.dl.read(self.case.id_)
         assert isinstance(case_obj, VulnerabilityCase)
@@ -412,7 +413,7 @@ class TestSvcAddNoteToCaseUseCase:
         actor's store, suppressing duplicate near-term re-emits (SYNC-11-002).
         """
         result = self._execute()
-        add_activity_id = result["activity"].get("id")
+        add_activity_id = activity_of(result)["id"]
         assert add_activity_id is not None
 
         store = get_pending_assertion_store(self.vendor.id_)
@@ -429,7 +430,7 @@ class TestSvcAddNoteToCaseUseCase:
         """Clearing the pending entry (simulating Announce round-trip) removes
         suppression so future re-emits are no longer blocked (SYNC-11-003)."""
         result = self._execute()
-        add_activity_id = result["activity"].get("id")
+        add_activity_id = activity_of(result)["id"]
         assert add_activity_id is not None
 
         store = get_pending_assertion_store(self.vendor.id_)
@@ -463,7 +464,7 @@ class TestSvcAddNoteToCaseUseCase:
         _STORES[self.vendor.id_] = zero_store
 
         result = self._execute()
-        add_activity_id = result["activity"].get("id")
+        add_activity_id = activity_of(result)["id"]
         assert add_activity_id is not None
 
         assert not zero_store.is_suppressed(

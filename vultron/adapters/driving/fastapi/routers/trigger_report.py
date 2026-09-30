@@ -69,7 +69,7 @@ def trigger_validate_report(
     with domain_error_translation():
         result = svc.validate_report(actor_id, body.offer_id, body.note)
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -102,7 +102,7 @@ def trigger_invalidate_report(
     with domain_error_translation():
         result = svc.invalidate_report(actor_id, body.offer_id, body.note)
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -136,7 +136,7 @@ def trigger_reject_report(
     with domain_error_translation():
         result = svc.reject_report(actor_id, body.offer_id, body.note)
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -173,7 +173,7 @@ def trigger_close_report(
     with domain_error_translation():
         result = svc.close_case(actor_id, body.offer_id, body.note)
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -204,4 +204,4 @@ def trigger_submit_report(
             body.recipient_id,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()

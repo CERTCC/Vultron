@@ -49,7 +49,7 @@ def test_non_owner_accept_embargo_on_active_case_updates_participant_only(
         finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
     ).execute()
 
-    assert "activity" in result
+    assert result.activity is not None
 
     updated_case = finder_dl.read(case.id_)
     updated_participant = finder_dl.read(participant_id)
@@ -107,7 +107,7 @@ def test_accept_embargo_when_attributed_to_is_none_does_not_activate_em(
         finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
     ).execute()
 
-    assert "activity" in result
+    assert result.activity is not None
 
     updated_case = finder_dl.read(case.id_)
     updated_participant = finder_dl.read(participant_id)
