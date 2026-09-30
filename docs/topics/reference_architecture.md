@@ -84,6 +84,8 @@ The HTTP inbox lives in `vultron/adapters/driving/fastapi/`, returns `202 Accept
 
 The wire layer turns bytes into meaning.
 The AS2 parser checks structural validity, `rehydrate()` resolves referenced objects into full inline objects, and the semantic extractor (`vultron/wire/as2/extractor/`) matches the activity against an ordered pattern registry to produce a domain-level `MessageSemantics` value.
+The parser also decides what happens to every unrecognized key, at every depth (MV-11, [ADR-0099](../adr/0099-one-object-model-as2-is-a-serialization.md)).
+A misspelling of a field the receiver reads refuses the whole activity, and any other unknown key is set aside and logged.
 The semantic extractor is the single place where AS2 structure becomes domain intent (ARCH-03-001), so the rest of the core never inspects wire shapes.
 
 The core layer decides what to do.
