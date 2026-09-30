@@ -68,7 +68,7 @@ VERIFICATION_CEILINGS: Mapping[SpecKind, VerificationCeiling] = (
             SpecKind.ARCHITECTURE: VerificationCeiling(76, ("#2569",)),
             SpecKind.PROCESS: VerificationCeiling(177, ("#2571",)),
             SpecKind.PROJECT: VerificationCeiling(
-                1005, ("#2573", "#2574", "#2575")
+                1004, ("#2573", "#2574", "#2575")
             ),
         }
     )
