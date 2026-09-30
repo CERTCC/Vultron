@@ -373,7 +373,7 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
         return absent_times_as_none(cls, dict(data))
     # A snapshot carrying *both* spellings would collapse onto one key and lose
     # a value by iteration order, so reject a disagreement before remapping.
-    data = collapse_duplicate_spellings(
+    collapsed = collapse_duplicate_spellings(
         data,
         ((name, camel) for camel, name in remap.items()),
         owner=f"{cls.__name__} wire snapshot",
@@ -384,7 +384,7 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
     # present ``receivedAt`` for an absent ``received_at``.
     projected: dict[str, Any] = {
         remap.get(key, key): value
-        for key, value in data.items()
+        for key, value in collapsed.items()
     }
     return absent_times_as_none(cls, projected)
 
