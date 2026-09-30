@@ -546,7 +546,9 @@ is stated once there and holds everywhere:
    and `@value` objects are equally legal). So `@context` is the only JSON-LD
    keyword that is a declared spelling, and the refusal naming `id`/`type`
    tells the peer the compact spelling to send. Never "helpfully" add
-   `validation_alias="@id"` to `as_Base`.
+   `validation_alias="@id"` (or `"@type"`) to any root that declares `id` and
+   `type` — `as_Base`, `as_VultronObject`, `CoreRecord` or `CoreObject`; the
+   rule holds on both branches.
 3. Any **other** unknown key is **set aside and reported** at INFO with
    `activity_id`, the sender's `actor_id`, field path and key; the activity
    proceeds on its declared fields (MV-11-003). Never carry the key on the
