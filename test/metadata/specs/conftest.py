@@ -71,3 +71,29 @@ def multi_spec_dir(tmp_path):
 def loaded_registry(spec_dir):
     """Loaded SpecRegistry from the minimal single-file spec_dir."""
     return load_registry(spec_dir)
+
+
+def spec_file_data(items, file_id="TST", group_id="TST-01"):
+    """A loadable spec-file dict from ``(id, priority, kind, extra)`` rows.
+
+    The one builder for tests that need a small corpus with mixed priorities
+    and kinds; ``extra`` merges into the item (``verification``,
+    ``lint_suppress``, ``stories``, ...).
+    """
+    specs = []
+    for spec_id, priority, kind, extra in items:
+        spec = {
+            "id": spec_id,
+            "priority": priority,
+            "kind": kind,
+            "statement": f"{spec_id} states the thing",
+        }
+        spec.update(extra)
+        specs.append(spec)
+    return {
+        "id": file_id,
+        "title": "Test File",
+        "description": "Test spec file",
+        "scope": ["production"],
+        "groups": [{"id": group_id, "title": "Group", "specs": specs}],
+    }
