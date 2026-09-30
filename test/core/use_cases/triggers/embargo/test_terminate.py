@@ -121,6 +121,7 @@ def test_terminate_embargo_forgets_every_open_revision_via_bt_path(
         owner_dl,
         TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
         trigger_activity=TriggerActivityAdapter(owner_dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))

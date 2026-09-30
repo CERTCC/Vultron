@@ -839,7 +839,7 @@ class TestInviteeIsTheAddressee:
         event = make_payload(reject, receiving_actor_id=_COORD)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event
+            dl, event, wire_render_port=As2WireRenderAdapter()
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -902,7 +902,7 @@ class TestInviteeIsTheAddressee:
         event = make_payload(reject, receiving_actor_id=_COORD)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event
+            dl, event, wire_render_port=As2WireRenderAdapter()
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -948,7 +948,7 @@ class TestInviteeIsTheAddressee:
         event = make_payload(reject, receiving_actor_id=_COORD)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event
+            dl, event, wire_render_port=As2WireRenderAdapter()
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED

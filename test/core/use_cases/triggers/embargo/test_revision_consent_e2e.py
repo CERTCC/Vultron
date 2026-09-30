@@ -44,6 +44,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.update_support import find_excluded_actor_ids
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -146,6 +147,7 @@ class _Revision:
                 end_time=now_utc() + timedelta(days=days),
             ),
             trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         activity = result["activity"]
         revision_id = str(activity["object"]["id"])
@@ -169,6 +171,7 @@ class _Revision:
                 actor_id=OWNER, case_id=self.case.id_, proposal_id=proposal_id
             ),
             trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
     def owner_rejects(self, revision_id: str) -> None:
@@ -181,6 +184,7 @@ class _Revision:
                 actor_id=OWNER, case_id=self.case.id_, proposal_id=proposal_id
             ),
             trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
     # -- the reads ---------------------------------------------------------
