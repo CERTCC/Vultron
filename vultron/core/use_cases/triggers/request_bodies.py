@@ -53,9 +53,9 @@ class ReportTriggerRequest(BaseModel):
     """
     Shared base for report-level trigger requests.
 
-    TB-03-001: Must include offer_id to identify the target offer.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
-    TB-03-003: Optional note field may be included.
+    TRIG-03-001: Must include offer_id to identify the target offer.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-003: Optional note field may be included.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -86,8 +86,8 @@ class RejectReportRequest(BaseModel):
     """
     Request body for the reject-report trigger endpoint.
 
-    TB-03-001: Must include offer_id to identify the target offer.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-001: Must include offer_id to identify the target offer.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     TRIG-03-004: note is required (hard-close decisions warrant documented
         justification); an empty note emits a WARNING.
     """
@@ -112,8 +112,8 @@ class CaseTriggerRequest(BaseModel):
     """
     Request body for case-level trigger endpoints.
 
-    TB-03-001: Must include case_id to identify the target case.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-001: Must include case_id to identify the target case.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -125,9 +125,9 @@ class ProposeEmbargoRequest(CaseTriggerRequest):
     """
     Request body for the propose-embargo trigger endpoint.
 
-    TB-03-001: Must include case_id to identify the target case.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
-    TB-03-003: Optional note field may be included.
+    TRIG-03-001: Must include case_id to identify the target case.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-003: Optional note field may be included.
     end_time is required and must be timezone-aware and in the future.
     """
 
@@ -148,8 +148,8 @@ class AcceptEmbargoRequest(CaseTriggerRequest):
     """
     Request body for the accept-embargo trigger endpoint.
 
-    TB-03-001: Must include case_id to identify the target case.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-001: Must include case_id to identify the target case.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     Optional proposal_id identifies the specific EmProposeEmbargoActivity to accept;
     if omitted, the earliest-expiring open proposal for the case is used
     (EP-08-002) — never the first recorded.
@@ -166,8 +166,8 @@ class RejectEmbargoRequest(CaseTriggerRequest):
     """
     Request body for the reject-embargo trigger endpoint.
 
-    TB-03-001: Must include case_id to identify the target case.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-001: Must include case_id to identify the target case.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     Optional proposal_id identifies the specific EmProposeEmbargoActivity to reject;
     if omitted, the earliest-expiring open proposal for the case is used
     (EP-08-002) — never the first recorded.
@@ -180,8 +180,8 @@ class ProposeEmbargoRevisionRequest(ProposeEmbargoRequest):
     """
     Request body for the propose-embargo-revision trigger endpoint.
 
-    TB-03-001: Must include case_id to identify the target case.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-001: Must include case_id to identify the target case.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     end_time is required and must be timezone-aware and in the future.
     Only valid when EM state is ACTIVE or REVISE; use propose-embargo for
     initial proposals.
@@ -192,8 +192,8 @@ class TerminateEmbargoRequest(CaseTriggerRequest):
     """
     Request body for the terminate-embargo trigger endpoint.
 
-    TB-03-001: Must include case_id to identify the target case.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-001: Must include case_id to identify the target case.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
 
 
@@ -204,7 +204,7 @@ class SubmitReportRequest(BaseModel):
     recipient.  The actor_id is taken from the URL path; report_name,
     report_content, and recipient_id must be supplied in the request body.
 
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -222,7 +222,7 @@ class AddObjectToCaseRequest(CaseTriggerRequest):
     endpoints (e.g., ``add-report-to-case``) delegate to this after
     performing their own type validation (TRIG-10-001, TRIG-10-002).
 
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
 
     object_id: NonEmptyString
@@ -231,8 +231,8 @@ class AddObjectToCaseRequest(CaseTriggerRequest):
 class AddNoteToCaseRequest(CaseTriggerRequest):
     """Request body for the add-note-to-case trigger endpoint.
 
-    TB-03-001: Must include case_id to identify the target case.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-001: Must include case_id to identify the target case.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
 
     note_name: NonEmptyString
@@ -246,7 +246,7 @@ class CreateCaseRequest(BaseModel):
     The actor creates a local VulnerabilityCase and queues a
     CreateCaseActivity in their outbox for delivery to the CaseActor.
 
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -260,8 +260,8 @@ class CreateCaseRequest(BaseModel):
 class AddReportToCaseRequest(CaseTriggerRequest):
     """Request body for the add-report-to-case trigger endpoint.
 
-    TB-03-001: Must include case_id and report_id.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-001: Must include case_id and report_id.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
 
     report_id: NonEmptyString
@@ -270,8 +270,8 @@ class AddReportToCaseRequest(CaseTriggerRequest):
 class SuggestActorToCaseRequest(CaseTriggerRequest):
     """Request body for the suggest-actor-to-case trigger endpoint.
 
-    TB-03-001: Must include case_id and suggested_actor_id.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-001: Must include case_id and suggested_actor_id.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
 
     suggested_actor_id: UriString
@@ -281,7 +281,7 @@ class SuggestActorToCaseRequest(CaseTriggerRequest):
 class AcceptCaseInviteRequest(BaseModel):
     """Request body for the accept-case-invite trigger endpoint.
 
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     invite_id identifies the RmInviteToCaseActivity to accept.
     """
 
@@ -293,7 +293,7 @@ class AcceptCaseInviteRequest(BaseModel):
 class RejectCaseInviteRequest(BaseModel):
     """Request body for the reject-case-invite trigger endpoint.
 
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     invite_id identifies the RmInviteToCaseActivity to reject.
     """
 
@@ -308,8 +308,8 @@ class AcceptActorRecommendationRequest(BaseModel):
     Sent by the Case Owner (e.g. Vendor1) to accept an Offer(CaseParticipant)
     forwarded by the CaseActor per ADR-0026 (CM-16-006).
 
-    TB-03-001: Must include cp_offer_id and case_actor_id.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-001: Must include cp_offer_id and case_actor_id.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -321,8 +321,8 @@ class AcceptActorRecommendationRequest(BaseModel):
 class InviteActorToCaseRequest(CaseTriggerRequest):
     """Request body for the invite-actor-to-case trigger endpoint.
 
-    TB-03-001: Must include case_id and invitee_id.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-001: Must include case_id and invitee_id.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
 
     invitee_id: UriString
@@ -348,8 +348,8 @@ class OfferCaseOwnershipTransferRequest(CaseTriggerRequest):
     Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
     requesting actor to the specified transferee (TRIG-11-001).
 
-    TB-03-001: Must include case_id and transferee_id.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-001: Must include case_id and transferee_id.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
 
     transferee_id: UriString
@@ -362,8 +362,8 @@ class AcceptCaseOwnershipTransferRequest(BaseModel):
     Emits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor back
     to the offering actor (TRIG-11-002).
 
-    TB-03-001: Must include offer_id.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-03-001: Must include offer_id.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -375,7 +375,7 @@ class NotifyFixReadyRequest(CaseTriggerRequest):
     """Request body for the notify-fix-ready demo trigger.
 
     Signals that the vendor has a fix ready (VFD → VFd).
-    TB-03-002: Unknown fields are silently ignored.
+    TRIG-03-002: Unknown fields are silently ignored.
     """
 
 
@@ -383,7 +383,7 @@ class NotifyFixDeployedRequest(CaseTriggerRequest):
     """Request body for the notify-fix-deployed demo trigger.
 
     Signals that the fix has been deployed (VFd → VFD).
-    TB-03-002: Unknown fields are silently ignored.
+    TRIG-03-002: Unknown fields are silently ignored.
     """
 
 
@@ -391,7 +391,7 @@ class NotifyPublishedRequest(CaseTriggerRequest):
     """Request body for the notify-published demo trigger.
 
     Signals that the vulnerability has been publicly disclosed (CS.VFDPxa).
-    TB-03-002: Unknown fields are silently ignored.
+    TRIG-03-002: Unknown fields are silently ignored.
     """
 
 
@@ -399,7 +399,7 @@ class CloseCaseRequest(CaseTriggerRequest):
     """Request body for the close-case demo trigger.
 
     Signals that the actor is closing the case (RM → CLOSED).
-    TB-03-002: Unknown fields are silently ignored.
+    TRIG-03-002: Unknown fields are silently ignored.
     """
 
 
@@ -410,7 +410,7 @@ class SyncLogEntryRequest(CaseTriggerRequest):
     via Announce(CaseLedgerEntry). Uses Announce(VulnerabilityCase) as the
     canonical payload type (case-actor-authored).
 
-    TB-03-002: Unknown fields are silently ignored.
+    TRIG-03-002: Unknown fields are silently ignored.
     """
 
     object_id: UriString

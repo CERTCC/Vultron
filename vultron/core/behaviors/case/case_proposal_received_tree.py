@@ -279,7 +279,7 @@ def create_case_proposal_received_tree(
             extracted — the case will be created without a report link.
         proposal_id: URI of the ``as_CaseProposal`` object.
         vendor_uri: URI of the vendor actor to whom the responses are sent.
-        proposal_dict: Wire-serialised proposal dict (``model_dump(by_alias=True)``).
+        proposal_dict: The proposal's AS2 rendering (from ``WireRenderPort``).
             When supplied, the Accept's ``object_`` carries the full inline proposal,
             satisfying CP-05-003 and the AKM-03-001 outbox requirement. Falls back
             to bare URI when ``None``. It is also where the report's offer

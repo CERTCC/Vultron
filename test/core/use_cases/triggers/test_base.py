@@ -206,3 +206,45 @@ def test_embargo_handle_result_stores_lifecycle_result_and_delegates():
     uc._handle_result()
     assert uc._lifecycle_result is lr
     assert uc.log_called
+
+
+# ---------------------------------------------------------------------------
+# SvcBTTriggerBase: the WireRenderPort reaches the tree (ARCH-20-004)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("ARCH-20-004")
+def test_wire_render_port_is_published_to_the_tree():
+    """The base hands its port to ``BTBridge``, which publishes it.
+
+    Trigger trees commit ledger entries whose snapshots only the port can
+    render (ARCH-20-001), so a subclass must not have to wire it itself.
+    """
+    seen: dict[str, object] = {}
+    port = object()
+
+    class _ReadsPort(py_trees.behaviour.Behaviour):
+        def update(self) -> py_trees.common.Status:
+            seen["port"] = py_trees.blackboard.Blackboard.storage.get(
+                "/wire_render_port"
+            )
+            return py_trees.common.Status.SUCCESS
+
+    class _PortTrigger(SvcActivityTriggerBase):
+        def _prepare(self) -> None:
+            self._actor_id = "https://example.org/actor"
+
+        def _build_tree(self) -> py_trees.behaviour.Behaviour:
+            return _ReadsPort(name="reads-port")
+
+        def _handle_result(self) -> None:
+            pass
+
+    _PortTrigger(
+        dl=MagicMock(),
+        request=object(),
+        trigger_activity=MagicMock(),
+        wire_render_port=port,  # type: ignore[arg-type]
+    ).execute()
+
+    assert seen["port"] is port

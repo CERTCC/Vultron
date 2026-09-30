@@ -89,6 +89,7 @@ from vultron.core.models.dimensions import (
     VfDimension,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -135,7 +136,7 @@ def dl(executing_actor_id):
 
 @pytest.fixture
 def bridge(dl):
-    return BTBridge(datalayer=dl)
+    return BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter())
 
 
 @pytest.fixture
@@ -189,7 +190,9 @@ def populated_dl(dl, case, participant, case_manager_participant, status_obj):
 
 @pytest.fixture
 def populated_bridge(populated_dl):
-    return BTBridge(datalayer=populated_dl)
+    return BTBridge(
+        datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -560,7 +563,9 @@ class TestAppendParticipantStatusSubtree:
 
     def test_idempotent_when_already_present(self, populated_dl, status_obj):
         """Running the subtree twice does not duplicate the status."""
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
 
         def _make_tree():
             return append_participant_status_tree(
@@ -581,7 +586,9 @@ class TestAppendParticipantStatusSubtree:
         ]
 
         # Second call must be idempotent — count must not increase
-        bridge2 = BTBridge(datalayer=populated_dl)
+        bridge2 = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
         result2 = bridge2.execute_with_setup(
             tree=_make_tree(), actor_id=ACTOR_ID
         )
@@ -847,7 +854,9 @@ class TestAllParticipantsRMClosedConditionNode:
         case_manager_participant.participant_statuses.append(closed_cm)
         populated_dl.save(case_manager_participant)
 
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
@@ -870,7 +879,9 @@ class TestAllParticipantsRMClosedConditionNode:
         participant.participant_statuses.append(closed_vendor)
         populated_dl.save(participant)
 
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         # CaseActor is not RM.CLOSED → FAILURE (ADR-0051 removes the old skip)
@@ -926,7 +937,9 @@ class TestCloseNotYetEmittedConditionNode:
         populated_dl.create(leave_activity)
         populated_dl.outbox_append(leave_activity.id_)
 
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
@@ -946,7 +959,9 @@ class TestCloseNotYetEmittedConditionNode:
         populated_dl.create(leave_activity)
         populated_dl.outbox_append(leave_activity.id_)
 
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
@@ -962,6 +977,7 @@ class TestAddParticipantStatusTree:
         return BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         )
 
     @pytest.mark.spec("RSH-01-001")
@@ -1449,6 +1465,7 @@ class TestRejectionValidatorBeforeCommit:
         return BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         )
 
     @pytest.mark.spec("CLP-10-009")
@@ -1646,6 +1663,7 @@ class TestEmitRMGapNoteNode:
         return BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         )
 
     def _set_anomaly(self, anomaly_type: str, from_rm: RM, to_rm: RM) -> None:

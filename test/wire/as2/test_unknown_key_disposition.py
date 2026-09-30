@@ -1,4 +1,4 @@
-"""Inbound unknown-key disposition at the parse edge (MV-11, #3900, #3921).
+"""Inbound unknown-key disposition at the parse edge (MV-11, #3900, #3921, #3969).
 
 One rule, stated once at ``parse_activity`` and holding at every depth: an
 unrecognised key that is a *near miss* for a declared spelling (case or
@@ -14,18 +14,29 @@ of the build (SR-05-005); #3921 built the partition
 (``vultron.wire.as2.unknown_keys``) and took every mark off.
 """
 
+import ast
+import importlib
 import logging
+import pkgutil
+from collections.abc import Callable, Collection
+from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import BaseModel
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
-from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
+from vultron.wire.as2.errors import (
+    VultronParseMissingTypeError,
+    VultronParseValidationError,
+)
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
+from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 
 PUBLISHED = "2026-03-04T05:06:07+00:00"
 ACTIVITY_ID = "https://example.org/activities/1"
@@ -116,6 +127,16 @@ NEAR_MISS_POSITIONS: list[tuple[str, dict[str, Any], str, str]] = [
         "caseStatuses",
     ),
 ]
+
+
+def _string_constants_under(root: Path, names: Collection[str]) -> list[str]:
+    """Every string constant under *root* equal to one of *names*, located."""
+    return [
+        f"{path.relative_to(root)}:{node.lineno}: {node.value!r}"
+        for path in sorted(root.rglob("*.py"))
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Constant) and node.value in names
+    ]
 
 
 def _info_records_naming(
@@ -379,6 +400,8 @@ def test_opaque_payload_snapshot_is_carried_unexamined() -> None:
         ("attributed-to", "attributedto"),
         ("ATTRIBUTED_TO", "attributedto"),
         ("@context", "context"),
+        ("@id", "id"),
+        ("@type", "type"),
         ("vf state!", "vfstate"),
     ],
 )
@@ -400,19 +423,12 @@ def test_no_core_module_names_a_retired_key() -> None:
     for it, as ``ParticipantStatus._reject_retired_vfd_keys`` did; no string
     constant under ``vultron/core/`` may equal a name on the list.
     """
-    import ast
-    from pathlib import Path
-
     import vultron.core as core_package
     from vultron.wire.as2.unknown_keys import RETIRED_NAMES
 
-    core_root = Path(core_package.__file__).parent
-    offenders = [
-        f"{path.relative_to(core_root)}:{node.lineno}: {node.value!r}"
-        for path in sorted(core_root.rglob("*.py"))
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        if isinstance(node, ast.Constant) and node.value in RETIRED_NAMES
-    ]
+    offenders = _string_constants_under(
+        Path(core_package.__file__).parent, RETIRED_NAMES.keys()
+    )
     assert offenders == [], offenders
 
 
@@ -557,3 +573,248 @@ def test_case_stub_is_recognised_by_every_input_spelling(
 
     inline = {"type": "VulnerabilityCase", "id": "urn:uuid:c1", spelling: "x"}
     assert resolve_inline_class(inline) is as_VulnerabilityCaseStub
+
+
+# ---------------------------------------------------------------------------
+# JSON-LD keywords `@id` / `@type` are near misses of `id` / `type` (#3969)
+# ---------------------------------------------------------------------------
+#
+# MV-11-002 names this by design: the normative AS2 context aliases the
+# keywords and AS2 Core § 2.1 requires the compacted form, so a document
+# carrying `@id` or `@type` is legal JSON-LD but not a conforming AS2 document
+# (MV-01-001).  The refusal already fires through `normalise()`; these rows
+# make it asserted rather than incidental.
+
+JSONLD_KEYWORDS: list[tuple[str, str]] = [("@id", "id"), ("@type", "type")]
+# Values that name no class, so neither can steer class resolution.
+_KEYWORD_VALUE = {"@id": "https://example.org/objects/2", "@type": "Unrelated"}
+_AS2_CONTEXT = "https://www.w3.org/ns/activitystreams"
+
+_NOTE: dict[str, Any] = {"type": "Note", "content": "hi"}
+_CASE: dict[str, Any] = {
+    "type": "VulnerabilityCase",
+    "id": "https://example.org/cases/1",
+    "name": "a case",
+}
+
+
+def _keyword_on_note(**keys: Any) -> dict[str, Any]:
+    return _with_inline_object({**_NOTE, **keys})
+
+
+def _keyword_on_case(**keys: Any) -> dict[str, Any]:
+    return _with_inline_object({**_CASE, **keys})
+
+
+# (label, body builder, location the refusal names).  Every builder keeps
+# `type` present: the envelope's class and an inline object's class resolve
+# from it, and these rows pin the partition's judgement of a keyword beside a
+# resolved class.  The wire-class and core-class rows are AC-2's two branches.
+_KEYWORD_POSITIONS: list[tuple[str, Callable[..., dict[str, Any]], str]] = [
+    ("envelope", _envelope, "the envelope"),
+    ("inline wire-class Note", _keyword_on_note, "'object'"),
+    ("inline core-class VulnerabilityCase", _keyword_on_case, "'object'"),
+]
+_KEYWORD_BUILDER_PARAMS = pytest.mark.parametrize(
+    "build",
+    [b for _, b, _ in _KEYWORD_POSITIONS],
+    ids=[label for label, _, _ in _KEYWORD_POSITIONS],
+)
+_KEYWORD_POSITION_PARAMS = pytest.mark.parametrize(
+    "build,location",
+    [(b, loc) for _, b, loc in _KEYWORD_POSITIONS],
+    ids=[label for label, _, _ in _KEYWORD_POSITIONS],
+)
+
+
+@pytest.mark.spec("MV-11-002")
+@pytest.mark.spec("MV-01-001")
+@pytest.mark.spec("MV-02-002")
+@pytest.mark.parametrize(
+    "arriving,declared", JSONLD_KEYWORDS, ids=[k for k, _ in JSONLD_KEYWORDS]
+)
+@_KEYWORD_POSITION_PARAMS
+def test_jsonld_keyword_is_a_near_miss_of_its_as2_spelling(
+    build: Callable[..., dict[str, Any]],
+    location: str,
+    arriving: str,
+    declared: str,
+) -> None:
+    """`@id`/`@type` refuse naming the keyword and `id`/`type` (AC-1, AC-2).
+
+    The refusal is the parse edge's MV-11-002 message on the wire branch and
+    the core branch alike, never a Pydantic ``extra="forbid"`` dump.
+    """
+    body = build(**{arriving: _KEYWORD_VALUE[arriving]})
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert "MV-11-002" in message
+    assert (
+        f"{arriving!r} at {location} resembles the declared spelling"
+        f" {declared!r}"
+    ) in message
+    assert "Extra inputs are not permitted" not in message
+
+
+@pytest.mark.spec("MV-11-002")
+def test_jsonld_keyword_in_an_untyped_core_slot_is_a_near_miss() -> None:
+    """An untyped dict judged by its slot's core class refuses `@type` too."""
+    body = _keyword_on_case(
+        caseStatuses=[{"@type": "CaseStatus", "context": "x"}]
+    )
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    assert (
+        "'@type' at 'object.caseStatuses[0]' resembles the declared"
+        " spelling 'type'"
+    ) in str(exc_info.value)
+
+
+@pytest.mark.spec("MV-11-001")
+@pytest.mark.spec("MV-11-002")
+@pytest.mark.spec("EH-07-001")
+@_KEYWORD_POSITION_PARAMS
+def test_context_beside_jsonld_keywords_is_declared(
+    build: Callable[..., dict[str, Any]], location: str
+) -> None:
+    """`@context` is declared; one refusal names `@id` and `@type` only (AC-3).
+
+    All three keywords sit on the same object.  Every offending key is named
+    in the single refusal (EH-07-001), and `@context` — the one JSON-LD
+    keyword that is a declared spelling — is not among them.
+    """
+    body = build(**{"@context": _AS2_CONTEXT, **_KEYWORD_VALUE})
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert f"'@id' at {location}" in message
+    assert f"'@type' at {location}" in message
+    assert "'@context'" not in message
+    assert message.count("resembles the declared spelling") == 2
+
+
+@pytest.mark.spec("MV-11-001")
+@_KEYWORD_BUILDER_PARAMS
+def test_context_alone_is_accepted(
+    build: Callable[..., dict[str, Any]],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`@context` alone refuses nothing and is not set aside, at any position."""
+    caplog.set_level(logging.INFO)
+    parse_activity(build(**{"@context": _AS2_CONTEXT}))
+    assert not _info_records_naming(caplog, "@context")
+
+
+@pytest.mark.spec("MV-02-002")
+def test_envelope_with_only_at_type_is_refused_as_missing_type() -> None:
+    """With `@type` in place of `type`, no envelope class resolves at all.
+
+    The missing-type refusal fires before the partition has a class to judge
+    `@type` against, so the sender hears "missing type" rather than the
+    near-miss message.  This is the missing-type refusal (HTTP 400), outside
+    MV-11-002, which judges keys against a *resolved* class; pinned only so
+    such an activity is never accepted.
+    """
+    body = _envelope(**{"@type": "Offer"})
+    del body["type"]
+    with pytest.raises(VultronParseMissingTypeError):
+        parse_activity(body)
+
+
+def _raise_on_import_error(name: str) -> None:
+    """``walk_packages`` error hook: a failed subpackage import is a failure."""
+    raise ImportError(f"could not import {name} while filling registries")
+
+
+def _registered_classes() -> list[type[BaseModel]]:
+    """Every class a wire or core registry holds, after importing all of it.
+
+    A class registers when its module is imported, so reading the registries
+    as they stand covers only what earlier tests happened to import.  Walking
+    every ``vultron`` module first makes the ratchet order-independent.
+    """
+    import vultron
+
+    for info in pkgutil.walk_packages(
+        vultron.__path__, "vultron.", onerror=_raise_on_import_error
+    ):
+        importlib.import_module(info.name)
+    found = {
+        *VOCABULARY.values(),
+        *WIRE_TYPE_MAP.values(),
+        *CORE_VOCABULARY.values(),
+        *CORE_TYPE_MAP.values(),
+    }
+    return sorted(
+        found, key=lambda cls: f"{cls.__module__}.{cls.__qualname__}"
+    )
+
+
+@pytest.mark.spec("MV-11-002")
+def test_no_class_declares_a_jsonld_keyword_as_a_spelling() -> None:
+    """No wire or core class accepts `@id`/`@type` on input (AC-4).
+
+    MV-11-002: a receiver MUST NOT declare them as an alias.  Checked on the
+    spellings the partition itself derives, so an alias added through
+    ``validation_alias``, ``AliasChoices`` or an ``alias_generator`` is caught.
+    The private ``_class_spellings`` is read on purpose: it is the partition's
+    own definition of "declared", and a public restatement could drift from it.
+    """
+    from vultron.wire.as2.unknown_keys import _class_spellings
+
+    keywords = {k for k, _ in JSONLD_KEYWORDS}
+    classes = _registered_classes()
+    names = {cls.__qualname__ for cls in classes}
+    # One class from each root and each layer that registers: if these are
+    # missing, the walk did not fill the registries and the check is vacuous.
+    assert {
+        "as_Note",
+        "VulnerabilityCase",
+        "CaseStatus",
+        "OutboxDeadLetterEntry",
+    } <= names, sorted(names)
+    offenders = [
+        f"{cls.__module__}.{cls.__qualname__}: {sorted(found)}"
+        for cls in classes
+        if (found := keywords & _class_spellings(cls).annotations.keys())
+    ]
+    assert offenders == [], offenders
+
+
+@pytest.mark.spec("MV-11-002")
+def test_no_exemption_names_a_jsonld_keyword() -> None:
+    """`@id`/`@type` sit in no exemption set, and no source spells them (AC-4).
+
+    The set checks cover the partition's own exemptions; the source scan
+    (every string constant under ``vultron/`` that *equals* ``"@id"`` or
+    ``"@type"``) catches a new alias or exemption before it reaches a registry.
+    It does not see a keyword assembled at run time; the registry ratchet
+    above covers that case for every declared spelling.  The scan is deliberately
+    package-wide: AS2 compacts both keywords away (MV-11-002), so no Vultron
+    module has a reason to spell them, and one that does needs a reviewer.
+    """
+    import vultron
+    from vultron.wire.as2 import unknown_keys
+
+    keywords = {k for k, _ in JSONLD_KEYWORDS}
+    exemptions: dict[str, frozenset[str]] = {
+        "_UNEXAMINED_KEYS": unknown_keys._UNEXAMINED_KEYS,
+        "OPAQUE_PAYLOAD_KEYS": unknown_keys.OPAQUE_PAYLOAD_KEYS,
+        "RETIRED_NAMES": frozenset(unknown_keys.RETIRED_NAMES),
+        "CASE_STUB_KEYS": unknown_keys.CASE_STUB_KEYS,
+        "_CASE_STUB_INPUT_KEYS": unknown_keys._CASE_STUB_INPUT_KEYS,
+    }
+    assert {
+        name: sorted(keywords & keys)
+        for name, keys in exemptions.items()
+        if keywords & keys
+    } == {}
+
+    offenders = _string_constants_under(
+        Path(vultron.__file__).parent, keywords
+    )
+    assert offenders == [], (
+        "MV-11-002: @id/@type are near misses of id/type by design and MUST "
+        f"NOT be declared or exempted; found {offenders}"
+    )

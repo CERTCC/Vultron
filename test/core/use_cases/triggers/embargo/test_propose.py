@@ -20,6 +20,7 @@ from .conftest import (
     _build_exited_case,
     _build_unbound_case_with_case_manager,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def test_propose_embargo_invalid_state_does_not_persist_embargo(
@@ -41,6 +42,7 @@ def test_propose_embargo_invalid_state_does_not_persist_embargo(
             finder_dl,
             request,
             trigger_activity=TriggerActivityAdapter(finder_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
     after = len(list(finder_dl.list_objects("EmbargoEvent")))
@@ -65,7 +67,10 @@ def test_propose_embargo_updates_case_state_via_bt_path(
     )
 
     result = SvcProposeEmbargoUseCase(
-        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+        finder_dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(finder_dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
     assert result.activity is not None

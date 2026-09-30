@@ -24,10 +24,9 @@ Per CM-23-002 step 2, CM-23-005, ADR-0051.
 """
 
 import logging
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 from py_trees.common import Status
-from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.case.ledger_snapshots import (
     build_add_participant_status_snapshot,
@@ -41,9 +40,6 @@ from vultron.core.models.participant_status import (
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-
-if TYPE_CHECKING:
-    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
@@ -96,24 +92,6 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._case_actor_id = case_actor_id
         self._case_id = case_id
-        self.wire_render_port: "WireRenderPort | None" = None
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "wire_render_port": PortInformation(data_type=object, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"wire_render_port": "/wire_render_port"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.wire_render_port = None
-        try:
-            self.wire_render_port = self.get_input("wire_render_port")
-        except (NoDataAvailable, NotImplementedError):
-            pass
 
     def _best_effort(self, reason: str) -> Status:
         """Log *reason* as a WARNING and return SUCCESS.
@@ -180,6 +158,13 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
             # the whole point of the entry — so skip the entry rather than
             # commit an empty payload. Loudly: ISSUE-2505 was masked for months
             # by a silently absent wire_render_port on the genesis commit path.
+            #
+            # Deliberately *not* _require_wire_render_port(): elsewhere a
+            # missing port is a wiring fault that raises, but this entry sits
+            # inside CM-23-002's closure Sequence, and _best_effort() explains
+            # why losing the entry is the lesser loss.  In a composed tree the
+            # Leave's own guarded commit has already required the port, so
+            # this branch is reached only when this node alone is blind to it.
             return self._best_effort(
                 "no WireRenderPort — cannot render the CASE_MANAGER's"
                 " RM.CLOSED ParticipantStatus snapshot, so it is not recorded"

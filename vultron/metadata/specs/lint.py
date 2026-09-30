@@ -24,6 +24,7 @@ from vultron.metadata.specs.registry import (
 )
 from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.specs.schema import (
+    SPEC_ID_CITATION_RE,
     AdrStatus,
     BehavioralSpec,
     LintWarningCode,
@@ -172,14 +173,9 @@ _REPO_TOP_LEVEL_DIRS = frozenset(
     }
 )
 
-#: Regex for bare spec ID tokens (e.g. ``HTTP-03-005``, ``CBT-05-007``) in
-#: Python source files.  Matched with ``\b`` word boundaries so that version
-#: strings like ``1.2.3`` or ``ADR-0001`` are not mistaken for spec IDs.
-#: The pattern is intentionally specific to Vultron spec ID conventions
-#: (2–8 uppercase letters, two-digit group, three-digit index) and does not
-#: match ISO standard numbers, semantic version strings, or similar patterns
-#: seen in the vultron/ and test/ trees.
-_SPEC_ID_RE = re.compile(r"\b([A-Z]{2,8}-\d{2}-\d{3})\b")
+#: MS-04-001 requirement-ID shape, shared with the citation ratchets and
+#: bundle-fit via :data:`vultron.metadata.specs.schema.SPEC_ID_CITATION_RE`.
+_SPEC_ID_RE = SPEC_ID_CITATION_RE
 
 #: MS-15: a backticked ``SCREAMING_SNAKE_CASE`` token in spec prose, read as a
 #: reference to a module-level code symbol (e.g. ``SEMANTIC_REGISTRY``,
@@ -764,7 +760,7 @@ class _SourceScan:
                     continue
                 seen_in_file: set[str] = set()
                 for match in _SPEC_ID_RE.finditer(text):
-                    sid = match.group(1)
+                    sid = match.group(0)
                     if sid not in seen_in_file:
                         seen_in_file.add(sid)
                         self.spec_id_citations.append((rel_str, sid))

@@ -7,6 +7,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.wire_render import WireRenderPort
 from vultron.errors import VultronAlreadyExistsError
 
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -35,9 +36,13 @@ class CreateCaseReceivedUseCase:
     """
 
     def __init__(
-        self, dl: CasePersistence, request: CreateCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: CreateCaseReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: CreateCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:

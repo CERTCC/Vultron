@@ -50,7 +50,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "Creates a new EmbargoEvent and emits an EmProposeEmbargoActivity "
         "(Invite(EmbargoEvent)) activity. "
         "EM state transitions: N → P (new proposal) or A → R (revision). "
-        "Returns the resulting activity in the response body (TB-04-001)."
+        "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_propose_embargo",
 )
@@ -65,8 +65,8 @@ def trigger_propose_embargo(
     Trigger the propose-embargo behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
-        TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-002, TRIG-03-001, TRIG-03-002,
+        TRIG-03-003, TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
     """
     with domain_error_translation():
         result = svc.propose_embargo(
@@ -85,7 +85,7 @@ def trigger_propose_embargo(
         "Accepts the current (or specified) embargo proposal by emitting "
         "an EmAcceptEmbargoActivity activity. Activates the embargo on the case "
         "(EM state → ACTIVE). "
-        "Returns the resulting activity in the response body (TB-04-001)."
+        "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_accept_embargo",
 )
@@ -100,8 +100,8 @@ def trigger_accept_embargo(
     Trigger the accept-embargo behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
-        TB-04-001, TB-06-001, TB-06-002, TB-07-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-002, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
     """
     with domain_error_translation():
         result = svc.accept_embargo(actor_id, body.case_id, body.proposal_id)
@@ -118,7 +118,7 @@ def trigger_accept_embargo(
         "Rejects the current (or specified) embargo proposal by emitting "
         "an EmRejectEmbargoActivity activity. "
         "EM state transitions: PROPOSED → NONE or REVISE → ACTIVE. "
-        "Returns the resulting activity in the response body (TB-04-001)."
+        "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_reject_embargo",
 )
@@ -133,8 +133,8 @@ def trigger_reject_embargo(
     Trigger the reject-embargo behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
-        TB-04-001, TB-06-001, TB-06-002, TB-07-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-002, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
     """
     with domain_error_translation():
         result = svc.reject_embargo(actor_id, body.case_id, body.proposal_id)
@@ -153,7 +153,7 @@ def trigger_reject_embargo(
         "Only valid when EM state is ACTIVE or REVISE; "
         "use propose-embargo for initial proposals. "
         "EM state transitions: ACTIVE → REVISE or REVISE → REVISE. "
-        "Returns the resulting activity in the response body (TB-04-001)."
+        "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_propose_embargo_revision",
 )
@@ -168,8 +168,8 @@ def trigger_propose_embargo_revision(
     Trigger the propose-embargo-revision behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
-        TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-002, TRIG-03-001, TRIG-03-002,
+        TRIG-03-003, TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
     """
     with domain_error_translation():
         result = svc.propose_embargo_revision(
@@ -189,7 +189,7 @@ def trigger_propose_embargo_revision(
         "AnnounceEmbargoActivity activity. Updates the case EM state to EXITED "
         "and clears the active embargo. "
         "Returns HTTP 409 if no active embargo exists. "
-        "Returns the resulting activity in the response body (TB-04-001)."
+        "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_terminate_embargo",
 )
@@ -204,8 +204,8 @@ def trigger_terminate_embargo(
     Trigger the terminate-embargo behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
-        TB-04-001, TB-06-001, TB-06-002, TB-07-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-002, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
     """
     with domain_error_translation():
         result = svc.terminate_embargo(actor_id, body.case_id)

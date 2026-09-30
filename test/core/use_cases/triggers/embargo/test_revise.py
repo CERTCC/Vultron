@@ -25,6 +25,7 @@ from .conftest import (
     _build_active_embargo_case_with_case_manager,
     _build_unbound_case_with_case_manager,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def test_propose_embargo_revision_transitions_em_to_revise(
@@ -41,7 +42,10 @@ def test_propose_embargo_revision_transitions_em_to_revise(
     )
 
     result = SvcProposeEmbargoRevisionUseCase(
-        dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
     assert result.activity is not None
@@ -66,7 +70,10 @@ def test_propose_embargo_revision_queues_outbox_activity(
     )
 
     SvcProposeEmbargoRevisionUseCase(
-        dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
     outbox_after = dl.outbox_list()
@@ -88,7 +95,10 @@ def test_propose_embargo_revision_invalid_em_state_raises_error(
 
     with pytest.raises(VultronInvalidStateTransitionError):
         SvcProposeEmbargoRevisionUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
 
@@ -109,7 +119,10 @@ def test_propose_embargo_revision_invalid_state_does_not_persist_embargo(
 
     with pytest.raises(VultronInvalidStateTransitionError):
         SvcProposeEmbargoRevisionUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
     after = len(list(dl.list_objects("EmbargoEvent")))
@@ -142,7 +155,10 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     )
 
     result = SvcProposeEmbargoRevisionUseCase(
-        dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
     assert result.activity is not None

@@ -190,9 +190,8 @@ class CoreObject(CoreRecord):
     #
     # This is the mechanism behind the rendering port, not a licence for core
     # code to dump its own objects: core logic hands rendering to the port, and
-    # the `by_alias=True` sites that remain under `vultron/core/` are an exact,
-    # shrink-only baseline in test/architecture/test_core_by_alias_dumps.py
-    # (ARCH-12-003, ARCH-20-001).
+    # test/architecture/test_core_by_alias_dumps.py holds `vultron/core/` to an
+    # empty baseline of `by_alias=True` calls (ARCH-12-003, ARCH-20-001).
     #
     # No unknown key may enter a core object: a wire-shaped payload handed to a
     # core type is rejected loudly rather than silently dropping every

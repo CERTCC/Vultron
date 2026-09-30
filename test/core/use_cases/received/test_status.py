@@ -47,6 +47,7 @@ from vultron.core.models.dimensions import (
     EmDimension,
     RmDimension,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 class TestStatusUseCases:
@@ -74,7 +75,9 @@ class TestStatusUseCases:
 
         event = make_payload(activity)
 
-        result = CreateCaseStatusReceivedUseCase(dl, event).execute()
+        result = CreateCaseStatusReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         stored = dl.get(status.type_, status.id_)
         assert stored is not None
@@ -102,7 +105,9 @@ class TestStatusUseCases:
         )
         event = make_payload(activity)
 
-        result = CreateCaseStatusReceivedUseCase(dl, event).execute()
+        result = CreateCaseStatusReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         stored = dl.get(status.type_, status.id_)
         assert stored is not None
@@ -132,7 +137,9 @@ class TestStatusUseCases:
         )
         event = make_payload(activity)
 
-        result = AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+        result = AddCaseStatusToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         case = dl.read(case.id_)
         assert case is not None
@@ -143,7 +150,9 @@ class TestStatusUseCases:
 
         # HP-01-003: a redelivered Add of a status already present is a
         # no-op, not a refusal.
-        again = AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+        again = AddCaseStatusToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
         assert again.disposition == HandlerDisposition.SKIPPED
 
     def test_add_case_status_blocks_invalid_em_transition(
@@ -181,7 +190,9 @@ class TestStatusUseCases:
         )
         event = make_payload(activity)
 
-        result = AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+        result = AddCaseStatusToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         updated_case = dl.read(case.id_)
         assert updated_case is not None
@@ -232,7 +243,10 @@ class TestStatusUseCases:
         mock_trigger.emit_processing_fault.return_value = "urn:uuid:fault-1"
 
         AddCaseStatusToCaseReceivedUseCase(
-            dl, event, trigger_activity=mock_trigger
+            dl,
+            event,
+            trigger_activity=mock_trigger,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         mock_trigger.emit_processing_fault.assert_called_once()
@@ -276,7 +290,10 @@ class TestStatusUseCases:
         event = make_payload(activity)
 
         AddCaseStatusToCaseReceivedUseCase(
-            dl, event, trigger_activity=None
+            dl,
+            event,
+            trigger_activity=None,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
     def test_refused_participant_status_emits_processing_fault(
@@ -334,7 +351,10 @@ class TestStatusUseCases:
         mock_trigger.emit_processing_fault.return_value = "urn:uuid:fault-2"
 
         result = AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, trigger_activity=mock_trigger
+            dl,
+            event,
+            trigger_activity=mock_trigger,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -400,7 +420,9 @@ class TestStatusUseCases:
         event = make_payload(activity, receiving_actor_id=receiver_id)
 
         result = AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -440,7 +462,9 @@ class TestStatusUseCases:
         )
         event = make_payload(activity)
 
-        AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+        AddCaseStatusToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         updated_case = dl.read(case.id_)
         assert updated_case is not None
@@ -471,7 +495,9 @@ class TestStatusUseCases:
 
         event = make_payload(activity)
 
-        CreateParticipantStatusReceivedUseCase(dl, event).execute()
+        CreateParticipantStatusReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         stored = dl.get(pstatus.type_, pstatus.id_)
         assert stored is not None
@@ -518,7 +544,9 @@ class TestStatusUseCases:
         )
 
         result = AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         # The default call-out withholds adoption of a non-owner's claim
         # (RSH-07-001).  The append lands, and a withheld adoption is not a
@@ -581,7 +609,9 @@ class TestStatusUseCases:
             event = make_payload(activity, receiving_actor_id=None)
 
             AddParticipantStatusToParticipantReceivedUseCase(
-                dl, event
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
             refreshed = dl.read(participant.id_)
@@ -613,7 +643,9 @@ class TestStatusUseCases:
 
         with caplog.at_level(logging.WARNING):
             result = AddCaseStatusToCaseReceivedUseCase(
-                dl, mock_event
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert "missing status_id or case_id" in caplog.text
@@ -639,7 +671,9 @@ class TestStatusUseCases:
 
         with caplog.at_level(logging.WARNING):
             result = AddParticipantStatusToParticipantReceivedUseCase(
-                dl, mock_event
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert "missing status_id" in caplog.text
@@ -745,7 +779,10 @@ class TestParticipantStatusLogEntryCascade:
         event = make_payload(activity, receiving_actor_id=case_actor_id)
         sync_port = SyncActivityAdapter(dl)
         AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
@@ -785,7 +822,10 @@ class TestParticipantStatusLogEntryCascade:
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
         AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, sync_port=None
+            dl,
+            event,
+            sync_port=None,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # Log entry MUST be committed locally even without a sync_port.
@@ -841,7 +881,10 @@ class TestParticipantStatusLogEntryCascade:
 
         before_count = len(participant.participant_statuses)
         result = AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -882,7 +925,10 @@ class TestParticipantStatusLogEntryCascade:
         event = make_payload(activity, receiving_actor_id=case_actor_id)
         sync_port = SyncActivityAdapter(dl)
         uc = AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         )
 
         uc.execute()
@@ -931,7 +977,10 @@ class TestParticipantStatusLogEntryCascade:
         )
         event = make_payload(activity, receiving_actor_id=non_case_actor_id)
         AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
@@ -990,6 +1039,7 @@ class TestParticipantStatusLogEntryCascade:
             event,
             trigger_activity=mock_trigger,
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
@@ -1066,7 +1116,10 @@ class TestParticipantStatusLogEntryCascade:
         event = make_payload(activity, receiving_actor_id=None)
         sync_port = SyncActivityAdapter(dl)
         AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [

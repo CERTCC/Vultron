@@ -103,8 +103,8 @@ def trigger_suggest_actor_to_case(
     Trigger the suggest-actor-to-case behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
-        TB-04-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001
     """
     with domain_error_translation():
         result = svc.suggest_actor_to_case(
@@ -142,8 +142,8 @@ def trigger_accept_case_invite(
     Trigger the accept-case-invite behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
-        TB-04-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001
     """
     with domain_error_translation():
         result = svc.accept_case_invite(
@@ -176,8 +176,8 @@ def trigger_reject_case_invite(
     Trigger the reject-case-invite behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
-        TB-04-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001
     """
     with domain_error_translation():
         result = svc.reject_case_invite(
@@ -210,8 +210,8 @@ def trigger_invite_actor_to_case(
     Trigger the invite-actor-to-case behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
-        TB-04-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001
     """
     with domain_error_translation():
         result = svc.invite_actor_to_case(
@@ -247,8 +247,8 @@ def trigger_accept_actor_recommendation(
     """
     Trigger the accept-actor-recommendation behavior for the given actor.
 
-    Implements: ADR-0026 (CM-16-006); TB-01-001, TB-01-002, HTTP-03-005,
-        TB-02-001, TB-03-001, TB-03-002, TB-04-001
+    Implements: ADR-0026 (CM-16-006); TRIG-01-001, TRIG-01-002, HTTP-03-005,
+        TRIG-02-005, TRIG-03-001, TRIG-03-002, TRIG-04-001
     """
     with domain_error_translation():
         result = svc.accept_actor_recommendation(
@@ -280,7 +280,13 @@ def trigger_offer_case_participant_role(
     svc: TriggerServicePort = Depends(get_trigger_service),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
-    """Trigger Offer(CaseParticipantRole) from the requesting actor (ADR-0039)."""
+    """
+    Trigger Offer(CaseParticipantRole) from the requesting actor (ADR-0039).
+
+    Implements:
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-007, TRIG-03-001,
+        TRIG-03-002, TRIG-04-001
+    """
     with domain_error_translation():
         result = svc.offer_case_participant_role(
             actor_id=actor_id,
@@ -320,8 +326,8 @@ def trigger_offer_case_ownership_transfer(
     Trigger the offer-case-ownership-transfer behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
-        TB-04-001; TRIG-11-001
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-007, TRIG-03-001,
+        TRIG-03-002, TRIG-04-001; TRIG-11-001
     """
     with domain_error_translation():
         result = svc.offer_case_ownership_transfer(
@@ -359,8 +365,8 @@ def trigger_accept_case_ownership_transfer(
     Trigger the accept-case-ownership-transfer behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
-        TB-04-001; TRIG-11-002
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-007, TRIG-03-001,
+        TRIG-03-002, TRIG-04-001; TRIG-11-002
     """
     with domain_error_translation():
         result = svc.accept_case_ownership_transfer(

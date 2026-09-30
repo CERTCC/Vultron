@@ -39,6 +39,7 @@ from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-01"
@@ -61,7 +62,7 @@ def dl():
 
 @pytest.fixture
 def bridge(dl):
-    return BTBridge(datalayer=dl)
+    return BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter())
 
 
 @pytest.fixture
@@ -86,7 +87,9 @@ def populated_dl(dl, case, status_obj):
 
 @pytest.fixture
 def populated_bridge(populated_dl):
-    return BTBridge(datalayer=populated_dl)
+    return BTBridge(
+        datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +122,9 @@ class TestCheckCaseStatusIdempotencyNode:
         case.case_statuses.append(status)
         populated_dl.save(case)
 
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = CheckCaseStatusIdempotencyNode(
             case_id=CASE_ID, status_id=STATUS_ID
         )
@@ -234,7 +239,9 @@ class TestEmitCaseStatusUpdateNode:
     @pytest.mark.spec("RSH-04-002")
     def test_happy_path_appends_new_case_status(self, populated_dl):
         """SUCCESS: appends a new CaseStatus to case.case_statuses."""
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
         case_before = populated_dl.read(CASE_ID)
         assert isinstance(case_before, CoreCase)
         initial_count = len(case_before.case_statuses)
@@ -247,10 +254,42 @@ class TestEmitCaseStatusUpdateNode:
         assert isinstance(case_after, CoreCase)
         assert len(case_after.case_statuses) == initial_count + 1
 
+    @pytest.mark.spec("ARCH-20-001")
+    @pytest.mark.spec("CLP-07-009")
+    def test_missing_render_port_commits_and_persists_nothing(
+        self, populated_dl
+    ):
+        """No port: no AS2 snapshot can be built, so nothing is written.
+
+        The node does not dump the ``CaseStatus`` itself; the missing port is a
+        composition fault, and no status is appended without its entry.
+        """
+        case_before = populated_dl.read(CASE_ID)
+        assert isinstance(case_before, CoreCase)
+        initial_count = len(case_before.case_statuses)
+
+        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        result = BTBridge(datalayer=populated_dl).execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        case_after = populated_dl.read(CASE_ID)
+        assert isinstance(case_after, CoreCase)
+        assert len(case_after.case_statuses) == initial_count
+        assert not [
+            obj
+            for obj in populated_dl.list_objects("CaseLedgerEntry")
+            if getattr(obj, "event_type", None) == "add_case_status_to_case"
+        ]
+
     @pytest.mark.spec("RSH-04-004")
     def test_happy_path_commits_ledger_entry(self, populated_dl):
         """SUCCESS: a CaseLedgerEntry with event_type='add_case_status_to_case' is committed."""
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
@@ -281,7 +320,9 @@ class TestEmitCaseStatusUpdateNode:
         """The new CaseStatus has attributed_to set to the executing actor."""
         from vultron.core.models.case_status import CaseStatus
 
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
@@ -337,9 +378,13 @@ class TestEmitCaseStatusUpdateNode:
         bb.register_key(key="datalayer", access=py_trees.common.Access.WRITE)
         bb.register_key(key="actor_id", access=py_trees.common.Access.WRITE)
         bb.register_key(key="is_leader", access=py_trees.common.Access.WRITE)
+        bb.register_key(
+            key="wire_render_port", access=py_trees.common.Access.WRITE
+        )
         bb.datalayer = populated_dl
         bb.actor_id = ACTOR_ID
         bb.is_leader = lambda: False
+        bb.wire_render_port = As2WireRenderAdapter()
 
         try:
             node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
@@ -356,5 +401,7 @@ class TestEmitCaseStatusUpdateNode:
                 "/datalayer",
                 "actor_id",
                 "/actor_id",
+                "wire_render_port",
+                "/wire_render_port",
             ]:
                 storage.pop(key, None)

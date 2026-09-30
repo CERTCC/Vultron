@@ -36,6 +36,8 @@ from typing import TYPE_CHECKING, Any
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.helpers import WIRE_RENDER_PORT_UNAVAILABLE
+from vultron.errors import VultronWiringError
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.case_proposal import (
@@ -209,40 +211,33 @@ class CreateCaseProposalReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        # Extract the wire proposal as a plain dict so the Accept can carry it
-        # inline (CP-05-003, AKM-03-001). Uses duck-typing to avoid a core→wire
-        # import dependency.
+        # Render the proposal as a plain AS2 dict so the Accept can carry it
+        # inline (CP-05-003, AKM-03-001).  The subject handed to the port is the
+        # core-branch ``VultronActivity`` the extractor built; its ``object`` is
+        # the as_CaseProposal as it arrived.  Core renders nothing itself
+        # (ARCH-20-001): the port is the only route to the AS2 shape, so a
+        # proposal cannot be handled without it.  A missing port is this
+        # actor's composition fault, never the sender's, so it raises rather
+        # than refusing the proposal (#2255, ADR-0095).
+        #
+        # The render keeps the proposal's inline ``object_`` — the vulnerability
+        # report — because ``VultronActivity.object_`` is typed ``Any`` and so is
+        # serialised by its runtime type.  Losing it would give the tree a
+        # proposal with no report to store, and everything derived from the
+        # report (the reporter participant, its ledger entry, the SIGNATORY
+        # seed) would silently skip, so the reporter would never get a replica.
         proposal_dict: dict | None = None
         activity_obj = request.activity
-        if activity_obj is not None:
-            raw_proposal = getattr(activity_obj, "object_", None)
-            if raw_proposal is not None and hasattr(
-                raw_proposal, "model_dump"
-            ):
-                # `serialize_as_any=True` is required, not cosmetic: without it
-                # Pydantic serialises each field by its *declared* type, so the
-                # proposal's inline `object_` — the vulnerability report — is
-                # flattened away and the tree receives a proposal with no report
-                # to store. Everything derived from the report (the reporter
-                # participant, its ledger entry, the SIGNATORY seed) then skips
-                # "best-effort" and the reporter never gets a replica. The same
-                # flag is needed on the delivery path for the same reason, which
-                # `_TestClientRouter.emit` documents.
-                #
-                # A workaround previously sat here, normalising `target` back to a
-                # string because `_rehydrate_fields` had expanded it to a full
-                # actor. That expansion was itself the bug and is fixed at source
-                # (rehydration now respects the field's declared type), so the
-                # workaround is gone.
-                #
-                # ARCH-20-001 permits this ``by_alias=True``: the subject is a
-                # *wire object*, not a core-branch one — ``raw_proposal`` is the
-                # inbound activity's own ``object_``, the as_CaseProposal as it
-                # arrived. Dumping it reproduces the bytes the vendor sent; it
-                # does not synthesise a wire shape for a core object.
-                proposal_dict = raw_proposal.model_dump(
-                    by_alias=True, serialize_as_any=True
-                )
+        if activity_obj is not None and hasattr(
+            getattr(activity_obj, "object_", None), "model_dump"
+        ):
+            if self._wire_render_port is None:
+                raise VultronWiringError(WIRE_RENDER_PORT_UNAVAILABLE)
+            rendered = self._wire_render_port.render(activity_obj).get(
+                "object"
+            )
+            if isinstance(rendered, dict):
+                proposal_dict = rendered
 
         inline_report = self._core_inline_report(activity_obj, proposal_id)
 
@@ -340,8 +335,10 @@ class AcceptCaseProposalReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AcceptCaseProposalReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AcceptCaseProposalReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -368,7 +365,9 @@ class AcceptCaseProposalReceivedUseCase:
             report_id=report_id,
             case_actor_id=case_actor_id,
         )
-        result = BTBridge(datalayer=self._dl).execute_with_setup(
+        result = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
@@ -412,8 +411,10 @@ class RejectCaseProposalReceivedUseCase:
         self,
         dl: CasePersistence,
         request: RejectCaseProposalReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: RejectCaseProposalReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -443,7 +444,9 @@ class RejectCaseProposalReceivedUseCase:
             report_id=report_id,
             rejection_reason=rejection_reason,
         )
-        result = BTBridge(datalayer=self._dl).execute_with_setup(
+        result = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,

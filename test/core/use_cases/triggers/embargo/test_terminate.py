@@ -23,6 +23,7 @@ from .conftest import (
     _build_unbound_case_with_case_manager,
     _persist_actor,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
@@ -46,7 +47,10 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
     )
 
     result = SvcTerminateEmbargoUseCase(
-        owner_dl, request, trigger_activity=TriggerActivityAdapter(owner_dl)
+        owner_dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(owner_dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
     assert result.activity is not None
@@ -79,4 +83,5 @@ def test_terminate_embargo_no_active_embargo_raises_via_bt_node(
             owner_dl,
             request,
             trigger_activity=TriggerActivityAdapter(owner_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()

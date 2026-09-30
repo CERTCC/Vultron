@@ -179,3 +179,13 @@ def parse_inline(source: str, filename: str = "<inline>") -> ast.AST:
     the hygiene ratchet (TB-13-003) unambiguous.
     """
     return ast.parse(source, filename=filename)
+
+
+def node_line(node: ast.AST) -> int:
+    """Source line of *node*, ``0`` when the node type carries none.
+
+    ``ast.AST`` itself does not declare ``lineno``, so ratchets that report a
+    site per matched node go through this rather than reaching for the
+    attribute directly.
+    """
+    return getattr(node, "lineno", 0)

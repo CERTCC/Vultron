@@ -183,8 +183,22 @@ def make_dispatcher() -> ActivityDispatcher:
             for sem in _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS
         }
     )
+    # Every received use case gets a WireRenderPort, on top of whatever else
+    # its semantics needs.  A received tree's guarded ledger commit snapshots
+    # the activity as an AS2 rendering, which core cannot produce itself
+    # (ARCH-20-001, CLP-07-009).  The port is given to every use case rather
+    # than to a hand-kept list of those whose trees commit, because a list that
+    # falls behind is exactly how the snapshot path ran portless before #3930;
+    # a use case that runs no tree accepts it and has nothing to pass it to.
+    use_cases = _use_case_map()
+    port_factories = {
+        sem: inbox_port_factories.with_wire_render_port(
+            port_factories.get(sem, lambda dl: {})
+        )
+        for sem in use_cases
+    }
     d = get_dispatcher(
-        use_case_map=_use_case_map(),
+        use_case_map=use_cases,
         port_factories=port_factories,
     )
     logger.debug("Created inbox dispatcher: %s", type(d).__name__)

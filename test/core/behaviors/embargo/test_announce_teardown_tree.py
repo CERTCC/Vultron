@@ -45,6 +45,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
     make_case_with_manager,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 # Kept for objects that reference the vendor; the trees below execute as the
 # CASE_MANAGER, which is who the ledger commit is gated on.
@@ -112,7 +113,11 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         tree = remove_embargo_from_case_tree(
             case_id=case.id_, embargo_id=embargo.id_
         )
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove1"
         )
@@ -152,7 +157,11 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         tree = remove_embargo_from_case_tree(
             case_id=case.id_, embargo_id=embargo.id_
         )
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove2"
         )
@@ -173,7 +182,9 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         tree = remove_embargo_from_case_tree(
             case_id=case.id_, embargo_id=embargo.id_
         )
-        bridge = BTBridge(datalayer=dl)  # no trigger_activity
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )  # no trigger_activity
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove3"
         )
@@ -207,7 +218,11 @@ class TestRemoveEmbargoTeardownFailuresSurface:
         tree = remove_embargo_from_case_tree(
             case_id=case.id_, embargo_id=embargo.id_
         )
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove4"
         )
@@ -232,7 +247,11 @@ class TestRemoveEmbargoTeardownFailuresSurface:
         tree = remove_embargo_from_case_tree(
             case_id=case.id_, embargo_id=embargo.id_
         )
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove5"
         )

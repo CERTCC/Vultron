@@ -42,6 +42,7 @@ from vultron.core.use_cases.received._bt_verdict import (
 )
 
 if TYPE_CHECKING:
+    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
@@ -122,8 +123,10 @@ class InviteActorToCaseReceivedUseCase:
         request: InviteActorToCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: InviteActorToCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
@@ -186,6 +189,7 @@ class InviteActorToCaseReceivedUseCase:
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
@@ -224,8 +228,10 @@ class AcceptInviteActorToCaseReceivedUseCase:
         request: AcceptInviteActorToCaseReceivedEvent,
         sync_port: SyncActivityPort,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AcceptInviteActorToCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
@@ -259,6 +265,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=actor_id,
@@ -310,8 +317,10 @@ class RejectInviteActorToCaseReceivedUseCase:
         request: RejectInviteActorToCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: RejectInviteActorToCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
@@ -346,6 +355,7 @@ class RejectInviteActorToCaseReceivedUseCase:
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=actor_id,

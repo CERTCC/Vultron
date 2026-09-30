@@ -92,28 +92,21 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         self._offer_id = offer_id
         self._offer_actor_id = offer_actor_id
         self._case_id_bb: str | None = None
-        self.wire_render_port = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         "case_id": PortInformation(data_type=str, required=False),
-        "wire_render_port": PortInformation(data_type=object, required=False),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id", "wire_render_port": "/wire_render_port"}
+        return {"case_id": "/case_id"}
 
     def initialise(self) -> None:
         super().initialise()
         self._case_id_bb = None
-        self.wire_render_port = None
         try:
             self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
-            pass
-        try:
-            self.wire_render_port = self.get_input("wire_render_port")
         except (NoDataAvailable, NotImplementedError):
             pass
 
@@ -344,18 +337,15 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         # mean fanning the genesis entry out ahead of it, which is the
         # pre-genesis path CP-09-009 exists to avoid.  Pinned by
         # test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued.
-        if self.wire_render_port is None:
-            self.feedback_message = "wire_render_port not available"
-            logger.error("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        # A missing port is a composition fault, raised as VultronWiringError
+        # rather than reported as a failed genesis commit (ARCH-20-001).
+        port = self._require_wire_render_port()
 
         if not self._commit_one(
             case_id,
             case_id,
             "create_case",
-            build_create_case_snapshot(
-                case, self.actor_id, case_id, self.wire_render_port
-            ),
+            build_create_case_snapshot(case, self.actor_id, case_id, port),
         ):
             self.feedback_message = (
                 f"genesis create_case ledger commit failed for case"

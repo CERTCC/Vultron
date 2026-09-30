@@ -412,7 +412,14 @@ asserts its return annotation resolves to `UseCaseResult` or a subtype, catching
 drift when new use cases are added without the correct return type, independent
 of mypy configuration (UCORG-05-004). "Registered subtype" is the subclass
 relation itself, resolved with `typing.get_type_hints`, so a new result type
-needs no list edit.
+needs no list edit. The same scan rejects an `execute()` that takes any
+parameter beyond `self` (HP-01-001): everything a handler needs arrived through
+`__init__(dl, request)`, so an argument on `execute()` is a second request path
+the dispatcher cannot supply. Its companions under `test/architecture/` pin the
+rest of the handler contract: `test_use_cases_no_inbox_outcome.py` keeps
+`InboxOutcome` vocabulary out of `vultron/core/use_cases/` (HP-01-004), and
+`test_no_record_level_persistence_in_core.py` keeps hand-built records and the
+record-level `update(id_, record)` out of core writes (HP-08-001).
 
 It scans every package under `use_cases/`, `triggers/` included. The
 exclusion it once carried (UCORG-05-004b) was retired with #3831 — the test

@@ -66,6 +66,7 @@ from vultron.core.models.dimensions import (
     RmDimension,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=timezone.utc)
 
@@ -114,7 +115,9 @@ def _add_self_participant(case, dl, actor_id: str, rm: RM = RM.RECEIVED):
 def test_submit_report_trigger_creates_report_case_link(dl, actor):
     """submit_report creates an unlinked ReportCaseLink for later replica sync."""
     TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).submit_report(
         actor.id_,
         "Submitted vulnerability",
@@ -377,7 +380,9 @@ def test_validate_report_trigger_returns_activity_result(
 ):
     """validate_report returns an ActivityResult whose activity was captured."""
     result = TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).validate_report(actor.id_, offer.id_, None)
     assert result.activity is not None
 
@@ -386,7 +391,9 @@ def test_validate_report_trigger_unknown_actor_raises_404(dl, offer):
     """validate_report_trigger raises VultronNotFoundError 404 for unknown actor."""
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).validate_report("urn:uuid:no-such-actor", offer.id_, None)
 
 
@@ -394,7 +401,9 @@ def test_validate_report_trigger_unknown_offer_raises_404(dl, actor):
     """validate_report_trigger raises VultronNotFoundError 404 for unknown offer."""
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).validate_report(actor.id_, "urn:uuid:no-such-offer", None)
 
 
@@ -408,7 +417,9 @@ def test_validate_report_trigger_transitions_rm_to_valid(
     is responsible only for the RM.RECEIVED → RM.VALID transition.
     """
     TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).validate_report(actor.id_, offer.id_, None)
 
     link = dl.read(VultronReportCaseLink.build_id(offer.object_))
@@ -427,7 +438,9 @@ def test_validate_report_trigger_non_report_offer_raises_404(
     """
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).validate_report(actor.id_, non_report_object.id_, None)
 
 
@@ -441,7 +454,9 @@ def test_invalidate_report_trigger_returns_activity_result(
 ):
     """invalidate_report returns an ActivityResult whose activity was captured."""
     result = TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).invalidate_report(actor.id_, offer.id_, None)
     assert result.activity is not None
 
@@ -450,7 +465,9 @@ def test_invalidate_report_trigger_unknown_actor_raises_404(dl, offer):
     """invalidate_report_trigger raises VultronNotFoundError 404 for unknown actor."""
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).invalidate_report("urn:uuid:no-such", offer.id_, None)
 
 
@@ -458,7 +475,9 @@ def test_invalidate_report_trigger_unknown_offer_raises_404(dl, actor):
     """invalidate_report_trigger raises VultronNotFoundError 404 for unknown offer."""
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).invalidate_report(actor.id_, "urn:uuid:no-such", None)
 
 
@@ -469,7 +488,9 @@ def test_invalidate_report_trigger_adds_activity_to_outbox(
     before = set(dl.outbox_list())
 
     TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).invalidate_report(actor.id_, offer.id_, None)
 
     after = set(dl.outbox_list())
@@ -486,7 +507,9 @@ def test_invalidate_report_trigger_non_report_offer_raises_404(
     """
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).invalidate_report(actor.id_, non_report_object.id_, None)
 
 
@@ -500,7 +523,9 @@ def test_reject_report_trigger_returns_activity_result(
 ):
     """reject_report returns an ActivityResult whose activity was captured."""
     result = TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).reject_report(actor.id_, offer.id_, "Out of scope.")
     assert result.activity is not None
 
@@ -509,7 +534,9 @@ def test_reject_report_trigger_unknown_actor_raises_404(dl, offer):
     """reject_report_trigger raises VultronNotFoundError 404 for unknown actor."""
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).reject_report("urn:uuid:no-such", offer.id_, "Reason.")
 
 
@@ -517,7 +544,9 @@ def test_reject_report_trigger_unknown_offer_raises_404(dl, actor):
     """reject_report_trigger raises VultronNotFoundError 404 for unknown offer."""
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).reject_report(actor.id_, "urn:uuid:no-such", "Reason.")
 
 
@@ -528,7 +557,9 @@ def test_reject_report_trigger_adds_activity_to_outbox(
     before = set(dl.outbox_list())
 
     TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).reject_report(actor.id_, offer.id_, "Reason.")
 
     after = set(dl.outbox_list())
@@ -545,7 +576,9 @@ def test_reject_report_trigger_non_report_offer_raises_404(
     """
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).reject_report(actor.id_, non_report_object.id_, "reason")
 
 
@@ -559,7 +592,9 @@ def test_close_report_trigger_returns_activity_result(
 ):
     """close_report returns an ActivityResult whose activity was captured."""
     result = TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).close_case(actor.id_, offer.id_, None)
     assert result.activity is not None
 
@@ -570,7 +605,9 @@ def test_close_report_trigger_already_closed_raises_409(
     """close_report_trigger raises VultronInvalidStateTransitionError when report is CLOSED."""
     with pytest.raises(VultronInvalidStateTransitionError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).close_case(actor.id_, offer.id_, None)
 
 
@@ -578,7 +615,9 @@ def test_close_report_trigger_unknown_actor_raises_404(dl, offer):
     """close_report_trigger raises VultronNotFoundError 404 for unknown actor."""
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).close_report("urn:uuid:no-such", offer.id_, None)
 
 
@@ -592,7 +631,9 @@ def test_close_report_trigger_non_report_offer_raises_404(
     """
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).close_report(actor.id_, non_report_object.id_, None)
 
 
@@ -606,7 +647,9 @@ def test_engage_case_trigger_returns_activity_result(
 ):
     """engage_case returns an ActivityResult whose activity was captured."""
     result = TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).engage_case(actor.id_, case_with_participant.id_)
     assert result.activity is not None
 
@@ -617,7 +660,9 @@ def test_engage_case_trigger_unknown_actor_raises_404(
     """engage_case_trigger raises VultronNotFoundError 404 for unknown actor."""
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).engage_case("urn:uuid:no-such", case_with_participant.id_)
 
 
@@ -625,7 +670,9 @@ def test_engage_case_trigger_unknown_case_raises_404(dl, actor):
     """engage_case_trigger raises VultronNotFoundError 404 for unknown case."""
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).engage_case(actor.id_, "urn:uuid:no-such-case")
 
 
@@ -633,7 +680,9 @@ def test_engage_case_trigger_invalid_case_id_raises_422(dl, actor):
     """engage_case_trigger raises PydanticValidationError for a non-URI case_id."""
     with pytest.raises(PydanticValidationError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).engage_case(actor.id_, "not-a-uri")
 
 
@@ -642,7 +691,9 @@ def test_engage_case_trigger_updates_participant_rm_state(
 ):
     """engage_case_trigger transitions actor's as_CaseParticipant RM state to ACCEPTED."""
     TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).engage_case(actor.id_, case_with_participant.id_)
 
     updated_case = dl.read(case_with_participant.id_)
@@ -670,7 +721,9 @@ def test_engage_case_trigger_adds_activity_to_outbox(
     before = set(dl.outbox_list())
 
     TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).engage_case(actor.id_, case_with_participant.id_)
 
     after = set(dl.outbox_list())
@@ -687,7 +740,9 @@ def test_defer_case_trigger_returns_activity_result(
 ):
     """defer_case returns an ActivityResult whose activity was captured."""
     result = TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).defer_case(actor.id_, case_with_participant.id_)
     assert result.activity is not None
 
@@ -698,7 +753,9 @@ def test_defer_case_trigger_unknown_actor_raises_404(
     """defer_case_trigger raises VultronNotFoundError 404 for unknown actor."""
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).defer_case("urn:uuid:no-such", case_with_participant.id_)
 
 
@@ -706,7 +763,9 @@ def test_defer_case_trigger_invalid_case_id_raises_422(dl, actor):
     """defer_case_trigger raises PydanticValidationError for a non-URI case_id."""
     with pytest.raises(PydanticValidationError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).defer_case(actor.id_, "not-a-uri")
 
 
@@ -714,9 +773,11 @@ def test_defer_case_trigger_updates_participant_rm_state(
     dl, actor, case_with_participant
 ):
     """defer_case_trigger transitions actor's as_CaseParticipant RM state to DEFERRED."""
-    TriggerService(dl, trigger_activity=TriggerActivityAdapter(dl)).defer_case(
-        actor.id_, case_with_participant.id_
-    )
+    TriggerService(
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).defer_case(actor.id_, case_with_participant.id_)
 
     updated_case = dl.read(case_with_participant.id_)
     for p_ref in updated_case.case_participants:
@@ -746,7 +807,9 @@ def test_propose_embargo_trigger_returns_activity_result(
 ):
     """propose_embargo returns an ActivityResult whose activity was captured."""
     result = TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).propose_embargo(actor.id_, case_with_case_manager.id_, FUTURE_DATETIME)
     assert result.activity is not None
 
@@ -756,7 +819,9 @@ def test_propose_embargo_trigger_transitions_em_state_to_proposed(
 ):
     """propose_embargo_trigger transitions case EM state from N to P."""
     TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).propose_embargo(actor.id_, case_with_case_manager.id_, FUTURE_DATETIME)
     updated = dl.read(case_with_case_manager.id_)
     assert updated.current_status.em.state == EM.PROPOSED
@@ -772,7 +837,9 @@ def test_propose_embargo_trigger_exited_raises_409(
 
     with pytest.raises(VultronInvalidStateTransitionError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).propose_embargo(actor.id_, case_no_participant.id_, FUTURE_DATETIME)
 
 
@@ -782,7 +849,9 @@ def test_propose_embargo_trigger_unknown_actor_raises_404(
     """propose_embargo_trigger raises 404 for unknown actor."""
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).propose_embargo(
             "urn:uuid:no-such",
             case_no_participant.id_,
@@ -797,7 +866,9 @@ def test_propose_embargo_trigger_naive_end_time_raises_422(
     naive_dt = datetime(2099, 12, 1)
     with pytest.raises(PydanticValidationError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).propose_embargo(actor.id_, case_no_participant.id_, naive_dt)
 
 
@@ -808,7 +879,9 @@ def test_propose_embargo_trigger_past_end_time_raises_422(
     past_dt = datetime(2020, 1, 1, tzinfo=timezone.utc)
     with pytest.raises(PydanticValidationError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).propose_embargo(actor.id_, case_no_participant.id_, past_dt)
 
 
@@ -816,7 +889,9 @@ def test_propose_embargo_trigger_invalid_case_id_raises_422(dl, actor):
     """propose_embargo_trigger raises PydanticValidationError for a non-URI case_id."""
     with pytest.raises(PydanticValidationError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).propose_embargo(actor.id_, "not-a-uri", FUTURE_DATETIME)
 
 
@@ -831,7 +906,9 @@ def test_evaluate_embargo_trigger_returns_activity_result(
     """evaluate_embargo returns an ActivityResult whose activity was captured."""
     case_obj, proposal, _ = case_with_proposal
     result = TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).accept_embargo(actor.id_, case_obj.id_, proposal.id_)
     assert result.activity is not None
 
@@ -842,7 +919,9 @@ def test_evaluate_embargo_trigger_activates_embargo(
     """evaluate_embargo_trigger sets EM state to ACTIVE."""
     case_obj, proposal, _ = case_with_proposal
     TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).accept_embargo(actor.id_, case_obj.id_, proposal.id_)
     updated = dl.read(case_obj.id_)
     assert updated.current_status.em.state == EM.ACTIVE
@@ -855,7 +934,9 @@ def test_evaluate_embargo_trigger_without_proposal_id_finds_first(
     """evaluate_embargo_trigger finds the first proposal when proposal_id is None."""
     case_obj, _, _ = case_with_proposal
     result = TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).accept_embargo(actor.id_, case_obj.id_, None)
     assert isinstance(result, ActivityResult)
     updated = dl.read(case_obj.id_)
@@ -868,7 +949,9 @@ def test_evaluate_embargo_trigger_no_proposal_raises_404(
     """evaluate_embargo_trigger raises 404 when no proposal is found."""
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).accept_embargo(actor.id_, case_no_participant.id_, None)
 
 
@@ -878,7 +961,9 @@ def test_evaluate_embargo_trigger_unknown_proposal_raises_404(
     """evaluate_embargo_trigger raises 404 when explicit proposal_id is not found."""
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).accept_embargo(
             actor.id_,
             case_no_participant.id_,
@@ -897,7 +982,9 @@ def test_terminate_embargo_trigger_returns_activity_result(
     """terminate_embargo returns an ActivityResult whose activity was captured."""
     case_obj, _ = case_with_embargo
     result = TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).terminate_embargo(actor.id_, case_obj.id_)
     assert result.activity is not None
 
@@ -908,7 +995,9 @@ def test_terminate_embargo_trigger_sets_em_state_to_exited(
     """terminate_embargo_trigger transitions case EM state to EXITED."""
     case_obj, _ = case_with_embargo
     TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).terminate_embargo(actor.id_, case_obj.id_)
     updated = dl.read(case_obj.id_)
     assert updated.current_status.em.state == EM.EXITED
@@ -920,7 +1009,9 @@ def test_terminate_embargo_trigger_clears_active_embargo(
     """terminate_embargo_trigger clears active_embargo on the case."""
     case_obj, _ = case_with_embargo
     TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).terminate_embargo(actor.id_, case_obj.id_)
     updated = dl.read(case_obj.id_)
     assert updated.active_embargo is None
@@ -932,7 +1023,9 @@ def test_terminate_embargo_trigger_no_active_embargo_raises_409(
     """terminate_embargo_trigger raises 409 when no active embargo."""
     with pytest.raises(VultronInvalidStateTransitionError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).terminate_embargo(actor.id_, case_no_participant.id_)
 
 
@@ -943,7 +1036,9 @@ def test_terminate_embargo_trigger_unknown_actor_raises_404(
     case_obj, _ = case_with_embargo
     with pytest.raises(VultronNotFoundError):
         TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).terminate_embargo("urn:uuid:no-such", case_obj.id_)
 
 
@@ -955,7 +1050,9 @@ def test_terminate_embargo_trigger_adds_activity_to_outbox(
     before = set(dl.outbox_list())
 
     TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).terminate_embargo(actor.id_, case_obj.id_)
 
     after = set(dl.outbox_list())
