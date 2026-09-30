@@ -22,7 +22,7 @@ Per specs/sync-ledger-replication.yaml SYNC-02-002, SYNC-02-003.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -38,20 +38,11 @@ from vultron.core.behaviors.ledger_patch import (
     PATCH_KEY_TWINS,
     drop_stale_twins,
 )
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.behaviors.case.nodes.ledger_payload import (
+    _extract_payload_snapshot,
 )
-from vultron.core.use_cases._helpers import build_activity_payload_snapshot
-from vultron.core.models.base import CoreObject
-from vultron.errors import (
-    VultronCanonicalEntryError,
-    VultronValidationError,
-    VultronWiringError,
-)
-
-if TYPE_CHECKING:
-    from vultron.core.ports.wire_render import WireRenderPort
+from vultron.errors import VultronCanonicalEntryError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -77,50 +68,6 @@ logger = logging.getLogger(__name__)
 #: ``finally`` block on every outcome, so a stranded override never bleeds into
 #: the next execution on the process-global blackboard (#3101; ADR-0087).
 BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE = "ledger_payload_object_override"
-
-
-def _extract_payload_snapshot(
-    activity: Any,
-    dl: CasePersistence | None,
-    wire_render_port: "WireRenderPort",
-) -> dict[str, Any]:
-    """Build a normalized payload snapshot for case-ledger commits.
-
-    The AS2 shape comes from *wire_render_port* (ARCH-20-001, CLP-07-009).
-    """
-    event_activity = getattr(activity, "activity", None)
-    if event_activity is not None:
-        return cast(
-            dict[str, Any],
-            build_activity_payload_snapshot(
-                event_activity, dl, wire_render_port=wire_render_port
-            ),
-        )
-    if hasattr(activity, "model_dump") and not isinstance(
-        activity, CoreObject
-    ):
-        # An event with no activity has nothing AS2-shaped to record: the port
-        # would refuse it (ARCH-20-003), and a received handler would then
-        # blame the sender.  The tree was composed without its input, so say
-        # so as the composition fault it is (ARCH-15-001, ADR-0095).
-        raise VultronWiringError(
-            f"{type(activity).__name__} carries no activity, so there is"
-            " nothing to record as the ledger payload snapshot (ARCH-15-001)"
-        )
-    snapshot = cast(
-        dict[str, Any],
-        build_activity_payload_snapshot(
-            activity, dl, wire_render_port=wire_render_port
-        ),
-    )
-    # Domain events serialize actor_id, not the wire-format actor URI.
-    # Patch it in so the ledger schema's non-empty-URI check passes.
-    if not snapshot.get("actor"):
-        actor_id = getattr(activity, "actor_id", None)
-        if actor_id:
-            snapshot = dict(snapshot)
-            snapshot["actor"] = actor_id
-    return snapshot
 
 
 #: Producer class names recognized by the override consumer.  An override with
