@@ -76,7 +76,6 @@ class OfferCaseParticipantRoleReceivedUseCase:
 
         tree = create_offer_case_participant_role_received_tree(
             offer_id=offer_id,
-            offer_obj=request.activity,
             case_id=case_id or "",
             role=role,
             target_actor_id=target_actor_id or "",

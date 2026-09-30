@@ -17,7 +17,7 @@
 
 Covers all four report-lifecycle BTs (issue #759 AC-1 through AC-5):
   - ``CreateReportReceivedBT``    — stores report + activity
-  - ``AckReportReceivedBT``      — stores activity
+  - ``AckReportReceivedBT``      — intake archives activity; forwards own ack
   - ``CloseReportReceivedBT``    — stores activity + RM → CLOSED
   - ``InvalidateReportReceivedBT`` — stores activity + RM → INVALID
 

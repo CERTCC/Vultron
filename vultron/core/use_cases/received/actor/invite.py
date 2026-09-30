@@ -35,6 +35,7 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    intake_verdict,
     node_failed,
     not_case_manager_refusal,
     verdict_from_bt,
@@ -177,7 +178,9 @@ class InviteActorToCaseReceivedUseCase:
 
         # CaseActor self-delivery path (CLP-10-001): intake stores the Invite
         # as received (CLP-10-017) and GuardedCommitCaseLedgerEntryBT commits
-        # the canonical CaseLedgerEntry (CLP-10-006).
+        # the canonical CaseLedgerEntry (CLP-10-006).  The tree's only work
+        # is intake and that commit, so a redelivered Invite that intake found
+        # already archived is the benign no-op, SKIPPED (HP-01-003).
         case_id = request.target_id or ""
         tree = create_invite_actor_to_case_received_tree(case_id=case_id)
         result = BTBridge(
@@ -189,7 +192,7 @@ class InviteActorToCaseReceivedUseCase:
             activity=request,
             sync_port=self._sync_port,
         )
-        verdict = verdict_from_bt(
+        verdict = intake_verdict(
             tree, result, label="InviteActorToCaseReceivedBT"
         )
         if verdict.disposition is HandlerDisposition.REFUSED:

@@ -891,12 +891,13 @@ groups:
       as a protocol effect forced it after the commit, and handlers that needed the
       record regardless of the verdict stored it procedurally in `execute()` instead
       (ISSUE-3339, ADR-0111).
-    verification: '`test/architecture/test_receive_side_bt_commit_ordering.py` asserts
-      that every receive-side tree factory under `vultron/core/behaviors/` composes
-      through `create_receive_activity_tree` (including the factories that composed
-      `create_case_manager_gated_tree` directly before #3870), and that the tree it
-      returns has the intake node as its first child, the guarded commit after every
-      guard, and no protocol-effect node ahead of the commit.'
+    verification: '`test/architecture/test_receive_side_intake_first.py` asserts
+      that every receive-side tree factory under `vultron/core/behaviors/` returns
+      the result of `create_receive_activity_tree` (including the factories that
+      composed `create_case_manager_gated_tree` directly before #3870), so the tree
+      has the intake node as its first child; `test_receive_side_bt_commit_ordering.py`
+      asserts the guarded commit comes after every guard and no protocol-effect node
+      ahead of the commit.'
     adr:
     - ADR-0111
     - ADR-0022
@@ -1125,9 +1126,9 @@ groups:
       and chain checks (PCR-03-004, CBT-01-005) — a stored case row *is* the replica.
       The archived row is also where #3742 persists the sealed received evidence
       (ADR-0107) for deferred replay.'
-    verification: '`test/architecture/test_receive_side_bt_commit_ordering.py` asserts
+    verification: '`test/architecture/test_receive_side_intake_first.py` asserts
       the intake node is the first child of every tree `create_receive_activity_tree`
-      returns. A unit test for the intake node archives a received activity that
+      returns and that every receive-side factory returns that tree. A unit test for the intake node archives a received activity that
       inlines an object, asserts the activity is readable from the DataLayer, asserts
       no record of the inlined object (and no case replica) was created, and asserts a
       second run writes nothing.'

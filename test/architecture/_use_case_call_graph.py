@@ -25,9 +25,12 @@ walk.  No ``ast.parse`` or ``rglob`` here (TB-13-003): trees come from
 
 Not resolved, by design: a call on an instance built inline
 (``Helper().store(...)``), a method inherited from a base class in another
-module, and a lambda or nested function passed to a helper.  None occurs in
-the use-case package today; the ratchet's exact set would surface one that
-started to matter.
+module, a lambda or nested function passed to a helper, and a write whose
+receiver is not spelled ``dl``/``_dl``/``datalayer``/``_datalayer`` (a helper
+parameter named ``persistence``, say — ``_is_dl_mutation_call`` matches the
+receiver by name, so the write is invisible whatever the parameter's type).
+None occurs in the use-case package today; the ratchet's exact set would
+surface one that started to matter.
 """
 
 import ast
@@ -39,7 +42,9 @@ from test.architecture import _corpus
 _DL_MUTATION_METHODS: frozenset[str] = frozenset(
     {"save", "create", "update", "delete"}
 )
-_DL_RECEIVER_ATTRS: frozenset[str] = frozenset({"_dl", "dl"})
+_DL_RECEIVER_ATTRS: frozenset[str] = frozenset(
+    {"_dl", "dl", "_datalayer", "datalayer"}
+)
 
 _FunctionDef = ast.FunctionDef | ast.AsyncFunctionDef
 
@@ -51,9 +56,10 @@ def _is_dl_mutation_call(node: ast.AST) -> bool:
     """Return True if *node* is a DataLayer mutation call expression.
 
     Detects:
-    - ``self._dl.METHOD(...)``
-    - ``self.dl.METHOD(...)``
-    - ``dl.METHOD(...)``  (local variable or parameter named ``dl``)
+    - ``self._dl.METHOD(...)`` / ``self._datalayer.METHOD(...)``
+    - ``self.dl.METHOD(...)`` / ``self.datalayer.METHOD(...)``
+    - ``dl.METHOD(...)``  (local variable or parameter named ``dl`` or
+      ``datalayer``, with or without the leading underscore)
 
     where METHOD is one of ``save``, ``create``, ``update``, ``delete``.
     """
@@ -276,18 +282,36 @@ class _UseCaseCorpus:
                 target_module, name = index.imported_names[func.id]
                 return self._in_package(target_module, name)
             return None
-        if not isinstance(func, ast.Attribute):
+        if isinstance(func, ast.Attribute) and isinstance(
+            func.value, ast.Name
+        ):
+            return self._resolve_attribute(
+                module, cls, index, func.value.id, func.attr
+            )
+        return None
+
+    def _resolve_attribute(
+        self,
+        module: str,
+        cls: str | None,
+        index: _ModuleIndex,
+        owner: str,
+        attr: str,
+    ) -> _Callee | None:
+        """Resolve ``owner.attr(...)``: a ``self`` method or a module's function."""
+        if owner == "self":
+            if cls is not None and attr in index.methods.get(cls, {}):
+                return (module, cls, attr)
             return None
-        owner = func.value
-        if isinstance(owner, ast.Name):
-            if owner.id == "self" and cls is not None:
-                if func.attr in index.methods.get(cls, {}):
-                    return (module, cls, func.attr)
-                return None
-            if owner.id in index.imported_modules:
-                return self._in_package(
-                    index.imported_modules[owner.id], func.attr
-                )
+        if owner in index.imported_modules:
+            return self._in_package(index.imported_modules[owner], attr)
+        if owner in index.imported_names:
+            # ``from pkg import helpers; helpers.store(...)``: the name binds
+            # a *module* when ``pkg.helpers`` is one we index.
+            target_module, name = index.imported_names[owner]
+            submodule = f"{target_module}.{name}"
+            if submodule in self._modules:
+                return self._in_package(submodule, attr)
         return None
 
     def _in_package(self, module: str, name: str) -> _Callee | None:

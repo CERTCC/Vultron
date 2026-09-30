@@ -71,7 +71,7 @@ Chosen option: **"Intake is a mandatory first stage, before the guards"**, becau
 
 ## Validation
 
-- `test/architecture/test_receive_side_bt_commit_ordering.py` asserts every receive-side tree composes through the shared factory and that the intake node is its first child, ahead of every guard and the commit.
+- `test/architecture/test_receive_side_intake_first.py` asserts every receive-side tree factory returns the shared factory's result, so the intake node is its first child, ahead of every guard and the commit.
 - `test/architecture/test_no_dl_mutations_in_execute.py` resolves DataLayer writes through use-case-layer helpers transitively and holds the remaining violations as an exact set. The set empties as the handlers migrate.
 - A refused assertion leaves the received activity and its inlined object readable from the receiver's DataLayer, asserted per handler.
 

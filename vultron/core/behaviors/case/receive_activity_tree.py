@@ -80,11 +80,12 @@ def create_receive_activity_tree(
 
         Intake → [*precondition_guards] → GuardedCommit(receipt) → [*effect_nodes]
 
-    Intake is one shared :class:`IntakeReceivedActivityNode` that stores the
-    received activity and every object inlined in it exactly as received,
-    idempotently, and writes nothing else (CLP-10-017).  It runs first so a
-    guard that refuses the assertion still leaves the receiver holding what
-    arrived (CLP-10-018).  Precondition guards are read-only checks that may
+    Intake is one shared :class:`IntakeReceivedActivityNode` that archives the
+    received activity exactly as received, idempotently, and writes nothing
+    else — in particular no core record from any object inlined in it, which
+    an effect node writes from the event's copy after the guards
+    (CLP-10-017).  It runs first so a guard that refuses the assertion still
+    leaves the receiver holding what arrived (CLP-10-018).  Precondition guards are read-only checks that may
     return FAILURE to abort the tree before any protocol effect.  The guarded
     commit ledgers receipt of the triggering activity (which is on the
     blackboard before any node runs, placed there by

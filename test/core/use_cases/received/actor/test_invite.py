@@ -392,6 +392,60 @@ class TestInviteActorUseCases:
         stored = dl.get(invite.type_.value, invite.id_)
         assert stored is not None
 
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CLP-10-017")
+    def test_case_actor_redelivered_invite_is_skipped(self, make_payload):
+        """On the CaseActor's own inbox a redelivered Invite reports SKIPPED.
+
+        The self-delivery tree's only work is intake and the guarded commit,
+        so the first delivery is APPLIED and a redelivery, which intake finds
+        already archived, is the benign no-op of HP-01-003 — never a second
+        APPLIED and never REFUSED.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.use_case_result import HandlerDisposition
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case_id = "https://example.org/cases/case-redeliver-1"
+        case_actor_id = f"{case_id}/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case = as_VulnerabilityCase(
+            id_=case_id, name="TEST-REDELIVER", attributed_to=case_actor_id
+        )
+        manager = as_CaseParticipant(
+            id_=f"{case_id}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case.case_participants.append(manager.id_)
+        case.actor_participant_index[case_actor_id] = manager.id_
+        dl.create(manager)
+        dl.create(case)
+
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_="https://example.org/users/coordinator"),
+            target=as_VulnerabilityCaseStub(id_=case_id),
+            actor=case_actor_id,
+            id_=f"{case_id}/invitations/1",
+        )
+        event = make_payload(invite).model_copy(
+            update={"receiving_actor_id": case_actor_id}
+        )
+
+        first = InviteActorToCaseReceivedUseCase(dl, event).execute()
+        second = InviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        assert first.disposition is HandlerDisposition.APPLIED
+        assert second.disposition is HandlerDisposition.SKIPPED
+        assert dl.get(invite.type_.value, invite.id_) is not None
+
     def test_reject_invite_actor_to_case_commits_ledger_entry(
         self, make_payload
     ):

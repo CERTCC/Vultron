@@ -16,6 +16,7 @@ related_notes:
   - notes/bt-canonical-reference.md
   - notes/case-ledger-authority.md
   - notes/bt-pitfalls.md
+  - notes/embargo-lifecycle.md
   - notes/bt-fuzzer-nodes.md
   - notes/protocol-event-cascades.md
   - notes/use-case-behavior-trees.md
@@ -396,11 +397,20 @@ already supplies the intake node as the first child of every tree it builds. A
 receive tree that does not compose through the factory runs no intake. #3870
 moved the two that composed `create_case_manager_gated_tree` directly (add-note,
 update-case) and found more that never used the factory; those are held as an
-exact set in `test_receive_side_bt_commit_ordering.py`
+exact set in `test/architecture/test_receive_side_intake_first.py`
 (`KNOWN_FACTORIES_BYPASSING_INTAKE`) — fifteen in all once a receive-side tree is
 defined as one a received use case calls rather than one whose name says
 "received". Each moves with the handler migration that owns its area
-(#3871–#3874); the sync and dead-letter trees move with #3935.
+(#3871–#3874); the sync and dead-letter trees move with #3935. Calling the
+factory is not enough: the ratchet checks that the factory *returns* the shared
+factory's result, because a tree that nests it under a hand-built root (as the
+close-case tree did, a Selector whose first arm guarded ahead of intake) runs
+something before intake. Those are a second exact set,
+`KNOWN_FACTORIES_NESTING_INTAKE`, empty since #3870 lifted the close-case
+tree's intake to its root. A tree that needs a branch ahead of the receipt
+commit wraps the branch: outer factory with `case_id=None` (intake, no commit),
+inner factory per arm that commits. The inner intake finds the archive and
+writes nothing.
 
 The factory commits only when it is given a `case_id`, and CLP-10-013 requires
 the commit exactly when the received `(type, object)` pair is a canonical payload

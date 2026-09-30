@@ -23,11 +23,11 @@ ledger entry; falls back to an explicit Reject if accept creation fails.
 Structure::
 
     OfferCaseParticipantRoleReceivedBT (Sequence)
+    ├── IntakeReceivedActivityNode                  # archives the Offer (CLP-10-017)
     ├── GuardedCommitOrSkip (Selector, only when case_id provided)
     │   ├── SkipIfNotCaseManager (Sequence)
     │   │   └── Inverter(CheckIsCaseManagerNode)
     │   └── CommitCaseLedgerEntryNode
-    ├── StoreActivityNode("OfferCaseParticipantRole")
     └── AcceptOrReject (Selector)
         ├── AutoAcceptCaseParticipantRoleNode
         └── EmitRejectCaseParticipantRoleNode
@@ -36,7 +36,6 @@ See SE-08-003, ADR-0039.
 """
 
 import logging
-from typing import Any
 
 import py_trees
 
@@ -47,7 +46,6 @@ from vultron.core.behaviors.case.nodes.delegation import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.report.nodes.storage import StoreActivityNode
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -55,7 +53,6 @@ logger = logging.getLogger(__name__)
 
 def create_offer_case_participant_role_received_tree(
     offer_id: str,
-    offer_obj: Any,
     case_id: str,
     role: CVDRole,
     target_actor_id: str,
@@ -63,15 +60,16 @@ def create_offer_case_participant_role_received_tree(
 ) -> py_trees.composites.Sequence:
     """Received-side BT factory for OfferCaseParticipantRole (ADR-0039).
 
-    Idempotently stores the incoming Offer, then — when the receiving actor
-    holds the offered CVDRole in the case — commits the
-    ``offer_case_participant_role`` ``CaseLedgerEntry``.  The auto-accept
-    runs after the commit so the canonical ledger entry exists before the
-    ``Accept`` is sent to the offering Vendor.
+    Intake archives the incoming Offer as received (CLP-10-017); then — when
+    the receiving actor holds the offered CVDRole in the case — the tree
+    commits the ``offer_case_participant_role`` ``CaseLedgerEntry``.  The
+    auto-accept runs after the commit so the canonical ledger entry exists
+    before the ``Accept`` is sent to the offering Vendor.  The per-tree
+    ``StoreActivityNode`` this tree once carried duplicated intake and was
+    removed (CLP-10-019).
 
     Args:
         offer_id: ID of the ``Offer(CaseParticipantRole)`` activity.
-        offer_obj: The wire activity object to persist idempotently.
         case_id: ID of the VulnerabilityCase context.
         role: The CVDRole being offered.
         target_actor_id: Actor ID of the target receiving the role offer.
@@ -105,12 +103,5 @@ def create_offer_case_participant_role_received_tree(
         name="OfferCaseParticipantRoleReceivedBT",
         case_id=case_id if case_id else None,
         precondition_guards=[],
-        effect_nodes=[
-            StoreActivityNode(
-                activity_id=offer_id,
-                activity_obj=offer_obj,
-                label="OfferCaseParticipantRole",
-            ),
-            accept_or_reject,
-        ],
+        effect_nodes=[accept_or_reject],
     )

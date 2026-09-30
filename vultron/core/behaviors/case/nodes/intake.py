@@ -57,7 +57,6 @@ from vultron.core.behaviors.helpers import (
     ACTIVITY_UNAVAILABLE,
     DataLayerActionWithPorts,
 )
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import VultronEvent
 from vultron.errors import VultronAlreadyExistsError
 
@@ -129,11 +128,12 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
                 event.activity_id,
             )
             return Status.SUCCESS
-        self._archive(event.activity)
-        return Status.SUCCESS
-
-    def _archive(self, activity: VultronActivity) -> None:
+        activity = event.activity
         assert self.datalayer is not None
+        # BT-HELPER-01: ``update()`` owns the only try/except.  Presence is the
+        # ``VultronAlreadyExistsError`` that ``create()`` raises on a duplicate;
+        # any other failure to store is a fault this node surfaces
+        # (ARCH-15-001), not a benign duplicate.
         try:
             self.datalayer.create(activity)
         except VultronAlreadyExistsError:
@@ -143,8 +143,9 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
                 activity.type_,
                 activity.id_,
             )
-            return
+            return Status.SUCCESS
         self.stored_ids.append(activity.id_)
         self.logger.info(
             "Intake archived %s activity '%s'", activity.type_, activity.id_
         )
+        return Status.SUCCESS
