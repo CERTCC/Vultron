@@ -3721,9 +3721,9 @@ groups:
     kind: project
     statement: >-
       A module under `vultron/demo/` other than `vultron/demo/helpers/sync.py`
-      MUST NOT call `wait_for_contiguous_ledger_coverage` or
+      MUST NOT call or import `wait_for_contiguous_ledger_coverage` or
       `_get_log_entries_for_case` directly. Defining the primitive and
-      re-exporting either name from a package `__init__` are not calls.
+      re-exporting either name from a package `__init__` are exempt.
     rationale: >-
       The race guard that the concern behind this requirement (#3042) feared was
       missing was in fact present in every scenario module; what was missing was
