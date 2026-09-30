@@ -129,8 +129,16 @@ def test_core_does_not_import_wire():
 # ---------------------------------------------------------------------------
 
 
+_EVENTS_PACKAGE = "vultron.core.models.events"
+
+
 def _event_subclasses() -> frozenset[type[VultronEvent]]:
-    """Every concrete ``VultronEvent`` subclass the events package defines."""
+    """Every ``VultronEvent`` subclass the events package defines.
+
+    ``__subclasses__()`` is process-wide, so a test-local stub subclass
+    defined elsewhere in the session is excluded by module — otherwise the
+    check would depend on collection order.
+    """
     found: set[type[VultronEvent]] = set()
     pending: list[type[VultronEvent]] = list(VultronEvent.__subclasses__())
     while pending:
@@ -139,7 +147,12 @@ def _event_subclasses() -> frozenset[type[VultronEvent]]:
             continue
         found.add(cls)
         pending.extend(cls.__subclasses__())
-    return frozenset(found)
+    return frozenset(
+        cls
+        for cls in found
+        if cls.__module__ == _EVENTS_PACKAGE
+        or cls.__module__.startswith(_EVENTS_PACKAGE + ".")
+    )
 
 
 def _member_types(hint: object) -> frozenset[object]:

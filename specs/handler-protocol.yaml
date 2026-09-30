@@ -334,7 +334,8 @@ groups:
     verification: >-
       Every handler test in the unit tier runs under the 30-second per-test ceiling set by
       `[tool.pytest.ini_options] timeout` in `pyproject.toml`, so a handler whose
-      `execute()` blocks past it fails its own test;
+      `execute()` blocks past it aborts the unit-tier run (`timeout_method = "thread"`
+      stops the session rather than one test);
       `test/test_integration_timeout_tier.py::test_unit_item_is_left_at_the_global_default`
       pins that the unit tier keeps that ceiling.
     scope:

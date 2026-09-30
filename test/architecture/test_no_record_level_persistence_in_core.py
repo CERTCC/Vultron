@@ -30,15 +30,18 @@ shapes that do so:
   a ``record=`` keyword — which is the ``DataLayer.update`` compatibility
   method rather than a domain-object write.
 
-``KNOWN_VIOLATIONS`` pins the pre-existing sites with a bidirectional
-equality assertion (ARCH-18-001): a new site fails the test immediately, and a
-resolved one fails it until its entry is removed.
+``KNOWN_VIOLATIONS`` pins the pre-existing sites per file, with an exact
+site count, under a bidirectional equality assertion (ARCH-18-001): a new file
+or a new site in a pinned file fails the test immediately, and a resolved site
+fails it until the count (or the entry) is lowered.
 
 Spec: HP-08-001 (``specs/handler-protocol.yaml``); ADR-0034.
 Corpus: TB-13-001 (shared ``_corpus`` scan, substring prefilter).
 """
 
 import ast
+from collections.abc import Mapping
+from types import MappingProxyType
 
 from test.architecture import _corpus
 
@@ -139,11 +142,12 @@ def _collect_violations() -> dict[str, list[str]]:
 # ``UpdateObject`` and ``CreateObject`` BT nodes, which build a
 # ``StorableRecord`` from a dict and push it through ``DataLayer.update()`` /
 # ``DataLayer.create()``.  HP-08-001's rationale names them as the one
-# retained compatibility use in core.  Remove the entry when they are
-# migrated to typed-object writes or deleted.
+# retained compatibility use in core.  The value is the exact number of
+# record-level sites in the file; lower it as sites are migrated and remove
+# the entry at zero.
 # ---------------------------------------------------------------------------
-KNOWN_VIOLATIONS: frozenset[str] = frozenset(
-    {"vultron/core/behaviors/helpers.py"}
+KNOWN_VIOLATIONS: Mapping[str, int] = MappingProxyType(
+    {"vultron/core/behaviors/helpers.py": 5}
 )
 
 
@@ -153,27 +157,43 @@ def test_core_writes_do_not_build_records_by_hand() -> None:
     See module docstring for the ratchet strategy.
     """
     found = _collect_violations()
-    actual = frozenset(found)
-    new_violations = actual - KNOWN_VIOLATIONS
-    resolved = KNOWN_VIOLATIONS - actual
+    actual = {path: len(sites) for path, sites in found.items()}
+    grown = {
+        path: count
+        for path, count in actual.items()
+        if count > KNOWN_VIOLATIONS.get(path, 0)
+    }
+    shrunk = {
+        path: actual.get(path, 0)
+        for path, count in KNOWN_VIOLATIONS.items()
+        if actual.get(path, 0) < count
+    }
 
     diff_lines: list[str] = []
-    if new_violations:
+    if grown:
         diff_lines.append(
             "NEW violations (write domain objects with dl.save()/dl.create();"
             " never object_to_record(), a hand-built StorableRecord, or"
             " .update(id_, record) — HP-08-001):"
         )
-        for path in sorted(new_violations):
-            diff_lines.append(f"  + {path}")
+        for path in sorted(grown):
+            diff_lines.append(
+                f"  + {path}: {grown[path]} site(s), pinned"
+                f" {KNOWN_VIOLATIONS.get(path, 0)}"
+            )
             diff_lines.extend(f"      {site}" for site in found[path])
-    if resolved:
+    if shrunk:
         diff_lines.append(
-            "RESOLVED violations (remove these entries from KNOWN_VIOLATIONS):"
+            "RESOLVED violations (lower or remove these KNOWN_VIOLATIONS"
+            " entries):"
         )
-        diff_lines.extend(f"  - {v}" for v in sorted(resolved))
+        diff_lines.extend(
+            f"  - {path}: now {shrunk[path]} site(s), pinned"
+            f" {KNOWN_VIOLATIONS[path]}"
+            for path in sorted(shrunk)
+        )
 
-    assert actual == KNOWN_VIOLATIONS, "\n\n" + "\n".join(diff_lines)
+    assert actual == dict(KNOWN_VIOLATIONS), "\n\n" + "\n".join(diff_lines)
 
 
 # ---------------------------------------------------------------------------

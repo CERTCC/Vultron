@@ -97,7 +97,7 @@ def test_each_use_case_accepts_the_event_class_its_semantics_route():
     """Each registry row pairs a semantics with a handler that reads its event.
 
     The dispatcher keys on ``event.semantic_type``; the handler it reaches must
-    annotate ``request`` as that row's ``event_class`` (or a base of it), so
+    annotate ``request`` as exactly that row's ``event_class``, so
     the semantics verified at dispatch and the typed event the handler reads
     are the same registry row.
     """
@@ -113,14 +113,10 @@ def test_each_use_case_accepts_the_event_class_its_semantics_route():
             .annotation
         )
         # A ``TYPE_CHECKING``-only name elsewhere in the signature keeps
-        # ``get_type_hints`` from resolving, so compare by name (or by the
-        # resolved class when the annotation is one).
+        # ``get_type_hints`` from resolving, so compare by name: the handler
+        # annotates ``request`` as exactly the event class its row routes.
         name = getattr(annotation, "__name__", None) or str(annotation)
-        accepts = name == entry.event_class.__name__ or (
-            isinstance(annotation, type)
-            and issubclass(entry.event_class, annotation)
-        )
-        if not accepts:
+        if name != entry.event_class.__name__:
             mismatched[entry.semantics.name] = (
                 f"{entry.use_case_class.__name__}(request: {name}) "
                 f"routed for {entry.event_class.__name__}"

@@ -72,9 +72,16 @@ class _ExecuteSignature(NamedTuple):
 def _extra_params(
     fn: ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> tuple[str, ...]:
-    """Parameter names of *fn* beyond the receiver, in declaration order."""
+    """Parameter names of *fn* beyond the receiver, in declaration order.
+
+    A ``@staticmethod`` has no receiver, so every positional parameter counts.
+    """
     args = fn.args
-    positional = [*args.posonlyargs, *args.args][1:]
+    is_static = any(
+        isinstance(d, ast.Name) and d.id == "staticmethod"
+        for d in fn.decorator_list
+    )
+    positional = [*args.posonlyargs, *args.args][0 if is_static else 1 :]
     names = [a.arg for a in positional]
     if args.vararg is not None:
         names.append(f"*{args.vararg.arg}")
@@ -281,6 +288,16 @@ def test_detector_flags_an_execute_that_takes_arguments(params: str) -> None:
     """HP-01-001: any parameter beyond ``self`` is a violation."""
     [problem] = _check(
         f"class U:\n    def execute({params}) -> _SampleResult: ...\n"
+    )
+    assert "takes arguments" in problem
+
+
+def test_detector_flags_a_staticmethod_execute_with_a_parameter() -> None:
+    """A ``@staticmethod`` has no receiver to skip, so its one parameter counts."""
+    [problem] = _check(
+        "class U:\n"
+        "    @staticmethod\n"
+        "    def execute(request) -> _SampleResult: ...\n"
     )
     assert "takes arguments" in problem
 
