@@ -31,14 +31,11 @@ from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
 )
-from vultron.core.models.activity import (
-    VultronAccept,
-    VultronCreateCaseActivity,
-)
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
 
@@ -73,10 +70,9 @@ class EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
         self._proposal_id = proposal_id
         self._vendor_uri = vendor_uri
         # proposal_dict is the wire-serialised proposal (model_dump(by_alias=True)).
-        # Storing it inline satisfies CP-05-003 and the outbox AKM-03-001 requirement.
-        self._object = (
-            proposal_dict if proposal_dict is not None else proposal_id
-        )
+        # The factory embeds it inline (CP-05-003, AKM-03-001); without it there
+        # is nothing to embed, so the emit fails rather than sending a bare id.
+        self._proposal_dict = proposal_dict
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
@@ -107,18 +103,32 @@ class EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
+        if (f := self._require_factory()) is not None:
+            logger.error("%s: %s", self.name, self.feedback_message)
+            return f
+        assert self.trigger_activity_factory is not None
+        if self._proposal_dict is None:
+            self.feedback_message = (
+                f"Accept(CaseProposal) for '{self._proposal_id}' has no"
+                " proposal to embed (CP-05-003, AKM-03-001)"
+            )
+            logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
         case_id = self._case_id_bb
 
-        activity = VultronAccept(
-            actor=self.actor_id,
-            object_=self._object,
-            to=[self._vendor_uri],
-            result=case_id,
-        )
-
+        # The adapter builds, persists, and seals the Accept, so the body the
+        # outbox delivers is the body the factory produced (VM-08-003).
         try:
-            self.datalayer.create(activity)
-        except ValueError as exc:
+            activity_id, _blob = (
+                self.trigger_activity_factory.accept_case_proposal(
+                    actor=self.actor_id,
+                    proposal=self._proposal_dict,
+                    to=[self._vendor_uri],
+                    result=case_id,
+                )
+            )
+        except VultronError as exc:
             self.feedback_message = (
                 f"Accept(CaseProposal) activity creation failed: {exc}"
             )
@@ -127,12 +137,12 @@ class EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
 
         # `outbox_append`, not `record_outbox_item`: the queue lives in the
         # owning actor's store, so it takes no actor argument (ADR-0073).
-        cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity.id_)
-        self._set_output("accept_activity_id", activity.id_)
+        cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity_id)
+        self._set_output("accept_activity_id", activity_id)
         logger.info(
             "%s: Queued Accept(CaseProposal) '%s' to outbox for vendor '%s'",
             self.name,
-            activity.id_,
+            activity_id,
             self._vendor_uri,
         )
         return Status.SUCCESS
@@ -189,30 +199,30 @@ class EmitCreateVulnerabilityCaseNode(DataLayerAction):
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
+        if (f := self._require_factory()) is not None:
+            logger.error("%s: %s", self.name, self.feedback_message)
+            return f
+        assert self.trigger_activity_factory is not None
+
+        # The adapter rebuilds the prepared activity, persists it under the
+        # marker's id, and seals the body the outbox will deliver (VM-08-003).
         try:
-            activity = VultronCreateCaseActivity.model_validate(
-                raw_marker.create_activity_payload
+            activity_id, _blob = (
+                self.trigger_activity_factory.emit_prepared_create_case(
+                    raw_marker.create_activity_payload
+                )
             )
-        except Exception as exc:
+        except VultronError as exc:
             self.feedback_message = (
-                f"Could not reconstruct Create(VulnerabilityCase)"
+                f"Could not emit Create(VulnerabilityCase)"
                 f" from marker '{marker_id}': {exc}"
             )
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
         try:
-            self.datalayer.create(activity)
-        except ValueError as exc:
-            self.feedback_message = (
-                f"Create(VulnerabilityCase) activity creation failed: {exc}"
-            )
-            logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        try:
             cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity.id_
+                activity_id
             )
         except Exception as exc:
             self.feedback_message = (
@@ -224,7 +234,7 @@ class EmitCreateVulnerabilityCaseNode(DataLayerAction):
         logger.info(
             "%s: Queued Create(VulnerabilityCase) '%s' from proposal '%s'",
             self.name,
-            activity.id_,
+            activity_id,
             self._proposal_id,
         )
         return Status.SUCCESS

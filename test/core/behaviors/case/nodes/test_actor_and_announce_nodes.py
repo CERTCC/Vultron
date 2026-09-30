@@ -19,12 +19,15 @@ and EmitInviteActorToCaseNode._read_suggested_roles."""
 from typing import Any, cast
 
 import py_trees
+import json
+
 import pytest
 
 from vultron.core.models._helpers import now_utc
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
@@ -45,6 +48,7 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 ACTOR_ID = "https://example.org/actors/owner"
 NEW_OWNER_ID = "https://example.org/actors/coordinator"
@@ -84,7 +88,7 @@ def dl(store_for):
 
 @pytest.fixture
 def bridge(dl):
-    return BTBridge(datalayer=dl)
+    return BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter())
 
 
 # ---------------------------------------------------------------------------
@@ -531,7 +535,11 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
             ),
         )
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitInviteActorToCaseNode(
             invitee_id=INVITEE_ID,
             case_id=AC3_CASE_ID,
@@ -628,12 +636,14 @@ class TestEmitAddCaseParticipantNode:
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.add_participant_to_case.return_value = (
             EMIT_ADD_ACTIVITY_ID,
-            add_activity.model_dump_json(
-                by_alias=True, exclude_none=True, serialize_as_any=True
-            ),
+            dump_outbound_body(add_activity),
         )
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
         )
@@ -655,14 +665,13 @@ class TestEmitAddCaseParticipantNode:
             e.event_type == "add_case_participant" for e in entries
         ), f"Expected add_case_participant ledger entry; got {[e.event_type for e in entries]}"
 
-    def test_snapshot_strips_bare_target_from_stored_activity(self, dl):
-        """_build_snapshot must strip bare target from the rendered as_Add (IMPROVE-2).
+    def test_snapshot_is_the_exact_blob_the_port_returned(self, dl):
+        """The ledger snapshot is the port's blob, unchanged (VM-08-003, #2654).
 
-        The real TriggerActivityAdapter stores the as_Add in the datalayer and
-        returns its id and AS2 JSON.  That JSON carries ``"target": "<case_uri>"``
-        as a bare string.  _validate_canonical_entry rejects bare inline-object
-        values, so _build_snapshot MUST call _snapshot_with_context (which calls
-        _drop_bare_inline_refs) rather than recording the rendering as is.
+        The factory addresses the case by its URI (``"target": "<case_uri>"``)
+        and sets ``context`` to it; the node records exactly that, and the
+        commit boundary accepts a bare ``target`` naming the entry's own case.
+        No stripping, no patching.
         """
         from unittest.mock import MagicMock
 
@@ -689,12 +698,10 @@ class TestEmitAddCaseParticipantNode:
         dl.create(case)
         participant = _make_add_node_fixture(dl)
 
-        # Build the real as_Add activity the adapter would, and hand its AS2 JSON
-        # back from the mocked port.  Use target as a bare string URI — that is
-        # what the real adapter does (TriggerActivityAdapterActorsMixin
-        # .add_participant_to_case passes case_id as the target kwarg), so the
-        # rendering carries "target": "<uri>", which _validate_canonical_entry
-        # would reject without _drop_bare_inline_refs.
+        # Build the real as_Add activity the way the adapter does: target is the
+        # bare case URI (add_participant_to_case passes case_id as the target
+        # kwarg) and the factory fills in context.  The commit boundary accepts
+        # a bare target naming the entry's own case, so the blob commits as is.
         wire_participant = as_CaseParticipant(
             id_=EMIT_ADD_PARTICIPANT_ID,
             attributed_to=EMIT_ADD_INVITEE_ID,
@@ -711,12 +718,14 @@ class TestEmitAddCaseParticipantNode:
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.add_participant_to_case.return_value = (
             EMIT_ADD_ACTIVITY_ID,
-            add_activity.model_dump_json(
-                by_alias=True, exclude_none=True, serialize_as_any=True
-            ),
+            dump_outbound_body(add_activity),
         )
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
         )
@@ -728,15 +737,22 @@ class TestEmitAddCaseParticipantNode:
         )
 
         assert result.status == Status.SUCCESS, (
-            "Snapshot with stored as_Add must not fail validation "
-            "(bare target must be stripped by _snapshot_with_context)"
+            "the exact blob must pass the commit boundary as the factory"
+            " produced it"
         )
         entries = [
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == EMIT_ADD_CASE_ID
+            if isinstance(e, CaseLedgerEntry)
+            and e.case_id == EMIT_ADD_CASE_ID
+            and e.event_type == "add_case_participant"
         ]
-        assert any(e.event_type == "add_case_participant" for e in entries)
+        assert len(entries) == 1
+        assert entries[0].payload_snapshot == json.loads(
+            dump_outbound_body(add_activity)
+        )
+        assert entries[0].payload_snapshot["target"] == EMIT_ADD_CASE_ID
+        assert entries[0].payload_snapshot["context"] == EMIT_ADD_CASE_ID
 
     def test_skips_when_already_participant(self, dl):
         """SUCCESS without emitting when invitee_already_participant=True."""
@@ -761,7 +777,11 @@ class TestEmitAddCaseParticipantNode:
         participant = _make_add_node_fixture(dl)
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
         )
@@ -796,7 +816,11 @@ class TestEmitAddCaseParticipantNode:
         )
         dl.create(case)
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
         )
@@ -877,12 +901,14 @@ class TestEmitAddCaseParticipantNode:
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.add_participant_to_case.return_value = (
             EMIT_ADD_ACTIVITY_ID,
-            add_act_to.model_dump_json(
-                by_alias=True, exclude_none=True, serialize_as_any=True
-            ),
+            dump_outbound_body(add_act_to),
         )
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
         )
@@ -990,6 +1016,7 @@ class TestEmitOwnershipTransferNodes:
         bridge = BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         )
         result = bridge.execute_with_setup(tree=node, actor_id=_OT_OWNER_ID)
 
@@ -1041,7 +1068,11 @@ class TestEmitOwnershipTransferNodes:
             offer_id="https://example.org/activities/ot-offer-01",
             case_id=_OT_CASE_ID,
         )
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         result = bridge.execute_with_setup(
             tree=node, actor_id=_OT_TRANSFEREE_ID
         )

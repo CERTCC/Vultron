@@ -1,6 +1,7 @@
 """Use cases for vulnerability case activities."""
 
 import logging
+from typing import TYPE_CHECKING
 
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.core.models.use_case_result import (
@@ -12,6 +13,9 @@ from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,11 +24,15 @@ class UpdateCaseReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: UpdateCaseReceivedEvent,
+        trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
         self._request: UpdateCaseReceivedEvent = request
+        # The CM-06-001 broadcast is emitted through this port so the adapter
+        # persists and seals it (VM-08-003); the inbox pipeline injects it.
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -56,7 +64,9 @@ class UpdateCaseReceivedUseCase:
             request=request,
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,

@@ -1,18 +1,18 @@
 {
-  "id": "https://vultron.example/organizations/coordinator",
-  "type": "Organization",
-  "name": "Coordinator LLC",
   "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Organization",
+  "id": "https://vultron.example/organizations/coordinator",
+  "name": "Coordinator LLC",
   "inbox": {
-    "id": "https://vultron.example/organizations/coordinator/inbox",
-    "type": "OrderedCollection",
     "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "OrderedCollection",
+    "id": "https://vultron.example/organizations/coordinator/inbox",
     "items": []
   },
   "outbox": {
-    "id": "https://vultron.example/organizations/coordinator/outbox",
-    "type": "OrderedCollection",
     "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "OrderedCollection",
+    "id": "https://vultron.example/organizations/coordinator/outbox",
     "items": []
   }
 }

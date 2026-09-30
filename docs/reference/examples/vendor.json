@@ -1,18 +1,18 @@
 {
-  "id": "https://vultron.example/organizations/vendorco",
-  "type": "Organization",
-  "name": "VendorCo",
   "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Organization",
+  "id": "https://vultron.example/organizations/vendorco",
+  "name": "VendorCo",
   "inbox": {
-    "id": "https://vultron.example/organizations/vendorco/inbox",
-    "type": "OrderedCollection",
     "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "OrderedCollection",
+    "id": "https://vultron.example/organizations/vendorco/inbox",
     "items": []
   },
   "outbox": {
-    "id": "https://vultron.example/organizations/vendorco/outbox",
-    "type": "OrderedCollection",
     "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "OrderedCollection",
+    "id": "https://vultron.example/organizations/vendorco/outbox",
     "items": []
   }
 }

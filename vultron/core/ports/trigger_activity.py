@@ -284,6 +284,36 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def accept_case_proposal(
+        self,
+        actor: str,
+        proposal: dict,
+        to: list[str],
+        result: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Accept(as_CaseProposal)`` activity.
+
+        The CASE_MANAGER sends this to acknowledge that it will open (or has
+        already opened) a case for the proposal (CP-05-002).  *proposal* is the
+        wire-serialised ``as_CaseProposal`` the inbound ``Create`` carried,
+        embedded inline (AKM-03-001); *result* is the URI of the case the
+        Accept ties to (CP-05-006).
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def emit_prepared_create_case(self, payload: dict) -> tuple[str, str]:
+        """Persist a ``Create(VulnerabilityCase)`` prepared at marker time.
+
+        *payload* is the AS2 document stored on the
+        ``PendingCreateCaseActivity`` marker, so a replay after a crash sends
+        the same activity under the same id (CP-05-005).
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
     # -----------------------------------------------------------------------
     # Actors (invitations, recommendations)
     # -----------------------------------------------------------------------
@@ -475,10 +505,8 @@ class TriggerActivityPort(Protocol):
     ) -> tuple[str, str]:
         """Create and persist an ``Add(CaseParticipant, Case)`` activity.
 
-        Returns ``(activity_id, activity_json)``: the second element is the
-        activity's AS2 JSON text, which a caller recording the ``Add`` in the case
-        ledger uses as its payload snapshot: core cannot produce that shape
-        itself (ARCH-20-001).
+        Returns ``(activity_id, activity_blob)``.  The emitting node records
+        the blob, unchanged, as the ledger ``payloadSnapshot`` (VM-08-003).
         """
         ...
 

@@ -25,6 +25,9 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.events import MessageSemantics
@@ -312,6 +315,9 @@ def case_with_manager_in_cm_store(
             case_manager_actor_id: cm_participant.id_,
         },
     )
+    # The CASE_MANAGER holds every report its case names: the engage broadcast
+    # embeds them, and an Announce that cannot is refused (CBT-01-007).
+    case_manager_datalayer.create(report)
     case_manager_datalayer.create(case)
     return case
 
@@ -681,6 +687,7 @@ def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
     )
     result = BTBridge(
         datalayer=case_manager_datalayer,
+        trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
         wire_render_port=As2WireRenderAdapter(),
     ).execute_with_setup(
         tree=tree,

@@ -18,17 +18,18 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.activity import VultronActivity
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.errors import VultronAlreadyExistsError
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,7 @@ def broadcast_case_update(
     case_id: str,
     case: Any,
     actor_id: str,
+    trigger_activity: "TriggerActivityPort",
     excluded_actor_ids: set[str] | None = None,
 ) -> None:
     """Create and queue an ``Announce`` for a case update (CM-06-001).
@@ -98,6 +100,10 @@ def broadcast_case_update(
             established that this actor holds ``CVDRole.CASE_MANAGER`` for the
             case — see ``create_update_case_received_tree``, which wraps the
             calling node in a ``CheckIsCaseManagerNode`` gate.
+        trigger_activity: The port that builds, persists, and seals the
+            ``Announce(VulnerabilityCase)``.  Core used to construct the
+            activity itself; routing it through the adapter is what lets the
+            outbox deliver the sealed body rather than a re-read (VM-08-003).
         excluded_actor_ids: Participants to omit (CM-10-004).
 
     This used to resolve the announcing identity itself, via a scan for a
@@ -124,22 +130,13 @@ def broadcast_case_update(
         )
         return
 
-    broadcast = VultronActivity(
-        type_="Announce",
+    broadcast_id = trigger_activity.announce_vulnerability_case(
+        case_id=case_id,
         actor=actor_id,
-        object_=case,
+        context_id=case_id,
         to=participant_ids,
     )
-    try:
-        dl.create(broadcast)
-    except VultronAlreadyExistsError:
-        logger.debug(
-            "update_case: broadcast activity %s already exists — skipping",
-            broadcast.id_,
-        )
-        return
-
-    cast(CaseOutboxPersistence, dl).outbox_append(broadcast.id_)
+    cast(CaseOutboxPersistence, dl).outbox_append(broadcast_id)
     logger.info(
         "update_case: CaseActor '%s' broadcast Announce for case '%s' to %d participants (CM-06-001)",
         actor_id,

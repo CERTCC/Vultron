@@ -31,15 +31,20 @@ OX-1.3 idempotency is enforced at the receiving inbox endpoint
 (``POST /actors/{id}/inbox/``) rather than at delivery time, because actors
 run as isolated processes with no direct access to each other's DataLayers.
 
+The handler is a dumb relay (VM-08-003, ADR-0074): each row's *sealed body*
+— the JSON text the emitting adapter produced and stored alongside the
+activity — is delivered exactly as sealed.  Nothing here reads the activity
+record back, expands a reference, hydrates an object, or re-serialises.  That
+is what keeps the ledger's ``payloadSnapshot`` and the wire identical.
+
 Helper concerns are split into focused sub-modules:
 
-- ``outbox_addressing`` — recipient extraction and reference dehydration
-- ``outbox_delivery`` — object validation, expansion, and preparation
+- ``outbox_addressing`` — recipient extraction from the parsed body
+- ``outbox_delivery`` — sealed-body loading and last-resort guards
 
-All public and private symbols from those modules are re-exported here so
-that callers using ``import outbox_handler as oh`` continue to resolve all
-names (including those used by ``monkeypatch.setattr``) via this module's
-namespace.
+Tests that stub the handler do so via ``import outbox_handler as oh`` and
+``monkeypatch.setattr(oh, "handle_outbox_item", …)``; the helpers themselves
+are imported from their own modules.
 """
 
 import asyncio
@@ -63,32 +68,21 @@ from vultron.adapters.outbox_dead_letter import OutboxRetryStore
 # ---------------------------------------------------------------------------
 # Re-exports from outbox_addressing (keep in this namespace for compat)
 # ---------------------------------------------------------------------------
-from vultron.adapters.driving.fastapi.outbox_addressing import (  # noqa: F401
-    _DEHYDRATION_FIELDS,
-    _STUB_KEYS,
-    _STUB_OBJECT_TYPES,
-    _coerce_reference_value,
-    _dehydrate_references,
+from vultron.adapters.driving.fastapi.outbox_addressing import (
     _extract_recipients,
     _format_object,
-    _is_stub_object_dict,
 )
-
-# ---------------------------------------------------------------------------
-# Re-exports from outbox_delivery (keep in this namespace for compat)
-# ---------------------------------------------------------------------------
-from vultron.adapters.driving.fastapi.outbox_delivery import (  # noqa: F401
-    _INLINE_OBJECT_ACTIVITY_TYPES,
-    _STUB_OBJECT_MODEL_MAP,
-    _expand_inline_object,
-    _hydrate_inline_object_if_persistable,
-    _load_outbound_activity,
-    _recover_typed_inline_object_from_dict,
+from vultron.adapters.driving.fastapi.outbox_delivery import (
+    _activity_type,
+    _load_sealed_body,
     _validate_inline_object,
     _validate_to_field,
     _warn_secondary_addressing,
 )
-from vultron.core.models.activity import VultronActivity
+from vultron.adapters.outbox_sealed_body import (
+    parse_sealed_body,
+    read_sealed_body_dict,
+)
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
 
@@ -112,26 +106,25 @@ _default_emitter: ActivityEmitter | None = None
 def _resolve_ledger_entry_id(activity_id: str, dl: DataLayer) -> str | None:
     """Return the CaseLedgerEntry ID if *activity_id* is an Announce(CaseLedgerEntry).
 
-    Reads the activity from *dl* and extracts ``object_.id_`` when the
-    object type is ``"CaseLedgerEntry"``.  Returns ``None`` for all other
-    activity types so non-ledger activities dead-letter unchanged (OX-14-001).
+    Reads the sealed body and extracts ``object.id`` when the inline object's
+    type is ``"CaseLedgerEntry"``.  Returns ``None`` for all other activity
+    types so non-ledger activities dead-letter unchanged (OX-14-001).
 
     The CaseLedgerEntry is always committed before its fan-out activity is
     queued (emit-after-commit invariant, OX-14-002), so the entry is always
-    present in *dl* when this function runs.
+    present when this function runs.
     """
     try:
-        activity = dl.read(activity_id)
+        body = read_sealed_body_dict(dl, activity_id)
     except Exception:
         return None
-    if activity is None:
+    if body is None:
         return None
-    obj = getattr(activity, "object_", None)
-    if obj is None:
+    obj = body.get("object")
+    if not isinstance(obj, dict) or obj.get("type") != "CaseLedgerEntry":
         return None
-    if getattr(obj, "type_", None) != "CaseLedgerEntry":
-        return None
-    return getattr(obj, "id_", None)
+    entry_id = obj.get("id")
+    return entry_id if isinstance(entry_id, str) else None
 
 
 def configure_default_emitter(emitter: ActivityEmitter) -> None:
@@ -149,38 +142,6 @@ def get_default_emitter() -> ActivityEmitter:
     return _default_emitter or HttpDeliveryAdapter()
 
 
-def _prepare_activity_object_for_delivery(
-    outbound_activity: VultronActivity,
-    activity_id: str,
-    activity_type: str,
-    dl: DataLayer,
-) -> object:
-    """Normalize and validate ``object_`` before recipient delivery.
-
-    Kept in this module (rather than ``outbox_delivery``) so that
-    ``monkeypatch.setattr(oh, "_expand_inline_object", …)`` patches resolve
-    correctly through this module's globals.
-    """
-    activity_object = getattr(outbound_activity, "object_", None)
-    activity_object = _expand_inline_object(
-        outbound_activity,
-        activity_id,
-        activity_type,
-        activity_object,
-        dl,
-    )
-    _validate_inline_object(activity_id, activity_type, activity_object)
-    activity_object = _recover_typed_inline_object_from_dict(
-        activity_object,
-        activity_type,
-        activity_id,
-        outbound_activity,
-    )
-    return _hydrate_inline_object_if_persistable(
-        activity_object, outbound_activity, dl
-    )
-
-
 async def handle_outbox_item(
     actor_id: str,
     activity_id: str,
@@ -189,9 +150,11 @@ async def handle_outbox_item(
 ) -> None:
     """Deliver a single outbox activity to its addressed recipients.
 
-    Reads the activity from ``dl``, extracts recipient actor IDs from
-    the ``to``, ``cc``, ``bto``, and ``bcc`` AS2 addressing fields, and
-    calls ``await emitter.emit(activity, recipients)`` to deliver.
+    Reads the activity's sealed body from ``dl``, applies the last-resort
+    guards (``to:`` present, inline ``object``), extracts recipient actor IDs
+    from the ``to``, ``cc``, ``bto``, and ``bcc`` addressing fields, and calls
+    ``await emitter.emit(activity_id, body, recipients)`` to deliver the body
+    exactly as sealed (VM-08-003).
 
     Delivery failure for any one recipient is logged but does not abort
     delivery to other recipients (handled inside the emitter).
@@ -199,44 +162,32 @@ async def handle_outbox_item(
     Args:
         actor_id: The ID of the Actor whose outbox is being processed.
         activity_id: The ID of the activity to deliver.
-        dl: The DataLayer to read the activity object from.
+        dl: The DataLayer to read the sealed body from.
         emitter: The ActivityEmitter port implementation to use for delivery.
     """
     logger.info(
         "Processing outbox item for actor '%s': %s", actor_id, activity_id
     )
 
-    outbound_activity = _load_outbound_activity(actor_id, activity_id, dl)
-    if outbound_activity is None:
+    sealed = _load_sealed_body(actor_id, activity_id, dl)
+    if sealed is None:
         return
+    body = parse_sealed_body(sealed)
 
-    raw_activity_type = getattr(outbound_activity, "type_", "Activity")
-    activity_type = (
-        raw_activity_type if isinstance(raw_activity_type, str) else "Activity"
-    )
-    _validate_to_field(outbound_activity, activity_id, activity_type)
-    _warn_secondary_addressing(outbound_activity, activity_id, activity_type)
-    activity_object = _prepare_activity_object_for_delivery(
-        outbound_activity, activity_id, activity_type, dl
-    )
+    activity_type = _activity_type(body)
+    _validate_to_field(body, activity_id, activity_type)
+    _warn_secondary_addressing(body, activity_id, activity_type)
+    _validate_inline_object(body, activity_id, activity_type)
 
-    recipients = _extract_recipients(outbound_activity)
-    if not recipients:
-        logger.debug(
-            "No recipients found for %s activity '%s' (actor '%s').",
-            activity_type,
-            activity_id,
-            actor_id,
-        )
-        return
-
-    await emitter.emit(outbound_activity, recipients)
+    # ``to:`` has just been checked to name someone, so this is non-empty.
+    recipients = _extract_recipients(body)
+    await emitter.emit(activity_id, sealed.body, recipients)
     logger.info(
         "Delivered %s activity '%s' (object: %s) to %d recipient(s)"
         " [%s] for actor '%s'.",
         activity_type,
         activity_id,
-        _format_object(activity_object),
+        _format_object(body.get("object")),
         len(recipients),
         ", ".join(recipients),
         actor_id,

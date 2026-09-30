@@ -42,6 +42,7 @@ from collections.abc import Awaitable, Callable
 from vultron.adapters.driving.fastapi.outbox_addressing import (
     _extract_recipients,
 )
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
@@ -65,18 +66,18 @@ DeliverRow = Callable[[str], Awaitable[RowOutcome]]
 def lane_keys(activity_id: str, dl: DataLayer) -> frozenset[str]:
     """Return the lanes *activity_id* occupies: its recipients (OX-01-005).
 
-    Resolved from the stored activity before delivery.  A row whose activity
-    cannot be read, or that names no recipient, has no recipient order to
-    preserve; it gets a lane of its own so it neither waits for nor holds up
-    anything, and ``handle_outbox_item`` reports it when it is popped.
+    Resolved from the sealed body before delivery.  A row whose body cannot be
+    read, or that names no recipient, has no recipient order to preserve; it
+    gets a lane of its own so it neither waits for nor holds up anything, and
+    ``handle_outbox_item`` reports it when it is popped.
     """
     try:
-        stored = dl.read(activity_id)
+        body = read_sealed_body_dict(dl, activity_id)
     except (
         Exception
     ):  # noqa: BLE001 — a read fault is the delivery step's to report
-        stored = None
-    recipients = _extract_recipients(stored) if stored is not None else []
+        body = None
+    recipients = _extract_recipients(body) if body is not None else []
     if not recipients:
         return frozenset({f"?{activity_id}"})
     return frozenset(recipients)

@@ -452,15 +452,20 @@ groups:
   - id: CLP-07-006
     priority: MUST
     kind: protocol
-    statement: Nested protocol objects referenced from a `payloadSnapshot` (e.g.,
-      `EmbargoEvent`, `VulnerabilityReport`, `Note`, `ParticipantStatus`) MUST be
-      embedded inline as full objects in the snapshot; ID-string substitutions that
-      require an out-of-band DataLayer lookup to resolve MUST NOT be used in canonical
-      snapshots
-    verification: '`test/core/behaviors/case/test_ledger_snapshots.py` confirms that
-      nested objects such as `EmbargoEvent`, `VulnerabilityReport`, and `Note` appear
-      as fully inlined AS2 objects in committed snapshots, with no bare ID strings
-      remaining for those types.'
+    statement: >-
+      Nested protocol objects referenced from a `payloadSnapshot` (e.g., `EmbargoEvent`,
+      `VulnerabilityReport`, `Note`, `ParticipantStatus`) MUST be embedded inline as full objects
+      in the snapshot; ID-string substitutions that require an out-of-band DataLayer lookup to
+      resolve MUST NOT be used in canonical snapshots. A `target` equal to the entry's own case
+      URI is not such a substitution — the entry is about that case and every replica holds it —
+      and the commit boundary MUST accept it, at any nesting depth, while refusing every other
+      bare string in an inline-object slot.
+    verification: >-
+      `test/core/behaviors/case/test_ledger_snapshots.py` confirms that nested objects such as
+      `EmbargoEvent`, `VulnerabilityReport`, and `Note` appear as fully inlined AS2 objects in
+      committed snapshots. `test/core/behaviors/sync/nodes/test_canonical_entry.py` confirms a
+      bare `target` naming the entry's case is accepted (top level and nested) and a bare `target`
+      naming another case, or a bare `object`, is refused.
     stories:
     - story_2022_045
   - id: CLP-07-007

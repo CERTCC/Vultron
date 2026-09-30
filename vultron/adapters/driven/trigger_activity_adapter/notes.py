@@ -18,6 +18,8 @@
 import logging
 
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import OUTBOUND_DUMP_KWARGS
+from ._base import _seal
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -28,7 +30,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-from ._base import _DUMP_KWARGS
 from vultron.errors import VultronAlreadyExistsError, VultronNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -87,7 +88,7 @@ class _NotesMixin:
             logger.warning(
                 "create_note: note '%s' already exists — skipping", note.id_
             )
-        return note.id_, note.model_dump_json(**_DUMP_KWARGS)
+        return note.id_, note.model_dump_json(**OUTBOUND_DUMP_KWARGS)
 
     def create_note_activity(
         self,
@@ -106,7 +107,7 @@ class _NotesMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_
+        return _seal(self._dl, activity)[0]
 
     def add_note_to_case(
         self,
@@ -127,4 +128,4 @@ class _NotesMixin:
                 "add_note_to_case: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)

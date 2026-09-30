@@ -208,7 +208,7 @@ land in one pass rather than site by site.
 > core `VultronCreateCaseActivity`. Where core genuinely holds a wire object — a
 > stored outbound `Add(CaseParticipant)`, a received proposal's inline
 > `as_CaseProposal` — it gets the AS2 form from the adapter that built it (the
-> trigger-activity port returns `(activity_id, activity_json)`) or by rendering
+> trigger-activity port returns `(activity_id, activity_blob)`, VM-08-003) or by rendering
 > the core activity that carries it. The list above was accurate at ADR-0061.
 
 Also vestigial: `CoreActor.to_json()` (`core/models/actor.py:76-77`) dumps

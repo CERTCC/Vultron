@@ -17,6 +17,9 @@ import logging
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -114,7 +117,10 @@ class TestEngageDeferCaseBTFailureReason:
 
         with caplog.at_level(logging.WARNING):
             result = EngageCaseReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         # HP-01-003: an actor with no participant record is refused.
@@ -145,7 +151,10 @@ class TestEngageDeferCaseBTFailureReason:
 
         with caplog.at_level(logging.WARNING):
             result = DeferCaseReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         # HP-01-003: an actor with no participant record is refused.
@@ -222,6 +231,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
         EngageCaseReceivedUseCase(
             dl,
             engage_event_with_inline_case,
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -249,7 +259,10 @@ class TestEngageCaseStoresEmbeddedParticipants:
             semantic_type=MessageSemantics.ENGAGE_CASE,
         )
         EngageCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         stored = dl.read(self._PARTICIPANT_ID)
@@ -374,6 +387,7 @@ class TestEngageCaseLedgerCommit:
         EngageCaseReceivedUseCase(
             seeded_dl,
             self._engage_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -398,6 +412,7 @@ class TestEngageCaseLedgerCommit:
         EngageCaseReceivedUseCase(
             seeded_dl,
             self._engage_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -421,7 +436,10 @@ class TestEngageCaseLedgerCommit:
         )
 
         EngageCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert self._queued_announces(dl) == []
@@ -439,7 +457,10 @@ class TestEngageCaseLedgerCommit:
         )
 
         EngageCaseReceivedUseCase(
-            seeded_dl, event, wire_render_port=As2WireRenderAdapter()
+            seeded_dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert [
@@ -455,6 +476,7 @@ class TestEngageCaseLedgerCommit:
         result = EngageCaseReceivedUseCase(
             seeded_dl,
             self._engage_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
@@ -555,7 +577,10 @@ class TestDeferCaseLedgerCommit:
         )
 
         DeferCaseReceivedUseCase(
-            seeded_dl, event, wire_render_port=As2WireRenderAdapter()
+            seeded_dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert [
@@ -577,6 +602,7 @@ class TestDeferCaseLedgerCommit:
         DeferCaseReceivedUseCase(
             seeded_dl,
             self._defer_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -596,6 +622,7 @@ class TestDeferCaseLedgerCommit:
         result = DeferCaseReceivedUseCase(
             seeded_dl,
             self._defer_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED

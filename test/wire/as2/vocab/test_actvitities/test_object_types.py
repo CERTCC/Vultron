@@ -576,25 +576,38 @@ def _make_outbox_dl(activity) -> MagicMock:
 
 
 def test_handle_outbox_item_raises_on_bare_string_object(caplog):
-    """handle_outbox_item MUST raise VultronOutboxObjectIntegrityError when
-    object_ is a bare string that cannot be expanded from the DataLayer.
+    """handle_outbox_item MUST raise VultronOutboxObjectIntegrityError when the
+    sealed body's ``object`` is a bare string.  Nothing is expanded from the
+    DataLayer: the handler relays the sealed body or refuses it (VM-08-003).
 
     Spec: MV-09-002
     """
-    from vultron.core.models.activity import VultronActivity
+    import json
 
-    activity = VultronActivity(
-        type_="Create",
-        actor=ACTOR_ID,
-        to=[ACTOR_ID],
-        object_=_STR_URI,
+    from vultron.adapters.outbox_sealed_body import (
+        SealedOutboundBody,
+        sealed_body_id,
+    )
+
+    activity_id = "urn:uuid:create-bare-object"
+    sealed = SealedOutboundBody(
+        id_=sealed_body_id(activity_id),
+        activity_id=activity_id,
+        body=json.dumps(
+            {
+                "id": activity_id,
+                "type": "Create",
+                "actor": ACTOR_ID,
+                "to": [ACTOR_ID],
+                "object": _STR_URI,
+            }
+        ),
     )
 
     dl = MagicMock()
-    # First read returns the activity; second read (expansion attempt) returns None.
-    dl.read.side_effect = [activity, None]
+    dl.read.side_effect = lambda id_: sealed if id_ == sealed.id_ else None
 
     emitter = AsyncMock()
 
     with pytest.raises(VultronOutboxObjectIntegrityError):
-        asyncio.run(oh.handle_outbox_item(ACTOR_ID, activity.id_, dl, emitter))
+        asyncio.run(oh.handle_outbox_item(ACTOR_ID, activity_id, dl, emitter))
