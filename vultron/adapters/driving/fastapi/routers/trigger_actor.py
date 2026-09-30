@@ -40,6 +40,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     SuggestActorToCaseRequest,
 )
 from vultron.core.behaviors.store_scope import store_for_actor
+from vultron.core.models.use_case_result import ActivityResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 
@@ -47,7 +48,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
 
 
 def _emitting_outbox(
-    result: dict,
+    result: ActivityResult,
     actor_id: str,
     dl: DataLayer,
     actor_dl: DataLayer,
@@ -70,7 +71,7 @@ def _emitting_outbox(
     ``store_for_actor`` is the same guard the bridge applies, so the two cannot
     disagree about which queue holds the activity.
     """
-    emitting_id = result.get("emitting_actor_id", actor_id)
+    emitting_id = result.emitting_actor_id
     if emitting_id == actor_id:
         return actor_id, actor_dl
     emitting_dl = store_for_actor(dl, emitting_id, require_same_authority=True)
@@ -116,7 +117,7 @@ def trigger_suggest_actor_to_case(
     # activity was queued, not the requesting actor's.
     emitting_id, emitting_dl = _emitting_outbox(result, actor_id, dl, actor_dl)
     background_tasks.add_task(outbox_handler, emitting_id, emitting_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -150,7 +151,7 @@ def trigger_accept_case_invite(
             invite_id=body.invite_id,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -184,7 +185,7 @@ def trigger_reject_case_invite(
             invite_id=body.invite_id,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -221,7 +222,7 @@ def trigger_invite_actor_to_case(
         )
     emitting_id, emitting_dl = _emitting_outbox(result, actor_id, dl, actor_dl)
     background_tasks.add_task(outbox_handler, emitting_id, emitting_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -256,7 +257,7 @@ def trigger_accept_actor_recommendation(
             case_actor_id=body.case_actor_id,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -298,7 +299,7 @@ def trigger_offer_case_participant_role(
     # left over from when the injected DataLayer was unscoped.  Every sibling
     # route in this module drains its outbox the same way.
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -339,7 +340,7 @@ def trigger_offer_case_ownership_transfer(
     # activity was queued, not the requesting actor's.
     emitting_id, emitting_dl = _emitting_outbox(result, actor_id, dl, actor_dl)
     background_tasks.add_task(outbox_handler, emitting_id, emitting_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -373,4 +374,4 @@ def trigger_accept_case_ownership_transfer(
             offer_id=body.offer_id,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()

@@ -16,459 +16,81 @@
 """
 HTTP request body models for trigger endpoints.
 
-These are adapter-layer models used by FastAPI routers as request body schemas.
-They intentionally omit ``actor_id``, which routers obtain from the URL path.
-Domain logic lives in the core trigger use cases; see
-``vultron/core/use_cases/triggers/`` for the corresponding domain request models.
+These are the request body schemas the FastAPI trigger routers validate.  They
+intentionally omit ``actor_id``, which routers obtain from the URL path
+(TRIG-06-001).  Their class names are OpenAPI component names, frozen by the
+golden snapshot (TRIG-12-003).
 
-CS-09-002: ValidateReportRequest, InvalidateReportRequest, and
-CloseReportRequest share a common base (ReportTriggerRequest) because they
-have identical fields.  RejectReportRequest also uses offer_id but requires
-a non-optional note field.
+The classes are defined once, in core
+(:mod:`vultron.core.use_cases.triggers.request_bodies`), because the core
+``*TriggerRequest`` models derive from them (ADR-0110) and core MUST NOT import
+the adapter layer (ARCH-03-001).  This module re-exports them so every router
+and test keeps importing the body models from the adapter path.  Add a new body
+model there, then list it here.
 """
 
-import logging
-from datetime import datetime, timezone
-
-from pydantic import BaseModel, ConfigDict, field_validator
-
-from vultron.core.models.base import NonEmptyString, UriString
-from vultron.enums.roles import CVDRole
-
-logger = logging.getLogger(__name__)
-
-
-class ReportTriggerRequest(BaseModel):
-    """
-    Shared base for report-level trigger requests.
-
-    TRIG-03-001: Must include offer_id to identify the target offer.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    TRIG-03-003: Optional note field may be included.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    offer_id: NonEmptyString
-    note: NonEmptyString | None = None
-
-
-class ValidateReportRequest(ReportTriggerRequest):
-    """Request body for the validate-report trigger endpoint."""
-
-
-class InvalidateReportRequest(ReportTriggerRequest):
-    """Request body for the invalidate-report trigger endpoint."""
-
-
-class CloseReportRequest(ReportTriggerRequest):
-    """
-    Request body for the close-report trigger endpoint.
-
-    Distinction from reject-report: close-report closes a report after the
-    RM lifecycle has proceeded (RM → C transition; emits RC message), while
-    reject-report hard-rejects an incoming offer before validation completes.
-    """
-
-
-class RejectReportRequest(BaseModel):
-    """
-    Request body for the reject-report trigger endpoint.
-
-    TRIG-03-001: Must include offer_id to identify the target offer.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    TRIG-03-004: note is required (hard-close decisions warrant documented
-        justification); an empty note emits a WARNING.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    offer_id: NonEmptyString
-    note: str
-
-    @field_validator("note")
-    @classmethod
-    def note_must_be_present(cls, v: str) -> str:
-        if not v.strip():
-            logger.warning(
-                "reject-report trigger received an empty note field; "
-                "hard-close decisions should include a documented reason."
-            )
-        return v
-
-
-class CaseTriggerRequest(BaseModel):
-    """
-    Request body for case-level trigger endpoints.
-
-    TRIG-03-001: Must include case_id to identify the target case.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-
-
-class ProposeEmbargoRequest(BaseModel):
-    """
-    Request body for the propose-embargo trigger endpoint.
-
-    TRIG-03-001: Must include case_id to identify the target case.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    TRIG-03-003: Optional note field may be included.
-    end_time is required and must be timezone-aware and in the future.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-    note: NonEmptyString | None = None
-    end_time: datetime
-
-    @field_validator("end_time")
-    @classmethod
-    def end_time_must_be_tz_aware_and_future(cls, v: datetime) -> datetime:
-        if v.tzinfo is None or v.utcoffset() is None:
-            raise ValueError("end_time must be timezone-aware")
-        if v <= datetime.now(tz=timezone.utc):
-            raise ValueError("end_time must be in the future")
-        return v
-
-
-class AcceptEmbargoRequest(BaseModel):
-    """
-    Request body for the accept-embargo trigger endpoint.
-
-    TRIG-03-001: Must include case_id to identify the target case.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    Optional proposal_id identifies the specific EmProposeEmbargoActivity to accept;
-    if omitted, the earliest-expiring open proposal for the case is used
-    (EP-08-002) — never the first recorded.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-    proposal_id: NonEmptyString | None = None
-
-
-# Backward-compatible alias
-EvaluateEmbargoRequest = AcceptEmbargoRequest
-
-
-class RejectEmbargoRequest(BaseModel):
-    """
-    Request body for the reject-embargo trigger endpoint.
-
-    TRIG-03-001: Must include case_id to identify the target case.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    Optional proposal_id identifies the specific EmProposeEmbargoActivity to reject;
-    if omitted, the earliest-expiring open proposal for the case is used
-    (EP-08-002) — never the first recorded.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-    proposal_id: NonEmptyString | None = None
-
-
-class ProposeEmbargoRevisionRequest(BaseModel):
-    """
-    Request body for the propose-embargo-revision trigger endpoint.
-
-    TRIG-03-001: Must include case_id to identify the target case.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    end_time is required and must be timezone-aware and in the future.
-    Only valid when EM state is ACTIVE or REVISE; use propose-embargo for
-    initial proposals.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-    note: NonEmptyString | None = None
-    end_time: datetime
-
-    @field_validator("end_time")
-    @classmethod
-    def end_time_must_be_tz_aware_and_future(cls, v: datetime) -> datetime:
-        if v.tzinfo is None or v.utcoffset() is None:
-            raise ValueError("end_time must be timezone-aware")
-        if v <= datetime.now(tz=timezone.utc):
-            raise ValueError("end_time must be in the future")
-        return v
-
-
-class TerminateEmbargoRequest(BaseModel):
-    """
-    Request body for the terminate-embargo trigger endpoint.
-
-    TRIG-03-001: Must include case_id to identify the target case.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-
-
-class SubmitReportRequest(BaseModel):
-    """Request body for the submit-report trigger endpoint.
-
-    The finder uses this to create a VulnerabilityReport and offer it to a
-    recipient.  The actor_id is taken from the URL path; report_name,
-    report_content, and recipient_id must be supplied in the request body.
-
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    report_name: NonEmptyString
-    report_content: NonEmptyString
-    recipient_id: UriString
-
-
-class AddObjectToCaseRequest(BaseModel):
-    """Request body for the add-object-to-case general trigger endpoint.
-
-    Accepts any existing AS2 object identified by ``object_id``.  The object
-    must already exist in the actor's datalayer.  Type-specific convenience
-    endpoints (e.g., ``add-report-to-case``) delegate to this after
-    performing their own type validation (TRIG-10-001, TRIG-10-002).
-
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-    object_id: NonEmptyString
-
-
-class AddNoteToCaseRequest(BaseModel):
-    """Request body for the add-note-to-case trigger endpoint.
-
-    TRIG-03-001: Must include case_id to identify the target case.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-    note_name: NonEmptyString
-    note_content: NonEmptyString
-    in_reply_to: NonEmptyString | None = None
-
-
-class CreateCaseRequest(BaseModel):
-    """Request body for the create-case trigger endpoint.
-
-    The actor creates a local VulnerabilityCase and queues a
-    CreateCaseActivity in their outbox for delivery to the CaseActor.
-
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    name: NonEmptyString
-    content: NonEmptyString
-    report_id: NonEmptyString | None = None
-    to: list[str] | None = None
-
-
-class AddReportToCaseRequest(BaseModel):
-    """Request body for the add-report-to-case trigger endpoint.
-
-    TRIG-03-001: Must include case_id and report_id.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-    report_id: NonEmptyString
-
-
-class SuggestActorToCaseRequest(BaseModel):
-    """Request body for the suggest-actor-to-case trigger endpoint.
-
-    TRIG-03-001: Must include case_id and suggested_actor_id.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-    suggested_actor_id: UriString
-    roles: list[CVDRole] | None = None
-
-
-class AcceptCaseInviteRequest(BaseModel):
-    """Request body for the accept-case-invite trigger endpoint.
-
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    invite_id identifies the RmInviteToCaseActivity to accept.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    invite_id: NonEmptyString
-
-
-class RejectCaseInviteRequest(BaseModel):
-    """Request body for the reject-case-invite trigger endpoint.
-
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    invite_id identifies the RmInviteToCaseActivity to reject.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    invite_id: NonEmptyString
-
-
-class AcceptActorRecommendationRequest(BaseModel):
-    """Request body for the accept-actor-recommendation trigger endpoint.
-
-    Sent by the Case Owner (e.g. Vendor1) to accept an Offer(CaseParticipant)
-    forwarded by the CaseActor per ADR-0026 (CM-16-006).
-
-    TRIG-03-001: Must include cp_offer_id and case_actor_id.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    cp_offer_id: NonEmptyString
-    case_actor_id: UriString
-
-
-class InviteActorToCaseRequest(BaseModel):
-    """Request body for the invite-actor-to-case trigger endpoint.
-
-    TRIG-03-001: Must include case_id and invitee_id.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-    invitee_id: UriString
-    roles: list[CVDRole] | None = None
-
-
-class OfferCaseParticipantRoleRequest(BaseModel):
-    """Request body for the offer-case-participant-role trigger endpoint (ADR-0039).
-
-    Emits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
-    from the requesting actor.  ``role`` defaults to ``"CASE_MANAGER"`` for
-    backward-compatibility with callers that previously used the deprecated
-    offer-case-manager-role endpoint.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-    target_actor_id: UriString
-    role: CVDRole = CVDRole.CASE_MANAGER
-
-
-class OfferCaseOwnershipTransferRequest(BaseModel):
-    """Request body for the offer-case-ownership-transfer trigger endpoint.
-
-    Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
-    requesting actor to the specified transferee (TRIG-11-001).
-
-    TRIG-03-001: Must include case_id and transferee_id.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-    transferee_id: UriString
-    content: NonEmptyString | None = None
-
-
-class AcceptCaseOwnershipTransferRequest(BaseModel):
-    """Request body for the accept-case-ownership-transfer trigger endpoint.
-
-    Emits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor back
-    to the offering actor (TRIG-11-002).
-
-    TRIG-03-001: Must include offer_id.
-    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    offer_id: NonEmptyString
-
-
-class NotifyFixReadyRequest(BaseModel):
-    """Request body for the notify-fix-ready demo trigger.
-
-    Signals that the vendor has a fix ready (VFD → VFd).
-    TRIG-03-002: Unknown fields are silently ignored.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-
-
-class NotifyFixDeployedRequest(BaseModel):
-    """Request body for the notify-fix-deployed demo trigger.
-
-    Signals that the fix has been deployed (VFd → VFD).
-    TRIG-03-002: Unknown fields are silently ignored.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-
-
-class NotifyPublishedRequest(BaseModel):
-    """Request body for the notify-published demo trigger.
-
-    Signals that the vulnerability has been publicly disclosed (CS.VFDPxa).
-    TRIG-03-002: Unknown fields are silently ignored.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-
-
-class CloseCaseRequest(BaseModel):
-    """Request body for the close-case demo trigger.
-
-    Signals that the actor is closing the case (RM → CLOSED).
-    TRIG-03-002: Unknown fields are silently ignored.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-
-
-class SyncLogEntryRequest(BaseModel):
-    """Request body for the demo sync-log-entry trigger.
-
-    Commits a canonical case ledger entry and fans it out to all participants
-    via Announce(CaseLedgerEntry). Uses Announce(VulnerabilityCase) as the
-    canonical payload type (case-actor-authored).
-
-    TRIG-03-002: Unknown fields are silently ignored.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-    object_id: UriString
-    event_type: NonEmptyString
+from vultron.core.use_cases.triggers.request_bodies import (
+    AcceptActorRecommendationRequest,
+    AcceptCaseInviteRequest,
+    AcceptCaseOwnershipTransferRequest,
+    AcceptEmbargoRequest,
+    AddNoteToCaseRequest,
+    AddObjectToCaseRequest,
+    AddReportToCaseRequest,
+    CaseTriggerRequest,
+    CloseCaseRequest,
+    CloseReportRequest,
+    CreateCaseRequest,
+    EvaluateEmbargoRequest,
+    InvalidateReportRequest,
+    InviteActorToCaseRequest,
+    NotifyFixDeployedRequest,
+    NotifyFixReadyRequest,
+    NotifyPublishedRequest,
+    OfferCaseOwnershipTransferRequest,
+    OfferCaseParticipantRoleRequest,
+    ProposeEmbargoRequest,
+    ProposeEmbargoRevisionRequest,
+    RejectCaseInviteRequest,
+    RejectEmbargoRequest,
+    RejectReportRequest,
+    ReportTriggerRequest,
+    SubmitReportRequest,
+    SuggestActorToCaseRequest,
+    SyncLogEntryRequest,
+    TerminateEmbargoRequest,
+    ValidateReportRequest,
+)
+
+__all__ = [
+    "AcceptActorRecommendationRequest",
+    "AcceptCaseInviteRequest",
+    "AcceptCaseOwnershipTransferRequest",
+    "AcceptEmbargoRequest",
+    "AddNoteToCaseRequest",
+    "AddObjectToCaseRequest",
+    "AddReportToCaseRequest",
+    "CaseTriggerRequest",
+    "CloseCaseRequest",
+    "CloseReportRequest",
+    "CreateCaseRequest",
+    "EvaluateEmbargoRequest",
+    "InvalidateReportRequest",
+    "InviteActorToCaseRequest",
+    "NotifyFixDeployedRequest",
+    "NotifyFixReadyRequest",
+    "NotifyPublishedRequest",
+    "OfferCaseOwnershipTransferRequest",
+    "OfferCaseParticipantRoleRequest",
+    "ProposeEmbargoRequest",
+    "ProposeEmbargoRevisionRequest",
+    "RejectCaseInviteRequest",
+    "RejectEmbargoRequest",
+    "RejectReportRequest",
+    "ReportTriggerRequest",
+    "SubmitReportRequest",
+    "SuggestActorToCaseRequest",
+    "SyncLogEntryRequest",
+    "TerminateEmbargoRequest",
+    "ValidateReportRequest",
+]

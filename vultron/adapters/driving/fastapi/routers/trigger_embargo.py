@@ -73,7 +73,7 @@ def trigger_propose_embargo(
             actor_id, body.case_id, body.end_time, body.note
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -106,7 +106,7 @@ def trigger_accept_embargo(
     with domain_error_translation():
         result = svc.accept_embargo(actor_id, body.case_id, body.proposal_id)
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -139,7 +139,7 @@ def trigger_reject_embargo(
     with domain_error_translation():
         result = svc.reject_embargo(actor_id, body.case_id, body.proposal_id)
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -176,7 +176,7 @@ def trigger_propose_embargo_revision(
             actor_id, body.case_id, body.end_time, body.note
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -210,4 +210,4 @@ def trigger_terminate_embargo(
     with domain_error_translation():
         result = svc.terminate_embargo(actor_id, body.case_id)
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()

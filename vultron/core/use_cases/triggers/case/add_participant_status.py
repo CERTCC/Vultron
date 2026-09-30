@@ -24,6 +24,7 @@ from vultron.core.behaviors.case.add_participant_status_trigger_tree import (
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
+from vultron.core.models.use_case_result import StatusResult
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
@@ -36,7 +37,7 @@ from vultron.core.use_cases.triggers.requests import (
 logger = logging.getLogger(__name__)
 
 
-class SvcAddParticipantStatusUseCase(SvcBTTriggerBase):
+class SvcAddParticipantStatusUseCase(SvcBTTriggerBase[StatusResult]):
     """Self-report actor RM/VF/D/PXA state to the Case Manager.
 
     Delegates ParticipantStatus record creation to
@@ -101,12 +102,12 @@ class SvcAddParticipantStatusUseCase(SvcBTTriggerBase):
             self._case_id,
         )
 
-    def execute(self) -> dict[str, Any]:
-        super().execute()
-        return {
-            "activity_id": self._result_out.get("activity_id"),
-            "status_id": self._result_out.get("status_id"),
-        }
+    def _build_result(self) -> StatusResult:
+        """The ids of the ``Add(ParticipantStatus)`` activity and the record."""
+        return StatusResult(
+            activity_id=self._output_id("activity_id"),
+            status_id=self._output_id("status_id"),
+        )
 
     def _resolve_current_participant_state(
         self,

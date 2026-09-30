@@ -48,7 +48,7 @@ def test_propose_embargo_revision_transitions_em_to_revise(
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
-    assert "activity" in result
+    assert result.activity is not None
     updated_case = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.REVISE
     assert len(updated_case.proposed_embargoes) == 2
@@ -161,7 +161,7 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
-    assert "activity" in result
+    assert result.activity is not None
     updated_case = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.REVISE
     assert len(updated_case.proposed_embargoes) == 2

@@ -32,7 +32,7 @@ from typing import cast
 import py_trees.behaviour
 
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
-from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
+from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
     resolve_case,
@@ -42,7 +42,7 @@ from vultron.core.use_cases.triggers.requests import LeaveCaseTriggerRequest
 logger = logging.getLogger(__name__)
 
 
-class SvcLeaveCaseUseCase(SvcBTTriggerBase):
+class SvcLeaveCaseUseCase(SvcActivityTriggerBase):
     """Send Leave(VulnerabilityCase) to the Case Actor (ADR-0050, CM-23-002/003).
 
     Routes ``Leave(VulnerabilityCase)`` to the Case Actor inbox so the Case

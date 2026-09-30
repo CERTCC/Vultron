@@ -118,7 +118,7 @@ def demo_add_note_to_case(
             in_reply_to=body.in_reply_to,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -162,7 +162,7 @@ def demo_notify_fix_ready(
             vf_state=CS_vf.VF,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -198,7 +198,7 @@ def demo_notify_fix_deployed(
             d_state=CS_d.D,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -234,7 +234,7 @@ def demo_notify_published(
             pxa_state=CS_pxa.Pxa,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -271,7 +271,7 @@ def demo_close_case(
             case_id=body.case_id,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(

@@ -30,8 +30,18 @@ See also: ``docs/adr/0009-hexagonal-architecture.md``
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Protocol
+from typing import Protocol
 
+from vultron.core.models.use_case_result import (
+    ActivityResult,
+    CaseResult,
+    NoteResult,
+    OfferResult,
+    RoleOfferResult,
+    StatusResult,
+)
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
+from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
 
@@ -44,6 +54,12 @@ class TriggerServicePort(Protocol):
     Every method raises bare ``VultronError`` subclasses — callers are
     responsible for translating to their own error format (e.g.
     ``domain_error_translation()`` in FastAPI routers).
+
+    Every method returns its verb's :class:`TriggerResult` subtype
+    (UCORG-05-005); the router serialises it with ``model_dump()`` so the
+    response body is the subtype's exact key set.  This per-verb surface is
+    the additive step of ADR-0110; the port collapses to one
+    ``trigger(request) -> ResultT_co`` method in the step that follows.
     """
 
     # -----------------------------------------------------------------------
@@ -56,42 +72,42 @@ class TriggerServicePort(Protocol):
         report_name: str,
         report_content: str,
         recipient_id: str,
-    ) -> dict[str, Any]: ...
+    ) -> OfferResult: ...
 
     def validate_report(
         self,
         actor_id: str,
         offer_id: str,
         note: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def invalidate_report(
         self,
         actor_id: str,
         offer_id: str,
         note: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def reject_report(
         self,
         actor_id: str,
         offer_id: str,
         note: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def close_case(
         self,
         actor_id: str,
         offer_id: str,
         note: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def close_report(
         self,
         actor_id: str,
         offer_id: str,
         note: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     # -----------------------------------------------------------------------
     # Case triggers
@@ -104,39 +120,39 @@ class TriggerServicePort(Protocol):
         content: str,
         report_id: str | None = None,
         to: list[str] | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> CaseResult: ...
 
     def engage_case(
         self,
         actor_id: str,
         case_id: str,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def defer_case(
         self,
         actor_id: str,
         case_id: str,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def leave_case(
         self,
         actor_id: str,
         case_id: str,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def add_object_to_case(
         self,
         actor_id: str,
         case_id: str,
         object_id: str,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def add_report_to_case(
         self,
         actor_id: str,
         case_id: str,
         report_id: str,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def add_note_to_case(
         self,
@@ -145,17 +161,17 @@ class TriggerServicePort(Protocol):
         note_name: str,
         note_content: str,
         in_reply_to: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> NoteResult: ...
 
     def add_participant_status(
         self,
         actor_id: str,
         case_id: str,
-        rm_state: Any = None,
-        vf_state: Any = None,
-        d_state: Any = None,
-        pxa_state: Any = None,
-    ) -> dict[str, Any]: ...
+        rm_state: RM | None = None,
+        vf_state: CS_vf | None = None,
+        d_state: CS_d | None = None,
+        pxa_state: CS_pxa | None = None,
+    ) -> StatusResult: ...
 
     # -----------------------------------------------------------------------
     # Embargo triggers
@@ -167,21 +183,21 @@ class TriggerServicePort(Protocol):
         case_id: str,
         end_time: datetime,
         note: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def accept_embargo(
         self,
         actor_id: str,
         case_id: str,
         proposal_id: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def reject_embargo(
         self,
         actor_id: str,
         case_id: str,
         proposal_id: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def propose_embargo_revision(
         self,
@@ -189,13 +205,13 @@ class TriggerServicePort(Protocol):
         case_id: str,
         end_time: datetime,
         note: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def terminate_embargo(
         self,
         actor_id: str,
         case_id: str,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     # -----------------------------------------------------------------------
     # Actor / participant triggers
@@ -207,26 +223,26 @@ class TriggerServicePort(Protocol):
         case_id: str,
         suggested_actor_id: str,
         roles: list | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def accept_case_invite(
         self,
         actor_id: str,
         invite_id: str,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def reject_case_invite(
         self,
         actor_id: str,
         invite_id: str,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def accept_actor_recommendation(
         self,
         actor_id: str,
         cp_offer_id: str,
         case_actor_id: str,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def invite_actor_to_case(
         self,
@@ -234,7 +250,7 @@ class TriggerServicePort(Protocol):
         case_id: str,
         invitee_id: str,
         roles: list | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def offer_case_participant_role(
         self,
@@ -242,7 +258,7 @@ class TriggerServicePort(Protocol):
         case_id: str,
         target_actor_id: str,
         role: CVDRole = CVDRole.CASE_MANAGER,
-    ) -> dict[str, Any]: ...
+    ) -> RoleOfferResult: ...
 
     def offer_case_ownership_transfer(
         self,
@@ -250,10 +266,10 @@ class TriggerServicePort(Protocol):
         case_id: str,
         transferee_id: str,
         content: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
 
     def accept_case_ownership_transfer(
         self,
         actor_id: str,
         offer_id: str,
-    ) -> dict[str, Any]: ...
+    ) -> ActivityResult: ...
