@@ -69,6 +69,8 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
+from test.support.trigger_results import activity_of
+
 OWNER = "https://owner.example/actors/owner"
 PROPOSER = "https://proposer.example/actors/proposer"
 THIRD = "https://third.example/actors/third"
@@ -149,7 +151,7 @@ class _Revision:
             trigger_activity=TriggerActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
-        activity = result["activity"]
+        activity = activity_of(result)
         revision_id = str(activity["object"]["id"])
         proposal_id = str(activity["id"])
         # The CASE_MANAGER indexes a relayed proposal (EP-09-001; #3913).
