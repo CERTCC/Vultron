@@ -18,7 +18,7 @@
 import logging
 from typing import Any, cast
 
-from sqlmodel import Session, select
+from sqlmodel import select
 
 from vultron.adapters.driven.db_record import (
     Record,
@@ -74,7 +74,7 @@ def create(
     else:
         rec = object_to_record(record)
 
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         existing = session.get(VultronObjectRecord, rec.id_)
         if existing is not None:
             raise VultronAlreadyExistsError(
@@ -114,7 +114,7 @@ def read(
     if _UUID_RE.match(object_id):
         candidates.append(f"{_URN_UUID_PREFIX}{object_id}")
 
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         for candidate in candidates:
             stmt = select(VultronObjectRecord).where(
                 VultronObjectRecord.id_ == candidate
@@ -153,7 +153,7 @@ def save(
         obj: Any Pydantic model with ``id_`` and ``type_`` fields.
     """
     rec = object_to_record(obj)
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         row = session.get(VultronObjectRecord, rec.id_)
         if row is None:
             row = VultronObjectRecord(
@@ -193,7 +193,7 @@ def save_many(
             semantics matching :func:`save`).
     """
     rows = [object_to_record(obj) for obj in objs]
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         for rec in rows:
             row = session.get(VultronObjectRecord, rec.id_)
             if row is None:
@@ -226,7 +226,7 @@ def delete(
     Returns:
         ``True`` if deleted; ``False`` if not found.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_ == table,
             VultronObjectRecord.id_ == id_,
@@ -249,7 +249,7 @@ def clear_table(
         dl: The SqliteDataLayer instance.
         table: Object type to clear.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_ == table
         )
@@ -270,7 +270,7 @@ def clear_all(
     Args:
         dl: The SqliteDataLayer instance.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         for row in session.exec(select(VultronObjectRecord)).all():
             session.delete(row)
         for entry in session.exec(select(QueueEntry)).all():
@@ -294,7 +294,7 @@ def update(
         ``True`` if the record was updated; ``False`` if not found.
     """
     normalized = _storable_to_record(record)
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         row = session.get(VultronObjectRecord, id_)
         if row is None:
             return False
@@ -326,7 +326,7 @@ def get(
     Returns:
         Domain object, raw dict, or ``None``.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         if table is None and id_ is not None:
             stmt = select(VultronObjectRecord).where(
                 VultronObjectRecord.id_ == id_
@@ -367,7 +367,7 @@ def get_all(
     Returns:
         List of dicts, each with ``id_``, ``type_``, and ``data_`` keys.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_ == table
         )

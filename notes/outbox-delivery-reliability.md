@@ -11,11 +11,20 @@ related_specs:
 related_issues:
   - https://github.com/CERTCC/Vultron/issues/2302
   - https://github.com/CERTCC/Vultron/issues/2962
+  - https://github.com/CERTCC/Vultron/issues/3602
+  - https://github.com/CERTCC/Vultron/issues/3878
 related_notes:
   - notes/outbox.md
+  - notes/sync-ledger-replication.md
+  - notes/flaky-tests.md
 relevant_packages:
   - vultron/adapters/driven/http_delivery.py
   - vultron/adapters/driving/fastapi/outbox_handler.py
+  - vultron/adapters/driving/fastapi/outbox_lanes.py
+  - vultron/adapters/driven/sync_activity_adapter.py
+  - vultron/adapters/driven/datalayer_sqlite/engine.py
+  - vultron/adapters/driving/fastapi/main.py
+  - vultron/adapters/driving/fastapi/routers/trigger_actor.py
 ---
 
 # Outbox Delivery Reliability
@@ -57,6 +66,111 @@ Fixing the ordering restores the intended budget.
 
 See ADR-0066 § "Per-activity abort scope" for the full rationale.
 Source: CONCERN-2962.
+
+---
+
+## Concurrent Drains Reorder a Fan-Out; Lanes Restore Per-Recipient Order (ADR-0112)
+
+**Trap**: `outbox_handler` is called after *every* inbound activity
+(`inbox_orchestration.run_inbox_pipeline`), from the legacy inbox handler, and
+from `OutboxMonitor.drain_all`. Before ADR-0112 nothing serialized those calls.
+Each concurrent drain popped the next row of the same FIFO and awaited its
+POST, so rows *completed* delivery in an order unrelated to enqueue order —
+run 35917721682 had 28 in flight at once from the CASE_MANAGER's outbox, and a
+14-row backfill popped `0…13` reached its peer as `4, 7, 1, 8, 5, 2, 10, 6, 11,
+13, 12, 9, 3`. Every forward gap is a `Reject` (SYNC-14-002); every `Reject` at
+an advanced position is a full-suffix replay (SYNC-15-010); every replay lands
+in the same queue ahead of the next entry's fan-out to every other peer. The
+`Announce` of entry 15 to Vendor1 waited 14.4 s *in the queue* — not in flight —
+behind 77 replay rows addressed to the Coordinator (#3602). The `fv` and `fcvcv`
+failures (#3033, #2898) show the same loop; PR #3883 removed their emission-order
+*triggers* and left the drain alone.
+
+**Do not** read "OX-01-002 FIFO" as a delivery guarantee: it was a property of
+the queue, and `test_outbox_handler_preserves_fifo_order` recorded *pop* order
+from a single drain. Pop order is not what a recipient sees.
+
+**Fix** (ADR-0112): `outbox_handler` takes a per-actor drain lock (OX-01-004,
+registry keyed by event loop like `_actor_inbox_locks`) and hands each popped
+batch to `outbox_lanes.deliver_batch`, which runs rows in per-recipient lanes —
+at most one in-flight row per recipient, recipients concurrently (OX-01-005,
+OX-01-006). A row's lanes are its recipients, resolved with `lane_keys()`
+before delivery; an unreadable or recipient-less row gets a lane of its own.
+The ratchet `test/architecture/test_outbox_drain_under_actor_lock.py` keeps
+every drain caller behind the lock.
+
+**Re-queue keeps the lane's order (#3878, OX-13-012)**: a row that fails past
+the per-pass cap *stalls* its lanes. Nothing behind it in those lanes is
+attempted that pass, and the held rows are appended back in `StallOrder` — the
+order they were first held, i.e. enqueue order — so the queue the pass leaves is
+each lane's enqueue order without any head-insert primitive. The drain keeps
+that order for the whole pass, so a row a producer appends mid-pass, popped in
+a later batch into a stalled lane, is placed behind the rows stalled before it.
+Rows in *other* lanes are untouched: this is not head-of-line blocking.
+
+**A batch lives outside the queue while it is delivered.** The drain pops the
+queue's snapshot before scheduling, so the rows waiting behind a busy lane are
+in memory, not in the persistent queue. `deliver_batch` therefore never lets an
+interruption drop them: an exception escaping a row task or a cancellation of
+the drain cancels the in-flight tasks and raises `BatchInterrupted(undelivered)`,
+and `_drain_outbox` appends every undelivered row back before re-raising (a
+cancellation as itself, so `OutboxMonitor.stop()` still stops). `_deliver_row`
+never raises on its own — a retry-store failure stalls the row instead. What is
+*not* covered is a hard process crash mid-batch: that loses the batch's
+undelivered rows, where ADR-0066 lost one row; say so, do not claim otherwise.
+The drain slot is keyed on the *store's* canonical id (`actor.id_`), because a
+trigger route passes the URL segment (a short id) and the inbox path the URI.
+
+**Replay dedup (SYNC-15-012)**: `SyncActivityAdapter.send_announce_log_entry`
+returns `False` and queues nothing when an `Announce` of that entry to that
+peer is already pending in the outbox; `SendMissingEntriesNode` counts only
+`True` as sent (SYNC-15-011). The outbox read is the adapter's, not the
+node's — core must not read activities back (DL-06-001). SYNC-15-010 stands —
+the `Reject` still replays — it just cannot queue the same row twice. Defense in depth: a
+`Reject` delayed in the *peer's* outbox can still arrive after the gap drained.
+
+**Skip, do not wait, when the slot is held.** The first version made a second
+caller `await` the lock and the multi-app handoff test hung: under Starlette's
+`TestClient` a recipient's BackgroundTask runs *inside* the sender's POST, so a
+round-trip delivery re-enters `outbox_handler` for the same actor while the
+outer drain awaits that POST. A held slot now gets a "look once more" flag and
+the caller returns; the holder re-reads the queue before finishing. Production
+never nests (202 precedes the task), but a drain policy must not have a
+deadlock class.
+
+**Lanes exposed a store race in tests (in-memory `StaticPool`).** Concurrent
+deliveries mean the CaseActor's inbox worker thread and its outbox drain on the
+loop use the CaseActor's store at once. An in-memory store has *one* connection
+shared by every `Session` (`StaticPool`, `check_same_thread=False`) and the pool
+rolls it back on checkin — so one thread's `Session.close()` discarded another's
+uncommitted insert: a just-stored `Reject` read back as "not found", was
+dropped, and the peer's buffered entry never drained (2/4 `test_fv_demo.py`
+runs). `SqliteDataLayer._session()` now serializes every adapter session per
+engine (`engine.session_guard`); do not open `Session(dl._engine)` directly.
+Do not hang the lock on pool checkout/checkin events: two fairies on
+`StaticPool`'s one record make a checkin go missing.
+
+**Serializing the drain exposed two orphaned-row faults (first CI run of
+ADR-0112, run 36643399281).** An ownership-transfer `Offer` sat unpopped in the
+CaseActor's outbox for 111 s: (1) the trigger route drained the *requesting*
+actor's outbox while the delegated emit (CM-24-001) had gone into the
+*CaseActor's* — `invite-actor-to-case` had this fixed in #2484, `offer-…` and
+`suggest-…` did not; every trigger route now goes through
+`_emitting_outbox()`; (2) `main.py`'s root lifespan never started the
+`OutboxMonitor` (a hand-copied list that drifted from `app_v2`'s; Starlette does
+not run a mounted sub-app's lifespan), so *no container ever ran the OX-09-002
+safety-net poll*. On `main` some concurrent drain was almost always still
+looping and picked the row up by accident. **When you serialize a queue, audit
+who else was relying on the churn.** The root app now shares `_make_lifespan`.
+TestClient demo tests stop the monitor after startup (see `test/demo/conftest.py`).
+
+**Demo gates** (EDF-06): gate on the CaseActor's own ledger holding the entry
+(`wait_for_case_actor_ledger_event`, hop 1), then check the replicas against
+one `SharedBudget` (hop 2). A late replica then reads as "fan-out late", not
+"transfer never happened". Never widen a replica wait to cover the queue.
+
+Sources: #3602, #3878; CI runs 35917721682 (`fvcv-handoff`) and 33648494945
+(`fv`).
 
 ---
 

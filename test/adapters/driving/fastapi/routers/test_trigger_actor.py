@@ -798,3 +798,79 @@ def test_trigger_invite_actor_to_case_unknown_invitee_is_accepted(
     )
     assert resp.status_code != status.HTTP_404_NOT_FOUND
     assert resp.status_code < 500, resp.text
+
+
+# ---------------------------------------------------------------------------
+# Delegated emits drain the CaseActor's outbox, not the requesting actor's
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def drained(monkeypatch):
+    """Record every ``(actor_id, store actor)`` the router schedules a drain for.
+
+    The router calls the ``outbox_handler`` name it imported, so that is what
+    is replaced; the recorder resolves the store's actor so the assertion is
+    about *which outbox* will be drained, not just which id was passed.
+    """
+    calls: list[tuple[str, str | None]] = []
+
+    async def _record(actor_id, dl, emitter=None):
+        calls.append((actor_id, getattr(dl, "actor_id", None)))
+
+    monkeypatch.setattr(trigger_actor_router, "outbox_handler", _record)
+    return calls
+
+
+@pytest.mark.spec("CM-24-001")
+def test_offer_case_ownership_transfer_drains_the_case_actors_outbox(
+    client_triggers_invite, actor, case_for_invite, other_actor, drained
+):
+    """The Offer is queued as the CaseActor (CM-24-001), so its outbox is drained.
+
+    Draining the requesting actor's outbox instead left the Offer unpopped
+    until the CaseActor next received something — 111 s in CI run 36643399281,
+    past the 90 s gate on the forwarded Offer (#3602).
+    """
+    case, case_actor = case_for_invite
+    resp = client_triggers_invite.post(
+        f"/actors/{actor.id_}/trigger/offer-case-ownership-transfer",
+        json={"case_id": case.id_, "transferee_id": other_actor.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert resp.json()["emitting_actor_id"] == case_actor.id_
+    assert drained == [(case_actor.id_, case_actor.id_)]
+
+
+@pytest.mark.spec("CM-24-001")
+def test_suggest_actor_to_case_drains_the_emitting_actors_outbox(
+    client_triggers_invite, actor, case_for_invite, other_actor, drained
+):
+    """The drain targets whichever outbox the trigger reports it wrote to.
+
+    A suggestion emits as the CaseActor when the case has one it can act for
+    and as the requesting actor otherwise (CM-24-001..003); either way the
+    scheduled drain must be for that emitter's outbox, never blindly the
+    requesting actor's.
+    """
+    case, _ = case_for_invite
+    resp = client_triggers_invite.post(
+        f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
+        json={"case_id": case.id_, "suggested_actor_id": other_actor.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    emitter = resp.json()["emitting_actor_id"]
+    assert drained == [(emitter, emitter)]
+
+
+def test_invite_actor_to_case_still_drains_the_case_actors_outbox(
+    client_triggers_invite, actor, case_for_invite, other_actor, drained
+):
+    """The pre-existing #2484 behaviour survives the shared helper."""
+    case, case_actor = case_for_invite
+    resp = client_triggers_invite.post(
+        f"/actors/{actor.id_}/trigger/invite-actor-to-case",
+        json={"case_id": case.id_, "invitee_id": other_actor.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert drained == [(case_actor.id_, case_actor.id_)]

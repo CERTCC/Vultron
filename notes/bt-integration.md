@@ -255,8 +255,9 @@ while the receiver is canonical (#2667). See `resolve_invitee_id()` in
 
 **Why the inbox hop matters** (#3033, #2898): before the hop, every inbound
 activity stalled the whole container for its BT tick. No HTTP response went
-out, peers' deliveries were not accepted, the co-hosted `OutboxMonitor`
-coroutine could not drain, and a trigger route waiting on the BT lock from
+out, peers' deliveries were not accepted, no co-hosted outbox drain could run
+(the served app did not even start an `OutboxMonitor` until ADR-0112 — its
+root lifespan had drifted from `app_v2`'s), and a trigger route waiting on the BT lock from
 its threadpool thread starved until the client timed out. In the fv demo the
 CaseActor's outbox paid one full BT tick per delivery on the vendor container
 (0.6–5 s each under CI load), and `Create(VulnerabilityCase)` was queued

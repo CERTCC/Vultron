@@ -38,7 +38,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlmodel import Session, col, select
+from sqlmodel import col, select
 
 from vultron.adapters.outbox_dead_letter import OutboxDeadLetterEntry
 
@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 
 def _queue_list(dl: "SqliteDataLayer", queue: str) -> list[str]:
     """Return every activity ID in *queue*, in insertion order."""
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = (
             select(QueueEntry)
             .where(QueueEntry.queue == queue)
@@ -68,7 +68,7 @@ def _queue_list(dl: "SqliteDataLayer", queue: str) -> list[str]:
 
 def _queue_pop(dl: "SqliteDataLayer", queue: str) -> str | None:
     """Remove and return the oldest activity ID in *queue*."""
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = (
             select(QueueEntry)
             .where(QueueEntry.queue == queue)
@@ -86,7 +86,7 @@ def _queue_pop(dl: "SqliteDataLayer", queue: str) -> str | None:
 
 def _queue_append(dl: "SqliteDataLayer", queue: str, activity_id: str) -> None:
     """Append *activity_id* to *queue*."""
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         session.add(QueueEntry(queue=queue, activity_id=activity_id))
         session.commit()
 
@@ -191,7 +191,7 @@ def get_outbox_attempt_count(
     Returns:
         Current attempt count, or ``0`` when no record exists.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = select(OutboxAttemptEntry).where(
             OutboxAttemptEntry.activity_id == activity_id
         )
@@ -211,7 +211,7 @@ def set_outbox_attempt_count(
         activity_id: ID of the outbox activity.
         count: New attempt count to persist.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = select(OutboxAttemptEntry).where(
             OutboxAttemptEntry.activity_id == activity_id
         )
@@ -242,7 +242,7 @@ def clear_outbox_attempt_count(
         dl: The SqliteDataLayer instance.
         activity_id: ID of the outbox activity whose counter to remove.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = select(OutboxAttemptEntry).where(
             OutboxAttemptEntry.activity_id == activity_id
         )
