@@ -448,7 +448,14 @@ groups:
       `actor` and `attributedTo`). A spelling the resolved class accepts on input is declared,
       never a near miss: both roots validate by field name as well as by alias (CS-14-001,
       CS-14-002), so the snake_case field name `attributed_to` is a declared spelling of
-      `attributedTo`. The refusal MUST name the arriving key and the declared or
+      `attributedTo`. The JSON-LD keywords `@id` and `@type` are near misses of `id` and `type`
+      by design, not an accident of the normalisation: AS2 spells these fields `id` and `type`
+      with no `@` prefix, because the normative AS2 context aliases the keywords and AS2 Core
+      section 2.1 requires the serialized form to be consistent with compaction under that
+      context, so a document carrying `@id` or `@type` is legal JSON-LD but not a conforming
+      AS2 document (MV-01-001). `@context` is the only JSON-LD keyword that is a declared
+      spelling; a receiver MUST NOT declare `@id` or `@type` as an alias or exempt them from
+      the near-miss test. The refusal MUST name the arriving key and the declared or
       retired spelling it resembles. The near-miss test MUST be exactly this normalisation plus
       the retired-name list: edit distance, prefix matching, or any other similarity measure
       MUST NOT be used.
@@ -459,13 +466,22 @@ groups:
       property names within one character of each other, so an edit-distance model would
       misfire constantly, and pinning down a richer notion of "near" is not worth the time
       (ADR-0099 detail 8). A retired name is not a spelling of anything, so it is in the list
-      by name rather than by normalisation.
+      by name rather than by normalisation. The JSON-LD keywords are named so the refusal is
+      understood as a decision: a peer that emits `@id`/`@type` skipped compaction or compacted
+      under a context without the AS2 aliases, and it meant the `id`/`type` Vultron reads.
+      Setting the keywords aside would strip the object's identity and type and cascade into
+      other refusals; declaring them as aliases would make Vultron a partial JSON-LD processor
+      with no principled place to stop (full-IRI property names and `@value` objects are
+      equally legal JSON-LD). Refusing tells the peer the compact spelling to send
+      (CONCERN-3958).
     verification: >-
       `test/wire/as2/test_unknown_key_disposition.py` asserts that a case variant and a
       separator variant (`attributed-to`) on the envelope and on an inline object, and a retired
       name on an inline object (the retired-name list holds status-dimension keys, which never
       sit on the envelope), each raise `VultronParseValidationError` whose message names both
-      the arriving key and the spelling it resembles; that a snake_case field name is accepted
+      the arriving key and the spelling it resembles; that the JSON-LD keywords `@id` and
+      `@type` on the envelope and on an inline object each raise the same parse-edge refusal
+      naming `id` or `type`, not a Pydantic dump; that a snake_case field name is accepted
       as a declared spelling with nothing reported; and that no module under
       `vultron/wire/as2/` contains an edit-distance or similarity helper (`difflib`,
       Levenshtein, or equivalent).
@@ -474,6 +490,8 @@ groups:
       spec_id: MV-11-001
     - rel_type: depends_on
       spec_id: MV-02-002
+    - rel_type: depends_on
+      spec_id: MV-01-001
     adr:
     - ADR-0099
     lint_suppress:
