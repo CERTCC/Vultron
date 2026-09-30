@@ -15,8 +15,8 @@
 Both creation paths register a holder at birth and delegation hands it on, so a
 roster with no ``CVDRole.CASE_MANAGER`` is corrupt, not a topology.  The
 delegated-context helper still carries CM-24-003's "no manager, send directly"
-fallback; this strict ``xfail`` pins its retirement (Task opened from Concern
-#3918, ADR-0113 as rewritten 2026-09-30).
+fallback; this strict ``xfail`` pins its retirement (#3964; Concern #3918,
+ADR-0113 as rewritten 2026-09-30).
 """
 
 import pytest
@@ -34,7 +34,7 @@ OWNER = "https://example.org/actors/owner"
     reason=(
         "CM-24-006: _prepare_delegated_context falls back to the requesting "
         "actor when the roster names no CASE_MANAGER (CM-24-003). Tracked by "
-        "the Task the #3918 planning PR opened; ADR-0113."
+        "#3964 (Concern #3918, ADR-0113)."
     ),
 )
 @pytest.mark.spec("CM-24-006")

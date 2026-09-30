@@ -21,8 +21,7 @@ consent moves when the CASE_MANAGER commits its answer.  A revision Invite to a
 
 Every test here but the acknowledgement check is a strict ``xfail`` pinning
 behaviour #3913 (manager-side relay), #3915 (participant side and replay) and
-the Tasks opened from Concern #3918 (first proposal, RSVP deadline, invitee
-resolution) will deliver.  Each fails today for the reason its docstring names;
+#3961 (RSVP deadline) and #3963 (invitee resolution) will deliver.  Each fails today for the reason its docstring names;
 when the feature lands the ``xfail`` auto-promotes.
 """
 
@@ -48,7 +47,7 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from .conftest import make_embargo_case_with_actor
 
 _TRACKING = "Tracked by #3913 (manager-side relay) and #3915 (participant side, replay); Concern #3892, ADR-0113."
-_TRACKING_3918 = "Tracked by the Tasks the #3918 planning PR opened; Concern #3918, ADR-0113."
+_TRACKING_3918 = "Concern #3918, ADR-0113."
 
 MANAGER = "https://example.org/users/coord"
 PROPOSER = "https://example.org/users/vendor"
@@ -297,7 +296,8 @@ def _relayed_invites(dl: SqliteDataLayer) -> list[VultronActivity]:
     strict=True,
     reason=(
         "EP-09-001: the CASE_MANAGER does not move the canonical case to "
-        "EM.PROPOSED on a received first proposal. " + _TRACKING_3918
+        "EM.PROPOSED on a received first proposal. Tracked by #3913. "
+        + _TRACKING_3918
     ),
 )
 @pytest.mark.spec("EP-09-001")
@@ -326,7 +326,7 @@ def test_case_manager_moves_first_proposal_to_proposed(make_payload):
     strict=True,
     reason=(
         "CM-28-012: no relayed Invite exists yet, so none carries the "
-        "CASE_MANAGER-stamped end_time. " + _TRACKING_3918
+        "CASE_MANAGER-stamped end_time. Tracked by #3961. " + _TRACKING_3918
     ),
 )
 @pytest.mark.spec("CM-28-012")
@@ -358,8 +358,8 @@ def test_relayed_invites_carry_the_managers_rsvp_deadline(make_payload):
     strict=True,
     reason=(
         "CM-28-013: the RSVP deadline is written at receipt in every store, "
-        "not at the CASE_MANAGER's commit of the relayed Invite. "
-        + _TRACKING_3918
+        "not at the CASE_MANAGER's commit of the relayed Invite. Tracked by "
+        "#3961. " + _TRACKING_3918
     ),
 )
 @pytest.mark.spec("CM-28-013")
@@ -386,7 +386,7 @@ def test_manager_stores_invitee_deadline_at_its_commit(make_payload):
     strict=True,
     reason=(
         "CM-28-013: a participant derives and stores an RSVP deadline on "
-        "receipt of a relayed Invite. " + _TRACKING_3918
+        "receipt of a relayed Invite. Tracked by #3961. " + _TRACKING_3918
     ),
 )
 @pytest.mark.spec("CM-28-013")
@@ -415,7 +415,7 @@ def test_participant_stores_no_deadline_on_receipt(make_payload):
     strict=True,
     reason=(
         "EP-09-010: resolve_invitee_id accepts a multi-recipient Invite and "
-        "picks the receiving actor. " + _TRACKING_3918
+        "picks the receiving actor. Tracked by #3963. " + _TRACKING_3918
     ),
 )
 @pytest.mark.spec("EP-09-010")
@@ -444,7 +444,7 @@ def test_invite_with_several_recipients_is_refused(make_payload):
     strict=True,
     reason=(
         "EP-09-010: resolve_invitee_id falls back to the receiving actor when "
-        "the Invite names no recipient. " + _TRACKING_3918
+        "the Invite names no recipient. Tracked by #3963. " + _TRACKING_3918
     ),
 )
 @pytest.mark.spec("EP-09-010")

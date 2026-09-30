@@ -1311,8 +1311,8 @@ class TestLapseIsTheManagersAlone:
         strict=True,
         reason=(
             "CM-28-014: the lapse ledger entry is committed unconditionally in "
-            "whichever store processes the late Accept. Tracked by the Task the "
-            "#3918 planning PR opened; ADR-0113."
+            "whichever store processes the late Accept. Tracked by #3961 "
+            "(Concern #3918, ADR-0113)."
         ),
     )
     @pytest.mark.spec("CM-28-014")

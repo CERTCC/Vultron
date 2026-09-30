@@ -15,8 +15,8 @@
 A participant that does not hold ``CVDRole.CASE_MANAGER`` emits its proposal to
 the manager, records it in the pending-assertion store, and writes no EM state;
 its replica moves when the manager's commit is announced.  Strict ``xfail``
-until the trigger-side write gate lands (Task opened from Concern #3918,
-ADR-0113 as rewritten 2026-09-30).
+until the trigger-side write gate lands (#3962; Concern #3918, ADR-0113 as
+rewritten 2026-09-30).
 """
 
 from datetime import datetime, timedelta, timezone
@@ -81,8 +81,8 @@ def _case_managed_by_someone_else(
     strict=True,
     reason=(
         "EP-09-008: a non-manager's propose trigger writes EM.PROPOSED to its "
-        "own store before the CASE_MANAGER has answered. Tracked by the Task "
-        "the #3918 planning PR opened; ADR-0113."
+        "own store before the CASE_MANAGER has answered. Tracked by #3962 "
+        "(Concern #3918, ADR-0113)."
     ),
 )
 @pytest.mark.spec("EP-09-008")
