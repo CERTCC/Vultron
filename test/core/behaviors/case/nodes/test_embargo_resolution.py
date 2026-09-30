@@ -505,3 +505,37 @@ def test_a_longer_sender_duration_without_its_event_fails_loudly(
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
     assert case.proposed_embargoes == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "EP-04-011: the creation-time revision is appended to "
+        "proposed_embargoes but never indexed in "
+        "pending_embargo_proposal_index, so the owner's default selection "
+        "cannot reach it. Tracked by the implementation issue of Concern "
+        "#3863 (ADR-0112)."
+    ),
+)
+@pytest.mark.spec("EP-04-011")
+def test_creation_time_revision_is_indexed_for_the_owners_default_selection(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """The shortest-wins loser is a revision like any other (EP-04-011).
+
+    The sender's shorter terms win and the owner's longer default is the
+    pending revision.  It must be reachable by ``find_embargo_proposal_id``,
+    which reads only ``pending_embargo_proposal_index`` (EP-08-002); the
+    relayed Invite to the winning party is asserted by the implementation's
+    own tests.
+    """
+    _publish_policy(bt_scenario, ACTOR_DEFAULT, f"{ACTOR_ID}/policy")
+
+    status, _, _ = _run(bt_scenario, sender_proposal=SENDER_PROPOSAL)
+
+    assert status == Status.SUCCESS
+    assert _em_state(bt_scenario) == EM.REVISE
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    (loser_id,) = case.proposed_embargoes
+    assert loser_id in case.pending_embargo_proposal_index

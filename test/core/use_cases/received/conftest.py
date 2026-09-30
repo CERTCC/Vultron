@@ -17,6 +17,9 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.core.models.case_actor import CaseActor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
@@ -111,3 +114,79 @@ def seed_case_manager() -> (
 ):
     """Fixture form of :func:`seed_case_manager_participant`."""
     return seed_case_manager_participant
+
+
+def make_embargo_case_with_actor(
+    case_id: str,
+    author_id: str,
+    extra_participants: list[str] | None = None,
+    case_manager_actor_id: str | None = None,
+) -> tuple[SqliteDataLayer, CaseActor, as_VulnerabilityCase, as_EmbargoEvent]:
+    """Return (dl, case_actor, case, embargo) for embargo received-side tests.
+
+    Also creates ``as_CaseParticipant`` objects so actor → participant lookups
+    in the embargo handlers succeed.
+    """
+    from vultron.enums.roles import CVDRole
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+
+    case_actor_id = f"{case_id}/actor"
+    # The cascade commits to the canonical ledger, and CommitCaseLedgerEntryNode
+    # is role-gated to the CASE_MANAGER (CLP-09), so the tree must run as — and
+    # therefore in the store of — whoever holds that role here. That is
+    # `case_manager_actor_id` when a test names one, otherwise the case actor.
+    ledger_holder_id = case_manager_actor_id or case_actor_id
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ledger_holder_id)
+
+    case_actor = CaseActor(
+        id_=case_actor_id,
+        name=f"CaseActor for {case_id}",
+        attributed_to=author_id,
+        context=case_id,
+    )
+    dl.create(case_actor)
+
+    case = as_VulnerabilityCase(
+        id_=case_id,
+        name="Embargo Cascade Case",
+        attributed_to=author_id,
+    )
+    p1_id = f"{case_id}/participants/p1"
+    case.actor_participant_index[author_id] = p1_id
+    p1 = as_CaseParticipant(
+        id_=p1_id, context=case_id, attributed_to=author_id
+    )
+    dl.create(p1)
+
+    for pid in extra_participants or []:
+        short = pid.rsplit("/", 1)[-1]
+        pn_id = f"{case_id}/participants/{short}"
+        case.actor_participant_index[pid] = pn_id
+        pn = as_CaseParticipant(id_=pn_id, context=case_id, attributed_to=pid)
+        dl.create(pn)
+
+    dl.create(case)
+    case_manager_participant = as_CaseParticipant(
+        id_=f"{case_id}/participants/case-actor-p",
+        attributed_to=case_manager_actor_id or case_actor_id,
+        context=case_id,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(case_manager_participant)
+    case.case_participants.append(case_manager_participant.id_)
+    case.actor_participant_index[case_manager_actor_id or case_actor_id] = (
+        case_manager_participant.id_
+    )
+    dl.save(case)
+
+    embargo = as_EmbargoEvent(
+        id_=f"{case_id}/embargo_events/e1",
+        content="Cascade test embargo",
+        context=case_id,
+        end_time=days_from_now_utc(45),
+    )
+    dl.create(embargo)
+
+    return dl, case_actor, case, embargo

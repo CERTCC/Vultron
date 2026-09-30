@@ -689,3 +689,51 @@ def test_participant_accept_is_consent_and_prunes_nothing(
     assert updated.pending_embargo_proposal_index == {
         embargo.id_: "urn:proposal:1"
     }
+
+
+# ---------------------------------------------------------------------------
+# Tests: the owner decides a revision without waiting (EP-09-005, EP-09-006)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("EP-09-005")
+@pytest.mark.spec("EP-09-006")
+def test_owner_may_activate_a_revision_before_anyone_else_answers(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Nothing blocks the owner's decision on an open revision (EP-09-005).
+
+    A participant proposes B while A is active; no other participant has
+    answered the relayed Invite; the owner's accept activates B anyway.  The
+    SHOULD in EP-09-006 (wait for some answers to gauge consensus) is actor
+    policy at the owner's accept/reject call-out, not a protocol gate, which
+    is exactly what this test pins: the lifecycle service imposes no quorum,
+    no vote and no waiting period.
+    """
+    owner, dl = owner_and_dl
+    proposer = _make_actor(dl, "Proposer")
+    bystander = _make_actor(dl, "Bystander")
+    case, _ = _make_case(
+        dl,
+        owner.id_,
+        extra_participant_ids=[proposer.id_, bystander.id_],
+        em_state=EM.ACTIVE,
+    )
+    active = _make_embargo(dl, case.id_)
+    case.active_embargo = active.id_
+    dl.save(case)
+    revision = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    proposed = lifecycle.propose_embargo(
+        case_id=case.id_, embargo_id=revision.id_, actor_id=proposer.id_
+    )
+    assert proposed.em_after == EM.REVISE
+
+    decided = lifecycle.accept_embargo_invite(
+        case_id=case.id_, embargo_id=revision.id_, actor_id=owner.id_
+    )
+
+    assert decided.em_after == EM.ACTIVE
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.active_embargo_id == revision.id_
