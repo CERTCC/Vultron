@@ -403,6 +403,9 @@ class TestInviteActorUseCases:
         APPLIED and never REFUSED.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
         from vultron.core.models.use_case_result import HandlerDisposition
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
@@ -444,7 +447,9 @@ class TestInviteActorUseCases:
 
         assert first.disposition is HandlerDisposition.APPLIED
         assert second.disposition is HandlerDisposition.SKIPPED
-        assert dl.get(invite.type_.value, invite.id_) is not None
+        archived = dl.read(ReceivedActivityRecord.build_id(invite.id_))
+        assert isinstance(archived, ReceivedActivityRecord)
+        assert archived.activity_id == invite.id_
 
     def test_reject_invite_actor_to_case_commits_ledger_entry(
         self, make_payload

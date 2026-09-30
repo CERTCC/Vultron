@@ -119,6 +119,14 @@ CLP-10-013 required every factory-built tree to pass `case_id` and commit.
 CLP-10-013 is amended to require the commit exactly when the received `(type, object)` pair is a canonical signature; the update tree and the sync trees pass `case_id=None`.
 Whether an owner's update should become a ledgered assertion (ADR-0108) is #3936.
 
+**The archive is keyed by the receiver, not by the sender.**
+The first build archived the activity as its own row, under the id the sender chose, which treated the archive as inert.
+It is not: the DataLayer is one id-keyed table per actor, so a sender who names its activity after a record the receiver derives (a pending-case-inbox marker, an offer record, a report-case link) occupies that id ahead of the receiver's own write, the later `create()` fails as a duplicate, and a read-then-create helper reads the squatter as "already stored".
+The same exposure already existed through the pre-tree store helpers; intake would have extended it to every received tree from any sender.
+So intake writes a `ReceivedActivityRecord` whose id the receiver derives (`ReceivedActivityRecord.build_id`), carrying the sender's id as data for the reverse lookup and the activity whole; a sender's choice of id can now collide with nothing but its own earlier delivery.
+A record the receiver keeps is the receiver's to key; the sender's identifier is content, never the address.
+CLP-10-017 says so; the handler migrations that still store under the sender's id (`KNOWN_VIOLATIONS`, #3871–#3874) retire that shape as they move onto intake, and a reader that needs the archived activity goes through `build_id`.
+
 ## More Information
 
 - [ADR-0022](0022-single-bt-execution-for-received-side-case-actor-routing.md) set the single-tree contract and the guards, commit, effects ordering this record extends with a stage in front.

@@ -46,6 +46,10 @@ from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
 from vultron.core.models.note import VultronNote
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.status import (
@@ -88,8 +92,24 @@ def _rich_note() -> VultronNote:
     return VultronNote(id_=NOTE_ID, content="what arrived", context=CASE_ID)
 
 
-def _archived_ids(dl: SqliteDataLayer, type_: str) -> set[str]:
-    return set(dl.by_type(type_).keys())
+def _archived(dl: SqliteDataLayer, activity_id: str) -> bool:
+    """True when *activity_id* is archived under the receiver's derived key."""
+    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
+    return (
+        isinstance(record, ReceivedActivityRecord)
+        and record.activity_id == activity_id
+    )
+
+
+def _archive_count(dl: SqliteDataLayer) -> int:
+    return len(dl.by_type("ReceivedActivityRecord"))
+
+
+def _inline_id(obj: object) -> str | None:
+    """The id of an inline object as the archive returns it (a stored dict)."""
+    if isinstance(obj, dict):
+        return obj.get("id") or obj.get("id_")
+    return getattr(obj, "id_", None)
 
 
 @pytest.fixture
@@ -110,10 +130,19 @@ def test_intake_archives_the_received_activity(scenario):
     result = scenario.run(node, activity=event)
 
     scenario.assert_success(result)
-    assert ACTIVITY_ID in _archived_ids(scenario.dl, "Create")
+    assert _archived(scenario.dl, ACTIVITY_ID)
     assert node.stored_ids == [ACTIVITY_ID]
     assert node.found_ids == []
     assert node.stored_anything
+    # The archive is the receiver's row, not a row under the sender's id.
+    assert scenario.dl.read(ACTIVITY_ID) is None
+    assert scenario.dl.by_type("Create") == {}
+    record = scenario.dl.read(ReceivedActivityRecord.build_id(ACTIVITY_ID))
+    assert isinstance(record, ReceivedActivityRecord)
+    assert record.activity.type_ == "Create"
+    assert record.activity.actor == SENDER
+    # The inline note is carried as the stored snapshot, not re-typed.
+    assert _inline_id(record.activity.object_) == NOTE_ID
 
 
 @pytest.mark.spec("CLP-10-017")
@@ -155,7 +184,7 @@ def test_inlined_case_does_not_become_a_replica(scenario):
     )
 
     assert scenario.dl.read_case(CASE_ID) is None
-    assert activity.id_ in _archived_ids(scenario.dl, "Announce")
+    assert _archived(scenario.dl, activity.id_)
 
 
 @pytest.mark.spec("CLP-10-017")
@@ -164,7 +193,7 @@ def test_second_intake_of_the_same_activity_writes_nothing(scenario):
     scenario.assert_success(
         scenario.run(IntakeReceivedActivityNode(), activity=event)
     )
-    before = scenario.dl.by_type("Create")
+    before = scenario.dl.by_type("ReceivedActivityRecord")
 
     second = IntakeReceivedActivityNode()
     result = scenario.run(second, activity=event)
@@ -173,7 +202,38 @@ def test_second_intake_of_the_same_activity_writes_nothing(scenario):
     assert second.stored_ids == []
     assert second.found_ids == [ACTIVITY_ID]
     assert not second.stored_anything
-    assert scenario.dl.by_type("Create") == before
+    assert scenario.dl.by_type("ReceivedActivityRecord") == before
+
+
+@pytest.mark.spec("CLP-10-017")
+def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
+    """An activity named after a record this actor derives blocks nothing.
+
+    The archive row is keyed by the receiver, so a sender who picks the id of
+    the pending-case-inbox marker for a public case id does not occupy that
+    id: the receiver's later ``create()`` of the real marker succeeds.
+    """
+    marker_id = VultronPendingCaseInbox.build_id(CASE_ID)
+    squatter = VultronActivity(
+        id_=marker_id, type_="Create", actor=SENDER, object_=_rich_note()
+    )
+    event = CreateNoteReceivedEvent(
+        activity_id=squatter.id_,
+        actor_id=SENDER,
+        object_=_rich_note(),
+        activity=squatter,
+    )
+
+    scenario.assert_success(
+        scenario.run(IntakeReceivedActivityNode(), activity=event)
+    )
+
+    assert scenario.dl.read(marker_id) is None
+    scenario.dl.create(
+        VultronPendingCaseInbox(case_id=CASE_ID, case_actor_id=RECEIVER)
+    )
+    assert isinstance(scenario.dl.read(marker_id), VultronPendingCaseInbox)
+    assert _archived(scenario.dl, marker_id)
 
 
 @pytest.mark.spec("CLP-10-017")
@@ -233,7 +293,7 @@ def test_non_event_activity_returns_failure_with_wiring_reason(scenario):
 
     assert result.status == Status.FAILURE
     assert node.feedback_message == ACTIVITY_UNAVAILABLE
-    assert len(scenario.dl.by_type("Create")) == 0
+    assert _archive_count(scenario.dl) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +317,7 @@ def test_shared_factory_runs_intake_first_even_when_a_guard_refuses(scenario):
 
     assert result.status == Status.FAILURE
     assert isinstance(tree.children[0], IntakeReceivedActivityNode)
-    assert ACTIVITY_ID in _archived_ids(scenario.dl, "Create")
+    assert _archived(scenario.dl, ACTIVITY_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -312,4 +372,4 @@ def test_refused_participant_status_leaves_the_archive_readable():
     ).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
-    assert activity.id_ in _archived_ids(dl, "Add"), "archive lost on refusal"
+    assert _archived(dl, activity.id_), "archive lost on refusal"

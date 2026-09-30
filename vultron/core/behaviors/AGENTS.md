@@ -116,18 +116,18 @@ See `notes/participant-embargo-consent.md` § "Pitfall: Never Set
 Every received tree is built by `create_receive_activity_tree`
 (`case/receive_activity_tree.py`): **intake → guards → guarded commit → effects**
 (CLP-10-006, CLP-10-010). The factory supplies `IntakeReceivedActivityNode`
-(`case/nodes/intake.py`) first. Intake **archives the mail**: the received
-activity as received, idempotently, nothing else (CLP-10-017). An object carried
-inline (case, note, status, embargo) is a message shaped like a core object, not
-core's record — an effect node writes the record from the event's copy after the
-guards; intake writing it would seed a replica ahead of trust (PCR-03-004). Never
-add a store node or helper for the received activity (CLP-10-019). Intake reads
-the `VultronEvent` from `/activity`: run any factory-built tree with
-`activity=<event>` or it fails with `ACTIVITY_UNAVAILABLE`. The commit stage runs
-only for a canonical `(type, object)` signature (CLP-10-013); `Update(VulnerabilityCase)`
-has none, so its tree passes `case_id=None`. Intake-only handlers report via
-`intake_verdict()`. Full write-up: `notes/bt-integration.md` § "The Four
-Received-Side Stages".
+(`case/nodes/intake.py`) first. Intake **archives the mail** as a
+`ReceivedActivityRecord` keyed by the **receiver** (`build_id(sender_id)`, never
+the sender's id — a sender must not squat an id we derive), nothing else
+(CLP-10-017). An inline object (case, note, status, embargo) is a message shaped
+like a core object, not core's record — an effect node writes it from the event's
+copy after the guards; intake writing it would seed a replica ahead of trust
+(PCR-03-004). Never add a store node or helper for the received activity (CLP-10-019). Intake reads the `VultronEvent` from `/activity`: run any
+factory-built tree with `activity=<event>` or it fails with `ACTIVITY_UNAVAILABLE`.
+The commit runs only for a canonical `(type, object)` signature (CLP-10-013);
+`Update(VulnerabilityCase)` has none, so its tree passes `case_id=None`. Intake-only
+handlers report via `intake_verdict()`. Full write-up: `notes/bt-integration.md`
+§ "The Four Received-Side Stages".
 
 ---
 

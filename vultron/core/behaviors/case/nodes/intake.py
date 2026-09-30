@@ -21,6 +21,13 @@ wire activity exactly as received, idempotently, and performs no other write
 guard that refuses the assertion a moment later leaves the archive in place
 (CLP-10-018).
 
+The archive is keyed by the receiver.  Each activity is written as one
+:class:`~vultron.core.models.received_activity_record.ReceivedActivityRecord`
+whose id the receiver derives (``ReceivedActivityRecord.build_id``), never
+under the id the sender chose: a sender who names its activity after a record
+this actor derives cannot occupy that id ahead of the actor's own write.  The
+sender's id is kept on the record for the reverse lookup.
+
 The letter's contents are not core's records.  A case, a note, a status, an
 embargo carried inline in the activity is a *message shaped like* that object;
 the record core keeps is written later, by an effect node, from the copy the
@@ -58,6 +65,9 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
 from vultron.core.models.events.base import VultronEvent
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
@@ -66,13 +76,17 @@ logger = logging.getLogger(__name__)
 class IntakeReceivedActivityNode(DataLayerActionWithPorts):
     """Archive the received activity as received.
 
-    Idempotent: an activity already archived is left untouched and recorded
-    in :attr:`found_ids`; one this store did not hold is created and recorded
-    in :attr:`stored_ids`.  Presence is the ``VultronAlreadyExistsError`` that
-    ``create()`` raises on a duplicate — an activity cannot be looked up by id
-    through ``dl.read()``.  Only that error is caught: any other failure to
-    store means the activity is malformed, which is a fault this node must
-    surface (ARCH-15-001), not a benign duplicate.
+    Each activity is archived as a ``ReceivedActivityRecord`` under the
+    receiver's own key (``ReceivedActivityRecord.build_id``), so a sender's
+    choice of id can collide with nothing but its own earlier delivery.
+
+    Idempotent: an activity already archived is left untouched and its sender
+    id recorded in :attr:`found_ids`; one this store did not hold is archived
+    and recorded in :attr:`stored_ids`.  Presence is the
+    ``VultronAlreadyExistsError`` that ``create()`` raises on the derived id.
+    Only that error is caught: any other failure to store means the activity
+    is malformed, which is a fault this node must surface (ARCH-15-001), not
+    a benign duplicate.
 
     An event with no wire activity (a sync drain event, for instance) has
     nothing to archive and succeeds having written nothing.
@@ -135,7 +149,9 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
         # any other failure to store is a fault this node surfaces
         # (ARCH-15-001), not a benign duplicate.
         try:
-            self.datalayer.create(activity)
+            self.datalayer.create(
+                ReceivedActivityRecord.for_activity(activity)
+            )
         except VultronAlreadyExistsError:
             self.found_ids.append(activity.id_)
             self.logger.debug(

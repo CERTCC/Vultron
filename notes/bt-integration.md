@@ -369,7 +369,15 @@ stages in a fixed order (CLP-10-006, CLP-10-010):
 
 1. **Intake** — one shared node, `IntakeReceivedActivityNode`
    (`vultron/core/behaviors/case/nodes/intake.py`), archives the mail: the
-   received activity exactly as received, idempotently. It decides nothing,
+   received activity exactly as received, idempotently, as a
+   `ReceivedActivityRecord` (`vultron/core/models/received_activity_record.py`)
+   whose id the *receiver* derives (`build_id(sender_activity_id)`) and which
+   carries the sender's id for the reverse lookup. Never under the sender's
+   id: the DataLayer is one id-keyed table per actor, so a sender naming its
+   activity after a record we derive (a pending-case-inbox marker, an offer
+   record) would occupy that id ahead of our own write and a read-then-create
+   helper would read the squatter as "already stored". A reader that needs
+   the archived activity goes through `build_id`. It decides nothing,
    ledgers nothing, and writes nothing else (CLP-10-017). It runs first, so a
    refusal a moment later still leaves the receiver holding the archive
    (CLP-10-018). The letter's contents are not core's records: a case, note,
