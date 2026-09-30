@@ -337,7 +337,7 @@ def test_create_engage_case_tree_returns_sequence(
     assert tree is not None
     assert tree.name == "EngageCaseBT"
     assert hasattr(tree, "children")
-    assert len(tree.children) == 4
+    assert len(tree.children) == 5
 
 
 @pytest.mark.spec("BT-06-002")
@@ -350,35 +350,39 @@ def test_create_defer_case_tree_returns_sequence(
     assert tree is not None
     assert tree.name == "DeferCaseBT"
     assert hasattr(tree, "children")
-    assert len(tree.children) == 3
+    assert len(tree.children) == 4
 
 
 def test_engage_tree_node_names(case_with_participant, actor_id):
     tree = create_engage_case_tree(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
-    assert tree.children[0].name == "CheckParticipantExists"
+    # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
+    assert tree.children[0].name == "IntakeReceivedActivityNode"
+    assert tree.children[1].name == "CheckParticipantExists"
     # Commit runs before effects (CLP-10-006)
-    assert tree.children[1].name == "GuardedCommitCaseLedgerEntryBT"
+    assert tree.children[2].name == "GuardedCommitCaseLedgerEntryBT"
     # Idempotency Selector: skip write when already ACCEPTED
-    assert tree.children[2].name == "IdempotentTransitionRMtoAccepted"
-    assert tree.children[2].children[0].name == "CheckRMStateAccepted"
-    assert tree.children[2].children[1].name == "TransitionRMtoAccepted"
+    assert tree.children[3].name == "IdempotentTransitionRMtoAccepted"
+    assert tree.children[3].children[0].name == "CheckRMStateAccepted"
+    assert tree.children[3].children[1].name == "TransitionRMtoAccepted"
     # Only the CASE_MANAGER announces the updated case (CM-06-001, #2667)
-    assert tree.children[3].name == "GuardedBroadcastEngageCaseBT"
+    assert tree.children[4].name == "GuardedBroadcastEngageCaseBT"
 
 
 def test_defer_tree_node_names(case_with_participant, actor_id):
     tree = create_defer_case_tree(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
-    assert tree.children[0].name == "CheckParticipantExists"
+    # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
+    assert tree.children[0].name == "IntakeReceivedActivityNode"
+    assert tree.children[1].name == "CheckParticipantExists"
     # Commit runs before effects (CLP-10-006)
-    assert tree.children[1].name == "GuardedCommitCaseLedgerEntryBT"
+    assert tree.children[2].name == "GuardedCommitCaseLedgerEntryBT"
     # Idempotency Selector: skip write when already DEFERRED
-    assert tree.children[2].name == "IdempotentTransitionRMtoDeferred"
-    assert tree.children[2].children[0].name == "CheckRMStateDeferred"
-    assert tree.children[2].children[1].name == "TransitionRMtoDeferred"
+    assert tree.children[3].name == "IdempotentTransitionRMtoDeferred"
+    assert tree.children[3].children[0].name == "CheckRMStateDeferred"
+    assert tree.children[3].children[1].name == "TransitionRMtoDeferred"
 
 
 # ============================================================================

@@ -1017,7 +1017,9 @@ class TestAddParticipantStatusTree:
             if isinstance(case_before, CoreCase)
             else 0
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.SUCCESS
 
         p = populated_dl.read(PARTICIPANT_ID)

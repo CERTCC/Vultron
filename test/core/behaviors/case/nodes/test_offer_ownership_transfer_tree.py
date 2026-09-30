@@ -24,7 +24,6 @@ Non-CaseManager actors MUST skip the forwarding step cleanly (role gate).
 import pytest
 
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.activity import VultronActivity
 from py_trees.common import Status
 from unittest.mock import patch
 
@@ -34,7 +33,11 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_offer_ownership_transfer_tree,
 )
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.events.actor import (
+    OfferCaseOwnershipTransferReceivedEvent,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
@@ -65,20 +68,25 @@ def _seed_case(bt_scenario: BTTestScenario) -> None:
     bt_scenario.seed(case_actor_participant, case)
 
 
-class _FakeOfferActivity:
-    activity_id = OFFER_ID
+def _offer_event() -> OfferCaseOwnershipTransferReceivedEvent:
+    """The received Offer(Case, Actor) as a handler places it on the blackboard.
 
-    def __init__(self) -> None:
-        self.activity = VultronActivity(
-            id_=OFFER_ID,
-            type_="Offer",
-            actor=VENDOR_ID,
-            # CLP-07-011: real activities always carry ``published``; a fake
-            # that omits it is rejected at the commit boundary.
-            published=now_utc(),
-            object_={"id": CASE_ID, "type": "VulnerabilityCase"},
-            target={"id": TRANSFEREE_ID, "type": "Service"},
-        )
+    A real event, not a stand-in: intake reads it first (CLP-10-017) and a
+    bare object would be a wiring fault.  CLP-07-011: real activities always
+    carry ``published``; one that omits it is rejected at the commit boundary.
+    """
+    activity = VultronActivity(
+        id_=OFFER_ID,
+        type_="Offer",
+        actor=VENDOR_ID,
+        context=CASE_ID,
+        published=now_utc(),
+        object_={"id": CASE_ID, "type": "VulnerabilityCase"},
+        target={"id": TRANSFEREE_ID, "type": "Service"},
+    )
+    return OfferCaseOwnershipTransferReceivedEvent(
+        activity_id=OFFER_ID, actor_id=VENDOR_ID, activity=activity
+    )
 
 
 @pytest.mark.spec("CM-21-005")
@@ -100,7 +108,7 @@ def test_forward_offer_to_transferee_queues_in_case_actor_outbox(
     )
 
     result = bt_scenario.run(
-        tree, actor_id=CASE_ACTOR_ID, activity=_FakeOfferActivity()
+        tree, actor_id=CASE_ACTOR_ID, activity=_offer_event()
     )
 
     assert result.status == Status.SUCCESS
@@ -130,7 +138,7 @@ def test_non_case_manager_skips_forward(bt_scenario_factory) -> None:
         ForwardOfferToTransfereeNode, "update", autospec=True
     ) as mock_update:
         result = bt_scenario.run(
-            tree, actor_id=VENDOR_ID, activity=_FakeOfferActivity()
+            tree, actor_id=VENDOR_ID, activity=_offer_event()
         )
 
     assert result.status == Status.SUCCESS

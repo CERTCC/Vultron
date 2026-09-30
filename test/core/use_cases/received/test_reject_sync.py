@@ -13,7 +13,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for LedgerReconciliation: RejectLedgerEntryReceivedUseCase and replay trigger.
 
-Spec: SYNC-03-001, SYNC-03-002, SYNC-04-001, SYNC-04-002.
+Spec: SYNC-03-001, SYNC-03-002.
 """
 
 import pytest
@@ -30,7 +30,6 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
-    _update_replication_state,
 )
 from vultron.core.use_cases.triggers.sync import replay_missing_entries_trigger
 from typing import cast
@@ -158,57 +157,6 @@ class TestRejectLogEntryPattern:
         event = extract_event(activity)
         assert isinstance(event, RejectLogEntryReceivedEvent)
         assert event.last_accepted_hash == ""
-
-
-class TestUpdateReplicationState:
-    """_update_replication_state creates and updates per-peer state (SYNC-04-001)."""
-
-    @pytest.mark.spec("SYNC-04-001")
-    def test_creates_new_state(self, dl, entry0):
-        _update_replication_state(
-            CASE_URI, PARTICIPANT_URI, entry0.entry_hash, dl
-        )
-        state_id = VultronReplicationState(
-            case_id=CASE_URI, peer_id=PARTICIPANT_URI
-        ).id_
-        stored = dl.read(state_id)
-        assert stored is not None
-
-    @pytest.mark.spec("SYNC-04-001")
-    def test_stores_hash(self, dl, entry0):
-        _update_replication_state(
-            CASE_URI, PARTICIPANT_URI, entry0.entry_hash, dl
-        )
-        state_id = VultronReplicationState(
-            case_id=CASE_URI, peer_id=PARTICIPANT_URI
-        ).id_
-        stored = dl.read(state_id)
-        assert (
-            getattr(stored, "last_acknowledged_hash", None)
-            == entry0.entry_hash
-        )
-
-    @pytest.mark.spec("SYNC-04-001")
-    @pytest.mark.spec("SYNC-04-002")
-    def test_updates_existing_state(self, dl, entry0, entry1):
-        _update_replication_state(
-            CASE_URI, PARTICIPANT_URI, entry0.entry_hash, dl
-        )
-        _update_replication_state(
-            CASE_URI, PARTICIPANT_URI, entry1.entry_hash, dl
-        )
-
-        state_id = VultronReplicationState(
-            case_id=CASE_URI, peer_id=PARTICIPANT_URI
-        ).id_
-        stored = dl.read(state_id)
-        # Only one record should exist (upsert, not duplicate)
-        all_states = dl.by_type("ReplicationState")
-        assert len(all_states) == 1
-        assert (
-            getattr(stored, "last_acknowledged_hash", None)
-            == entry1.entry_hash
-        )
 
 
 class TestReplayMissingEntriesTrigger:

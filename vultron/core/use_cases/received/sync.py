@@ -18,7 +18,6 @@ Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-04-001, SYNC-04-002.
 """
 
 import logging
-from typing import cast
 
 import py_trees
 from py_trees.common import Status
@@ -53,15 +52,11 @@ from vultron.core.models.pending_assertion import (
     PendingAssertionStore,
     get_pending_assertion_store,
 )
-from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.ports.case_persistence import (
-    CasePersistence,
-    CaseOutboxPersistence,
-)
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
@@ -251,50 +246,6 @@ def drain_gap_buffer(
             return
 
 
-def _update_replication_state(
-    case_id: str,
-    peer_id: str,
-    last_acknowledged_hash: str,
-    dl: CasePersistence,
-) -> None:
-    """Upsert the :class:`VultronReplicationState` for *peer_id* in *case_id*.
-
-    Creates a new record if none exists yet; updates the
-    ``last_acknowledged_hash`` and ``updated_at`` fields on the existing one.
-
-    Spec: SYNC-04-001, SYNC-04-002.
-    """
-    state = VultronReplicationState(
-        case_id=case_id,
-        peer_id=peer_id,
-        last_acknowledged_hash=last_acknowledged_hash,
-    )
-    existing = dl.read(state.id_)
-    if existing is not None:
-        existing_state = cast(VultronReplicationState, existing)
-        existing_state.last_acknowledged_hash = last_acknowledged_hash
-        from vultron.core.models._helpers import now_utc
-
-        existing_state.updated_at = now_utc()
-        dl.save(existing_state)
-        logger.debug(
-            "sync: updated ReplicationState for peer '%s' in case '%s' "
-            "→ last_acknowledged_hash=%.16s…",
-            peer_id,
-            case_id,
-            last_acknowledged_hash,
-        )
-    else:
-        dl.save(state)
-        logger.debug(
-            "sync: created ReplicationState for peer '%s' in case '%s' "
-            "→ last_acknowledged_hash=%.16s…",
-            peer_id,
-            case_id,
-            last_acknowledged_hash,
-        )
-
-
 class AnnounceLedgerEntryReceivedUseCase:
     """Process a received ``Announce(CaseLedgerEntry)`` activity.
 
@@ -419,12 +370,14 @@ class RejectLedgerEntryReceivedUseCase:
     """CaseActor handles a participant's rejection of a log entry announcement.
 
     When a participant rejects an ``Announce(CaseLedgerEntry)`` because the
-    ``prev_log_hash`` does not match their local tail, the CaseActor:
+    ``prev_log_hash`` does not match their local tail, the CaseActor runs the
+    reject tree (``create_reject_log_entry_tree``), whose nodes:
 
-    1. Updates :class:`~vultron.core.models.replication_state.VultronReplicationState`
-       for the rejecting peer (SYNC-04-001, SYNC-04-002).
-    2. Replays all missing entries from after the last-accepted hash to the
-       peer (SYNC-03-002).
+    1. Record the rejecting peer's last-acknowledged hash in its
+       per-peer replication state — ``UpdateReplicationStateNode``
+       (SYNC-04-001, SYNC-04-002).
+    2. Replay all missing entries from after the last-accepted hash to the
+       peer — ``SendMissingEntriesNode`` (SYNC-03-002).
 
     Spec: SYNC-03-001, SYNC-03-002, SYNC-04-001, SYNC-04-002.
     """

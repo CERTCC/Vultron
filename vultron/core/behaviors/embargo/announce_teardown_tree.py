@@ -42,7 +42,7 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes import (
+from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (

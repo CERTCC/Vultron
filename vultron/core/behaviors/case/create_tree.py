@@ -68,6 +68,8 @@ from vultron.core.behaviors.case.nodes import (
     ProposeCaseToActorNode,
     SetCaseAttributedTo,
     UpdateActorOutbox,
+)
+from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 

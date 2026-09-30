@@ -35,6 +35,18 @@ from vultron.wire.as2.factories import (
 )
 
 
+def _archived_by_intake(dl, activity_id: str) -> bool:
+    """True when intake archived *activity_id* under the receiver's key."""
+    from vultron.core.models.received_activity_record import (
+        ReceivedActivityRecord,
+    )
+
+    return isinstance(
+        dl.read(ReceivedActivityRecord.build_id(activity_id)),
+        ReceivedActivityRecord,
+    )
+
+
 class TestOfferCaseParticipantRoleReceivedUseCase:
     """Tests for the canonical role-delegation received use case (ADR-0039).
 
@@ -101,8 +113,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
         self._execute(dl, event)
 
-        stored = dl.get(offer.type_.value, offer.id_)
-        assert stored is not None
+        assert _archived_by_intake(dl, offer.id_)
 
     def test_offer_case_participant_role_idempotent(self, make_payload):
         """Repeated execution of OfferCaseParticipantRoleReceivedUseCase is a no-op."""
@@ -118,8 +129,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         self._execute(dl, event)
         self._execute(dl, event)
 
-        stored = dl.get(offer.type_.value, offer.id_)
-        assert stored is not None
+        assert _archived_by_intake(dl, offer.id_)
 
     def test_offer_case_participant_role_uses_store_owner_when_no_receiving_actor(
         self, make_payload
@@ -141,8 +151,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
             # The BT runs under the store owner's identity; the tree stores the
             # offer idempotently regardless of receiving_actor_id stamp.
-            stored = dl.get(offer.type_.value, offer.id_)
-            assert stored is not None
+            assert _archived_by_intake(dl, offer.id_)
         finally:
             py_trees.blackboard.Blackboard.storage.clear()
 
@@ -161,8 +170,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
         self._execute(dl, event)
 
-        stored = dl.get(offer.type_.value, offer.id_)
-        assert stored is not None
+        assert _archived_by_intake(dl, offer.id_)
 
     def test_offer_case_participant_role_auto_accepts_when_trigger_given(
         self, make_payload

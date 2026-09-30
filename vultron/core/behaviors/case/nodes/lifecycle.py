@@ -24,7 +24,6 @@ Per specs/sync-ledger-replication.yaml SYNC-02-002, SYNC-02-003.
 import logging
 from typing import Any, cast
 
-import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
@@ -390,70 +389,3 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             result.feedback_message,
         )
         return Status.FAILURE
-
-
-def create_guarded_commit_case_ledger_entry_tree(
-    case_id: str | None = None,
-) -> py_trees.composites.Selector:
-    """Create a guarded commit subtree for canonical case-ledger entries.
-
-    The commit runs only when the executing actor holds ``CVDRole.CASE_MANAGER``
-    for the case; see :func:`create_case_manager_gated_tree` for the gate's
-    failure-mode semantics.
-
-    Called internally by :func:`create_receive_activity_tree`.  Direct callers
-    in tree-factory modules are a CLP-10-006 ordering violation; use
-    ``create_receive_activity_tree`` instead.
-    """
-    from vultron.core.behaviors.case.nodes.role_gates import (
-        create_case_manager_gated_tree,
-    )
-
-    return create_case_manager_gated_tree(
-        name="GuardedCommitCaseLedgerEntryBT",
-        case_id=case_id,
-        children=[CommitCaseLedgerEntryNode(case_id=case_id)],
-    )
-
-
-def create_receive_activity_tree(
-    name: str,
-    case_id: str | None,
-    precondition_guards: list[py_trees.behaviour.Behaviour],
-    effect_nodes: list[py_trees.behaviour.Behaviour],
-) -> py_trees.composites.Sequence:
-    """Compose a receive-side BT with CLP-10-006 ordering.
-
-    Structurally enforces the correct receive-side ordering::
-
-        [*precondition_guards] → GuardedCommit(receipt) → [*effect_nodes]
-
-    Precondition guards are read-only checks that may return FAILURE to abort
-    the tree before any state is written.  The guarded commit ledgers receipt
-    of the triggering activity (which is on the blackboard before any node
-    runs, placed there by ``BTBridge.execute_with_setup``).  Effect nodes
-    perform state transitions, outbox enqueues, and participant mutations —
-    all of which happen only after the receipt is recorded.
-
-    When ``case_id`` is ``None`` the commit step is omitted entirely,
-    preserving behaviour for trees that receive no explicit case context.
-
-    Per ``specs/case-ledger-processing.yaml`` CLP-10-006.
-    """
-    children: list[py_trees.behaviour.Behaviour] = list(precondition_guards)
-    if case_id is not None:
-        children.append(
-            create_guarded_commit_case_ledger_entry_tree(case_id=case_id)
-        )
-    else:
-        logger.debug(
-            "create_receive_activity_tree(%s): case_id is None"
-            " — commit step omitted",
-            name,
-        )
-    children.extend(effect_nodes)
-    return py_trees.composites.Sequence(
-        name=name,
-        memory=False,
-        children=children,
-    )

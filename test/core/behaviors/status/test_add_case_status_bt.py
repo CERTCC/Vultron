@@ -557,7 +557,9 @@ class TestAddCaseStatusTree:
         bridge = BTBridge(
             datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.SUCCESS
 
         updated_case = populated_dl.read(CASE_ID)
@@ -581,7 +583,9 @@ class TestAddCaseStatusTree:
         bridge = BTBridge(
             datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.FAILURE
         assert BTBridge.get_failure_reason(tree) == CASE_STATUS_ALREADY_PRESENT
 
@@ -612,7 +616,9 @@ class TestAddCaseStatusTree:
         bridge = BTBridge(
             datalayer=dl, wire_render_port=As2WireRenderAdapter()
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.FAILURE
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
@@ -655,7 +661,9 @@ class TestAddCaseStatusTree:
         bridge = BTBridge(
             datalayer=dl, wire_render_port=As2WireRenderAdapter()
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.FAILURE
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
@@ -706,7 +714,9 @@ class TestAddCaseStatusTree:
         bridge = BTBridge(
             datalayer=dl, wire_render_port=As2WireRenderAdapter()
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
 
         assert result.status == Status.SUCCESS
 
@@ -764,7 +774,9 @@ class TestAddCaseStatusTree:
         )
 
         with caplog.at_level(logging.WARNING):
-            result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+            result = bridge.execute_with_setup(
+                tree=tree, actor_id=ACTOR_ID, activity=event
+            )
         assert result.status == Status.SUCCESS
 
         pxa_refusals = [
@@ -819,7 +831,9 @@ class TestAddCaseStatusTree:
         )
 
         with caplog.at_level(logging.WARNING):
-            result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+            result = bridge.execute_with_setup(
+                tree=tree, actor_id=ACTOR_ID, activity=event
+            )
         assert result.status == Status.SUCCESS
 
         em_refusals = [
@@ -892,7 +906,9 @@ class TestAddCaseStatusTree:
         bridge = BTBridge(
             datalayer=dl, wire_render_port=As2WireRenderAdapter()
         )
-        result = bridge.execute_with_setup(tree=probed, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=probed, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.SUCCESS
 
         override = cast(dict, captured.get("override"))

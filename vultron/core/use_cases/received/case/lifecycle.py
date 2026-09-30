@@ -172,8 +172,8 @@ def _close_arm(
 ) -> py_trees.behaviour.Behaviour | None:
     """The close arm, whose failure names why a non-declined close failed.
 
-    The root Selector tries the decline arm last, so on a plain failure the
-    decline arm's "not declining" guard is the last failed child; the cause is
-    in the close arm (BT-13-001).
+    The ``CloseOrDecline`` Selector tries the decline arm last, so on a plain
+    failure the decline arm's "not declining" guard is the last failed child;
+    the cause is in the close arm (BT-13-001).
     """
-    return find_named(tree, "ReceiveAndCloseUnlessDeclined")
+    return find_named(tree, "CloseCaseReceive")

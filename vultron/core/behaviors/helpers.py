@@ -72,12 +72,16 @@ WIRE_RENDER_PORT_UNAVAILABLE = (
     "wire_render_port not available; core cannot render the AS2 shape itself"
     " (ARCH-20-001)"
 )
+# The received event was not placed on the blackboard (``activity=`` omitted
+# from ``execute_with_setup``): the intake node cannot record what arrived.
+ACTIVITY_UNAVAILABLE = "received activity not available"
 WIRING_UNAVAILABLE_MESSAGES = frozenset(
     {
         DATALAYER_UNAVAILABLE,
         DATALAYER_OR_ACTOR_UNAVAILABLE,
         TRIGGER_FACTORY_UNAVAILABLE,
         WIRE_RENDER_PORT_UNAVAILABLE,
+        ACTIVITY_UNAVAILABLE,
     }
 )
 
