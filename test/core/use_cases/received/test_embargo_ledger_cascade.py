@@ -15,6 +15,7 @@
 from typing import cast
 
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.states.em import EM
@@ -37,7 +38,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 from .conftest import make_embargo_case_with_actor
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 class TestEmbargoLogEntryCascade:

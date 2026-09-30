@@ -43,6 +43,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
+from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -60,7 +61,6 @@ from vultron.core.use_cases.triggers.requests import (
     RejectCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
-from vultron.core.ports.wire_render import WireRenderPort
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)

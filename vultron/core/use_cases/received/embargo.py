@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,

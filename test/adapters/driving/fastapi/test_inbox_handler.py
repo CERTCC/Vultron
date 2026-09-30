@@ -893,9 +893,9 @@ def test_make_dispatcher_gives_every_semantic_a_wire_render_port(monkeypatch):
         assert isinstance(
             factory(real_dl).get("wire_render_port"), As2WireRenderAdapter
         ), f"{sem.name} is dispatched without a WireRenderPort"
-        assert (
-            "wire_render_port" in inspect.signature(use_case).parameters
-        ), f"{use_case.__name__} does not accept wire_render_port"
+        assert "wire_render_port" in inspect.signature(use_case).parameters, (
+            f"{use_case.__name__} does not accept wire_render_port"
+        )
 
 
 def test_case_proposal_port_factory_injects_actor_config(monkeypatch):

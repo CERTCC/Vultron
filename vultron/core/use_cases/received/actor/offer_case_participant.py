@@ -59,8 +59,8 @@ from vultron.core.use_cases.received._bt_verdict import (
 from vultron.enums.roles import serialize_roles
 
 if TYPE_CHECKING:
-    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 

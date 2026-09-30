@@ -43,6 +43,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
@@ -68,7 +69,6 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import _persist_actor
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def _build_case_with_two_open_proposals(

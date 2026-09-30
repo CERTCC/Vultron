@@ -41,10 +41,10 @@ import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM

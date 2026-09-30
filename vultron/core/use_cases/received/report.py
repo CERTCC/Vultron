@@ -34,12 +34,12 @@ from vultron.errors import (
 )
 
 if TYPE_CHECKING:
-    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.config.actor import ActorConfig
     from vultron.core.models.protocols import PersistableModel
     from vultron.core.ports.datalayer import StorableRecord
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 

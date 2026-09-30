@@ -9,6 +9,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.use_cases.triggers.embargo import (
@@ -25,7 +26,6 @@ from .conftest import (
     _build_active_embargo_case_with_case_manager,
     _build_unbound_case_with_case_manager,
 )
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def test_propose_embargo_revision_transitions_em_to_revise(

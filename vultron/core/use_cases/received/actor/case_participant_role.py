@@ -27,8 +27,8 @@ from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
-    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 

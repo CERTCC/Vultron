@@ -28,6 +28,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
@@ -49,7 +50,6 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def _make_participant_in_valid_state(

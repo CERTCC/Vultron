@@ -852,7 +852,7 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
             }
         )
 
-    def _participant_actor_id(self, participant: object) -> str:
+    def _participant_actor_id(self, participant: CaseParticipant) -> str:
         actor_ref = participant.attributed_to
         return (
             actor_ref

@@ -8,6 +8,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.states.em import EM
 from vultron.core.use_cases.triggers.embargo import SvcProposeEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
@@ -20,7 +21,6 @@ from .conftest import (
     _build_exited_case,
     _build_unbound_case_with_case_manager,
 )
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def test_propose_embargo_invalid_state_does_not_persist_embargo(

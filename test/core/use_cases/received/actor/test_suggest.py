@@ -22,6 +22,7 @@ from test.conftest import TEST_ACTOR_ID
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
@@ -31,7 +32,6 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def _case_ref(case_id: str) -> as_VulnerabilityCase:
