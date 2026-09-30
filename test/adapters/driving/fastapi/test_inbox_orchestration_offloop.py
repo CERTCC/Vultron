@@ -75,7 +75,7 @@ def test_process_payload_runs_off_the_event_loop(monkeypatch, quiet_pipeline):
     _install_process_payload(monkeypatch, fake_process_payload)
 
     async def _run() -> int:
-        await run_inbox_pipeline({}, {}, quiet_pipeline, _ACTOR_ID, None, None)
+        await run_inbox_pipeline({}, quiet_pipeline, _ACTOR_ID, None, None)
         return threading.get_ident()
 
     loop_thread = asyncio.run(_run())
@@ -113,7 +113,7 @@ def test_event_loop_keeps_serving_while_a_payload_is_processed(
         async def _pipeline() -> None:
             try:
                 await run_inbox_pipeline(
-                    {}, {}, quiet_pipeline, _ACTOR_ID, None, None
+                    {}, quiet_pipeline, _ACTOR_ID, None, None
                 )
             finally:
                 done.set()

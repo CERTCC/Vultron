@@ -85,7 +85,7 @@ def test_ingress_routes_ledger_entry_without_prestoring_entry(
     the in-memory typed object.
     """
     body = _make_announce_body()
-    adapter = FastAPIIngressAdapter(dl=dl, body=body)
+    adapter = FastAPIIngressAdapter(dl=dl)
 
     activity = adapter.parse(body)
     assert activity is not None
@@ -128,7 +128,7 @@ def test_replayed_ledger_entry_announce_routes_and_keeps_fields(
     Announce and route to ANNOUNCE_CASE_LEDGER_ENTRY on replay.
     """
     body = _make_announce_body()
-    ingress = FastAPIIngressAdapter(dl=dl, body=body)
+    ingress = FastAPIIngressAdapter(dl=dl)
     activity = ingress.parse(body)
     assert activity is not None
 
