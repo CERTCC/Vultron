@@ -62,6 +62,15 @@ with no agreed target state.
 - Decision record: ADR-0094
 - Spec: `specs/code-style.yaml` CS-05-002
 
-**Resolved**: 2026-09-30 — implementation tracked in #3949 (enable `PLC0415`, hoist habit imports in `vultron/`, exempt `test/`, mark the genuine cycle breaks) and #3950 (remove the genuine import cycles behind every marker). Docs PR: <https://github.com/CERTCC/Vultron/pull/3948>. Spec: `specs/code-style.yaml` (CS-05-002 amended; CS-05-005, CS-05-006 added). Notes: `notes/lint-tooling.md`.
+**Resolved**: 2026-09-30 — implementation tracked in #3949 (enable `PLC0415`,
+hoist habit imports in `vultron/`, exempt `test/`, mark the genuine cycle breaks)
+and #3950 (remove the genuine import cycles behind every marker). Docs PR:
+<https://github.com/CERTCC/Vultron/pull/3948>. Spec: `specs/code-style.yaml`
+(CS-05-002 amended; CS-05-005, CS-05-006 added). Notes: `notes/lint-tooling.md`.
 
-**Finding**: hoisting every function-local import in `vultron/` to module level and importing every module showed that only ten files genuinely break a cycle; the rest were habit, and most of the tree-wide total is test-local imports the requirement was never about. The spec was right; the gap was enforcement.
+**Finding**: hoisting every function-local import in `vultron/` to module level
+and importing every module showed that only nine files genuinely break a cycle;
+the rest were habit, and most of the tree-wide total is test-local imports the
+requirement was never about. The spec was right; the gap was enforcement. (PR
+triage found the tenth candidate, `inbox/_process_payload.py`, hoists cleanly:
+its deferred `bridge` import shares a lock, it does not break a cycle.)

@@ -90,8 +90,8 @@ groups:
       resort** that hides the cycle rather than removing it, and every such deferral is tracked toward structural removal
       (CS-05-005).
     rationale: 'A measurement while planning #2199 (recorded in ADR-0094) found function-local imports throughout the
-      tree, but hoisting every one in `vultron/` and importing every module showed that only a handful actually break a
-      cycle; the rest were habit. "Last resort" therefore describes the design correctly, and the gap was enforcement, not
+      tree. A follow-up measurement for #3350 (hoisting every one in `vultron/` and importing every module) showed that
+      only a handful actually break a cycle; the rest were habit. "Last resort" therefore describes the design correctly, and the gap was enforcement, not
       the requirement. The resolution is tracked from #3350.'
     verification: With `PLC0415` (`import-outside-top-level`) selected in `[tool.ruff.lint]` of `pyproject.toml`, every
       function-local import in production code is either absent or carries a marker per CS-05-005; the count of markers

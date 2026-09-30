@@ -154,8 +154,9 @@ future violations too; baselining does not.
 
 ### Exclusions worth knowing about
 
-**`PLC0415` (`import-outside-top-level`) is excluded only until #3352 lands, and
-the exclusion is then deleted, not kept.** Its ADR-0094 row was provisional and
+**`PLC0415` (`import-outside-top-level`) is excluded in the configuration
+that #3352 lands with, and that entry is deleted, not kept — #3949 removes it
+and places the markers, and #3950 drains them.** Its ADR-0094 row was provisional and
 pointed at #3350, which asked whether CS-05-002's "last resort" described the
 design or an aspiration. The planning measurement answered it: hoisting every
 function-local import in `vultron/` to module level and importing every module
@@ -171,8 +172,9 @@ CS-05-005, CS-05-006):
 - `per-file-ignores` carries `"test/**" = ["PLC0415"]`. Test-local imports stay.
 - Every habit site in `vultron/` is hoisted.
 - Every genuine cycle break in `vultron/` carries a `# noqa: PLC0415` marker
-  citing the issue that removes it structurally (the baseline form below). The
-  marker count is the cycle backlog, and `RUF100` drains it.
+  citing the issue that removes it structurally (the baseline form below; #3950
+  is that issue for every cycle in the table). The marker count is the cycle
+  backlog, and `RUF100` drains it.
 
 The cycles the measurement found, grouped so the structural work has a map:
 
@@ -182,16 +184,16 @@ The cycles the measurement found, grouped so the structural work has a map:
 | publication trees ↔ call-out bundles | `vultron/core/behaviors/report/publication_tree.py`, `publish_artifact_tree.py` |
 | hypercube ↔ its pattern modules | `vultron/core/case_states/patterns/info.py`, `potential_actions.py` |
 | BT node → use-case helper (BTND-04-003 `KNOWN_VIOLATIONS`) | `vultron/core/behaviors/case/nodes/announce.py` |
-| embargo trigger tree ↔ nodes | `vultron/core/behaviors/embargo/trigger_tree.py`, `nodes/teardown.py` |
-| inbox processing ↔ use cases | `vultron/core/behaviors/inbox/_process_payload.py`, `vultron/core/use_cases/received/unknown.py` |
+| embargo tree and nodes ↔ status/sync node packages | `vultron/core/behaviors/embargo/trigger_tree.py` (↔ `status/nodes`), `embargo/nodes/teardown.py` (↔ `sync/nodes`) |
+| inbox pipeline ↔ use cases | `vultron/core/use_cases/received/unknown.py` (dead-letter tree → inbox pipeline nodes → semantic registry → `unknown`) |
 
 Each is a CS-05-003 finding: a shared symbol that belongs in a neutral module or
 on the side of the cycle that owns it. Do not add a file to this table to make a
 new finding go away — a new cycle is a new reorganization, and the marker it
 would carry needs its own tracking issue.
 
-**`G004` (`logging-f-string`) is excluded, and that exclusion is provisional
-too.** F-strings in log calls defeat lazy formatting, so this is a rule the
+**`G004` (`logging-f-string`) is the one exclusion that remains provisional.**
+F-strings in log calls defeat lazy formatting, so this is a rule the
 project agrees with. It is excluded because the rewrite has no agreed target: the
 choice between lazy `%`-args and structured `extra=` fields belongs to the
 structured-logging requirements (`specs/structured-logging.yaml`), which have not
