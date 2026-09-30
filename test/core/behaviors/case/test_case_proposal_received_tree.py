@@ -1747,6 +1747,7 @@ class TestADR0041GenesisCommitFailure:
 class TestCaseActorRMLifecycleBootstrap:
     """CM-23-005/007: CaseActor emits 3 bootstrap ParticipantStatus records."""
 
+    @pytest.mark.spec("CM-24-006")
     def test_bootstrap_statuses_created_on_case_init(self, make_payload):
         """Three bootstrap ParticipantStatus records exist after initialization.
 

@@ -11,6 +11,7 @@ related_specs:
   - specs/event-driven-control-flow.yaml
   - specs/received-status-handling.yaml
   - specs/embargo-policy.yaml
+  - specs/case-management.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-pitfalls.md
@@ -20,6 +21,7 @@ related_notes:
   - notes/coordination-agents.md
   - notes/activitystreams-semantics.md
   - notes/embargo-lifecycle.md
+  - notes/participant-embargo-consent.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/core/models
@@ -201,6 +203,25 @@ deadline. `add_participant_status_tree` already satisfies this — the
 participant's claim is appended, and only *adoption as canonical* is gated
 (RSH-01). An action with no representable not-yet state must be refused rather
 than asked about (ASK-02-005).
+
+**The embargo Invite is an ask kind, and a relayed ask belongs to the relayer.**
+`Invite(EmbargoEvent)` is closed by `Accept`/`Reject` from the invitee, carries
+its deadline in `end_time` (CM-28-012), and a late reply is still honoured
+(EMB-17) — stale expiry, not void (ASK-03-007). Under the embargo relay
+(EP-09, ADR-0113) the CASE_MANAGER emits one Invite per participant with itself
+as `actor` and the proposer in `attributedTo`, so the manager records those as
+its own outstanding asks; the proposer records only its proposal to the manager
+(ASK-04-010). `find_protocol_pair`'s one-open-request-per-type assumption does
+not survive N simultaneous Invites of one event type — the ask-kind registry
+(#2884) is where that gets fixed, not a per-call-site workaround.
+
+**The pending-assertion store has a second client.** Embargo triggers that do
+not hold the CASE_MANAGER role emit their proposal, answer or termination to
+the manager and record it in the pending-assertion store, exactly as the note
+trigger does; they write no EM state (EP-09-008). The store stays what it is —
+a duplicate suppressor that never holds case state (CLP-06-002) — and the
+manager's `Reject` of a refused proposal closes the entry like an announced
+commit does.
 
 **Asks are visible to the whole case.** An ask is an ordinary recorded entry and
 replicates normally (ASK-06-001), so a stalled decision is visible to

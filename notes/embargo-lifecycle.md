@@ -16,6 +16,7 @@ related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/participant-case-replica.yaml
   - specs/received-status-handling.yaml
+  - specs/protocol-asks.yaml
 related_notes:
   - notes/embargo-default-semantics.md
   - notes/bt-integration.md
@@ -266,43 +267,53 @@ it.
 
 ---
 
-## Revision Negotiation Relays Through the CASE_MANAGER (EP-09, ADR-0113)
+## Embargo Negotiation Relays Through the CASE_MANAGER (EP-09, ADR-0113)
 
-The behavioural specs EMB-03 through EMB-05 speak in the voice of the formal
-protocol, where every Participant is a peer and every Participant "receives EV".
-In this project's topology a participant addresses its proposal to the
-CASE_MANAGER alone (PCR-08-001), so **the Participant receiving EV is the
-CASE_MANAGER**, and every other participant learns the resulting case state
-from the ledger. Concerns #3892, #3836 and #3863 all reduced to one question:
-how does a revision proposal become visible to every replica, and what does a
-participant do about it? The answer, in order:
+The behavioural specs EMB-01 through EMB-06 speak in the voice of the formal
+protocol, where every Participant is a peer and every Participant "receives EP"
+or "receives EV". In this project's topology a participant addresses its
+proposal to the CASE_MANAGER alone (PCR-08-001), so **the Participant receiving
+EP or EV is the CASE_MANAGER**, and every other participant learns the resulting
+case state from the ledger. Concerns #3892, #3836 and #3863 (revisions), and
+Concern #3918 (everything else the rule reaches), all reduced to one question:
+how does a proposal become visible to every replica, and what does a participant
+do about it? The answer, in order:
 
-1. A participant sends its `Invite(EmbargoEvent)` to the CASE_MANAGER only.
+1. A participant sends its `Invite(EmbargoEvent)` to the CASE_MANAGER only —
+   first proposal or revision alike. The published-default path (EP-04-001)
+   emits no proposal, so nothing is relayed for it.
 2. The CASE_MANAGER adjudicates it: still embargo-eligible → EM
-   `ACTIVE → REVISE` through `propose_embargo` under the role gate (or no
-   transition for a counter-revision), and the proposal is committed; P/X/A set →
-   refused with ER (EMB-03-003). The fan-out tells replicas the case is under
-   revision, and that is *all* it tells them (EP-09-001).
-3. The CASE_MANAGER emits a revision Invite to **every participant except the
-   proposer**, `actor=CASE_MANAGER`, `attributed_to=proposer` (CM-24), and
-   commits each emission (EP-09-002). Proposing terms is consenting to them
-   (ADR-0093), so an Invite to the proposer asks an answered question — and the
-   response call-out could let a proposer decline its own proposal, a state the
-   protocol has no name for.
+   `NONE → PROPOSED` or `ACTIVE → REVISE` through `propose_embargo` under the
+   role gate (or no transition for a counter-proposal), and the proposal is
+   committed; P/X/A set → refused with ER (EMB-01-002, EMB-03-003). The fan-out
+   tells replicas the case is under proposal or revision, and that is *all* it
+   tells them (EP-09-001).
+3. The CASE_MANAGER emits an Invite to **every participant except the
+   proposer**, `actor=CASE_MANAGER`, `attributed_to=proposer` (CM-24), each
+   carrying `end_time` = its own `published` + the configured RSVP window
+   (CM-28-012), and commits each emission (EP-09-002). At that commit it stores
+   the deadline on the invitee's record and applies PEC `INVITE` where legal
+   (CM-28-013). Proposing terms is consenting to them (ADR-0093), so an Invite
+   to the proposer asks an answered question — and the response call-out could
+   let a proposer decline its own proposal, a state the protocol has no name for.
 4. A participant answers the Invite addressed to it (`Accept`/`Reject` to the
    CASE_MANAGER) through the response decision tree. On receipt it writes **no**
-   case or consent state; consent moves when the CASE_MANAGER commits the answer
-   (EP-09-003). A revision Invite to a `SIGNATORY` changes no consent state —
-   `INVITE` is legal only from UNBOUND/LAPSED/DECLINED (EP-09-004), so the receive
-   tree must never apply it unconditionally.
-5. The owner's answer is consent *and* decision: `Accept` activates the revision
-   (with the EP-05-001 cascade), `Reject` keeps the prior terms. The owner MAY
+   case, consent or deadline state; consent moves when the CASE_MANAGER commits
+   the answer (EP-09-003). The invitee is the sole `to` recipient; anything else
+   is refused as a misrouting (EP-09-010). A revision Invite to a `SIGNATORY`
+   changes no consent state — `INVITE` is legal only from UNBOUND/LAPSED/DECLINED
+   (EP-09-004), so the receive tree must never apply it unconditionally.
+5. The owner's answer is consent *and* decision: `Accept` activates
+   (`PROPOSED → ACTIVE`, or `REVISE → ACTIVE` with the EP-05-001 cascade),
+   `Reject` clears a first proposal or keeps the prior terms. The owner MAY
    decide without waiting (EP-09-005) and SHOULD wait for some answers to gauge
    consensus (EP-09-006); no quorum or vote is defined — that is actor policy,
    a call-out point.
-6. Replay nodes reconstruct every step (proposal, each Invite, each answer, the
-   decision) via `EmbargoLifecycle(OBSERVED)` (EP-09-007, RSH-08-004), which is
-   what makes the participant-side embargo trees gateable.
+6. Only the CASE_MANAGER evaluates lapse; the lapse entry is role-gated and
+   replayed (CM-28-014). Replay nodes reconstruct every step (proposal, each
+   Invite, each answer, each lapse, the decision) via `EmbargoLifecycle(OBSERVED)`
+   (EP-09-007, RSH-08-004), which is what makes the participant-side embargo
+   trees gateable.
 
 **Why invite at all if the owner decides by fiat.** The Invites are not a vote.
 They gather the consent records the activation cascade reads: when the owner
@@ -315,10 +326,26 @@ an Invite sets no parse-and-respond expectation. A participant answers only an
 Invite addressed to it. Building a handler for "a non-manager received a peer's
 proposal" is building for a misrouting (RSH-08-003: store it, write nothing).
 
-**Emit-side optimism, left alone.** A proposer's trigger still moves its own
-local EM to `REVISE` before the CASE_MANAGER answers. ADR-0108 left the emit
-side unchanged; do not read that local write as the mechanism by which the case
-moved.
+**The commit is the acknowledgement.** The behavioural specs' "emit EK" is
+discharged by the CASE_MANAGER's commit and announcement of the received
+activity. No EK message exists in production and none is to be built
+(EP-09-009, MSM-02-009).
+
+**A trigger writes shared EM state only as the CASE_MANAGER (EP-09-008).** The
+five embargo triggers used to write their own local EM state before the manager
+answered, then declare it; nothing corrected the write on a refusal. Now the
+write sits under the same role gate the received trees use. A non-manager's
+trigger emits to the manager, records the activity in the pending-assertion
+store (SYNC-11) as the note trigger does, writes nothing and declares nothing;
+its replica moves on the announced commit, and the manager's `Reject` closes
+the pending entry. Same ordering rule as RSH-08-004: the replay nodes land
+before the local write is gated, or a proposer's case never leaves `NONE`.
+Participant self-status (RM) keeps its local write — the participant is the
+authority on its own progress. ADR-0108 was amended to match.
+
+**The role is never unfilled.** Both creation paths register a `CASE_MANAGER`
+holder at birth and delegation hands it on (CM-24-006). No "no manager" arm
+belongs in any embargo tree; a resolver that finds nobody fails.
 
 The creation-time revision from shortest-wins follows the same relay
 (EP-04-011) — see `notes/embargo-default-semantics.md`.

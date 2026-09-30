@@ -15,7 +15,16 @@ scope:
 groups:
 - id: EMB-01
   title: Receive EP (Embargo Proposed)
-  description: Behaviors triggered when a participant receives an EP (Embargo Proposed) message, transitioning EM state to Proposed and acknowledging receipt.
+  description: >-
+    Behaviors triggered when a participant receives an EP (Embargo Proposed) message,
+    transitioning EM state to Proposed and acknowledging receipt. Written in the voice of the
+    formal protocol, in which every Participant is a peer. In the CASE_MANAGER topology
+    (PCR-08-001) a participant addresses its proposal to the CASE_MANAGER alone, so the
+    Participant receiving EP is the CASE_MANAGER on receipt; every other participant reaches
+    the same EM state through ledger replay, and is asked for its answer by the Invite the
+    CASE_MANAGER relays to it. "Emit EK" is discharged by the CASE_MANAGER's commit and
+    announcement of the received activity; no EK message exists (EP-09-009). See EP-09 and
+    ADR-0113 as amended.
   trigger:
     type: message_received
     value: EP
@@ -325,7 +334,9 @@ groups:
     peer. In the CASE_MANAGER topology (PCR-08-001) a participant addresses its proposal to
     the CASE_MANAGER alone, so the Participant receiving EV is the CASE_MANAGER on receipt;
     every other participant reaches the same EM state through ledger replay, and is asked
-    for its answer by the Invite the CASE_MANAGER relays to it. See EP-09 and ADR-0113.
+    for its answer by the Invite the CASE_MANAGER relays to it. "Emit EK" is discharged by
+    the CASE_MANAGER's commit and announcement of the received activity; no EK message exists
+    (EP-09-009). See EP-09 and ADR-0113.
   trigger:
     type: message_received
     value: EV

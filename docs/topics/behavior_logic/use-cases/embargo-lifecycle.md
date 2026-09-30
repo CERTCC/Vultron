@@ -63,11 +63,13 @@ The transitions themselves are small and fixed:
 
 | Message received | Precondition | Result |
 |---|---|---|
-| Embargo Proposal (EP) | `EM.NONE` | `EM.PROPOSED`, acknowledge (EMB-01-001) |
-| Embargo Acceptance (EA) | `EM.PROPOSED` | `EM.ACTIVE`, acknowledge (EMB-02-001) |
-| Embargo Rejection (ER) | `EM.PROPOSED` | back to `EM.NONE`, acknowledge (EMB-06-001) |
+| Embargo Proposal (EP) | `EM.NONE` | `EM.PROPOSED` (EMB-01-001) |
+| Embargo Acceptance (EA) | `EM.PROPOSED` | `EM.ACTIVE` (EMB-02-001) |
+| Embargo Rejection (ER) | `EM.PROPOSED` | back to `EM.NONE` (EMB-06-001) |
 | Embargo Revision (EV) | `EM.ACTIVE` | `EM.REVISE`; the active embargo stays in force (EMB-03-001) |
 | Embargo Termination (ET) | `EM.ACTIVE` or `EM.REVISE` | `EM.EXITED`, immediately |
+
+The formal protocol has each receiver acknowledge these with EK; in this implementation the case manager's commit and announcement of the received activity is that acknowledgment, and no EK message exists (EP-09-009, MSM-02-009).
 
 `EM.REVISE` is worth a second look.
 A revision under negotiation does not suspend the embargo — the existing terms remain binding until the revision is accepted, and every signatory to them remains a signatory.
@@ -164,9 +166,10 @@ A Participant at `INVITED` that does not answer within the window moves to `DECL
 The window has two forms and they are one mechanism, not two ([ADR-0065](../../../adr/0065-embargo-invite-rsvp-deadline.md)).
 When the invitation carries an explicit `Invite.end_time`, that value governs (CM-28-002).
 When it does not, the policy default applies — seven days, measured from the invitation's `published` timestamp (EP-07-001).
+The case manager stamps `Invite.end_time` on every invitation it relays, so every replica reads the same deadline off the same object, and a Participant that receives an invitation derives no deadline of its own (CM-28-012, CM-28-013).
 
 There is a floor. An inviting actor must not send a window shorter than the configured minimum, defaulting to 72 hours (EP-07-002).
-A receiving actor that gets one anyway clamps the deadline up to the minimum and logs the clamp; it does **not** reject the invitation as malformed (EP-07-003, EP-07-004, EP-07-005).
+The case manager, as the actor that stamps the relayed invitation, clamps a too-short window up to the minimum and logs the clamp; it does **not** reject the proposal as malformed (EP-07-003, EP-07-004, EP-07-005).
 Refusing a too-short invitation would punish the invitee for the inviter's error.
 
 There is also a ceiling: the deadline never falls after the invited embargo ends (EP-07-006, CM-28-011).

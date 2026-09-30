@@ -48,7 +48,7 @@ Use — forbidden:
   by its AS2 name.
 
 Core code that genuinely has to key an AS2-shaped mapping — the ledger payload
-snapshot is the real case (CLP-07-001, RSH-05-009) — asks
+snapshot is the real case (CLP-07-011, RSH-05-009) — asks
 :mod:`vultron.core.models.wire_keys` for the spelling, which reads it from the
 field's own alias or derives it with the same ``to_camel`` generator the models
 use.  That keeps the declaration the single source of truth.

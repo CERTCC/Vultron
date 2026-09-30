@@ -123,7 +123,7 @@ spelling, and both are the status classes covered by ADR-0036.
    **AS2 is the HTTP transmission format only.** Stored rows are not fully
    AS2-spelled (camelCase is not applied) and this decision does not change that. A received activity is
    additionally kept as an unparsed `dict[str, Any]` in the ledger payload
-   snapshot (CLP-07-001); that copy is neither serialization above. It is meant
+   snapshot (CLP-07-011); that copy is neither serialization above. It is meant
    to be the body as it arrived, but today it is rebuilt from the parsed graph;
    [ADR-0107](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
    records that gap and stages the change that records the received evidence
