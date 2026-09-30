@@ -44,6 +44,8 @@ References
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from vultron.core.behaviors.report.publication_tree import (
     PublicationIntentDecision,
 )
@@ -136,7 +138,9 @@ class PrioritizePublicationIntents(EvaluatorCallOutPoint, AlwaysSucceed):
     editorial or legal exceptions require human judgment.
     """
 
-    output_keys = {"publication_intent_decision": PublicationIntentDecision}
+    output_keys: ClassVar[dict[str, type]] = {
+        "publication_intent_decision": PublicationIntentDecision
+    }
 
 
 class Publish(ActuatorCallOutPoint, AlmostAlwaysSucceed):
@@ -225,7 +229,7 @@ class PrepareExploit(ComposerCallOutPoint, AlmostAlwaysSucceed):
     automatable in the general case.
     """
 
-    output_keys = {"prepared_exploit_artifact": str}
+    output_keys: ClassVar[dict[str, type]] = {"prepared_exploit_artifact": str}
 
 
 class ReprioritizeExploit(EvaluatorCallOutPoint, AlwaysSucceed):
@@ -251,7 +255,9 @@ class ReprioritizeExploit(EvaluatorCallOutPoint, AlwaysSucceed):
     human override may be needed for unusual cases.
     """
 
-    output_keys = {"reprioritize_exploit_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "reprioritize_exploit_verdict": str
+    }
 
 
 class NoPublishFix(AlmostAlwaysFail):
@@ -296,7 +302,7 @@ class PrepareFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
     require human authoring and review.
     """
 
-    output_keys = {"prepared_fix_artifact": str}
+    output_keys: ClassVar[dict[str, type]] = {"prepared_fix_artifact": str}
 
 
 class ReprioritizeFix(EvaluatorCallOutPoint, AlwaysSucceed):
@@ -321,7 +327,7 @@ class ReprioritizeFix(EvaluatorCallOutPoint, AlwaysSucceed):
     human override may be needed.
     """
 
-    output_keys = {"reprioritize_fix_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {"reprioritize_fix_verdict": str}
 
 
 class NoPublishReport(AlmostAlwaysFail):
@@ -366,7 +372,7 @@ class PrepareReport(ComposerCallOutPoint, AlmostAlwaysSucceed):
     typically involves human stakeholders.
     """
 
-    output_keys = {"prepared_report_artifact": str}
+    output_keys: ClassVar[dict[str, type]] = {"prepared_report_artifact": str}
 
 
 class ReprioritizeReport(EvaluatorCallOutPoint, AlwaysSucceed):
@@ -391,7 +397,9 @@ class ReprioritizeReport(EvaluatorCallOutPoint, AlwaysSucceed):
     editorial decisions require human oversight.
     """
 
-    output_keys = {"reprioritize_report_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "reprioritize_report_verdict": str
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +431,7 @@ class DraftAdvisoryArtifact(ComposerCallOutPoint, AlmostAlwaysSucceed):
     automatable; narrative advisory text may benefit from human review.
     """
 
-    output_keys = {"draft_advisory_artifact": str}
+    output_keys: ClassVar[dict[str, type]] = {"draft_advisory_artifact": str}
 
 
 class ReviewAdvisoryDraft(EvaluatorCallOutPoint, AlwaysSucceed):
@@ -454,7 +462,9 @@ class ReviewAdvisoryDraft(EvaluatorCallOutPoint, AlwaysSucceed):
     typically require human judgment.
     """
 
-    output_keys = {"advisory_review_decision": AdvisoryReviewDecision}
+    output_keys: ClassVar[dict[str, type]] = {
+        "advisory_review_decision": AdvisoryReviewDecision
+    }
 
 
 class ReviseAdvisoryDraft(ComposerCallOutPoint, AlmostAlwaysSucceed):
@@ -481,7 +491,7 @@ class ReviseAdvisoryDraft(ComposerCallOutPoint, AlmostAlwaysSucceed):
     typically require human involvement.
     """
 
-    output_keys = {"draft_advisory_artifact": str}
+    output_keys: ClassVar[dict[str, type]] = {"draft_advisory_artifact": str}
 
 
 class SubmitAdvisoryArtifact(ActuatorCallOutPoint, AlmostAlwaysSucceed):

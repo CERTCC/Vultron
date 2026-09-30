@@ -64,9 +64,9 @@ def dl():
         actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
         case_statuses=[  # type: ignore[arg-type]
             CaseStatus(
-                em_state=EM.ACTIVE,
-                pxa_state=CS_pxa.Pxa,
-                context=CASE_ID,  # type: ignore[call-arg]
+                em_state=EM.ACTIVE,  # type: ignore[call-arg]
+                pxa_state=CS_pxa.Pxa,  # type: ignore[call-arg]
+                context=CASE_ID,
             )
         ],
     )
@@ -284,9 +284,9 @@ class TestGetActionRulesUseCase:
                 actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
                 case_statuses=[  # type: ignore[arg-type]
                     CaseStatus(
-                        em_state=em,
-                        pxa_state=CS_pxa.pxa,
-                        context=CASE_ID,  # type: ignore[call-arg]
+                        em_state=em,  # type: ignore[call-arg]
+                        pxa_state=CS_pxa.pxa,  # type: ignore[call-arg]
+                        context=CASE_ID,
                     )
                 ],
             )

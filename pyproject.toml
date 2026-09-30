@@ -211,6 +211,13 @@ ignore = [
     # under section comments; sorting them alphabetically scatters the groups
     # and strands the comments.
     "RUF022",
+    # mutable-class-default: false positives on the two dominant shapes. A
+    # py_trees node's INPUT_PORTS/OUTPUT_PORTS must stay unannotated-ClassVar
+    # (py_trees' PortsMixin declares them as instance attributes, so a ClassVar
+    # override is a mypy error), and ruff cannot see a pydantic model through
+    # an indirect base (as_Object), where ClassVar would delete a field. Our
+    # own class-level tables carry ClassVar explicitly.
+    "RUF012",
     # line-too-long, whitespace-before-punctuation: owned by the formatter.
     # Carried over from the retired .flake8 extend-ignore.
     "E501",

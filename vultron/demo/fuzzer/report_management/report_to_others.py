@@ -38,6 +38,8 @@ References
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from py_trees.common import Access, Status
 
 from vultron.demo.fuzzer.base import (
@@ -97,7 +99,7 @@ class AllPartiesKnown(EvaluatorCallOutPoint, UniformSucceedFail):
     context; hard to automate reliably.
     """
 
-    output_keys = {"all_parties_known_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {"all_parties_known_verdict": str}
 
 
 class IdentifyVendors(RetrieverCallOutPoint, AlwaysSucceed):
@@ -124,7 +126,7 @@ class IdentifyVendors(RetrieverCallOutPoint, AlwaysSucceed):
     benefit from human review.
     """
 
-    output_keys = {"identified_vendors": list}
+    output_keys: ClassVar[dict[str, type]] = {"identified_vendors": list}
 
 
 class IdentifyCoordinators(RetrieverCallOutPoint, AlwaysSucceed):
@@ -150,7 +152,7 @@ class IdentifyCoordinators(RetrieverCallOutPoint, AlwaysSucceed):
     a coordinator) may require human judgment.
     """
 
-    output_keys = {"identified_coordinators": list}
+    output_keys: ClassVar[dict[str, type]] = {"identified_coordinators": list}
 
 
 class IdentifyOthers(AlwaysSucceed):
@@ -208,7 +210,7 @@ class ChooseRecipient(RetrieverCallOutPoint, AlwaysSucceed):
     the identified-parties list; fully automatable.
     """
 
-    output_keys = {"chosen_recipient": str}
+    output_keys: ClassVar[dict[str, type]] = {"chosen_recipient": str}
 
 
 class RemoveRecipient(ActuatorCallOutPoint, AlwaysSucceed):
@@ -255,7 +257,9 @@ class RecipientEffortExceeded(EvaluatorCallOutPoint, AlmostCertainlyFail):
     policy is defined.
     """
 
-    output_keys = {"recipient_effort_exceeded_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "recipient_effort_exceeded_verdict": str
+    }
 
 
 class PolicyCompatible(EvaluatorCallOutPoint, ProbablySucceed):
@@ -281,7 +285,7 @@ class PolicyCompatible(EvaluatorCallOutPoint, ProbablySucceed):
     human review needed for ambiguous or informal policies.
     """
 
-    output_keys = {"policy_compatible_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {"policy_compatible_verdict": str}
 
 
 class RcptNotInQrmS(AlmostAlwaysSucceed):
@@ -344,7 +348,9 @@ class TotalEffortLimitMet(EvaluatorCallOutPoint, AlmostAlwaysFail):
     against a configurable policy ceiling; fully automatable.
     """
 
-    output_keys = {"total_effort_limit_met_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "total_effort_limit_met_verdict": str
+    }
 
 
 class MoreVendors(UsuallyFail):

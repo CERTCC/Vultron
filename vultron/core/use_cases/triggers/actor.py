@@ -82,11 +82,11 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         super().__init__(
-            dl=dl,
+            dl=dl,  # type: ignore[arg-type]
             request=request,
-            trigger_activity=trigger_activity,
+            trigger_activity=trigger_activity,  # type: ignore[arg-type]
             wire_render_port=wire_render_port,
-        )  # type: ignore[arg-type]
+        )
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
@@ -281,11 +281,11 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         super().__init__(
-            dl=dl,
+            dl=dl,  # type: ignore[arg-type]
             request=request,
-            trigger_activity=trigger_activity,
+            trigger_activity=trigger_activity,  # type: ignore[arg-type]
             wire_render_port=wire_render_port,
-        )  # type: ignore[arg-type]
+        )
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
@@ -428,11 +428,11 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         super().__init__(
-            dl=dl,
+            dl=dl,  # type: ignore[arg-type]
             request=request,
-            trigger_activity=trigger_activity,
+            trigger_activity=trigger_activity,  # type: ignore[arg-type]
             wire_render_port=wire_render_port,
-        )  # type: ignore[arg-type]
+        )
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:

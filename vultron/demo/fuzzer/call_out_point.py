@@ -32,6 +32,8 @@ References
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from py_trees.common import Access, Status
 
 from vultron.core.behaviors.call_out_point import (
@@ -81,7 +83,7 @@ class EvaluatorCallOutPoint:
           Output keys: credibility_verdict: str  (SUCCESS only)
     """
 
-    output_keys: dict[str, type] = {}
+    output_keys: ClassVar[dict[str, type]] = {}
 
     def setup(self, **kwargs) -> None:  # type: ignore[override]
         super().setup(**kwargs)  # type: ignore[misc]
@@ -117,7 +119,7 @@ class RetrieverCallOutPoint:
       - Document a blackboard contract section in their docstring (BT-18-001).
     """
 
-    output_keys: dict[str, type] = {}
+    output_keys: ClassVar[dict[str, type]] = {}
 
     def setup(self, **kwargs) -> None:  # type: ignore[override]
         super().setup(**kwargs)  # type: ignore[misc]
@@ -151,7 +153,7 @@ class ComposerCallOutPoint:
       - Document a blackboard contract section in their docstring (BT-18-001).
     """
 
-    output_keys: dict[str, type] = {}
+    output_keys: ClassVar[dict[str, type]] = {}
 
     def setup(self, **kwargs) -> None:  # type: ignore[override]
         super().setup(**kwargs)  # type: ignore[misc]
@@ -184,7 +186,7 @@ class ActuatorCallOutPoint:
       - Document a blackboard contract section in their docstring (BT-18-001).
     """
 
-    output_keys: dict[str, type] = {}
+    output_keys: ClassVar[dict[str, type]] = {}
 
     def setup(self, **kwargs) -> None:  # type: ignore[override]
         super().setup(**kwargs)  # type: ignore[misc]
@@ -211,7 +213,7 @@ class SentinelCallOutPoint:
       - Document a blackboard contract section in their docstring (BT-18-001).
     """
 
-    output_keys: dict[str, type] = {}
+    output_keys: ClassVar[dict[str, type]] = {}
 
     def setup(self, **kwargs) -> None:  # type: ignore[override]
         super().setup(**kwargs)  # type: ignore[misc]

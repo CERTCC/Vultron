@@ -21,7 +21,7 @@ import logging
 import re
 from collections.abc import Iterable
 from copy import deepcopy
-from typing import Any
+from typing import Any, ClassVar
 
 import networkx as nx
 
@@ -51,7 +51,7 @@ class BtNode:
 
     # Maps name_pfx values to their Mermaid display symbols.
     # Subclasses can override individual entries by redefining the dict.
-    _mermaid_prefix_map: dict[str, str] = {
+    _mermaid_prefix_map: ClassVar[dict[str, str]] = {
         ">": "&rarr; ",
         "^": "#8645; ",
         "z": "#127922; ",

@@ -13,6 +13,7 @@
 
 
 import unittest
+from typing import ClassVar
 
 import vultron.bt.base.fuzzer as btz
 from vultron.bt.base import bt
@@ -207,9 +208,7 @@ class MyTestCase(unittest.TestCase):
             pass
 
         class F(BtNode):
-            _children = [
-                G,
-            ]
+            _children = (G,)
 
         class E(BtNode):
             pass
@@ -218,13 +217,13 @@ class MyTestCase(unittest.TestCase):
             pass
 
         class C(BtNode):
-            _children = [E, F]
+            _children = (E, F)
 
         class B(BtNode):
             pass
 
         class A(BtNode):
-            _children = [B, C, D]
+            _children = (B, C, D)
 
         # +-- a
         #     |-> b
@@ -278,7 +277,7 @@ class TestMermaidPrefixMap(unittest.TestCase):
                 return True
 
         class MySeq(SequenceNode):
-            _children = [MyCondition, MyAction]
+            _children = (MyCondition, MyAction)
 
         root = MySeq()
         output = root.to_mermaid()
@@ -308,10 +307,10 @@ class TestMermaidPrefixMap(unittest.TestCase):
                 return True
 
         class MyInvert(Invert):
-            _children = [MyCondition]
+            _children = (MyCondition,)
 
         class MyFallback(FallbackNode):
-            _children = [MyCondition, MyInvert]
+            _children = (MyCondition, MyInvert)
 
         root = MyFallback()
         output = root.to_mermaid()
@@ -329,7 +328,7 @@ class TestMermaidPrefixMap(unittest.TestCase):
             pass
 
         class MySeq(SequenceNode):
-            _children = [MyAction, MyWeighted]
+            _children = (MyAction, MyWeighted)
 
         root = MySeq()
         output = root.to_mermaid()
@@ -346,7 +345,7 @@ class TestMermaidPrefixMap(unittest.TestCase):
                 return True
 
         class MySeq(SequenceNode):
-            _children = [MyCondition, MyAction]
+            _children = (MyCondition, MyAction)
 
         root = MySeq()
         expected = (
@@ -367,7 +366,7 @@ class TestMermaidPrefixMap(unittest.TestCase):
                 return True
 
         class MySeq(SequenceNode):
-            _children = [MyCondition]
+            _children = (MyCondition,)
 
         root = MySeq()
         output = root.to_mermaid(topdown=False)
@@ -383,9 +382,11 @@ class TestMermaidPrefixMap(unittest.TestCase):
                 return True
 
         class CustomSeq(SequenceNode):
-            _mermaid_prefix_map = dict(BtNode._mermaid_prefix_map)
+            _mermaid_prefix_map: ClassVar[dict[str, str]] = dict(
+                BtNode._mermaid_prefix_map
+            )
             _mermaid_prefix_map["c"] = "CHECK: "
-            _children = [MyCondition]
+            _children = (MyCondition,)
 
         root = CustomSeq()
         output = root.to_mermaid()

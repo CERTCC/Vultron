@@ -22,6 +22,8 @@ Verifies:
 - NewValidationInfoSentinel is a valid Behaviour with correct success_rate
 """
 
+from typing import ClassVar
+
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -308,7 +310,9 @@ def test_evaluate_report_credibility_writes_blackboard_on_success():
     from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
     class _AlwaysSucceedEvaluator(EvaluatorCallOutPoint, AlwaysSucceed):
-        output_keys = {"report_credibility_verdict": str}
+        output_keys: ClassVar[dict[str, type]] = {
+            "report_credibility_verdict": str
+        }
 
     node = _AlwaysSucceedEvaluator("TestCredibility")
     node.setup()
@@ -341,7 +345,9 @@ def test_gather_validation_info_writes_blackboard_on_success():
     from vultron.demo.fuzzer.call_out_point import RetrieverCallOutPoint
 
     class _AlwaysSucceedRetriever(RetrieverCallOutPoint, AlwaysSucceed):
-        output_keys = {"validation_info_gathered": str}
+        output_keys: ClassVar[dict[str, type]] = {
+            "validation_info_gathered": str
+        }
 
     node = _AlwaysSucceedRetriever("TestGather")
     node.setup()
@@ -370,7 +376,9 @@ def test_prepare_report_writes_blackboard_on_success():
     from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
     class _AlwaysSucceedComposer(ComposerCallOutPoint, AlwaysSucceed):
-        output_keys = {"prepared_report_artifact": str}
+        output_keys: ClassVar[dict[str, type]] = {
+            "prepared_report_artifact": str
+        }
 
     node = _AlwaysSucceedComposer("TestPrepare")
     node.setup()
@@ -606,7 +614,7 @@ def test_rm_composer_node_writes_blackboard_on_success():
     from vultron.demo.fuzzer.base import AlwaysSucceed
 
     class _AlwaysSucceedComposer(ComposerCallOutPoint, AlwaysSucceed):
-        output_keys = {"assigned_vul_id": str}
+        output_keys: ClassVar[dict[str, type]] = {"assigned_vul_id": str}
 
     node = _AlwaysSucceedComposer("TestAssignId")
     node.setup()
@@ -677,7 +685,7 @@ def test_actuator_node_does_not_write_blackboard_on_success():
     from vultron.demo.fuzzer.base import AlwaysSucceed
 
     class _AlwaysSucceedActuator(ActuatorCallOutPoint, AlwaysSucceed):
-        output_keys = {"actuator_test_key": str}
+        output_keys: ClassVar[dict[str, type]] = {"actuator_test_key": str}
 
     py_trees.blackboard.Blackboard.storage.clear()
     node = _AlwaysSucceedActuator("TestActuator")
