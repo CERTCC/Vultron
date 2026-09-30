@@ -13,6 +13,7 @@ related_specs:
 related_notes:
   - notes/devcontainer-tooling.md
   - notes/ci-workflow-authoring.md
+  - notes/structured-logging.md
 ---
 
 # Lint Tooling Policy — Ruff Configuration, Exclusions, and Baselining
@@ -192,15 +193,22 @@ on the side of the cycle that owns it. Do not add a file to this table to make a
 new finding go away — a new cycle is a new reorganization, and the marker it
 would carry needs its own tracking issue.
 
-**`G004` (`logging-f-string`) is the one exclusion that remains provisional.**
-F-strings in log calls defeat lazy formatting, so this is a rule the
-project agrees with. It is excluded because the rewrite has no agreed target: the
-choice between lazy `%`-args and structured `extra=` fields belongs to the
-structured-logging requirements (`specs/structured-logging.yaml`), which have not
-settled it. Tracked as **#3378**, and that citation is what the entry rests on —
-by the four reasons above, "we agree with the rule but the fix is a design
-question" is only acceptable as a provisional exclusion with an issue attached.
-Delete the entry when #3378 resolves.
+**`G004` (`logging-f-string`) was the other provisional exclusion, and it too is
+deleted, not kept.** Its ADR-0094 row cited #3378, which asked whether the rewrite
+target was lazy `%`-args or structured `extra=` fields. The answer is that these
+were never alternatives: the template-plus-args shape decides how the *message*
+gets its values (SL-01-005), while `extra=`-style record fields are the
+correlation mechanism (SL-02-003) and are set by a boundary filter rather than
+per call. So the rule is **enabled**, every f-string log call is rewritten to a
+literal template with positional args, and no marker is placed — `G004` has no
+autofix, but the rewrite is bounded and mechanical, and "too many to fix now" is
+not a reason to exclude (below). The reasoning is in
+[notes/structured-logging.md](structured-logging.md) § "Log-Call Shape".
+
+With both provisional rows resolved, **no entry in `ignore` cites a tracking
+issue**: every remaining exclusion rests on one of the first three standing
+reasons above. A new provisional exclusion needs a new issue, and this section
+should name it.
 
 ## Baselining: `RUF100` is the ratchet
 

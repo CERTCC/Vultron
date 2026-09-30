@@ -38,6 +38,32 @@ groups:
     statement: All log entries MUST include `message` field (human-readable text)
     scope:
     - production
+  - id: SL-01-005
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0094
+    statement: >-
+      The message argument of a log call MUST be a literal template whose values are
+      passed as lazy positional arguments (`logger.info("Actor %s engaged case %s",
+      actor_id, case_id)`), never a string formatted before the call by an f-string,
+      `str.format()`, `%`-formatting, or concatenation.
+    rationale: >-
+      Python's `logging` keeps the template (`msg`) and its values (`args`) apart on
+      the record and formats them only when a handler emits. That split gives every
+      recurring event one stable template to group, grep, and assert on; it defers
+      the formatting cost until a record is known to be emitted, which removes the
+      hand-written `isEnabledFor` guards around expensive renders; and it keeps a
+      formatting fault inside the logging machinery instead of raising it into the
+      caller. A pre-formatted string discards all three. Structured record fields
+      (SL-02) are a separate mechanism and are not an alternative way to interpolate
+      values into the message. Enforced by ruff rules `G001`-`G004` (ADR-0094).
+    verification: >-
+      `ruff check` with the `G` rule family selected and no `G004` entry in
+      `[tool.ruff.lint] ignore` reports zero findings (IMPLTS-07-018).
+    relationships:
+    - rel_type: refines
+      spec_id: SL-01-004
 - id: SL-02
   title: Correlation IDs
   specs:
@@ -61,6 +87,57 @@ groups:
     - production
     lint_suppress:
     - missing_story_reference
+  - id: SL-02-003
+    priority: MUST
+    kind: project
+    statement: >-
+      A correlation field (`activity_id`, `actor_id`) MUST reach the log record as a
+      record attribute populated from ambient context that is established once at the
+      processing boundary (inbox receipt of an activity, BT execution on behalf of an
+      actor) and applied to every record by a `logging.Filter`, not supplied per call
+      through `extra=`.
+    rationale: >-
+      A per-call `extra=` at every log site repeats the same value hundreds of times
+      and is missed wherever a site forgets it, which is the duplication failure the
+      template rule (SL-01-005) exists to avoid on the message side. Context set once
+      at the boundary and copied by a filter reaches every record emitted inside that
+      boundary, including records from code that knows nothing about correlation.
+      Rendering stays the formatter's decision: a text formatter can print the
+      attributes beside the message and a structured formatter can emit them as
+      fields, without touching any call site.
+    verification: >-
+      A test enters the boundary context, emits a record through a handler carrying
+      the filter, and asserts the record object exposes `activity_id` and `actor_id`
+      attributes; an AST scan of `vultron/` finds no log call passing `activity_id`
+      or `actor_id` through `extra=`.
+    relationships:
+    - rel_type: refines
+      spec_id: SL-02-001
+    - rel_type: refines
+      spec_id: SL-02-002
+  - id: SL-02-004
+    priority: MUST
+    kind: project
+    statement: >-
+      Interpolating an identifier into the message text MUST NOT be treated as
+      satisfying SL-02-001 or SL-02-002; the message may name the identifier for
+      readability, but the record attribute is the carrier those requirements
+      refer to.
+    rationale: >-
+      An identifier embedded in free text cannot be filtered, grouped, or asserted on
+      without parsing the message, and the narrative INFO template (SL-04-006) names
+      the actor for the human reader, not for correlation. Making the record
+      attribute the only thing that counts keeps the two audiences from being
+      conflated: the message serves the person reading the transcript, the
+      attribute serves the tooling.
+    verification: >-
+      The tests that verify SL-02-001 and SL-02-002 assert on record attributes,
+      never on substrings of `record.getMessage()`.
+    relationships:
+    - rel_type: constrains
+      spec_id: SL-02-001
+    - rel_type: constrains
+      spec_id: SL-02-002
 - id: SL-03
   title: Log Level Semantics
   specs:
