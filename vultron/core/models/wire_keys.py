@@ -20,7 +20,7 @@ spelling lives in a Pydantic alias.  **Core code MUST NOT type an AS2
 spelling** — it names ``in_reply_to``, never ``inReplyTo``.
 
 A handful of core code nevertheless has to *key* an AS2-spelled mapping.  The
-ledger payload snapshot is the case that matters: CLP-07-001 requires it to be
+ledger payload snapshot is the case that matters: CLP-07-011 requires it to be
 the AS2 serialization of the inbound activity as it arrived, so its keys are
 AS2-spelled by definition, and RSH-05-009 requires an adjudication patch to
 leave that shape byte-for-byte identical to an unadjudicated entry's.  Such code
@@ -41,7 +41,7 @@ hand-writing it.  It is a derivation, not a translation table: there is nothing
 to keep in sync.
 
 Spec: ARCH-20-001 (core MUST NOT produce a wire shape for a core object);
-CLP-07-001; RSH-05-009; ADR-0099 details 2 and 5.
+CLP-07-011; RSH-05-009; ADR-0099 details 2 and 5.
 """
 
 from collections.abc import Iterable

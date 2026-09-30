@@ -597,7 +597,7 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         sender's already-wire-shaped snapshot.  A snapshot built by dumping the
         core model instead would carry nested ``rm``/``vfd`` dimension objects
         and silently drop every field the guard never adjudicated
-        (CLP-07-001, CM-18-006, ADR-0009).
+        (CLP-07-011, CM-18-006, ADR-0009).
         """
         dl = store_for(CASE_MANAGER_ID)
         # rm=ACCEPTED, not VALID: a ready fix (vf=VF) entails an accepted
