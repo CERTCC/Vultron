@@ -159,7 +159,10 @@ terms they are not yet bound by, and it changes **nothing** in the consent state
 changes no consent (EP-05-002). Their answer lands in `accepted_embargo_ids`
 only, exactly as the table above says. A receive tree that applies `INVITE`
 unconditionally therefore faults on precisely the participants a revision most
-concerns; the receive-side node must branch on the current state.
+concerns. Under EP-09-003 the participant's receive tree writes no consent at
+all; the `INVITE` write belongs to the CASE_MANAGER's commit of the Invite
+emission and to the replay node that reconstructs it, and *that* is where the
+state check lives.
 
 Two further rules from the same decision matter to consent:
 

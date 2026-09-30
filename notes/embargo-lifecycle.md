@@ -247,8 +247,6 @@ it.
 
 ---
 
----
-
 ## Revision Negotiation Relays Through the CASE_MANAGER (EP-09, ADR-0113)
 
 The behavioural specs EMB-03 through EMB-05 speak in the voice of the formal

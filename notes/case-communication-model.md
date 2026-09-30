@@ -22,6 +22,7 @@ related_notes:
   - notes/case-ledger-authority.md
   - notes/embargo-lifecycle.md
   - notes/participant-embargo-consent.md
+  - notes/embargo-default-semantics.md
   - notes/event-driven-control-flow.md
   - notes/participant-case-replica.md
   - notes/fv-demo.md

@@ -488,17 +488,18 @@ groups:
       it, and CM-24 already covers the CASE_MANAGER proposing on a participant's behalf.
     note: >-
       Before this rule `propose_embargo` appended the loser to `proposed_embargoes` but never
-      to `pending_embargo_proposal_index`. Which party lost is known at registration: `initial_embargo_duration.source` on the
-      blackboard names whether the sender's proposal or the actor default became active. When
+      to `pending_embargo_proposal_index`. Which party lost is known at registration:
+      `initial_embargo_duration.source` on the blackboard names whether the sender's proposal
+      or the actor default became active. When
       the reporter's longer terms lost, the reporter is the proposer and the case owner is
       invited; when the owner's longer default lost, the owner is the proposer and the
       reporter is invited. An exact tie registers no revision (EP-04-003) and relays nothing.
     verification: >-
-      Tests of `RegisterLongerProposalAsRevisionNode` assert that after a contested creation
-      the loser's id is present in `pending_embargo_proposal_index` and an
-      `Invite(EmbargoEvent)` for it, with `actor` the CASE_MANAGER and `attributedTo` the
-      losing party, is queued to the winning party. Until the implementation lands the test is
-      a strict `xfail` naming its tracking issue.
+      A strict `xfail` marker test of `RegisterLongerProposalAsRevisionNode` asserts that
+      after a contested creation the loser's id is present in
+      `pending_embargo_proposal_index`, and names its tracking issue until the implementation
+      lands. The implementation's own tests assert the relayed `Invite(EmbargoEvent)`: `actor`
+      the CASE_MANAGER, `attributedTo` the losing party, queued to the winning party.
     relationships:
     - rel_type: refines
       spec_id: EP-04-003
@@ -1018,8 +1019,9 @@ groups:
       a state the protocol has no name for.
     note: >-
       Excluding the proposer costs one filter: the proposer's identity is on the activity
-      just adjudicated. The emit runs on the container that hosts the CASE_MANAGER and is committed in the
-      emitting tree (CM-24-004, ADR-0109). Every participant on the case is a recipient,
+      just adjudicated. The emit runs on the container that hosts the CASE_MANAGER and is
+      committed in the emitting tree (CM-24-004, ADR-0109). Every participant on the case is a
+      recipient,
       whatever its consent state; a participant not yet bound is invited into the revised
       terms, a signatory is asked whether it accepts them (EP-09-004).
     verification: >-
@@ -1143,7 +1145,7 @@ groups:
     rationale: >-
       Consensus on embargo terms is the protocol's stated norm (VP-08-003), and "quorum" is
       deliberately undefined so that different CVD communities can adopt different decision
-      rules (VP-08-012). A fixed threshold here would take that room away. Leaving it to actor
+      rules (VP-09-007). A fixed threshold here would take that room away. Leaving it to actor
       policy makes the waiting decision a natural call-out point rather than a rule.
     note: >-
       The MAY in EP-09-005 and the SHOULD here are one position, not a contradiction: the
@@ -1158,8 +1160,10 @@ groups:
     - rel_type: refines
       spec_id: VP-08-003
     - rel_type: depends_on
-      spec_id: VP-08-012
-      note: Quorum stays undefined at the protocol level.
+      spec_id: VP-09-007
+      note: >-
+        VP-09-007's rationale is where the protocol leaves "quorum" undefined; it stays
+        undefined here too.
     adr:
     - ADR-0113
     stories:

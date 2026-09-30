@@ -36,9 +36,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
-from .conftest import (
-    make_embargo_case_with_actor as _make_embargo_case_with_actor,
-)
+from .conftest import make_embargo_case_with_actor
 
 
 class TestEmbargoLogEntryCascade:
@@ -48,7 +46,7 @@ class TestEmbargoLogEntryCascade:
         """AddEmbargoEventToCaseReceivedUseCase commits a CaseLedgerEntry."""
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_add"
-        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+        dl, case_actor, case, embargo = make_embargo_case_with_actor(
             case_id, author_id, case_manager_actor_id=author_id
         )
         case_read = cast(VulnerabilityCase, dl.read(case.id_))
@@ -86,7 +84,7 @@ class TestEmbargoLogEntryCascade:
 
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_rem"
-        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+        dl, case_actor, case, embargo = make_embargo_case_with_actor(
             case_id, author_id, case_manager_actor_id=author_id
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
@@ -132,7 +130,7 @@ class TestEmbargoLogEntryCascade:
 
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_rem_fail"
-        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+        dl, case_actor, case, embargo = make_embargo_case_with_actor(
             case_id, author_id, case_manager_actor_id=author_id
         )
         # EM.NONE: no active embargo — BT will FAIL (IsActiveEmbargoNode)
@@ -174,7 +172,7 @@ class TestEmbargoLogEntryCascade:
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_invite"
         invitee_id = "https://example.org/users/vendor"
-        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+        dl, case_actor, case, embargo = make_embargo_case_with_actor(
             case_id,
             author_id,
             extra_participants=[invitee_id],
@@ -213,7 +211,7 @@ class TestEmbargoLogEntryCascade:
         coordinator_id = "https://example.org/users/coordinator"
         case_id = "https://example.org/cases/em_cas_accept"
         vendor_id = "https://example.org/users/vendor"
-        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+        dl, case_actor, case, embargo = make_embargo_case_with_actor(
             case_id,
             coordinator_id,
             extra_participants=[vendor_id],
@@ -266,7 +264,7 @@ class TestEmbargoLogEntryCascade:
         coordinator_id = "https://example.org/users/coordinator"
         case_id = "https://example.org/cases/em_cas_reject"
         vendor_id = "https://example.org/users/vendor"
-        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+        dl, case_actor, case, embargo = make_embargo_case_with_actor(
             case_id,
             coordinator_id,
             extra_participants=[vendor_id],

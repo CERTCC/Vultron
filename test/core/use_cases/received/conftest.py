@@ -15,11 +15,11 @@ import pytest
 
 # noqa: F401 — imported for vocabulary registration side-effect
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.core.models.case_actor import CaseActor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
@@ -127,7 +127,6 @@ def make_embargo_case_with_actor(
     Also creates ``as_CaseParticipant`` objects so actor → participant lookups
     in the embargo handlers succeed.
     """
-    from vultron.enums.roles import CVDRole
     from vultron.wire.as2.vocab.objects.case_participant import (
         as_CaseParticipant,
     )

@@ -48,7 +48,7 @@ Building parse-and-respond handling for a non-manager receiving a peer's proposa
   An embargo revision has the same shape and should not invent a second one.
 - Consent is per embargo and lapse fires at activation (ADR-0093 as revised for #3884, EP-05).
   Proposing terms records consent to them; a revision proposal changes nobody's consent state; the owner's activation of longer terms is where signatories who have not accepted lapse.
-- The protocol already has participants SHOULD follow consensus on embargo terms (VP-08-003) and deliberately leaves "quorum" undefined so communities can adopt their own decision rules (VP-08-012).
+- The protocol already has participants SHOULD follow consensus on embargo terms (VP-08-003) and deliberately leaves "quorum" undefined so communities can adopt their own decision rules (VP-09-007).
   Any rule about how long the owner waits must leave that room.
 - A case has one active embargo (VP-04-002), so every proposal open while EM is `ACTIVE` or `REVISE` is a revision of the active embargo.
   No field linking a revision to the embargo it revises is needed to know which proposals a termination decides.
@@ -90,7 +90,7 @@ It does not replace it.
    Both are committed and replicated.
    The owner MAY decide at any time without waiting for other participants' answers.
    The owner SHOULD wait for at least some answers, to gauge consensus (VP-08-003).
-   The protocol defines no quorum and no vote; which answers, how many, and how long are actor policy, a natural call-out point rather than a rule (VP-08-012).
+   The protocol defines no quorum and no vote; which answers, how many, and how long are actor policy, a natural call-out point rather than a rule (VP-09-007).
 6. **The Invites earn their place under owner fiat, and the reason is recorded so the question stops recurring.**
    They are not a vote.
    They gather the consent records the activation cascade reads: when the owner activates longer terms, every signatory who accepted them stays bound and every signatory who did not lapses (EP-05-001).
@@ -113,7 +113,7 @@ It does not replace it.
 - Good, because EMB-03 through EMB-05 stop describing behaviour that runs in one store: the CASE_MANAGER's canonical case reflects that a revision is under negotiation, and every replica reconstructs it.
 - Good, because the embargo revision reuses the case-Invite relay and the delegated-authorship contract instead of adding a message type or a second routing shape.
 - Good, because the "why ask if the owner decides anyway" question has a written answer that follows from the consent model, not from a voting rule the protocol declines to have.
-- Good, because the owner's latitude is stated in the protocol's own register (MAY act, SHOULD gauge consensus, no quorum) and leaves actor policy where VP-08-012 puts it.
+- Good, because the owner's latitude is stated in the protocol's own register (MAY act, SHOULD gauge consensus, no quorum) and leaves actor policy where VP-09-007 puts it.
 - Good, because the termination rule needs no schema change.
 - Bad, because the CASE_MANAGER emits and commits one Invite per participant per revision, which is more ledger traffic than a single proposal entry.
   This is the price of the protocol interaction being a real one rather than an inference from the ledger.
@@ -126,7 +126,7 @@ It does not replace it.
 - Tests of the received Invite path assert that the CASE_MANAGER moves the canonical case to `REVISE` and queues an Invite for each non-proposer participant, and that a non-manager receiving an Invite directly writes no case or consent state (EP-09-001 through EP-09-003).
 - A test asserts a signatory that receives a revision Invite stays `SIGNATORY` and the tree succeeds (EP-09-004).
 - A test asserts the owner's `Accept` from `REVISE` activates the revision with no other participant having answered (EP-09-005).
-- Tests of `RegisterLongerProposalAsRevisionNode` assert the creation-time revision is indexed and an Invite is queued for the party whose terms won (EP-04-011).
+- A marker test of `RegisterLongerProposalAsRevisionNode` asserts the creation-time revision is indexed; the implementation's tests assert an Invite is queued for the party whose terms won (EP-04-011).
 - The RSH-08-004 ratchet covers the proposal, Invite, consent and decision event types once their replay nodes land.
 - Until the implementation issues land, the new `kind: protocol` requirements are carried by strict `xfail` marker tests naming the tracking issue.
 
@@ -157,6 +157,8 @@ Source: Concerns #3892, #3836 and #3863, planned as one bundle under epic #3408 
 The shared design idea is that a revision proposal must be visible to every replica while it is open and retired everywhere when the embargo it revises ends.
 
 Follow-on: Concern #3918 audits where the relay-and-record rule reaches beyond embargo revisions (the initial proposal, RSVP deadline placement, EK acknowledgements, counter-proposal rounds, the protocol-asks model, the demo scenario specs, emit-side optimism), blocked until this decision merges.
+
+Ordering: `propose_embargo` still lapses every signatory on `ACTIVE → REVISE` until #3891 lands, so #3913 (the CASE_MANAGER calling `propose_embargo` on receipt) depends on #3891; otherwise the first relayed revision would lapse the whole case.
 
 Related decisions: ADR-0093 (consent is per embargo; lapse fires at activation), ADR-0100 (no multi-candidate embargo poll), ADR-0108 (one move, one mover), ADR-0109 (a container emits only as actors it hosts).
 
