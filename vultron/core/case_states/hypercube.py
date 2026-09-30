@@ -853,7 +853,7 @@ class CVDmodel:
             logger.error(
                 f"Invalid transition from {from_state} to {to_state}: {e}"
             )
-            raise e
+            raise
 
         curr_score = self.score_state(from_state)
         next_score = self.score_state(to_state)

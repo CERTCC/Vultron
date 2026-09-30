@@ -105,7 +105,7 @@ def ensure_valid_pattern(func: F) -> F:
         try:
             is_valid_pattern(pat)
         except PatternValidationError as e:
-            raise e
+            raise
         return func(*args, **kwargs)
 
     return wrapper  # type: ignore[return-value]
@@ -166,7 +166,7 @@ def ensure_valid_state(func: F) -> F:
         try:
             is_valid_state(state)
         except StateValidationError as e:
-            raise e
+            raise
         return func(*args, **kwargs)
 
     return wrapper  # type: ignore[return-value]
@@ -223,7 +223,7 @@ def ensure_valid_state_method_wrapper(func: F) -> F:
             try:
                 is_valid_state(state)
             except StateValidationError as e:
-                raise e
+                raise
 
         return func(self, *args, **kwargs)
 
@@ -373,7 +373,7 @@ def ensure_valid_history(func: F) -> F:
         try:
             is_valid_history(history)
         except HistoryValidationError as e:
-            raise e
+            raise
         return func(*args, **kwargs)
 
     return wrapper  # type: ignore[return-value]
