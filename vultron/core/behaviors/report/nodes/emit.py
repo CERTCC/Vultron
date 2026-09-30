@@ -124,7 +124,9 @@ class _EmitCaseActorReportActivityBase(DataLayerActionWithPorts):
             addressees = self._compute_addressees()
             if not addressees:
                 return Status.FAILURE
-            activity_id, activity_dict = self._call_factory(self.actor_id, addressees)  # type: ignore[arg-type]
+            activity_id, activity_dict = self._call_factory(
+                self.actor_id, addressees
+            )  # type: ignore[arg-type]
             cast(CaseOutboxPersistence, self.datalayer).outbox_append(
                 activity_id
             )

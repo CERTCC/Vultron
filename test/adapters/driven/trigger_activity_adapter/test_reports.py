@@ -115,9 +115,9 @@ class TestSubmitReport:
         # The Offer activity must have been rolled back — list_objects("Offer")
         # should return no entries after the compensating delete.
         activities = list(dl.list_objects("Offer"))
-        assert (
-            len(activities) == 0
-        ), "Offer activity should have been deleted by compensating rollback"
+        assert len(activities) == 0, (
+            "Offer activity should have been deleted by compensating rollback"
+        )
 
     def test_no_compensating_delete_on_duplicate_offer_record(
         self, adapter, dl

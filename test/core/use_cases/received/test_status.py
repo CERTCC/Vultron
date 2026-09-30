@@ -199,9 +199,9 @@ class TestStatusUseCases:
         assert updated_case is not None
         updated_case = cast(as_VulnerabilityCase, updated_case)
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
-        assert (
-            bad_status.id_ not in status_ids
-        ), "Bad status should not have been appended"
+        assert bad_status.id_ not in status_ids, (
+            "Bad status should not have been appended"
+        )
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason
 

@@ -630,7 +630,8 @@ def _is_monotonic_forward(
     if source == dest:
         return False
     return not any(
-        _is_component_regression(s, d) for s, d in zip(source, dest, strict=False)
+        _is_component_regression(s, d)
+        for s, d in zip(source, dest, strict=False)
     )
 
 

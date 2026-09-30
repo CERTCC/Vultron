@@ -71,22 +71,22 @@ class TestIntegrationScriptScenarios:
         assert _CI_WORKFLOW.exists(), f"CI workflow not found: {_CI_WORKFLOW}"
 
     def test_ci_scenarios_json_exists(self):
-        assert (
-            _CI_SCENARIOS_JSON.exists()
-        ), f"Scenario matrix not found: {_CI_SCENARIOS_JSON}"
+        assert _CI_SCENARIOS_JSON.exists(), (
+            f"Scenario matrix not found: {_CI_SCENARIOS_JSON}"
+        )
 
     def test_ci_scenarios_json_is_valid(self):
         """demo-scenarios.json must parse as a JSON array with demo keys."""
         entries = json.loads(_CI_SCENARIOS_JSON.read_text())
         assert isinstance(entries, list), "Expected a JSON array"
-        assert all(
-            "demo" in e for e in entries
-        ), "Every entry must have a 'demo' key"
+        assert all("demo" in e for e in entries), (
+            "Every entry must have a 'demo' key"
+        )
 
     def test_integration_script_exists(self):
-        assert (
-            _INTEGRATION_SCRIPT.exists()
-        ), f"Integration script not found: {_INTEGRATION_SCRIPT}"
+        assert _INTEGRATION_SCRIPT.exists(), (
+            f"Integration script not found: {_INTEGRATION_SCRIPT}"
+        )
 
     def test_valid_scenarios_matches_ci(self):
         """VALID_SCENARIOS must equal the demo entries in demo-scenarios.json.
@@ -108,13 +108,13 @@ class TestIntegrationScriptScenarios:
         """demo-integration.yml must parse as valid YAML."""
         text = _CI_WORKFLOW.read_text()
         result = yaml.safe_load(text)
-        assert isinstance(
-            result, dict
-        ), "Expected a YAML mapping at the top level"
+        assert isinstance(result, dict), (
+            "Expected a YAML mapping at the top level"
+        )
 
     def test_at_least_one_scenario_in_ci(self):
         """CI must define at least one scenario (guards against empty parse)."""
         ci = _ci_scenarios()
-        assert (
-            len(ci) >= 1
-        ), "No demo entries found in .github/demo-scenarios.json"
+        assert len(ci) >= 1, (
+            "No demo entries found in .github/demo-scenarios.json"
+        )

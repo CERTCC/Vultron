@@ -312,12 +312,12 @@ class TestResetFansOutOverEveryHostedActor:
         assert resp.status_code == status.HTTP_200_OK
         # ``count_all`` keeps its keys and zeroes them, so "empty" is all-zero
         # rather than ``{}``.
-        assert not any(
-            vendor_dl.count_all().values()
-        ), "vendor's store was not cleared"
-        assert not any(
-            finder_dl.count_all().values()
-        ), "finder's store was not cleared"
+        assert not any(vendor_dl.count_all().values()), (
+            "vendor's store was not cleared"
+        )
+        assert not any(finder_dl.count_all().values()), (
+            "finder's store was not cleared"
+        )
 
     def test_reports_one_entry_per_actor(self, offer):
         vendor_id, vendor_dl = self._store("reset-count-vendor")
@@ -357,9 +357,9 @@ class TestResetFansOutOverEveryHostedActor:
         body = client.delete("/admin/datalayer/reset/").json()
 
         assert not any(registered_dl.count_all().values())
-        assert any(
-            untouched_dl.count_all().values()
-        ), "only the stores the app declared may be cleared"
+        assert any(untouched_dl.count_all().values()), (
+            "only the stores the app declared may be cleared"
+        )
         assert list(body["n_items"]) == [registered_id]
 
     def test_it_is_not_mounted_on_the_actor_scoped_router(self):

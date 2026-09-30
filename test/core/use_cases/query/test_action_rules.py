@@ -64,7 +64,9 @@ def dl():
         actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
         case_statuses=[  # type: ignore[arg-type]
             CaseStatus(
-                em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa, context=CASE_ID  # type: ignore[call-arg]
+                em_state=EM.ACTIVE,
+                pxa_state=CS_pxa.Pxa,
+                context=CASE_ID,  # type: ignore[call-arg]
             )
         ],
     )
@@ -282,7 +284,9 @@ class TestGetActionRulesUseCase:
                 actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
                 case_statuses=[  # type: ignore[arg-type]
                     CaseStatus(
-                        em_state=em, pxa_state=CS_pxa.pxa, context=CASE_ID  # type: ignore[call-arg]
+                        em_state=em,
+                        pxa_state=CS_pxa.pxa,
+                        context=CASE_ID,  # type: ignore[call-arg]
                     )
                 ],
             )
@@ -299,9 +303,9 @@ class TestGetActionRulesUseCase:
                 actor_id=ACTOR_ID,
             )
             result = GetActionRulesUseCase(dl=layer, request=req).execute()
-            assert (
-                result.em_state == em
-            ), f"Expected {em!r}, got {result.em_state!r}"
+            assert result.em_state == em, (
+                f"Expected {em!r}, got {result.em_state!r}"
+            )
 
     def test_participant_lookup_raises_on_index_mismatch(self):
         layer = SqliteDataLayer(

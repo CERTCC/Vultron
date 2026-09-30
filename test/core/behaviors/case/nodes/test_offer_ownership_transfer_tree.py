@@ -114,9 +114,9 @@ def test_forward_offer_to_transferee_queues_in_case_actor_outbox(
     assert result.status == Status.SUCCESS
     # The real TriggerActivityAdapter creates the activity; check outbox non-empty.
     outbox = bt_scenario.dl.outbox_list()
-    assert (
-        len(outbox) == 1
-    ), f"Expected exactly 1 forwarded offer in CaseActor outbox; got {outbox}"
+    assert len(outbox) == 1, (
+        f"Expected exactly 1 forwarded offer in CaseActor outbox; got {outbox}"
+    )
 
 
 @pytest.mark.spec("CM-21-005")
@@ -198,9 +198,9 @@ def test_tree_factory_omits_forward_node_when_transferee_id_is_none() -> None:
     fwd_nodes = [
         n for n in all_nodes if isinstance(n, ForwardOfferToTransfereeNode)
     ]
-    assert (
-        len(fwd_nodes) == 0
-    ), "ForwardOfferToTransfereeNode must not appear when transferee_id is None"
+    assert len(fwd_nodes) == 0, (
+        "ForwardOfferToTransfereeNode must not appear when transferee_id is None"
+    )
 
 
 @pytest.mark.spec("CM-21-005")
@@ -224,6 +224,6 @@ def test_tree_factory_omits_forward_node_when_original_actor_id_is_none() -> (
     fwd_nodes = [
         n for n in all_nodes if isinstance(n, ForwardOfferToTransfereeNode)
     ]
-    assert (
-        len(fwd_nodes) == 0
-    ), "ForwardOfferToTransfereeNode must not appear when original_actor_id is None"
+    assert len(fwd_nodes) == 0, (
+        "ForwardOfferToTransfereeNode must not appear when original_actor_id is None"
+    )

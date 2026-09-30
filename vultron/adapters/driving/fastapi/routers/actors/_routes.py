@@ -630,7 +630,6 @@ def post_actor_outbox(
     )
 
 
-
 @router.get(
     "/{actor_id:path}",
     description="Returns an Actor by surrogate key or canonical ID.",

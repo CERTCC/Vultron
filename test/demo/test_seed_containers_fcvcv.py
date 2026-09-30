@@ -106,9 +106,9 @@ class TestSeedContainersFcvcv:
         ]:
             actors = client.get_list("/actors/")
             names = {a.get("name") for a in actors if isinstance(a, dict)}
-            assert (
-                expected_names <= names
-            ), f"{label} container missing peers: {expected_names - names}"
+            assert expected_names <= names, (
+                f"{label} container missing peers: {expected_names - names}"
+            )
 
     def test_deterministic_ids_are_honored(self, base: str):
         finder_id = f"{base}/actors/finder-fcvcv-det"

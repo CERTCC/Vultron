@@ -383,7 +383,9 @@ def test_transition_rm_to_valid_absent_link_advances_without_latching(
     link_id = VultronReportCaseLink.build_id(report.id_)
     assert not isinstance(
         bt_scenario.dl.read(link_id), VultronReportCaseLink
-    ), "test setup error: a ReportCaseLink was seeded despite omitting the fixture"
+    ), (
+        "test setup error: a ReportCaseLink was seeded despite omitting the fixture"
+    )
 
     result = bt_scenario.run(
         TransitionRMtoValid(

@@ -651,9 +651,7 @@ def check_late_joiner_has_full_history(
     late_entries = replicas.get(late_actor, [])
 
     if not early_entries or not late_entries:
-        return (
-            []
-        )  # skip check — caller should pytest.skip when replicas absent
+        return []  # skip check — caller should pytest.skip when replicas absent
 
     early_indices = {log_index(e) for e in early_entries}
     late_indices = {log_index(e) for e in late_entries}

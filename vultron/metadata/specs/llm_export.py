@@ -172,7 +172,12 @@ class _AttrFilters:
             item.value for item in effective_scope(spec, group, file)
         }:
             return False
-        return not (self.tags and not set(self.tags).issubset({item.value for item in effective_tags(spec, file)}))
+        return not (
+            self.tags
+            and not set(self.tags).issubset(
+                {item.value for item in effective_tags(spec, file)}
+            )
+        )
 
 
 def select_spec_ids(

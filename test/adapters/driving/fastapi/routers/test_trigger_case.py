@@ -91,8 +91,7 @@ def _no_outbox_delivery():
     which overrides this fixture's patch for the duration of that context.
     """
     with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_case.outbox_handler",
+        "vultron.adapters.driving.fastapi.routers.trigger_case.outbox_handler",
         new_callable=AsyncMock,
     ):
         yield

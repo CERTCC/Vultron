@@ -116,9 +116,9 @@ class TestSvcCreateCaseUseCase:
         assert getattr(case, "attributed_to", "") == self.actor.id_
 
         # Verify activity was queued in outbox
-        assert _activity_in_outbox(
-            self.actor, self.dl
-        ), "Activity should be queued in actor's outbox"
+        assert _activity_in_outbox(self.actor, self.dl), (
+            "Activity should be queued in actor's outbox"
+        )
 
         # Verify result contains activity
         assert "activity" in result, "Result should contain 'activity' key"
@@ -159,9 +159,9 @@ class TestSvcCreateCaseUseCase:
         # Verify report is linked
         case = self.dl.read(case_id)
         vul_reports = getattr(case, "vulnerability_reports", [])
-        assert (
-            report.id_ in vul_reports
-        ), f"Report {report.id_} should be linked to case"
+        assert report.id_ in vul_reports, (
+            f"Report {report.id_} should be linked to case"
+        )
 
         # Verify activity queued
         assert _activity_in_outbox(self.actor, self.dl)
@@ -253,12 +253,12 @@ class TestSvcCreateCaseUseCase:
             if isinstance(to, list)
             else ([to] if isinstance(to, str) else [])
         )
-        assert (
-            case_actor.id_ in to_ids
-        ), f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
-        assert (
-            len(to_ids) == 1
-        ), f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+        assert case_actor.id_ in to_ids, (
+            f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
+        )
+        assert len(to_ids) == 1, (
+            f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+        )
 
     @pytest.mark.spec("CM-02-014")
     @pytest.mark.spec("CM-02-015")
@@ -287,29 +287,29 @@ class TestSvcCreateCaseUseCase:
         assert raw_case_id is not None, "Case should have been created"
 
         case_obj = self.dl.read_case(raw_case_id)
-        assert (
-            case_obj is not None
-        ), "Case must be readable as VulnerabilityCase"
+        assert case_obj is not None, (
+            "Case must be readable as VulnerabilityCase"
+        )
 
         manager_id = resolve_case_manager_id(case_obj, self.dl)
-        assert (
-            manager_id is not None
-        ), "CASE_MANAGER must be registered at case creation (CM-02-014, CM-02-015)"
-        assert (
-            manager_id == self.actor.id_
-        ), "CASE_MANAGER must be the creating actor"
+        assert manager_id is not None, (
+            "CASE_MANAGER must be registered at case creation (CM-02-014, CM-02-015)"
+        )
+        assert manager_id == self.actor.id_, (
+            "CASE_MANAGER must be the creating actor"
+        )
 
         all_roles: set[CVDRole] = set()
         for pid in case_obj.actor_participant_index.values():
             p = self.dl.read(pid)
             if p is not None:
                 all_roles.update(getattr(p, "case_roles", []))
-        assert (
-            CVDRole.CASE_OWNER in all_roles
-        ), "CASE_OWNER must be registered (CM-02-014)"
-        assert (
-            CVDRole.CASE_MANAGER in all_roles
-        ), "CASE_MANAGER must be registered (CM-02-014)"
+        assert CVDRole.CASE_OWNER in all_roles, (
+            "CASE_OWNER must be registered (CM-02-014)"
+        )
+        assert CVDRole.CASE_MANAGER in all_roles, (
+            "CASE_MANAGER must be registered (CM-02-014)"
+        )
 
     def test_create_case_activity_queued_in_delivery_queue(self):
         """SvcCreateCaseUseCase queues activity in delivery queue for outbox_handler."""
@@ -332,6 +332,6 @@ class TestSvcCreateCaseUseCase:
 
         # Verify activity was queued in outbox
         outbox_activity_id = _get_outbox_activity_id(self.actor, self.dl)
-        assert (
-            outbox_activity_id == activity_id
-        ), "Activity ID in outbox should match returned activity ID"
+        assert outbox_activity_id == activity_id, (
+            "Activity ID in outbox should match returned activity ID"
+        )

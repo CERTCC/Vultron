@@ -444,17 +444,19 @@ class TestFvcvHandoffMilestoneAssertions:
                 case=case,
             )
 
-        assert (
-            len(rm_calls) == 2
-        ), f"wait_for_participant_rm_state must be called once per vendor (got {len(rm_calls)}) (ADR-0058/CSB-18-001)"
+        assert len(rm_calls) == 2, (
+            f"wait_for_participant_rm_state must be called once per vendor (got {len(rm_calls)}) (ADR-0058/CSB-18-001)"
+        )
         assert all(
             c.get("expected_states") == {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
             for c in rm_calls
-        ), "expected_states must be {ACCEPTED, DEFERRED, CLOSED} for each vendor (CSB-18-001)"
+        ), (
+            "expected_states must be {ACCEPTED, DEFERRED, CLOSED} for each vendor (CSB-18-001)"
+        )
         assert "rm_wait" in call_order and "fix_ready" in call_order
-        assert call_order.index("rm_wait") < call_order.index(
-            "fix_ready"
-        ), "wait_for_participant_rm_state must precede actor_notifies_fix_ready (ADR-0058)"
+        assert call_order.index("rm_wait") < call_order.index("fix_ready"), (
+            "wait_for_participant_rm_state must precede actor_notifies_fix_ready (ADR-0058)"
+        )
 
     def test_phase_publication_calls_verify_publicly_disclosed(self):
         """_phase_publication calls verify_publicly_disclosed at M6."""
@@ -684,10 +686,9 @@ class TestFvcvHandoffMilestoneAssertions:
         actors_closed = [
             call.args[0].actor.id_ for call in mock_close.call_args_list
         ]
-        assert (
-            actors_closed[-1] == coordinator_in_coordinator.id_
-        ), "Coordinator (case owner) must close last; got order: " + str(
-            actors_closed
+        assert actors_closed[-1] == coordinator_in_coordinator.id_, (
+            "Coordinator (case owner) must close last; got order: "
+            + str(actors_closed)
         )
         assert actors_closed.index(finder_in_finder.id_) < actors_closed.index(
             coordinator_in_coordinator.id_
@@ -726,9 +727,9 @@ def _otc_post_inbox(client, actor_slug: str, activity) -> None:
         content=activity.model_dump_json(by_alias=True, exclude_none=True),
         headers={"Content-Type": "application/json"},
     )
-    assert (
-        resp.status_code == 202
-    ), f"Inbox POST returned {resp.status_code}: {resp.text}"
+    assert resp.status_code == 202, (
+        f"Inbox POST returned {resp.status_code}: {resp.text}"
+    )
 
 
 @pytest.mark.spec("CM-21-007")
@@ -1068,9 +1069,9 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission:
             "_phase_report_submission — genesis hash unavailable race (Bug #2120)"
         )
         # The genesis wait must come after wait_for_case_participants
-        assert (
-            "case_participants_wait" in call_order
-        ), "wait_for_case_participants was never called in _phase_report_submission"
+        assert "case_participants_wait" in call_order, (
+            "wait_for_case_participants was never called in _phase_report_submission"
+        )
         participants_idx = next(
             i
             for i, v in enumerate(call_order)
@@ -1213,12 +1214,12 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
                 report=MagicMock(),
             )
 
-        assert (
-            "finder_wait" in call_order
-        ), "wait_for_case_on_container(finder_client) was never called before Vendor2 triage"
-        assert (
-            "triage" in call_order
-        ), "run_invite_path_rm_triage was never called"
+        assert "finder_wait" in call_order, (
+            "wait_for_case_on_container(finder_client) was never called before Vendor2 triage"
+        )
+        assert "triage" in call_order, (
+            "run_invite_path_rm_triage was never called"
+        )
         finder_idx = next(
             i for i, v in enumerate(call_order) if v == "finder_wait"
         )
@@ -1443,9 +1444,9 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             for c in trigger_calls
             if c.get("behavior") == "accept-case-ownership-transfer"
         ]
-        assert (
-            len(accept_calls) == 1
-        ), f"Expected exactly 1 accept-case-ownership-transfer trigger, got: {accept_calls}"
+        assert len(accept_calls) == 1, (
+            f"Expected exactly 1 accept-case-ownership-transfer trigger, got: {accept_calls}"
+        )
         body = accept_calls[0].get("body", {})
         assert body.get("offer_id") == forwarded_offer_id, (
             f"accept trigger must use forwarded offer ID {forwarded_offer_id!r}, "
@@ -1801,9 +1802,9 @@ class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
         budgets = [kw["timeout_seconds"] for k, kw in calls if k != "commit"]
         assert len(budgets) == 3
         assert all(0 < b <= demo.LATE_JOINER_TIMEOUT for b in budgets), budgets
-        assert budgets == sorted(
-            budgets, reverse=True
-        ), "each replica wait must receive what is left of the shared budget"
+        assert budgets == sorted(budgets, reverse=True), (
+            "each replica wait must receive what is left of the shared budget"
+        )
 
     def test_failed_commit_gate_skips_every_replica_wait(self):
         """A missing commit is one GATE FAILED, not three misleading CHECK FAILEDs."""

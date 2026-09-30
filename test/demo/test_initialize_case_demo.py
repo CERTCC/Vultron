@@ -56,6 +56,6 @@ def test_demo(demo_env, caplog):
     assert "ERROR SUMMARY" not in caplog.text, (
         "Expected demo to succeed, but got errors:\n" + caplog.text
     )
-    assert (
-        "Vendor added as participant to case" in caplog.text
-    ), "Expected vendor (case creator) to be added as a case participant"
+    assert "Vendor added as participant to case" in caplog.text, (
+        "Expected vendor (case creator) to be added as a case participant"
+    )

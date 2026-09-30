@@ -112,9 +112,9 @@ def _make_embargo(dl: SqliteDataLayer, case_id: str) -> as_EmbargoEvent:
 
 
 @pytest.fixture()
-def owner_and_dl() -> (
-    Generator[tuple[as_Service, SqliteDataLayer], None, None]
-):
+def owner_and_dl() -> Generator[
+    tuple[as_Service, SqliteDataLayer], None, None
+]:
     owner = as_Service(name="Owner Org")
     reset_datalayer(owner.id_)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner.id_)

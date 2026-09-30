@@ -822,9 +822,9 @@ class TestSiteSync:
 
     def test_committed_site_artifacts_are_in_sync(self):
         """The CI backstop for the ``docs-site-sync`` pre-commit hook."""
-        assert (
-            site_sync.stale_artifacts(repo_root()) == []
-        ), "run 'uv run docs-site --write' and commit the result"
+        assert site_sync.stale_artifacts(repo_root()) == [], (
+            "run 'uv run docs-site --write' and commit the result"
+        )
 
     def test_committed_generated_pages_are_the_decided_set(self):
         """The decision table in ``notes/site-information-architecture.md``

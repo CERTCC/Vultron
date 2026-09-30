@@ -112,9 +112,9 @@ def test_apply_close_case_idempotent(
         for ps in updated_participant.participant_statuses
         if hasattr(ps, "rm") and ps.rm.state == RM.CLOSED
     )
-    assert (
-        closed_count == 1
-    ), f"Expected exactly one RM.CLOSED status; got {closed_count}"
+    assert closed_count == 1, (
+        f"Expected exactly one RM.CLOSED status; got {closed_count}"
+    )
 
 
 @pytest.mark.spec("SYNC-12-001")

@@ -196,9 +196,9 @@ def test_dehydrate_data_dehydrates_all_object_ref_fields():
             field_name: {"id_": obj_id, "type_": "Note"},
         }
         result = _dehydrate_data(data)
-        assert (
-            result[field_name] == obj_id
-        ), f"Expected {field_name!r} to be dehydrated to ID string"
+        assert result[field_name] == obj_id, (
+            f"Expected {field_name!r} to be dehydrated to ID string"
+        )
 
 
 # --- object_to_record dehydration integration tests ---
@@ -541,12 +541,14 @@ def test_case_proposal_round_trips_with_a_typed_report():
     back = record_to_object(object_to_record(cast(Any, proposal)))
     restored = getattr(back, "object_", None)
 
-    assert isinstance(
-        restored, as_VulnerabilityReport
-    ), f"expected a typed report on read-back, got {type(restored).__name__}"
+    assert isinstance(restored, as_VulnerabilityReport), (
+        f"expected a typed report on read-back, got {type(restored).__name__}"
+    )
     assert restored.attributed_to == (
         "https://example.org/actors/finder-cp01004"
-    ), "the reporter must survive the round-trip — it is who becomes a participant"
+    ), (
+        "the reporter must survive the round-trip — it is who becomes a participant"
+    )
     assert restored.content == (
         "the vulnerability being proposed for coordination"
     )
@@ -641,7 +643,9 @@ def test_case_carries_the_embargo_as_an_inline_object():
     )
     assert (
         case.active_embargo_id == "urn:uuid:emb-dl08000-0000-0000-000000000001"
-    ), "the id is still reachable via active_embargo_id when that is what is wanted"
+    ), (
+        "the id is still reachable via active_embargo_id when that is what is wanted"
+    )
 
 
 def test_case_passes_through_a_bare_embargo_id():
@@ -734,9 +738,9 @@ def test_invited_peer_round_trips_as_an_object():
     )
     restored = getattr(back, "object_", None)
 
-    assert not isinstance(
-        restored, str
-    ), "a bare string object_ is exactly what the AKM-03-001 gate rejects"
+    assert not isinstance(restored, str), (
+        "a bare string object_ is exactly what the AKM-03-001 gate rejects"
+    )
     assert getattr(restored, "id_", None) == _PEER_ACTOR_ID
 
 
@@ -838,9 +842,9 @@ def test_recommended_peer_round_trips_as_an_object():
     )
     restored = getattr(back, "object_", None)
 
-    assert not isinstance(
-        restored, str
-    ), "a bare string object_ is exactly what the AKM-03-001 gate rejects"
+    assert not isinstance(restored, str), (
+        "a bare string object_ is exactly what the AKM-03-001 gate rejects"
+    )
     assert getattr(restored, "id_", None) == _PEER_ACTOR_ID
 
 
@@ -865,12 +869,12 @@ def test_from_obj_emits_wire_identity_keys_no_trailing_underscores():
     )
     record = object_to_record(cast(Any, case))
 
-    assert (
-        "id_" not in record.data_
-    ), "ARCH-23-005: data_ MUST NOT carry trailing-underscore 'id_' key"
-    assert (
-        "type_" not in record.data_
-    ), "ARCH-23-005: data_ MUST NOT carry trailing-underscore 'type_' key"
+    assert "id_" not in record.data_, (
+        "ARCH-23-005: data_ MUST NOT carry trailing-underscore 'id_' key"
+    )
+    assert "type_" not in record.data_, (
+        "ARCH-23-005: data_ MUST NOT carry trailing-underscore 'type_' key"
+    )
     assert (
         record.data_["id"] == "urn:uuid:case-arch23005-0000-0000-000000000001"
     )
@@ -888,12 +892,12 @@ def test_from_obj_wire_identity_keys_apply_to_inline_objects():
 
     stored_embargo = record.data_["active_embargo"]
     assert isinstance(stored_embargo, dict)
-    assert (
-        "id_" not in stored_embargo
-    ), "ARCH-23-005: inline dict MUST NOT carry trailing-underscore 'id_'"
-    assert (
-        "type_" not in stored_embargo
-    ), "ARCH-23-005: inline dict MUST NOT carry trailing-underscore 'type_'"
+    assert "id_" not in stored_embargo, (
+        "ARCH-23-005: inline dict MUST NOT carry trailing-underscore 'id_'"
+    )
+    assert "type_" not in stored_embargo, (
+        "ARCH-23-005: inline dict MUST NOT carry trailing-underscore 'type_'"
+    )
 
 
 def test_rekey_wire_identity_renames_only_identity_keys():
@@ -958,15 +962,15 @@ def test_from_obj_wire_identity_keys_apply_to_list_items():
 
     statuses = record.data_.get("case_statuses", [])
     assert isinstance(statuses, list)
-    assert (
-        len(statuses) > 0
-    ), "VulnerabilityCase must have at least one CaseStatus"
+    assert len(statuses) > 0, (
+        "VulnerabilityCase must have at least one CaseStatus"
+    )
     for item in statuses:
         assert isinstance(item, dict)
         assert "id_" not in item, "ARCH-23-005: list item MUST NOT carry 'id_'"
-        assert (
-            "type_" not in item
-        ), "ARCH-23-005: list item MUST NOT carry 'type_'"
+        assert "type_" not in item, (
+            "ARCH-23-005: list item MUST NOT carry 'type_'"
+        )
         assert "id" in item
         assert "type" in item
 

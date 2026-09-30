@@ -81,9 +81,9 @@ class TestAllNodesAreWeightedBehavior:
     def test_is_weighted_behavior_subclass(
         self, cls: type[WeightedBehavior], _rate: float
     ) -> None:
-        assert issubclass(
-            cls, WeightedBehavior
-        ), f"{cls.__name__} must be a WeightedBehavior subclass"
+        assert issubclass(cls, WeightedBehavior), (
+            f"{cls.__name__} must be a WeightedBehavior subclass"
+        )
 
     @pytest.mark.parametrize("cls,_rate", _ALL_NODES)
     def test_is_py_trees_behaviour(
@@ -100,9 +100,9 @@ class TestAllNodesAreWeightedBehavior:
         assert node.name == cls.__name__
 
     def test_all_6_nodes_present(self) -> None:
-        assert (
-            len(_ALL_NODES) == 6
-        ), f"Expected 6 VUL ID assignment fuzzer nodes, found {len(_ALL_NODES)}"
+        assert len(_ALL_NODES) == 6, (
+            f"Expected 6 VUL ID assignment fuzzer nodes, found {len(_ALL_NODES)}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -123,36 +123,36 @@ class TestDocstrings:
         self, cls: type[WeightedBehavior], _rate: float
     ) -> None:
         doc = (cls.__doc__ or "").lower()
-        assert (
-            "semantic function" in doc
-        ), f"{cls.__name__} docstring missing 'Semantic function' section"
+        assert "semantic function" in doc, (
+            f"{cls.__name__} docstring missing 'Semantic function' section"
+        )
 
     @pytest.mark.parametrize("cls,_rate", _ALL_NODES)
     def test_docstring_mentions_input_category(
         self, cls: type[WeightedBehavior], _rate: float
     ) -> None:
         doc = (cls.__doc__ or "").lower()
-        assert (
-            "input category" in doc
-        ), f"{cls.__name__} docstring missing 'Input category' section"
+        assert "input category" in doc, (
+            f"{cls.__name__} docstring missing 'Input category' section"
+        )
 
     @pytest.mark.parametrize("cls,_rate", _ALL_NODES)
     def test_docstring_mentions_success_probability(
         self, cls: type[WeightedBehavior], _rate: float
     ) -> None:
         doc = (cls.__doc__ or "").lower()
-        assert (
-            "success probability" in doc
-        ), f"{cls.__name__} docstring missing 'Success probability' section"
+        assert "success probability" in doc, (
+            f"{cls.__name__} docstring missing 'Success probability' section"
+        )
 
     @pytest.mark.parametrize("cls,_rate", _ALL_NODES)
     def test_docstring_mentions_automation_potential(
         self, cls: type[WeightedBehavior], _rate: float
     ) -> None:
         doc = (cls.__doc__ or "").lower()
-        assert (
-            "automation potential" in doc
-        ), f"{cls.__name__} docstring missing 'Automation potential' section"
+        assert "automation potential" in doc, (
+            f"{cls.__name__} docstring missing 'Automation potential' section"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -191,9 +191,9 @@ class TestUpdateReturnsValidStatus:
         node = cls()
         node.setup()
         results = {node.update() for _ in range(50)}
-        assert (
-            Status.RUNNING not in results
-        ), f"{cls.__name__}.update() returned RUNNING unexpectedly"
+        assert Status.RUNNING not in results, (
+            f"{cls.__name__}.update() returned RUNNING unexpectedly"
+        )
 
 
 class TestDeterministicExtremes:

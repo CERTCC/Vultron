@@ -70,9 +70,7 @@ class MyTestCase(unittest.TestCase):
             if length == 6:
                 continue
             for _i in range(100):
-                test_str = "".join(
-                    random.choice(alpha) for _ in range(length)
-                )
+                test_str = "".join(random.choice(alpha) for _ in range(length))
                 self.assertEqual(length, len(test_str))
                 with self.assertRaises(err.PatternValidationError):
                     v.is_valid_pattern(test_str)
@@ -118,9 +116,7 @@ class MyTestCase(unittest.TestCase):
             if length == 6:
                 continue
             for _i in range(100):
-                test_str = "".join(
-                    random.choice(alpha) for _ in range(length)
-                )
+                test_str = "".join(random.choice(alpha) for _ in range(length))
                 self.assertEqual(length, len(test_str))
                 with self.assertRaises(err.StateValidationError):
                     v.is_valid_state(test_str)

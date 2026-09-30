@@ -199,7 +199,9 @@ def _to_json(obj: object, **kwargs: object) -> str:
         return obj.to_json(**kwargs)  # type: ignore[union-attr,no-any-return]
     if isinstance(obj, BaseModel):
         return obj.model_dump_json(
-            exclude_none=True, by_alias=True, **kwargs  # type: ignore[arg-type]
+            exclude_none=True,
+            by_alias=True,
+            **kwargs,  # type: ignore[arg-type]
         )
     raise TypeError(f"obj must be serializable to JSON: {obj}")
 

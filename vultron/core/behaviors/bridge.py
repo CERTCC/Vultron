@@ -249,7 +249,9 @@ class BTBridge:
             or self.datalayer
         )
 
-    def _ports_for_store(self, store: CasePersistence) -> tuple[
+    def _ports_for_store(
+        self, store: CasePersistence
+    ) -> tuple[
         "TriggerActivityPort | None",
         "SyncActivityPort | None",
         "WireRenderPort | None",

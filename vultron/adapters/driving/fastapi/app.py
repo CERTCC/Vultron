@@ -112,8 +112,7 @@ def _auto_inject_isolated_datalayer(application: FastAPI) -> None:
     from vultron.adapters.driving.fastapi.deps import node_base_url
 
     db_url = (
-        f"sqlite:///file:app-{uuid4().hex}"
-        "?mode=memory&cache=shared&uri=true"
+        f"sqlite:///file:app-{uuid4().hex}?mode=memory&cache=shared&uri=true"
     )
     registry: dict[str, SqliteDataLayer] = {}
 

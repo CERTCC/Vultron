@@ -103,9 +103,9 @@ def hosted_actor(datalayer, dl_actor_id):
 
 
 @pytest.fixture
-def test_pipeline() -> (
-    Generator[tuple[InboxPipeline, SqliteDataLayer], None, None]
-):
+def test_pipeline() -> Generator[
+    tuple[InboxPipeline, SqliteDataLayer], None, None
+]:
     dl = SqliteDataLayer(
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",

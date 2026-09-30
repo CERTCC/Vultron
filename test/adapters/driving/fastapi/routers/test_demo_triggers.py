@@ -523,12 +523,12 @@ class TestDemoCloseCase:
         data = response.json()
         assert "activity" in data, "Response must contain 'activity' key"
         activity = data["activity"]
-        assert (
-            activity.get("type") == "Leave"
-        ), f"Activity type must be 'Leave'; got {activity.get('type')}"
-        assert (
-            activity.get("actor") == actor.id_
-        ), f"Activity actor must be actor.id_; got {activity.get('actor')}"
+        assert activity.get("type") == "Leave", (
+            f"Activity type must be 'Leave'; got {activity.get('type')}"
+        )
+        assert activity.get("actor") == actor.id_, (
+            f"Activity actor must be actor.id_; got {activity.get('actor')}"
+        )
 
     def test_rm_not_closed_at_send_time(
         self, client_demo: TestClient, actor, case_with_actor, dl
@@ -545,9 +545,9 @@ class TestDemoCloseCase:
         case = dl.read(case_with_actor.id_)
         assert isinstance(case, VulnerabilityCase)
         participant_id = case.actor_participant_index.get(actor.id_)
-        assert (
-            participant_id is not None
-        ), "actor must have a participant entry in actor_participant_index"
+        assert participant_id is not None, (
+            "actor must have a participant entry in actor_participant_index"
+        )
         participant = dl.read(participant_id)
         assert isinstance(participant, CaseParticipant), (
             f"dl.read({participant_id!r}) must return CaseParticipant;"

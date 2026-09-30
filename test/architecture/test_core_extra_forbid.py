@@ -194,12 +194,12 @@ def test_contradicted_embargo_adherence_raises_protocol_violation() -> None:
                 }
             )
         msg = str(exc_info.value)
-        assert (
-            "embargo_adherence" in msg
-        ), f"Error for spelling {spelling!r} did not name the field: {msg}"
-        assert (
-            "supplied True" in msg
-        ), f"Error for spelling {spelling!r} did not include supplied value: {msg}"
+        assert "embargo_adherence" in msg, (
+            f"Error for spelling {spelling!r} did not name the field: {msg}"
+        )
+        assert "supplied True" in msg, (
+            f"Error for spelling {spelling!r} did not include supplied value: {msg}"
+        )
         error = _protocol_violation(exc_info.value)
         assert [v.dimensions for v in error.violations] == [
             ("embargo_adherence",)

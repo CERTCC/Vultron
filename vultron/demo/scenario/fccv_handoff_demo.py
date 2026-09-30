@@ -407,8 +407,7 @@ def _phase_ownership_handoff(
                 .offer_case_ownership_transfer(
                     transferee_id=c2.id_,
                     content=(
-                        "Transferring case ownership to C2 for CVD"
-                        " management."
+                        "Transferring case ownership to C2 for CVD management."
                     ),
                 )
             ).activity

@@ -348,9 +348,7 @@ def test_create_log_entry_node_rejects_far_future_payload_published(
     """A claimed timestamp far ahead of the CaseActor's clock is rejected."""
     result = _run(
         bridge,
-        _note_snapshot(
-            PARTICIPANT_ACTOR_ID, datetime(2099, 1, 1, tzinfo=UTC)
-        ),
+        _note_snapshot(PARTICIPANT_ACTOR_ID, datetime(2099, 1, 1, tzinfo=UTC)),
     )
 
     assert result.status == Status.FAILURE

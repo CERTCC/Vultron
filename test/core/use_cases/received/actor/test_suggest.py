@@ -108,9 +108,9 @@ class TestOfferActorToCaseReceivedUseCase:
             to=[local_actor_id],
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
-        assert isinstance(
-            event, OfferActorToCaseReceivedEvent
-        ), f"Expected OfferActorToCaseReceivedEvent, got {type(event)}"
+        assert isinstance(event, OfferActorToCaseReceivedEvent), (
+            f"Expected OfferActorToCaseReceivedEvent, got {type(event)}"
+        )
 
         result = OfferActorToCaseReceivedUseCase(
             dl,
@@ -121,9 +121,9 @@ class TestOfferActorToCaseReceivedUseCase:
         assert result.disposition is HandlerDisposition.APPLIED
 
         outbox = dl.outbox_list()
-        assert (
-            len(outbox) == 1
-        ), f"Expected exactly 1 outbox entry (Offer(CaseParticipant)), got {len(outbox)}"
+        assert len(outbox) == 1, (
+            f"Expected exactly 1 outbox entry (Offer(CaseParticipant)), got {len(outbox)}"
+        )
         queued = dl.read(outbox[0])
         assert getattr(queued, "actor", None) == TEST_ACTOR_ID
         assert getattr(queued, "to", None) == [local_actor_id]
@@ -177,9 +177,9 @@ class TestOfferActorToCaseReceivedUseCase:
             "the no-local-actor branch is unreachable under ADR-0073 and must"
             " not be reintroduced"
         )
-        assert (
-            "'unknown'" not in messages
-        ), "the actor identity must never be fabricated (ARCH-15-001)"
+        assert "'unknown'" not in messages, (
+            "the actor identity must never be fabricated (ARCH-15-001)"
+        )
 
     def test_offer_actor_to_case_skips_missing_recommended_id(self, caplog):
         """Skips gracefully when recommended_id is missing from the event."""

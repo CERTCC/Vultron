@@ -102,19 +102,21 @@ class TestEvaluateDefaultRolesNode:
     def test_writes_vendor_role_to_namespaced_blackboard_key(self):
         """AC-2: writes suggested_roles_{segment} = [CVDRole.VENDOR] to blackboard."""
         self.node.update()
-        expected_key = f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
+        expected_key = (
+            f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
+        )
         raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
-        assert raw == [
-            CVDRole.VENDOR
-        ], f"Expected [CVDRole.VENDOR] at '{expected_key}', got {raw!r}"
+        assert raw == [CVDRole.VENDOR], (
+            f"Expected [CVDRole.VENDOR] at '{expected_key}', got {raw!r}"
+        )
 
     def test_does_not_write_global_suggested_roles_key(self):
         """AC-4: raw /suggested_roles key must not be written."""
         self.node.update()
         raw = py_trees.blackboard.Blackboard.storage.get("/suggested_roles")
-        assert (
-            raw is None
-        ), f"Expected no /suggested_roles key, but found {raw!r}"
+        assert raw is None, (
+            f"Expected no /suggested_roles key, but found {raw!r}"
+        )
 
     def test_custom_name_accepted(self):
         node = EvaluateDefaultRolesNode(
@@ -142,9 +144,9 @@ class TestEvaluateDefaultRolesNode:
         key1 = f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
         key2 = f"/suggested_roles_{rec_id_2.rsplit('/', maxsplit=1)[-1]}"
 
-        assert (
-            key1 != key2
-        ), "Keys must differ for different recommendation_ids"
+        assert key1 != key2, (
+            "Keys must differ for different recommendation_ids"
+        )
         assert py_trees.blackboard.Blackboard.storage.get(key1) == [
             CVDRole.VENDOR
         ]
@@ -175,7 +177,9 @@ class TestEvaluateDefaultRolesNode:
         assert result == Status.FAILURE
         assert node.feedback_message, "feedback_message must be set on FAILURE"
         # blackboard key must not be written
-        expected_key = f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
+        expected_key = (
+            f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
+        )
         raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
         assert raw is None, (
             f"Blackboard key '{expected_key}' must not be written when "
@@ -216,9 +220,9 @@ class TestRecommendActorToCaseReceivedTree:
     def test_has_evaluate_default_roles_node(self):
         """AC-4 (tree wiring): EvaluateDefaultRolesNode appears in the tree."""
         all_types = self._flatten_tree_types()
-        assert (
-            EvaluateDefaultRolesNode in all_types
-        ), "RecommendActorToCaseBT must contain EvaluateDefaultRolesNode"
+        assert EvaluateDefaultRolesNode in all_types, (
+            "RecommendActorToCaseBT must contain EvaluateDefaultRolesNode"
+        )
 
     def test_evaluate_roles_node_before_emit_node(self):
         """EvaluateDefaultRolesNode must precede EmitOfferCaseParticipantToOwnerNode."""
@@ -237,9 +241,9 @@ class TestRecommendActorToCaseReceivedTree:
             None,
         )
         assert eval_idx is not None, "EvaluateDefaultRolesNode not found"
-        assert (
-            emit_idx is not None
-        ), "EmitOfferCaseParticipantToOwnerNode not found"
+        assert emit_idx is not None, (
+            "EmitOfferCaseParticipantToOwnerNode not found"
+        )
         assert eval_idx < emit_idx, (
             "EvaluateDefaultRolesNode must appear before "
             "EmitOfferCaseParticipantToOwnerNode in tree ordering"
@@ -259,9 +263,9 @@ class TestRecommendActorToCaseReceivedTree:
     def test_has_emit_offer_case_participant_node(self):
         """Effect nodes must include EmitOfferCaseParticipantToOwnerNode."""
         all_types = self._flatten_tree_types()
-        assert (
-            EmitOfferCaseParticipantToOwnerNode in all_types
-        ), "RecommendActorToCaseBT must contain EmitOfferCaseParticipantToOwnerNode"
+        assert EmitOfferCaseParticipantToOwnerNode in all_types, (
+            "RecommendActorToCaseBT must contain EmitOfferCaseParticipantToOwnerNode"
+        )
 
     def test_emit_node_carries_recommendation_id(self):
         """The emit node must carry the original recommendation ID as origin."""
@@ -270,9 +274,9 @@ class TestRecommendActorToCaseReceivedTree:
             for n in self.tree.iterate()
             if isinstance(n, EmitOfferCaseParticipantToOwnerNode)
         ]
-        assert (
-            emit_nodes
-        ), "Expected EmitOfferCaseParticipantToOwnerNode in tree"
+        assert emit_nodes, (
+            "Expected EmitOfferCaseParticipantToOwnerNode in tree"
+        )
         node = emit_nodes[0]
         assert node.recommendation_id == _REC_ID
         assert node.recommender_id == _RECOMMENDER
@@ -415,9 +419,9 @@ class TestAcceptActorRecommendationReceivedTree:
         assert self.tree.name == "AcceptActorRecommendationBT"
 
     def test_memory_false(self):
-        assert (
-            self.tree.memory is False
-        ), "AcceptActorRecommendationBT root Sequence must use memory=False"
+        assert self.tree.memory is False, (
+            "AcceptActorRecommendationBT root Sequence must use memory=False"
+        )
 
     def test_has_accept_recommendation_node(self):
         nodes = [
@@ -438,9 +442,9 @@ class TestAcceptActorRecommendationReceivedTree:
             for c in self.tree.iterate()
             if isinstance(c, EmitInviteActorToCaseNode)
         ]
-        assert (
-            nodes
-        ), "Expected EmitInviteActorToCaseNode in tree (CM-16-006 step 4)"
+        assert nodes, (
+            "Expected EmitInviteActorToCaseNode in tree (CM-16-006 step 4)"
+        )
         node = nodes[0]
         assert node.invitee_id == _RECOMMENDED
         assert node.case_id == _CASE_ID
@@ -464,9 +468,9 @@ class TestRejectActorRecommendationReceivedTree:
         assert self.tree.name == "RejectActorRecommendationBT"
 
     def test_memory_false(self):
-        assert (
-            self.tree.memory is False
-        ), "RejectActorRecommendationBT root Sequence must use memory=False"
+        assert self.tree.memory is False, (
+            "RejectActorRecommendationBT root Sequence must use memory=False"
+        )
 
     def test_has_reject_recommendation_node(self):
         nodes = [
@@ -763,9 +767,9 @@ class TestDuplicateDetectionTreeStructure:
         )
 
     def test_has_selector_for_duplicate_or_fresh(self):
-        assert (
-            self._duplicate_selector() is not None
-        ), "DuplicateOrFreshSelector must exist in the tree"
+        assert self._duplicate_selector() is not None, (
+            "DuplicateOrFreshSelector must exist in the tree"
+        )
 
     def test_selector_has_four_children(self):
         assert len(self._duplicate_selector().children) == 4

@@ -99,9 +99,9 @@ class TestRmStatesConsistentWithFix:
             "exactly DEFERRED and CLOSED are reachable both with and without"
             f" acceptance; got {ambiguous}"
         )
-        assert (
-            RM.ACCEPTED not in without_acceptance
-        ), "ACCEPTED is the only member that proves the history property"
+        assert RM.ACCEPTED not in without_acceptance, (
+            "ACCEPTED is the only member that proves the history property"
+        )
 
     @pytest.mark.spec("CSB-18-001")
     def test_states_off_the_acceptance_path_are_excluded(self):
@@ -236,9 +236,9 @@ class TestAdr0089EntailmentEnumeration:
             if violation_vf_d_entailment(vf, d) is not None
             else []
         )
-        assert (
-            self._violations(rm, vf, d) == vf_d_only
-        ), f"Unexpected RM-coupled violation for ({rm!r}, {vf!r}, {d!r})"
+        assert self._violations(rm, vf, d) == vf_d_only, (
+            f"Unexpected RM-coupled violation for ({rm!r}, {vf!r}, {d!r})"
+        )
 
     # Site 4–5: vf=Vf / vf=VF writers (develop_fix.py).
     # They assert vf only; rm_state=None so current RM is used.
@@ -248,9 +248,9 @@ class TestAdr0089EntailmentEnumeration:
     @pytest.mark.parametrize("vf", [CS_vf.Vf, CS_vf.VF])
     def test_fix_development_sites_have_zero_violations(self, rm, vf) -> None:
         """develop_fix.py writes vf=Vf or vf=VF with d=None and safe RM."""
-        assert (
-            self._violations(rm, vf, None) == []
-        ), f"Expected zero violations for develop_fix site ({rm!r}, {vf!r}, None)"
+        assert self._violations(rm, vf, None) == [], (
+            f"Expected zero violations for develop_fix site ({rm!r}, {vf!r}, None)"
+        )
 
     # Site 6: d=D writer (deploy_fix.py).
     # At deployment time the fix is ready, so vf=VF.
@@ -258,9 +258,9 @@ class TestAdr0089EntailmentEnumeration:
     @pytest.mark.parametrize("rm", [RM.ACCEPTED, RM.DEFERRED, RM.CLOSED])
     def test_fix_deployment_site_has_zero_violations(self, rm) -> None:
         """deploy_fix.py writes d=D with vf=VF (fix ready) and safe RM."""
-        assert (
-            self._violations(rm, CS_vf.VF, CS_d.D) == []
-        ), f"Expected zero violations for deploy_fix site ({rm!r}, VF, D)"
+        assert self._violations(rm, CS_vf.VF, CS_d.D) == [], (
+            f"Expected zero violations for deploy_fix site ({rm!r}, VF, D)"
+        )
 
     # Confirm the rules DO fire for corrupt state, so the pass above is not
     # vacuous.
@@ -278,9 +278,9 @@ class TestAdr0089EntailmentEnumeration:
         passing through ACCEPTED. The rule correctly refuses them.
         """
         violations = self._violations(rm, CS_vf.VF, None)
-        assert any(
-            v.dimension == "vf" for v in violations
-        ), f"Expected RM↔VF violation for ({rm!r}, VF, None); got {violations}"
+        assert any(v.dimension == "vf" for v in violations), (
+            f"Expected RM↔VF violation for ({rm!r}, VF, None); got {violations}"
+        )
 
     @pytest.mark.parametrize(
         "rm", [RM.START, RM.RECEIVED, RM.VALID, RM.INVALID]
@@ -294,9 +294,9 @@ class TestAdr0089EntailmentEnumeration:
         correctly refuses it.
         """
         violations = self._violations(rm, CS_vf.VF, CS_d.D)
-        assert any(
-            v.dimension == "d" for v in violations
-        ), f"Expected RM↔D violation for ({rm!r}, VF, D); got {violations}"
+        assert any(v.dimension == "d" for v in violations), (
+            f"Expected RM↔D violation for ({rm!r}, VF, D); got {violations}"
+        )
 
     @pytest.mark.parametrize("vf", [CS_vf.vf, CS_vf.Vf])
     def test_vf_d_entailment_fires_for_deployed_without_fix_ready(
@@ -309,6 +309,6 @@ class TestAdr0089EntailmentEnumeration:
         """
         for rm in RM:
             violations = self._violations(rm, vf, CS_d.D)
-            assert any(
-                v.dimension == "d" for v in violations
-            ), f"Expected VF↔D violation for ({rm!r}, {vf!r}, D); got {violations}"
+            assert any(v.dimension == "d" for v in violations), (
+                f"Expected VF↔D violation for ({rm!r}, {vf!r}, D); got {violations}"
+            )

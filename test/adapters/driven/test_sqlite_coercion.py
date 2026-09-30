@@ -128,12 +128,12 @@ class TestRehydrateFields:
 
         assert stored is not None
         inline_offer = getattr(stored, "object_", None)
-        assert (
-            inline_offer is not None
-        ), "object_ should be present on stored Accept"
-        assert not isinstance(
-            inline_offer, str
-        ), "Accept.object_ should be the inline Offer, not a bare string"
+        assert inline_offer is not None, (
+            "object_ should be present on stored Accept"
+        )
+        assert not isinstance(inline_offer, str), (
+            "Accept.object_ should be the inline Offer, not a bare string"
+        )
         assert not isinstance(inline_offer.target, str), (  # type: ignore[union-attr]
             f"Offer.target should be the typed actor after recursion,"
             f" not bare string {inline_offer.target!r}"  # type: ignore[union-attr]
@@ -322,12 +322,12 @@ class TestCoerceToSemanticClass:
         result = record.to_obj()
 
         inner_offer = getattr(result, "object_", None)
-        assert (
-            inner_offer is not None
-        ), "Accept.object_ must be the inline Offer"
-        assert not isinstance(
-            inner_offer, str
-        ), "Accept.object_ must not collapse to a bare string"
+        assert inner_offer is not None, (
+            "Accept.object_ must be the inline Offer"
+        )
+        assert not isinstance(inner_offer, str), (
+            "Accept.object_ must not collapse to a bare string"
+        )
         inner_entry = getattr(inner_offer, "object_", None)
         assert isinstance(inner_entry, as_CaseLedgerEntry), (
             f"Offer.object_ should be re-typed to as_CaseLedgerEntry by recursive "

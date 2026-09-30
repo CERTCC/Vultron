@@ -298,7 +298,9 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
                 "to_rm": asserted_rm,
             }
         if (
-            current_rm not in (RM.CLOSED, asserted_rm) and not is_valid_rm_transition(current_rm, asserted_rm) and is_monotonic_rm_forward(current_rm, asserted_rm)
+            current_rm not in (RM.CLOSED, asserted_rm)
+            and not is_valid_rm_transition(current_rm, asserted_rm)
+            and is_monotonic_rm_forward(current_rm, asserted_rm)
         ):
             self.logger.warning(
                 "%s: non-adjacent forward RM jump %s → %s for participant"

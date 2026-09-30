@@ -51,9 +51,9 @@ class TestWritePrerunSentinel:
         manifest_path = write_prerun_sentinel(
             self.DEMO_NAME, output_root=tmp_path
         )
-        assert (
-            manifest_path.is_file()
-        ), f"Expected sentinel manifest at {manifest_path}"
+        assert manifest_path.is_file(), (
+            f"Expected sentinel manifest at {manifest_path}"
+        )
         assert (
             manifest_path == tmp_path / self.DEMO_NAME / DUMP_MANIFEST_FILENAME
         )

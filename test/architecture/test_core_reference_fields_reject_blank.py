@@ -136,9 +136,9 @@ def test_every_core_string_field_rejects_a_blank() -> None:
                 continue
             offenders.append(f"{key}: {annotation}")
 
-    assert (
-        examined
-    ), "no core string fields were examined — the test is vacuous"
+    assert examined, (
+        "no core string fields were examined — the test is vacuous"
+    )
     assert not offenders, (
         "these core string fields accept a blank (CS-08-001). Declare the "
         "string as NonEmptyString — as the item type for a list, the value "

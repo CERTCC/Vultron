@@ -383,12 +383,12 @@ class TestLedgerPortRosterDiscovery:
     @pytest.mark.parametrize("port", sorted(LEDGER_PORTS))
     def test_port_has_a_reader_and_a_writer(self, port: str) -> None:
         """Guard against a refactor that silently empties the parametrize."""
-        assert any(
-            p == port for _, p in LEDGER_READERS
-        ), f"no {port} readers discovered"
-        assert any(
-            p == port for _, p in LEDGER_WRITERS
-        ), f"no {port} writers discovered"
+        assert any(p == port for _, p in LEDGER_READERS), (
+            f"no {port} readers discovered"
+        )
+        assert any(p == port for _, p in LEDGER_WRITERS), (
+            f"no {port} writers discovered"
+        )
 
     def test_constructor_table_matches_the_discovered_roster(self) -> None:
         """The table and the roster stay in step in both directions.
@@ -504,6 +504,6 @@ class TestLedgerPortTickLevelEnforcement:
             result, reason="not of type", allow_internal=True
         )
         errors = result.errors or []
-        assert any(
-            "not of type" in err for err in errors
-        ), f"expected a port type-mismatch error, got {errors}"
+        assert any("not of type" in err for err in errors), (
+            f"expected a port type-mismatch error, got {errors}"
+        )

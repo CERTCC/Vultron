@@ -241,9 +241,9 @@ class TestValidateRMTransitionNode:
 
         assert result.status == Status.SUCCESS
         # RSH-06-003: must log at WARNING level
-        assert any(
-            r.levelno == logging.WARNING for r in caplog.records
-        ), "Expected WARNING log for non-adjacent forward RM jump"
+        assert any(r.levelno == logging.WARNING for r in caplog.records), (
+            "Expected WARNING log for non-adjacent forward RM jump"
+        )
         # RSH-06: anomaly flag must be set on blackboard
         anomaly = py_trees.blackboard.Blackboard.storage.get(
             "/" + BB_RM_ANOMALY
@@ -338,6 +338,6 @@ class TestValidateRMTransitionNode:
         anomaly = py_trees.blackboard.Blackboard.storage.get(
             "/" + BB_RM_ANOMALY
         )
-        assert (
-            anomaly is None
-        ), f"Expected no anomaly for adjacent transition, got {anomaly}"
+        assert anomaly is None, (
+            f"Expected no anomaly for adjacent transition, got {anomaly}"
+        )

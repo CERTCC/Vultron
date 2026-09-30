@@ -219,17 +219,17 @@ def _actor_and_own_store(
 
 
 @pytest.fixture
-def finder_actor_and_dl() -> (
-    Generator[tuple[as_Service, SqliteDataLayer], None, None]
-):
+def finder_actor_and_dl() -> Generator[
+    tuple[as_Service, SqliteDataLayer], None, None
+]:
     """The finder and its own store — for triggers requested *by the finder*."""
     yield from _actor_and_own_store("Finder Co")
 
 
 @pytest.fixture
-def owner_actor_and_dl() -> (
-    Generator[tuple[as_Service, SqliteDataLayer], None, None]
-):
+def owner_actor_and_dl() -> Generator[
+    tuple[as_Service, SqliteDataLayer], None, None
+]:
     """The case owner and its own store — for triggers requested *by the owner*.
 
     Embargo teardown is one: the authority is the case's CASE_MANAGER, which

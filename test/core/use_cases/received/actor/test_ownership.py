@@ -788,6 +788,6 @@ class TestOwnershipOfferAtNonRecipient:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and bystander_id in result.reason
-        assert (
-            dl.get(activity.type_.value, activity.id_) is None
-        ), "a refused Offer must not be left behind in the bystander's store"
+        assert dl.get(activity.type_.value, activity.id_) is None, (
+            "a refused Offer must not be left behind in the bystander's store"
+        )

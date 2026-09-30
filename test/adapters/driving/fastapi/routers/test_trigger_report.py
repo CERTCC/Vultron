@@ -392,7 +392,9 @@ def test_trigger_validate_report_transitions_rm_to_valid(
     link = dl.read(link_id)
     assert (
         isinstance(link, VultronReportCaseLink) and link.rm_state == RM.VALID
-    ), "Expected VultronReportCaseLink.rm_state == RM.VALID after validate-report trigger"
+    ), (
+        "Expected VultronReportCaseLink.rm_state == RM.VALID after validate-report trigger"
+    )
 
 
 def test_trigger_validate_report_non_report_offer_returns_404(

@@ -187,9 +187,9 @@ class TestParticipantCaseTickLevelEnforcement:
             result, reason="not of type", allow_internal=True
         )
         errors = result.errors or []
-        assert any(
-            "not of type" in err for err in errors
-        ), f"expected a port type-mismatch error, got {errors}"
+        assert any("not of type" in err for err in errors), (
+            f"expected a port type-mismatch error, got {errors}"
+        )
 
 
 @pytest.mark.spec("BTND-03-012")

@@ -281,9 +281,9 @@ class TestApplyParticipantStatusCompositeStateViolation:
 
         assert result.status == Status.FAILURE
         updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
-        assert (
-            len(updated.participant_statuses) == initial_count
-        ), "FAILURE must not write to DataLayer"
+        assert len(updated.participant_statuses) == initial_count, (
+            "FAILURE must not write to DataLayer"
+        )
 
     @pytest.mark.spec("RSH-05-021")
     def test_impossible_state_vf_not_ready_d_deployed_fails(
@@ -311,9 +311,9 @@ class TestApplyParticipantStatusCompositeStateViolation:
 
         assert result.status == Status.FAILURE
         updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
-        assert (
-            len(updated.participant_statuses) == initial_count
-        ), "FAILURE must not write to DataLayer"
+        assert len(updated.participant_statuses) == initial_count, (
+            "FAILURE must not write to DataLayer"
+        )
 
     @pytest.mark.spec("RSH-05-007")
     def test_rm_ratchet_interacts_correctly_with_composite_state_check(

@@ -55,9 +55,7 @@ def test_supplied_timestamp_survives_verbatim(field: str):
         {"type": "Object", **{field: "2026-03-04T05:06:07+00:00"}}
     )
 
-    assert getattr(obj, field) == datetime(
-        2026, 3, 4, 5, 6, 7, tzinfo=UTC
-    )
+    assert getattr(obj, field) == datetime(2026, 3, 4, 5, 6, 7, tzinfo=UTC)
 
 
 @pytest.mark.spec("CS-08-001")

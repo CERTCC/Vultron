@@ -536,8 +536,7 @@ def test_splice_rejects_duplicated_markers(label: str) -> None:
     """
     doubled = BEGIN_MARKER if label == "begin" else END_MARKER
     current = (
-        f"{BEGIN_MARKER}\n\n| old |\n\n{END_MARKER}\n\n"
-        f"prose\n\n{doubled}\n"
+        f"{BEGIN_MARKER}\n\n| old |\n\n{END_MARKER}\n\nprose\n\n{doubled}\n"
     )
     with pytest.raises(
         ValueError, match=f"found 2 generated-block {label} markers"

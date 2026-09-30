@@ -794,9 +794,9 @@ class TestRolesFromStoredOffer:
                 invite_obj = obj
                 break
 
-        assert (
-            invite_obj is not None
-        ), "Invite must be stored in CaseActor outbox"
+        assert invite_obj is not None, (
+            "Invite must be stored in CaseActor outbox"
+        )
         invite_roles = getattr(invite_obj, "roles", None)
         assert invite_roles == [CVDRole.VENDOR.value], (
             f"ISSUE-1745: Invite must carry roles from stored Offer; "
@@ -833,9 +833,9 @@ class TestRolesFromStoredOffer:
             if obj is not None and str(getattr(obj, "type_", "")) == "Invite":
                 invite_obj = obj
                 break
-        assert (
-            invite_obj is not None
-        ), "Invite must be present in CaseActor outbox"
+        assert invite_obj is not None, (
+            "Invite must be present in CaseActor outbox"
+        )
 
         # Step 3: invitee accepts the Invite
         py_trees.blackboard.Blackboard.storage.clear()
@@ -864,9 +864,9 @@ class TestRolesFromStoredOffer:
         participant_id = reloaded_case.actor_participant_index.get(
             AC1_INVITEE_ID
         )
-        assert (
-            participant_id is not None
-        ), "Invitee must be registered as participant"
+        assert participant_id is not None, (
+            "Invitee must be registered as participant"
+        )
         participant = cast(Any, dl.get(id_=participant_id))
         assert participant is not None
         assert CVDRole.VENDOR in participant.case_roles, (
@@ -946,9 +946,9 @@ class TestAcceptOfferCaseParticipantRolesThreading:
                 invite_obj = obj
                 break
 
-        assert (
-            invite_obj is not None
-        ), "Invite must be stored in CaseActor outbox"
+        assert invite_obj is not None, (
+            "Invite must be stored in CaseActor outbox"
+        )
         assert getattr(invite_obj, "roles", "sentinel") is None, (
             "AC-2: EmitInviteActorToCaseNode must pass roles=None when "
             "suggested_roles is absent from blackboard (no default substitution)"
@@ -984,9 +984,9 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             if obj is not None and str(getattr(obj, "type_", "")) == "Invite":
                 invite_obj = obj
                 break
-        assert (
-            invite_obj is not None
-        ), "Invite must be present in CaseActor outbox"
+        assert invite_obj is not None, (
+            "Invite must be present in CaseActor outbox"
+        )
 
         # Step 3: invitee sends Accept(Invite) — BT creates CaseParticipant
         py_trees.blackboard.Blackboard.storage.clear()
@@ -1015,9 +1015,9 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         participant_id = reloaded_case.actor_participant_index.get(
             AC1_INVITEE_ID
         )
-        assert (
-            participant_id is not None
-        ), "Invitee must be registered as participant"
+        assert participant_id is not None, (
+            "Invitee must be registered as participant"
+        )
         participant = cast(Any, dl.get(id_=participant_id))
         assert participant is not None
         assert participant.case_roles == [], (

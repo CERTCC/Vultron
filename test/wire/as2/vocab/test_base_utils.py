@@ -45,9 +45,9 @@ class TestGenerateNewId:
 
     def test_default_id_is_not_bare_uuid(self):
         id_ = generate_new_id()
-        assert not _UUID_PATTERN.fullmatch(
-            id_
-        ), "generate_new_id() must not return a bare UUID"
+        assert not _UUID_PATTERN.fullmatch(id_), (
+            "generate_new_id() must not return a bare UUID"
+        )
 
     def test_prefix_appends_uuid(self):
         prefix = "https://example.org/objects"
@@ -70,9 +70,9 @@ class TestAsBaseDefaultId:
 
     def test_new_object_id_is_not_bare_uuid(self):
         obj = as_Base()
-        assert not _UUID_PATTERN.fullmatch(
-            obj.id_
-        ), "id_ must not be a bare UUID"
+        assert not _UUID_PATTERN.fullmatch(obj.id_), (
+            "id_ must not be a bare UUID"
+        )
 
     def test_two_objects_have_different_ids(self):
         obj1 = as_Base()

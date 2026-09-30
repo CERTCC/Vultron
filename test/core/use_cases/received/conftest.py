@@ -109,9 +109,9 @@ def seed_store_owner_as_case_manager(
 
 
 @pytest.fixture
-def seed_case_manager() -> (
-    Callable[[SqliteDataLayer, as_VulnerabilityCase, str], CaseParticipant]
-):
+def seed_case_manager() -> Callable[
+    [SqliteDataLayer, as_VulnerabilityCase, str], CaseParticipant
+]:
     """Fixture form of :func:`seed_case_manager_participant`."""
     return seed_case_manager_participant
 

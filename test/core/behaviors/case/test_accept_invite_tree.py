@@ -322,7 +322,9 @@ def test_read_invite_roles_warns_when_invite_object_missing(
     assert any(
         "object_" in r.message and "protocol violation" in r.message
         for r in warnings
-    ), f"Expected WARNING about missing object_ / protocol violation, got: {[r.message for r in warnings]}"
+    ), (
+        f"Expected WARNING about missing object_ / protocol violation, got: {[r.message for r in warnings]}"
+    )
 
 
 @pytest.mark.spec("CM-17-003")
@@ -372,7 +374,9 @@ def test_read_invite_roles_warns_when_roles_field_absent(
     assert any(
         "roles" in r.message and "protocol violation" in r.message
         for r in warnings
-    ), f"Expected WARNING about missing roles / protocol violation, got: {[r.message for r in warnings]}"
+    ), (
+        f"Expected WARNING about missing roles / protocol violation, got: {[r.message for r in warnings]}"
+    )
 
 
 @pytest.mark.spec("CM-17-003")
@@ -475,7 +479,9 @@ def test_invitee_birth_is_construct_attach_then_advance(
     )
     assert result.status == Status.SUCCESS
 
-    participant_id = f"{case.id_}/participants/{invitee_id.rsplit('/', maxsplit=1)[-1]}"
+    participant_id = (
+        f"{case.id_}/participants/{invitee_id.rsplit('/', maxsplit=1)[-1]}"
+    )
     attached = bt_scenario.dl.read(participant_id)
     assert isinstance(attached, CaseParticipant)
     # AC-4: attached, but not yet advanced.
@@ -533,7 +539,9 @@ def _seed_case_with_persisted_invitee(
         invitee_already_participant=False,
     )
     assert result.status == Status.SUCCESS
-    participant_id = f"{case.id_}/participants/{invitee_id.rsplit('/', maxsplit=1)[-1]}"
+    participant_id = (
+        f"{case.id_}/participants/{invitee_id.rsplit('/', maxsplit=1)[-1]}"
+    )
     return case, participant_id
 
 
@@ -632,9 +640,9 @@ def test_advance_invitee_resume_leaves_already_advanced_participant(
         participant_status_rm_state(after_second.participant_status)
         == RM.RECEIVED
     )
-    assert (
-        len(after_second.participant_statuses) == rungs_after_first
-    ), "genuine backfill-resume must not append a redundant RM.RECEIVED rung"
+    assert len(after_second.participant_statuses) == rungs_after_first, (
+        "genuine backfill-resume must not append a redundant RM.RECEIVED rung"
+    )
 
 
 # ---------------------------------------------------------------------------

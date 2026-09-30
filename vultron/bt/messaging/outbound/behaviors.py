@@ -16,7 +16,6 @@ Provides outbound messaging behaviors for Vultron.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import logging
 from collections.abc import Callable
 from typing import Any, cast

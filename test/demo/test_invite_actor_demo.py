@@ -45,9 +45,9 @@ def demo_env(client):
         demo.DataLayerClient.model_rebuild(force=True)
         yield
     finally:
-        demo.DataLayerClient.model_fields["base_url"].default = (
-            _original_base_url_default
-        )
+        demo.DataLayerClient.model_fields[
+            "base_url"
+        ].default = _original_base_url_default
         demo.DataLayerClient.model_rebuild(force=True)
         mp.undo()
         importlib.reload(demo)
@@ -108,6 +108,6 @@ def test_setup_initialized_case_registers_case_manager(demo_env, client):
     assert stored_case is not None, "Case should be stored in vendor DataLayer"
 
     manager_id = resolve_case_manager_id(stored_case, vendor_dl)
-    assert (
-        manager_id is not None
-    ), "CASE_MANAGER must be registered at case creation (CM-02-014, CM-02-015)"
+    assert manager_id is not None, (
+        "CASE_MANAGER must be registered at case creation (CM-02-014, CM-02-015)"
+    )

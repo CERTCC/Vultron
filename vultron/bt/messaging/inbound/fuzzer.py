@@ -16,7 +16,6 @@ Provides fuzzer classes for inbound message handling
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import random
 
 from vultron.bt.messaging.message import Message

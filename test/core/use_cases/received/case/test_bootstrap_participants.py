@@ -298,9 +298,9 @@ class TestM4AddParticipantStatusAfterBootstrap:
 
         # Step 2: confirm vendor participant is independently stored (core fix).
         stored_p = dl.read(_VENDOR_PARTICIPANT_ID)
-        assert (
-            stored_p is not None
-        ), "Vendor as_CaseParticipant must be stored during bootstrap (CBT-05-005)"
+        assert stored_p is not None, (
+            "Vendor as_CaseParticipant must be stored during bootstrap (CBT-05-005)"
+        )
 
         # Step 3: vendor self-reports its VFd status to the case actor.
         # actor=_VENDOR_ID passes VerifySenderIsParticipantNode
@@ -327,9 +327,9 @@ class TestM4AddParticipantStatusAfterBootstrap:
 
         # Step 4: vendor participant now has the VFd status — M4 can observe it.
         updated_p = dl.read(_VENDOR_PARTICIPANT_ID)
-        assert (
-            updated_p is not None
-        ), "Vendor participant must still exist after AddParticipantStatus"
+        assert updated_p is not None, (
+            "Vendor participant must still exist after AddParticipantStatus"
+        )
         updated_p = cast(as_CaseParticipant, updated_p)
         status_ids = [
             getattr(s, "id_", s) for s in updated_p.participant_statuses

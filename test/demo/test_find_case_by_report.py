@@ -57,6 +57,6 @@ def test_find_case_by_report_with_vulnerability_reports_field():
     # This should find the case
     assert found_case is not None, "Case should be found by report ID"
     assert found_case.id_ == case.id_, "Found case should match created case"
-    assert (
-        report.id_ in found_case.vulnerability_reports
-    ), "Case should contain report ID in vulnerability_reports field"
+    assert report.id_ in found_case.vulnerability_reports, (
+        "Case should contain report ID in vulnerability_reports field"
+    )

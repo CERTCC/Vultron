@@ -35,12 +35,12 @@ class TestCoreRecordIdAlias:
         """model_dump(by_alias=True) must emit ``"id"``, not ``"id_"``."""
         obj = CoreRecord(id_="urn:uuid:keep-me")
         dumped = obj.model_dump(by_alias=True)
-        assert (
-            "id" in dumped
-        ), f"Expected 'id' key, got keys: {list(dumped.keys())}"
-        assert (
-            "id_" not in dumped
-        ), "'id_' key should not appear in aliased dump"
+        assert "id" in dumped, (
+            f"Expected 'id' key, got keys: {list(dumped.keys())}"
+        )
+        assert "id_" not in dumped, (
+            "'id_' key should not appear in aliased dump"
+        )
         assert dumped["id"] == "urn:uuid:keep-me"
 
     def test_model_validate_from_id_key(self):
@@ -112,12 +112,12 @@ class TestSubclassTypeAlias:
         """model_dump(by_alias=True) must emit ``"type"``, not ``"type_"``."""
         obj = cls(actor="https://example.org/actors/test")
         dumped = obj.model_dump(by_alias=True)
-        assert (
-            "type" in dumped
-        ), f"{cls.__name__}: expected 'type' key, got {list(dumped.keys())}"
-        assert (
-            "type_" not in dumped
-        ), f"{cls.__name__}: 'type_' key should not appear"
+        assert "type" in dumped, (
+            f"{cls.__name__}: expected 'type' key, got {list(dumped.keys())}"
+        )
+        assert "type_" not in dumped, (
+            f"{cls.__name__}: 'type_' key should not appear"
+        )
         assert dumped["type"] == expected_type
 
     def test_validate_from_type_key(self, cls, expected_type):

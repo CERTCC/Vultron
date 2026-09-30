@@ -169,9 +169,9 @@ class TestCreateReportNoStandaloneParticipantStatus:
         CreateReportReceivedUseCase(dl, event).execute()
 
         stored_report = dl.read("https://example.org/reports/r-store-1")
-        assert (
-            stored_report is not None
-        ), "as_VulnerabilityReport should be stored"
+        assert stored_report is not None, (
+            "as_VulnerabilityReport should be stored"
+        )
 
 
 class TestDuplicateReportHandling:

@@ -147,12 +147,12 @@ class TestEngageCaseRMTransitionViaBT:
         activity = self.dl.read(activity_id)
         assert activity is not None
         to_ids = _to_ids(activity)
-        assert (
-            self.case_actor.id_ in to_ids
-        ), f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
-        assert (
-            len(to_ids) == 1
-        ), f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+        assert self.case_actor.id_ in to_ids, (
+            f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
+        )
+        assert len(to_ids) == 1, (
+            f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+        )
 
     def test_engage_logged_with_actual_before_state(self, caplog):
         """Engagement reports the real RM before-state (SL-04-006, AC-15).

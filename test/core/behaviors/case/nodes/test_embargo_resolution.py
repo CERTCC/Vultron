@@ -469,9 +469,9 @@ def test_a_replay_of_the_same_sender_embargo_is_idempotent(
     """A stored twin that *is* this embargo — same case, same end — is the
     replay the ``VultronAlreadyExistsError`` swallow always meant."""
     event_id = "https://example.org/embargoes/replayed"
-    stated_end = datetime.now(tz=UTC).replace(
-        microsecond=0
-    ) + timedelta(days=5)
+    stated_end = datetime.now(tz=UTC).replace(microsecond=0) + timedelta(
+        days=5
+    )
     bt_scenario.dl.create(
         EmbargoEvent(id_=event_id, context=CASE_ID, end_time=stated_end)
     )

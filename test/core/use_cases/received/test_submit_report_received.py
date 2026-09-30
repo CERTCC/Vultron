@@ -94,12 +94,12 @@ class TestSubmitReportLogMessages:
             ).execute()
 
         log_text = " ".join(r.message for r in caplog.records)
-        assert (
-            "https://example.org/actors/vendor" in log_text
-        ), "Log must include the vendor (receiving) actor ID"
-        assert (
-            "https://example.org/reports/r-log-1" in log_text
-        ), "Log must include the report ID"
+        assert "https://example.org/actors/vendor" in log_text, (
+            "Log must include the vendor (receiving) actor ID"
+        )
+        assert "https://example.org/reports/r-log-1" in log_text, (
+            "Log must include the report ID"
+        )
 
 
 class TestSubmitReportCreatesCase:
@@ -161,9 +161,9 @@ class TestSubmitReportCreatesCase:
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         link = dl.read(link_id)
-        assert isinstance(
-            link, VultronReportCaseLink
-        ), "Expected a pending VultronReportCaseLink (ADR-0041)"
+        assert isinstance(link, VultronReportCaseLink), (
+            "Expected a pending VultronReportCaseLink (ADR-0041)"
+        )
         assert link.report_id == self.REPORT_ID
         assert link.case_id is None
 
@@ -226,9 +226,9 @@ class TestSubmitReportCreatesCase:
             if isinstance(obj, VultronReportCaseLink)
             and obj.report_id == self.REPORT_ID
         ]
-        assert (
-            len(links) == 1
-        ), "Expected exactly one VultronReportCaseLink after idempotent calls"
+        assert len(links) == 1, (
+            "Expected exactly one VultronReportCaseLink after idempotent calls"
+        )
 
     def test_submit_report_uses_store_owner_when_no_receiving_actor(self):
         """When receiving_actor_id is absent the store owner processes the submission.
@@ -315,9 +315,9 @@ class TestSubmitReportCreatesCase:
         ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
-        assert (
-            all_cases == []
-        ), "Expected no VulnerabilityCase when receiving actor not in to"
+        assert all_cases == [], (
+            "Expected no VulnerabilityCase when receiving actor not in to"
+        )
 
 
 class TestSubmitReportAutoCreateCasePolicy:
@@ -471,9 +471,9 @@ class TestOfferAddressingSemantics:
         ).execute()
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
-        assert isinstance(
-            dl.read(link_id), VultronReportCaseLink
-        ), "Expected pending VultronReportCaseLink when receiving actor in to"
+        assert isinstance(dl.read(link_id), VultronReportCaseLink), (
+            "Expected pending VultronReportCaseLink when receiving actor in to"
+        )
 
     def test_submit_report_trailing_slash_recipient_creates_case(self):
         """A trailing slash on the ``to:`` entry still addresses the receiver.
@@ -528,16 +528,16 @@ class TestOfferAddressingSemantics:
             ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
-        assert (
-            all_cases == []
-        ), "Expected no case when receiving actor only in cc"
+        assert all_cases == [], (
+            "Expected no case when receiving actor only in cc"
+        )
 
         warning_text = " ".join(
             r.message for r in caplog.records if r.levelno >= logging.WARNING
         )
-        assert (
-            "cc" in warning_text.lower()
-        ), "Expected a WARNING mentioning cc addressing"
+        assert "cc" in warning_text.lower(), (
+            "Expected a WARNING mentioning cc addressing"
+        )
 
     @pytest.mark.spec("HP-09-001")
     def test_receiving_actor_in_neither_logs_warning_no_case(self, caplog):
@@ -555,16 +555,16 @@ class TestOfferAddressingSemantics:
             ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
-        assert (
-            all_cases == []
-        ), "Expected no case when receiving actor not in to or cc"
+        assert all_cases == [], (
+            "Expected no case when receiving actor not in to or cc"
+        )
 
         warning_text = " ".join(
             r.message for r in caplog.records if r.levelno >= logging.WARNING
         )
-        assert (
-            self.VENDOR_ID in warning_text
-        ), "Expected WARNING to mention the receiving actor ID"
+        assert self.VENDOR_ID in warning_text, (
+            "Expected WARNING to mention the receiving actor ID"
+        )
 
     @pytest.mark.spec("HP-09-001")
     @pytest.mark.spec("HP-09-002")
@@ -610,9 +610,9 @@ class TestOfferAddressingSemantics:
         ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
-        assert (
-            all_cases == []
-        ), "Expected no case when receiving actor in target but not in to"
+        assert all_cases == [], (
+            "Expected no case when receiving actor in target but not in to"
+        )
 
 
 class TestSubmitReportStoresOfferRecord:
@@ -664,9 +664,9 @@ class TestSubmitReportStoresOfferRecord:
 
         record_id = VultronOfferRecord.build_id(self.OFFER_ID)
         record = dl.read(record_id)
-        assert isinstance(
-            record, VultronOfferRecord
-        ), "Expected VultronOfferRecord stored for received Offer"
+        assert isinstance(record, VultronOfferRecord), (
+            "Expected VultronOfferRecord stored for received Offer"
+        )
         assert record.offer_id == self.OFFER_ID
         assert record.report_id == self.REPORT_ID
         assert record.offer_actor_id == self.FINDER_ID
@@ -688,9 +688,9 @@ class TestSubmitReportStoresOfferRecord:
         records = [
             r for r in dl.get_all("OfferRecord") if r.get("id_") == record_id
         ]
-        assert (
-            len(records) == 1
-        ), "Expected exactly one VultronOfferRecord after idempotent calls"
+        assert len(records) == 1, (
+            "Expected exactly one VultronOfferRecord after idempotent calls"
+        )
 
 
 class TestSubmitReportUnresolvableReceiver:

@@ -174,4 +174,6 @@ class TestUnresolvableObjectUseCase:
 
         assert any(
             UNRESOLVABLE_URI in record.message for record in caplog.records
-        ), f"Expected warning about {UNRESOLVABLE_URI!r} in {[r.message for r in caplog.records]}"
+        ), (
+            f"Expected warning about {UNRESOLVABLE_URI!r} in {[r.message for r in caplog.records]}"
+        )

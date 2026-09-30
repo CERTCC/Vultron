@@ -402,9 +402,9 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
     assert result.status == Status.SUCCESS
     assert len(captured) == 1
     found_participant = captured[0]
-    assert (
-        found_participant.participant_statuses[-1].rm.state == RM.VALID
-    ), "Expected live RM.VALID from DL, not stale RM.RECEIVED from inline copy"
+    assert found_participant.participant_statuses[-1].rm.state == RM.VALID, (
+        "Expected live RM.VALID from DL, not stale RM.RECEIVED from inline copy"
+    )
 
 
 def test_read_object_success(bridge, datalayer, sample_record):
@@ -691,13 +691,13 @@ def test_condition_logger_is_managed_not_orphaned():
     import logging
 
     node = AlwaysTrueCondition(name="TestLogger")
-    assert isinstance(
-        node.logger, logging.Logger
-    ), "self.logger must be the stdlib logging.Logger, not py_trees.logging.Logger"
+    assert isinstance(node.logger, logging.Logger), (
+        "self.logger must be the stdlib logging.Logger, not py_trees.logging.Logger"
+    )
     # A managed logger always has a parent (at minimum the root logger).
-    assert (
-        node.logger.parent is not None
-    ), "self.logger.parent is None — logger is orphaned and log calls will be silently dropped"
+    assert node.logger.parent is not None, (
+        "self.logger.parent is None — logger is orphaned and log calls will be silently dropped"
+    )
 
 
 def test_action_logger_is_managed_not_orphaned():
@@ -707,9 +707,9 @@ def test_action_logger_is_managed_not_orphaned():
 
     node = NoOpAction(name="TestLogger")
     assert isinstance(node.logger, logging.Logger)
-    assert (
-        node.logger.parent is not None
-    ), "self.logger.parent is None — logger is orphaned and log calls will be silently dropped"
+    assert node.logger.parent is not None, (
+        "self.logger.parent is None — logger is orphaned and log calls will be silently dropped"
+    )
 
 
 def test_condition_logger_name_includes_class(bridge, datalayer):

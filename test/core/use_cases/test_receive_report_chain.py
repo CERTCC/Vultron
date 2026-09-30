@@ -269,9 +269,9 @@ class TestValidateEngageChain:
         accepted_idx = next(
             i for i, s in enumerate(rm_history) if s == RM.ACCEPTED
         )
-        assert (
-            accepted_idx > valid_idx
-        ), "RM.ACCEPTED must come after RM.VALID in the participant status history"
+        assert accepted_idx > valid_idx, (
+            "RM.ACCEPTED must come after RM.VALID in the participant status history"
+        )
 
     def test_validate_report_queues_activity_addressed_to_case_actor(
         self, chain_context
@@ -289,9 +289,9 @@ class TestValidateEngageChain:
         ).execute()
         after = set(dl.outbox_list())
         new_ids = after - before
-        assert (
-            new_ids
-        ), "ValidateReport must queue at least one outbox activity"
+        assert new_ids, (
+            "ValidateReport must queue at least one outbox activity"
+        )
 
         activity_id = next(iter(new_ids))
         activity = dl.read(activity_id)
@@ -309,6 +309,6 @@ class TestValidateEngageChain:
             if isinstance(to, list)
             else ([to] if isinstance(to, str) else [])
         )
-        assert (
-            case_actor.id_ in to_ids
-        ), f"PCR-08-001: ValidateReport activity must address CaseActor; to={to_ids!r}"
+        assert case_actor.id_ in to_ids, (
+            f"PCR-08-001: ValidateReport activity must address CaseActor; to={to_ids!r}"
+        )

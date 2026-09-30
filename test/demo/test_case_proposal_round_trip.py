@@ -130,9 +130,9 @@ def _post_to_inbox(client, actor_slug: str, activity) -> None:
         content=activity.model_dump_json(by_alias=True, exclude_none=True),
         headers={"Content-Type": "application/json"},
     )
-    assert (
-        resp.status_code == 202
-    ), f"Inbox POST returned {resp.status_code}: {resp.text}"
+    assert resp.status_code == 202, (
+        f"Inbox POST returned {resp.status_code}: {resp.text}"
+    )
 
 
 def _actor_slug(actor_id: str) -> str:
@@ -443,9 +443,9 @@ class TestCaseProposalRejectRoundTrip:
             "the vendor's store, so the refusal never left the case actor."
         )
 
-        assert not vendor_iso.dl.by_type(
-            "Accept"
-        ), "the service refused, so it must not also acknowledge the proposal"
+        assert not vendor_iso.dl.by_type("Accept"), (
+            "the service refused, so it must not also acknowledge the proposal"
+        )
         assert not vendor_iso.dl.by_type("VulnerabilityCase"), (
             "a refusal creates nothing: no case may be delivered to the "
             "proposer (CLP-10-009)"

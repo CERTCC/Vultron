@@ -13,6 +13,7 @@ the ninth copy of it.
 
 from __future__ import annotations
 
+import itertools
 import json
 import subprocess
 
@@ -32,7 +33,6 @@ from vultron.metadata.planning.size_bands import (
     markdown_table,
     weight_of,
 )
-import itertools
 
 
 class TestTableShape:

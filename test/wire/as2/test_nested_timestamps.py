@@ -174,9 +174,9 @@ def _parsed(obj: dict[str, Any], extra: dict[str, Any]) -> Any:
     activity_type = extra.pop("activity_type", "Create")
     activity = parse_activity(_body(obj, activity_type, **extra))
     nested = getattr(activity, "object_", None)
-    assert nested is not None and not isinstance(
-        nested, str
-    ), f"{obj['type']} was not expanded"
+    assert nested is not None and not isinstance(nested, str), (
+        f"{obj['type']} was not expanded"
+    )
     return nested
 
 

@@ -414,12 +414,12 @@ class TestNoRMStagedTypes:
         from vultron.core.models.staged_case import __all__ as exports
 
         for name in exports:
-            assert (
-                "Valid" not in name
-            ), f"Found unexpected RM-typed class {name!r} in staged_case.__all__"
-            assert (
-                "Triage" not in name
-            ), f"Found unexpected RM-typed class {name!r} in staged_case.__all__"
+            assert "Valid" not in name, (
+                f"Found unexpected RM-typed class {name!r} in staged_case.__all__"
+            )
+            assert "Triage" not in name, (
+                f"Found unexpected RM-typed class {name!r} in staged_case.__all__"
+            )
 
     def test_staged_case_exports(self):
         from vultron.core.models.staged_case import __all__

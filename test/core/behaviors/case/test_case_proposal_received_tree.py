@@ -201,9 +201,9 @@ class TestWriteCreateCaseMarkerNode:
         assert status == py_trees.common.Status.SUCCESS
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
         marker = dl.read(marker_id)
-        assert isinstance(
-            marker, PendingCreateCaseActivity
-        ), "Marker should be stored in DataLayer"
+        assert isinstance(marker, PendingCreateCaseActivity), (
+            "Marker should be stored in DataLayer"
+        )
         assert marker.proposal_id == _PROPOSAL_URI
         assert marker.case_actor_id == _CASE_ACTOR_URI
         assert marker.vendor_uri == _VENDOR_URI
@@ -357,9 +357,9 @@ class TestWriteCreateCaseMarkerNode:
         assert status == py_trees.common.Status.FAILURE
         # No marker should have been persisted.
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
-        assert (
-            dl.read(marker_id) is None
-        ), "No marker should be stored when save raises"
+        assert dl.read(marker_id) is None, (
+            "No marker should be stored when save raises"
+        )
 
 
 @pytest.mark.spec("CP-05-005")
@@ -395,9 +395,9 @@ class TestClearCreateCaseMarkerNode:
 
         status = self._run_clear_node(dl, actor_id=_CASE_ACTOR_URI)
         assert status == py_trees.common.Status.SUCCESS
-        assert (
-            dl.read(marker.id_) is None
-        ), "Marker should be removed after clear node"
+        assert dl.read(marker.id_) is None, (
+            "Marker should be removed after clear node"
+        )
 
     def test_succeeds_when_marker_already_absent(self, caplog):
         """SUCCESS returned even if the marker was already removed (idempotent)."""
@@ -459,9 +459,9 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
         ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
-        assert (
-            dl.read(marker_id) is None
-        ), "Marker must be cleared on full BT success (AC-3)"
+        assert dl.read(marker_id) is None, (
+            "Marker must be cleared on full BT success (AC-3)"
+        )
 
     def test_marker_present_when_create_fails(self, make_payload):
         """AC-2 / AC-4: Marker is written and persists when Create delivery fails."""
@@ -493,9 +493,9 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
         marker = dl.read(marker_id)
-        assert isinstance(
-            marker, PendingCreateCaseActivity
-        ), "Marker must be present when Create delivery fails (AC-2)"
+        assert isinstance(marker, PendingCreateCaseActivity), (
+            "Marker must be present when Create delivery fails (AC-2)"
+        )
         assert marker.proposal_id == _PROPOSAL_URI
         assert marker.vendor_uri == _VENDOR_URI
         assert marker.case_actor_id == _CASE_ACTOR_URI
@@ -530,9 +530,9 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
         marker = dl.read(marker_id)
         assert isinstance(marker, PendingCreateCaseActivity)
-        assert (
-            marker.create_activity_payload
-        ), "create_activity_payload must not be empty (AC-1)"
+        assert marker.create_activity_payload, (
+            "create_activity_payload must not be empty (AC-1)"
+        )
 
     def test_emit_node_uses_marker_activity_id(self, make_payload):
         """AC-4: The activity id_ enqueued by node 4 matches the marker payload id_.
@@ -579,9 +579,9 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
         marker = dl.read(marker_id)
-        assert isinstance(
-            marker, PendingCreateCaseActivity
-        ), "Marker should still be present (clear was no-oped)"
+        assert isinstance(marker, PendingCreateCaseActivity), (
+            "Marker should still be present (clear was no-oped)"
+        )
 
         stored_activity = VultronCreateCaseActivity.model_validate(
             marker.create_activity_payload
@@ -688,9 +688,9 @@ class TestADR0041VendorParticipant:
         assert cases, "At least one VulnerabilityCase must exist"
         case = cases[0]
         assert isinstance(case, VulnerabilityCase)
-        assert (
-            _VENDOR_URI in case.actor_participant_index
-        ), "Vendor must be in actor_participant_index as CASE_OWNER (AC-1)"
+        assert _VENDOR_URI in case.actor_participant_index, (
+            "Vendor must be in actor_participant_index as CASE_OWNER (AC-1)"
+        )
 
     def test_vendor_participant_rm_received(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
@@ -715,9 +715,9 @@ class TestADR0041VendorParticipant:
         statuses = getattr(participant, "participant_statuses", [])
         assert statuses, "Vendor participant must have at least one status"
         rm_state = statuses[0].rm.state
-        assert (
-            rm_state == RM.RECEIVED
-        ), f"Vendor must be at RM.RECEIVED, got {rm_state}"
+        assert rm_state == RM.RECEIVED, (
+            f"Vendor must be at RM.RECEIVED, got {rm_state}"
+        )
 
     def test_vendor_has_case_owner_role(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
@@ -740,9 +740,9 @@ class TestADR0041VendorParticipant:
         participant = dl.read(participant_id)
         assert participant is not None
         roles = getattr(participant, "case_roles", [])
-        assert (
-            CVDRole.CASE_OWNER in roles
-        ), f"Vendor must have CASE_OWNER role, got {roles}"
+        assert CVDRole.CASE_OWNER in roles, (
+            f"Vendor must have CASE_OWNER role, got {roles}"
+        )
 
 
 @pytest.mark.spec("CP-09-007")
@@ -793,9 +793,9 @@ class TestOwnerRolesComeFromActorConfig:
         roles = _owner_roles(dl)
         assert CVDRole.CASE_OWNER in roles
         assert CVDRole.COORDINATOR in roles
-        assert (
-            CVDRole.VENDOR not in roles
-        ), f"a coordinator must not be labelled VENDOR, got {roles}"
+        assert CVDRole.VENDOR not in roles, (
+            f"a coordinator must not be labelled VENDOR, got {roles}"
+        )
 
     def test_no_actor_config_yields_case_owner_only(self, make_payload):
         from vultron.enums.roles import CVDRole
@@ -831,9 +831,9 @@ class TestADR0041ReporterParticipant:
         assert cases
         case = cases[0]
         assert isinstance(case, VulnerabilityCase)
-        assert (
-            _REPORTER_URI in case.actor_participant_index
-        ), "Reporter must be in actor_participant_index (AC-2)"
+        assert _REPORTER_URI in case.actor_participant_index, (
+            "Reporter must be in actor_participant_index (AC-2)"
+        )
 
     def test_reporter_participant_rm_accepted(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
@@ -858,9 +858,9 @@ class TestADR0041ReporterParticipant:
         statuses = getattr(participant, "participant_statuses", [])
         assert statuses, "Reporter participant must have at least one status"
         rm_state = statuses[0].rm.state
-        assert (
-            rm_state == RM.ACCEPTED
-        ), f"Reporter must be at RM.ACCEPTED, got {rm_state}"
+        assert rm_state == RM.ACCEPTED, (
+            f"Reporter must be at RM.ACCEPTED, got {rm_state}"
+        )
 
     def test_no_reporter_when_report_absent(self, make_payload):
         """AC-2 graceful degradation: no reporter if report not in DataLayer."""
@@ -899,9 +899,9 @@ class TestADR0041EmbargoInit:
         assert cases
         case = cases[0]
         assert isinstance(case, VulnerabilityCase)
-        assert (
-            case.active_embargo is not None
-        ), "Case must have an active embargo after initialization (AC-3)"
+        assert case.active_embargo is not None, (
+            "Case must have an active embargo after initialization (AC-3)"
+        )
 
     def test_embargo_event_stored(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
@@ -922,9 +922,9 @@ class TestADR0041EmbargoInit:
         embargo_id = case.active_embargo_id
         assert embargo_id is not None
         embargo_obj = dl.read(embargo_id)
-        assert isinstance(
-            embargo_obj, EmbargoEvent
-        ), "EmbargoEvent must be stored in DataLayer (AC-3)"
+        assert isinstance(embargo_obj, EmbargoEvent), (
+            "EmbargoEvent must be stored in DataLayer (AC-3)"
+        )
 
     @pytest.mark.spec("EP-04-005")
     def test_configured_protocol_default_sets_the_embargo_end(
@@ -1164,9 +1164,9 @@ class TestCM14005ReporterSignatory:
             == "add_participant_status_to_participant"
             and getattr(e, "case_id", None) == case.id_
         ]
-        assert (
-            reporter_status_entries
-        ), "add_participant_status_to_participant entries must be present"
+        assert reporter_status_entries, (
+            "add_participant_status_to_participant entries must be present"
+        )
 
         # The snapshot structure is:
         # { "type": "Add", "actor": CaseActor, "object": {ParticipantStatus...},
@@ -1224,9 +1224,9 @@ class TestCM14005ReporterSignatory:
         # embargo_adherence lives on ParticipantStatus, not on CaseParticipant.
         # The latest status is exposed via participant.participant_status.
         latest_status = participant.participant_status
-        assert (
-            latest_status is not None
-        ), "Reporter must have at least one ParticipantStatus"
+        assert latest_status is not None, (
+            "Reporter must have at least one ParticipantStatus"
+        )
         assert latest_status.embargo_adherence is True, (
             "reporter ParticipantStatus.embargo_adherence must be True after"
             f" initialization (CM-14-005 AC-5),"
@@ -1275,9 +1275,9 @@ class TestADR0041LedgerEntries:
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
         event_types = {getattr(e, "event_type", None) for e in entries}
-        assert (
-            "create_case" in event_types
-        ), "create_case ledger entry must be committed natively (AC-4)"
+        assert "create_case" in event_types, (
+            "create_case ledger entry must be committed natively (AC-4)"
+        )
 
         # All create_case entries must have actor = CaseActor
         create_entries = [
@@ -1289,9 +1289,9 @@ class TestADR0041LedgerEntries:
         assert create_entries, "create_case entry must reference the case_id"
         for entry in create_entries:
             snapshot = getattr(entry, "payload_snapshot", {})
-            assert (
-                snapshot.get("actor") == _CASE_ACTOR_URI
-            ), f"create_case actor must be CaseActor, got {snapshot.get('actor')}"
+            assert snapshot.get("actor") == _CASE_ACTOR_URI, (
+                f"create_case actor must be CaseActor, got {snapshot.get('actor')}"
+            )
 
     def test_add_report_to_case_entry_present(self, make_payload):
         """add_report_to_case ledger entry must be committed with actor=CaseActor (AC-4)."""
@@ -1313,14 +1313,14 @@ class TestADR0041LedgerEntries:
             if getattr(e, "event_type", None) == "add_report_to_case"
             and getattr(e, "case_id", None) == case_id
         ]
-        assert (
-            report_entries
-        ), "add_report_to_case ledger entry must be committed natively (AC-4)"
+        assert report_entries, (
+            "add_report_to_case ledger entry must be committed natively (AC-4)"
+        )
         for entry in report_entries:
             snapshot = getattr(entry, "payload_snapshot", {})
-            assert (
-                snapshot.get("actor") == _CASE_ACTOR_URI
-            ), f"add_report_to_case actor must be CaseActor, got {snapshot.get('actor')}"
+            assert snapshot.get("actor") == _CASE_ACTOR_URI, (
+                f"add_report_to_case actor must be CaseActor, got {snapshot.get('actor')}"
+            )
 
     def test_add_participant_status_entries_present(self, make_payload):
         dl = SqliteDataLayer(
@@ -1332,9 +1332,9 @@ class TestADR0041LedgerEntries:
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
         event_types = [getattr(e, "event_type", None) for e in entries]
-        assert (
-            "add_participant_status_to_participant" in event_types
-        ), "add_participant_status_to_participant entries must be present (AC-4)"
+        assert "add_participant_status_to_participant" in event_types, (
+            "add_participant_status_to_participant entries must be present (AC-4)"
+        )
 
     def test_add_case_status_uses_vendor_actor(self, make_payload):
         """add_case_status_to_case must use vendor URI as actor (not CaseActor)."""
@@ -1361,9 +1361,9 @@ class TestADR0041LedgerEntries:
                 " the correct provenance (the signature IS case-authored per"
                 " CLP-12-001, so the guard would not have caught this)"
             )
-            assert (
-                actor == _VENDOR_URI
-            ), f"add_case_status_to_case actor must be vendor URI, got {actor!r}"
+            assert actor == _VENDOR_URI, (
+                f"add_case_status_to_case actor must be vendor URI, got {actor!r}"
+            )
 
 
 class TestCM18007InitLedgerEntries:
@@ -1490,14 +1490,14 @@ class TestADR0041InlineParticipantsPayload:
             f" not {type(obj_field).__name__!r}"
         )
         participants = obj_field.get("caseParticipants", [])
-        assert (
-            participants
-        ), "Inline case object must have at least one participant (AC-5)"
+        assert participants, (
+            "Inline case object must have at least one participant (AC-5)"
+        )
         # Each participant must be a dict (inline object), not a bare ID string.
         for p in participants:
-            assert isinstance(
-                p, dict
-            ), f"caseParticipants entries must be inline dicts, got {type(p).__name__!r}"
+            assert isinstance(p, dict), (
+                f"caseParticipants entries must be inline dicts, got {type(p).__name__!r}"
+            )
 
     def test_vendor_participant_inline_in_payload(self, make_payload):
         """Vendor participant must appear as inline object in Create payload."""
@@ -1588,9 +1588,9 @@ class TestADR0041Idempotency:
         _run_full_bt(make_payload, dl)
 
         cases_after = list(dl.list_objects("VulnerabilityCase"))
-        assert (
-            len(cases_after) == 1
-        ), "duplicate proposal must not create a second case"
+        assert len(cases_after) == 1, (
+            "duplicate proposal must not create a second case"
+        )
         reused = cases_after[0]
         assert isinstance(reused, VulnerabilityCase)
         assert reused.id_ == case_id
@@ -1800,9 +1800,9 @@ class TestCaseActorRMLifecycleBootstrap:
 
         # Locate the CaseActor participant
         participant_id = case.actor_participant_index.get(_CASE_ACTOR_URI)
-        assert (
-            participant_id is not None
-        ), "CaseActor must be in actor_participant_index"
+        assert participant_id is not None, (
+            "CaseActor must be in actor_participant_index"
+        )
         participant = dl.read(participant_id)
         assert isinstance(participant, CaseParticipant)
         assert CVDRole.CASE_MANAGER in participant.roles
@@ -1818,15 +1818,15 @@ class TestCaseActorRMLifecycleBootstrap:
                     statuses.append(ps)
 
         rm_states = [ps.rm.state for ps in statuses if ps.rm is not None]
-        assert (
-            RM.RECEIVED in rm_states
-        ), "Bootstrap must include RM.RECEIVED (CM-23-005, CM-23-006)"
-        assert (
-            RM.VALID in rm_states
-        ), "Bootstrap must include RM.VALID (CM-23-005, CM-23-006)"
-        assert (
-            RM.ACCEPTED in rm_states
-        ), "Bootstrap must include RM.ACCEPTED (CM-23-005, CM-23-006)"
+        assert RM.RECEIVED in rm_states, (
+            "Bootstrap must include RM.RECEIVED (CM-23-005, CM-23-006)"
+        )
+        assert RM.VALID in rm_states, (
+            "Bootstrap must include RM.VALID (CM-23-005, CM-23-006)"
+        )
+        assert RM.ACCEPTED in rm_states, (
+            "Bootstrap must include RM.ACCEPTED (CM-23-005, CM-23-006)"
+        )
 
     def test_bootstrap_statuses_produce_ledger_entries(self, make_payload):
         """Three RM transitions are represented in the canonical ledger.
@@ -2121,9 +2121,9 @@ class TestCreateCaseProposalReceivedBTCaseActorRecords:
         )
         cases_on_vendor = list(vendor_dl.list_objects("VulnerabilityCase"))
 
-        assert (
-            cases_on_injected
-        ), "VulnerabilityCase must be created on the injected DataLayer (AC-1)"
+        assert cases_on_injected, (
+            "VulnerabilityCase must be created on the injected DataLayer (AC-1)"
+        )
         assert not cases_on_vendor, (
             "VulnerabilityCase must NOT appear in the vendor's store"
             " (CM-01-001)"
@@ -2146,12 +2146,12 @@ class TestCreateCaseProposalReceivedBTCaseActorRecords:
             vendor_dl.list_objects("CaseParticipant")
         )
 
-        assert (
-            participants_on_injected
-        ), "CaseParticipant records must be created on the injected DataLayer"
-        assert (
-            not participants_on_vendor
-        ), "CaseParticipant records must NOT appear in the vendor's store"
+        assert participants_on_injected, (
+            "CaseParticipant records must be created on the injected DataLayer"
+        )
+        assert not participants_on_vendor, (
+            "CaseParticipant records must NOT appear in the vendor's store"
+        )
 
     def test_ledger_entries_not_visible_to_vendor(
         self, make_payload, vendor_dl
@@ -2172,9 +2172,9 @@ class TestCreateCaseProposalReceivedBTCaseActorRecords:
             "CaseLedgerEntry records must be created on the injected DataLayer"
             " (ADR-0041)"
         )
-        assert (
-            not entries_on_vendor
-        ), "CaseLedgerEntry records must NOT appear in the vendor's store"
+        assert not entries_on_vendor, (
+            "CaseLedgerEntry records must NOT appear in the vendor's store"
+        )
 
     def test_vendor_participant_index_lives_in_the_case_actor_store(
         self, make_payload, vendor_dl
@@ -2196,14 +2196,14 @@ class TestCreateCaseProposalReceivedBTCaseActorRecords:
         cases_on_injected = list(
             case_actor_dl.list_objects("VulnerabilityCase")
         )
-        assert (
-            cases_on_injected
-        ), "VulnerabilityCase must exist on case_actor_dl"
+        assert cases_on_injected, (
+            "VulnerabilityCase must exist on case_actor_dl"
+        )
         case = cases_on_injected[0]
         assert isinstance(case, VulnerabilityCase)
-        assert (
-            _VENDOR_URI in case.actor_participant_index
-        ), "Vendor must be in actor_participant_index on the injected DL"
+        assert _VENDOR_URI in case.actor_participant_index, (
+            "Vendor must be in actor_participant_index on the injected DL"
+        )
 
         assert not list(vendor_dl.list_objects("VulnerabilityCase")), (
             "VulnerabilityCase must not appear in the vendor's store — the case"
@@ -2279,9 +2279,9 @@ def test_store_proposal_report_keeps_the_reporter(caplog):
     assert result.status == py_trees.common.Status.SUCCESS
 
     stored = dl.read(_REPORT_URI_2482)
-    assert isinstance(
-        stored, VulnerabilityReport
-    ), f"the report must be stored; got {type(stored).__name__}"
+    assert isinstance(stored, VulnerabilityReport), (
+        f"the report must be stored; got {type(stored).__name__}"
+    )
     assert stored.attributed_to == _REPORTER_URI_2482, (
         "the reporter must survive into the store — it is who becomes a"
         f" participant; got {stored.attributed_to!r}"
@@ -2394,9 +2394,9 @@ class TestCaseActorIsOneParticipantDistinctFromTheOwner:
 
         case = self._bootstrap_case(make_payload)
         owner_participant_id = case.actor_participant_index.get(_VENDOR_URI)
-        assert (
-            owner_participant_id is not None
-        ), "the proposer is a participant"
+        assert owner_participant_id is not None, (
+            "the proposer is a participant"
+        )
         owner = self._dl.read(owner_participant_id)
         assert isinstance(owner, CaseParticipant)
         assert CVDRole.CASE_OWNER in owner.roles
@@ -2448,8 +2448,7 @@ class TestEP04SenderProposalAtCaseCreation:
         terms = EmbargoEvent(
             id_=f"{_REPORT_URI}/embargo_proposals/1",
             context=terms_context,
-            end_time=datetime.now(tz=UTC)
-            + timedelta(days=sender_days),
+            end_time=datetime.now(tz=UTC) + timedelta(days=sender_days),
         )
         if terms_context == _REPORT_URI:
             offer = rm_submit_report_activity(
@@ -2722,8 +2721,7 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
     # Not vacuous: without an injected sync port the fan-out is skipped and
     # any order assertion would pass trivially.
     assert len(announces) >= 2, (
-        "expected the native ledger fan-out to reach the outbox, got"
-        f" {labels}"
+        f"expected the native ledger fan-out to reach the outbox, got {labels}"
     )
     assert labels[:2] == [
         "Accept(CaseProposal)",
@@ -2775,14 +2773,16 @@ def test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued(
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-    assert (
-        result.disposition is not HandlerDisposition.APPLIED
-    ), "a failed genesis commit must not read as a successful case creation"
+    assert result.disposition is not HandlerDisposition.APPLIED, (
+        "a failed genesis commit must not read as a successful case creation"
+    )
     assert "genesis create_case ledger commit failed" in (result.reason or "")
     assert _outbox_labels(dl) == [
         "Accept(CaseProposal)",
         "Create(VulnerabilityCase)",
-    ], "Accept and Create are queued before the commit runs, and nothing follows"
-    assert (
-        list(dl.list_objects("PendingCreateCaseActivity")) == []
-    ), "the retry marker is cleared before the commit runs"
+    ], (
+        "Accept and Create are queued before the commit runs, and nothing follows"
+    )
+    assert list(dl.list_objects("PendingCreateCaseActivity")) == [], (
+        "the retry marker is cleared before the commit runs"
+    )

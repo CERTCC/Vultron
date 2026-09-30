@@ -678,9 +678,9 @@ class TestRegistrySuppliesTheTriggeringActivity:
         event = extract_event(activity)
 
         assert event.semantic_type == expected_semantics
-        assert (
-            event.activity is not None
-        ), f"{factory_name}: registry did not carry the triggering activity"
+        assert event.activity is not None, (
+            f"{factory_name}: registry did not carry the triggering activity"
+        )
         # The snapshot built from it needs both of these; the event itself has
         # neither, which is why the missing activity aborted the commit.
         assert event.activity.type_

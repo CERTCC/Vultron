@@ -406,9 +406,9 @@ class TestEmbargoProposalLifecycle:
         case = dl.read(case.id_)
         assert case is not None
         case = cast(as_VulnerabilityCase, case)
-        assert (
-            case.active_embargo is not None
-        ), "Expected active_embargo to be set after embargo acceptance"
+        assert case.active_embargo is not None, (
+            "Expected active_embargo to be set after embargo acceptance"
+        )
 
     def test_reject_invite_to_embargo_on_case_ledgers_rejection(
         self, make_payload

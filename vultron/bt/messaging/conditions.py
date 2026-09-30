@@ -16,7 +16,6 @@ Provides messaging conditions for use in Vultron BTs.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import logging
 
 from vultron.bt.base.bt_node import BtNode, ConditionCheck

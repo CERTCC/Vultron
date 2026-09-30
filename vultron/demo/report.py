@@ -1005,7 +1005,7 @@ def _render_html_case_table(
             _html_cell(event.short_hash, title=event.entry_hash or None),
         ]
         body_rows.append(
-            f"<tr>{''.join(cells)}" f"{_html_presence_row(event, actors)}</tr>"
+            f"<tr>{''.join(cells)}{_html_presence_row(event, actors)}</tr>"
         )
 
     return (

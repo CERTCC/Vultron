@@ -435,7 +435,16 @@ def test_partition_holds_on_the_committed_tree() -> None:
 
 def test_partition_reports_a_scenario_in_both_registers() -> None:
     """A planned scenario that is also registered is reported."""
-    both = (*discover_scenarios(), ScenarioSpec(name="fcvd", label="FCVD", participants="Finder + Coordinator + Vendor + Deployer", feature="Fixture: pretend fcvd is built", in_pr_set=False))
+    both = (
+        *discover_scenarios(),
+        ScenarioSpec(
+            name="fcvd",
+            label="FCVD",
+            participants="Finder + Coordinator + Vendor + Deployer",
+            feature="Fixture: pretend fcvd is built",
+            in_pr_set=False,
+        ),
+    )
     problems = partition_problems(specs=both)
     assert any("in both registers" in problem for problem in problems)
 
@@ -1501,6 +1510,6 @@ def test_scenario_set_statement_check_reports_a_stale_enumeration(
         encoding="utf-8",
     )
     problems = scenario_set_statement_problems(prose_root)
-    assert any(
-        "DEMOCI-06-002 names scenarios" in p for p in problems
-    ), problems
+    assert any("DEMOCI-06-002 names scenarios" in p for p in problems), (
+        problems
+    )

@@ -260,7 +260,9 @@ class TestAcceptRejectFromCoreState:
         actor = as_Service(id_=actor_id, name="AcceptActor")
         dl.create(actor)
 
-        case, _embargo, proposal = self._make_proposed_case(dl, actor_id, actor)
+        case, _embargo, proposal = self._make_proposed_case(
+            dl, actor_id, actor
+        )
 
         request = AcceptEmbargoTriggerRequest(
             actor_id=actor_id,
@@ -592,9 +594,9 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         assert result.disposition is HandlerDisposition.APPLIED
 
         # dl.read must NOT have been called with the proposal/invite ID
-        assert (
-            proposal.id_ not in dl_read_calls
-        ), f"dl.read({proposal.id_!r}) was called — invite wire re-read must be eliminated"
+        assert proposal.id_ not in dl_read_calls, (
+            f"dl.read({proposal.id_!r}) was called — invite wire re-read must be eliminated"
+        )
 
         assert event.case_id == case.id_
         assert event.embargo_id == embargo.id_

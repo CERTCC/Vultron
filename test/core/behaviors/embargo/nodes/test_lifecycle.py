@@ -677,9 +677,9 @@ class TestSetEmbargoActiveNode:
             bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        assert (
-            mock_activate.called
-        ), "EmbargoLifecycle.activate_embargo() was never called"
+        assert mock_activate.called, (
+            "EmbargoLifecycle.activate_embargo() was never called"
+        )
 
     def test_idempotent_guard_requires_active_state_not_just_matching_id(self):
         """Idempotency guard fires only when EM is ACTIVE, not REVISE (issue #2859).
@@ -838,6 +838,6 @@ class TestSetEmbargoActiveNode:
             bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        assert (
-            mock_activate.called
-        ), "EmbargoLifecycle.activate_embargo() was never called"
+        assert mock_activate.called, (
+            "EmbargoLifecycle.activate_embargo() was never called"
+        )

@@ -16,7 +16,6 @@ This module provides state transition definitions for the Embargo Management beh
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 from collections.abc import Sequence
 
 from vultron.bt.common import EnumStateTransition, show_graph, state_change

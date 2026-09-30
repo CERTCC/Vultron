@@ -106,9 +106,10 @@ class TestCommitCaseLedgerEntryNodeFailFast:
     def test_no_case_id_on_blackboard_returns_failure(self, bridge):
         """No case_id in blackboard → FAILURE, inner tree never built."""
         node = CommitCaseLedgerEntryNode()
-        with patch(_FACTORY_PATH) as mock_factory, patch(
-            _INNER_BRIDGE_PATH
-        ) as mock_bridge:
+        with (
+            patch(_FACTORY_PATH) as mock_factory,
+            patch(_INNER_BRIDGE_PATH) as mock_bridge,
+        ):
             result = bridge.execute_with_setup(
                 tree=node, actor_id=ACTOR_ID, activity=None
             )

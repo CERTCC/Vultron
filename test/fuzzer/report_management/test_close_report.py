@@ -21,7 +21,6 @@ Tests cover:
   - Empirical distribution check for OtherCloseCriteriaMet
 """
 
-
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -68,9 +67,9 @@ class TestAllNodesAreWeightedBehavior:
     def test_is_weighted_behavior_subclass(
         self, cls: type[WeightedBehavior], _rate: float
     ) -> None:
-        assert issubclass(
-            cls, WeightedBehavior
-        ), f"{cls.__name__} must be a WeightedBehavior subclass"
+        assert issubclass(cls, WeightedBehavior), (
+            f"{cls.__name__} must be a WeightedBehavior subclass"
+        )
 
     @pytest.mark.parametrize("cls,_rate", _ALL_NODES)
     def test_is_py_trees_behaviour(
@@ -85,9 +84,9 @@ class TestAllNodesAreWeightedBehavior:
         assert cls().name == cls.__name__
 
     def test_all_2_nodes_present(self) -> None:
-        assert (
-            len(_ALL_NODES) == 2
-        ), f"Expected 2 close-report fuzzer nodes, found {len(_ALL_NODES)}"
+        assert len(_ALL_NODES) == 2, (
+            f"Expected 2 close-report fuzzer nodes, found {len(_ALL_NODES)}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -120,9 +119,9 @@ class TestDocstrings:
         self, cls: type[WeightedBehavior], _rate: float, section: str
     ) -> None:
         doc = (cls.__doc__ or "").lower()
-        assert (
-            section in doc
-        ), f"{cls.__name__} docstring missing '{section}' section"
+        assert section in doc, (
+            f"{cls.__name__} docstring missing '{section}' section"
+        )
 
 
 # ---------------------------------------------------------------------------

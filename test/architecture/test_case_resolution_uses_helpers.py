@@ -314,7 +314,7 @@ def test_detector_flags_method_read_case() -> None:
 def test_detector_flags_module_level_read_case() -> None:
     """A module-level resolver's read_case is reported under its function name."""
     tree = _corpus.parse_inline(
-        "def _resolve(dl, case_id):\n" "    return dl.read_case(case_id)\n"
+        "def _resolve(dl, case_id):\n    return dl.read_case(case_id)\n"
     )
     assert _read_case_scopes(tree) == {"_resolve"}
 

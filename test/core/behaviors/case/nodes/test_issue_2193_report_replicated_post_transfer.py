@@ -225,9 +225,9 @@ class TestReportReplicatedToPostTransferParticipant:
         from vultron.core.states.rm import RM
 
         link_id = VultronReportCaseLink.build_id(REPORT_ID)
-        assert (
-            dl.read(link_id) is None
-        ), "pre-condition: no link before ledger replay"
+        assert dl.read(link_id) is None, (
+            "pre-condition: no link before ledger replay"
+        )
 
         entry = _make_add_report_ledger_entry()
         event = _make_event(entry, actor_id=new_owner_case_actor.id_)
@@ -251,9 +251,9 @@ class TestReportReplicatedToPostTransferParticipant:
         )
         assert isinstance(link, VultronReportCaseLink)
         assert link.report_id == REPORT_ID
-        assert (
-            link.rm_state == RM.RECEIVED
-        ), "Seeded link must start at RM.RECEIVED; ValidateBT advances it to RM.VALID"
+        assert link.rm_state == RM.RECEIVED, (
+            "Seeded link must start at RM.RECEIVED; ValidateBT advances it to RM.VALID"
+        )
 
     def test_idempotent_on_repeated_ledger_replay(
         self, bridge, dl, new_owner_case_actor

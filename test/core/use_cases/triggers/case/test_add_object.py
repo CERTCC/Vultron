@@ -110,9 +110,9 @@ class TestSvcAddObjectToCaseUseCase:
         ).execute()
 
         # Verify activity was queued in outbox
-        assert _activity_in_outbox(
-            self.actor, self.dl
-        ), "Activity should be queued in actor's outbox"
+        assert _activity_in_outbox(self.actor, self.dl), (
+            "Activity should be queued in actor's outbox"
+        )
 
         # Verify result contains activity
         assert "activity" in result, "Result should contain 'activity' key"
@@ -145,21 +145,21 @@ class TestSvcAddObjectToCaseUseCase:
         ).execute()
         after = set(self.dl.outbox_list())
         new_ids = after - before
-        assert (
-            new_ids
-        ), "AddObjectToCase must queue at least one outbox activity"
+        assert new_ids, (
+            "AddObjectToCase must queue at least one outbox activity"
+        )
         activity_id = next(iter(new_ids))
         activity = self.dl.read(activity_id)
         assert activity is not None
         # Document current ``to`` value as regression anchor (PCR-08-001).
         _absent = object()
         to = getattr(activity, "to", _absent)
-        assert (
-            to is not _absent
-        ), "PCR-08-001: ``to`` attribute must exist on the activity"
-        assert to is None or isinstance(
-            to, (str, list)
-        ), f"PCR-08-001: ``to`` field must be None or a list/str; got {to!r}"
+        assert to is not _absent, (
+            "PCR-08-001: ``to`` attribute must exist on the activity"
+        )
+        assert to is None or isinstance(to, (str, list)), (
+            f"PCR-08-001: ``to`` field must be None or a list/str; got {to!r}"
+        )
 
     def test_add_object_to_case_raises_when_actor_not_found(self):
         """SvcAddObjectToCaseUseCase raises VultronNotFoundError when actor
@@ -246,9 +246,9 @@ class TestSvcAddObjectToCaseUseCase:
 
         # Verify activity was queued in outbox
         outbox_activity_id = _get_outbox_activity_id(self.actor, self.dl)
-        assert (
-            outbox_activity_id == activity_id
-        ), "Activity ID in outbox should match returned activity ID"
+        assert outbox_activity_id == activity_id, (
+            "Activity ID in outbox should match returned activity ID"
+        )
 
     def test_add_multiple_objects_to_case(self):
         """SvcAddObjectToCaseUseCase can add multiple objects (called multiple times)."""

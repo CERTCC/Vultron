@@ -68,8 +68,7 @@ class PersistCase(DataLayerActionWithPorts):
         try:
             self.datalayer.save(self.case_obj)
             self.logger.info(
-                f"{self.name}: Persisted VulnerabilityCase"
-                f" {self.case_obj.id_}"
+                f"{self.name}: Persisted VulnerabilityCase {self.case_obj.id_}"
             )
             self._set_output("case_id", self.case_obj.id_)
             return Status.SUCCESS

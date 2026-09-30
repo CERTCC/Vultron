@@ -281,9 +281,9 @@ class TestCaseTriggerToField:
         recipients = _to_field(act_obj)
 
         assert recipients is not None, "to field must not be None"
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -306,9 +306,9 @@ class TestCaseTriggerToField:
         recipients = _to_field(act_obj)
 
         assert recipients is not None, "to field must not be None"
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -330,9 +330,9 @@ class TestCaseTriggerToField:
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -402,9 +402,9 @@ class TestEmbargoTriggerToField:
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -440,9 +440,9 @@ class TestEmbargoTriggerToField:
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -472,9 +472,9 @@ class TestEmbargoTriggerToField:
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -509,9 +509,9 @@ class TestEmbargoTriggerToField:
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -542,9 +542,9 @@ class TestEmbargoTriggerToField:
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients

@@ -78,8 +78,7 @@ def create(
         existing = session.get(VultronObjectRecord, rec.id_)
         if existing is not None:
             raise VultronAlreadyExistsError(
-                f"record with id_={rec.id_!r} already exists "
-                f"in {rec.type_!r}"
+                f"record with id_={rec.id_!r} already exists in {rec.type_!r}"
             )
         row = VultronObjectRecord(
             id_=rec.id_,

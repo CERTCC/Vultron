@@ -48,9 +48,9 @@ def test_core_object_has_required_as2_fields():
         "updated",
         "context_",
     ):
-        assert (
-            required in fields
-        ), f"CoreObject missing required field {required!r}"
+        assert required in fields, (
+            f"CoreObject missing required field {required!r}"
+        )
 
 
 def test_core_object_default_instance():
@@ -246,7 +246,8 @@ def test_registry_robust_under_future_annotations(
     module_dir = tmp_path / "future_annot_pkg"
     module_dir.mkdir()
     (module_dir / "__init__.py").write_text("")
-    (module_dir / "fixtures.py").write_text(textwrap.dedent("""
+    (module_dir / "fixtures.py").write_text(
+        textwrap.dedent("""
             from __future__ import annotations
             from typing import Literal
             from vultron.core.models import CoreObject
@@ -256,7 +257,8 @@ def test_registry_robust_under_future_annotations(
 
             class FutureAnnotConcrete(CoreObject):
                 type_: Literal["FutureAnnotConcrete"] = "FutureAnnotConcrete"
-            """))
+            """)
+    )
     sys.path.insert(0, str(tmp_path))
     try:
         mod = importlib.import_module("future_annot_pkg.fixtures")

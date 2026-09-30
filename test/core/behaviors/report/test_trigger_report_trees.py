@@ -545,6 +545,6 @@ class TestCloseCaseTriggerTree:
         )
         result = scenario.run(tree, case_id=case_with_owner.id_)
         scenario.assert_success(result)
-        assert invoked == [
-            "PreCloseAction"
-        ], "Custom pre_close_action_factory was not called"
+        assert invoked == ["PreCloseAction"], (
+            "Custom pre_close_action_factory was not called"
+        )

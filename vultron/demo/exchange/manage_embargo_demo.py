@@ -261,8 +261,7 @@ def demo_reject_then_repropose(
             context=case.id_,
             to=[coordinator.id_],
             summary=(
-                f"Rejecting 45-day embargo for {case.name}; "
-                f"need more time."
+                f"Rejecting 45-day embargo for {case.name}; need more time."
             ),
         )
         logger.info(f"Sending embargo rejection: {logfmt(reject)}")

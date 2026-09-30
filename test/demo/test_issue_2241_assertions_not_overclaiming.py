@@ -403,7 +403,7 @@ def test_run_invite_path_rm_triage_polls_invited_client_for_rm_state(
     )
     valid_calls = [s for s in invited_client_ids if RM.VALID in s]
     accepted_calls = [s for s in invited_client_ids if RM.ACCEPTED in s]
-    assert (
-        valid_calls
-    ), "invited_client must be polled for RM.VALID (or {VALID,ACCEPTED})"
+    assert valid_calls, (
+        "invited_client must be polled for RM.VALID (or {VALID,ACCEPTED})"
+    )
     assert accepted_calls, "invited_client must be polled for RM.ACCEPTED"

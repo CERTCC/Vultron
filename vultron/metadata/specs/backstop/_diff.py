@@ -91,7 +91,19 @@ def collect_git_changes(
     # ``diff.mnemonicPrefix`` or ``diff.noprefix`` config renames them and
     # every file parses as unchanged — a silent exit 0 on the blocking gate.
     diff = git(
-        ["diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/", merge_base, "--", "vultron", "test"]
+        [
+            "diff",
+            "-U0",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-renames",
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
+            merge_base,
+            "--",
+            "vultron",
+            "test",
+        ]
     )
     changed, deleted = parse_diff_hunks(diff)
     changes = [

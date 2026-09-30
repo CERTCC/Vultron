@@ -400,9 +400,9 @@ def test_unknown_case_reject_leaves_replication_state_unchanged(
         peer_id=PEER_ID,
         last_acknowledged_hash="",
     ).id_
-    assert (
-        datalayer.read(state_id) is None
-    ), "UpdateReplicationStateNode must not write state before FindCaseActorNode validates the case"
+    assert datalayer.read(state_id) is None, (
+        "UpdateReplicationStateNode must not write state before FindCaseActorNode validates the case"
+    )
 
 
 @pytest.mark.spec("SYNC-15-011")

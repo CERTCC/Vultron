@@ -209,9 +209,9 @@ def test_detector_catches_self_dl_save_in_execute(tmp_path: Path) -> None:
         "        self._dl.save(self._obj)\n",
         encoding="utf-8",
     )
-    assert _has_dl_mutation_in_execute(
-        violation_file
-    ), "Detector did not flag self._dl.save() in execute()"
+    assert _has_dl_mutation_in_execute(violation_file), (
+        "Detector did not flag self._dl.save() in execute()"
+    )
 
 
 def test_detector_catches_all_mutation_methods(tmp_path: Path) -> None:
@@ -224,9 +224,9 @@ def test_detector_catches_all_mutation_methods(tmp_path: Path) -> None:
             f"        self._dl.{method}(self._obj)\n",
             encoding="utf-8",
         )
-        assert _has_dl_mutation_in_execute(
-            f
-        ), f"Detector did not flag self._dl.{method}() in execute()"
+        assert _has_dl_mutation_in_execute(f), (
+            f"Detector did not flag self._dl.{method}() in execute()"
+        )
 
 
 def test_detector_does_not_flag_reads(tmp_path: Path) -> None:
@@ -239,9 +239,9 @@ def test_detector_does_not_flag_reads(tmp_path: Path) -> None:
         "        items = self._dl.list()\n",
         encoding="utf-8",
     )
-    assert not _has_dl_mutation_in_execute(
-        clean_file
-    ), "Detector falsely flagged read-only DataLayer calls"
+    assert not _has_dl_mutation_in_execute(clean_file), (
+        "Detector falsely flagged read-only DataLayer calls"
+    )
 
 
 def test_direct_rule_does_not_flag_mutations_in_uncalled_helper_methods(
@@ -261,9 +261,9 @@ def test_direct_rule_does_not_flag_mutations_in_uncalled_helper_methods(
         "        self._dl.save(self._obj)\n",
         encoding="utf-8",
     )
-    assert not _has_dl_mutation_in_execute(
-        clean_file
-    ), "Direct rule flagged a mutation inside a non-execute helper method"
+    assert not _has_dl_mutation_in_execute(clean_file), (
+        "Direct rule flagged a mutation inside a non-execute helper method"
+    )
 
 
 def test_detector_does_not_flag_mutations_in_inner_function(
@@ -283,9 +283,9 @@ def test_detector_does_not_flag_mutations_in_inner_function(
         "        _inner()\n",
         encoding="utf-8",
     )
-    assert not _has_dl_mutation_in_execute(
-        clean_file
-    ), "Detector produced false positive for mutation inside nested function"
+    assert not _has_dl_mutation_in_execute(clean_file), (
+        "Detector produced false positive for mutation inside nested function"
+    )
 
 
 def test_detector_does_not_flag_mutations_in_lambda(tmp_path: Path) -> None:
@@ -302,9 +302,9 @@ def test_detector_does_not_flag_mutations_in_lambda(tmp_path: Path) -> None:
         "        fn()\n",
         encoding="utf-8",
     )
-    assert not _has_dl_mutation_in_execute(
-        clean_file
-    ), "Detector produced false positive for mutation inside lambda"
+    assert not _has_dl_mutation_in_execute(clean_file), (
+        "Detector produced false positive for mutation inside lambda"
+    )
 
 
 def test_detector_catches_local_dl_variable(tmp_path: Path) -> None:
@@ -317,6 +317,6 @@ def test_detector_catches_local_dl_variable(tmp_path: Path) -> None:
         "        dl.save(self._obj)\n",
         encoding="utf-8",
     )
-    assert _has_dl_mutation_in_execute(
-        violation_file
-    ), "Detector did not flag dl.save() via local dl variable"
+    assert _has_dl_mutation_in_execute(violation_file), (
+        "Detector did not flag dl.save() via local dl variable"
+    )

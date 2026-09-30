@@ -270,14 +270,11 @@ def test_em_propose_embargo_naive_published_datetime_is_read_as_utc(
     is the EP-07-002 refusal, not a ``TypeError`` from comparing naive and
     aware values.
     """
-    published = (datetime.now(tz=UTC) + timedelta(days=1)).replace(
-        tzinfo=None
-    )
+    published = (datetime.now(tz=UTC) + timedelta(days=1)).replace(tzinfo=None)
     with pytest.raises(VultronActivityConstructionError, match="minimum"):
         em_propose_embargo_activity(
             embargo=sample_embargo,
-            rsvp_deadline=published.replace(tzinfo=UTC)
-            + timedelta(hours=71),
+            rsvp_deadline=published.replace(tzinfo=UTC) + timedelta(hours=71),
             published=published,
             actor=_ACTOR_URI,
         )

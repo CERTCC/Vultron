@@ -985,12 +985,12 @@ class TestAddCaseStatusToCaseReceivedUseCase:
             r.message for r in caplog.records if r.levelno == logging.WARNING
         ]
 
-        assert any(
-            "idempotent" in m.lower() for m in info_msgs
-        ), "Expected INFO log for idempotent duplicate"
-        assert not any(
-            "idempotent" in m.lower() for m in warn_msgs
-        ), "Should not WARNING for idempotent duplicate"
+        assert any("idempotent" in m.lower() for m in info_msgs), (
+            "Expected INFO log for idempotent duplicate"
+        )
+        assert not any("idempotent" in m.lower() for m in warn_msgs), (
+            "Should not WARNING for idempotent duplicate"
+        )
 
     def test_use_case_invalid_em_logs_warning(self, make_payload, caplog):
         """Invalid EM transition → no append; use case ledgers at WARNING."""
@@ -1512,9 +1512,9 @@ class TestRegressionCSPTeardownPath:
             f"New pipeline EM={new_em_state}, old path EM={old_em_state};"
             " both must be EXITED for CS.P teardown (AC #8, issue #1844)"
         )
-        assert (
-            new_embargo is None and old_embargo is None
-        ), "Both paths must clear active_embargo after CS.P teardown"
+        assert new_embargo is None and old_embargo is None, (
+            "Both paths must clear active_embargo after CS.P teardown"
+        )
 
 
 # ---------------------------------------------------------------------------

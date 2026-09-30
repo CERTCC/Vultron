@@ -504,9 +504,9 @@ class TestBTBridgeIntegration:
             call_out=bundle,
         )
         scenario.run(tree, actor_id=_OWNER_ACTOR)
-        assert not called[
-            "flag"
-        ], "CaseOwnerApprovesEmbargoResponse must NOT be called for CASE_OWNER"
+        assert not called["flag"], (
+            "CaseOwnerApprovesEmbargoResponse must NOT be called for CASE_OWNER"
+        )
 
     # ------------------------------------------------------------------
     # Non-owner routes through call-out seam (EMB-15-002)
@@ -543,9 +543,9 @@ class TestBTBridgeIntegration:
             call_out=bundle,
         )
         scenario.run(tree, actor_id=_NON_OWNER_ACTOR)
-        assert called[
-            "flag"
-        ], "CaseOwnerApprovesEmbargoResponse must be called for non-owner"
+        assert called["flag"], (
+            "CaseOwnerApprovesEmbargoResponse must be called for non-owner"
+        )
 
     @pytest.mark.spec("EMB-15-004")
     def test_unknown_actor_falls_through_to_reject(self):
@@ -578,12 +578,12 @@ class TestBTBridgeIntegration:
         )
         result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
         scenario.assert_success(result)
-        assert deny_factory_called[
-            "flag"
-        ], "CaseOwnerApproves call-out seam must be reached for unknown actor"
-        assert reject_log[
-            "ticked"
-        ], "reject_bt must be ticked for unknown actor"
+        assert deny_factory_called["flag"], (
+            "CaseOwnerApproves call-out seam must be reached for unknown actor"
+        )
+        assert reject_log["ticked"], (
+            "reject_bt must be ticked for unknown actor"
+        )
 
     # ------------------------------------------------------------------
     # Flow A — accept/counter/reject delegation (EMB-15-001 / EMB-15-003 / EMB-15-004)
@@ -609,15 +609,15 @@ class TestBTBridgeIntegration:
         )
         result = scenario.run(tree, actor_id=_OWNER_ACTOR)
         scenario.assert_success(result)
-        assert accept_log[
-            "ticked"
-        ], "accept_bt must be ticked in Flow A default-accept"
-        assert not counter_log[
-            "ticked"
-        ], "counter_bt must NOT be ticked on default-accept"
-        assert not reject_log[
-            "ticked"
-        ], "reject_bt must NOT be ticked on default-accept"
+        assert accept_log["ticked"], (
+            "accept_bt must be ticked in Flow A default-accept"
+        )
+        assert not counter_log["ticked"], (
+            "counter_bt must NOT be ticked on default-accept"
+        )
+        assert not reject_log["ticked"], (
+            "reject_bt must NOT be ticked on default-accept"
+        )
 
     @pytest.mark.spec("EMB-15-003")
     def test_flow_a_counter_delegation_when_willing(self):
@@ -655,12 +655,12 @@ class TestBTBridgeIntegration:
         )
         result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
         scenario.assert_success(result)
-        assert counter_log[
-            "ticked"
-        ], "counter_bt must be ticked when WillingToCounter succeeds"
-        assert not reject_log[
-            "ticked"
-        ], "reject_bt must NOT be ticked when counter arm taken"
+        assert counter_log["ticked"], (
+            "counter_bt must be ticked when WillingToCounter succeeds"
+        )
+        assert not reject_log["ticked"], (
+            "reject_bt must NOT be ticked when counter arm taken"
+        )
 
     @pytest.mark.spec("EMB-15-004")
     def test_flow_a_reject_delegation_when_all_arms_fail(self):
@@ -695,9 +695,9 @@ class TestBTBridgeIntegration:
         )
         result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
         scenario.assert_success(result)
-        assert reject_log[
-            "ticked"
-        ], "reject_bt must be ticked when all other arms fail"
+        assert reject_log["ticked"], (
+            "reject_bt must be ticked when all other arms fail"
+        )
 
     # ------------------------------------------------------------------
     # Flow B — accept/reject delegation (no counter arm)
@@ -722,12 +722,12 @@ class TestBTBridgeIntegration:
         )
         result = scenario.run(tree, actor_id=_OWNER_ACTOR)
         scenario.assert_success(result)
-        assert accept_log[
-            "ticked"
-        ], "accept_bt must be ticked in Flow B default-accept"
-        assert not reject_log[
-            "ticked"
-        ], "reject_bt must NOT be ticked on Flow B accept"
+        assert accept_log["ticked"], (
+            "accept_bt must be ticked in Flow B default-accept"
+        )
+        assert not reject_log["ticked"], (
+            "reject_bt must NOT be ticked on Flow B accept"
+        )
 
     @pytest.mark.spec("EMB-15-004")
     def test_flow_b_reject_delegation(self):
@@ -760,6 +760,6 @@ class TestBTBridgeIntegration:
         )
         result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
         scenario.assert_success(result)
-        assert reject_log[
-            "ticked"
-        ], "reject_bt must be ticked in Flow B when accept fails"
+        assert reject_log["ticked"], (
+            "reject_bt must be ticked in Flow B when accept fails"
+        )

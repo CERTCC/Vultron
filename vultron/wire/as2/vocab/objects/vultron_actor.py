@@ -62,7 +62,11 @@ as_VultronGroupRef: TypeAlias = ActivityStreamRef[VultronGroup]
 
 
 ActorUnion: TypeAlias = Annotated[
-    VultronPerson | VultronOrganization | VultronService | VultronApplication | VultronGroup,
+    VultronPerson
+    | VultronOrganization
+    | VultronService
+    | VultronApplication
+    | VultronGroup,
     Field(
         description="A concrete Vultron actor (Person, Organization, Service, Application, or Group)."
     ),

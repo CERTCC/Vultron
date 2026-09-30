@@ -426,9 +426,9 @@ class TestSvcValidateReportUseCase:
 
         p2 = self.dl.read(vendor_participant_id)
         assert isinstance(p2, CaseParticipant)
-        assert len(p2.participant_statuses) == len(
-            statuses_after_first
-        ), "Second validate re-appended a duplicate RM status entry"
+        assert len(p2.participant_statuses) == len(statuses_after_first), (
+            "Second validate re-appended a duplicate RM status entry"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -615,9 +615,9 @@ class TestSvcSubmitReportUseCase:
         report_id = report_obj.get("id")
         assert report_id is not None, "offer['object']['id'] is missing"
         stored = self.dl.read(report_id)
-        assert (
-            stored is not None
-        ), "as_VulnerabilityReport not found in DataLayer"
+        assert stored is not None, (
+            "as_VulnerabilityReport not found in DataLayer"
+        )
         assert isinstance(stored, CoreVulnerabilityReport)
         assert stored.name == "CVE-TEST"
 

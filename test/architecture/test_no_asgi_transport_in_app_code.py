@@ -42,7 +42,9 @@ def _contains_asgi_transport(tree: ast.AST) -> list[int]:
     """Return line numbers in *tree* that reference ASGITransport."""
     violations: list[int] = []
     for node in ast.walk(tree):
-        if (isinstance(node, ast.Attribute) and node.attr == "ASGITransport") or (isinstance(node, ast.Name) and node.id == "ASGITransport"):
+        if (
+            isinstance(node, ast.Attribute) and node.attr == "ASGITransport"
+        ) or (isinstance(node, ast.Name) and node.id == "ASGITransport"):
             violations.append(node.lineno)
         elif isinstance(node, ast.ImportFrom) and isinstance(node.names, list):
             for alias in node.names:

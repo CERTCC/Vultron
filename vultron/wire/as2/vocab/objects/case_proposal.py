@@ -160,16 +160,14 @@ class as_CaseProposal(as_VultronObject):
     # are its bare-reference twin; when both forms are present they MUST agree.
     # Typed on the base ``as_Offer``: the parser expands an inline Offer to the
     # class the wire registry holds for ``type: Offer``, which is the base.
-    in_reply_to: as_Offer | None = (
-        Field(  # pyright: ignore[reportIncompatibleVariableOverride]
-            default=None,
-            validation_alias="inReplyTo",
-            serialization_alias="inReplyTo",
-            description=(
-                "The Offer(VulnerabilityReport) this proposal answers, inline"
-                " (CP-01-008)."
-            ),
-        )
+    in_reply_to: as_Offer | None = Field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        default=None,
+        validation_alias="inReplyTo",
+        serialization_alias="inReplyTo",
+        description=(
+            "The Offer(VulnerabilityReport) this proposal answers, inline"
+            " (CP-01-008)."
+        ),
     )
 
     @model_validator(mode="after")

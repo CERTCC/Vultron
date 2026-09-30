@@ -239,9 +239,9 @@ def test_get_actors_does_not_log_raw_records_at_info_level(
     raw_dumps = [
         m for m in info_messages if m.startswith(("results:", "rec:"))
     ]
-    assert (
-        not raw_dumps
-    ), f"Raw DB record dumps should not be logged at INFO level; found: {raw_dumps}"
+    assert not raw_dumps, (
+        f"Raw DB record dumps should not be logged at INFO level; found: {raw_dumps}"
+    )
 
 
 def _seed_action_rules_data(dl):

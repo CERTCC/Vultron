@@ -65,7 +65,9 @@ def _cm_name(with_stmt: ast.With) -> str | None:
             name = (
                 fn.id
                 if isinstance(fn, ast.Name)
-                else fn.attr if isinstance(fn, ast.Attribute) else None
+                else fn.attr
+                if isinstance(fn, ast.Attribute)
+                else None
             )
             if name in _GUARDED_CMS:
                 return name
@@ -92,7 +94,11 @@ def _assigned_shallow(stmts: list) -> set:
         if isinstance(stmt, ast.Assign):
             for target in stmt.targets:
                 names.update(_store_names(target))
-        elif isinstance(stmt, ast.AugAssign) or (isinstance(stmt, ast.AnnAssign) and stmt.value is not None) or isinstance(stmt, ast.For):
+        elif (
+            isinstance(stmt, ast.AugAssign)
+            or (isinstance(stmt, ast.AnnAssign) and stmt.value is not None)
+            or isinstance(stmt, ast.For)
+        ):
             names.update(_store_names(stmt.target))
         elif isinstance(stmt, ast.With):
             for item in stmt.items:
@@ -222,9 +228,9 @@ def outer():
 """)
     # 'report' appears only inside the nested def body — must not be returned
     names = _load_names(stmts)
-    assert (
-        "report" not in names
-    ), "_load_names crossed into nested FunctionDef and found 'report'"
+    assert "report" not in names, (
+        "_load_names crossed into nested FunctionDef and found 'report'"
+    )
     # 'other' is in the outer scope and must be returned
     assert "other" in names
 
@@ -296,9 +302,9 @@ def example():
     path = tmp_path / "demo_example.py"
     path.write_text(src)
     found = _violations_in_file(path)
-    assert (
-        found == []
-    ), f"False positive for optional_vars re-assignment in body: {found}"
+    assert found == [], (
+        f"False positive for optional_vars re-assignment in body: {found}"
+    )
 
 
 def test_undefended_still_catches_real_undefended_after_fixes(tmp_path):
@@ -313,9 +319,9 @@ def bad():
     path.write_text(src)
     found = _violations_in_file(path)
     vars_found = [v for _, _, v in found]
-    assert (
-        "result" in vars_found
-    ), "Real undefended 'result' was not detected after fixes"
+    assert "result" in vars_found, (
+        "Real undefended 'result' was not detected after fixes"
+    )
 
 
 def test_no_undefended_demo_step_vars():

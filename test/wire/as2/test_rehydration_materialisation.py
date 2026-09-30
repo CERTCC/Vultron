@@ -259,9 +259,9 @@ def test_materialised_activity_carries_its_own_actor(
     activity_ref = case.case_activity[0]
     assert isinstance(activity_ref, str), "activity must stay as a string URI"
     assert activity_ref == recorded_activity.id_
-    assert (
-        activity_ref != CASE_OWNER
-    ), "synthesized the case owner as the actor"
+    assert activity_ref != CASE_OWNER, (
+        "synthesized the case owner as the actor"
+    )
     assert activity_ref != CASE_ID, "synthesized the case's own URI"
 
 

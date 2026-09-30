@@ -180,9 +180,7 @@ def test_parse_activity_preserves_the_senders_published_verbatim():
         }
     )
 
-    assert result.published == datetime(
-        2026, 3, 4, 5, 6, 7, tzinfo=UTC
-    )
+    assert result.published == datetime(2026, 3, 4, 5, 6, 7, tzinfo=UTC)
     assert result.published != datetime.now(tz=UTC)
 
 

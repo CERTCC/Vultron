@@ -231,9 +231,9 @@ def test_concurrent_inbox_tasks_serialize_processing(seeded_dl) -> None:
     stored0 = dl.read(entry0.id_)
     stored1 = dl.read(entry1.id_)
 
-    assert (
-        stored0 is not None
-    ), f"Entry0 (log_index=0) was not stored. hash={entry0.entry_hash[:16]}…"
+    assert stored0 is not None, (
+        f"Entry0 (log_index=0) was not stored. hash={entry0.entry_hash[:16]}…"
+    )
     assert stored1 is not None, (
         f"Entry1 (log_index=1) was not stored — likely a hash-chain mismatch "
         f"race: entry1 was processed before entry0 was stored (issue #1525). "

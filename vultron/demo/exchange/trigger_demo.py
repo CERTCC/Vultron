@@ -144,9 +144,9 @@ def demo_validate_and_engage(
         )
         with demo_check("Response contains activity"):
             activity = response.activity
-            assert (
-                activity is not None
-            ), "Expected 'activity' key in trigger response"
+            assert activity is not None, (
+                "Expected 'activity' key in trigger response"
+            )
             logger.info("Resulting activity type: %s", activity.get("type"))
 
     with demo_step("Step 3: Vendor triggers engage-case"):
@@ -162,9 +162,9 @@ def demo_validate_and_engage(
         )
         with demo_check("Response contains activity"):
             activity = response.activity
-            assert (
-                activity is not None
-            ), "Expected 'activity' key in engage-case trigger response"
+            assert activity is not None, (
+                "Expected 'activity' key in engage-case trigger response"
+            )
             logger.info("Resulting activity type: %s", activity.get("type"))
 
     logger.info(
@@ -222,9 +222,9 @@ def demo_invalidate_and_close(
         )
         with demo_check("Response contains activity"):
             activity = response.activity
-            assert (
-                activity is not None
-            ), "Expected 'activity' key in invalidate-report response"
+            assert activity is not None, (
+                "Expected 'activity' key in invalidate-report response"
+            )
             logger.info("Resulting activity type: %s", activity.get("type"))
 
     with demo_step("Step 3: Vendor triggers close-report"):
@@ -238,9 +238,9 @@ def demo_invalidate_and_close(
         )
         with demo_check("Response contains activity"):
             activity = response.activity
-            assert (
-                activity is not None
-            ), "Expected 'activity' key in close-report trigger response"
+            assert activity is not None, (
+                "Expected 'activity' key in close-report trigger response"
+            )
             logger.info("Resulting activity type: %s", activity.get("type"))
 
     logger.info(

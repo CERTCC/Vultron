@@ -82,9 +82,9 @@ class TestCoreVocabularyHierarchy:
             if not issubclass(cls, CoreObject):
                 non_core_objects[name] = cls
 
-        assert (
-            not non_core_objects
-        ), f"Non-CoreObject classes in CORE_VOCABULARY: {non_core_objects}"
+        assert not non_core_objects, (
+            f"Non-CoreObject classes in CORE_VOCABULARY: {non_core_objects}"
+        )
 
     def test_core_object_uses_vultron_base_not_as_base(self) -> None:
         """CoreObject classes must not inherit from as_Base.
@@ -93,9 +93,9 @@ class TestCoreVocabularyHierarchy:
         (``CoreRecord`` / ``CoreObject``), never from the wire vocabulary.
         """
         for name, cls in CORE_VOCABULARY.items():
-            assert not issubclass(
-                cls, as_Base
-            ), f"{name} inherits from as_Base (wire layer)"
+            assert not issubclass(cls, as_Base), (
+                f"{name} inherits from as_Base (wire layer)"
+            )
 
     def test_every_core_vocabulary_entry_derives_as2_spellings(self) -> None:
         """Every CORE_VOCABULARY entry inherits the AS2 alias generator.
@@ -200,9 +200,9 @@ class TestWireVocabularyHierarchy:
             for name, cls in VOCABULARY.items()
         }
         intruders = {name: bases for name, bases in intruders.items() if bases}
-        assert (
-            not intruders
-        ), f"wire classes inheriting from core: {intruders} (ARCH-12-001)"
+        assert not intruders, (
+            f"wire classes inheriting from core: {intruders} (ARCH-12-001)"
+        )
 
 
 class TestCoreRoots:
@@ -215,9 +215,9 @@ class TestCoreRoots:
 
         assert CoreObject.__bases__ == (CoreRecord,)
         for retired in ("VultronBase", "VultronObject"):
-            assert not hasattr(
-                base, retired
-            ), f"{retired} is retired by ADR-0099 detail 4; do not restore it"
+            assert not hasattr(base, retired), (
+                f"{retired} is retired by ADR-0099 detail 4; do not restore it"
+            )
 
     def test_core_record_has_only_identity_fields(self) -> None:
         """The record root carries ``id_``, ``type_``, ``name`` and nothing
@@ -355,9 +355,9 @@ class TestCoreObjectModelConfig:
 
         # Note: if a new core model is added with a direct AS2 namespace
         # reference, add a specific assertion here or extend the search logic.
-        assert (
-            True
-        ), "Placeholder for future bytecode scanning (no violations found)"
+        assert True, (
+            "Placeholder for future bytecode scanning (no violations found)"
+        )
 
     def test_core_object_derives_as2_spellings_and_accepts_field_names(
         self,
@@ -375,9 +375,9 @@ class TestCoreObjectModelConfig:
         keeps both serializations of detail 1 valid on input.
         """
         config = getattr(CoreObject, "model_config", {})
-        assert (
-            config.get("alias_generator") is not None
-        ), "CoreObject must derive AS2 spellings (ADR-0099 detail 2)"
+        assert config.get("alias_generator") is not None, (
+            "CoreObject must derive AS2 spellings (ADR-0099 detail 2)"
+        )
         assert config.get("populate_by_name") is True, (
             "CoreObject must still accept Python field names, or persisted rows"
             " (which are keyed by field name) become unreadable"

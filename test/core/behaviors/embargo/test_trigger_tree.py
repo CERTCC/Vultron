@@ -97,9 +97,9 @@ class TestProposeEmbargoTriggerBt:
         )
         all_nodes = _collect_nodes(tree)
         node_types = [type(n).__name__ for n in all_nodes]
-        assert (
-            "EmitCaseStatusUpdateNode" in node_types
-        ), "EmitCaseStatusUpdateNode must be present in propose_embargo_trigger_bt (RSH-04-002)"
+        assert "EmitCaseStatusUpdateNode" in node_types, (
+            "EmitCaseStatusUpdateNode must be present in propose_embargo_trigger_bt (RSH-04-002)"
+        )
 
     @pytest.mark.spec("RSH-04-002")
     def test_emit_node_after_lifecycle_node(
@@ -129,13 +129,13 @@ class TestProposeEmbargoTriggerBt:
             ),
             None,
         )
-        assert (
-            emit_idx is not None
-        ), "EmitCaseStatusUpdateNode must be a direct child"
+        assert emit_idx is not None, (
+            "EmitCaseStatusUpdateNode must be a direct child"
+        )
         assert persist_idx is not None
-        assert (
-            emit_idx > persist_idx
-        ), "EmitCaseStatusUpdateNode must appear after PersistEmbargoEventNode"
+        assert emit_idx > persist_idx, (
+            "EmitCaseStatusUpdateNode must appear after PersistEmbargoEventNode"
+        )
 
 
 class TestProposeEmbargoRevisionTriggerBt:
@@ -151,9 +151,9 @@ class TestProposeEmbargoRevisionTriggerBt:
         )
         all_nodes = _collect_nodes(tree)
         node_types = [type(n).__name__ for n in all_nodes]
-        assert (
-            "EmitCaseStatusUpdateNode" in node_types
-        ), "EmitCaseStatusUpdateNode must be present in propose_embargo_revision_trigger_bt (RSH-04-002)"
+        assert "EmitCaseStatusUpdateNode" in node_types, (
+            "EmitCaseStatusUpdateNode must be present in propose_embargo_revision_trigger_bt (RSH-04-002)"
+        )
 
     @pytest.mark.spec("RSH-04-002")
     def test_emit_node_after_persist_node(
@@ -183,9 +183,9 @@ class TestProposeEmbargoRevisionTriggerBt:
             ),
             None,
         )
-        assert (
-            emit_idx is not None
-        ), "EmitCaseStatusUpdateNode must be a direct child"
+        assert emit_idx is not None, (
+            "EmitCaseStatusUpdateNode must be a direct child"
+        )
         assert persist_idx is not None
         assert emit_idx > persist_idx
 
@@ -201,9 +201,9 @@ class TestAcceptEmbargoTriggerBt:
         )
         all_nodes = _collect_nodes(tree)
         node_types = [type(n).__name__ for n in all_nodes]
-        assert (
-            "EmitCaseStatusUpdateNode" in node_types
-        ), "EmitCaseStatusUpdateNode must be present in accept_embargo_trigger_bt (RSH-04-002)"
+        assert "EmitCaseStatusUpdateNode" in node_types, (
+            "EmitCaseStatusUpdateNode must be present in accept_embargo_trigger_bt (RSH-04-002)"
+        )
 
     @pytest.mark.spec("RSH-04-002")
     def test_emit_node_after_lifecycle_node(
@@ -232,13 +232,13 @@ class TestAcceptEmbargoTriggerBt:
             ),
             None,
         )
-        assert (
-            lifecycle_idx is not None
-        ), "AcceptEmbargoLifecycleNode must be present"
+        assert lifecycle_idx is not None, (
+            "AcceptEmbargoLifecycleNode must be present"
+        )
         assert emit_idx is not None, "EmitCaseStatusUpdateNode must be present"
-        assert (
-            emit_idx == lifecycle_idx + 1
-        ), "EmitCaseStatusUpdateNode must immediately follow AcceptEmbargoLifecycleNode"
+        assert emit_idx == lifecycle_idx + 1, (
+            "EmitCaseStatusUpdateNode must immediately follow AcceptEmbargoLifecycleNode"
+        )
 
 
 class TestRejectEmbargoTriggerBt:
@@ -252,9 +252,9 @@ class TestRejectEmbargoTriggerBt:
         )
         all_nodes = _collect_nodes(tree)
         node_types = [type(n).__name__ for n in all_nodes]
-        assert (
-            "EmitCaseStatusUpdateNode" in node_types
-        ), "EmitCaseStatusUpdateNode must be present in reject_embargo_trigger_bt (RSH-04-002)"
+        assert "EmitCaseStatusUpdateNode" in node_types, (
+            "EmitCaseStatusUpdateNode must be present in reject_embargo_trigger_bt (RSH-04-002)"
+        )
 
     @pytest.mark.spec("RSH-04-002")
     def test_emit_node_after_lifecycle_node(
@@ -285,9 +285,9 @@ class TestRejectEmbargoTriggerBt:
         )
         assert lifecycle_idx is not None
         assert emit_idx is not None
-        assert (
-            emit_idx == lifecycle_idx + 1
-        ), "EmitCaseStatusUpdateNode must immediately follow RejectEmbargoLifecycleNode"
+        assert emit_idx == lifecycle_idx + 1, (
+            "EmitCaseStatusUpdateNode must immediately follow RejectEmbargoLifecycleNode"
+        )
 
 
 class TestRejectProposedEmbargoBt:
@@ -299,9 +299,9 @@ class TestRejectProposedEmbargoBt:
         )
         all_nodes = _collect_nodes(tree)
         node_types = [type(n).__name__ for n in all_nodes]
-        assert (
-            "EmitCaseStatusUpdateNode" in node_types
-        ), "EmitCaseStatusUpdateNode must be present in reject_proposed_embargo_bt (RSH-04-002)"
+        assert "EmitCaseStatusUpdateNode" in node_types, (
+            "EmitCaseStatusUpdateNode must be present in reject_proposed_embargo_bt (RSH-04-002)"
+        )
 
     @pytest.mark.spec("RSH-04-002")
     def test_emit_node_after_lifecycle_node(self, result_out):
@@ -328,9 +328,9 @@ class TestRejectProposedEmbargoBt:
         )
         assert lifecycle_idx is not None
         assert emit_idx is not None
-        assert (
-            emit_idx == lifecycle_idx + 1
-        ), "EmitCaseStatusUpdateNode must immediately follow RejectProposedEmbargoLifecycleNode"
+        assert emit_idx == lifecycle_idx + 1, (
+            "EmitCaseStatusUpdateNode must immediately follow RejectProposedEmbargoLifecycleNode"
+        )
 
 
 class TestTerminateEmbargoBt:
@@ -343,9 +343,9 @@ class TestTerminateEmbargoBt:
         )
         all_nodes = _collect_nodes(tree)
         node_types = [type(n).__name__ for n in all_nodes]
-        assert (
-            "EmitCaseStatusUpdateNode" in node_types
-        ), "EmitCaseStatusUpdateNode must be present in terminate_embargo_bt (RSH-04-002)"
+        assert "EmitCaseStatusUpdateNode" in node_types, (
+            "EmitCaseStatusUpdateNode must be present in terminate_embargo_bt (RSH-04-002)"
+        )
 
     @pytest.mark.spec("RSH-04-002")
     def test_emit_node_after_lifecycle_node(
@@ -375,9 +375,9 @@ class TestTerminateEmbargoBt:
         )
         assert lifecycle_idx is not None
         assert emit_idx is not None
-        assert (
-            emit_idx == lifecycle_idx + 1
-        ), "EmitCaseStatusUpdateNode must immediately follow TerminateEmbargoLifecycleNode"
+        assert emit_idx == lifecycle_idx + 1, (
+            "EmitCaseStatusUpdateNode must immediately follow TerminateEmbargoLifecycleNode"
+        )
 
     @pytest.mark.spec("RSH-04-002")
     def test_emit_node_present_without_activity_builder(self, result_out):

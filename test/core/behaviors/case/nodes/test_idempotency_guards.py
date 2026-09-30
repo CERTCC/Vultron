@@ -137,9 +137,9 @@ class TestCheckInviteeNotAlreadyParticipantNode:
             for obj in bt_scenario.dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry) and obj.case_id == _CASE_ID
         ]
-        assert (
-            entries == []
-        ), f"Guard wrote {len(entries)} ledger entry/entries — CLP-13-001 violated"
+        assert entries == [], (
+            f"Guard wrote {len(entries)} ledger entry/entries — CLP-13-001 violated"
+        )
 
     def test_returns_success_for_backfill_incomplete_resume_no_state(
         self, bt_scenario: BTTestScenario
@@ -278,9 +278,9 @@ class TestCheckCaseStatusIdempotencyNode:
             for obj in bt_scenario.dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry) and obj.case_id == _CASE_ID
         ]
-        assert (
-            entries == []
-        ), f"Guard wrote {len(entries)} ledger entry/entries — CLP-13-001 violated"
+        assert entries == [], (
+            f"Guard wrote {len(entries)} ledger entry/entries — CLP-13-001 violated"
+        )
 
     def test_sets_feedback_message_on_duplicate(
         self, bt_scenario: BTTestScenario

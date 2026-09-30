@@ -518,9 +518,9 @@ def _no_outbox_row_is_dropped(caplog):
         for r in caplog.get_records("call")
         if r.levelno >= logging.ERROR and "No sealed body" in r.getMessage()
     ]
-    assert (
-        not dropped
-    ), "the outbox dropped a row nobody sealed:\n" + "\n".join(dropped)
+    assert not dropped, (
+        "the outbox dropped a row nobody sealed:\n" + "\n".join(dropped)
+    )
 
 
 @pytest.fixture(autouse=True)

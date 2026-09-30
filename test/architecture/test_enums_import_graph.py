@@ -59,10 +59,9 @@ def _assert_no_forbidden_imports(
                                 f"{py_file.relative_to(source_dir.parent)}: "
                                 f"imports {alias.name}"
                             )
-    assert (
-        not violations
-    ), f"{layer} MUST NOT import from {forbidden_prefix}:\n" + "\n".join(
-        violations
+    assert not violations, (
+        f"{layer} MUST NOT import from {forbidden_prefix}:\n"
+        + "\n".join(violations)
     )
 
 

@@ -875,9 +875,9 @@ def test_lint_phantom_path_is_hard_error(tmp_path, capsys):
     """A statement naming a non-existent repo-relative path fails (MS-15-001)."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "The harness MUST be registered in `vultron/nope.py`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "The harness MUST be registered in `vultron/nope.py`"
+    )
     _write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -891,9 +891,9 @@ def test_lint_phantom_path_existing_file_passes(tmp_path):
     repo, spec_dir = _repo_with_specs(tmp_path)
     (repo / "vultron" / "real.py").write_text("x = 1\n")
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "The thing MUST live in `vultron/real.py`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "The thing MUST live in `vultron/real.py`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
@@ -902,9 +902,9 @@ def test_lint_phantom_path_placeholder_exempt(tmp_path):
     """Placeholder path forms describe a shape, not a file, and are exempt."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Each scenario MUST have a `test/ci/invariants/test_XXX_invariants.py`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Each scenario MUST have a `test/ci/invariants/test_XXX_invariants.py`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
@@ -917,9 +917,9 @@ def test_lint_phantom_path_without_placeholder_token_fails(tmp_path):
     """
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Each scenario MUST have a `test/ci/invariants/test_fv_invariants.py`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Each scenario MUST have a `test/ci/invariants/test_fv_invariants.py`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 1
 
@@ -929,9 +929,9 @@ def test_lint_phantom_path_placeholder_basename_exempt(tmp_path):
     repo, spec_dir = _repo_with_specs(tmp_path)
     (repo / "notes").mkdir()
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "A new note MUST be created at `notes/new-topic.md`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "A new note MUST be created at `notes/new-topic.md`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
@@ -941,9 +941,9 @@ def test_lint_phantom_path_placeholder_basename_not_a_substring(tmp_path):
     repo, spec_dir = _repo_with_specs(tmp_path)
     (repo / "notes").mkdir()
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "The workflow MUST be documented in `notes/new-topic-workflow.md`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "The workflow MUST be documented in `notes/new-topic-workflow.md`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 1
 
@@ -952,9 +952,9 @@ def test_lint_phantom_path_dot_directory_is_checked(tmp_path, capsys):
     """Dot-directories such as `.claude/` are enforced, not silently skipped."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Linting MUST run via `.claude/skills/format-markdown/SKILL.md`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Linting MUST run via `.claude/skills/format-markdown/SKILL.md`"
+    )
     _write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -969,9 +969,9 @@ def test_lint_phantom_path_dot_directory_existing_passes(tmp_path):
     skill.mkdir(parents=True)
     (skill / "SKILL.md").write_text("# skill\n")
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Linting MUST run via `.claude/skills/format-markdown/SKILL.md`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Linting MUST run via `.claude/skills/format-markdown/SKILL.md`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
@@ -983,9 +983,9 @@ def test_lint_phantom_path_package_relative_resolves_as_suffix(tmp_path):
     pkg.mkdir(parents=True)
     (pkg / "sync.py").write_text("x = 1\n")
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Patterns MUST be defined in `received/sync.py`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Patterns MUST be defined in `received/sync.py`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
@@ -994,9 +994,9 @@ def test_lint_phantom_path_package_relative_unresolvable_fails(tmp_path):
     """A package-relative path matching nothing in the tree is still an error."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Patterns MUST be defined in `received/sync.py`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Patterns MUST be defined in `received/sync.py`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 1
 
@@ -1012,9 +1012,9 @@ def test_lint_phantom_path_mistyped_leading_segment_fails(tmp_path, capsys):
     real.mkdir(parents=True)
     (real / "common.py").write_text("x = 1\n")
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Checks MUST live in `tests/ci/common.py`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Checks MUST live in `tests/ci/common.py`"
+    )
     _write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -1029,9 +1029,9 @@ def test_lint_phantom_path_suffix_ignores_build_artifacts(tmp_path):
     vendored.mkdir(parents=True)
     (vendored / "sync.py").write_text("x = 1\n")
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Patterns MUST be defined in `received/sync.py`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Patterns MUST be defined in `received/sync.py`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 1
 
@@ -1040,9 +1040,9 @@ def test_lint_phantom_path_absolute_rejected(tmp_path, capsys):
     """An absolute path is rejected outright, not exempted."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Config MUST be read from `/etc/vultron/settings.yaml`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Config MUST be read from `/etc/vultron/settings.yaml`"
+    )
     _write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -1055,9 +1055,9 @@ def test_lint_phantom_path_parent_traversal_rejected(tmp_path, capsys):
     repo, spec_dir = _repo_with_specs(tmp_path)
     (repo / "vultron" / "real.py").write_text("x = 1\n")
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "The thing MUST live in `test/../vultron/real.py`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "The thing MUST live in `test/../vultron/real.py`"
+    )
     _write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -1069,9 +1069,9 @@ def test_lint_phantom_path_rationale_not_scanned(tmp_path):
     """rationale narrates history and may cite paths that no longer exist."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "rationale"
-    ] = "`vultron/old_config.py` has been converted to a package."
+    data["groups"][0]["specs"][0]["rationale"] = (
+        "`vultron/old_config.py` has been converted to a package."
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
@@ -1080,9 +1080,9 @@ def test_lint_phantom_path_suppress(tmp_path, capsys):
     """lint_suppress: [phantom_path_ref] allows a deliberate forward reference."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec(extra={"lint_suppress": ["phantom_path_ref"]})
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "A new module MUST be created at `vultron/planned.py`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "A new module MUST be created at `vultron/planned.py`"
+    )
     _write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -1094,9 +1094,9 @@ def test_lint_phantom_path_in_verification_is_hard_error(tmp_path, capsys):
     """A verification field naming a non-existent path fails (MS-15-001)."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "verification"
-    ] = "Assert via `vultron/nope.py` that the invariant holds."
+    data["groups"][0]["specs"][0]["verification"] = (
+        "Assert via `vultron/nope.py` that the invariant holds."
+    )
     _write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -1110,9 +1110,9 @@ def test_lint_phantom_path_in_verification_existing_passes(tmp_path):
     repo, spec_dir = _repo_with_specs(tmp_path)
     (repo / "vultron" / "real.py").write_text("x = 1\n")
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "verification"
-    ] = "Assert via `vultron/real.py` that the invariant holds."
+    data["groups"][0]["specs"][0]["verification"] = (
+        "Assert via `vultron/real.py` that the invariant holds."
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
@@ -1121,9 +1121,9 @@ def test_lint_phantom_path_verification_suppress(tmp_path, capsys):
     """lint_suppress: [phantom_path_ref] exempts phantom paths in verification."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec(extra={"lint_suppress": ["phantom_path_ref"]})
-    data["groups"][0]["specs"][0][
-        "verification"
-    ] = "A test at `vultron/future.py` will assert this."
+    data["groups"][0]["specs"][0]["verification"] = (
+        "A test at `vultron/future.py` will assert this."
+    )
     _write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -1140,9 +1140,9 @@ def test_lint_phantom_dir_is_hard_error(tmp_path, capsys):
     """A statement naming a non-existent multi-segment directory fails (MS-15-001)."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Helpers MUST live in `vultron/missing/`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Helpers MUST live in `vultron/missing/`"
+    )
     _write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -1156,9 +1156,9 @@ def test_lint_phantom_dir_existing_passes(tmp_path):
     repo, spec_dir = _repo_with_specs(tmp_path)
     (repo / "vultron" / "real").mkdir()
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Helpers MUST live in `vultron/real/`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Helpers MUST live in `vultron/real/`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
@@ -1167,9 +1167,9 @@ def test_lint_phantom_dir_single_segment_not_checked(tmp_path):
     """A single-segment directory ref is not checked — high false-positive risk."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Output MUST be written to the `devlogs/` directory"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Output MUST be written to the `devlogs/` directory"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
@@ -1178,9 +1178,9 @@ def test_lint_phantom_dir_placeholder_exempt(tmp_path):
     """A directory ref containing a placeholder token is exempt."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Each run MUST write to `plan/history/YYMM/`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Each run MUST write to `plan/history/YYMM/`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
@@ -1195,9 +1195,9 @@ def test_lint_phantom_dir_placeholder_negative(tmp_path):
     (tmp_path / "plan").mkdir()
     (tmp_path / "plan" / "history").mkdir()
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Each run MUST write to `plan/history/2601/`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Each run MUST write to `plan/history/2601/`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 1
 
@@ -1207,9 +1207,9 @@ def test_lint_phantom_dir_package_relative_resolves(tmp_path):
     repo, spec_dir = _repo_with_specs(tmp_path)
     (repo / "vultron" / "wire" / "received").mkdir(parents=True)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Handlers MUST live in `wire/received/`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Handlers MUST live in `wire/received/`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
@@ -1218,9 +1218,9 @@ def test_lint_phantom_dir_package_relative_fails(tmp_path):
     """A package-relative directory matching nothing in the tree fails."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Handlers MUST live in `wire/received/`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Handlers MUST live in `wire/received/`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 1
 
@@ -1229,9 +1229,9 @@ def test_lint_phantom_dir_suppress(tmp_path):
     """lint_suppress: [phantom_path_ref] exempts phantom directory refs."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec(extra={"lint_suppress": ["phantom_path_ref"]})
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Helpers MUST live in `vultron/planned/`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Helpers MUST live in `vultron/planned/`"
+    )
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
@@ -1240,9 +1240,9 @@ def test_lint_phantom_dir_in_verification_is_hard_error(tmp_path, capsys):
     """A verification field naming a non-existent directory fails (MS-15-001)."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "verification"
-    ] = "Assert via `test/ci/invariants/` that the invariant holds."
+    data["groups"][0]["specs"][0]["verification"] = (
+        "Assert via `test/ci/invariants/` that the invariant holds."
+    )
     _write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -1475,9 +1475,9 @@ def test_lint_phantom_symbol_is_hard_error(tmp_path, capsys):
     """A statement naming a SCREAMING_SNAKE symbol absent from the tree fails."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Every pattern MUST be registered in `RETIRED_PATTERN_TABLE`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Every pattern MUST be registered in `RETIRED_PATTERN_TABLE`"
+    )
     _write_yaml(spec_dir, data)
 
     result = lint(spec_dir)
@@ -1494,9 +1494,9 @@ def test_lint_phantom_symbol_existing_symbol_passes(tmp_path):
         "LIVE_PATTERN_TABLE: dict = {}\n"
     )
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Every pattern MUST be registered in `LIVE_PATTERN_TABLE`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Every pattern MUST be registered in `LIVE_PATTERN_TABLE`"
+    )
     _write_yaml(spec_dir, data)
 
     assert lint(spec_dir) == 0
@@ -1507,9 +1507,9 @@ def test_lint_phantom_symbol_resolves_from_test_tree(tmp_path):
     repo, spec_dir = _repo_with_specs(tmp_path)
     (repo / "test" / "test_thing.py").write_text("KNOWN_VIOLATIONS = ()\n")
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "The ratchet MUST enumerate exemptions in `KNOWN_VIOLATIONS`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "The ratchet MUST enumerate exemptions in `KNOWN_VIOLATIONS`"
+    )
     _write_yaml(spec_dir, data)
 
     assert lint(spec_dir) == 0
@@ -1519,9 +1519,9 @@ def test_lint_phantom_symbol_in_verification_is_hard_error(tmp_path, capsys):
     """The verification field is scanned for phantom symbols too."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "verification"
-    ] = "A unit test asserts `GONE_REGISTRY` has one entry per semantic."
+    data["groups"][0]["specs"][0]["verification"] = (
+        "A unit test asserts `GONE_REGISTRY` has one entry per semantic."
+    )
     _write_yaml(spec_dir, data)
 
     result = lint(spec_dir)
@@ -1534,9 +1534,9 @@ def test_lint_phantom_symbol_rationale_not_scanned(tmp_path):
     """rationale narrates history and may name a removed symbol."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "rationale"
-    ] = "`GONE_REGISTRY` was replaced during the registry move."
+    data["groups"][0]["specs"][0]["rationale"] = (
+        "`GONE_REGISTRY` was replaced during the registry move."
+    )
     _write_yaml(spec_dir, data)
 
     assert lint(spec_dir) == 0
@@ -1546,9 +1546,9 @@ def test_lint_phantom_symbol_suppress(tmp_path, capsys):
     """lint_suppress: [phantom_symbol_ref] allows a deliberate mention (MS-15-005)."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec(extra={"lint_suppress": ["phantom_symbol_ref"]})
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "The `REMOVED_SEMANTIC_TABLE` table has been removed; use the registry."
+    data["groups"][0]["specs"][0]["statement"] = (
+        "The `REMOVED_SEMANTIC_TABLE` table has been removed; use the registry."
+    )
     _write_yaml(spec_dir, data)
 
     result = lint(spec_dir)
@@ -1573,9 +1573,9 @@ def test_lint_phantom_symbol_linter_own_source_excluded_from_corpus(
         '"""Catches references to `RETIRED_TABLE`."""\n'
     )
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Patterns MUST be registered in `RETIRED_TABLE`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Patterns MUST be registered in `RETIRED_TABLE`"
+    )
     _write_yaml(spec_dir, data)
 
     result = lint(spec_dir)
@@ -1599,9 +1599,9 @@ def test_lint_phantom_symbol_linter_sibling_still_in_corpus(tmp_path):
     linter_dir.mkdir(parents=True)
     (linter_dir / "schema.py").write_text("SHOULD_NOT = 'should_not'\n")
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "The priority MUST NOT be `SHOULD_NOT`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "The priority MUST NOT be `SHOULD_NOT`"
+    )
     _write_yaml(spec_dir, data)
 
     assert lint(spec_dir) == 0
@@ -1618,9 +1618,9 @@ def test_lint_phantom_symbol_test_fixture_dir_excluded_from_corpus(
         'STATEMENT = "MUST be in `INVENTED_TABLE`"\n'
     )
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Patterns MUST be registered in `INVENTED_TABLE`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Patterns MUST be registered in `INVENTED_TABLE`"
+    )
     _write_yaml(spec_dir, data)
 
     result = lint(spec_dir)
@@ -1633,9 +1633,9 @@ def test_lint_phantom_symbol_single_word_token_not_checked(tmp_path):
     """Underscore-free tokens (`MUST`, `RS`, `SIGNATORY`) are not symbols."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "Shorthand `RS` MUST leave the participant `SIGNATORY`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "Shorthand `RS` MUST leave the participant `SIGNATORY`"
+    )
     _write_yaml(spec_dir, data)
 
     assert lint(spec_dir) == 0
@@ -1645,9 +1645,9 @@ def test_lint_phantom_symbol_dotted_reference_not_checked(tmp_path):
     """A dotted member reference is not a bare SCREAMING_SNAKE token."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
-    data["groups"][0]["specs"][0][
-        "statement"
-    ] = "The fallback MUST be `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`"
+    data["groups"][0]["specs"][0]["statement"] = (
+        "The fallback MUST be `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`"
+    )
     _write_yaml(spec_dir, data)
 
     assert lint(spec_dir) == 0

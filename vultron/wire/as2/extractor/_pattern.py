@@ -45,7 +45,10 @@ class ActivityPattern(BaseModel):
     target_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
     # A tuple admits any of several scalar types — the declared form of "this
     # activity's subject may be a case or a report" (VAM-05-001, EP-04-009).
-    context_: Union[AOtype, VOtype, "ActivityPattern", tuple[AOtype | VOtype, ...]] | None = None
+    context_: (
+        Union[AOtype, VOtype, "ActivityPattern", tuple[AOtype | VOtype, ...]]
+        | None
+    ) = None
 
     def match(self, activity: as_Activity) -> bool:
         """Return True if the given activity matches this pattern."""

@@ -272,9 +272,9 @@ class TestSvcInviteActorToCaseUseCase:
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
-        assert (
-            dl.read(bad_id) is None
-        ), "a rejected invitee must not be recorded as a known actor"
+        assert dl.read(bad_id) is None, (
+            "a rejected invitee must not be recorded as a known actor"
+        )
 
     def test_invite_raises_when_case_not_in_dl(self):
         actor, dl = _make_actor_dl("Coordinator")
@@ -522,12 +522,14 @@ class TestInviteRolesAndEmbargoEnrichment:
         activity_data = result["activity"]
         target = activity_data.get("target", {})
         active_embargo = target.get("activeEmbargo")
-        assert (
-            active_embargo is not None
-        ), "activeEmbargo must be present when em_state==ACTIVE"
+        assert active_embargo is not None, (
+            "activeEmbargo must be present when em_state==ACTIVE"
+        )
         assert (
             isinstance(active_embargo, dict) and "endTime" in active_embargo
-        ), "activeEmbargo must be a full embargo object with endTime (CM-17-002)"
+        ), (
+            "activeEmbargo must be a full embargo object with endTime (CM-17-002)"
+        )
         case_status = target.get("caseStatus", {})
         assert case_status.get("emState") in (
             "active",
@@ -551,12 +553,12 @@ class TestInviteRolesAndEmbargoEnrichment:
 
         activity_data = result["activity"]
         target = activity_data.get("target", {})
-        assert (
-            target.get("activeEmbargo") is None
-        ), "activeEmbargo must not be present when em_state != ACTIVE"
-        assert (
-            target.get("caseStatus") is None
-        ), "caseStatus must not be present when em_state != ACTIVE"
+        assert target.get("activeEmbargo") is None, (
+            "activeEmbargo must not be present when em_state != ACTIVE"
+        )
+        assert target.get("caseStatus") is None, (
+            "caseStatus must not be present when em_state != ACTIVE"
+        )
 
 
 class TestRolesThreadingIntegration:
@@ -663,13 +665,13 @@ class TestRolesThreadingIntegration:
 
         updated_case = cast(Any, dl.read(case.id_))
         participant_id = updated_case.actor_participant_index.get(invitee_id)
-        assert (
-            participant_id is not None
-        ), "invitee must be registered after Accept"
+        assert participant_id is not None, (
+            "invitee must be registered after Accept"
+        )
         participant = cast(Any, dl.read(participant_id))
-        assert (
-            participant is not None
-        ), "participant object not found in DataLayer"
+        assert participant is not None, (
+            "participant object not found in DataLayer"
+        )
         return participant
 
     def test_ac1_roles_vendor_reaches_participant_case_roles(
@@ -680,9 +682,9 @@ class TestRolesThreadingIntegration:
         participant = self._run_round_trip(
             roles=[CVDRole.VENDOR], make_payload=make_payload
         )
-        assert (
-            CVDRole.VENDOR in participant.case_roles
-        ), f"AC-1: expected CVDRole.VENDOR in case_roles, got {participant.case_roles!r}"
+        assert CVDRole.VENDOR in participant.case_roles, (
+            f"AC-1: expected CVDRole.VENDOR in case_roles, got {participant.case_roles!r}"
+        )
 
     def test_ac2_none_roles_gives_empty_case_roles(self, make_payload):
         """AC-2 (CM-17-003/004): roles=None in request results in
@@ -690,9 +692,9 @@ class TestRolesThreadingIntegration:
         participant = self._run_round_trip(
             roles=None, make_payload=make_payload
         )
-        assert (
-            participant.case_roles == []
-        ), f"AC-2: expected empty case_roles, got {participant.case_roles!r}"
+        assert participant.case_roles == [], (
+            f"AC-2: expected empty case_roles, got {participant.case_roles!r}"
+        )
 
 
 class TestSvcSuggestActorToCaseUseCase:
@@ -786,9 +788,9 @@ class TestSvcSuggestActorToCaseUseCase:
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
-        assert (
-            dl.read(bad_id) is None
-        ), "a rejected candidate must not be recorded as a known actor"
+        assert dl.read(bad_id) is None, (
+            "a rejected candidate must not be recorded as a known actor"
+        )
 
     def test_suggest_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""

@@ -263,9 +263,9 @@ _ACTUAL_COLLECTION_MUTATIONS: frozenset[str] = frozenset(
 # Guard the guards — a detector that finds nothing makes every assertion vacuous
 # ---------------------------------------------------------------------------
 def test_detectors_are_not_vacuous():
-    assert (
-        sum(1 for _ in _corpus.all_sources(under=_CORE_ROOT)) > 100
-    ), "core tree not found"
+    assert sum(1 for _ in _corpus.all_sources(under=_CORE_ROOT)) > 100, (
+        "core tree not found"
+    )
     assert len(_core_model_classes()) > 50, "core models did not import"
 
 

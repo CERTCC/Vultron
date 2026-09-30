@@ -111,7 +111,15 @@ def test_count_covers_must_and_must_not_but_not_the_should_tier():
 
 @pytest.mark.spec("MS-10-006")
 def test_suppressed_item_is_still_counted():
-    items = [*_BASE_ITEMS, ("TST-01-006", "MUST", "protocol", {"lint_suppress": ["must_without_verification"]})]
+    items = [
+        *_BASE_ITEMS,
+        (
+            "TST-01-006",
+            "MUST",
+            "protocol",
+            {"lint_suppress": ["must_without_verification"]},
+        ),
+    ]
     report = unverified_by_kind(_registry(items))[SpecKind.PROTOCOL]
     assert report.count == 3
     assert report.suppressed == frozenset({"TST-01-006"})

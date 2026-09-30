@@ -46,9 +46,9 @@ def test_common_py_no_use_cases_import():
     """common.py must not import _as_id from use_cases._helpers (BT-IDM-02 violation)."""
     path = "vultron/core/behaviors/case/nodes/participant/common.py"
     violations = _imports_from_use_cases(path)
-    assert (
-        violations == []
-    ), f"{path} still imports from use_cases:\n" + "\n".join(violations)
+    assert violations == [], (
+        f"{path} still imports from use_cases:\n" + "\n".join(violations)
+    )
 
 
 # --- Behavioural correctness -------------------------------------------

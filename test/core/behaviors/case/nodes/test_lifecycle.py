@@ -156,9 +156,10 @@ def test_node_instantiates_without_case_id():
 def test_no_case_id_returns_failure_without_building_inner_tree(bridge):
     """Node returns FAILURE when no case_id is available (ARCH-15-001)."""
     node = CommitCaseLedgerEntryNode()
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge,
+    ):
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=None
         )
@@ -173,9 +174,10 @@ def test_constructor_case_id_builds_inner_commit_tree(bridge):
         activity_id=ACTIVITY_ID, semantic_type=MessageSemantics.CREATE_CASE
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
@@ -222,9 +224,10 @@ def test_blackboard_case_id_builds_inner_commit_tree(bridge, datalayer):
         name="TestSeq", memory=False, children=[_WriteCaseId(), node]
     )
 
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
@@ -247,9 +250,10 @@ def test_activity_on_blackboard_uses_semantic_type_as_event_type(bridge):
         semantic_type=MessageSemantics.CREATE_CASE,
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
@@ -271,9 +275,10 @@ def test_activity_payload_is_forwarded_as_payload_snapshot(bridge):
         activity=_FakeWireActivity(),
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
@@ -366,9 +371,10 @@ def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
 
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
@@ -388,9 +394,10 @@ def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
 def test_no_activity_returns_failure(bridge):
     """When no activity on blackboard, node returns FAILURE with a warning log."""
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
@@ -403,9 +410,10 @@ def test_no_activity_returns_failure(bridge):
 
 def test_inner_commit_bt_failure_propagates(bridge):
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_factory.return_value = object()
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(
@@ -603,9 +611,10 @@ def test_case_manager_as_participant_commits_without_error(bridge):
         actor_id=CASE_MANAGER_ID,
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )

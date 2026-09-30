@@ -225,9 +225,9 @@ class TestInvalidateReportReceivedActorId:
             ),
         ).execute()
 
-        assert (
-            _rm_state(dl, RECEIVING_ACTOR_ID) == RM.INVALID
-        ), "Receiving actor's participant must transition to RM.INVALID"
+        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.INVALID, (
+            "Receiving actor's participant must transition to RM.INVALID"
+        )
 
     def test_sender_participant_unchanged_when_receiving_actor_differs(self):
         """Sender's participant RM state is not touched (BT-17-006 regression)."""
@@ -278,9 +278,9 @@ class TestInvalidateReportReceivedActorId:
             "the store's own actor is the executing actor when the request"
             " carries no receiving_actor_id"
         )
-        assert (
-            _rm_state(dl, other_id) == RM.RECEIVED
-        ), "no other actor's participant may be transitioned"
+        assert _rm_state(dl, other_id) == RM.RECEIVED, (
+            "no other actor's participant may be transitioned"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -307,9 +307,9 @@ class TestCloseReportReceivedActorId:
             ),
         ).execute()
 
-        assert (
-            _rm_state(dl, RECEIVING_ACTOR_ID) == RM.CLOSED
-        ), "Receiving actor's participant must transition to RM.CLOSED"
+        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.CLOSED, (
+            "Receiving actor's participant must transition to RM.CLOSED"
+        )
 
     def test_sender_participant_unchanged_when_receiving_actor_differs(self):
         """Sender's participant RM state is not touched (BT-17-006 regression)."""
@@ -367,9 +367,9 @@ class TestCloseReportReceivedActorId:
             "the store's own actor is the executing actor when the request"
             " carries no receiving_actor_id"
         )
-        assert (
-            _rm_state(dl, other_id) == RM.RECEIVED
-        ), "no other actor's participant may be transitioned"
+        assert _rm_state(dl, other_id) == RM.RECEIVED, (
+            "no other actor's participant may be transitioned"
+        )
 
 
 # ---------------------------------------------------------------------------

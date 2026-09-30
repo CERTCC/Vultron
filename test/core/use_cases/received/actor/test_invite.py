@@ -364,12 +364,12 @@ class TestInviteActorUseCases:
 
         pending_id = VultronPendingCaseInbox.build_id(case_id)
         pending = dl.read(pending_id)
-        assert isinstance(
-            pending, VultronPendingCaseInbox
-        ), "VultronPendingCaseInbox trust anchor must be written on the invitee path"
-        assert (
-            pending.case_actor_id == case_manager_id
-        ), "Trust anchor case_actor_id must equal the invite sender (the CASE_MANAGER)"
+        assert isinstance(pending, VultronPendingCaseInbox), (
+            "VultronPendingCaseInbox trust anchor must be written on the invitee path"
+        )
+        assert pending.case_actor_id == case_manager_id, (
+            "Trust anchor case_actor_id must equal the invite sender (the CASE_MANAGER)"
+        )
 
     def test_invite_trust_anchor_is_first_invite_wins(self, make_payload):
         """A second invite from a different sender does not overwrite the anchor."""
@@ -407,9 +407,9 @@ class TestInviteActorUseCases:
 
         pending = dl.read(VultronPendingCaseInbox.build_id(case_id))
         assert isinstance(pending, VultronPendingCaseInbox)
-        assert (
-            pending.case_actor_id == first_sender
-        ), "First-invite-wins: trust anchor MUST NOT be overwritten by a second invite"
+        assert pending.case_actor_id == first_sender, (
+            "First-invite-wins: trust anchor MUST NOT be overwritten by a second invite"
+        )
 
     def test_invite_actor_to_case_idempotent(self, monkeypatch, make_payload):
         """InviteActorToCaseReceivedUseCase skips storing a duplicate Invite."""
@@ -564,12 +564,12 @@ class TestInviteActorUseCases:
         )
         event = make_payload(reject)
 
-        assert (
-            event.target_id is None
-        ), "Precondition: Reject(Invite) has no top-level target"
-        assert (
-            event.case_id == case_id
-        ), "Precondition: case_id resolves via inner_target_id"
+        assert event.target_id is None, (
+            "Precondition: Reject(Invite) has no top-level target"
+        )
+        assert event.case_id == case_id, (
+            "Precondition: case_id resolves via inner_target_id"
+        )
 
         RejectInviteActorToCaseReceivedUseCase(
             dl,
@@ -582,12 +582,12 @@ class TestInviteActorUseCases:
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_id
         ]
-        assert (
-            len(entries) >= 1
-        ), "Expected at least one CaseLedgerEntry after reject-invite"
-        assert any(
-            "reject" in e.event_type for e in entries
-        ), f"Expected a reject-invite ledger entry; got: {[e.event_type for e in entries]}"
+        assert len(entries) >= 1, (
+            "Expected at least one CaseLedgerEntry after reject-invite"
+        )
+        assert any("reject" in e.event_type for e in entries), (
+            f"Expected a reject-invite ledger entry; got: {[e.event_type for e in entries]}"
+        )
 
     def test_accept_invite_actor_to_case_adds_participant(
         self, monkeypatch, make_payload
@@ -763,9 +763,9 @@ class TestInviteActorUseCases:
         participant_obj = cast(Any, dl.get(id_=participant_id))
         rm_states = [s.rm.state for s in participant_obj.participant_statuses]
         assert RM.VALID not in rm_states, "CM-11-001: no VALID at invite time"
-        assert (
-            RM.ACCEPTED not in rm_states
-        ), "CM-11-001: no ACCEPTED at invite time"
+        assert RM.ACCEPTED not in rm_states, (
+            "CM-11-001: no ACCEPTED at invite time"
+        )
         latest_status = participant_obj.participant_statuses[-1]
         assert latest_status.rm.state == RM.RECEIVED
 
@@ -844,7 +844,10 @@ class TestInviteActorUseCases:
         for item_id in outbox_items:
             candidate = cast(Any, dl.read(item_id))
             if candidate is not None and str(candidate.type_) == "Join":
-                raise AssertionError(f"PCR-07-008 violation: RmEngageCaseActivity (Join) with " f"actor={invitee_id!r} found in outbox — identity spoofing")
+                raise AssertionError(
+                    f"PCR-07-008 violation: RmEngageCaseActivity (Join) with "
+                    f"actor={invitee_id!r} found in outbox — identity spoofing"
+                )
 
         # The participant should be at RM.RECEIVED only (CM-11-001).
         updated_case = cast(Any, dl.read(case.id_))
@@ -854,9 +857,9 @@ class TestInviteActorUseCases:
         assert participant_obj is not None
         rm_states = [s.rm.state for s in participant_obj.participant_statuses]
         assert RM.VALID not in rm_states, "CM-11-001: no VALID at invite time"
-        assert (
-            RM.ACCEPTED not in rm_states
-        ), "CM-11-001: no ACCEPTED at invite time"
+        assert RM.ACCEPTED not in rm_states, (
+            "CM-11-001: no ACCEPTED at invite time"
+        )
         latest_status = participant_obj.participant_statuses[-1]
         assert latest_status.rm.state == RM.RECEIVED, (
             f"Expected RM.RECEIVED after Accept(Invite) (CM-11-001), "
@@ -1466,14 +1469,14 @@ class TestAcceptInviteRolesAC4:
 
         reloaded_case = cast(Any, dl.read(case.id_))
         participant_id = reloaded_case.actor_participant_index.get(invitee_id)
-        assert (
-            participant_id is not None
-        ), "invitee must be registered as participant"
+        assert participant_id is not None, (
+            "invitee must be registered as participant"
+        )
         participant = cast(Any, dl.get(id_=participant_id))
         assert participant is not None
-        assert (
-            CVDRole.VENDOR in participant.case_roles
-        ), "AC-4: participant case_roles must include VENDOR from Invite"
+        assert CVDRole.VENDOR in participant.case_roles, (
+            "AC-4: participant case_roles must include VENDOR from Invite"
+        )
 
     def test_no_roles_invite_gives_empty_case_roles(self, make_payload):
         """AC-4 negative: Invite without roles gives participant case_roles=[]."""
@@ -1515,9 +1518,9 @@ class TestAcceptInviteRolesAC4:
         participant_id = reloaded_case.actor_participant_index.get(invitee_id)
         participant = cast(Any, dl.get(id_=participant_id))
         assert participant is not None
-        assert (
-            participant.case_roles == []
-        ), "Participant with no-roles invite must have empty case_roles"
+        assert participant.case_roles == [], (
+            "Participant with no-roles invite must have empty case_roles"
+        )
 
 
 class TestInviteDispositions:

@@ -129,9 +129,9 @@ class TestCreateCaseProposalReceivedUseCase:
             for obj in dl.list_objects("VulnerabilityCase")
             if isinstance(obj, VulnerabilityCase)
         ]
-        assert (
-            len(cases) == 1
-        ), "Expected exactly one VulnerabilityCase to be created"
+        assert len(cases) == 1, (
+            "Expected exactly one VulnerabilityCase to be created"
+        )
 
         # Accept(CaseProposal) was stored
         accepts = dl.list_objects("Accept")
@@ -140,28 +140,28 @@ class TestCreateCaseProposalReceivedUseCase:
         # The Accept must carry the full inline proposal (CP-05-003, AKM-03-001).
         accept_obj = dl.read(accepts[0].id_)
         accept_object_ = getattr(accept_obj, "object_", None)
-        assert (
-            accept_object_ is not None
-        ), "Accept.object_ must not be None (CP-05-003)"
+        assert accept_object_ is not None, (
+            "Accept.object_ must not be None (CP-05-003)"
+        )
         # After DataLayer round-trip the dict may be deserialized to an AS2 object;
         # the key invariant is that it is NOT a bare URI string.
-        assert not isinstance(
-            accept_object_, str
-        ), "Accept.object_ must not be a bare URI string — inline object required (CP-05-003)"
+        assert not isinstance(accept_object_, str), (
+            "Accept.object_ must not be a bare URI string — inline object required (CP-05-003)"
+        )
         obj_type = getattr(accept_object_, "type_", None) or (
             accept_object_.get("type")
             if isinstance(accept_object_, dict)
             else None
         )
-        assert (
-            obj_type == "CaseProposal"
-        ), f"Accept.object_ type should be 'CaseProposal', got {obj_type!r}"
+        assert obj_type == "CaseProposal", (
+            f"Accept.object_ type should be 'CaseProposal', got {obj_type!r}"
+        )
 
         # Create(VulnerabilityCase) was stored
         creates = dl.list_objects("Create")
-        assert (
-            len(creates) == 1
-        ), "Expected one Create(VulnerabilityCase) activity"
+        assert len(creates) == 1, (
+            "Expected one Create(VulnerabilityCase) activity"
+        )
 
         # Both activities appear in the outbox
         outbox = dl.outbox_list()
@@ -199,9 +199,9 @@ class TestCreateCaseProposalReceivedUseCase:
         report_obj = proposal.object_
         assert isinstance(report_obj, as_VulnerabilityReport)
         report_id = report_obj.id_
-        assert (
-            report_id in case_obj.vulnerability_reports
-        ), f"Report '{report_id}' not linked to case"
+        assert report_id in case_obj.vulnerability_reports, (
+            f"Report '{report_id}' not linked to case"
+        )
 
     def test_execute_uses_store_owner_when_no_receiving_actor_id(
         self, make_payload
@@ -233,9 +233,9 @@ class TestCreateCaseProposalReceivedUseCase:
 
             # The BT runs under the store owner's identity; case creation fires.
             cases = dl.list_objects("VulnerabilityCase")
-            assert (
-                len(cases) == 1
-            ), "Store-owner fallback should have created a case"
+            assert len(cases) == 1, (
+                "Store-owner fallback should have created a case"
+            )
         finally:
             py_trees.blackboard.Blackboard.storage.clear()
 
@@ -307,9 +307,9 @@ class TestCreateCaseProposalIdempotency:
 
         _run_create_proposal(dl, proposal, make_payload)
         cases_after_first = list(dl.list_objects("VulnerabilityCase"))
-        assert (
-            len(cases_after_first) == 1
-        ), "First proposal must create one case"
+        assert len(cases_after_first) == 1, (
+            "First proposal must create one case"
+        )
 
         # Resend the same proposal
         _run_create_proposal(dl, proposal, make_payload)
@@ -319,9 +319,9 @@ class TestCreateCaseProposalIdempotency:
             for obj in dl.list_objects("VulnerabilityCase")
             if isinstance(obj, VulnerabilityCase)
         ]
-        assert (
-            len(all_cases) == 1
-        ), "Duplicate proposal must not create a second VulnerabilityCase (AC-1)"
+        assert len(all_cases) == 1, (
+            "Duplicate proposal must not create a second VulnerabilityCase (AC-1)"
+        )
 
     def test_duplicate_proposal_sends_accept_referencing_existing_case(
         self, make_payload
@@ -344,17 +344,17 @@ class TestCreateCaseProposalIdempotency:
 
         all_accepts = list(dl.list_objects("Accept"))
         # A new Accept should have been added for the duplicate
-        assert (
-            len(all_accepts) >= 2
-        ), "Duplicate proposal should produce a second Accept (AC-2)"
+        assert len(all_accepts) >= 2, (
+            "Duplicate proposal should produce a second Accept (AC-2)"
+        )
 
         # Find the Accept added for the duplicate proposal
         duplicate_accepts = [
             a for a in all_accepts if a.id_ not in first_accept_ids
         ]
-        assert (
-            duplicate_accepts
-        ), "Must have at least one new Accept for the duplicate proposal (AC-2)"
+        assert duplicate_accepts, (
+            "Must have at least one new Accept for the duplicate proposal (AC-2)"
+        )
 
         # The duplicate Accept must reference the existing case via result field.
         dup_accept_obj = dl.read(duplicate_accepts[0].id_)
@@ -405,12 +405,12 @@ class TestCreateCaseProposalIdempotency:
 
         after_accepts = list(dl.list_objects("Accept"))
         after_creates = list(dl.list_objects("Create"))
-        assert len(after_accepts) == len(
-            first_accepts
-        ), "No new Accept should be sent when marker is present (AC-3)"
-        assert len(after_creates) == len(
-            first_creates
-        ), "No new Create should be sent when marker is present (AC-3)"
+        assert len(after_accepts) == len(first_accepts), (
+            "No new Accept should be sent when marker is present (AC-3)"
+        )
+        assert len(after_creates) == len(first_creates), (
+            "No new Create should be sent when marker is present (AC-3)"
+        )
 
 
 @pytest.mark.spec("CP-05-006")
@@ -440,9 +440,9 @@ class TestCreateCaseProposalIdempotencyIntegration:
             for obj in dl.list_objects("VulnerabilityCase")
             if isinstance(obj, VulnerabilityCase)
         ]
-        assert (
-            len(cases_after_first) == 1
-        ), "First proposal must create one case"
+        assert len(cases_after_first) == 1, (
+            "First proposal must create one case"
+        )
         first_case_id = cases_after_first[0].id_
 
         # Resend the same proposal (network-retry scenario)
@@ -453,17 +453,17 @@ class TestCreateCaseProposalIdempotencyIntegration:
             for obj in dl.list_objects("VulnerabilityCase")
             if isinstance(obj, VulnerabilityCase)
         ]
-        assert (
-            len(all_cases) == 1
-        ), "Duplicate proposal must not create a second VulnerabilityCase (AC-4)"
-        assert (
-            all_cases[0].id_ == first_case_id
-        ), "The surviving case must be the original one (AC-4)"
+        assert len(all_cases) == 1, (
+            "Duplicate proposal must not create a second VulnerabilityCase (AC-4)"
+        )
+        assert all_cases[0].id_ == first_case_id, (
+            "The surviving case must be the original one (AC-4)"
+        )
 
         all_accepts = list(dl.list_objects("Accept"))
-        assert (
-            len(all_accepts) >= 2
-        ), "Duplicate proposal should produce a second Accept (AC-4)"
+        assert len(all_accepts) >= 2, (
+            "Duplicate proposal should produce a second Accept (AC-4)"
+        )
         dl.close()
 
 
@@ -479,9 +479,9 @@ class TestAcceptCaseProposalReceivedUseCase:
             actor_id=_VENDOR_URI,
         )
         proposal = _make_proposal()
-        assert isinstance(
-            proposal.object_, as_VulnerabilityReport
-        ), "_make_proposal() must embed a full as_VulnerabilityReport"
+        assert isinstance(proposal.object_, as_VulnerabilityReport), (
+            "_make_proposal() must embed a full as_VulnerabilityReport"
+        )
         report_id = proposal.object_.id_
 
         # Seed a VultronReportCaseLink so the use case can find it
@@ -503,9 +503,9 @@ class TestAcceptCaseProposalReceivedUseCase:
 
         stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
         assert isinstance(stored_link, VultronReportCaseLink)
-        assert (
-            stored_link.trusted_case_actor_id == _CASE_ACTOR_URI
-        ), "trusted_case_actor_id should be set to the case-actor URI"
+        assert stored_link.trusted_case_actor_id == _CASE_ACTOR_URI, (
+            "trusted_case_actor_id should be set to the case-actor URI"
+        )
 
     def test_execute_no_link_is_non_fatal(self, make_payload):
         """Missing VultronReportCaseLink causes a warning but not an error (CP-06-003)."""
@@ -619,12 +619,12 @@ class TestRejectCaseProposalReceivedUseCase:
 
         stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
         assert isinstance(stored_link, VultronReportCaseLink)
-        assert (
-            stored_link.proposal_rejected is True
-        ), "proposal_rejected should be True after rejection"
-        assert (
-            stored_link.rejection_reason is None
-        ), "rejection_reason should be None when not provided"
+        assert stored_link.proposal_rejected is True, (
+            "proposal_rejected should be True after rejection"
+        )
+        assert stored_link.rejection_reason is None, (
+            "rejection_reason should be None when not provided"
+        )
 
     def test_execute_records_rejection_reason(self, make_payload):
         """When Reject activity carries a summary, it is stored as rejection_reason (CP-06-004)."""
@@ -657,9 +657,9 @@ class TestRejectCaseProposalReceivedUseCase:
         stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
         assert isinstance(stored_link, VultronReportCaseLink)
         assert stored_link.proposal_rejected is True
-        assert (
-            stored_link.rejection_reason == rejection_summary
-        ), "rejection_reason should match the Reject activity summary"
+        assert stored_link.rejection_reason == rejection_summary, (
+            "rejection_reason should match the Reject activity summary"
+        )
 
     def test_execute_no_link_is_non_fatal(self, make_payload):
         """Missing VultronReportCaseLink causes a warning but not an error (CP-06-004)."""

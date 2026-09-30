@@ -392,9 +392,9 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         )
 
         assert result.status == Status.SUCCESS
-        assert (
-            call_count == 0
-        ), "ApplyEmbargoTeardown must NOT run on already-stored entry"
+        assert call_count == 0, (
+            "ApplyEmbargoTeardown must NOT run on already-stored entry"
+        )
 
     @pytest.mark.spec("SYNC-12-003")
     def test_em_exited_is_idempotent(self, bridge, datalayer, case_actor):

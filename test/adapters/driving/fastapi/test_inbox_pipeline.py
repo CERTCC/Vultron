@@ -364,9 +364,9 @@ def test_process_requeues_activity_on_validation_error(
 
     assert result is None, "VultronValidationError must return None"
     queue_dl = dl.clone_for_actor(RECEIVER_ID)
-    assert (
-        activity_id in queue_dl.inbox_list()
-    ), "A transient validation failure MUST re-queue the activity for retry (#2766)"
+    assert activity_id in queue_dl.inbox_list(), (
+        "A transient validation failure MUST re-queue the activity for retry (#2766)"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -450,9 +450,9 @@ def test_protocol_violation_error_does_not_requeue(test_pipeline, monkeypatch):
 
     assert result is None, "VultronProtocolViolationError must return None"
     queue_dl = dl.clone_for_actor(RECEIVER_ID)
-    assert (
-        activity_id not in queue_dl.inbox_list()
-    ), "A protocol violation MUST NOT re-queue — it creates an infinite retry loop (#2861)"
+    assert activity_id not in queue_dl.inbox_list(), (
+        "A protocol violation MUST NOT re-queue — it creates an infinite retry loop (#2861)"
+    )
 
 
 # ---------------------------------------------------------------------------

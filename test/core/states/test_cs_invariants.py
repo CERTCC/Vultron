@@ -422,9 +422,9 @@ def test_valid_transitions(src, dst):
     ],
 )
 def test_invalid_transitions(src, dst, reason):
-    assert not is_valid_cs_transition(
-        src, dst
-    ), f"{src.name} -> {dst.name} should be rejected: {reason}"
+    assert not is_valid_cs_transition(src, dst), (
+        f"{src.name} -> {dst.name} should be rejected: {reason}"
+    )
     with pytest.raises(VultronInvalidStateTransitionError):
         ensure_valid_cs_transition(src, dst)
 
@@ -593,9 +593,9 @@ def test_accepted_histories(history):
 )
 def test_rejected_histories(history, reason):
     events = [CSEvent(char) for char in history]
-    assert not is_valid_cs_history(
-        events
-    ), f"{history} should be rejected: {reason}"
+    assert not is_valid_cs_history(events), (
+        f"{history} should be rejected: {reason}"
+    )
     with pytest.raises(
         (VultronValidationError, VultronInvalidStateTransitionError)
     ):

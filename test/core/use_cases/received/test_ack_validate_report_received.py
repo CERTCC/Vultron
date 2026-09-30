@@ -270,9 +270,9 @@ class TestFullReportFlow:
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         link = dl.read(link_id)
-        assert isinstance(
-            link, VultronReportCaseLink
-        ), "Expected a pending VultronReportCaseLink (ADR-0041)"
+        assert isinstance(link, VultronReportCaseLink), (
+            "Expected a pending VultronReportCaseLink (ADR-0041)"
+        )
         assert link.case_id is None
 
     def test_full_flow_validate_does_not_recreate_case(self):
@@ -447,9 +447,9 @@ class TestFullReportFlow:
         ).execute()
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
-        assert isinstance(
-            dl.read(link_id), VultronReportCaseLink
-        ), "Pending VultronReportCaseLink must exist after submit (ADR-0041)"
+        assert isinstance(dl.read(link_id), VultronReportCaseLink), (
+            "Pending VultronReportCaseLink must exist after submit (ADR-0041)"
+        )
 
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
         assert (

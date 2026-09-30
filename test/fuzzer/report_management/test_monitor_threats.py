@@ -19,7 +19,6 @@ Tests cover:
   - AC-3: Unit tests cover each node's success_rate and status distribution
 """
 
-
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -133,9 +132,9 @@ class TestDocstrings:
         self, node_cls: type[WeightedBehavior], section: str
     ) -> None:
         doc = (node_cls.__doc__ or "").lower()
-        assert (
-            section in doc
-        ), f"{node_cls.__name__} docstring missing '{section}' section"
+        assert section in doc, (
+            f"{node_cls.__name__} docstring missing '{section}' section"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +180,6 @@ class TestSuccessRates:
             assert node_cls().update() == Status.SUCCESS
             return
         rate = _run_trials(node_cls)
-        assert (
-            abs(rate - expected_rate) < _TOLERANCE
-        ), f"{node_cls.__name__}: empirical={rate:.4f} expected={expected_rate:.4f}"
+        assert abs(rate - expected_rate) < _TOLERANCE, (
+            f"{node_cls.__name__}: empirical={rate:.4f} expected={expected_rate:.4f}"
+        )

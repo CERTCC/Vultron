@@ -1176,17 +1176,17 @@ class TestWaitForAllParticipantsRmClosed:
             for actor_id in fetched_case.actor_participant_index
             if actor_id.startswith("http")
         ]
-        assert (
-            url_based_actor_ids
-        ), "Expected at least one URL-based actor ID (Case Actor) in index keys"
+        assert url_based_actor_ids, (
+            "Expected at least one URL-based actor ID (Case Actor) in index keys"
+        )
 
         # The CaseActor Service object (HTTP-URL key) must be fetchable.
         actor_id = url_based_actor_ids[0]
         encoded = quote(actor_id, safe="")
         result = vendor_client.get(vendor_client.dl_path(encoded))
-        assert (
-            isinstance(result, dict) and result.get("id") == actor_id
-        ), f"Expected Service record for URL-format ID {actor_id!r}, got {result!r}"
+        assert isinstance(result, dict) and result.get("id") == actor_id, (
+            f"Expected Service record for URL-format ID {actor_id!r}, got {result!r}"
+        )
 
         # _all_fetchable_participants_rm_closed must also handle this layout
         # without error.
@@ -1758,9 +1758,9 @@ class TestDeliveryIsolation:
             offer,
             dl=vendor_isolated.store_for(vendor_id),
         )
-        assert (
-            case is not None
-        ), "Expected VulnerabilityCase after validate-report or trigger/create-case"
+        assert case is not None, (
+            "Expected VulnerabilityCase after validate-report or trigger/create-case"
+        )
 
         # The case announcement should have been delivered to Finder's inbox
         # via the outbox→_TestClientRouter→inbox chain.  Finder's isolated
@@ -1898,9 +1898,9 @@ def completed_workflow(
 
     # ADR-0041: no case after validate-report; create one directly for setup.
     case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
-    assert (
-        case is not None
-    ), "Expected as_VulnerabilityCase after trigger/create-case"
+    assert case is not None, (
+        "Expected as_VulnerabilityCase after trigger/create-case"
+    )
     # Refresh case to get actor_participant_index populated.
     case_data = vendor_client.get(vendor_client.dl_path(case.id_))
     case = as_VulnerabilityCase(**case_data)
@@ -2058,9 +2058,9 @@ class TestCaseLedgerInvariants:
             for p, s in latest_rm.items()
             if s.upper() not in ("CLOSED", "RM.CLOSED")
         }
-        assert (
-            not not_closed
-        ), f"Participants not in RM=CLOSED at scenario end: {not_closed}"
+        assert not not_closed, (
+            f"Participants not in RM=CLOSED at scenario end: {not_closed}"
+        )
 
     def test_required_event_types_present_in_case_actor_log(
         self,
@@ -2238,9 +2238,9 @@ class TestFvMilestoneAssertions:
                 case=case,
             )
 
-        assert (
-            mock_rm_wait.called
-        ), "wait_for_participant_rm_state must be called before notify-fix-ready"
+        assert mock_rm_wait.called, (
+            "wait_for_participant_rm_state must be called before notify-fix-ready"
+        )
         rm_call = mock_rm_wait.call_args_list[0]
         assert rm_call.kwargs.get("expected_states") == {
             RM.ACCEPTED,
@@ -2248,9 +2248,9 @@ class TestFvMilestoneAssertions:
             RM.CLOSED,
         }, "expected_states must be {ACCEPTED, DEFERRED, CLOSED}"
         assert "rm_wait" in call_order and "fix_ready" in call_order
-        assert call_order.index("rm_wait") < call_order.index(
-            "fix_ready"
-        ), "wait_for_participant_rm_state must be called before actor_notifies_fix_ready"
+        assert call_order.index("rm_wait") < call_order.index("fix_ready"), (
+            "wait_for_participant_rm_state must be called before actor_notifies_fix_ready"
+        )
 
     def test_phase_publication_calls_verify_publicly_disclosed(self):
         """_phase_publication calls verify_publicly_disclosed at M6."""

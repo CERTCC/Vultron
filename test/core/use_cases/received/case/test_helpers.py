@@ -113,9 +113,9 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
     CreateCaseReceivedUseCase(dl, event).execute()
 
     stored = dl.read(_FINDER_PARTICIPANT_ID)
-    assert (
-        stored is not None
-    ), "Reporter participant must exist after bootstrap"
+    assert stored is not None, (
+        "Reporter participant must exist after bootstrap"
+    )
     statuses = getattr(stored, "participant_statuses", [])
     assert statuses, "Reporter participant must have at least one status"
     assert statuses[-1].rm.state == RM.ACCEPTED, (

@@ -187,9 +187,9 @@ def test_propose_case_to_actor_node_wired_after_the_identity_publisher(
     effect_seq = tree.children[1]
     node_types = [type(c) for c in effect_seq.children]
 
-    assert (
-        ProposeCaseToActorNode in node_types
-    ), "ProposeCaseToActorNode must be present in create_create_case_tree"
+    assert ProposeCaseToActorNode in node_types, (
+        "ProposeCaseToActorNode must be present in create_create_case_tree"
+    )
     propose_idx = node_types.index(ProposeCaseToActorNode)
     publish_idx = next(
         i
@@ -413,9 +413,9 @@ def test_create_case_tree_vendor_participant_seeded_with_rm_valid(
         latest_rm = (
             statuses[-1].rm.state if hasattr(statuses[-1], "rm") else None
         )
-        assert (
-            latest_rm == RM.VALID
-        ), f"Expected initial rm_state=RM.VALID, got {latest_rm}"
+        assert latest_rm == RM.VALID, (
+            f"Expected initial rm_state=RM.VALID, got {latest_rm}"
+        )
         found_valid = True
 
     assert found_valid, "No vendor participant found for actor in case"

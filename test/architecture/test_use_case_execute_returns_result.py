@@ -200,7 +200,9 @@ def test_every_use_case_execute_returns_a_use_case_result() -> None:
     assert {
         "received",
         "query",
-    } <= scanned, f"expected execute() methods in received/ and query/; scanned {scanned}"
+    } <= scanned, (
+        f"expected execute() methods in received/ and query/; scanned {scanned}"
+    )
     assert not violations, (
         "execute() must return UseCaseResult or a subtype (UCORG-05-004, "
         "ADR-0095):\n" + "\n".join(f"  {v}" for v in violations)

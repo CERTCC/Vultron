@@ -111,9 +111,9 @@ class TestAcceptEmbargo:
         )
 
         obj = json.loads(activity_dict).get("object")
-        assert isinstance(
-            obj, dict
-        ), "object_ must be an inline dict, not a URI"
+        assert isinstance(obj, dict), (
+            "object_ must be an inline dict, not a URI"
+        )
         assert obj.get("id") == proposal_id
 
 
@@ -160,9 +160,9 @@ class TestRejectEmbargo:
         )
 
         obj = json.loads(activity_dict).get("object")
-        assert isinstance(
-            obj, dict
-        ), "object_ must be an inline dict, not a URI"
+        assert isinstance(obj, dict), (
+            "object_ must be an inline dict, not a URI"
+        )
         assert obj.get("id") == proposal_id
 
 

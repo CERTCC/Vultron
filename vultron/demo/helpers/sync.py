@@ -166,9 +166,9 @@ def verify_replica_state(
     replica_case = as_VulnerabilityCase.model_validate(replica_case_data)
 
     # 1. Same case ID
-    assert (
-        replica_case.id_ == case_id
-    ), f"Replica case ID mismatch: {replica_case.id_!r} != {case_id!r}"
+    assert replica_case.id_ == case_id, (
+        f"Replica case ID mismatch: {replica_case.id_!r} != {case_id!r}"
+    )
     logger.info("✓ Replica case ID matches: %s", case_id)
 
     # 2. actor_participant_index keys match

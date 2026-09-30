@@ -94,9 +94,9 @@ def seeded_case(
     case.add_participant(participant)
     dl.create(case)
     stored = dl.read(_CASE_ID)
-    assert isinstance(
-        stored, VulnerabilityCase
-    ), "seeded_case: DL did not return a VulnerabilityCase"
+    assert isinstance(stored, VulnerabilityCase), (
+        "seeded_case: DL did not return a VulnerabilityCase"
+    )
     return stored
 
 

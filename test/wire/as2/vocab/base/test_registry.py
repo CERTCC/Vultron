@@ -195,12 +195,12 @@ class TestDynamicDiscovery:
         )
 
         # WIRE_TYPE_MAP is keyed by wire type_ value (ARCH-23-002: disjoint from CORE_VOCABULARY)
-        assert (
-            "VulnerabilityReport" in WIRE_TYPE_MAP
-        ), "BUG-26040902: as_VulnerabilityReport missing from WIRE_TYPE_MAP"
-        assert (
-            "VulnerabilityCase" in WIRE_TYPE_MAP
-        ), "BUG-26040902: VulnerabilityCase missing from WIRE_TYPE_MAP"
+        assert "VulnerabilityReport" in WIRE_TYPE_MAP, (
+            "BUG-26040902: as_VulnerabilityReport missing from WIRE_TYPE_MAP"
+        )
+        assert "VulnerabilityCase" in WIRE_TYPE_MAP, (
+            "BUG-26040902: VulnerabilityCase missing from WIRE_TYPE_MAP"
+        )
         assert WIRE_TYPE_MAP["VulnerabilityReport"] is as_VulnerabilityReport
         assert WIRE_TYPE_MAP["VulnerabilityCase"] is as_VulnerabilityCase
 
@@ -274,9 +274,9 @@ class TestCoreTypeMapFallback:
     def test_core_types_absent_from_vocabulary(self):
         """None of the formerly-misregistered core types should be in VOCABULARY."""
         for name in self._CORE_TYPE_NAMES:
-            assert (
-                name not in VOCABULARY
-            ), f"ARCH-12-003 violation: {name!r} must not be in wire VOCABULARY"
+            assert name not in VOCABULARY, (
+                f"ARCH-12-003 violation: {name!r} must not be in wire VOCABULARY"
+            )
 
     def test_actor_key_is_wire_type(self):
         """WIRE_TYPE_MAP['Actor'] must be the wire as_Actor, not CoreActor."""
@@ -291,12 +291,12 @@ class TestCoreTypeMapFallback:
         """The opted-in fallback resolves each formerly-misregistered core type."""
         for name in self._CORE_TYPE_NAMES:
             cls = find_in_vocabulary(name, include_core=True)
-            assert (
-                cls is not None
-            ), f"find_in_vocabulary({name!r}) returned None"
-            assert callable(
-                cls
-            ), f"find_in_vocabulary({name!r}) is not callable"
+            assert cls is not None, (
+                f"find_in_vocabulary({name!r}) returned None"
+            )
+            assert callable(cls), (
+                f"find_in_vocabulary({name!r}) is not callable"
+            )
 
     def test_core_actor_resolves_to_core_actor_class(self):
         """find_in_vocabulary('CoreActor') returns CoreActor."""
@@ -369,8 +369,9 @@ class TestCoreTypeMapFallback:
         for name in core_only:
             with pytest.raises(KeyError):
                 find_in_vocabulary(name)
-            assert find_in_vocabulary(name, include_core=True) is (
-                CORE_TYPE_MAP[name]
+            assert (
+                find_in_vocabulary(name, include_core=True)
+                is (CORE_TYPE_MAP[name])
             )
 
     @pytest.mark.spec("VM-06-008")
@@ -422,16 +423,16 @@ class TestDisjointKeys:
         import vultron.wire.as2.vocab.objects  # noqa: F401
 
         for key in VOCABULARY:
-            assert key.startswith(
-                "as_"
-            ), f"VOCABULARY key {key!r} does not start with 'as_'"
+            assert key.startswith("as_"), (
+                f"VOCABULARY key {key!r} does not start with 'as_'"
+            )
 
     def test_wire_type_map_keys_are_stripped(self):
         """WIRE_TYPE_MAP keys are wire type_ values (no 'as_' prefix)."""
         for key in WIRE_TYPE_MAP:
-            assert not key.startswith(
-                "as_"
-            ), f"WIRE_TYPE_MAP key {key!r} still has 'as_' prefix"
+            assert not key.startswith("as_"), (
+                f"WIRE_TYPE_MAP key {key!r} still has 'as_' prefix"
+            )
 
 
 class TestWireTypeValues:
@@ -671,6 +672,6 @@ class TestSetTypeFromClassName:
 
         obj = as_satellite()
         # removeprefix gives 'satellite'; lstrip would give 'tellite'
-        assert (
-            obj.type_ == "satellite"
-        ), f"Expected 'satellite', got {obj.type_!r} — lstrip bug not fixed?"
+        assert obj.type_ == "satellite", (
+            f"Expected 'satellite', got {obj.type_!r} — lstrip bug not fixed?"
+        )

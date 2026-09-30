@@ -293,9 +293,9 @@ def _classify(violations: Sequence[Violation]) -> list[Violation]:
     .composite_state_invariants.EntailmentViolation.reads` is required rather than
     defaulted: an empty ``dimensions`` would be labelled root unconditionally.
     """
-    assert all(
-        violation.dimensions for violation in violations
-    ), "every Violation must name the dimensions its rule reads (EH-07-002)"
+    assert all(violation.dimensions for violation in violations), (
+        "every Violation must name the dimensions its rule reads (EH-07-002)"
+    )
     faulted: set[str] = {
         violation.dimensions[0]
         for violation in violations

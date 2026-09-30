@@ -216,9 +216,9 @@ def _post_to_inbox(client, actor_slug: str, activity) -> None:
         content=activity.model_dump_json(by_alias=True, exclude_none=True),
         headers={"Content-Type": "application/json"},
     )
-    assert (
-        resp.status_code == 202
-    ), f"Inbox POST returned {resp.status_code}: {resp.text}"
+    assert resp.status_code == 202, (
+        f"Inbox POST returned {resp.status_code}: {resp.text}"
+    )
 
 
 def _actor_slug(actor_id: str) -> str:
@@ -309,9 +309,9 @@ def _bootstrap_case_for_participant(
             "to": [participant_actor_id],
         },
     )
-    assert (
-        resp.status_code == 202
-    ), f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+    assert resp.status_code == 202, (
+        f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+    )
 
     # Find the case that the CaseActor created for this report.
     # Under ADR-0041, case_proposal_received_tree creates the canonical case
@@ -348,9 +348,9 @@ def _bootstrap_case_for_participant(
     #
     # Seed both here, alongside the trust anchor below.
     case_obj = owner_dl.read(case_id)
-    assert (
-        case_obj is not None
-    ), f"case {case_id!r} not readable from the owner's own store"
+    assert case_obj is not None, (
+        f"case {case_id!r} not readable from the owner's own store"
+    )
     object.__setattr__(
         case_obj, "active_embargo", f"{case_id}/embargoes/bootstrap-embargo"
     )
@@ -397,9 +397,9 @@ def _bootstrap_case_for_participant(
         "/trigger/validate-report",
         json={"offer_id": offer.id_},
     )
-    assert (
-        resp.status_code == 202
-    ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
+    assert resp.status_code == 202, (
+        f"validate-report trigger failed ({resp.status_code}): {resp.text}"
+    )
 
     return case_id, owner_actor_id, participant_actor_id
 
@@ -556,9 +556,9 @@ class TestBootstrapSequence:
         # the Announce was delivered to `actor_id`, so that is the replica it
         # seeded (ADR-0073).
         actor_dl = participant_iso.store_for(actor_id)
-        assert (
-            actor_dl.read(_DIRECT_CASE_ID) is not None
-        ), "Prerequisite: case replica must exist before routing test."
+        assert actor_dl.read(_DIRECT_CASE_ID) is not None, (
+            "Prerequisite: case replica must exist before routing test."
+        )
 
         # Post a case-scoped Add(Note) with context = case_id.
         note = as_Note(name="Routing check note for PCR-07-006")

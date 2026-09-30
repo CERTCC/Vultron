@@ -1031,9 +1031,9 @@ class TestAddParticipantStatusTree:
         # CaseStatus directly to the case (no inbox routing).
         case_after = populated_dl.read(CASE_ID)
         assert isinstance(case_after, CoreCase)
-        assert (
-            len(case_after.case_statuses) > initial_status_count
-        ), "EmitCaseStatusUpdateNode must append a new CaseStatus to the case"
+        assert len(case_after.case_statuses) > initial_status_count, (
+            "EmitCaseStatusUpdateNode must append a new CaseStatus to the case"
+        )
 
     @pytest.mark.executes_as(OUTSIDER_ID)
     def test_full_tree_fails_for_unknown_sender(
@@ -1104,9 +1104,9 @@ class TestAddParticipantStatusTree:
         assert result.status == Status.FAILURE
         # Outbox must be empty: guard blocked before EmitCaseStatusUpdateNode
         outbox = populated_dl.outbox_list()
-        assert (
-            len(outbox) == 0
-        ), "StatusAdoptionGate denied — no Add(CaseStatus) must be in outbox"
+        assert len(outbox) == 0, (
+            "StatusAdoptionGate denied — no Add(CaseStatus) must be in outbox"
+        )
 
     @pytest.mark.spec("RSH-07-001")
     @pytest.mark.spec("RSH-01-002")
@@ -1154,16 +1154,18 @@ class TestAddParticipantStatusTree:
         all_nodes = _collect_nodes(cm_tree)
         assert any(
             isinstance(n, RequireCaseOwnerApprovalNode) for n in all_nodes
-        ), "RequireCaseOwnerApprovalNode must be present in the tree when using DETERMINISTIC bundle"
+        ), (
+            "RequireCaseOwnerApprovalNode must be present in the tree when using DETERMINISTIC bundle"
+        )
 
         result = bridge.execute_with_setup(tree=cm_tree, actor_id=ACTOR_ID)
-        assert (
-            result.status == Status.FAILURE
-        ), "Non-CASE_OWNER sender must be blocked by RequireCaseOwnerApproval (RSH-07-001)"
+        assert result.status == Status.FAILURE, (
+            "Non-CASE_OWNER sender must be blocked by RequireCaseOwnerApproval (RSH-07-001)"
+        )
         outbox = populated_dl.outbox_list()
-        assert (
-            len(outbox) == 0
-        ), "RequireCaseOwnerApproval blocked — no Add(CaseStatus) must be in outbox"
+        assert len(outbox) == 0, (
+            "RequireCaseOwnerApproval blocked — no Add(CaseStatus) must be in outbox"
+        )
 
     @pytest.mark.spec("RSH-03-001")
     @pytest.mark.spec("RSH-03-003")
@@ -1234,21 +1236,21 @@ class TestAddParticipantStatusTree:
         node_names = [n.name for n in all_nodes]
         node_types = [type(n).__name__ for n in all_nodes]
 
-        assert (
-            "EmitCaseStatusUpdate" in node_names
-        ), "EmitCaseStatusUpdateNode must be present (RSH-01-001, RSH-04-004)"
-        assert (
-            EmitCaseStatusUpdateNode.__name__ in node_types
-        ), "EmitCaseStatusUpdateNode type must appear in tree (RSH-04-004)"
-        assert (
-            "EmitAddCaseStatusToSelf" not in node_names
-        ), "EmitAddCaseStatusToSelfNode must NOT be in tree (replaced by RSH-04-004)"
-        assert (
-            "StatusAdoptionGate" in node_names
-        ), "StatusAdoptionGate must be present (RSH-01-001)"
-        assert (
-            "CheckIsCaseOwner" in node_names
-        ), "CheckIsCaseOwnerNode must be present inside StatusAdoptionGate (RSH-01-002)"
+        assert "EmitCaseStatusUpdate" in node_names, (
+            "EmitCaseStatusUpdateNode must be present (RSH-01-001, RSH-04-004)"
+        )
+        assert EmitCaseStatusUpdateNode.__name__ in node_types, (
+            "EmitCaseStatusUpdateNode type must appear in tree (RSH-04-004)"
+        )
+        assert "EmitAddCaseStatusToSelf" not in node_names, (
+            "EmitAddCaseStatusToSelfNode must NOT be in tree (replaced by RSH-04-004)"
+        )
+        assert "StatusAdoptionGate" in node_names, (
+            "StatusAdoptionGate must be present (RSH-01-001)"
+        )
+        assert "CheckIsCaseOwner" in node_names, (
+            "CheckIsCaseOwnerNode must be present inside StatusAdoptionGate (RSH-01-002)"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1285,12 +1287,12 @@ class TestNoAutoCloseSequenceInTree:
         tree = add_participant_status_tree(request=event, case_id=CASE_ID)
         all_nodes = self._all_nodes(tree)
         node_names = [n.name for n in all_nodes]
-        assert (
-            "AutoCloseSequence" not in node_names
-        ), "AutoCloseSequence must be removed per ADR-0050"
-        assert (
-            "AutoCloseIfCaseManager" not in node_names
-        ), "AutoCloseIfCaseManager must be removed per ADR-0050"
+        assert "AutoCloseSequence" not in node_names, (
+            "AutoCloseSequence must be removed per ADR-0050"
+        )
+        assert "AutoCloseIfCaseManager" not in node_names, (
+            "AutoCloseIfCaseManager must be removed per ADR-0050"
+        )
 
     def test_no_emit_close_case_node(self, make_payload):
         """EmitCloseCaseNode must not appear in add_participant_status_tree."""
@@ -1309,9 +1311,9 @@ class TestNoAutoCloseSequenceInTree:
         event = make_payload(activity)
         tree = add_participant_status_tree(request=event, case_id=CASE_ID)
         all_nodes = self._all_nodes(tree)
-        assert not any(
-            isinstance(n, EmitCloseCaseNode) for n in all_nodes
-        ), "EmitCloseCaseNode must not be in add_participant_status_tree (ADR-0050)"
+        assert not any(isinstance(n, EmitCloseCaseNode) for n in all_nodes), (
+            "EmitCloseCaseNode must not be in add_participant_status_tree (ADR-0050)"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1629,9 +1631,9 @@ class TestRejectionValidatorBeforeCommit:
         result = bridge.execute_with_setup(
             tree=tree, actor_id=CASE_MANAGER_ID, activity=event
         )
-        assert (
-            result.status == Status.FAILURE
-        ), "A fully rejected update must fail before GuardedCommit"
+        assert result.status == Status.FAILURE, (
+            "A fully rejected update must fail before GuardedCommit"
+        )
 
         entries = [
             e
@@ -1703,9 +1705,9 @@ class TestEmitRMGapNoteNode:
         assert result.status == Status.SUCCESS
 
         outbox = populated_dl.outbox_list()
-        assert (
-            len(outbox) == 1
-        ), "Gap anomaly should emit exactly one Add(Note,Case)"
+        assert len(outbox) == 1, (
+            "Gap anomaly should emit exactly one Add(Note,Case)"
+        )
 
     @pytest.mark.spec("RSH-06-004")
     def test_regression_anomaly_emits_note(self, populated_dl):
@@ -1721,9 +1723,9 @@ class TestEmitRMGapNoteNode:
         assert result.status == Status.SUCCESS
 
         outbox = populated_dl.outbox_list()
-        assert (
-            len(outbox) == 1
-        ), "Regression anomaly should emit exactly one Add(Note,Case)"
+        assert len(outbox) == 1, (
+            "Regression anomaly should emit exactly one Add(Note,Case)"
+        )
 
     def test_no_case_id_is_noop_success(self, populated_dl):
         """case_id=None → SUCCESS with no outbox entry (no case context)."""
@@ -1868,12 +1870,12 @@ class TestAddParticipantStatusTeardownWiring:
         node_names = [n.name for n in all_nodes]
         node_types_map = {n.name: type(n).__name__ for n in all_nodes}
 
-        assert (
-            "TeardownEffectsOrSkip" in node_names
-        ), "TeardownEffectsOrSkip wrapper must be present (RSH-04-004)"
-        assert (
-            node_types_map["TeardownEffectsOrSkip"] == "FailureIsSuccess"
-        ), "TeardownEffectsOrSkip must be a FailureIsSuccess decorator"
+        assert "TeardownEffectsOrSkip" in node_names, (
+            "TeardownEffectsOrSkip wrapper must be present (RSH-04-004)"
+        )
+        assert node_types_map["TeardownEffectsOrSkip"] == "FailureIsSuccess", (
+            "TeardownEffectsOrSkip must be a FailureIsSuccess decorator"
+        )
 
     @pytest.mark.spec("RSH-01-004")
     @pytest.mark.spec("RSH-02-001")

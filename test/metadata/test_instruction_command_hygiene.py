@@ -141,9 +141,9 @@ def test_discovery_finds_the_known_instruction_files() -> None:
         "docs/developer/how-to/run-tests.md",
         "notes/testing-pitfalls.md",
     }
-    assert (
-        expected <= found
-    ), f"Discovery missed known files: {expected - found}"
+    assert expected <= found, (
+        f"Discovery missed known files: {expected - found}"
+    )
 
 
 def test_masking_pipe_regex_matches_the_forms_that_regressed() -> None:
@@ -172,9 +172,9 @@ def test_masking_pipe_regex_matches_the_forms_that_regressed() -> None:
         'git merge-tree $(git merge-base HEAD main) HEAD main | grep -i "^CONFLICT" || true',
     )
     for command in should_not_match:
-        assert not _MASKING_PIPE.search(
-            command
-        ), f"detector false-positived: {command}"
+        assert not _MASKING_PIPE.search(command), (
+            f"detector false-positived: {command}"
+        )
 
 
 @pytest.mark.parametrize(
@@ -212,9 +212,9 @@ def test_anti_pattern_citation_allowances_are_tight() -> None:
     """
     for rel_path, allowed in ANTI_PATTERN_CITATIONS.items():
         path = _REPO_ROOT / rel_path
-        assert (
-            path.exists()
-        ), f"ANTI_PATTERN_CITATIONS names a missing file: {rel_path}"
+        assert path.exists(), (
+            f"ANTI_PATTERN_CITATIONS names a missing file: {rel_path}"
+        )
         actual = len(_masking_lines(path))
         assert actual == allowed, (
             f"{rel_path} is allowed {allowed} anti-pattern citation(s) but has "

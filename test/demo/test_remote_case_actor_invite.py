@@ -301,9 +301,9 @@ def _invite(topo: _Topology, case_id: str) -> dict:
         "/api/v2/actors/owner/trigger/invite-actor-to-case",
         json={"case_id": case_id, "invitee_id": topo.invitee_actor_id},
     )
-    assert (
-        resp.status_code == 202
-    ), f"invite-actor-to-case failed ({resp.status_code}): {resp.text}"
+    assert resp.status_code == 202, (
+        f"invite-actor-to-case failed ({resp.status_code}): {resp.text}"
+    )
     body: dict = resp.json()
     return body
 
@@ -469,9 +469,9 @@ class TestInviteWithARemoteCaseActor:
             f" {topology.ca_host.base_url}; the CaseActor's real ledger never"
             " sees it (ADR-0021)"
         )
-        assert (
-            phantom.get_all("Invite") == []
-        ), "the Invite activity itself was persisted into the phantom store"
+        assert phantom.get_all("Invite") == [], (
+            "the Invite activity itself was persisted into the phantom store"
+        )
 
     def test_the_owners_own_store_records_the_invite(self, topology):
         """The owner must be able to account for an Invite it caused.

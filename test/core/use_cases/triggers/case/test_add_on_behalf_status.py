@@ -154,9 +154,9 @@ class TestAddOnBehalfStatusVtoV:
         activity = self.dl.read(activity_id)
         assert activity is not None
         to_ids = _to_ids(activity)
-        assert (
-            self.cm_actor.id_ in to_ids
-        ), f"PCR-08-001: activity must address the Case Manager; to={to_ids!r}"
+        assert self.cm_actor.id_ in to_ids, (
+            f"PCR-08-001: activity must address the Case Manager; to={to_ids!r}"
+        )
 
     def test_blocked_when_asserting_actor_not_cm_or_co(self):
         """Non-CM/CO actor cannot make an on-behalf assertion (PRM-06-003)."""

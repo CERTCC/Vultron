@@ -470,6 +470,6 @@ def test_aliases_return_none_when_backing_field_is_absent(
     """Named aliases must return None when the backing VultronEvent field is not set."""
     event = _mk(cls, semantic)
     for alias in alias_names:
-        assert (
-            getattr(event, alias) is None
-        ), f"{cls.__name__}.{alias} should be None when backing field is absent"
+        assert getattr(event, alias) is None, (
+            f"{cls.__name__}.{alias} should be None when backing field is absent"
+        )

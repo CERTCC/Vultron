@@ -61,9 +61,9 @@ def adapter():
 
 def _assert_wire_dict(result: dict, expected_type: str) -> None:
     assert isinstance(result, dict), f"Expected dict, got {type(result)}"
-    assert (
-        result.get("type") == expected_type
-    ), f"Expected type={expected_type!r}, got {result.get('type')!r}"
+    assert result.get("type") == expected_type, (
+        f"Expected type={expected_type!r}, got {result.get('type')!r}"
+    )
     # camelCase key present (not snake_case)
     # The 'id' field is always emitted by as_VultronObject
     assert "id" in result, f"Missing 'id' key in wire dict for {expected_type}"
@@ -72,9 +72,9 @@ def _assert_wire_dict(result: dict, expected_type: str) -> None:
         wire_cls = find_in_vocabulary(expected_type)
     except KeyError:
         wire_cls = None
-    assert (
-        wire_cls is not None
-    ), f"No vocabulary entry for {expected_type!r} — cannot verify reconstitutability"
+    assert wire_cls is not None, (
+        f"No vocabulary entry for {expected_type!r} — cannot verify reconstitutability"
+    )
     wire_cls.model_validate(result)
 
 
@@ -160,9 +160,9 @@ def test_render_returns_camel_case_keys(adapter):
     result = adapter.render(obj)
     # Wire alias for 'case_id' is 'caseId' / 'context' depending on wire model;
     # at minimum no snake_case keys that are known aliases should be present
-    assert (
-        "case_id" not in result
-    ), "Expected camelCase output (by_alias=True) but found snake_case key 'case_id'"
+    assert "case_id" not in result, (
+        "Expected camelCase output (by_alias=True) but found snake_case key 'case_id'"
+    )
 
 
 def test_render_excludes_none_fields(adapter):
@@ -170,9 +170,9 @@ def test_render_excludes_none_fields(adapter):
     obj = VulnerabilityCase()
     result = adapter.render(obj)
     for key, val in result.items():
-        assert (
-            val is not None
-        ), f"Field {key!r} should be excluded (exclude_none=True) but has value None"
+        assert val is not None, (
+            f"Field {key!r} should be excluded (exclude_none=True) but has value None"
+        )
 
 
 def test_render_same_object_twice_across_clock_tick_is_equal(
@@ -192,9 +192,7 @@ def test_render_same_object_twice_across_clock_tick_is_equal(
 
     obj = VulnerabilityCase(id_="https://example.org/cases/c1")
     obj.case_statuses = [CaseStatus(context=obj.id_)]
-    monkeypatch.setattr(
-        _helpers, "datetime", SteppingClock(datetime.now(UTC))
-    )
+    monkeypatch.setattr(_helpers, "datetime", SteppingClock(datetime.now(UTC)))
 
     assert adapter.render(obj) == adapter.render(obj)
 

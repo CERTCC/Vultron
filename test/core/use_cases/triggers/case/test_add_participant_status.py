@@ -346,19 +346,19 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         ).execute()
         after = set(self.dl.outbox_list())
         new_ids = after - before
-        assert (
-            new_ids
-        ), "AddParticipantStatus must queue at least one outbox activity"
+        assert new_ids, (
+            "AddParticipantStatus must queue at least one outbox activity"
+        )
         activity_id = next(iter(new_ids))
         activity = self.dl.read(activity_id)
         assert activity is not None
         to_ids = self._to_ids(activity)
-        assert (
-            self.case_actor.id_ in to_ids
-        ), f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
-        assert (
-            len(to_ids) == 1
-        ), f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+        assert self.case_actor.id_ in to_ids, (
+            f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
+        )
+        assert len(to_ids) == 1, (
+            f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+        )
 
     def test_execute_appends_status_to_sender_participant(self):
         """After execute(), sender's participant_statuses contains the new status.
@@ -725,10 +725,9 @@ class TestCreateParticipantStatusNode:
         assert records, "Expected a CS narrative line at INFO for PXA advance"
         # vP promotion may fire a VF narrative first; search all records for PXA
         pxa_records = [r for r in records if "pxa → Pxa" in r.getMessage()]
-        assert (
-            pxa_records
-        ), "Expected CS narrative containing 'pxa → Pxa'; got: " + str(
-            [r.getMessage() for r in records]
+        assert pxa_records, (
+            "Expected CS narrative containing 'pxa → Pxa'; got: "
+            + str([r.getMessage() for r in records])
         )
         message = pxa_records[0].getMessage()
         assert f"Actor '{self.actor.id_}' CS: pxa → Pxa" in message
@@ -1971,9 +1970,9 @@ class TestCrossMachineEntailments:
         before = self._status_count()
         with pytest.raises(VultronValidationError, match=r"CSB-15-004"):
             self._execute(d_state=CS_d.D)
-        assert (
-            self._status_count() == before
-        ), "Status count must not increase when vf≠VF + d=D (CSB-17-001)"
+        assert self._status_count() == before, (
+            "Status count must not increase when vf≠VF + d=D (CSB-17-001)"
+        )
 
 
 class TestViolationPxaEmEntailment:

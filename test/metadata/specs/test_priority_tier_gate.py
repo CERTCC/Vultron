@@ -227,12 +227,12 @@ def test_allowlisted_exception_is_still_present_exactly_once():
     """Retiring the SR-11-003 exception must also delete its allowlist entry."""
     found = _scan()
     for key in _ALLOWLIST:
-        assert (
-            key in found
-        ), f"allowlist entry no longer matches anything: {key}"
-        assert (
-            len(found[key]) == 1
-        ), f"allowlist entry matched more than once: {key} at {found[key]}"
+        assert key in found, (
+            f"allowlist entry no longer matches anything: {key}"
+        )
+        assert len(found[key]) == 1, (
+            f"allowlist entry matched more than once: {key} at {found[key]}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -270,9 +270,7 @@ def test_allowlisted_exception_is_still_present_exactly_once():
         "match spec.priority:\n"
         "    case RFC2119Priority.MUST:\n"
         "        ok = True",
-        "match spec.priority.value:\n"
-        "    case 'MUST_NOT':\n"
-        "        ok = True",
+        "match spec.priority.value:\n    case 'MUST_NOT':\n        ok = True",
         # a same-valued non-priority string is flagged by value (known gap,
         # see the module docstring): allowlist it rather than weaken the gate
         'ok = x == "MAY"',

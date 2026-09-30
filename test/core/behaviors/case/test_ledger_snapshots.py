@@ -389,9 +389,9 @@ class TestSnapshotsCarryPublished:
             for name, s in built.items()
             if parse_published(s["published"]) is None
         )
-        assert (
-            not unparseable
-        ), f"builders whose `published` does not parse: {unparseable}"
+        assert not unparseable, (
+            f"builders whose `published` does not parse: {unparseable}"
+        )
 
     def test_published_is_timezone_aware_utc(self, built):
         """A naive stamp would compare against an aware one and raise."""

@@ -209,9 +209,9 @@ def test_empirical_distribution(
     cls: type[WeightedBehavior], expected_rate: float
 ) -> None:
     rate = _run_trials(cls)
-    assert (
-        abs(rate - expected_rate) < _TOLERANCE
-    ), f"{cls.__name__}: empirical={rate:.4f} expected={expected_rate:.4f}"
+    assert abs(rate - expected_rate) < _TOLERANCE, (
+        f"{cls.__name__}: empirical={rate:.4f} expected={expected_rate:.4f}"
+    )
 
 
 # ---------------------------------------------------------------------------

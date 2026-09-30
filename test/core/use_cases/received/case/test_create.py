@@ -163,9 +163,9 @@ class TestBootstrapCreateAccepted:
         result = CreateCaseReceivedUseCase(dl, create_event).execute()
 
         stored = dl.read(_CASE_ID)
-        assert (
-            stored is not None
-        ), "Case should be seeded after valid bootstrap"
+        assert stored is not None, (
+            "Case should be seeded after valid bootstrap"
+        )
         assert result.disposition == HandlerDisposition.APPLIED
 
     @pytest.mark.spec("HP-01-003")
@@ -233,9 +233,9 @@ class TestBootstrapCreateRejectedBadSender:
         result = CreateCaseReceivedUseCase(dl, imposter_event).execute()
 
         stored = dl.read(_CASE_ID)
-        assert (
-            stored is None
-        ), "Case must not be seeded when sender is not trusted creator"
+        assert stored is None, (
+            "Case must not be seeded when sender is not trusted creator"
+        )
         # HP-01-003: an untrusted sender is refused, not "processed".
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and _IMPOSTER_ID in result.reason
@@ -270,9 +270,9 @@ class TestBootstrapCreateNoLink:
         result = CreateCaseReceivedUseCase(dl, create_event).execute()
 
         stored = dl.read(_CASE_ID)
-        assert (
-            stored is None
-        ), "Case should not be seeded when receiver has no matching ReportCaseLink"
+        assert stored is None, (
+            "Case should not be seeded when receiver has no matching ReportCaseLink"
+        )
         # The sender is not this case's CASE_MANAGER either, so nothing
         # vouches for it: an untrusted sender is REFUSED (HP-01-003).
         assert result.disposition == HandlerDisposition.REFUSED
@@ -325,9 +325,9 @@ class TestAnnounceValidatedByTrustedCaseActorId:
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(_CASE_ID)
-        assert (
-            stored is not None
-        ), "Announce from trusted CaseActor must seed the case"
+        assert stored is not None, (
+            "Announce from trusted CaseActor must seed the case"
+        )
 
     def test_imposter_announce_rejected(
         self, dl, make_payload, case_obj, announce_from_imposter

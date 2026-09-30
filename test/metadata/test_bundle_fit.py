@@ -446,9 +446,9 @@ class TestCoherenceHints:
             task(2, title="Document specs/outbox.yaml in notes/outbox.md"),
         ]
         hints = coherence_hints(members)
-        assert any(
-            "path specs/outbox.yaml" in h for h in hints
-        ), f"no path hint in {hints}"
+        assert any("path specs/outbox.yaml" in h for h in hints), (
+            f"no path hint in {hints}"
+        )
 
     def test_process_labels_are_not_coherence_evidence(self):
         """`needs-rebase` on two members says nothing about subject matter."""

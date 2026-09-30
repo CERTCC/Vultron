@@ -286,25 +286,25 @@ def test_make_dispatcher_add_participant_status_has_both_ports(monkeypatch):
     ih.make_dispatcher()
 
     sem = MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
-    assert (
-        sem in captured["port_factories"]
-    ), f"{sem} must have a port factory registered"
+    assert sem in captured["port_factories"], (
+        f"{sem} must have a port factory registered"
+    )
 
     factory = captured["port_factories"][sem]
     kwargs = factory(real_dl)
 
-    assert (
-        "sync_port" in kwargs
-    ), "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide sync_port"
-    assert isinstance(
-        kwargs["sync_port"], SyncActivityAdapter
-    ), "sync_port must be a SyncActivityAdapter instance, not None"
-    assert (
-        "trigger_activity" in kwargs
-    ), "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide trigger_activity"
-    assert isinstance(
-        kwargs["trigger_activity"], TriggerActivityAdapter
-    ), "trigger_activity must be a TriggerActivityAdapter instance, not None"
+    assert "sync_port" in kwargs, (
+        "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide sync_port"
+    )
+    assert isinstance(kwargs["sync_port"], SyncActivityAdapter), (
+        "sync_port must be a SyncActivityAdapter instance, not None"
+    )
+    assert "trigger_activity" in kwargs, (
+        "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide trigger_activity"
+    )
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter), (
+        "trigger_activity must be a TriggerActivityAdapter instance, not None"
+    )
 
 
 def test_make_dispatcher_overlapping_semantics_raises(monkeypatch):
@@ -530,9 +530,9 @@ def test_pre_bootstrap_activity_queued_not_dispatched(monkeypatch):
         queue_dl=queue_dl,
     )
 
-    assert (
-        result is None
-    ), "Pre-bootstrap activity should be deferred, not dispatched"
+    assert result is None, (
+        "Pre-bootstrap activity should be deferred, not dispatched"
+    )
     mock_dispatcher.dispatch.assert_not_called()
 
     pending = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
@@ -649,16 +649,16 @@ def test_inbox_handler_uses_actor_dl_for_queue_pop_and_shared_dl_for_dispatch(
 
     # Rehydration must have received the shared dl
     assert len(rehydrate_dl_args) == 1
-    assert (
-        rehydrate_dl_args[0] is shared_dl
-    ), "rehydrate must be called with shared dl, not actor_dl"
+    assert rehydrate_dl_args[0] is shared_dl, (
+        "rehydrate must be called with shared dl, not actor_dl"
+    )
 
     # Dispatch must have been called with the shared dl
     mock_dispatcher.dispatch.assert_called_once()
     _, dispatch_dl = mock_dispatcher.dispatch.call_args.args
-    assert (
-        dispatch_dl is shared_dl
-    ), "dispatch must be called with shared dl, not actor_dl"
+    assert dispatch_dl is shared_dl, (
+        "dispatch must be called with shared dl, not actor_dl"
+    )
 
 
 def test_inbox_port_factories_has_no_demo_import():
@@ -797,9 +797,9 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
     ih.make_dispatcher()
 
     sem = MessageSemantics.SUBMIT_REPORT
-    assert (
-        sem in captured["port_factories"]
-    ), "SUBMIT_REPORT must have a factory"
+    assert sem in captured["port_factories"], (
+        "SUBMIT_REPORT must have a factory"
+    )
 
     real_dl = SqliteDataLayer(
         "sqlite:///:memory:",
@@ -1012,9 +1012,9 @@ def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):
     ih.make_dispatcher()
 
     sem = MessageSemantics.CREATE_CASE_PROPOSAL
-    assert (
-        sem in captured["port_factories"]
-    ), "CREATE_CASE_PROPOSAL must have a factory"
+    assert sem in captured["port_factories"], (
+        "CREATE_CASE_PROPOSAL must have a factory"
+    )
     kwargs = captured["port_factories"][sem](
         SqliteDataLayer(
             "sqlite:///:memory:",
@@ -1090,13 +1090,13 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     offer_ids = [row.get("id_") for row in dl.get_all("Offer")]
     assert OFFER_ID in offer_ids, "Offer activity must be stored"
     # No case created.
-    assert (
-        dl.get_all("VulnerabilityCase") == []
-    ), "No as_VulnerabilityCase should be created when auto_create_case=False"
+    assert dl.get_all("VulnerabilityCase") == [], (
+        "No as_VulnerabilityCase should be created when auto_create_case=False"
+    )
     # Outbox must remain empty.
-    assert (
-        dl.outbox_list() == []
-    ), "Outbox must be empty when auto_create_case=False"
+    assert dl.outbox_list() == [], (
+        "Outbox must be empty when auto_create_case=False"
+    )
 
 
 def test_pending_case_queue_expiry_emits_question(monkeypatch):
@@ -1136,9 +1136,9 @@ def test_pending_case_queue_expiry_emits_question(monkeypatch):
     assert expired is True
 
     outbox = queue_dl.outbox_list()
-    assert (
-        len(outbox) == 1
-    ), "One Question should have been queued in the outbox"
+    assert len(outbox) == 1, (
+        "One Question should have been queued in the outbox"
+    )
 
     question_id = outbox[0]
     from vultron.wire.as2.vocab.base.objects.activities.intransitive import (

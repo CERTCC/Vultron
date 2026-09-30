@@ -358,8 +358,7 @@ def _make_embargo_invite(end_time=None, embargo_end=None, published=None):
 
     embargo = as_EmbargoEvent(
         context="https://example.org/cases/1",
-        end_time=embargo_end
-        or datetime.now(tz=UTC) + timedelta(days=90),
+        end_time=embargo_end or datetime.now(tz=UTC) + timedelta(days=90),
     )
     case = as_VulnerabilityCase(id_="https://example.org/cases/1")
     kwargs = {

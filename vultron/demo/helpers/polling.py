@@ -1601,9 +1601,9 @@ def wait_for_initialized_case(
         f" store {case_actor_id!r} at {client.base_url}",
         swallow_exceptions=True,
     )
-    assert (
-        found
-    ), "invariant: _poll_until returns only when _check returned True"
+    assert found, (
+        "invariant: _poll_until returns only when _check returned True"
+    )
     return found[0]
 
 

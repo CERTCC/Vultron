@@ -84,9 +84,9 @@ class TestPecChainNoEmbargoToSignatory:
         """
         participant = _participant(_ACTOR_A, PEC.UNBOUND)
         final_pec = _run_sign_node(bt_scenario, participant)
-        assert (
-            final_pec == PEC.SIGNATORY
-        ), f"Expected SIGNATORY after ACCEPT from UNBOUND, got {final_pec!r}"
+        assert final_pec == PEC.SIGNATORY, (
+            f"Expected SIGNATORY after ACCEPT from UNBOUND, got {final_pec!r}"
+        )
 
     @pytest.mark.spec("EMB-11-001")
     def test_invited_to_signatory_via_accept_bt(
@@ -101,15 +101,15 @@ class TestPecChainNoEmbargoToSignatory:
 
         # Step 1: simulate invite arrival via PEC machine
         participant.apply_pec_transition(PEC_Trigger.INVITE)
-        assert (
-            participant.embargo_consent_state == PEC.INVITED
-        ), "Precondition: participant must be INVITED before accept step"
+        assert participant.embargo_consent_state == PEC.INVITED, (
+            "Precondition: participant must be INVITED before accept step"
+        )
 
         # Step 2: BT accept path
         final_pec = _run_sign_node(bt_scenario, participant)
-        assert (
-            final_pec == PEC.SIGNATORY
-        ), f"Expected SIGNATORY after ACCEPT from INVITED, got {final_pec!r}"
+        assert final_pec == PEC.SIGNATORY, (
+            f"Expected SIGNATORY after ACCEPT from INVITED, got {final_pec!r}"
+        )
 
     def test_direct_pec_assignment_would_not_enforce_transition_rule(self):
         """Regression guard: prove that direct assignment bypasses the state machine.
@@ -146,12 +146,12 @@ class TestMultiParticipantPecChain:
         pec_a = _run_sign_node(bt_scenario, participant_a)
         pec_b = _run_sign_node(bt_scenario, participant_b)
 
-        assert (
-            pec_a == PEC.SIGNATORY
-        ), f"Participant A: expected SIGNATORY, got {pec_a!r}"
-        assert (
-            pec_b == PEC.SIGNATORY
-        ), f"Participant B: expected SIGNATORY, got {pec_b!r}"
+        assert pec_a == PEC.SIGNATORY, (
+            f"Participant A: expected SIGNATORY, got {pec_a!r}"
+        )
+        assert pec_b == PEC.SIGNATORY, (
+            f"Participant B: expected SIGNATORY, got {pec_b!r}"
+        )
 
     @pytest.mark.spec("EMB-11-001")
     def test_participants_reach_signatory_from_different_starting_states(
@@ -208,6 +208,6 @@ class TestLapsedToSignatory:
         assert participant.embargo_consent_state == PEC.LAPSED
 
         final_pec = _run_sign_node(bt_scenario, participant)
-        assert (
-            final_pec == PEC.SIGNATORY
-        ), f"LAPSED participant must reach SIGNATORY after ACCEPT, got {final_pec!r}"
+        assert final_pec == PEC.SIGNATORY, (
+            f"LAPSED participant must reach SIGNATORY after ACCEPT, got {final_pec!r}"
+        )

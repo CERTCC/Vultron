@@ -761,9 +761,9 @@ def test_final_bt_state_logged_at_debug(
         r for r in caplog.records if "Final BT state" in r.message
     ]
     assert final_state_records, "Expected 'Final BT state' log entry"
-    assert all(
-        r.levelno == logging.DEBUG for r in final_state_records
-    ), f"Expected DEBUG but got {final_state_records[0].levelname}"
+    assert all(r.levelno == logging.DEBUG for r in final_state_records), (
+        f"Expected DEBUG but got {final_state_records[0].levelname}"
+    )
 
 
 def test_bt_structure_logged_at_debug(bridge, test_actor_id, caplog):

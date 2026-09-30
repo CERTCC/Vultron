@@ -320,9 +320,9 @@ class TestClearActiveEmbargoNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        assert (
-            len(save_calls) == 1
-        ), f"Expected exactly 1 datalayer.save() call, got {len(save_calls)}"
+        assert len(save_calls) == 1, (
+            f"Expected exactly 1 datalayer.save() call, got {len(save_calls)}"
+        )
 
     @pytest.mark.spec("EMB-18-001")
     def test_delegates_em_transition_to_embargo_lifecycle(self):

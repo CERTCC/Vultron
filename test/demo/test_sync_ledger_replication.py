@@ -221,9 +221,9 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     # `peer_dl` above, not the app's default-slug `dl`: the Announce was delivered
     # to `peer_actor_id`, so that is the replica that received the entry.
     peer_entry = peer_dl.read(entry_id)
-    assert (
-        peer_entry is not None
-    ), "Expected peer replica to contain the announced as_CaseLedgerEntry."
+    assert peer_entry is not None, (
+        "Expected peer replica to contain the announced as_CaseLedgerEntry."
+    )
     assert peer_entry.case_id == case.id_
     assert peer_entry.log_index == payload["log_index"]
     assert peer_entry.entry_hash == payload["entry_hash"]
@@ -321,9 +321,9 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
             cast(RejectLogEntryReceivedEvent, extract_event(activity))
             for activity in peer_dl.list_objects("Reject")
         ]
-        assert (
-            peer_reject_events
-        ), "Expected peer to emit Reject(as_CaseLedgerEntry)."
+        assert peer_reject_events, (
+            "Expected peer to emit Reject(as_CaseLedgerEntry)."
+        )
         emitted_reject_event = peer_reject_events[-1]
         assert emitted_reject_event.actor_id == peer_actor_id
         assert emitted_reject_event.last_accepted_hash == entry0.entry_hash
@@ -490,9 +490,9 @@ def test_sync_duplicate_delivery_idempotency(
         for e in peer_dl.list_objects("CaseLedgerEntry")
         if getattr(e, "case_id", None) == case.id_
     ]
-    assert (
-        len(stored_entries) == 1
-    ), f"Expected exactly 1 as_CaseLedgerEntry replica, got {len(stored_entries)}"
+    assert len(stored_entries) == 1, (
+        f"Expected exactly 1 as_CaseLedgerEntry replica, got {len(stored_entries)}"
+    )
     assert stored_entries[0].id_ == entry.id_
 
     # AC-4 guard: each actor app must use its own isolated DataLayer.

@@ -136,8 +136,7 @@ def test_get_actor_dl_expands_a_bare_segment_to_the_canonical_uri(
 
     assert isinstance(result, SqliteDataLayer)
     assert result._actor_id == CANONICAL_URI, (
-        f"Expected canonical URI '{CANONICAL_URI}', "
-        f"got '{result._actor_id}'"
+        f"Expected canonical URI '{CANONICAL_URI}', got '{result._actor_id}'"
     )
 
 

@@ -65,9 +65,7 @@ class PendingAssertion:
     case_id: str
     event_type: str
     object_id: str
-    emitted_at: datetime = field(
-        default_factory=lambda: datetime.now(UTC)
-    )
+    emitted_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     status: Literal["pending", "cleared", "timed_out"] = "pending"
 
     def __post_init__(self) -> None:

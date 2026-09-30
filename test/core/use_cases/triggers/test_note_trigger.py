@@ -266,9 +266,9 @@ class TestSvcAddNoteToCaseUseCase:
         self._execute()
         after = set(_outbox_activity_ids(self.vendor.id_, self.dl))
         new_ids = after - before
-        assert (
-            len(new_ids) == 2
-        ), f"Expected 2 new outbox entries, got {len(new_ids)}"
+        assert len(new_ids) == 2, (
+            f"Expected 2 new outbox entries, got {len(new_ids)}"
+        )
 
     def test_activities_stored_in_datalayer(self):
         """Both queued activities are readable from the DataLayer."""
@@ -314,9 +314,9 @@ class TestSvcAddNoteToCaseUseCase:
             "Finder must not be directly addressed — routing goes through"
             " Case Actor"
         )
-        assert (
-            self.vendor.id_ not in recipients
-        ), "Actor must not address themselves"
+        assert self.vendor.id_ not in recipients, (
+            "Actor must not address themselves"
+        )
 
     def test_raises_when_no_case_manager(self):
         """SvcAddNoteToCaseUseCase raises VultronValidationError when no CASE_MANAGER."""

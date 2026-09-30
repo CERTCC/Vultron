@@ -239,9 +239,9 @@ class TestTriggerEmitsToCaseActorOutbox:
             dl, self.VENDOR_ID, self.FINDER_ID, self.REPORT_ID
         )
         case_actor_id = _find_case_actor_id(dl, case.id_)
-        assert (
-            case_actor_id is not None
-        ), "BT must register a CaseActor Service"
+        assert case_actor_id is not None, (
+            "BT must register a CaseActor Service"
+        )
         return dl, case, offer, case_actor_id
 
     def test_emit_addressed_to_case_actor_id(self):
@@ -263,15 +263,15 @@ class TestTriggerEmitsToCaseActorOutbox:
         after = outbox_ids(self.VENDOR_ID, dl)
 
         new_ids = after - before
-        assert (
-            new_ids
-        ), "validate-report trigger must emit at least one activity"
+        assert new_ids, (
+            "validate-report trigger must emit at least one activity"
+        )
 
         activity_id = next(iter(new_ids))
         emitted = dl.read(activity_id)
-        assert (
-            emitted is not None
-        ), f"Emitted activity '{activity_id}' not found in DL"
+        assert emitted is not None, (
+            f"Emitted activity '{activity_id}' not found in DL"
+        )
 
         to_list = getattr(emitted, "to", None) or []
         assert case_actor_id in to_list, (
@@ -298,16 +298,16 @@ class TestTriggerEmitsToCaseActorOutbox:
         after = outbox_ids(self.VENDOR_ID, dl)
 
         new_ids = after - before
-        assert (
-            new_ids
-        ), "validate-report trigger must emit at least one activity"
+        assert new_ids, (
+            "validate-report trigger must emit at least one activity"
+        )
 
         activity_id = next(iter(new_ids))
         emitted = dl.read(activity_id)
         to_list = getattr(emitted, "to", None) or []
-        assert (
-            self.VENDOR_ID not in to_list
-        ), "Emitted activity must not be addressed back to the sending vendor"
+        assert self.VENDOR_ID not in to_list, (
+            "Emitted activity must not be addressed back to the sending vendor"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -570,9 +570,9 @@ class TestFullValidateReportLedgerChain:
             vendor_dl, self.VENDOR_ID, self.FINDER_ID, self.REPORT_ID
         )
         case_actor_id = _find_case_actor_id(vendor_dl, case.id_)
-        assert (
-            case_actor_id is not None
-        ), "BT must register a CaseActor Service"
+        assert case_actor_id is not None, (
+            "BT must register a CaseActor Service"
+        )
 
         # ── Step 2: trigger validate-report on vendor_dl ─────────────────────
         before = outbox_ids(self.VENDOR_ID, vendor_dl)
@@ -584,16 +584,16 @@ class TestFullValidateReportLedgerChain:
         after = outbox_ids(self.VENDOR_ID, vendor_dl)
 
         new_ids = after - before
-        assert (
-            new_ids
-        ), "validate-report trigger must emit at least one activity"
+        assert new_ids, (
+            "validate-report trigger must emit at least one activity"
+        )
 
         # ── Step 3: verify emitted activity targets the CaseActor ────────────
         emitted_id = next(iter(new_ids))
         emitted = vendor_dl.read(emitted_id)
-        assert (
-            emitted is not None
-        ), f"Emitted activity '{emitted_id}' not in vendor_dl"
+        assert emitted is not None, (
+            f"Emitted activity '{emitted_id}' not in vendor_dl"
+        )
         to_list = getattr(emitted, "to", None) or []
         assert case_actor_id in to_list, (
             f"Emitted activity should target CaseActor {case_actor_id!r}; "

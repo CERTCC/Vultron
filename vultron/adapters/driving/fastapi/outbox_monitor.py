@@ -224,8 +224,7 @@ class OutboxMonitor:
         """
         if self._task is not None and not self._task.done():
             logger.warning(
-                "OutboxMonitor.start() called while already running;"
-                " ignoring."
+                "OutboxMonitor.start() called while already running; ignoring."
             )
             return
         self._loop = asyncio.get_running_loop()

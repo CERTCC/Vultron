@@ -991,7 +991,10 @@ class ReadObject(DataLayerConditionWithPorts):
         """
         # Use last part of ID for blackboard key (URL-safe)
         self.blackboard_key = f"object_{object_id.rsplit('/', maxsplit=1)[-1]}"
-        display_name = name or f"ReadObject_{table}_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        display_name = (
+            name
+            or f"ReadObject_{table}_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        )
         super().__init__(name=display_name)
         self.table = table
         self.object_id = object_id
@@ -1067,7 +1070,9 @@ class UpdateObject(DataLayerActionWithPorts):
         """
         # Use last part of ID for blackboard key (URL-safe)
         self.blackboard_key = f"object_{object_id.rsplit('/', maxsplit=1)[-1]}"
-        display_name = name or f"UpdateObject_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        display_name = (
+            name or f"UpdateObject_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        )
         super().__init__(name=display_name)
         self.object_id = object_id
         self.updates = updates

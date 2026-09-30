@@ -156,9 +156,7 @@ class TestCoreEmbargoEventTimesAreUtc:
         nested = getattr(parsed, "object_", None)
         assert isinstance(nested, EmbargoEvent)
         assert nested.end_time.tzinfo == UTC
-        assert nested.end_time == datetime(
-            2099, 12, 31, 12, 30, tzinfo=UTC
-        )
+        assert nested.end_time == datetime(2099, 12, 31, 12, 30, tzinfo=UTC)
 
 
 class TestCoreEmbargoEventRegistration:

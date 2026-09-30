@@ -232,11 +232,7 @@ def test_detector_ignores_broad_except_inside_update() -> None:
 
 def test_detector_flags_bare_except() -> None:
     tree = _corpus.parse_inline(
-        "def f():\n"
-        "    try:\n"
-        "        do()\n"
-        "    except:\n"
-        "        pass\n"
+        "def f():\n    try:\n        do()\n    except:\n        pass\n"
     )
     assert _count_broad_excepts_outside_update(tree) == 1
 

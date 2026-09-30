@@ -155,15 +155,17 @@ def test_ask_register_entry_records_the_requested_subject() -> None:
     the reply's own content, which lets the answerer alter what it grants.
     """
     register = _ask_register()
-    assert (
-        register is not None
-    ), "No outstanding-ask register type is importable."
+    assert register is not None, (
+        "No outstanding-ask register type is importable."
+    )
     names = _field_names(register)
     assert names & {
         "object_id",
         "subject_id",
         "requested_object_id",
-    }, f"Register entry declares no requested-subject field; got {sorted(names)}."
+    }, (
+        f"Register entry declares no requested-subject field; got {sorted(names)}."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -183,9 +185,9 @@ def test_ask_register_entry_records_the_requested_subject() -> None:
 def test_ask_register_can_report_an_unexpired_outstanding_ask() -> None:
     """Suppressing a duplicate ask requires an outstanding-and-unexpired query (ASK-02-003)."""
     register = _ask_register()
-    assert (
-        register is not None
-    ), "No outstanding-ask register type is importable."
+    assert register is not None, (
+        "No outstanding-ask register type is importable."
+    )
     assert any(
         hasattr(register, name)
         for name in ("is_pending", "is_outstanding", "is_open")
@@ -301,13 +303,13 @@ def test_expiry_consequence_is_not_deployment_configurable() -> None:
 
     forbidden = ("expiry_consequence", "on_expiry", "late_reply_authorizes")
     config_fields = _field_names(ActorConfig)
-    assert not config_fields & set(
-        forbidden
-    ), f"ActorConfig exposes an expiry-consequence key: {sorted(config_fields & set(forbidden))}"
+    assert not config_fields & set(forbidden), (
+        f"ActorConfig exposes an expiry-consequence key: {sorted(config_fields & set(forbidden))}"
+    )
     wire_fields = _field_names(as_Object)
-    assert not wire_fields & set(
-        forbidden
-    ), f"An AS2 object field carries the expiry consequence: {sorted(wire_fields & set(forbidden))}"
+    assert not wire_fields & set(forbidden), (
+        f"An AS2 object field carries the expiry consequence: {sorted(wire_fields & set(forbidden))}"
+    )
 
 
 @pytest.mark.xfail(
@@ -386,9 +388,9 @@ def test_reaping_an_expired_ask_does_not_re_emit_it() -> None:
             ),
         )
     )
-    assert (
-        reaper is not None
-    ), "No reap-expired-asks trigger use case is importable."
+    assert reaper is not None, (
+        "No reap-expired-asks trigger use case is importable."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -407,9 +409,9 @@ def test_reaping_an_expired_ask_does_not_re_emit_it() -> None:
 def test_case_scoped_ask_is_recorded_as_a_canonical_entry() -> None:
     """A case-scoped ask MUST be a recorded CaseLedgerEntry (ASK-06-001)."""
     register = _ask_register()
-    assert (
-        register is not None
-    ), "No outstanding-ask register type is importable."
+    assert register is not None, (
+        "No outstanding-ask register type is importable."
+    )
 
 
 @pytest.mark.xfail(
@@ -459,9 +461,9 @@ def test_processing_fault_is_gated_on_sender_authentication() -> None:
     Explaining a parse failure to a stranger is a parser oracle, and an
     unauthenticated identity is not a trustworthy reply address.
     """
-    assert (
-        _processing_fault() is not None
-    ), "No ProcessingFault type is importable."
+    assert _processing_fault() is not None, (
+        "No ProcessingFault type is importable."
+    )
 
 
 @pytest.mark.spec("ASK-07-003")
@@ -535,12 +537,12 @@ def test_processing_fault_admits_no_implementation_diagnostics() -> None:
 @pytest.mark.spec("ASK-07-007")
 def test_processing_fault_closes_the_outstanding_ask_it_names() -> None:
     """A fault naming an outstanding ask MUST close its register entry (ASK-07-007)."""
-    assert (
-        _processing_fault() is not None
-    ), "No ProcessingFault type is importable."
-    assert (
-        _ask_register() is not None
-    ), "No outstanding-ask register is importable."
+    assert _processing_fault() is not None, (
+        "No ProcessingFault type is importable."
+    )
+    assert _ask_register() is not None, (
+        "No outstanding-ask register is importable."
+    )
 
 
 @pytest.mark.spec("ASK-07-008")
@@ -550,9 +552,9 @@ def test_case_attributable_fault_is_recorded_in_the_ledger() -> None:
     "B could not process A's message" is a true, legible statement about a
     message that arrived, and it explains a later retransmission.
     """
-    assert (
-        _processing_fault() is not None
-    ), "No ProcessingFault type is importable."
+    assert _processing_fault() is not None, (
+        "No ProcessingFault type is importable."
+    )
 
 
 @pytest.mark.spec("ASK-07-009")
@@ -742,9 +744,9 @@ def test_no_status_gate_default_is_an_unconditional_failure_node() -> None:
         for node in nodes
         if isinstance(unwrap_call_out(node), RequireCaseOwnerApprovalNode)
     ]
-    assert (
-        not offenders
-    ), f"Gate defaults are unconditional-FAILURE nodes: {offenders}."
+    assert not offenders, (
+        f"Gate defaults are unconditional-FAILURE nodes: {offenders}."
+    )
 
 
 @pytest.mark.spec("RSH-07-005")
@@ -775,9 +777,9 @@ def test_production_status_authorization_default_is_conservative() -> None:
             "must require explicit Case Owner authorization."
         )
         deterministic = getattr(STATUS_AUTHORIZATION_DETERMINISTIC, name)(name)
-        assert not isinstance(
-            unwrap_call_out(deterministic), AlwaysSucceed
-        ), f"STATUS_AUTHORIZATION_DETERMINISTIC.{name} is permissive."
+        assert not isinstance(unwrap_call_out(deterministic), AlwaysSucceed), (
+            f"STATUS_AUTHORIZATION_DETERMINISTIC.{name} is permissive."
+        )
         permissive = getattr(STATUS_AUTHORIZATION_PERMISSIVE, name)(name)
         assert isinstance(unwrap_call_out(permissive), AlwaysSucceed), (
             f"STATUS_AUTHORIZATION_PERMISSIVE.{name} is not permissive; the "

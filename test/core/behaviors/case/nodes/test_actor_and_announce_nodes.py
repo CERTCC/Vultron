@@ -299,12 +299,12 @@ class TestAcceptCaseOwnershipTransferNode:
         # Both participants must be exactly as they were before the attempt.
         old_refreshed = cast(Any, dl.read(old_owner_participant.id_))
         new_refreshed = cast(Any, dl.read(new_owner_participant.id_))
-        assert (
-            CVDRole.CASE_OWNER in old_refreshed.case_roles
-        ), "CM-21-004: old owner should still hold CASE_OWNER after failed transfer"
-        assert (
-            CVDRole.CASE_OWNER not in new_refreshed.case_roles
-        ), "CM-21-004: new owner must not gain CASE_OWNER from a failed transfer"
+        assert CVDRole.CASE_OWNER in old_refreshed.case_roles, (
+            "CM-21-004: old owner should still hold CASE_OWNER after failed transfer"
+        )
+        assert CVDRole.CASE_OWNER not in new_refreshed.case_roles, (
+            "CM-21-004: new owner must not gain CASE_OWNER from a failed transfer"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -434,9 +434,9 @@ class TestSeedAnnouncedCaseNode:
                 f"found inline {type(ref).__name__!r} — write-path bug (#2233)"
             )
         # Standalone participant record must also exist
-        assert (
-            dl.read(participant_id) is not None
-        ), "Standalone CaseParticipant record must be stored alongside the case"
+        assert dl.read(participant_id) is not None, (
+            "Standalone CaseParticipant record must be stored alongside the case"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -465,9 +465,9 @@ class TestEmitInviteActorToCaseNodeReadSuggestedRoles:
     def test_returns_none_when_key_absent(self):
         """AC-3: _read_suggested_roles() returns None on KeyError (key not set)."""
         result = self.node._read_suggested_roles()
-        assert (
-            result is None
-        ), f"AC-3: expected None when suggested_roles absent, got {result!r}"
+        assert result is None, (
+            f"AC-3: expected None when suggested_roles absent, got {result!r}"
+        )
 
 
 class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
@@ -659,9 +659,9 @@ class TestEmitAddCaseParticipantNode:
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry) and e.case_id == EMIT_ADD_CASE_ID
         ]
-        assert any(
-            e.event_type == "add_case_participant" for e in entries
-        ), f"Expected add_case_participant ledger entry; got {[e.event_type for e in entries]}"
+        assert any(e.event_type == "add_case_participant" for e in entries), (
+            f"Expected add_case_participant ledger entry; got {[e.event_type for e in entries]}"
+        )
 
     def test_snapshot_is_the_exact_blob_the_port_returned(self, dl):
         """The ledger snapshot is the port's blob, unchanged (VM-08-003, #2654).
@@ -923,9 +923,9 @@ class TestEmitAddCaseParticipantNode:
         to_arg = call_kwargs.kwargs.get("to") or (
             call_kwargs.args[3] if len(call_kwargs.args) > 3 else None
         )
-        assert (
-            to_arg is not None
-        ), "to= must be passed to add_participant_to_case"
+        assert to_arg is not None, (
+            "to= must be passed to add_participant_to_case"
+        )
         for recipient in to_arg:
             assert recipient.startswith("http"), (
                 f"to= recipients must be HTTP actor URLs, not bare IDs: {recipient!r}. "
@@ -1018,9 +1018,9 @@ class TestEmitOwnershipTransferNodes:
         )
         result = bridge.execute_with_setup(tree=node, actor_id=_OT_OWNER_ID)
 
-        assert (
-            result.status == Status.SUCCESS
-        ), f"EmitOfferCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
+        assert result.status == Status.SUCCESS, (
+            f"EmitOfferCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
+        )
         activity = captured.get("activity", {})
         # ADR-0053 / CM-21-005: Offer is routed to the CaseActor, not the transferee.
         assert _OT_CASE_ACTOR_ID in activity.get("to", []), (
@@ -1075,18 +1075,18 @@ class TestEmitOwnershipTransferNodes:
             tree=node, actor_id=_OT_TRANSFEREE_ID
         )
 
-        assert (
-            result.status == Status.SUCCESS
-        ), f"EmitAcceptCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
+        assert result.status == Status.SUCCESS, (
+            f"EmitAcceptCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
+        )
         mock_factory.accept_case_ownership_transfer.assert_called_once()
         call_kwargs = mock_factory.accept_case_ownership_transfer.call_args
         to_arg = call_kwargs.kwargs.get("to") or (
             call_kwargs.args[2] if len(call_kwargs.args) > 2 else None
         )
         # ADR-0053 / CM-21-006: Accept is routed to the CaseActor.
-        assert (
-            to_arg is not None
-        ), "to= must be passed to accept_case_ownership_transfer"
+        assert to_arg is not None, (
+            "to= must be passed to accept_case_ownership_transfer"
+        )
         assert _OT_CASE_ACTOR_ID in to_arg, (
             f"Accept must be addressed to the CaseActor ({_OT_CASE_ACTOR_ID}); "
             f"got to={to_arg!r}"

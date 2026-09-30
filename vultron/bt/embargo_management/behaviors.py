@@ -16,7 +16,6 @@ Provides behavior tree nodes for the Embargo Management process.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 from vultron.bt.base.factory import fallback_node, sequence_node
 from vultron.bt.case_state.conditions import (
     CSinStateFixDeployed,
