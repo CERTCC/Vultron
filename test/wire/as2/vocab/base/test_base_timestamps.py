@@ -10,20 +10,16 @@ from datetime import datetime, timezone
 
 import pytest
 
+from test.support.blank_strings import BLANKS
+
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
 _TIMESTAMP_FIELDS = ("start_time", "end_time", "published", "updated")
 
-#: Every spelling of "the sender supplied no value".  Whitespace-only is
-#: blank by the project's canonical predicate (``not v.strip()``, see
-#: ``vultron.core.models.base._non_empty``), so a guard that catches ``""``
-#: but not ``"   "`` has the same blind spot one character over.
-_BLANK = ("", " ", "   ", "\t", "\n", " \t\n ")
-
 
 @pytest.mark.spec("CS-08-001")
 @pytest.mark.parametrize("field", _TIMESTAMP_FIELDS)
-@pytest.mark.parametrize("blank", _BLANK)
+@pytest.mark.parametrize("blank", BLANKS)
 def test_blank_timestamp_is_read_as_absent(field: str, blank: str):
     """A blank timestamp string carries no time, so it is absence, not garbage.
 

@@ -343,3 +343,103 @@ def test_fanout_log_entry_node_sends_to_case_addressees(bridge, datalayer):
     assert kwargs["entry"].id_ == entry.id_
     assert kwargs["actor_id"] == OWNER_ACTOR_ID
     assert kwargs["to"] == [PARTICIPANT_ACTOR_ID]
+
+
+# ---------------------------------------------------------------------------
+# SYNC-15-012: a replay does not re-queue an Announce the outbox still holds
+# ---------------------------------------------------------------------------
+
+
+def _adapter(datalayer):
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+
+    return SyncActivityAdapter(datalayer)
+
+
+def _queued_announces(datalayer) -> list[tuple[str, list[str]]]:
+    """``(entry id, recipients)`` for every Announce row in the outbox, in order."""
+    rows = []
+    for activity_id in datalayer.outbox_list():
+        activity = datalayer.read(activity_id)
+        rows.append((activity.object_.id_, [str(r) for r in activity.to]))
+    return rows
+
+
+def _replay(bridge, case_actor, sync_port, entries, *, from_index: int):
+    return bridge.execute_with_setup(
+        tree=SendMissingEntriesNode(name="SendMissingEntries"),
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+        case_actor_id=case_actor.id_,
+        replay_entry=entries[-1],
+        replay_peer_id=PARTICIPANT_ACTOR_ID,
+        replay_case_ledger_entries=entries,
+        replay_from_index=from_index,
+    )
+
+
+@pytest.mark.spec("SYNC-15-012")
+def test_replay_skips_entries_whose_announce_to_this_peer_is_still_queued(
+    bridge, datalayer, case_actor
+):
+    """Only the entries not already pending for the peer are queued again.
+
+    ``second`` is still in the outbox for the participant from an earlier
+    replay; ``third`` is pending for a *different* peer, which says nothing
+    about this one.  The replay queues ``third`` for the participant and
+    nothing else — through the real sync adapter, which is where the outbox
+    is consulted (DL-06-004), not in the node (DL-06-001).
+    """
+    first = _make_entry(0)
+    second = _make_entry(1, first.entry_hash)
+    third = _make_entry(2, second.entry_hash)
+    adapter = _adapter(datalayer)
+    adapter.send_announce_log_entry(
+        entry=second, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
+    )
+    adapter.send_announce_log_entry(
+        entry=third,
+        actor_id=case_actor.id_,
+        to=["https://example.org/actors/other"],
+    )
+    before = _queued_announces(datalayer)
+
+    result = _replay(
+        bridge, case_actor, adapter, [first, second, third], from_index=0
+    )
+
+    assert result.status == Status.SUCCESS
+    added = _queued_announces(datalayer)[len(before) :]
+    assert added == [(third.id_, [PARTICIPANT_ACTOR_ID])]
+
+
+@pytest.mark.spec("SYNC-15-012")
+@pytest.mark.spec("SYNC-15-011")
+def test_replay_that_is_wholly_pending_queues_nothing_and_records_no_position(
+    bridge, datalayer, case_actor
+):
+    """When every entry is already queued, nothing is queued and no cooldown starts."""
+    from vultron.core.behaviors.sync.nodes.replay_guard import _read_state
+
+    first = _make_entry(0)
+    second = _make_entry(1, first.entry_hash)
+    adapter = _adapter(datalayer)
+    adapter.send_announce_log_entry(
+        entry=second, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
+    )
+    before = _queued_announces(datalayer)
+
+    result = _replay(
+        bridge, case_actor, adapter, [first, second], from_index=0
+    )
+
+    assert result.status == Status.SUCCESS
+    assert _queued_announces(datalayer) == before
+    assert (
+        _read_state(
+            datalayer, case_id=first.case_id, peer_id=PARTICIPANT_ACTOR_ID
+        )
+        is None
+    )

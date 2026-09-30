@@ -102,9 +102,12 @@ def _poll_until(
             bare timeout sends the reader looking for a slow protocol instead of
             a broken read.
     """
+    # The condition is always tried at least once, even with no time left: a
+    # wait handed the tail of a shared budget (SharedBudget) must still succeed
+    # when its effect has already landed, and fail only when it has not.
     deadline = time.monotonic() + timeout_seconds
     last_exc: Exception | None = None
-    while time.monotonic() < deadline:
+    while True:
         try:
             if condition_fn():
                 return
@@ -113,6 +116,8 @@ def _poll_until(
             if not swallow_exceptions:
                 raise
             last_exc = exc
+        if time.monotonic() >= deadline:
+            break
         time.sleep(poll_interval)
 
     if last_exc is not None:
@@ -932,6 +937,80 @@ def find_case_actor_participant_id(
     return None
 
 
+def wait_for_case_actor_ledger_event(
+    client: DataLayerClient,
+    case_id: str,
+    event_type: str,
+    timeout_seconds: float = PARTICIPANT_JOIN_TIMEOUT,
+    poll_interval: float = 0.5,
+) -> None:
+    """Poll the CaseActor's *own* ledger, read through *client*, for *event_type*.
+
+    The gate for "the CASE_MANAGER committed it": the commit lands in the
+    CaseActor's store the moment its received-side tree runs, before any
+    ``Announce(CaseLedgerEntry)`` has left its outbox.  Under ADR-0073 that
+    store is not its host's, so the read is scoped with
+    :func:`resolve_case_actor_store_id`; when the case has no co-hosted
+    CaseActor the host's own replica is read, which is then the earliest
+    observable *client* can offer.
+
+    Waiting here before waiting on any replica separates the two hops a
+    transfer takes — trigger → CaseActor inbox → commit, then CaseActor outbox
+    → every participant — so a late replica is reported as the fan-out being
+    late rather than as the transfer never having happened (EDF-06-002,
+    #3602).
+
+    Args:
+        client: DataLayerClient for the container that hosts the CaseActor.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        event_type: The ``event_type`` value to wait for.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If no such entry appears within *timeout_seconds*.
+    """
+    wait_for_event_type_in_ledger(
+        client=client,
+        case_id=case_id,
+        event_type=event_type,
+        timeout_seconds=timeout_seconds,
+        poll_interval=poll_interval,
+        dl_actor_id=resolve_case_actor_store_id(client, case_id),
+    )
+
+
+class SharedBudget:
+    """One timeout shared by consecutive waits on the same delivery chain.
+
+    When several replicas are fed by one fan-out, waiting on each with its
+    own full timeout multiplies the worst case by the number of replicas and
+    hides which hop was slow.  A shared budget bounds the whole fan-out once:
+    each wait is given what is left.  A wait that starts with nothing left
+    still checks its condition once (:func:`_poll_until`), so a replica that
+    has already caught up passes, and one that has not fails at once with
+    that wait's own message — the budget itself says only how much was left
+    (``repr(budget)``), which the scenario logs on exhaustion.
+
+    Args:
+        timeout_seconds: The total budget, started on construction.
+    """
+
+    def __init__(self, timeout_seconds: float) -> None:
+        self._total = timeout_seconds
+        self._deadline = time.monotonic() + timeout_seconds
+
+    def remaining(self) -> float:
+        """Seconds left, never negative."""
+        return max(0.0, self._deadline - time.monotonic())
+
+    def __repr__(self) -> str:
+        return (
+            f"SharedBudget(total={self._total:.1f}s,"
+            f" remaining={self.remaining():.1f}s)"
+        )
+
+
 def resolve_case_actor_store_id(
     client: DataLayerClient,
     case_id: str,
@@ -1409,9 +1488,13 @@ def wait_for_case_attributed_to(
 ) -> None:
     """Poll until *case_id*'s ``attributed_to`` field equals *expected_attributed_to*.
 
-    Gates on the case ownership having been transferred and reflected in the
-    authoritative actor's DataLayer.  Read from the actor that commits the
-    ownership transfer (EDF-06-002).
+    Observes the ownership transfer on *client*'s replica of the case.  The
+    CaseActor's own store is the authority (CM-21-002, CM-21-004); every other
+    replica — the old owner's included — learns the new owner only from the
+    ``Announce(CaseLedgerEntry)`` fan-out applied by
+    ``ApplyOwnershipTransferFromLedgerNode`` (CM-21-007).  So this reads the
+    replica whose view is being asserted (EDF-06-002); to gate on the commit
+    itself, use :func:`wait_for_case_actor_ledger_event` first (#3602).
 
     Args:
         client: DataLayerClient connected to the committing actor's container.

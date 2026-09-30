@@ -126,6 +126,7 @@ None of the carriers above exist yet; each is delivered by its own issue, and ea
 
 - The wire version in the context document URL: #3653.
   VM-10-001 and VM-10-002 will be amended there to name the versioned URL.
+  `docs/ns/` leaves `draft_docs` in the same change, so the first context URI ever to resolve is the versioned one (#3888; `notes/vocabulary-registry.md` § 4a).
 - The ledger hash-format identifier recorded at genesis: #3654.
 - The stored-format marker and refusal to start: #3655.
 - Configuration models that reject unknown keys: #3656.

@@ -19,7 +19,15 @@ import types
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import datetime, timedelta, timezone
-from typing import Any, Protocol, TypeVar, Union, get_args, get_origin
+from typing import (
+    Annotated,
+    Any,
+    Protocol,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from pydantic import BaseModel
 from pydantic.alias_generators import to_camel
@@ -227,6 +235,22 @@ def collapse_duplicate_spellings(
     if not drops:
         return data
     return {k: v for k, v in data.items() if k not in drops}
+
+
+def strip_annotated(annotation: Any) -> Any:
+    """Return the bare type under an ``Annotated[...]``, else *annotation*.
+
+    The IRI branch of every reference union is ``NonEmptyString``, an
+    ``Annotated[str, AfterValidator(...)]`` (CS-08-001, CS-08-002).  Inside a
+    union Pydantic keeps that wrapper, so code that asks "does this slot admit a
+    string?" by testing ``branch is str`` stops seeing the branch the moment
+    the alias is tightened — and a reference slot is then misread as an
+    object-only slot.  Every annotation introspection that classifies a union
+    branch goes through this helper so the wrapper is transparent to it.
+    """
+    if get_origin(annotation) is Annotated:
+        return get_args(annotation)[0]
+    return annotation
 
 
 def _is_datetime_field(field: FieldInfo) -> bool:

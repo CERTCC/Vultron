@@ -150,6 +150,70 @@ class OfferCaseParticipantReceivedUseCase:
         return verdict
 
 
+def _require_recorded_recommendation(
+    dl: CasePersistence,
+    inner_offer: object,
+    case_id: str,
+    *,
+    verb: str,
+    activity_id: str,
+) -> tuple[str, str] | HandlerResult:
+    """``(recommendation_id, recommender_id)`` for a decided Offer, or a refusal.
+
+    The transformed ``Offer(CaseParticipant)`` carries the original
+    ``Offer(Actor)`` id as ``origin`` (CM-16-004), and the recommender behind
+    it is whatever ``recommendation_recommender_index`` recorded on the case
+    when that recommendation arrived.  CM-16-006/007 step 3 sends the decision
+    to that recommender, so an Accept/Reject whose inner Offer names no
+    ``origin``, or an ``origin`` the index does not hold, has nobody to notify
+    and cannot be applied.
+
+    Until #3877 the missing id was passed on as ``""`` and the notification
+    went out with a blank ``actor``; the core reference fields now refuse a
+    blank (CS-08-001), so the absence is decided here, at the edge (ADR-0032),
+    with a reason that names what is missing.
+    """
+    raw_recommendation_id = getattr(inner_offer, "origin", None)
+    recommendation_id = getattr(
+        raw_recommendation_id, "id_", raw_recommendation_id
+    )
+    if not isinstance(recommendation_id, str) or not recommendation_id:
+        return _unrecorded_recommendation_refusal(
+            verb,
+            activity_id,
+            "no recommendation (its inner Offer has no origin)",
+        )
+    case = dl.read_case(case_id)
+    recommender_id = (
+        case.recommendation_recommender_index.get(recommendation_id)
+        if case is not None
+        else None
+    )
+    if not recommender_id:
+        return _unrecorded_recommendation_refusal(
+            verb,
+            activity_id,
+            f"a recommendation this CASE_MANAGER never recorded"
+            f" ({recommendation_id})",
+        )
+    return recommendation_id, recommender_id
+
+
+def _unrecorded_recommendation_refusal(
+    verb: str, activity_id: str, what: str
+) -> HandlerResult:
+    """Log and build the refusal for a decision with no recorded recommender."""
+    logger.warning(
+        "%sOfferCaseParticipantReceived: event '%s' names %s — refusing",
+        verb,
+        activity_id,
+        what,
+    )
+    return HandlerResult.refused(
+        f"{verb}(Offer(CaseParticipant)) names {what}"
+    )
+
+
 class AcceptOfferCaseParticipantReceivedUseCase:
     """The CASE_MANAGER received Accept(Offer(CaseParticipant)) from the Case Owner.
 
@@ -178,18 +242,6 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         participant_obj = getattr(inner_offer, "object_", None)
         raw_invitee = getattr(participant_obj, "attributed_to", None)
         invitee_id = getattr(raw_invitee, "id_", raw_invitee)
-        raw_recommendation_id = getattr(inner_offer, "origin", None)
-        recommendation_id = getattr(
-            raw_recommendation_id, "id_", raw_recommendation_id
-        )
-        recommender_id = None
-        if recommendation_id and case_id:
-            case = self._dl.read_case(case_id)
-            if case is not None:
-                recommender_id = case.recommendation_recommender_index.get(
-                    recommendation_id
-                )
-
         # Read the stored Offer (written by offer_actor_to_case()) to get the
         # trusted roles. Do NOT use the embedded CaseParticipant from the
         # received Accept — the accepting actor may have modified it or may
@@ -219,13 +271,24 @@ class AcceptOfferCaseParticipantReceivedUseCase:
                 " invitee id"
             )
 
+        resolved = _require_recorded_recommendation(
+            self._dl,
+            inner_offer,
+            case_id,
+            verb="Accept",
+            activity_id=activity_id,
+        )
+        if isinstance(resolved, HandlerResult):
+            return resolved
+        recommendation_id, recommender_id = resolved
+
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
 
         tree = create_accept_actor_recommendation_received_tree(
-            recommendation_id=recommendation_id or "",
-            recommender_id=recommender_id or "",
+            recommendation_id=recommendation_id,
+            recommender_id=recommender_id,
             invitee_id=invitee_id,
             case_id=case_id,
             roles=offer_roles,
@@ -280,18 +343,6 @@ class RejectOfferCaseParticipantReceivedUseCase:
         participant_obj = getattr(inner_offer, "object_", None)
         raw_invitee = getattr(participant_obj, "attributed_to", None)
         recommended_id = getattr(raw_invitee, "id_", None) or request.object_id
-        raw_recommendation_id = getattr(inner_offer, "origin", None)
-        recommendation_id = getattr(
-            raw_recommendation_id, "id_", raw_recommendation_id
-        )
-        recommender_id = None
-        if recommendation_id and case_id:
-            case = self._dl.read_case(case_id)
-            if case is not None:
-                recommender_id = case.recommendation_recommender_index.get(
-                    recommendation_id
-                )
-
         if not case_id:
             logger.warning(
                 "RejectOfferCaseParticipantReceived: missing case_id in"
@@ -302,14 +353,34 @@ class RejectOfferCaseParticipantReceivedUseCase:
                 "Reject(Offer(CaseParticipant)) names no case"
             )
 
+        resolved = _require_recorded_recommendation(
+            self._dl,
+            inner_offer,
+            case_id,
+            verb="Reject",
+            activity_id=activity_id,
+        )
+        if isinstance(resolved, HandlerResult):
+            return resolved
+        recommendation_id, recommender_id = resolved
+        if not recommended_id:
+            logger.warning(
+                "RejectOfferCaseParticipantReceived: missing recommended"
+                " actor in event '%s' — refusing",
+                activity_id,
+            )
+            return HandlerResult.refused(
+                "Reject(Offer(CaseParticipant)) names no recommended actor"
+            )
+
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
 
         tree = create_reject_actor_recommendation_received_tree(
-            recommendation_id=recommendation_id or "",
-            recommender_id=recommender_id or "",
-            recommended_id=recommended_id or "",
+            recommendation_id=recommendation_id,
+            recommender_id=recommender_id,
+            recommended_id=recommended_id,
             case_id=case_id,
         )
         bridge = BTBridge(

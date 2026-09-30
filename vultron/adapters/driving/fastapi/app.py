@@ -203,6 +203,10 @@ def _make_lifespan(*, configure_globals: bool = True):
             configure_default_emitter(emitter)
             monitor = OutboxMonitor()
             monitor.start()
+            # Exposed so a host (or a test) can see that the safety-net
+            # drain is running, and stop it where inline drains alone are
+            # wanted.
+            application.state.outbox_monitor = monitor
 
             # Retry any Create(VulnerabilityCase) activities that were
             # left pending from a previous process run (CP-05-005, #1139).
@@ -218,6 +222,7 @@ def _make_lifespan(*, configure_globals: bool = True):
 
         if monitor is not None:
             monitor.stop()
+            application.state.outbox_monitor = None
         # Clear the per-app emitter reference so it cannot leak between
         # TestClient lifetimes on the same app singleton.
         if configure_globals:

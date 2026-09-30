@@ -21,6 +21,7 @@ from typing import ClassVar
 
 from pydantic import Field, model_validator
 
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -224,7 +225,7 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
     target: as_Actor = Field(
         ..., validation_alias="target", serialization_alias="target"
     )
-    context: as_VulnerabilityCase | str = Field(
+    context: as_VulnerabilityCase | NonEmptyString = Field(
         ..., validation_alias="context", serialization_alias="context"
     )
 
@@ -321,7 +322,7 @@ class _RmInviteToCaseActivity(as_Invite):
     object_: as_Actor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseStub | str | None = None
+    target: as_VulnerabilityCaseStub | NonEmptyString | None = None
 
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 

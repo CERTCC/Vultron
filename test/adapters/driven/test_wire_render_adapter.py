@@ -187,22 +187,13 @@ def test_render_same_object_twice_across_clock_tick_is_equal(
     """
     from datetime import datetime, timezone
 
+    from test.support.clock import SteppingClock
     from vultron.core.models import _helpers
-
-    class _AdvancingClock:
-        """A ``datetime`` stand-in whose ``now()`` steps forward a second."""
-
-        def __init__(self, start: datetime) -> None:
-            self._t = start
-
-        def now(self, tz: timezone | None = None) -> datetime:
-            self._t += timedelta(seconds=1)
-            return self._t
 
     obj = VulnerabilityCase(id_="https://example.org/cases/c1")
     obj.case_statuses = [CaseStatus(context=obj.id_)]
     monkeypatch.setattr(
-        _helpers, "datetime", _AdvancingClock(datetime.now(timezone.utc))
+        _helpers, "datetime", SteppingClock(datetime.now(timezone.utc))
     )
 
     assert adapter.render(obj) == adapter.render(obj)

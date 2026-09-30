@@ -19,6 +19,8 @@ Provides utilities for the ActivityStreams Vocabulary.
 import uuid
 from typing import Any
 
+from vultron.primitives import is_blank_string
+
 URN_UUID_PREFIX = "urn:uuid:"
 
 
@@ -58,10 +60,9 @@ def is_blank(value: Any) -> bool:
 
     A required field that is present but empty carries nothing, so it is
     absence rather than a malformed value — CS-08-001's "if present, then
-    non-empty".  Whitespace-only counts as blank, matching the project's
-    canonical predicate (``core.models.base._non_empty``). That predicate is
-    private, which is why it is restated rather than imported — not because wire
-    may not reach core, which ARCH-22-001 once forbade and ADR-0099 repealed.
+    non-empty".  Whitespace-only counts as blank: the string case is decided by
+    the project's canonical predicate, ``vultron.primitives.is_blank_string``,
+    which ``NonEmptyString`` and ``require_non_empty`` also use.
 
     Deliberately narrower than a bare falsy test: ``0``, ``[]`` and ``{}`` are
     *malformed* values for the fields this guards, not omitted ones, and
@@ -79,7 +80,7 @@ def is_blank(value: Any) -> bool:
     Returns:
         True if the value is absent, None, or a whitespace-only string
     """
-    return value is None or (isinstance(value, str) and not value.strip())
+    return value is None or (isinstance(value, str) and is_blank_string(value))
 
 
 def exclude_if_none(value: Any) -> bool:

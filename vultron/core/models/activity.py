@@ -71,12 +71,14 @@ class VultronActivity(CoreObject):
     any_of: Any | None = None
     one_of: Any | None = None
     closed: Any | None = None
-    to: list[str] | None = None
-    cc: list[str] | None = None
+    # Addressing carries actor references; a blank one names nobody
+    # (CS-08-001).
+    to: list[NonEmptyString] | None = None
+    cc: list[NonEmptyString] | None = None
     # CM-16-003: the wire dump this model is validated from is camelCase, so
     # the alias is required — without it the field silently validates to None
     # and the suggested roles vanish from the delivered activity.
-    suggested_roles: list[str] | None = Field(
+    suggested_roles: list[NonEmptyString] | None = Field(
         default=None,
         validation_alias="suggestedRoles",
         serialization_alias="suggestedRoles",
@@ -84,7 +86,7 @@ class VultronActivity(CoreObject):
     # Single-word, so the camelCase wire name is identical and no alias is
     # needed; stated explicitly because the neighbouring field shows what the
     # omission costs when the names do differ.
-    roles: list[str] | None = None
+    roles: list[NonEmptyString] | None = None
 
 
 class VultronOffer(VultronActivity):
@@ -119,7 +121,7 @@ class VultronAccept(VultronActivity):
         validation_alias="type",
         serialization_alias="type",
     )
-    result: str | None = Field(
+    result: NonEmptyString | None = Field(
         default=None,
         description=(
             "URI of the VulnerabilityCase this Accept produced or refers to "
@@ -147,14 +149,14 @@ class VultronCreateCaseActivity(VultronActivity):
         validation_alias="type",
         serialization_alias="type",
     )
-    context: str | None = Field(
+    context: NonEmptyString | None = Field(
         default=None,
         description=(
             "URI of the VulnerabilityCase this activity is scoped to "
             "(CP-05-003, ADR-0045). MUST be the case URI, not the Accept URI."
         ),
     )
-    in_reply_to: str | None = Field(
+    in_reply_to: NonEmptyString | None = Field(
         default=None,
         validation_alias="inReplyTo",
         serialization_alias="inReplyTo",

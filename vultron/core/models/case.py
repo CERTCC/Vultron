@@ -30,7 +30,7 @@ from vultron.core.models._helpers import (
     most_recent_status,
     now_utc,
 )
-from vultron.core.models.base import CoreObject
+from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -112,15 +112,22 @@ class VulnerabilityCase(CoreObject):
     inline_required_refs: ClassVar[frozenset[str]] = frozenset(
         {"active_embargo"}
     )
-    case_participants: list[str | CaseParticipant] = Field(
+    # Every reference slot below carries ``NonEmptyString`` for its IRI form:
+    # a blank reference names nothing, so it is refused at construction rather
+    # than stored and dereferenced later (CS-08-001, ARCH-10-001).
+    case_participants: list[NonEmptyString | CaseParticipant] = Field(
         default_factory=list
     )
-    actor_participant_index: dict[str, str] = Field(default_factory=dict)
-    vulnerability_reports: list[str | VulnerabilityReport] = Field(
+    actor_participant_index: dict[NonEmptyString, NonEmptyString] = Field(
+        default_factory=dict
+    )
+    vulnerability_reports: list[NonEmptyString | VulnerabilityReport] = Field(
         default_factory=list
     )
-    case_statuses: list[str | CaseStatus] = Field(default_factory=list)
-    notes: list[str] = Field(default_factory=list)
+    case_statuses: list[NonEmptyString | CaseStatus] = Field(
+        default_factory=list
+    )
+    notes: list[NonEmptyString] = Field(default_factory=list)
     # Admits the object, not only a reference, for the same reason
     # `case_participants` does: a recipient cannot dereference a URI it does not
     # hold, and no dereferencing mechanism is specified (AKM-03-001). While this
@@ -129,15 +136,15 @@ class VulnerabilityCase(CoreObject):
     # it re-serialises a queued activity, reduced a carried embargo back to a
     # bare id and the recipient was handed a reference it could never resolve.
     # Readers wanting the id should use `_as_id`/`active_embargo_id`.
-    active_embargo: str | EmbargoEvent | None = None
-    proposed_embargoes: list[str] = Field(default_factory=list)
-    pending_embargo_proposal_index: dict[str, str] = Field(
-        default_factory=dict
+    active_embargo: NonEmptyString | EmbargoEvent | None = None
+    proposed_embargoes: list[NonEmptyString] = Field(default_factory=list)
+    pending_embargo_proposal_index: dict[NonEmptyString, NonEmptyString] = (
+        Field(default_factory=dict)
     )
-    recommendation_recommender_index: dict[str, str] = Field(
-        default_factory=dict
+    recommendation_recommender_index: dict[NonEmptyString, NonEmptyString] = (
+        Field(default_factory=dict)
     )
-    case_activity: list[str] = Field(default_factory=list)
+    case_activity: list[NonEmptyString] = Field(default_factory=list)
     genesis_hash: str = Field(
         default="",
         description=(
@@ -150,9 +157,9 @@ class VulnerabilityCase(CoreObject):
         ),
     )
     # ADR-0017: ID-only cross-refs to avoid graph-cycle issues
-    parent_cases: list[str] = Field(default_factory=list)
-    child_cases: list[str] = Field(default_factory=list)
-    sibling_cases: list[str] = Field(default_factory=list)
+    parent_cases: list[NonEmptyString] = Field(default_factory=list)
+    child_cases: list[NonEmptyString] = Field(default_factory=list)
+    sibling_cases: list[NonEmptyString] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod

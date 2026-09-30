@@ -20,6 +20,7 @@ from typing import Literal, TypeVar, TypeAlias
 
 from pydantic import Field
 
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.base import as_Base
 
 
@@ -43,17 +44,27 @@ class as_Link(as_Base):
     width: int | None = None
     height: int | None = None
     rel: str | None = None
-    href: str | None = None
+    #: A Link with a blank ``href`` points nowhere; CS-08-001 refuses it.
+    href: NonEmptyString | None = None
     hreflang: str | None = None
 
 
 T = TypeVar("T", covariant=True)
 
-# an ActivityStreamRequiredRef is an object of type T, a Link, or a string (IRI)
-ActivityStreamRequiredRef: TypeAlias = T | as_Link | str
+# The IRI branch of every reference union is ``NonEmptyString`` (CS-08-001,
+# CS-08-002): a blank string names no resource, so it is refused inbound rather
+# than carried and then silently dropped on the way out (VM-07-001).  Code that
+# introspects these unions for their string branch must unwrap the ``Annotated``
+# (``vultron.core.models._helpers.strip_annotated``) instead of testing
+# ``is str``.
 
-# an ActivityStreamRef can be an object of type T, a Link, a string (IRI), or None (for optional fields)
-ActivityStreamRef: TypeAlias = T | as_Link | str | None
+# an ActivityStreamRequiredRef is an object of type T, a Link, or a non-empty
+# string (IRI)
+ActivityStreamRequiredRef: TypeAlias = T | as_Link | NonEmptyString
+
+# an ActivityStreamRef can be an object of type T, a Link, a non-empty string
+# (IRI), or None (for optional fields)
+ActivityStreamRef: TypeAlias = T | as_Link | NonEmptyString | None
 
 
 def main():
