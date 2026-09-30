@@ -15,7 +15,9 @@ related_specs:
     ARCH-20-009, ARCH-21-002, ARCH-22-001, ARCH-23-005)
   - specs/code-style.yaml (CS-08-001, CS-08-002)
   - specs/error-handling.yaml (EH-07-001, EH-07-003)
-  - specs/message-validation.yaml (MV-04-003, MV-11-001 through MV-11-005)
+  - specs/message-validation.yaml (MV-04-003, MV-10-001, MV-11-001 through
+    MV-11-005)
+  - specs/structured-logging.yaml (SL-02-001, SL-02-002, SL-03-001)
   - specs/status-dimension-objects.yaml (SDO-03-005)
   - specs/vocabulary-model.yaml
 related_notes:
@@ -559,9 +561,14 @@ there:
   classes the dict is judged against the union of their spellings, and when it
   also admits `Any` or a plain `dict`, no class decides and the dict is carried
   unexamined (its typed children are still partitioned by their type).
-- **The case stub** is chosen on the keys that survive the partition, so
-  `{"type": "VulnerabilityCase", "id": …, "fooBar": 1}` is a stub with one key
-  set aside, not a full case.
+- **The case stub** is chosen by `resolve_inline_class`, which judges keys as
+  the partition will, so the raw dict and the partitioned one resolve to the
+  same class: a key foreign to both classes cannot decide it
+  (`{"type": "VulnerabilityCase", "id": …, "fooBar": 1}` is a stub with one key
+  set aside), a near miss counts as the spelling it resembles, and a key only
+  the stub declares (`caseStatus`, the embargoed Invite's informed-consent
+  status, CM-17-002) selects the stub rather than being judged against the full
+  case, which had refused it before MV-11 (#3945).
 - **One refusal names every near miss** in the body, at every depth
   (EH-07-001), each with its dotted path.
 

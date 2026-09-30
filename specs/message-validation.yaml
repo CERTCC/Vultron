@@ -554,7 +554,8 @@ groups:
       A re-parse from the raw body sees the keys the parse edge set aside and, on a core class,
       fails on them. `inbox_storage._reparse_as_specific_type` did exactly that and fell back
       to a base class on failure with a DEBUG line, so once keys were set aside it would have
-      stored the wrong class silently; #3922 deleted it. Its purpose — recovering the specific class when the parser
+      stored the wrong class silently; #3922 deleted it.
+      Its purpose — recovering the specific class when the parser
       had validated an inline object as the base type — ended when the parser began resolving
       inline objects to their specific class itself (MV-04-003).
     verification: >-

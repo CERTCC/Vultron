@@ -385,6 +385,7 @@ def test_opaque_payload_snapshot_is_carried_unexamined() -> None:
 def test_normalisation_is_lowercase_and_strip_non_alphanumerics(
     key: str, expected: str
 ) -> None:
+    """Exactly lowercase plus strip non-alphanumerics; nothing fuzzier."""
     from vultron.wire.as2.unknown_keys import normalise
 
     assert normalise(key) == expected
@@ -458,3 +459,60 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
     records = _info_records_naming(caplog, FOREIGN_KEY)
     assert len(records) == 1 and "'target'" in records[0].getMessage()
     assert not _info_records_naming(caplog, "caseStatus")
+
+
+@pytest.mark.spec("MV-11-002")
+@pytest.mark.parametrize("misspelled", ["CaseStatus", "case-status"])
+def test_near_miss_of_a_stub_only_key_is_refused(misspelled: str) -> None:
+    """A misspelled ``caseStatus`` refuses; it is not set aside (#3945).
+
+    The resolver judges keys as the partition does, so a near miss of a key
+    only the stub declares still selects the stub, and the stub's partition
+    refuses it naming ``caseStatus``.  Judged against the full case, which has
+    no such spelling, it would have been set aside and the embargo state lost.
+    """
+    body = _envelope(
+        type="Invite",
+        object="https://example.org/actors/bob",
+        target={
+            "type": "VulnerabilityCase",
+            "id": "https://example.org/cases/1",
+            misspelled: {"type": "CaseStatus", "context": "x"},
+        },
+    )
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert repr(misspelled) in message and "'caseStatus'" in message
+
+
+@pytest.mark.spec("MV-10-001")
+@pytest.mark.parametrize(
+    "inline",
+    [
+        {"type": "VulnerabilityCase", "id": "urn:uuid:c1"},
+        {"type": "VulnerabilityCase", "id": "urn:uuid:c1", FOREIGN_KEY: 1},
+        {"type": "VulnerabilityCase", "id": "urn:uuid:c1", "name": "n"},
+        {"type": "VulnerabilityCase", "id": "urn:uuid:c1", "caseStatus": {}},
+    ],
+    ids=["minimal", "minimal-plus-foreign", "full", "stub-only-key"],
+)
+def test_partition_and_expansion_resolve_the_same_case_class(
+    inline: dict[str, Any],
+) -> None:
+    """The raw dict and its partitioned form resolve to the same class.
+
+    The partition judges the raw dict and the expansion the partitioned one;
+    if they disagreed, a key would be judged against a class that does not
+    validate it.
+    """
+    from vultron.wire.as2.unknown_keys import (
+        partition_unknown_keys,
+        resolve_inline_class,
+    )
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Offer,
+    )
+
+    kept, _ = partition_unknown_keys(_with_inline_object(inline), as_Offer)
+    assert resolve_inline_class(inline) is resolve_inline_class(kept["object"])

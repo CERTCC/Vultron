@@ -25,7 +25,8 @@ a less specific type in silence (#3922).
 This ratchet walks every module under ``vultron/adapters/driving/`` and
 ``vultron/core/`` and fails on any ``model_validate``/``model_validate_json``
 call whose argument is built from the received evidence or from a raw-body
-variable (``body``, ``raw_body``, ``raw_obj``, ``request_body``) — directly or
+variable (``body``, ``payload``, ``raw_body``, ``raw_obj``, ``request_body``;
+``payload`` is what the inbox pipeline calls it) — directly or
 through a local name assigned from one.  There is no exemption list.
 """
 
@@ -47,7 +48,9 @@ _RECEIVE_PATH = (
 _VALIDATORS = frozenset({"model_validate", "model_validate_json"})
 
 #: Local names that hold the raw request body, or a piece of it.
-_RAW_BODY_NAMES = frozenset({"body", "raw_body", "raw_obj", "request_body"})
+_RAW_BODY_NAMES = frozenset(
+    {"body", "payload", "raw_body", "raw_obj", "request_body"}
+)
 
 
 def _is_raw(node: ast.AST, tainted: set[str]) -> bool:

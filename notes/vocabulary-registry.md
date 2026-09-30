@@ -273,10 +273,11 @@ mixins, and the five VM-01-008 actor shadows. A companion test fails an
 exemption that no longer needs to exist.
 
 **The per-caller filter was not the fix.** #3232's guard in
-`parser._inline_vocab_class` closed one path, while the FastAPI inbox adapter's
-re-parse helper (`inbox_storage.py::_reparse_as_specific_type`, since
-deleted by #3922 under MV-11-005) still resolved any name registered only in `CORE_TYPE_MAP` to a core class — measured
-at #3565, `{"type": "CoreActor"}` persisted a `CoreActor`. The general rule is
+`parser._inline_vocab_class` (now `unknown_keys.resolve_inline_class`) closed
+one path, while the FastAPI inbox adapter's re-parse helper
+(`inbox_storage.py::_reparse_as_specific_type`, since deleted by #3922 under
+MV-11-005) still resolved any name registered only in `CORE_TYPE_MAP` to a
+core class — measured at #3565, `{"type": "CoreActor"}` persisted a `CoreActor`. The general rule is
 VM-06-008, and since #3565 the lookup enforces it: `find_in_vocabulary()`
 returns only what the wire registry holds unless the caller passes
 `include_core=True`.

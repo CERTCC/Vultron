@@ -102,7 +102,7 @@ class _Spellings:
     """The declared spellings of one or more classes, indexed two ways."""
 
     #: Every declared spelling, mapped to the fields' annotations it can fill.
-    annotations: Mapping[str, tuple[Any, ...]]
+    annotations: Mapping[str, tuple[object, ...]]
     #: Normalised spelling → the declared spelling a refusal names.
     by_normalised: Mapping[str, str]
 
@@ -147,7 +147,7 @@ def _class_spellings(cls: type[BaseModel]) -> _Spellings:
         cls.model_config.get("validate_by_name")
         or cls.model_config.get("populate_by_name")
     )
-    annotations: dict[str, tuple[Any, ...]] = {CONTEXT_KEY: ()}
+    annotations: dict[str, tuple[object, ...]] = {CONTEXT_KEY: ()}
     preferred: list[str] = []
     fallback: list[str] = []
     for name, info in cls.model_fields.items():
@@ -157,9 +157,9 @@ def _class_spellings(cls: type[BaseModel]) -> _Spellings:
             annotations[spelling] = (info.annotation,)
         preferred.extend(aliases)
         fallback.append(name)
+    generator = cls.model_config.get("alias_generator")
     for name, computed in cls.model_computed_fields.items():
         alias = getattr(computed, "alias", None)
-        generator = cls.model_config.get("alias_generator")
         spellings = [name]
         if isinstance(alias, str):
             spellings.insert(0, alias)
@@ -181,7 +181,7 @@ def _merged_spellings(classes: tuple[type[BaseModel], ...]) -> _Spellings:
     """Merge the spellings of several candidate classes (an untyped dict)."""
     if len(classes) == 1:
         return _class_spellings(classes[0])
-    annotations: dict[str, tuple[Any, ...]] = {}
+    annotations: dict[str, tuple[object, ...]] = {}
     by_normalised: dict[str, str] = {}
     for cls in classes:
         spellings = _class_spellings(cls)
@@ -192,7 +192,9 @@ def _merged_spellings(classes: tuple[type[BaseModel], ...]) -> _Spellings:
     return _Spellings(annotations=annotations, by_normalised=by_normalised)
 
 
-def _model_candidates(annotation: Any) -> tuple[type[BaseModel], ...] | None:
+def _model_candidates(
+    annotation: object,
+) -> tuple[type[BaseModel], ...] | None:
     """Return the model classes a field annotation validates a dict into.
 
     Looks through ``Annotated``, unions, ``Optional`` and sequence containers.
@@ -201,7 +203,7 @@ def _model_candidates(annotation: Any) -> tuple[type[BaseModel], ...] | None:
     """
     found: list[type[BaseModel]] = []
 
-    def visit(ann: Any) -> bool:
+    def visit(ann: object) -> bool:
         ann = strip_annotated(ann)
         if isinstance(ann, TypeAliasType):
             return visit(ann.__value__)
@@ -225,7 +227,7 @@ def _model_candidates(annotation: Any) -> tuple[type[BaseModel], ...] | None:
 
 
 def _candidates_for(
-    annotations: tuple[Any, ...],
+    annotations: tuple[object, ...],
 ) -> tuple[type[BaseModel], ...]:
     """Union the model candidates of every annotation a key can fill."""
     found: list[type[BaseModel]] = []
@@ -247,17 +249,30 @@ _CASE_STUB_KEYS = frozenset({CONTEXT_KEY, "id", "type", "summary"})
 def _reads_as_case_stub(value: dict[str, Any]) -> bool:
     """Whether an inline ``VulnerabilityCase`` dict is the stub (MV-10-001).
 
-    Either it carries nothing beyond a minimal reference, or it carries a key
-    only the stub declares — the ``caseStatus`` an embargoed Invite's stub adds
-    for informed consent (CM-17-002).  Resolving that one to the full case
-    judged ``caseStatus`` against a class that has no such field.
+    The stub when it carries a key only the stub declares — the ``caseStatus``
+    an embargoed Invite's stub adds for informed consent (CM-17-002), or a near
+    miss of it, which the stub's partition then refuses (#3945) — or when every
+    key the full case would read is a minimal-reference key.
+
+    Keys are judged as the partition will judge them, so the raw dict and the
+    partitioned one resolve to the same class: a key foreign to both classes is
+    set aside and cannot decide the class, and a near miss counts as the
+    spelling it resembles.
     """
-    keys = value.keys()
-    if keys <= _CASE_STUB_KEYS:
+    stub = _class_spellings(as_VulnerabilityCaseStub)
+    case = _class_spellings(find_in_vocabulary(_CASE_TYPE))
+    stub_only = stub.by_normalised.keys() - case.by_normalised.keys()
+    if any(normalise(key) in stub_only for key in value):
         return True
-    stub = _class_spellings(as_VulnerabilityCaseStub).annotations.keys()
-    case = _class_spellings(find_in_vocabulary(_CASE_TYPE)).annotations.keys()
-    return not keys.isdisjoint(stub - case)
+    for key in value:
+        read_as = (
+            key
+            if key in case.annotations
+            else case.by_normalised.get(normalise(key))
+        )
+        if read_as is not None and read_as not in _CASE_STUB_KEYS:
+            return False
+    return True
 
 
 def resolve_inline_class(value: dict[str, Any]) -> type[BaseModel] | None:
@@ -266,8 +281,9 @@ def resolve_inline_class(value: dict[str, Any]) -> type[BaseModel] | None:
     Returns ``None`` when the dict names no string ``type`` or the wire
     registry holds no class for it, which leaves the dict for its parent field
     to validate (MV-04-003).  The lookup is ``find_in_vocabulary``'s wire-only
-    default (VM-06-008, ISSUE-3217).  Shared by this partition and the parser's
-    expansion, so both judge an inline object as the same class.
+    default (VM-06-008, ISSUE-3217).  Shared by this partition, which calls it
+    on the raw dict, and the parser's expansion, which calls it on the
+    partitioned one; both calls answer the same class.
     """
     obj_type = value.get("type")
     if not isinstance(obj_type, str):
