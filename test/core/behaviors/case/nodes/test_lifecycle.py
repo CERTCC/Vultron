@@ -24,6 +24,7 @@ from py_trees.common import Status
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
+from vultron.core.behaviors.helpers import WIRE_RENDER_PORT_UNAVAILABLE
 from vultron.core.behaviors.case.nodes.lifecycle import (
     BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
 )
@@ -31,6 +32,7 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.case_actor import CaseActor
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 _FACTORY_PATH = (
     "vultron.core.behaviors.case.nodes.lifecycle.create_commit_log_entry_tree"
@@ -69,9 +71,30 @@ def datalayer():
     return dl
 
 
+class _ScriptedRenderPort:
+    """Render port that returns a fake activity's scripted AS2 form.
+
+    The fakes below stand in for the received activity; this port renders
+    them as their scripted payload and delegates every other object — the
+    stored objects the snapshot inlines — to the real adapter.  The node
+    under test only ever sees what the port returns (ARCH-20-001).
+    """
+
+    def __init__(self) -> None:
+        self._real = As2WireRenderAdapter()
+
+    def render(self, obj: object) -> dict[str, object]:
+        scripted = getattr(obj, "as2", None)
+        if isinstance(scripted, dict):
+            return dict(scripted)
+        return self._real.render(obj)
+
+
 @pytest.fixture
 def bridge(datalayer):
-    return BTBridge(datalayer=datalayer)
+    return BTBridge(
+        datalayer=datalayer, wire_render_port=_ScriptedRenderPort()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -95,21 +118,18 @@ class _FakeActivity:
         self.actor_id = actor_id
 
 
-class _FakeWireActivity:
-    """Minimal stand-in for a serialized wire activity payload."""
-
-    def model_dump(self, **_: object) -> dict[str, str]:
-        return {"id": ACTIVITY_ID, "type": "Create"}
-
-
 class _FakeWireActivityWithPayload:
-    """Minimal stand-in with configurable payload."""
+    """Minimal stand-in whose AS2 form ``_ScriptedRenderPort`` returns."""
 
     def __init__(self, payload: dict[str, object]):
-        self._payload = payload
+        self.as2 = payload
 
     def model_dump(self, **_: object) -> dict[str, object]:
-        return dict(self._payload)
+        raise AssertionError("core must not dump the activity itself")
+
+
+def _FakeWireActivity() -> _FakeWireActivityWithPayload:
+    return _FakeWireActivityWithPayload({"id": ACTIVITY_ID, "type": "Create"})
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +290,31 @@ def test_activity_payload_is_forwarded_as_payload_snapshot(bridge):
             "context": CASE_ID,
         },
     )
+
+
+@pytest.mark.spec("ARCH-20-001")
+@pytest.mark.spec("CLP-07-009")
+def test_missing_render_port_is_a_wiring_fault(datalayer):
+    """Without the port the node cannot build an AS2 snapshot, so it stops.
+
+    It does not fall back to a core-side dump: the failure is a composition
+    fault, reported as an internal error rather than a refusal of the sender.
+    """
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.CREATE_CASE,
+        activity=_FakeWireActivity(),
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    with patch(_FACTORY_PATH) as mock_factory:
+        result = BTBridge(datalayer=datalayer).execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert WIRE_RENDER_PORT_UNAVAILABLE in (result.feedback_message or "")
+    mock_factory.assert_not_called()
 
 
 def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):

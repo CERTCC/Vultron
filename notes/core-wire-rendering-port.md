@@ -6,15 +6,17 @@ description: >
   patches were the wrong way to get it, and the driven-port seam core uses
   instead. Under ADR-0099 the port is the `CoreObject`'s own `by_alias` dump,
   with the `alias_generator=to_camel` and `@context` serializer inherited from
-  `CoreObject`; core logic still does not dump `by_alias` itself (ARCH-20-001,
-  ratcheted by `test_core_by_alias_dumps.py`). Covers the five consumers of the
+  `CoreObject`; core logic never dumps `by_alias` itself (ARCH-20-001, held to an
+  empty baseline by `test_core_by_alias_dumps.py` since #3930), and every
+  received use case and trigger is given the port. Covers the five consumers of the
   old core-side aliasing, the `extra="forbid"` guard that stands in for any
   flat-field reject-guard, and why persisted rows are unaffected.
 related_specs:
-  - architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-20, ARCH-20-001,
-    ARCH-20-002, ARCH-20-003, ARCH-21-002)
+  - architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-18-002, ARCH-20,
+    ARCH-20-001, ARCH-20-002, ARCH-20-003, ARCH-20-004, ARCH-21-002)
   - vocabulary-model.yaml (VM-10-001)
-  - case-ledger-processing.yaml (CLP-07-001, CLP-07-006, CLP-07-009, CLP-07-010)
+  - case-ledger-processing.yaml (CLP-07-001, CLP-07-006, CLP-07-009, CLP-07-010,
+    CLP-07-011)
   - status-dimension-objects.yaml (SDO-03-003, SDO-03-005)
   - datalayer.yaml (DL-05-001)
 related_notes:
@@ -138,7 +140,17 @@ A driven port, per ARCH-01-004 and the `SyncActivityPort` precedent.
   `by_alias` serializer.
 - **Injection**: a `wire_render_port` parameter on `BTBridge.__init__`, published
   to the blackboard under `wire_render_port`, exactly as `sync_port` is
-  (`vultron/core/behaviors/bridge.py:107,185-190`).
+  (`vultron/core/behaviors/bridge.py`). Every `DataLayerActionWithPorts` node
+  reads it as an optional input port and calls `_require_wire_render_port()`
+  when it needs a rendering, which raises `VultronWiringError` if it is absent.
+- **Reach**: *every* received use case gets the port, because every received
+  tree ends in a guarded ledger commit whose snapshot is an AS2 rendering. The
+  inbox dispatcher wraps each semantic's port factory with
+  `with_wire_render_port()` (`inbox_port_factories.py`), and a use case that is
+  not handed one fails closed at its first commit rather than dumping. Trigger
+  use cases get it through `TriggerService` and `SvcBTTriggerBase` (#3930).
+  Before #3930 only `CREATE_CASE_PROPOSAL` and `CLOSE_CASE` were given the port,
+  so the snapshot path fell back to a core-side dump everywhere else.
 
 `render()` **raises `VultronValidationError`** only when the object is not a
 `CoreObject` — a bare `CoreRecord` (an offer or dead-letter record) or any
@@ -187,27 +199,31 @@ The pattern replicates: each new snapshot-producing site reinvents a little
 wire spelling. That is the argument for the port, and it is why the fix has to
 land in one pass rather than site by site.
 
-> **Before implementing, re-run the enumeration.** `grep -rn 'by_alias=True'
-> vultron/core/` and check each hit's subject. The call sites are now counted per
-> file by `test/architecture/test_core_by_alias_dumps.py` (ARCH-20-001): a new
-> site fails the ratchet, and a removed one must be ticked off its baseline.
-> Sites that dump an *already-wire* object (a received `request.activity`, a
-> reconstituted `create_activity`, `raw_proposal`) are fine and out of scope —
-> ARCH-20-001 is deliberately scoped to core-*branch* objects for exactly this
-> reason. The list above was accurate at ADR-0061; this area is under active
-> change.
+> **The enumeration is closed (#3930).** `test/architecture/test_core_by_alias_dumps.py`
+> counts `by_alias=True` calls under `vultron/core/` per file against a baseline
+> that is now empty, so a new site fails the ratchet. Do not reopen it on the
+> grounds that a subject is "already wire-shaped": the activity a received
+> handler holds (`request.activity`) is the extractor's core-branch
+> `VultronActivity`, not the wire object that arrived, and `create_activity` is a
+> core `VultronCreateCaseActivity`. Where core genuinely holds a wire object — a
+> stored outbound `Add(CaseParticipant)`, a received proposal's inline
+> `as_CaseProposal` — it gets the AS2 form from the adapter that built it (the
+> trigger-activity port returns `(activity_id, activity_json)`) or by rendering
+> the core activity that carries it. The list above was accurate at ADR-0061.
 
 Also vestigial: `CoreActor.to_json()` (`core/models/actor.py:76-77`) dumps
 `by_alias=True` and has no callers in `vultron/`. Delete it — an
 always-available bypass of the port seam will be picked up by the next agent who
 needs camelCase (ARCH-20-005).
 
-`build_activity_payload_snapshot` in `core/use_cases/_helpers.py` is **not** in
-this list and should be left alone: it captures a received activity verbatim
-(CLP-07-001) by duck-typing, so core needs no wire import and no rendering. It
-is the model the rest of the snapshot path should converge toward — synthesis is
-only needed where there is no received activity to capture, i.e. case-proposal
-bootstrap.
+`build_activity_payload_snapshot` in `core/use_cases/_snapshot_helpers.py` was
+once described here as capturing a received activity verbatim by duck-typing,
+needing no rendering. That was wrong under ADR-0099 detail 3: the activity it
+receives is the extractor's core-branch `VultronActivity`, so it renders through
+the port like every other snapshot, and so do the stored objects it inlines under
+CLP-07-006 (#3930). Its snapshot is therefore a rendering of what the extractor
+kept, not the bytes that arrived — CLP-07-011's "deterministic canonical
+normalization" branch, not its "verbatim" one.
 
 ## Deleting a flat-field shim: the guard is mandatory
 

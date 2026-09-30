@@ -125,24 +125,20 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
             if actor_url != self.invitee_id
         ]
 
-    def _build_snapshot(self, activity_id: str) -> dict:
-        stored = self.datalayer.read(activity_id)  # type: ignore[union-attr]
-        if stored is None or not hasattr(stored, "model_dump"):
+    def _build_snapshot(self, activity_json: str) -> dict:
+        """Return the ledger payload snapshot for the emitted ``Add``.
+
+        *activity_json* is the AS2 form the trigger-activity port rendered when
+        it built the activity, so core renders nothing itself (ARCH-20-001).
+        Bare inline references are dropped and ``context`` set to the case so
+        the entry passes ``_validate_canonical_entry`` (CLP-07-006, CLP-07-007).
+        """
+        raw = json.loads(activity_json)
+        if not isinstance(raw, dict):
             raise VultronValidationError(
-                f"Add(CaseParticipant) activity '{activity_id}' not found in"
-                " DataLayer; cannot build payload snapshot (ARCH-15-001)"
+                "Add(CaseParticipant) activity did not render as a JSON object;"
+                " cannot build payload snapshot (ARCH-15-001)"
             )
-        # ARCH-20-001 permits this ``by_alias=True``: the subject is the stored
-        # ``Add(CaseParticipant)`` activity read straight back out of the
-        # DataLayer, which hands it back already wire-shaped, and the result is a
-        # ledger payload snapshot — AS2-shaped by definition (CLP-07-001).  No
-        # wire shape is being synthesised for a core-branch object here.
-        raw: dict = stored.model_dump(
-            mode="json",
-            by_alias=True,
-            serialize_as_any=True,
-            exclude_none=True,
-        )
         snapshot: dict = _snapshot_with_context(raw, self.case_id)
         if not snapshot.get("actor") and self.actor_id:
             snapshot = {**snapshot, "actor": self.actor_id}
@@ -164,13 +160,15 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
         if failure is not None:
             raise RuntimeError(f"{self.name}: case '{self.case_id}' not found")
         others = self._resolve_actor_recipients(case)
-        activity_id = self.trigger_activity_factory.add_participant_to_case(
-            participant_id=participant_id,
-            case_id=self.case_id,
-            actor=self.actor_id,
-            to=others or None,
+        activity_id, activity_json = (
+            self.trigger_activity_factory.add_participant_to_case(
+                participant_id=participant_id,
+                case_id=self.case_id,
+                actor=self.actor_id,
+                to=others or None,
+            )
         )
-        snapshot = self._build_snapshot(activity_id)
+        snapshot = self._build_snapshot(activity_json)
         commit_tree = create_commit_log_entry_tree(
             case_id=self.case_id,
             object_id=activity_id,

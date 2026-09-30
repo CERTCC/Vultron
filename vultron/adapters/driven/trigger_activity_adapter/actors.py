@@ -424,7 +424,7 @@ class _ActorsMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create and persist an ``Add(as_CaseParticipant, Case)`` activity."""
         participant = _to_wire(
             self._dl.read(participant_id), as_CaseParticipant
@@ -440,7 +440,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def add_participant_status_to_participant(
         self,

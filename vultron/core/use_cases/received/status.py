@@ -31,6 +31,7 @@ from vultron.core.use_cases.received._bt_verdict import (
 )
 
 if TYPE_CHECKING:
+    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.core.behaviors.call_out.bundles.status_authorization import (
         StatusAuthorizationCallOutBundle,
     )
@@ -64,9 +65,13 @@ def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
 
 class CreateCaseStatusReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: CreateCaseStatusReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: CreateCaseStatusReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: CreateCaseStatusReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -88,8 +93,10 @@ class AddCaseStatusToCaseReceivedUseCase:
         request: AddCaseStatusToCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         call_out: "StatusAuthorizationCallOutBundle | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AddCaseStatusToCaseReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._call_out = call_out
@@ -121,6 +128,7 @@ class AddCaseStatusToCaseReceivedUseCase:
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
@@ -175,8 +183,10 @@ class CreateParticipantStatusReceivedUseCase:
         self,
         dl: CasePersistence,
         request: CreateParticipantStatusReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: CreateParticipantStatusReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -219,8 +229,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
         call_out: "StatusAuthorizationCallOutBundle | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AddParticipantStatusToParticipantReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
@@ -261,6 +273,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,

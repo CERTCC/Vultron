@@ -34,6 +34,7 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 class TestOwnershipTransferUseCases:
@@ -60,14 +61,18 @@ class TestOwnershipTransferUseCases:
         )
         event = make_payload(activity)
 
-        result = OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+        result = OfferCaseOwnershipTransferReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         stored = dl.get(activity.type_.value, activity.id_)
         assert stored is not None
         assert result.disposition == HandlerDisposition.APPLIED
 
         # HP-01-003: a redelivered Offer stores nothing new.
-        again = OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+        again = OfferCaseOwnershipTransferReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
         assert again.disposition == HandlerDisposition.SKIPPED
 
     def test_offer_ownership_unresolvable_receiver_writes_nothing(
@@ -98,7 +103,9 @@ class TestOwnershipTransferUseCases:
 
         with pytest.raises(VultronValidationError):
             OfferCaseOwnershipTransferReceivedUseCase(
-                anonymous_store(inner), event
+                anonymous_store(inner),
+                event,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert inner.get(activity.type_.value, activity.id_) is None
@@ -144,7 +151,9 @@ class TestOwnershipTransferUseCases:
         event = make_payload(activity, receiving_actor_id=coordinator_id)
 
         result = AcceptCaseOwnershipTransferReceivedUseCase(
-            dl, event
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         updated_record = dl.get(case.type_, case.id_)
@@ -181,7 +190,9 @@ class TestOwnershipTransferUseCases:
         )
 
         result = AcceptCaseOwnershipTransferReceivedUseCase(
-            dl, event
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -197,7 +208,9 @@ class TestOwnershipTransferUseCases:
         event = MagicMock(case_id=None, receiving_actor_id=None)
 
         result = AcceptCaseOwnershipTransferReceivedUseCase(
-            dl, event
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -267,7 +280,10 @@ class TestOwnershipTransferUseCases:
         )
 
         OfferCaseOwnershipTransferReceivedUseCase(
-            dl, event, trigger_activity=trigger_activity
+            dl,
+            event,
+            trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # trigger_activity.offer_case_ownership_transfer must be called with
@@ -369,7 +385,10 @@ class TestOwnershipTransferUseCases:
         )
 
         OfferCaseOwnershipTransferReceivedUseCase(
-            dl, event, trigger_activity=trigger_activity
+            dl,
+            event,
+            trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert calls == [
@@ -452,7 +471,10 @@ class TestOwnershipTransferUseCases:
         )
 
         OfferCaseOwnershipTransferReceivedUseCase(
-            dl, event, trigger_activity=trigger_activity
+            dl,
+            event,
+            trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         kwargs = (
@@ -527,7 +549,10 @@ class TestOwnershipTransferUseCases:
 
         with caplog.at_level("WARNING"):
             OfferCaseOwnershipTransferReceivedUseCase(
-                dl, event, trigger_activity=trigger_activity
+                dl,
+                event,
+                trigger_activity=trigger_activity,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         kwargs = (
@@ -597,7 +622,8 @@ class TestOwnershipTransferUseCases:
             OfferCaseOwnershipTransferReceivedUseCase(
                 dl,
                 event,
-                # trigger_activity intentionally omitted
+                # trigger_activity intentionally omitted,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert any("no trigger_activity" in r.message for r in caplog.records)
@@ -627,7 +653,9 @@ class TestOwnershipTransferUseCases:
 
         with caplog.at_level(logging.INFO):
             result = RejectCaseOwnershipTransferReceivedUseCase(
-                MagicMock(), event
+                MagicMock(),
+                event,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
@@ -662,7 +690,9 @@ class TestOwnershipTransferUseCases:
             )
             event = make_payload(activity, receiving_actor_id=None)
 
-            OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+            OfferCaseOwnershipTransferReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
             stored = dl.get(activity.type_.value, activity.id_)
             assert stored is not None, (
@@ -709,7 +739,9 @@ class TestOwnershipTransferUseCases:
             )
             event = make_payload(activity, receiving_actor_id=None)
 
-            AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+            AcceptCaseOwnershipTransferReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
             updated = dl.get(case.type_, case.id_)
             assert updated is not None
@@ -750,7 +782,9 @@ class TestOwnershipOfferAtNonRecipient:
         )
         event = make_payload(activity, receiving_actor_id=bystander_id)
 
-        result = OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+        result = OfferCaseOwnershipTransferReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and bystander_id in result.reason

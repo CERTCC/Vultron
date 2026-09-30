@@ -46,6 +46,7 @@ from vultron.core.behaviors.report.prioritize_tree import (
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def _make_participant_in_valid_state(
@@ -203,6 +204,7 @@ def bridge(datalayer):
         trigger_activity=TriggerActivityAdapter(
             cast(CaseOutboxPersistence, datalayer)
         ),
+        wire_render_port=As2WireRenderAdapter(),
     )
 
 
@@ -677,7 +679,10 @@ def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
     tree = create_engage_case_tree(
         case_id=case_with_manager.id_, actor_id=actor_id
     )
-    result = BTBridge(datalayer=case_manager_datalayer).execute_with_setup(
+    result = BTBridge(
+        datalayer=case_manager_datalayer,
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute_with_setup(
         tree=tree,
         actor_id=case_manager_actor_id,
         activity=request,

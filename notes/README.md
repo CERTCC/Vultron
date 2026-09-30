@@ -32,8 +32,9 @@ Why core legitimately needs wire-shaped JSON (only for
 uses to get it. Under ADR-0099 every `CoreObject` inherits
 `alias_generator=to_camel` on purpose (ARCH-12-003), so the port is the core
 object's own `model_dump(by_alias=True)`; `@context` comes from `CoreObject`'s
-`by_alias` serializer, not from delivery. Core logic still MUST NOT dump its own
-objects `by_alias` (ARCH-20-001, ratchet `test_core_by_alias_dumps.py`). Also
+`by_alias` serializer, not from delivery. Core logic MUST NOT dump its own
+objects `by_alias` (ARCH-20-001, ratchet `test_core_by_alias_dumps.py`, empty
+since #3930); every received use case and trigger is given the port. Also
 lists the five consumers of the old core-side aliasing, the `extra="forbid"`
 guard that replaces any flat-field reject-guard (SDO-03-005), and why persisted
 rows are unaffected. The ADR-0082 pairing registry and adapter-side translators

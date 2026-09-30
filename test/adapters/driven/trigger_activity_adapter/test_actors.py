@@ -205,7 +205,7 @@ class TestAddParticipantToCase:
         case = _make_case(dl)
         participant = _make_participant(dl, case.id_)
 
-        activity_id = adapter.add_participant_to_case(
+        activity_id, activity_json = adapter.add_participant_to_case(
             participant_id=participant.id_,
             case_id=case.id_,
             actor=_ACTOR,
@@ -213,11 +213,29 @@ class TestAddParticipantToCase:
 
         assert activity_id
 
+    def test_returns_the_activitys_as2_rendering(self, adapter, dl):
+        """The second element is the AS2 JSON a ledger snapshot records."""
+        import json
+
+        case = _make_case(dl)
+        participant = _make_participant(dl, case.id_)
+
+        activity_id, activity_json = adapter.add_participant_to_case(
+            participant_id=participant.id_,
+            case_id=case.id_,
+            actor=_ACTOR,
+        )
+
+        rendered = json.loads(activity_json)
+        assert rendered["id"] == activity_id
+        assert rendered["type"] == "Add"
+        assert rendered["actor"] == _ACTOR
+
     def test_persists_add_activity(self, adapter, dl):
         case = _make_case(dl)
         participant = _make_participant(dl, case.id_)
 
-        activity_id = adapter.add_participant_to_case(
+        activity_id, _ = adapter.add_participant_to_case(
             participant_id=participant.id_,
             case_id=case.id_,
             actor=_ACTOR,

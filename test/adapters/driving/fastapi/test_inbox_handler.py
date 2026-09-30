@@ -855,6 +855,48 @@ def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
     assert isinstance(kwargs.get("wire_render_port"), As2WireRenderAdapter)
 
 
+@pytest.mark.spec("ARCH-20-001")
+@pytest.mark.spec("ARCH-20-004")
+def test_make_dispatcher_gives_every_semantic_a_wire_render_port(monkeypatch):
+    """Every received use case is constructed with a ``WireRenderPort``.
+
+    Every received tree ends in a guarded ledger commit, and its payload
+    snapshot is an AS2 rendering core cannot produce itself (CLP-07-009).  So a
+    semantic with no other port still needs this one, and the use case must
+    accept it: the dispatcher calls ``use_case_class(dl, event, **kwargs)``.
+    """
+    import inspect
+
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+    from vultron.semantic_registry import use_case_map
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        ih.inbox_port_factories, "_resolve_actor_config", lambda: None
+    )
+    ih.make_dispatcher()
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    for sem, use_case in use_case_map().items():
+        factory = captured["port_factories"].get(sem)
+        assert factory is not None, f"{sem.name} has no port factory"
+        assert isinstance(
+            factory(real_dl).get("wire_render_port"), As2WireRenderAdapter
+        ), f"{sem.name} is dispatched without a WireRenderPort"
+        assert (
+            "wire_render_port" in inspect.signature(use_case).parameters
+        ), f"{use_case.__name__} does not accept wire_render_port"
+
+
 def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
     """_case_proposal_port_factory returns actor_config and both ports.
 

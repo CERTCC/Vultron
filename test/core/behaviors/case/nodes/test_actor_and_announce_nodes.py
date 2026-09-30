@@ -627,7 +627,10 @@ class TestEmitAddCaseParticipantNode:
 
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.add_participant_to_case.return_value = (
-            EMIT_ADD_ACTIVITY_ID
+            EMIT_ADD_ACTIVITY_ID,
+            add_activity.model_dump_json(
+                by_alias=True, exclude_none=True, serialize_as_any=True
+            ),
         )
 
         bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
@@ -653,14 +656,13 @@ class TestEmitAddCaseParticipantNode:
         ), f"Expected add_case_participant ledger entry; got {[e.event_type for e in entries]}"
 
     def test_snapshot_strips_bare_target_from_stored_activity(self, dl):
-        """_build_snapshot must strip bare target from stored as_Add (IMPROVE-2).
+        """_build_snapshot must strip bare target from the rendered as_Add (IMPROVE-2).
 
         The real TriggerActivityAdapter stores the as_Add in the datalayer and
-        returns its id.  model_dump() of the stored object includes
-        ``"target": "<case_uri>"`` as a bare string.  _validate_canonical_entry
-        rejects bare inline-object values, so _build_snapshot MUST call
-        _snapshot_with_context (which calls _drop_bare_inline_refs) rather than
-        returning raw model_dump output.
+        returns its id and AS2 JSON.  That JSON carries ``"target": "<case_uri>"``
+        as a bare string.  _validate_canonical_entry rejects bare inline-object
+        values, so _build_snapshot MUST call _snapshot_with_context (which calls
+        _drop_bare_inline_refs) rather than recording the rendering as is.
         """
         from unittest.mock import MagicMock
 
@@ -687,11 +689,12 @@ class TestEmitAddCaseParticipantNode:
         dl.create(case)
         participant = _make_add_node_fixture(dl)
 
-        # Build and store the real as_Add activity so datalayer.read() returns it.
-        # Use target as a bare string URI — that is what the real adapter does
-        # (TriggerActivityAdapterActorsMixin.add_participant_to_case passes case_id
-        # as the target kwarg).  model_dump() serialises this as "target": "<uri>"
-        # which _validate_canonical_entry would reject without _drop_bare_inline_refs.
+        # Build the real as_Add activity the adapter would, and hand its AS2 JSON
+        # back from the mocked port.  Use target as a bare string URI — that is
+        # what the real adapter does (TriggerActivityAdapterActorsMixin
+        # .add_participant_to_case passes case_id as the target kwarg), so the
+        # rendering carries "target": "<uri>", which _validate_canonical_entry
+        # would reject without _drop_bare_inline_refs.
         wire_participant = as_CaseParticipant(
             id_=EMIT_ADD_PARTICIPANT_ID,
             attributed_to=EMIT_ADD_INVITEE_ID,
@@ -707,7 +710,10 @@ class TestEmitAddCaseParticipantNode:
 
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.add_participant_to_case.return_value = (
-            EMIT_ADD_ACTIVITY_ID
+            EMIT_ADD_ACTIVITY_ID,
+            add_activity.model_dump_json(
+                by_alias=True, exclude_none=True, serialize_as_any=True
+            ),
         )
 
         bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
@@ -870,7 +876,10 @@ class TestEmitAddCaseParticipantNode:
 
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.add_participant_to_case.return_value = (
-            EMIT_ADD_ACTIVITY_ID
+            EMIT_ADD_ACTIVITY_ID,
+            add_act_to.model_dump_json(
+                by_alias=True, exclude_none=True, serialize_as_any=True
+            ),
         )
 
         bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)

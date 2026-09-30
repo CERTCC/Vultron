@@ -22,7 +22,7 @@ Per specs/sync-ledger-replication.yaml SYNC-02-002, SYNC-02-003.
 """
 
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -44,6 +44,9 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.use_cases._helpers import build_activity_payload_snapshot
 from vultron.errors import VultronCanonicalEntryError, VultronValidationError
+
+if TYPE_CHECKING:
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
@@ -72,17 +75,27 @@ BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE = "ledger_payload_object_override"
 
 
 def _extract_payload_snapshot(
-    activity: Any, dl: CasePersistence | None = None
+    activity: Any,
+    dl: CasePersistence | None,
+    wire_render_port: "WireRenderPort",
 ) -> dict[str, Any]:
-    """Build a normalized payload snapshot for case-ledger commits."""
+    """Build a normalized payload snapshot for case-ledger commits.
+
+    The AS2 shape comes from *wire_render_port* (ARCH-20-001, CLP-07-009).
+    """
     event_activity = getattr(activity, "activity", None)
     if event_activity is not None:
         return cast(
             dict[str, Any],
-            build_activity_payload_snapshot(event_activity, dl=dl),
+            build_activity_payload_snapshot(
+                event_activity, dl, wire_render_port=wire_render_port
+            ),
         )
     snapshot = cast(
-        dict[str, Any], build_activity_payload_snapshot(activity, dl=dl)
+        dict[str, Any],
+        build_activity_payload_snapshot(
+            activity, dl, wire_render_port=wire_render_port
+        ),
     )
     # Domain events serialize actor_id, not the wire-format actor URI.
     # Patch it in so the ledger schema's non-empty-URI check passes.
@@ -320,7 +333,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             or "case_event"
         )
         payload_snapshot = _extract_payload_snapshot(
-            activity, dl=self.datalayer
+            activity, self.datalayer, self._require_wire_render_port()
         )
         return object_id, event_type, payload_snapshot
 

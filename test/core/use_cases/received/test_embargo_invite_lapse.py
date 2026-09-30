@@ -43,6 +43,7 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 CoreCase = VulnerabilityCase
 
@@ -295,7 +296,9 @@ class TestInviteStoresDeadline:
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE)
 
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         # The deadline should be stored on the participant record
         fresh_case = dl.read(case_id)
@@ -402,7 +405,9 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(invite, receiving_actor_id=_COORD)
 
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.INVITED
@@ -431,7 +436,9 @@ class TestInviteeIsTheAddressee:
         event = make_payload(invite)
         assert event.receiving_actor_id is None
 
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.INVITED
@@ -462,7 +469,9 @@ class TestInviteeIsTheAddressee:
         assert event.invitee_id is None
 
         caplog.set_level("WARNING")
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert any(
             "carries no 'to:' recipient" in record.message
@@ -502,7 +511,9 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(reject, receiving_actor_id=_COORD)
 
-        RejectInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.DECLINED
@@ -539,7 +550,9 @@ class TestInviteeIsTheAddressee:
         assert event.invitee_id is None
         assert event.to_recipients == [_OTHER, _INVITEE]
 
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.INVITED
@@ -585,7 +598,9 @@ class TestInviteeIsTheAddressee:
         event = make_payload(invite, receiving_actor_id=_INVITEE)
 
         caplog.set_level("WARNING")
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert not any(
             "cannot tell which participant" in record.message
@@ -617,7 +632,9 @@ class TestInviteeIsTheAddressee:
         event = make_payload(invite, receiving_actor_id=_COORD)
 
         caplog.set_level("WARNING")
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert any(
             "cannot tell which participant" in record.message
@@ -661,7 +678,9 @@ class TestInviteeIsTheAddressee:
         event = make_payload(invite, receiving_actor_id=_COORD)
 
         caplog.set_level("WARNING")
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert any(
             "No participant found for actor" in record.message
@@ -731,7 +750,9 @@ class TestInviteeIsTheAddressee:
         event = make_payload(reject, receiving_actor_id=_COORD)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -770,7 +791,9 @@ class TestInviteeIsTheAddressee:
         event = make_payload(reject, receiving_actor_id=_COORD)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition is HandlerDisposition.SKIPPED
@@ -801,7 +824,9 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(invite, receiving_actor_id=_COORD)
 
-        result = InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition is HandlerDisposition.SKIPPED
         assert "already invited" in (result.reason or "")
@@ -889,7 +914,9 @@ class TestLateAcceptHandling:
         dl.create(proposal)
 
         event = _make_accept_event(proposal, case, _INVITEE, make_payload)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
@@ -942,7 +969,10 @@ class TestLateAcceptHandling:
             stale_proposal, case, _INVITEE, make_payload
         )
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, trigger_activity=trigger_mock
+            dl,
+            event,
+            trigger_activity=trigger_mock,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # propose_embargo should have been called with the CURRENT embargo
@@ -988,7 +1018,9 @@ class TestLateAcceptHandling:
         dl.create(proposal)
 
         event = _make_accept_event(proposal, case, _INVITEE, make_payload)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         # Actor must still be a case participant (not removed)
         fresh_case = dl.read(case_id)
@@ -1035,7 +1067,9 @@ class TestLateAcceptHandling:
         dl.create(proposal)
 
         event = _make_accept_event(proposal, case, _INVITEE, make_payload)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
@@ -1085,7 +1119,9 @@ class TestLateAcceptHandling:
         dl.save(case)
 
         event = _make_accept_event(proposal, case, _COORD, make_payload)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         # Normal path: coordinator accepted → EM ACTIVE
         fresh_case = dl.read(case_id)
@@ -1132,7 +1168,9 @@ class TestLateAcceptHandling:
         dl.save(case)
 
         event = _make_accept_event(proposal, case, _COORD, make_payload)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         # Normal path: no lapse, acceptance proceeds
         fresh_case = dl.read(case_id)
@@ -1165,7 +1203,9 @@ class TestLateAcceptHandling:
         dl.create(proposal)
 
         event = _make_accept_event(proposal, case, _INVITEE, make_payload)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         # A CaseLedgerEntry with event_type "invite_to_embargo_on_case_lapsed"
         # must exist (CM-28-005, CM-28-009).
@@ -1225,7 +1265,9 @@ class TestLateAcceptHandling:
 
         event = _make_accept_event(proposal, case, _INVITEE, make_payload)
         # Must not raise VultronInvalidStateTransitionError (bug #3358).
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
@@ -1292,7 +1334,10 @@ class TestLateAcceptHandling:
         )
         # Must not raise VultronInvalidStateTransitionError (bug #3358).
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, trigger_activity=trigger_mock
+            dl,
+            event,
+            trigger_activity=trigger_mock,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         fresh_case = dl.read(case_id)

@@ -92,28 +92,21 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         self._offer_id = offer_id
         self._offer_actor_id = offer_actor_id
         self._case_id_bb: str | None = None
-        self.wire_render_port = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         "case_id": PortInformation(data_type=str, required=False),
-        "wire_render_port": PortInformation(data_type=object, required=False),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id", "wire_render_port": "/wire_render_port"}
+        return {"case_id": "/case_id"}
 
     def initialise(self) -> None:
         super().initialise()
         self._case_id_bb = None
-        self.wire_render_port = None
         try:
             self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
-            pass
-        try:
-            self.wire_render_port = self.get_input("wire_render_port")
         except (NoDataAvailable, NotImplementedError):
             pass
 

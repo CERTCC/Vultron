@@ -78,6 +78,7 @@ from vultron.core.models.dimensions import (
     PxaDimension,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -110,7 +111,7 @@ def dl():
 
 @pytest.fixture
 def bridge(dl):
-    return BTBridge(datalayer=dl)
+    return BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter())
 
 
 @pytest.fixture
@@ -132,7 +133,9 @@ def populated_dl(dl, case, status_obj):
 
 @pytest.fixture
 def populated_bridge(populated_dl):
-    return BTBridge(datalayer=populated_dl)
+    return BTBridge(
+        datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +162,9 @@ class TestCheckCaseStatusIdempotencyNode:
         case.case_statuses.append(status)
         populated_dl.save(case)
 
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = CheckCaseStatusIdempotencyNode(
             case_id=CASE_ID, status_id=STATUS_ID
         )
@@ -186,7 +191,9 @@ class TestCheckCaseStatusIdempotencyNode:
 class TestAppendCaseStatusToCaseNode:
     def test_appends_status_to_case(self, populated_dl):
         """Status is appended to case.case_statuses and case is saved."""
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = AppendCaseStatusToCaseNode(
             case_id=CASE_ID,
             status_id=STATUS_ID,
@@ -215,7 +222,9 @@ class TestAppendCaseStatusToCaseNode:
         dl.create(case)
 
         inline_status = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = AppendCaseStatusToCaseNode(
             case_id=CASE_ID,
             status_id=STATUS_ID,
@@ -244,7 +253,9 @@ class TestAppendCaseStatusToCaseNode:
         )
         dl.save(ephemeral_status)
 
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = AppendCaseStatusToCaseNode(
             case_id=CASE_ID,
             status_id=STATUS_ID,
@@ -312,7 +323,9 @@ class TestFilterCsEmDimensionNodeBug2704:
         This test FAILS on pre-fix code where the guard returned SUCCESS.
         """
         dl = self._build_dl()
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = FilterCsEmDimensionNode(
             case_id=CASE_ID,
             status_id=STATUS_ID,
@@ -344,9 +357,7 @@ class TestFilterCsEmDimensionNodeBug2704:
         activity = add_status_to_case_activity(
             status_obj, target=wire_case, actor=CASE_MANAGER_ID_2704
         )
-        event = make_payload(activity).model_copy(
-            update={"activity": activity}
-        )
+        event = make_payload(activity)
 
         # Patch request.status to None so status_obj_fallback=None in the tree factory.
         with patch.object(
@@ -355,7 +366,9 @@ class TestFilterCsEmDimensionNodeBug2704:
             tree = add_case_status_tree(
                 request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
             )
-            bridge = BTBridge(datalayer=dl)
+            bridge = BTBridge(
+                datalayer=dl, wire_render_port=As2WireRenderAdapter()
+            )
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=CASE_MANAGER_ID_2704, activity=event
             )
@@ -480,9 +493,7 @@ class TestFilterCsPxaDimensionNodeBug2706:
         activity = add_status_to_case_activity(
             status_obj, target=wire_case, actor=CASE_MANAGER_ID_2706
         )
-        event = make_payload(activity).model_copy(
-            update={"activity": activity}
-        )
+        event = make_payload(activity)
 
         # Patch get_input on FilterCsPxaDimensionNode to return a DEEP COPY of any dict,
         # simulating a blackboard that never returns mutable references.
@@ -502,7 +513,9 @@ class TestFilterCsPxaDimensionNodeBug2706:
             tree = add_case_status_tree(
                 request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
             )
-            bridge = BTBridge(datalayer=dl)
+            bridge = BTBridge(
+                datalayer=dl, wire_render_port=As2WireRenderAdapter()
+            )
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=CASE_MANAGER_ID_2706, activity=event
             )
@@ -541,7 +554,9 @@ class TestAddCaseStatusTree:
         tree = add_case_status_tree(
             request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
         )
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
@@ -563,7 +578,9 @@ class TestAddCaseStatusTree:
         event = make_payload(activity)
 
         tree = add_case_status_tree(request=event)
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        )
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         assert BTBridge.get_failure_reason(tree) == CASE_STATUS_ALREADY_PRESENT
@@ -592,7 +609,9 @@ class TestAddCaseStatusTree:
         event = make_payload(activity)
 
         tree = add_case_status_tree(request=event)
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
@@ -633,7 +652,9 @@ class TestAddCaseStatusTree:
         event = make_payload(activity)
 
         tree = add_case_status_tree(request=event)
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
@@ -682,7 +703,9 @@ class TestAddCaseStatusTree:
         tree = add_case_status_tree(
             request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
         )
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS
@@ -736,7 +759,9 @@ class TestAddCaseStatusTree:
         tree = add_case_status_tree(
             request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
         )
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
 
         with caplog.at_level(logging.WARNING):
             result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
@@ -789,7 +814,9 @@ class TestAddCaseStatusTree:
         tree = add_case_status_tree(
             request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
         )
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
 
         with caplog.at_level(logging.WARNING):
             result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
@@ -862,7 +889,9 @@ class TestAddCaseStatusTree:
             memory=False,
             children=[tree, _CaptureOverride(name="CaptureOverride")],
         )
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         result = bridge.execute_with_setup(tree=probed, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
@@ -901,7 +930,9 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         )
         event = make_payload(activity)
 
-        AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+        AddCaseStatusToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
@@ -927,7 +958,9 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         event = make_payload(activity)
 
         with caplog.at_level(logging.DEBUG):
-            AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+            AddCaseStatusToCaseReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         info_msgs = [
             r.message for r in caplog.records if r.levelno == logging.INFO
@@ -971,7 +1004,9 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         event = make_payload(activity)
 
         with caplog.at_level(logging.DEBUG):
-            AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+            AddCaseStatusToCaseReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         warn_msgs = [
             r.message for r in caplog.records if r.levelno == logging.WARNING
@@ -1015,7 +1050,9 @@ class TestAddCaseStatusToCaseReceivedUseCase:
             return_value=None,
         ):
             with caplog.at_level(logging.DEBUG):
-                AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+                AddCaseStatusToCaseReceivedUseCase(
+                    dl, event, wire_render_port=As2WireRenderAdapter()
+                ).execute()
 
         warn_msgs = [
             r.message for r in caplog.records if r.levelno == logging.WARNING
@@ -1072,7 +1109,9 @@ class TestThreatTerminationBranchNode:
     def test_skips_when_pxa_all_lowercase(self, dl):
         """pxa (no threat flags) → skip teardown → SUCCESS."""
         status_obj = self._setup_dl_with_embargo(dl, CS_pxa.pxa)
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = ThreatTerminationBranchNode(
             status_obj=status_obj, case_id=CASE_ID
         )
@@ -1085,7 +1124,9 @@ class TestThreatTerminationBranchNode:
         status_obj = self._make_status_with_pxa(CS_pxa.Pxa)
         dl.create(case)
         dl.create(status_obj)
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = ThreatTerminationBranchNode(
             status_obj=status_obj, case_id=CASE_ID
         )
@@ -1094,7 +1135,9 @@ class TestThreatTerminationBranchNode:
 
     def test_skips_when_status_obj_none(self, dl):
         """status_obj=None → no pxa info → skip teardown → SUCCESS."""
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = ThreatTerminationBranchNode(status_obj=None, case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
@@ -1102,7 +1145,9 @@ class TestThreatTerminationBranchNode:
     def test_skips_when_case_id_none(self, dl):
         """case_id=None → no TerminateEmbargoBT built → SUCCESS via skip."""
         status_obj = self._make_status_with_pxa(CS_pxa.Pxa)
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = ThreatTerminationBranchNode(status_obj=status_obj, case_id=None)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
@@ -1131,7 +1176,9 @@ class TestThreatTerminationBranchNode:
         from vultron.core.states.em import EM
 
         status_obj = self._setup_dl_with_embargo(dl, pxa_state)
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = ThreatTerminationBranchNode(
             status_obj=status_obj, case_id=CASE_ID
         )
@@ -1159,7 +1206,9 @@ class TestThreatTerminationBranchNode:
         # non-CASE_OWNER condition this test asserts.  A separate stand-in id
         # would only name an actor whose store is empty, which tests nothing.
         status_obj = self._setup_dl_with_embargo(dl, CS_pxa.Pxa)
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = ThreatTerminationBranchNode(
             status_obj=status_obj, case_id=CASE_ID
         )
@@ -1255,7 +1304,9 @@ class TestAddCaseStatusTreeSeam2:
         )
 
         tree = add_case_status_tree(request=event, call_out=call_out)
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=CASE_MANAGER_ID, activity=event
         )
@@ -1379,7 +1430,9 @@ class TestRegressionCSPTeardownPath:
         new_node = ThreatTerminationBranchNode(
             status_obj=new_status_obj, case_id=CASE_ID
         )
-        new_bridge = BTBridge(datalayer=dl_new)
+        new_bridge = BTBridge(
+            datalayer=dl_new, wire_render_port=As2WireRenderAdapter()
+        )
         # Runs as the case manager, matching the legacy half below: the seeded
         # case names CASE_MANAGER_ID as its only participant, and teardown
         # authority is the manager's.  ACTOR_ID here would execute against an
@@ -1425,7 +1478,9 @@ class TestRegressionCSPTeardownPath:
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
         )
-        old_bridge = BTBridge(datalayer=dl_old)
+        old_bridge = BTBridge(
+            datalayer=dl_old, wire_render_port=As2WireRenderAdapter()
+        )
         # No factory → FAILURE from broadcast (BT-14-001)
         old_result = old_bridge.execute_with_setup(
             tree=old_node, actor_id=legacy_manager_id
@@ -1508,14 +1563,14 @@ class TestCaseLedgerEntryCreation:
         activity = add_status_to_case_activity(
             status_obj, target=wire_case, actor=CASE_MANAGER_ID_2254
         )
-        event = make_payload(activity).model_copy(
-            update={"activity": activity}
-        )
+        event = make_payload(activity)
 
         tree = add_case_status_tree(
             request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
         )
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=CASE_MANAGER_ID_2254, activity=event
         )
@@ -1566,7 +1621,9 @@ class TestCaseLedgerEntryCreation:
         event = make_payload(activity)
 
         tree = add_case_status_tree(request=event)
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=CASE_MANAGER_ID_2254, activity=event
         )
@@ -1640,7 +1697,9 @@ class TestEmitCaseStatusUpdateNodePromotion:
         dl.save(case_obj)
 
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         result = bridge.execute_with_setup(tree=node, actor_id=EMIT_ACTOR_ID)
         assert result.status == Status.SUCCESS
 
@@ -1794,6 +1853,7 @@ class TestPxaEmInvariantDiagnosticNode:
         bridge = BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=DIAG_CM_ID, activity=event
@@ -1828,6 +1888,7 @@ class TestPxaEmInvariantDiagnosticNode:
         bridge = BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=f"{DIAG_CM_ID}-blocked", activity=event

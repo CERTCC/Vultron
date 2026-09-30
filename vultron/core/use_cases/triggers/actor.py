@@ -78,8 +78,9 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
         request: object,
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+        wire_render_port: object = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity)  # type: ignore[arg-type]
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port)  # type: ignore[arg-type]
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
@@ -271,8 +272,9 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         request: object,
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+        wire_render_port: object = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity)  # type: ignore[arg-type]
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port)  # type: ignore[arg-type]
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
@@ -412,8 +414,9 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         request: object,
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+        wire_render_port: object = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity)  # type: ignore[arg-type]
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port)  # type: ignore[arg-type]
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:

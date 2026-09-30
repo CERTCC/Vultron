@@ -55,13 +55,13 @@ class StoreDeadLetterRecordNode(DataLayerAction):
 
         request = self._request
         unresolvable_uri = request.object_id or ""
-        # ARCH-20-001 permits this ``by_alias=True``: the subject is a *wire
-        # object* — the activity as it was received, whose object could not be
-        # resolved.  The dead-letter record keeps it as an opaque write-only
-        # summary (ADR-0035), so this reproduces what arrived rather than
-        # synthesising a wire shape for a core-branch object.
+        # A local record, not a message: the summary is stored in the
+        # persistence shape (Python field names, no ``@context``; ADR-0099
+        # detail 1) and is opaque and write-only (ADR-0035), so it needs no AS2
+        # rendering.  ``request.activity`` is the extractor's core-branch
+        # ``VultronActivity``, which core must not render itself (ARCH-20-001).
         activity_summary = (
-            request.activity.model_dump(by_alias=True, exclude_none=True)
+            request.activity.model_dump(mode="json", exclude_none=True)
             if request.activity is not None
             else None
         )

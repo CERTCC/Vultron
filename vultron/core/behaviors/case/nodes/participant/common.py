@@ -336,7 +336,7 @@ def _queue_participant_add_notification(
         )
         return False
 
-    add_notification_id = trigger_activity.add_participant_to_case(
+    add_notification_id, _ = trigger_activity.add_participant_to_case(
         participant_id=participant_id,
         case_id=case_id,
         actor=sender_actor_id,

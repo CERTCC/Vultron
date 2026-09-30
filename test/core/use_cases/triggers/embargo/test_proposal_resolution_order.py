@@ -68,6 +68,7 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import _persist_actor
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def _build_case_with_two_open_proposals(
@@ -169,7 +170,10 @@ def test_default_selection_picks_the_earliest_expiring_proposal(
         case_id=case.id_,
     )
     use_case = SvcAcceptEmbargoUseCase(
-        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+        finder_dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(finder_dl),
+        wire_render_port=As2WireRenderAdapter(),
     )
     use_case._prepare()
 
@@ -263,7 +267,10 @@ def test_accepting_a_proposal_removes_it_from_the_open_proposal_record(
         proposal_id=proposal_id,
     )
     SvcAcceptEmbargoUseCase(
-        owner_dl, request, trigger_activity=TriggerActivityAdapter(owner_dl)
+        owner_dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(owner_dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
@@ -363,7 +370,10 @@ def test_rejecting_a_proposal_removes_it_from_both_records(
         proposal_id=proposal_id,
     )
     SvcRejectEmbargoUseCase(
-        owner_dl, request, trigger_activity=TriggerActivityAdapter(owner_dl)
+        owner_dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(owner_dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))

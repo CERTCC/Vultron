@@ -8,6 +8,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
@@ -16,9 +17,13 @@ logger = logging.getLogger(__name__)
 
 class UpdateCaseReceivedUseCase:
     def __init__(
-        self, dl: CaseOutboxPersistence, request: UpdateCaseReceivedEvent
+        self,
+        dl: CaseOutboxPersistence,
+        request: UpdateCaseReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: UpdateCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -50,7 +55,9 @@ class UpdateCaseReceivedUseCase:
             actor_id=executing_actor_id,
             request=request,
         )
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=executing_actor_id,

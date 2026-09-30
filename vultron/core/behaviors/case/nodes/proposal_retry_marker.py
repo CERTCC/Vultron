@@ -103,7 +103,6 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
         self._vendor_uri = vendor_uri
-        self.wire_render_port = None
         self._case_id_bb: str | None = None
         self._accept_activity_id_bb: str | None = None
 
@@ -111,7 +110,6 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         **DataLayerActionWithPorts.INPUT_PORTS,
         "case_id": PortInformation(data_type=str, required=False),
         "accept_activity_id": PortInformation(data_type=str, required=False),
-        "wire_render_port": PortInformation(data_type=object, required=False),
     }
 
     @classmethod
@@ -119,14 +117,12 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         return {
             "case_id": "/case_id",
             "accept_activity_id": "/accept_activity_id",
-            "wire_render_port": "/wire_render_port",
         }
 
     def initialise(self) -> None:
         super().initialise()
         self._case_id_bb = None
         self._accept_activity_id_bb = None
-        self.wire_render_port = None
         try:
             self._case_id_bb = self.get_input("case_id")
         except (NoDataAvailable, NotImplementedError):
@@ -135,10 +131,6 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             self._accept_activity_id_bb = self.get_input("accept_activity_id")
         except (NoDataAvailable, NotImplementedError):
             self._accept_activity_id_bb = None
-        try:
-            self.wire_render_port = self.get_input("wire_render_port")
-        except (NoDataAvailable, NotImplementedError):
-            self.wire_render_port = None
 
     def _collect_reporter_uris(self, raw_case: VulnerabilityCase) -> list[str]:
         """Return URIs of REPORTER/FINDER participants in *raw_case*, excluding vendor.
@@ -194,17 +186,17 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         # Done post-render because VulnerabilityCase.vulnerability_reports is
         # typed list[str]; embedding objects directly triggers Pydantic warnings.
         inlined_reports: list[Any] = []
-        for ref in raw_case.vulnerability_reports:
-            if isinstance(ref, str):
-                r_obj = self.datalayer.read(ref)
+        for report_ref in raw_case.vulnerability_reports:
+            if isinstance(report_ref, str):
+                r_obj = self.datalayer.read(report_ref)
                 if isinstance(r_obj, VulnerabilityReport):
                     r_dict = self.wire_render_port.render(r_obj)
                     r_dict.setdefault("type", "VulnerabilityReport")
                     inlined_reports.append(r_dict)
                 else:
-                    inlined_reports.append(ref)
+                    inlined_reports.append(report_ref)
             else:
-                inlined_reports.append(ref)
+                inlined_reports.append(report_ref)
         case_dict["vulnerability_reports"] = inlined_reports
         return case_dict
 
@@ -262,15 +254,12 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             in_reply_to=accept_activity_id,
             to=[self._vendor_uri] + reporter_uris,
         )
-        # ARCH-20-001, honestly: ``create_activity`` is a *core-branch* object, so
-        # this dump is core producing the wire shape itself.  It stands because
-        # the marker's payload is not a core representation at all — it is the
-        # AS2 document the retry runner will re-send over HTTP (#1139), and AS2
-        # is the HTTP transmission format (ADR-0099 detail 1).  Since detail 4 it
-        # is the same dump ``WireRenderPort`` performs (camelCase, ``@context``);
-        # it stays inline only because the port is not injected into this node.
-        # Counted by ``test/architecture/test_core_by_alias_dumps.py``.
-        payload = create_activity.model_dump(by_alias=True)
+        # The marker's payload is the AS2 document the retry runner re-sends
+        # over HTTP (#1139), and ``create_activity`` is a core-branch object, so
+        # its wire shape comes from the port (ARCH-20-001).  The port is known
+        # to be present: ``_build_case_object`` returned ``None`` without it.
+        assert self.wire_render_port is not None
+        payload = self.wire_render_port.render(create_activity)
 
         marker = PendingCreateCaseActivity(
             proposal_id=self._proposal_id,

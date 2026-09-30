@@ -38,6 +38,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 from test.core.behaviors.embargo.nodes.conftest import make_case_and_embargo
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_MANAGER_ACTOR = "https://example.org/actors/case-manager"
@@ -105,7 +106,11 @@ class TestTerminateEmbargoBT:
             )
             return [aid]
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         tree = terminate_embargo_bt(
             case_id=case.id_, result_out=result_out, activity_builder=builder
         )
@@ -133,7 +138,11 @@ class TestTerminateEmbargoBT:
             )
             return [aid]
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         tree = terminate_embargo_bt(
             case_id=case.id_, result_out=result_out, activity_builder=builder
         )
@@ -164,7 +173,11 @@ class TestTerminateEmbargoBT:
             )
             return [aid]
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         tree = terminate_embargo_bt(
             case_id=case.id_, result_out=result_out, activity_builder=builder
         )
@@ -187,7 +200,11 @@ class TestTerminateEmbargoBT:
         factory = _make_factory()
         result_out: dict = {}
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
@@ -226,7 +243,11 @@ class TestTerminateEmbargoBT:
             )
             return [aid]
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         tree = terminate_embargo_bt(
             case_id=case.id_, result_out=result_out, activity_builder=builder
         )
@@ -245,7 +266,9 @@ class TestTerminateEmbargoBT:
         result_out: dict = {}
 
         # No trigger_activity in BTBridge → factory is None on blackboard
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
@@ -260,7 +283,11 @@ class TestTerminateEmbargoBT:
         factory = _make_factory()
         result_out: dict = {}
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
@@ -288,7 +315,11 @@ class TestTerminateEmbargoBT:
         factory = _make_factory()
         result_out: dict = {}
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,

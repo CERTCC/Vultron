@@ -261,6 +261,33 @@ class TestWriteCreateCaseMarkerNode:
             f"got {payload.get('inReplyTo')!r}"
         )
 
+    @pytest.mark.spec("ARCH-20-001")
+    def test_marker_payload_is_the_ports_rendering(self):
+        """The retry payload is the port's AS2 rendering, not a core dump.
+
+        ``@context`` comes only from a by-alias dump of a ``CoreObject``, and the
+        rendering is JSON-mode, so both mark the payload as the port's.  It must
+        also revalidate to the activity the retry runner re-sends (#1139).
+        """
+        from vultron.core.models.activity import VultronCreateCaseActivity
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        case_id = "https://example.org/cases/c-render"
+        self._run_node(
+            dl,
+            actor_id=_CASE_ACTOR_URI,
+            case_id=case_id,
+            accept_id="https://example.org/activities/a-render",
+        )
+        marker = dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI))
+        assert isinstance(marker, PendingCreateCaseActivity)
+        payload = marker.create_activity_payload
+        assert "@context" in payload
+        assert isinstance(payload.get("published"), str)
+        activity = VultronCreateCaseActivity.model_validate(payload)
+        assert activity.context == case_id
+        assert activity.actor == _CASE_ACTOR_URI
+
     def test_fails_when_case_id_missing(self):
         """FAILURE returned when case_id is absent from blackboard."""
         dl = SqliteDataLayer(

@@ -44,6 +44,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -171,6 +172,7 @@ class TestAckReportLedgerRouting:
             request=_make_ack_event(receiving_actor_id=CASE_ACTOR_ID),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
@@ -191,6 +193,7 @@ class TestAckReportLedgerRouting:
             request=_make_ack_event(receiving_actor_id=VENDOR_ID),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -211,6 +214,7 @@ class TestAckReportLedgerRouting:
             request=_make_ack_event(receiving_actor_id=None),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -248,6 +252,7 @@ class TestAckReportEcho:
             request=_make_ack_event(receiving_actor_id=receiver),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert _queued_reads(dl) == []
@@ -260,6 +265,7 @@ class TestAckReportEcho:
             request=_make_ack_event(receiving_actor_id=VENDOR_ID),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         reads = _queued_reads(dl)
@@ -275,6 +281,7 @@ class TestAckReportEcho:
             request=_make_ack_event(receiving_actor_id=CASE_ACTOR_ID),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert "ack_report" in _ledger_event_types(dl)
@@ -295,6 +302,7 @@ class TestAckReportEcho:
             ),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert "ack_report" in _ledger_event_types(dl)

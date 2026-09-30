@@ -64,6 +64,7 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.sync_helpers import _reconstruct_tail_hash
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
@@ -82,6 +83,7 @@ def _run_announce_bt(
     receiving_actor_id: str,
     gap_buffer: LedgerGapBuffer | None,
     sync_port: SyncActivityPort | None,
+    wire_render_port: WireRenderPort | None = None,
 ) -> tuple[py_trees.behaviour.Behaviour, BTExecutionResult]:
     """Run the announce receive BT for *request* with the gap buffer wired.
 
@@ -89,7 +91,9 @@ def _run_announce_bt(
     branch decided the outcome (#2255).
     """
     tree = create_announce_log_entry_tree()
-    result = BTBridge(datalayer=dl).execute_with_setup(
+    result = BTBridge(
+        datalayer=dl, wire_render_port=wire_render_port
+    ).execute_with_setup(
         tree=tree,
         actor_id=receiving_actor_id,
         activity=request,
@@ -173,6 +177,7 @@ def drain_gap_buffer(
     receiving_actor_id: str,
     gap_buffer: LedgerGapBuffer,
     sync_port: SyncActivityPort | None = None,
+    wire_render_port: WireRenderPort | None = None,
 ) -> None:
     """Apply buffered entries that now extend the local chain, in order.
 
@@ -227,7 +232,12 @@ def drain_gap_buffer(
         # here would be an unclassified bridge-contract violation and must
         # surface loudly rather than be absorbed (CS-23-001).
         _, result = _run_announce_bt(
-            dl, drain_event, receiving_actor_id, gap_buffer, sync_port
+            dl,
+            drain_event,
+            receiving_actor_id,
+            gap_buffer,
+            sync_port,
+            wire_render_port,
         )
         if result.status == Status.FAILURE and dl.read(successor.id_) is None:
             # Application failed and the entry was not persisted; hold it again
@@ -316,8 +326,10 @@ class AnnounceLedgerEntryReceivedUseCase:
         sync_port: SyncActivityPort | None = None,
         pending_assertions: PendingAssertionStore | None = None,
         gap_buffer: LedgerGapBuffer | None = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request = request
         self._sync_port = sync_port
         self._pending_assertions = pending_assertions
@@ -357,6 +369,7 @@ class AnnounceLedgerEntryReceivedUseCase:
             receiving_actor_id,
             gap_buffer,
             self._sync_port,
+            self._wire_render_port,
         )
 
         # Whenever an entry is committed, its successor may already be waiting
@@ -370,6 +383,7 @@ class AnnounceLedgerEntryReceivedUseCase:
                 receiving_actor_id,
                 gap_buffer,
                 self._sync_port,
+                self._wire_render_port,
             )
 
         verdict = _announce_verdict(tree, result, request, entry)
@@ -421,8 +435,10 @@ class RejectLedgerEntryReceivedUseCase:
         request: RejectLogEntryReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
@@ -452,6 +468,7 @@ class RejectLedgerEntryReceivedUseCase:
             datalayer=self._dl,
             sync_port=self._sync_port,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=resolve_receiving_actor_id(
