@@ -120,7 +120,7 @@ def demo_validate_and_engage(
     logger.info("TRIGGER DEMO 1: Validate Report → Engage Case")
     logger.info("=" * 80)
 
-    report = offer = None
+    offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report, offer = _submit_report(
             client=client,
@@ -195,7 +195,7 @@ def demo_invalidate_and_close(
     logger.info("TRIGGER DEMO 2: Invalidate Report → Close Report")
     logger.info("=" * 80)
 
-    report = offer = None
+    offer = None
     with demo_step("Step 1: Finder submits a low-quality report to vendor"):
         _report, offer = _submit_report(
             client=client,

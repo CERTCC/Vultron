@@ -469,11 +469,6 @@ def search_todos() -> list[str]:
     """Search for TODO/FIXME/HACK comments."""
     todos = []
     patterns = ["TODO", "FIXME", "HACK"]
-    exclude_dirs_str = "|".join(
-        EXCLUDE_DIRS
-        | {"test", "tests", "__tests__", "spec", "__mocks__", "fixtures"}
-    )
-
     try:
         for root, dirs, files in os.walk(Path.cwd()):
             # Remove excluded directories from dirs to prevent os.walk from descending

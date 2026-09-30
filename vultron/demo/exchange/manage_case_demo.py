@@ -184,7 +184,7 @@ def demo_engage_path(
     logger.info("DEMO 1: Engage Path (submit → validate → engage → close)")
     logger.info("=" * 80)
 
-    report = case = None
+    case = None
     with demo_step(
         "Steps 1–2: Submit report, validate, create case with vendor "
         "participant"
@@ -254,7 +254,7 @@ def demo_defer_reengage_path(
     )
     logger.info("=" * 80)
 
-    report = case = None
+    case = None
     with demo_step(
         "Steps 1–2: Submit report, validate, create case with vendor "
         "participant"
