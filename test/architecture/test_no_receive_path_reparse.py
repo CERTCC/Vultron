@@ -45,31 +45,131 @@ _RECEIVE_PATH = (
     _ROOT / "vultron" / "core",
 )
 
-_VALIDATORS = frozenset({"model_validate", "model_validate_json"})
+#: Calls that validate a mapping into a model.  ``TypeAdapter`` spells it
+#: ``validate_python``/``validate_json``; a ``**``-splat into a constructor is
+#: the same validation by another name and is checked separately.
+_VALIDATORS = frozenset(
+    {
+        "model_validate",
+        "model_validate_json",
+        "validate_python",
+        "validate_json",
+    }
+)
 
-#: Local names that hold the raw request body, or a piece of it.
+#: Local names that hold the raw request body, or a piece of it.  A name on
+#: this list stops being raw once the scope rebinds it to something else
+#: (``payload = activity.model_dump()``), so a reused name is not a false hit.
 _RAW_BODY_NAMES = frozenset(
     {"body", "payload", "raw_body", "raw_obj", "request_body"}
 )
 
 
-def _is_raw(node: ast.AST, tainted: set[str]) -> bool:
-    """Whether *node* reads the received evidence or a raw-body name."""
-    for sub in ast.walk(node):
-        if isinstance(sub, ast.Name) and (
-            sub.id in _RAW_BODY_NAMES
-            or sub.id in tainted
-            or "received_evidence" in sub.id
-        ):
-            return True
-        if isinstance(sub, ast.Attribute) and "received_evidence" in sub.attr:
-            return True
-    return False
+def _self_attr(node: ast.AST) -> str | None:
+    """``"self.x"`` for a ``self.x`` expression, else ``None``."""
+    if (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "self"
+    ):
+        return f"self.{node.attr}"
+    return None
+
+
+class _Taint:
+    """Which names in one scope hold the raw body or the received evidence."""
+
+    def __init__(self, raw_attrs: set[str]) -> None:
+        self.tainted: set[str] = set()
+        self.cleaned: set[str] = set()
+        self.raw_attrs = raw_attrs
+
+    def is_raw(self, node: ast.AST) -> bool:
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Name) and (
+                (sub.id in _RAW_BODY_NAMES and sub.id not in self.cleaned)
+                or sub.id in self.tainted
+                or "received_evidence" in sub.id
+            ):
+                return True
+            if isinstance(sub, ast.Attribute) and (
+                "received_evidence" in sub.attr
+                or _self_attr(sub) in self.raw_attrs
+            ):
+                return True
+        return False
+
+    def bind(self, target: ast.AST, value_is_raw: bool) -> None:
+        names = [n.id for n in ast.walk(target) if isinstance(n, ast.Name)]
+        if value_is_raw:
+            self.tainted.update(names)
+            self.cleaned.difference_update(names)
+        else:
+            self.tainted.difference_update(names)
+            self.cleaned.update(n for n in names if n in _RAW_BODY_NAMES)
+
+
+def _bindings(node: ast.AST) -> list[tuple[ast.AST, ast.AST]]:
+    """The ``(target, value)`` pairs a statement or expression binds."""
+    if isinstance(node, ast.Assign):
+        return [(target, node.value) for target in node.targets]
+    if isinstance(node, (ast.AnnAssign, ast.AugAssign)) and node.value:
+        return [(node.target, node.value)]
+    if isinstance(node, ast.NamedExpr):
+        return [(node.target, node.value)]
+    if isinstance(node, (ast.For, ast.AsyncFor)):
+        return [(node.target, node.iter)]
+    if isinstance(
+        node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+    ):
+        # Bound at the comprehension itself, which sorts ahead of its element
+        # expression — the element is written before the ``for`` it reads.
+        return [(gen.target, gen.iter) for gen in node.generators]
+    if isinstance(node, (ast.With, ast.AsyncWith)):
+        return [
+            (item.optional_vars, item.context_expr)
+            for item in node.items
+            if item.optional_vars is not None
+        ]
+    return []
+
+
+def _is_validation_of_raw(node: ast.AST, taint: _Taint) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    if isinstance(node.func, ast.Attribute) and node.func.attr in _VALIDATORS:
+        return any(
+            taint.is_raw(arg)
+            for arg in [*node.args, *(k.value for k in node.keywords)]
+        )
+    # ``C(**raw)``: a constructor fed the raw mapping validates it just the same.
+    return any(k.arg is None and taint.is_raw(k.value) for k in node.keywords)
+
+
+def _raw_self_attrs(tree: ast.AST) -> set[str]:
+    """Every ``self.x`` the module binds from a raw-body name.
+
+    Module-wide rather than per function: the pre-#3922 shape stored the body
+    in ``__init__`` (``self._body = body``) and read it in another method.
+    """
+    taint = _Taint(set())
+    return {
+        attr
+        for node in ast.walk(tree)
+        for target, value in _bindings(node)
+        if (attr := _self_attr(target)) is not None and taint.is_raw(value)
+    }
+
+
+def _position(node: ast.AST) -> tuple[int, int]:
+    """Source position, for ordering bindings ahead of the reads they feed."""
+    return (getattr(node, "lineno", 0), getattr(node, "col_offset", 0))
 
 
 def _offending_calls(tree: ast.AST) -> list[int]:
-    """Return the line of every ``model_validate`` fed from the raw body."""
+    """Return the line of every validation fed from the raw body."""
     offenders: list[int] = []
+    raw_attrs = _raw_self_attrs(tree)
     # The module itself (its top-level statements) and each function on its
     # own, so a name tainted in one function does not taint another's.
     scopes: list[ast.AST] = [tree]
@@ -79,40 +179,18 @@ def _offending_calls(tree: ast.AST) -> list[int]:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     )
     for scope in scopes:
-        tainted: set[str] = set()
-        # ``ast.walk`` is breadth-first; sort by position so an assignment is
-        # seen before the call that reads the name it binds.
+        taint = _Taint(raw_attrs)
+        # ``ast.walk`` is breadth-first; sort by position so a binding is seen
+        # before the call that reads the name it binds.
         nodes = sorted(
             (n for n in ast.walk(scope) if hasattr(n, "lineno")),
-            key=lambda n: (
-                getattr(n, "lineno", 0),
-                getattr(n, "col_offset", 0),
-            ),
+            key=_position,
         )
         for node in nodes:
-            if isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value:
-                if _is_raw(node.value, tainted):
-                    targets = (
-                        node.targets
-                        if isinstance(node, ast.Assign)
-                        else [node.target]
-                    )
-                    for target in targets:
-                        tainted.update(
-                            n.id
-                            for n in ast.walk(target)
-                            if isinstance(n, ast.Name)
-                        )
-            if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr in _VALIDATORS
-                and any(
-                    _is_raw(arg, tainted)
-                    for arg in [*node.args, *(k.value for k in node.keywords)]
-                )
-            ):
-                offenders.append(node.lineno)
+            for target, value in _bindings(node):
+                taint.bind(target, taint.is_raw(value))
+            if _is_validation_of_raw(node, taint):
+                offenders.append(_position(node)[0])
     return sorted(set(offenders))
 
 
@@ -121,7 +199,9 @@ def test_receive_path_never_revalidates_the_raw_body() -> None:
     """No receive-path module re-parses an inline object from the raw body."""
     offenders: list[str] = []
     for root in _RECEIVE_PATH:
-        for path, tree in _corpus.files_mentioning(*_VALIDATORS, under=root):
+        for path, tree in _corpus.files_mentioning(
+            *_VALIDATORS, "**", under=root
+        ):
             offenders.extend(
                 f"{Path(path).relative_to(_ROOT)}:{line}"
                 for line in _offending_calls(tree)
@@ -145,6 +225,17 @@ def test_receive_path_never_revalidates_the_raw_body() -> None:
         # The received evidence, by attribute or by JSON text.
         "def f(a):\n    return C.model_validate(a.received_evidence['object'])\n",
         "def f(a):\n    return C.model_validate_json(a.received_evidence_json)\n",
+        # Loop, walrus and context-manager targets carry the taint too.
+        "def f(body):\n    for item in body['items']:\n        C.model_validate(item)\n",
+        "def f(body):\n    if (raw := body.get('object')):\n        C.model_validate(raw)\n",
+        "def f(body):\n    with hold(body) as raw:\n        C.model_validate(raw)\n",
+        "def f(body):\n    return [C.model_validate(x) for x in body['items']]\n",
+        # The pre-#3922 adapter shape: stored on self in one method, read in another.
+        "class A:\n    def __init__(self, body):\n        self._raw = body\n"
+        "    def parse(self):\n        return C.model_validate(self._raw['object'])\n",
+        # TypeAdapter spellings, and a constructor splat.
+        "def f(body):\n    return TypeAdapter(C).validate_python(body['object'])\n",
+        "def f(body):\n    return C(**body['object'])\n",
     ],
 )
 def test_detector_catches_every_raw_body_shape(source: str) -> None:
@@ -152,11 +243,18 @@ def test_detector_catches_every_raw_body_shape(source: str) -> None:
     assert _offending_calls(_corpus.parse_inline(source)) != []
 
 
-def test_detector_allows_validating_a_parsed_object() -> None:
-    """Validating something other than the raw body is not an offence."""
-    source = (
+@pytest.mark.parametrize(
+    "source",
+    [
         "def f(activity):\n"
         "    raw = dehydrate(activity.model_dump(by_alias=True))\n"
-        "    return C.model_validate(raw)\n"
-    )
+        "    return C.model_validate(raw)\n",
+        # A raw-body *name* rebound to a parsed object's dump is not raw.
+        "def f(activity):\n"
+        "    payload = activity.model_dump(by_alias=True)\n"
+        "    return C.model_validate(payload)\n",
+    ],
+)
+def test_detector_allows_validating_a_parsed_object(source: str) -> None:
+    """Validating something other than the raw body is not an offence."""
     assert _offending_calls(_corpus.parse_inline(source)) == []

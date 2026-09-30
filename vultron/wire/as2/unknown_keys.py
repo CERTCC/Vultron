@@ -266,6 +266,32 @@ def _own_wire_keys(model: type[BaseModel]) -> frozenset[str]:
 CASE_STUB_KEYS = _own_wire_keys(as_VulnerabilityCaseStub)
 
 
+def _own_input_keys(model: type[BaseModel]) -> frozenset[str]:
+    """Every spelling *model*'s own fields accept on input, plus identity.
+
+    :data:`CASE_STUB_KEYS` holds the wire spellings; a sender may also use the
+    field names, which both roots validate by (CS-14-001), so stub membership
+    is judged on these.
+    """
+    spellings = _class_spellings(model).annotations
+    own = {
+        spelling
+        for name, info in model.model_fields.items()
+        if name in model.__annotations__ and not info.exclude
+        for spelling in (
+            name,
+            *_alias_keys(info.alias),
+            *_alias_keys(info.validation_alias),
+        )
+        if spelling in spellings
+    }
+    identity = {"id", "id_", CONTEXT_KEY, "context_"} & spellings.keys()
+    return frozenset(own | identity | CASE_STUB_KEYS)
+
+
+_CASE_STUB_INPUT_KEYS = _own_input_keys(as_VulnerabilityCaseStub)
+
+
 def _reads_as_case_stub(value: dict[str, Any]) -> bool:
     """Whether an inline ``VulnerabilityCase`` dict is the stub (MV-10-001).
 
@@ -285,7 +311,7 @@ def _reads_as_case_stub(value: dict[str, Any]) -> bool:
             if key in known.annotations
             else known.by_normalised.get(normalise(key))
         )
-        if read_as is not None and read_as not in CASE_STUB_KEYS:
+        if read_as is not None and read_as not in _CASE_STUB_INPUT_KEYS:
             return False
     return True
 
@@ -399,10 +425,19 @@ def partition_unknown_keys(
     Raises:
         VultronParseValidationError: If any key is a near miss or a retired
             name.  Every such key in the body is named, not only the first
-            (EH-07-001).
+            (EH-07-001).  Also raised, rather than ``RecursionError``, for a
+            body nested beyond the interpreter's recursion limit.
     """
     walk = _Walk()
-    kept = _partition_object(body, (cls,), "", walk)
+    try:
+        kept = _partition_object(body, (cls,), "", walk)
+    except RecursionError as exc:
+        # Not a ``VultronParseError``, so left alone it escapes the inbox's
+        # handler as a 500.  A body nested this deep is malformed, not an
+        # internal fault: refuse it as the schema fault it is (MV-02-002).
+        raise VultronParseValidationError(
+            "Activity body nests objects too deeply to parse."
+        ) from exc
     if walk.near_misses:
         raise VultronParseValidationError(
             "Activity carries misspelled or retired key(s) (MV-11-002): "

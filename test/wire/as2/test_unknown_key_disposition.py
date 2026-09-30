@@ -516,3 +516,44 @@ def test_partition_and_expansion_resolve_the_same_case_class(
 
     kept, _ = partition_unknown_keys(_with_inline_object(inline), as_Offer)
     assert resolve_inline_class(inline) is resolve_inline_class(kept["object"])
+
+
+@pytest.mark.spec("MV-02-002")
+@pytest.mark.parametrize("depth", [500, 3000])
+def test_a_body_nested_too_deeply_is_refused_not_crashed(depth: int) -> None:
+    """Nesting past the recursion limit is a schema fault, not a 500.
+
+    ``RecursionError`` is not a ``VultronParseError``, so the inbox adapter's
+    handler would not catch it and the sender would get a server error for a
+    malformed message.
+    """
+    inner: dict[str, Any] = {"type": "Note", "content": "leaf"}
+    for _ in range(depth):
+        inner = {"type": "Note", "inReplyTo": inner}
+    with pytest.raises(VultronParseValidationError, match="too deeply"):
+        parse_activity(_with_inline_object(inner))
+
+
+@pytest.mark.spec("MV-10-001")
+@pytest.mark.spec("CS-14-002")
+@pytest.mark.parametrize(
+    "spelling",
+    ["activeEmbargo", "active_embargo", "caseStatus", "case_status"],
+)
+def test_case_stub_is_recognised_by_every_input_spelling(
+    spelling: str,
+) -> None:
+    """A stub's own fields select the stub whether camelCase or field name.
+
+    Both roots validate by field name (CS-14-001, CS-14-002), so a stub whose
+    sender wrote ``active_embargo`` is as much a stub as one that wrote
+    ``activeEmbargo``; judging only the wire spelling sent the field-name form
+    to the full case, where ``case_status`` has no slot.
+    """
+    from vultron.wire.as2.unknown_keys import resolve_inline_class
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseStub,
+    )
+
+    inline = {"type": "VulnerabilityCase", "id": "urn:uuid:c1", spelling: "x"}
+    assert resolve_inline_class(inline) is as_VulnerabilityCaseStub

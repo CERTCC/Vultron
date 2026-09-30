@@ -573,6 +573,9 @@ there:
   lost).
 - **One refusal names every near miss** in the body, at every depth
   (EH-07-001), each with its dotted path.
+- **A body nested past the recursion limit** is refused as a schema fault
+  (`VultronParseValidationError`, MV-02-002). `RecursionError` is not a
+  `VultronParseError`, so left alone it would draw a 500 from the inbox.
 
 Ratchets: `test/wire/as2/test_unknown_key_disposition.py` — one matrix over
 every position (its `xfail(strict=True)` rows came off with #3921), plus
