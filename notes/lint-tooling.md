@@ -88,6 +88,15 @@ explicitly on the command line even when the config excludes it. Pre-commit
 passes staged filenames, so without this flag the hook and the CI job disagree
 about scope — the exact drift this whole section exists to prevent.
 
+`force-exclude` applies the config's `exclude` patterns only, **not**
+`.gitignore`. Discovery (`respect-gitignore`, the default) skips gitignored
+paths, but a file named on the command line is linted even when it is ignored.
+So a file force-added under a gitignored directory (`git add -f devlogs/x.py`)
+is linted by the hook and skipped by the CI job. No tracked Python file is
+gitignored today — `git ls-files -ci --exclude-standard` lists any that are —
+and the fix, if one appears, is to move it or name its path in `exclude`, not
+to turn `respect-gitignore` off.
+
 ## The shape of the configuration
 
 Everything belongs in `[tool.ruff]` in `pyproject.toml`. Four settings carry
