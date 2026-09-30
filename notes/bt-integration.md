@@ -10,6 +10,7 @@ related_specs:
   - specs/handler-protocol.yaml
   - specs/inbox-endpoint.yaml
   - specs/case-ledger-processing.yaml
+  - specs/embargo-policy.yaml
   - specs/participant-case-replica.yaml
   - specs/case-bootstrap-trust.yaml
 related_notes:
@@ -226,15 +227,19 @@ to the wrong record (ISSUE-2762):
   indistinguishable from one never supplied. The node now logs at WARNING when
   a subject *was* named and did not resolve, which separates the two.
 
-Resolve a subject by **addressee membership**, not by position: prefer the
-receiving actor when it is among the recipients (correct in every recipient's
-replica, and canonical by construction per HP-09-001), fall back to a sole
-named recipient, and warn rather than guess when several recipients are named
-and none is this store's actor. Test membership with `is_addressed_to()`
-(`vultron/core/predicates/addressing.py`), never a bare `in`: `to:`/`cc:`
-arrive as the sender wrote them, so a trailing slash misses an exact match
-while the receiver is canonical (#2667). See `resolve_invitee_id()` in
-`vultron/core/use_cases/received/embargo.py` and the older
+Read a subject **from the message**, never from the receiving actor. For an
+`Invite(EmbargoEvent)` the invitee is the Invite's *sole* `to:` recipient
+(EP-09-010, ADR-0113): every emitter sends one recipient (a participant to the
+CASE_MANAGER; the CASE_MANAGER to one participant per relayed Invite), so an
+Invite naming several recipients or none is refused as a misrouting, never
+resolved by membership or guessed at. The earlier "addressee membership"
+resolution in `resolve_invitee_id()` (`vultron/core/use_cases/received/embargo.py`)
+was built for a multi-recipient shape nothing emits, and its fallback to the
+receiving actor put the deadline on the enforcer's own record; #3963 retires it.
+Where a message legitimately names several recipients (the report `Offer`),
+test membership with `is_addressed_to()` (`vultron/core/predicates/addressing.py`),
+never a bare `in`: `to:`/`cc:` arrive as the sender wrote them, so a trailing
+slash misses an exact match while the receiver is canonical (#2667); see
 `_is_primary_submit_report_recipient()` in `received/report.py`. Full rule:
 `vultron/core/AGENTS.md` § "A Message Subject Is Never
 `resolve_receiving_actor_id()`".

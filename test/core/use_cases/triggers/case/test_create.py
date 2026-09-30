@@ -262,6 +262,7 @@ class TestSvcCreateCaseUseCase:
 
     @pytest.mark.spec("CM-02-014")
     @pytest.mark.spec("CM-02-015")
+    @pytest.mark.spec("CM-24-006")
     def test_create_case_trigger_registers_owner_and_manager(self):
         """SvcCreateCaseUseCase registers CASE_OWNER+CASE_MANAGER participant (CM-02-014, CM-02-015)."""
         from vultron.core.participants.authority import resolve_case_manager_id

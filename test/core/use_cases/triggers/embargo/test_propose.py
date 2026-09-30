@@ -49,6 +49,7 @@ def test_propose_embargo_invalid_state_does_not_persist_embargo(
     assert after == before
 
 
+@pytest.mark.spec("EP-09-008")
 def test_propose_embargo_updates_case_state_via_bt_path(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
