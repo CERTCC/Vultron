@@ -465,8 +465,7 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
             PEC.DECLINED,
         ):
             participant.apply_pec_transition(PEC_Trigger.ACCEPT)
-        if active_embargo_id not in participant.accepted_embargo_ids:
-            participant.accepted_embargo_ids.append(active_embargo_id)
+        participant.add_accepted_embargo(active_embargo_id)
         self.datalayer.save(participant)
         self.logger.info(
             "Seeded participant '%s' (actor '%s') as SIGNATORY"

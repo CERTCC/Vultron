@@ -57,8 +57,8 @@ def _seed_participant_as_signatory(
     embargo_id = stored_case.active_embargo_id
     if participant.embargo_consent_state not in (PEC.SIGNATORY, PEC.DECLINED):
         participant.apply_pec_transition(PEC_Trigger.ACCEPT)
-    if embargo_id and embargo_id not in participant.accepted_embargo_ids:
-        participant.accepted_embargo_ids.append(embargo_id)
+    if embargo_id:
+        participant.add_accepted_embargo(embargo_id)
     datalayer.save(participant)
     logger.info(
         "Seeded %s as embargo SIGNATORY in case '%s' (%s)",

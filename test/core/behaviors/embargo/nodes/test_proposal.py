@@ -29,8 +29,13 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.proposal import (
+    ALREADY_DECLINED_PREFIX,
+    REPLACED_EMBARGO_UNREPLICATED_PREFIX,
+    RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
 )
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.em import EM
@@ -43,9 +48,10 @@ from test.core.behaviors.embargo.nodes.conftest import (
 )
 
 REJECTER = "https://example.org/actors/rejecter"
+OWNER = "https://example.org/actors/owner"
 
 
-def _tick(node: RecordParticipantRejectionNode) -> py_trees.common.Status:
+def _tick(node: py_trees.behaviour.Behaviour) -> py_trees.common.Status:
     bt = py_trees.trees.BehaviourTree(root=node)
     bt.setup()
     bt.tick()
@@ -108,7 +114,7 @@ class TestRecordParticipantRejectionNode:
     def test_repeat_from_declined_fails_naming_the_repeat(
         self, dl: SqliteDataLayer
     ):
-        """The handler reads FAILURE + DECLINED as SKIPPED, not REFUSED."""
+        """The handler reads this FAILURE's prefix as SKIPPED, not REFUSED."""
         case, embargo_id, _participant_id = _case_with_rejecter(
             dl, pec=PEC.DECLINED
         )
@@ -120,7 +126,7 @@ class TestRecordParticipantRejectionNode:
         )
 
         assert _tick(node) == py_trees.common.Status.FAILURE
-        assert "already declined" in node.feedback_message
+        assert node.feedback_message.startswith(ALREADY_DECLINED_PREFIX)
 
     def test_unknown_embargo_fails(self, dl: SqliteDataLayer):
         case, _embargo_id, participant_id = _case_with_rejecter(
@@ -147,3 +153,78 @@ class TestRecordParticipantRejectionNode:
         )
 
         assert _tick(node) == py_trees.common.Status.FAILURE
+
+
+class TestRecordParticipantAcceptanceNodeFailsClosed:
+    """The EP-05-001 comparison needs both embargo records; a gap is a FAILURE."""
+
+    def _revise_case(
+        self, dl: SqliteDataLayer, *, active_replicated: bool
+    ) -> tuple[VulnerabilityCase, str, str, str]:
+        """A REVISE case owned by OWNER: active A (maybe unreplicated), proposed B."""
+        case, active = make_case_and_embargo(
+            "rpa1", em_state=EM.REVISE, attributed_to=OWNER
+        )
+        revision = as_EmbargoEvent(
+            id_=f"{case.id_}/embargo_events/e2",
+            context=case.id_,
+            end_time=days_from_now_utc(90),
+        )
+        case.proposed_embargoes = [revision.id_]
+        owner_p = as_CaseParticipant(
+            attributed_to=OWNER,
+            context=case.id_,
+            embargo_consent_state=PEC.SIGNATORY,
+            accepted_embargo_ids=[active.id_],
+        )
+        case.actor_participant_index[OWNER] = owner_p.id_
+        case.case_participants = [owner_p.id_]
+        dl.create(case)
+        dl.create(revision)
+        dl.create(owner_p)
+        if active_replicated:
+            dl.create(active)
+        return case, active.id_, revision.id_, owner_p.id_
+
+    @pytest.mark.spec("EP-05-001")
+    def test_unreplicated_replaced_embargo_fails_and_names_the_gap(
+        self, dl: SqliteDataLayer
+    ):
+        """A is missing here: FAILURE with the gap prefix, nothing written."""
+        case, active_id, revision_id, owner_p_id = self._revise_case(
+            dl, active_replicated=False
+        )
+        setup_blackboard(dl)
+        node = RecordParticipantAcceptanceNode(
+            case_id=case.id_, embargo_id=revision_id, accepting_actor_id=OWNER
+        )
+
+        assert _tick(node) == py_trees.common.Status.FAILURE
+        assert node.feedback_message.startswith(
+            REPLACED_EMBARGO_UNREPLICATED_PREFIX
+        )
+        untouched = cast(VulnerabilityCase, dl.read(case.id_))
+        assert untouched.current_status.em.state == EM.REVISE
+        assert untouched.active_embargo_id == active_id
+        assert untouched.proposed_embargoes == [revision_id]
+        owner_p = cast(CaseParticipant, dl.read(owner_p_id))
+        assert owner_p.accepted_embargo_ids == [active_id]
+
+    def test_unknown_accepted_embargo_fails_without_the_gap_prefix(
+        self, dl: SqliteDataLayer
+    ):
+        """The *accepted* embargo is the one missing: a plain refusal, not a gap."""
+        case, _active_id, _revision_id, _ = self._revise_case(
+            dl, active_replicated=True
+        )
+        setup_blackboard(dl)
+        node = RecordParticipantAcceptanceNode(
+            case_id=case.id_,
+            embargo_id=f"{case.id_}/embargo_events/stranger",
+            accepting_actor_id=OWNER,
+        )
+
+        assert _tick(node) == py_trees.common.Status.FAILURE
+        assert not node.feedback_message.startswith(
+            REPLACED_EMBARGO_UNREPLICATED_PREFIX
+        )

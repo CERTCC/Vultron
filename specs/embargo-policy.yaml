@@ -539,15 +539,12 @@ groups:
       activation rather than at proposal because the participant remains bound by `T1`
       for as long as `T1` is the active embargo (ADR-0093).
     verification: >-
-      Unit tests in `test/core/services/embargo_lifecycle/test_proposals.py` assert that
-      the owner's acceptance of a revision ending later than the active embargo moves
-      exactly the signatories lacking the revised id to `LAPSED`, and that acceptance of
-      a revision ending no later than it moves nobody and records the revised id on every
-      signatory.
-    note: >-
-      The verification describes the target state decided by ADR-0093 (revised 2026-09-29). The
-      implementation is tracked in #3891; until it lands, inspection of the named modules shows the
-      superseded lapse-on-propose behaviour.
+      Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` and
+      `test_activation.py` assert that the owner's acceptance of a revision ending later
+      than the active embargo moves exactly the signatories lacking the revised id to
+      `LAPSED`, that acceptance of a revision ending no later than it moves nobody and
+      records the revised id on every signatory, and that on any activation a
+      non-signatory already holding the newly active id advances to `SIGNATORY`.
     relationships:
     - rel_type: implements
       spec_id: CM-18-001
@@ -573,10 +570,6 @@ groups:
       Unit tests in `test/core/services/embargo_lifecycle/test_proposals.py` assert that
       `propose_embargo()` from `ACTIVE` and from `REVISE` reports no participant consent
       changes.
-    note: >-
-      The verification describes the target state decided by ADR-0093 (revised 2026-09-29). The
-      implementation is tracked in #3891; until it lands, inspection of the named modules shows the
-      superseded lapse-on-propose behaviour.
     relationships:
     - rel_type: refines
       spec_id: EP-05-001

@@ -124,7 +124,11 @@ class _PecEffectsMixin(_LifecycleBase):
         and its scalar state stays whatever the *active* embargo makes it.
 
         Idempotent (CM-13-005): a ``SIGNATORY`` re-accepting changes nothing
-        and reports nothing.
+        and reports nothing.  A ``DECLINED`` participant records nothing at
+        all, list included: ``ACCEPT`` is not legal from ``DECLINED``
+        (CM-18-003), and an id on the list of an actor whose state disowns it
+        would let the list-based content gate (CM-10-004) admit an actor that
+        has declined.  It is re-invited first (``DECLINED → INVITED``).
         """
         resolved = self._participant_for_actor(case, actor_id, "acceptance")
         if resolved is None:
@@ -132,6 +136,16 @@ class _PecEffectsMixin(_LifecycleBase):
         participant_id, participant = resolved
 
         pec_before = participant.embargo_consent_state
+        if pec_before == PEC.DECLINED.value:
+            logger.info(
+                "Actor '%s' is DECLINED on case '%s'; its acceptance of"
+                " embargo '%s' binds nothing until it is re-invited"
+                " (CM-18-003)",
+                actor_id,
+                _as_id(case),
+                embargo_id,
+            )
+            return []
         changed = False
 
         if advance and pec_before in _ACCEPTABLE_STATES:
@@ -166,6 +180,13 @@ class _PecEffectsMixin(_LifecycleBase):
         keeps its state, because refusing proposed terms is not withdrawing
         from the embargo in force.
 
+        Withdrawal also drops every *open proposal's* id from the list: a case
+        has one active embargo, so every open proposal is a revision of it
+        (ADR-0113), and an actor that has left the embargo has left its
+        revisions — otherwise a ``DECLINED`` actor could still hold the id of
+        a revision that later activates, and the list-based content gate
+        (CM-10-004) would admit it while its state says declined.
+
         Idempotent (CM-13-005): an already-``DECLINED`` participant changes
         nothing and reports nothing.
         """
@@ -186,6 +207,10 @@ class _PecEffectsMixin(_LifecycleBase):
 
         if participant.remove_accepted_embargo(embargo_id):
             changed = True
+        if withdrawal:
+            for proposed_id in case.proposed_embargo_ids:
+                if participant.remove_accepted_embargo(proposed_id):
+                    changed = True
 
         if not changed:
             return []
@@ -218,27 +243,31 @@ class _PecEffectsMixin(_LifecycleBase):
         )
 
     def _rejection_consent(
-        self, case: VulnerabilityCase, actor_id: str, embargo_id: str
+        self,
+        case: VulnerabilityCase,
+        actor_id: str,
+        embargo_id: str,
+        *,
+        is_active: bool,
     ) -> list[ParticipantPECChange]:
         """The whole MSM-07-004 consent effect of *actor_id* rejecting *embargo_id*.
 
-        :meth:`_assert_rejectable` decides whether the Reject withdraws from
-        the active embargo or refuses proposed terms.  The owner's EJ — the
-        owner refusing a proposed revision while an embargo is in force —
-        changes nobody's record, the owner's included: the owner is keeping
-        the prior terms, not declining them.  Every other Reject is recorded
-        by :meth:`_record_actor_pec_rejection`.  Shared by
-        ``reject_embargo_invite`` and ``record_embargo_rejection`` so the two
-        sides cannot drift; call it before the owner's decision prunes the
-        proposal.
-
-        Raises:
-            VultronValidationError: If *embargo_id* is neither the active
-                embargo nor an open proposal of the case.
+        *is_active* is :meth:`_assert_rejectable`'s classification, taken by
+        the caller before any write (and before the owner's decision prunes
+        the proposal): the Reject withdraws from the active embargo or refuses
+        proposed terms.  The owner's EJ — the owner refusing a proposed
+        revision while an embargo is in force — changes nobody's record, the
+        owner's included: the owner is keeping the prior terms, not declining
+        them.  When *no* embargo is in force a Reject of a proposal is a
+        decline from any state: there is nothing in force for a ``SIGNATORY``
+        to stay signatory to (CM-18-001), so it is treated as withdrawal.
+        Every other Reject is recorded by :meth:`_record_actor_pec_rejection`.
+        Shared by ``reject_embargo_invite`` and ``record_embargo_rejection``
+        so the two sides cannot drift.
         """
-        is_active = self._assert_rejectable(case, embargo_id)
+        nothing_in_force = case.active_embargo_id is None
         is_owner = _as_id(case.attributed_to) == actor_id
-        if is_owner and not is_active and case.active_embargo_id is not None:
+        if is_owner and not is_active and not nothing_in_force:
             logger.info(
                 "Owner '%s' rejected proposed revision '%s' on case '%s';"
                 " no consent record changes (EJ)",
@@ -248,7 +277,10 @@ class _PecEffectsMixin(_LifecycleBase):
             )
             return []
         return self._record_actor_pec_rejection(
-            case, actor_id, embargo_id, withdrawal=is_active
+            case,
+            actor_id,
+            embargo_id,
+            withdrawal=is_active or nothing_in_force,
         )
 
     # -- every participant's record ----------------------------------------
@@ -384,16 +416,7 @@ class _PecEffectsMixin(_LifecycleBase):
                     case, revised_embargo_id=revised_embargo_id
                 )
             )
-        changes.extend(
-            self._cascade_pec(
-                case,
-                trigger=PEC_Trigger.ACCEPT,
-                select=lambda p: (
-                    p.embargo_consent_state in _ACCEPTABLE_STATES
-                    and revised_embargo_id in p.accepted_embargo_ids
-                ),
-            )
-        )
+        changes.extend(self._advance_holders_of(case, revised_embargo_id))
         logger.info(
             "Re-evaluated consent on case '%s' against embargo '%s' (%s);"
             " %d participant state change(s)",
@@ -405,5 +428,69 @@ class _PecEffectsMixin(_LifecycleBase):
                 else "longer — non-accepting signatories lapsed"
             ),
             len(changes),
+        )
+        return changes
+
+    def _advance_holders_of(
+        self, case: VulnerabilityCase, embargo_id: str
+    ) -> list[ParticipantPECChange]:
+        """Advance every non-signatory whose list already holds *embargo_id*.
+
+        Run whenever *embargo_id* becomes the embargo in force — a first
+        activation as much as a replacement: a participant in ``UNBOUND``,
+        ``INVITED`` or ``LAPSED`` that holds the id accepted these terms
+        before they were active (a proposer, MSM-07-005; an early acceptor of
+        a revision, MSM-07-003) and is a signatory to them now
+        (EP-05-001).  ``DECLINED`` is never advanced (CM-18-003).
+        """
+        return self._cascade_pec(
+            case,
+            trigger=PEC_Trigger.ACCEPT,
+            select=lambda p: (
+                p.embargo_consent_state in _ACCEPTABLE_STATES
+                and embargo_id in p.accepted_embargo_ids
+            ),
+        )
+
+    def _consent_at_activation(
+        self,
+        case: VulnerabilityCase,
+        *,
+        embargo_id: str,
+        ends_no_later: bool | None,
+    ) -> list[ParticipantPECChange]:
+        """Every participant's consent once *embargo_id* is the embargo in force.
+
+        The one consent effect of an activation, shared by the owner path of
+        ``accept_embargo_invite`` and by ``activate_embargo`` so the two
+        cannot drift.  *ends_no_later* is ``None`` for a first activation
+        (``PROPOSED → ACTIVE``, nothing replaced) and otherwise
+        :meth:`_revision_ends_no_later`'s answer for the embargo replaced,
+        taken before the case was mutated.
+
+        - Replacing A with B is the owner's acceptance of B: the owner's record
+          gains B first, so the owner is never lapsed by its own activation;
+          then :meth:`_reevaluate_consent_at_activation` carries signatories
+          over or lapses the non-acceptors (EP-05-001, MSM-07-005).
+        - On every activation, first or replacement, every non-signatory that
+          already holds B advances (:meth:`_advance_holders_of`) — without
+          it a participant that proposed the first embargo would hold the
+          active id while its state said otherwise, and the content gate
+          (CM-10-004) and ``embargo_adherence`` would disagree.
+        """
+        if ends_no_later is None:
+            return self._advance_holders_of(case, embargo_id)
+        changes: list[ParticipantPECChange] = []
+        owner_id = _as_id(case.attributed_to)
+        if owner_id is not None and owner_id in case.actor_participant_index:
+            changes.extend(
+                self._record_actor_pec_acceptance(case, owner_id, embargo_id)
+            )
+        changes.extend(
+            self._reevaluate_consent_at_activation(
+                case,
+                revised_embargo_id=embargo_id,
+                ends_no_later=ends_no_later,
+            )
         )
         return changes

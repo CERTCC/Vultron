@@ -344,7 +344,11 @@ def test_activate_embargo_replacing_a_shorter_one_lapses_non_acceptors(
 def test_activate_embargo_first_activation_re_evaluates_nobody(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """PROPOSED → ACTIVE replaces nothing, so there is no A to compare B against."""
+    """PROPOSED → ACTIVE replaces nothing, so there is no A to compare B against.
+
+    Nobody here holds B either, so nobody advances; see the next test for the
+    holder of B that a first activation does advance.
+    """
     owner, dl = owner_and_dl
     signer = _make_actor(dl, "Signer")
     case, (_owner_p, signer_p) = _make_case(
@@ -360,6 +364,42 @@ def test_activate_embargo_first_activation_re_evaluates_nobody(
     assert result.em_after == EM.ACTIVE
     assert result.participant_changes == []
     assert _pec_of(dl, signer_p.id_) == PEC.INVITED.value
+
+
+@pytest.mark.spec("EP-05-001")
+@pytest.mark.spec("MSM-07-005")
+def test_activate_embargo_first_activation_advances_the_holders_of_the_new_id(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A first activation has no A-vs-B arm, but a holder of B is a signatory now.
+
+    The proposer of a first embargo holds its id list-only (MSM-07-005); once
+    the owner activates it the proposer has accepted the embargo in force and
+    advances, so the content gate (CM-10-004) and its state agree.
+    """
+    owner, dl = owner_and_dl
+    proposer = _make_actor(dl, "Proposer")
+    other = _make_actor(dl, "Other")
+    case, (_owner_p, proposer_p, other_p) = _make_case(
+        dl,
+        owner.id_,
+        extra_participant_ids=[proposer.id_, other.id_],
+        em_state=EM.PROPOSED,
+    )
+    embargo = _make_embargo(dl, case.id_)
+    _seed_consent(dl, proposer_p.id_, PEC.UNBOUND, [embargo.id_])
+    _seed_consent(dl, other_p.id_, PEC.INVITED, [])
+
+    result = EmbargoLifecycle(persistence=dl).activate_embargo(
+        case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+    )
+
+    assert result.em_after == EM.ACTIVE
+    assert [c.participant_id for c in result.participant_changes] == [
+        proposer_p.id_
+    ]
+    assert _pec_of(dl, proposer_p.id_) == PEC.SIGNATORY.value
+    assert _pec_of(dl, other_p.id_) == PEC.INVITED.value
 
 
 @pytest.mark.spec("EP-05-001")

@@ -957,6 +957,48 @@ class TestInviteeIsTheAddressee:
         assert invitee.embargo_consent_state == PEC.INVITED
 
     @pytest.mark.spec("HP-01-003")
+    def test_reject_of_an_unknown_embargo_from_a_declined_invitee_is_still_refused(
+        self, make_payload
+    ):
+        """SKIPPED is keyed on the node's repeat verdict, not on the store.
+
+        A DECLINED invitee's Reject of an embargo the case has never seen is
+        a protocol error, not a duplicate of its earlier decline.
+        """
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/addressee13"
+        embargo_id = f"{case_id}/embargos/stranger"
+        case, embargo, _coord_p_id, invitee_p_id = self._seed_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.DECLINED,
+            embargo_is="unknown",
+        )
+
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case_id,
+            actor=_COORD,
+            to=[_INVITEE],
+            id_=f"{case_id}/proposals/p1",
+        )
+        dl.create(proposal)
+        reject = em_reject_embargo_activity(
+            proposal=proposal, context=case_id, actor=_INVITEE, to=[_COORD]
+        )
+        event = make_payload(reject, receiving_actor_id=_COORD)
+
+        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "neither the active" in (result.reason or "")
+        invitee = self._read_participant(dl, invitee_p_id)
+        assert invitee.embargo_consent_state == PEC.DECLINED
+
+    @pytest.mark.spec("HP-01-003")
     def test_reject_from_declined_is_skipped(self, make_payload):
         """A second Reject from an already-DECLINED invitee changes nothing.
 
@@ -1080,6 +1122,68 @@ def _make_accept_event(proposal, case, accepting_actor_id: str, make_payload):
         actor=accepting_actor_id,
     )
     return make_payload(accept, receiving_actor_id=_COORD)
+
+
+class TestAcceptWhenTheReplacedEmbargoIsUnreplicated:
+    """A replica missing embargo A cannot run the EP-05-001 comparison (#4004)."""
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("EP-05-001")
+    def test_owner_accept_of_a_revision_is_deferred_not_refused(
+        self, make_payload
+    ):
+        """The Accept is well-formed; this store cannot evaluate it *yet*.
+
+        The handler parks it (DEFERRED) rather than refusing it, and the
+        replica's EM and active embargo are left as they were.
+        """
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/ea-gap"
+        missing_id = f"{case_id}/embargos/not-replicated"
+        case = VulnerabilityCase(
+            id_=case_id, name="Replica gap", attributed_to=_COORD
+        )
+        case.append_case_status(em_state=EM.REVISE)
+        case.set_embargo(missing_id)
+        revision = as_EmbargoEvent(
+            id_=f"{case_id}/embargos/e2",
+            context=case_id,
+            end_time=days_from_now_utc(90),
+        )
+        case.proposed_embargoes = [revision.id_]
+        coord_cp = WireCP(
+            attributed_to=_COORD,
+            context=case_id,
+            embargo_consent_state=PEC.SIGNATORY,
+            case_roles=[CVDRole.CASE_MANAGER],
+            accepted_embargo_ids=[missing_id],
+        )
+        dl.create(case)
+        dl.create(revision)
+        dl.create(coord_cp)
+        case.actor_participant_index[_COORD] = coord_cp.id_
+        dl.save(case)
+
+        proposal = em_propose_embargo_activity(
+            embargo=revision,
+            context=case_id,
+            actor=_INVITEE,
+            to=[_COORD],
+            id_=f"{case_id}/proposals/p2",
+        )
+        dl.create(proposal)
+        event = _make_accept_event(proposal, case, _COORD, make_payload)
+
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.DEFERRED
+        assert "not replicated" in (result.reason or "")
+        fresh = cast(CoreCase, dl.read(case_id))
+        assert fresh.current_status.em.state == EM.REVISE
+        assert fresh.active_embargo_id == missing_id
+        assert fresh.proposed_embargoes == [revision.id_]
 
 
 class TestLateAcceptHandling:

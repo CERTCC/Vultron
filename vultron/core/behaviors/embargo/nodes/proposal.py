@@ -30,6 +30,19 @@ from vultron.core.services.embargo_lifecycle import (
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
+#: Opens the feedback of a :class:`RecordParticipantRejectionNode` FAILURE
+#: that is a repeat of a Reject already recorded.  The received reject use
+#: case reads it to report ``SKIPPED`` rather than ``REFUSED`` (HP-01-003) —
+#: the node's own verdict, not the store's state, names the repeat.
+ALREADY_DECLINED_PREFIX = "Already declined"
+
+#: Opens the feedback of a :class:`RecordParticipantAcceptanceNode` FAILURE
+#: caused by the embargo the accepted one *replaces* not being replicated
+#: here, so the EP-05-001 comparison could not run.  The received accept use
+#: case reads it to report ``DEFERRED`` — the item is parked for replay, not
+#: refused (HP-01-003).
+REPLACED_EMBARGO_UNREPLICATED_PREFIX = "Replaced embargo not replicated here"
+
 
 class UpdateParticipantEmbargoPecNode(DataLayerActionWithPorts):
     """Apply a PEC trigger to participant.embargo_consent_state.
@@ -223,9 +236,20 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
                 actor_id=actor_id,
                 transition_mode=TransitionMode.OBSERVED,
             )
-        except (VultronNotFoundError, VultronValidationError) as exc:
-            # A partial replica may lack the embargo the accepted one
-            # replaces, and the EP-05-001 comparison fails closed on it.
+        except VultronNotFoundError as exc:
+            if exc.resource_id != self.embargo_id:
+                # A partial replica may lack the embargo the accepted one
+                # replaces; the EP-05-001 comparison fails closed on it, and
+                # the handler parks the Accept for replay rather than
+                # refusing it.  Replay once the record arrives: #4004.
+                self.feedback_message = (
+                    f"{REPLACED_EMBARGO_UNREPLICATED_PREFIX}: {exc}"
+                )
+            else:
+                self.feedback_message = str(exc)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        except VultronValidationError as exc:
             self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -323,10 +347,11 @@ class RecordParticipantRejectionNode(DataLayerActionWithPorts):
 
         if not result.participant_changes and self._already_declined(case):
             # A repeat of a Reject already recorded (HP-01-003, #2255): the
-            # handler reads this FAILURE plus the DECLINED state as SKIPPED.
+            # handler reads this FAILURE's prefix as SKIPPED.
             self.feedback_message = (
-                f"'{self.rejecting_actor_id}' already declined embargo"
-                f" '{self.embargo_id}' on case '{self.case_id}'"
+                f"{ALREADY_DECLINED_PREFIX}: '{self.rejecting_actor_id}'"
+                f" had declined embargo '{self.embargo_id}' on case"
+                f" '{self.case_id}' before this Reject"
             )
             return Status.FAILURE
 

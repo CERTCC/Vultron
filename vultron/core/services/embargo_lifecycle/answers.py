@@ -116,18 +116,14 @@ class _AnswerOperationsMixin(_PecEffectsMixin):
         # Does this accept replace an embargo already in force?  Decide the
         # EP-05-001 arm *before* anything is written, so an unreadable record
         # fails closed with EM and active_embargo untouched.
-        replaces_active = (
-            is_owner
-            and not already_active
-            and active_embargo_id is not None
-            and active_embargo_id != embargo_id
-        )
         ends_no_later = (
             self._revision_ends_no_later(
                 previous_embargo_id=active_embargo_id,
                 revised_embargo_id=embargo_id,
             )
-            if replaces_active and active_embargo_id is not None
+            if is_owner
+            and active_embargo_id is not None
+            and is_revision_of_active
             else None
         )
 
@@ -177,14 +173,13 @@ class _AnswerOperationsMixin(_PecEffectsMixin):
             )
         )
 
-        if ends_no_later is not None:
-            # B replaced A: re-evaluate everyone else's consent (EP-05-001).
-            # The owner's record already holds B, so it is never lapsed here.
+        if is_owner and not already_active:
+            # B is now the embargo in force: re-evaluate everyone's consent
+            # (EP-05-001) and advance the non-signatories that already hold
+            # B.  The owner's record already holds B, so it is never lapsed.
             participant_changes.extend(
-                self._reevaluate_consent_at_activation(
-                    case,
-                    revised_embargo_id=embargo_id,
-                    ends_no_later=ends_no_later,
+                self._consent_at_activation(
+                    case, embargo_id=embargo_id, ends_no_later=ends_no_later
                 )
             )
 
@@ -280,9 +275,10 @@ class _AnswerOperationsMixin(_PecEffectsMixin):
         case_mutated = False
 
         is_owner = _as_id(case.attributed_to) == actor_id
-        # Fail before anything is written: an unknown embargo is a protocol
-        # error (ADR-0093), not a consent change.
-        self._assert_rejectable(case, embargo_id)
+        # Classify before anything is written (and before the owner's prune):
+        # an unknown embargo is a protocol error (ADR-0093), not a consent
+        # change.
+        is_active = self._assert_rejectable(case, embargo_id)
 
         if is_owner:
             # In STRICT mode, block REVISE→ACTIVE when P/X/A is set (EMB-04-002):
@@ -310,11 +306,10 @@ class _AnswerOperationsMixin(_PecEffectsMixin):
                 case.current_status.em = EmDimension(state=em_after)
                 case_mutated = True
 
-        # Consent after the EM guards (a refused transition writes nothing)
-        # and before the prune (the classification must still see the
-        # proposal).  The owner's EJ changes no record (MSM-07-004).
+        # Consent after the EM guards (a refused transition writes nothing).
+        # The owner's EJ changes no record (MSM-07-004).
         participant_changes = self._rejection_consent(
-            case, actor_id, embargo_id
+            case, actor_id, embargo_id, is_active=is_active
         )
 
         if is_owner and case.discard_proposed_embargo(embargo_id):

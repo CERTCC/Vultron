@@ -96,8 +96,9 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         """
         case = self._read_case(case_id)
         em_state = case.current_status.em.state
+        is_active = self._assert_rejectable(case, embargo_id)
         participant_changes = self._rejection_consent(
-            case, actor_id, embargo_id
+            case, actor_id, embargo_id, is_active=is_active
         )
         logger.info(
             "Recorded rejection of embargo '%s' by actor '%s' on case '%s'"

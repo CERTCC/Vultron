@@ -778,10 +778,15 @@ groups:
       the active embargo and applying the MSM-07-005 consent re-evaluation);
       (2) for any accepting participant it MUST record the accepted embargo's
       id in their `accepted_embargo_ids` and, when the accepted embargo is the
-      case's active embargo, apply the PEC ACCEPT trigger, advancing their
-      consent state from INVITED, UNBOUND, or LAPSED to SIGNATORY. A participant
-      already SIGNATORY who accepts a *proposed* revision records the id with no
-      state change: they were and remain a signatory to the embargo in force.
+      case's active embargo or no embargo is yet in force (a first proposal,
+      EM PROPOSED), apply the PEC ACCEPT trigger, advancing their consent state
+      from INVITED, UNBOUND, or LAPSED to SIGNATORY. A participant who accepts
+      a *proposed revision* of an embargo still in force records the id with
+      no state change: a SIGNATORY was and remains a signatory to the embargo
+      in force, and a non-signatory advances when the owner activates the
+      revision (MSM-07-005). A DECLINED participant's Accept records nothing,
+      list included — ACCEPT is not legal from DECLINED (CM-18-003), so it is
+      re-invited first.
     rationale: >-
       The same wire activity simultaneously drives the case-level EM machine
       (for the case owner) and the participant-level PEC machine (for the accepting
@@ -793,19 +798,19 @@ groups:
       accepting a revision that is not yet active is recorded on the list and
       becomes the participant's position only if the owner activates it.
     note: >-
-      The "active embargo" condition governs revisions: while embargo A is in force,
-      a non-owner's Accept of proposed revision B records B on the list and moves no
-      state; the EP-05-001 activation cascade advances every holder of B when the owner
-      activates it. An Accept of a *first* proposal — no embargo yet in force — advances
-      the acceptor to SIGNATORY at accept time, as CM-14-005's implicit consent already
-      does: `PROPOSED → ACTIVE` replaces nothing and runs no cascade, so a deferred
-      advance would strand every early acceptor at INVITED once the owner activated.
+      An Accept of a first proposal advances at accept time, as CM-14-005's implicit
+      consent already does, rather than at activation: `PROPOSED → ACTIVE` replaces
+      nothing, so there is no A-vs-B re-evaluation to defer it to. On every activation,
+      first or replacement, a non-signatory whose list already holds the newly active
+      id (its proposer, MSM-07-005) advances to SIGNATORY (EP-05-001).
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` assert that
       a non-owner SIGNATORY accepting a proposed revision records the id with no state
       change, that a non-signatory accepting one advances only when the owner activates
-      it, and that an accept of the embargo in force (or of a first proposal) advances
-      the acceptor to SIGNATORY.
+      it, that an accept of the embargo in force (or of a first proposal) advances the
+      acceptor to SIGNATORY, that a non-owner proposer of a first proposal becomes
+      SIGNATORY when the owner accepts it, and that a DECLINED participant's Accept
+      records nothing.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
@@ -833,7 +838,14 @@ groups:
       MUST apply DECLINE to a participant not yet SIGNATORY (INVITED, UNBOUND,
       or LAPSED → DECLINED), and MUST leave a SIGNATORY's state unchanged — a
       signatory's rejection of a proposed revision refuses those terms; it is not
-      withdrawal from the embargo in force.
+      withdrawal from the embargo in force. When no embargo is in force (EM
+      PROPOSED) a Reject of a proposal is a decline from any state, SIGNATORY
+      included: there is nothing in force to remain signatory to. Withdrawal
+      from the active embargo MUST also remove every open proposal's id from
+      the participant's `accepted_embargo_ids` — every open proposal is a
+      revision of the embargo withdrawn from (EP-08-004), and a DECLINED
+      participant MUST NOT hold the id of an embargo that can become active
+      without re-invitation.
     rationale: >-
       Symmetric with MSM-07-003: the reject wire activity drives both the EM machine
       (case-owner path) and the PEC machine (rejecting participant path). The PEC
@@ -846,7 +858,7 @@ groups:
       the standing embargo and therefore cannot be a decline of it.
     verification: >-
       Inspection of vultron/core/use_cases/received/embargo.py and
-      vultron/core/services/embargo_lifecycle/proposals.py confirms
+      vultron/core/services/embargo_lifecycle/answers.py confirms
       RejectInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle, which
       applies DECLINE to the rejecting actor only when the rejected embargo is the
       case's active embargo or the actor is not yet SIGNATORY, and records no
@@ -907,10 +919,6 @@ groups:
       the replaced embargo and moves signatories lacking a longer revision to
       LAPSED. Unit tests in test/core/services/embargo_lifecycle/ assert both
       arms and the no-op on proposal.
-    note: >-
-      The verification describes the target state decided by ADR-0093 (revised 2026-09-29). The
-      implementation is tracked in #3891; until it lands, inspection of the named modules shows the
-      superseded lapse-on-propose behaviour.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003

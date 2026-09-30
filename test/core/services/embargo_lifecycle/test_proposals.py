@@ -221,6 +221,32 @@ def test_propose_embargo_by_a_non_participant_records_no_consent(
     assert _accepted_ids_of(dl, owner_p.id_) == []
 
 
+@pytest.mark.spec("CM-18-003")
+def test_propose_embargo_by_a_declined_participant_records_no_consent(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A DECLINED proposer holds no consent until re-invited (#4003).
+
+    Recording its proposal on its list would let the content gate admit it
+    once the owner activated the terms, while its state stayed DECLINED.
+    """
+    owner, dl = owner_and_dl
+    proposer = _make_actor(dl, "Proposer")
+    case, (_owner_p, proposer_p) = _make_case(
+        dl, owner.id_, extra_participant_ids=[proposer.id_], em_state=EM.NONE
+    )
+    _force_pec(dl, proposer_p.id_, PEC.DECLINED)
+    embargo = _make_embargo(dl, case.id_)
+
+    result = EmbargoLifecycle(persistence=dl).propose_embargo(
+        case_id=case.id_, embargo_id=embargo.id_, actor_id=proposer.id_
+    )
+
+    assert result.em_after == EM.PROPOSED
+    assert _pec_of(dl, proposer_p.id_) == PEC.DECLINED.value
+    assert _accepted_ids_of(dl, proposer_p.id_) == []
+
+
 # ---------------------------------------------------------------------------
 # Tests: invalid transitions
 # ---------------------------------------------------------------------------

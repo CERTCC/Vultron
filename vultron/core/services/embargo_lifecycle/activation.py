@@ -29,7 +29,6 @@ from vultron.core.services.embargo_lifecycle.pec import (
 )
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
-    ParticipantPECChange,
     TransitionMode,
 )
 from vultron.core.states.em import EM, EM_Trigger
@@ -148,10 +147,11 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
         consent is re-evaluated against B (EP-05-001, MSM-07-005) exactly as
         the owner's ``accept_embargo_invite`` does:
         a shorter-or-equal B carries every signatory over, a longer B lapses
-        the signatories whose ``accepted_embargo_ids`` lack it, and a
-        non-signatory that already holds B becomes ``SIGNATORY``.  The
-        cascade runs in both modes, so a replica syncing an announced
-        activation keeps its consent records in step with the CASE_MANAGER.
+        the signatories whose ``accepted_embargo_ids`` lack it.  On every
+        activation, first or replacement, a non-signatory that already holds
+        B (its proposer, for one) becomes ``SIGNATORY``.  The cascade runs in
+        both modes, so a replica syncing an announced activation keeps its
+        consent records in step with the CASE_MANAGER.
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
@@ -201,29 +201,13 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
         case.discard_proposed_embargo(embargo_id)
         self._persistence.save(case)
 
-        participant_changes: list[ParticipantPECChange] = []
-        if ends_no_later is not None:
-            # Activating B in place of A is the owner's acceptance of B: record
-            # it first, so the owner is never lapsed by its own activation
-            # (as the owner path of accept_embargo_invite does), then
-            # re-evaluate everyone else (EP-05-001).
-            owner_id = _as_id(case.attributed_to)
-            if (
-                owner_id is not None
-                and owner_id in case.actor_participant_index
-            ):
-                participant_changes.extend(
-                    self._record_actor_pec_acceptance(
-                        case, owner_id, embargo_id
-                    )
-                )
-            participant_changes.extend(
-                self._reevaluate_consent_at_activation(
-                    case,
-                    revised_embargo_id=embargo_id,
-                    ends_no_later=ends_no_later,
-                )
-            )
+        # The embargo in force changed: the same consent effect as the owner
+        # path of accept_embargo_invite (EP-05-001; on a replacement the
+        # owner's acceptance of B is recorded first, so the owner is never
+        # lapsed by its own activation).
+        participant_changes = self._consent_at_activation(
+            case, embargo_id=embargo_id, ends_no_later=ends_no_later
+        )
 
         logger.info(
             "Actor '%s' activated embargo '%s' on case '%s' (EM %s → %s)",

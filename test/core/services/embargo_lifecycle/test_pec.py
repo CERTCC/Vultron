@@ -292,3 +292,55 @@ def test_revision_comparison_fails_closed_on_an_unreadable_embargo(
             previous_embargo_id="https://example.org/embargoes/gone",
             revised_embargo_id=revision.id_,
         )
+
+
+@pytest.mark.spec("CM-18-003")
+def test_record_actor_pec_acceptance_for_a_declined_actor_records_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """DECLINED holds no consent: neither the state nor the list moves (#4003)."""
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    _force_pec(dl, owner_p.id_, PEC.DECLINED)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    embargo_id = "https://example.org/embargoes/e1"
+
+    advancing = lifecycle._record_actor_pec_acceptance(
+        case, owner.id_, embargo_id
+    )
+    list_only = lifecycle._record_actor_pec_acceptance(
+        case, owner.id_, embargo_id, advance=False
+    )
+
+    assert advancing == [] and list_only == []
+    assert _pec_of(dl, owner_p.id_) == PEC.DECLINED.value
+    assert _accepted_ids_of(dl, owner_p.id_) == []
+
+
+@pytest.mark.spec("MSM-07-004")
+def test_record_actor_pec_rejection_withdrawal_drops_every_open_proposal(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Withdrawal from A drops A and every open revision of it; a refusal of B drops B only."""
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    active = _make_embargo(dl, case.id_)
+    revision = _make_embargo(dl, case.id_, days=90)
+    case.active_embargo = active.id_
+    case.proposed_embargoes = [revision.id_]
+    dl.save(case)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+
+    _seed_consent(dl, owner_p.id_, PEC.SIGNATORY, [active.id_, revision.id_])
+    refused = lifecycle._record_actor_pec_rejection(
+        case, owner.id_, revision.id_, withdrawal=False
+    )
+    assert refused == []
+    assert _accepted_ids_of(dl, owner_p.id_) == [active.id_]
+
+    _seed_consent(dl, owner_p.id_, PEC.SIGNATORY, [active.id_, revision.id_])
+    withdrawn = lifecycle._record_actor_pec_rejection(
+        case, owner.id_, active.id_, withdrawal=True
+    )
+    assert [c.pec_after for c in withdrawn] == [PEC.DECLINED.value]
+    assert _accepted_ids_of(dl, owner_p.id_) == []

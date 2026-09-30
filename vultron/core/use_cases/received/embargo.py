@@ -699,6 +699,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         from vultron.core.behaviors.embargo.announce_teardown_tree import (
             accept_invite_to_embargo_tree,
         )
+        from vultron.core.behaviors.embargo.nodes.proposal import (
+            REPLACED_EMBARGO_UNREPLICATED_PREFIX,
+        )
 
         request = self._request
         embargo_id = request.embargo_id
@@ -810,6 +813,14 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="AcceptInviteToEmbargoBT"
         )
+        if (
+            verdict.disposition is HandlerDisposition.REFUSED
+            and REPLACED_EMBARGO_UNREPLICATED_PREFIX in (verdict.reason or "")
+        ):
+            # This replica lacks the embargo the accepted one replaces, so it
+            # cannot yet run the EP-05-001 comparison: park the Accept for
+            # replay rather than refuse a well-formed assertion (HP-01-003).
+            verdict = HandlerResult.deferred(verdict.reason)
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning(
                 "%s (embargo '%s', case '%s')",
@@ -837,6 +848,9 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.embargo.announce_teardown_tree import (
             reject_invite_to_embargo_tree,
+        )
+        from vultron.core.behaviors.embargo.nodes.proposal import (
+            ALREADY_DECLINED_PREFIX,
         )
 
         request = self._request
@@ -892,11 +906,14 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="RejectInviteToEmbargoBT"
         )
-        if verdict.disposition is HandlerDisposition.REFUSED and (
-            _participant_pec(self._dl, case_id, rejecting_actor_id)
-            is PEC.DECLINED
+        if (
+            verdict.disposition is HandlerDisposition.REFUSED
+            and ALREADY_DECLINED_PREFIX in (verdict.reason or "")
         ):
-            # DECLINE is not a legal trigger from DECLINED: a repeat (#2255).
+            # The node named this Reject a repeat of one already recorded
+            # (#2255).  Keyed on the node's verdict, not on the store: a
+            # DECLINED actor's Reject of an *unknown* embargo is still a
+            # refusal (HP-01-003).
             verdict = HandlerResult.skipped(
                 f"'{rejecting_actor_id}' already declined on case '{case_id}'"
             )

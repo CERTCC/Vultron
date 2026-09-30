@@ -297,6 +297,27 @@ writes consent through `RecordParticipantRejectionNode` →
 `record_embargo_rejection`, so the MSM-07-004 classification lives in the
 service once (`_assert_rejectable`) rather than in a node.
 
+Three rules keep the scalar state and `accepted_embargo_ids` in agreement
+about who is bound by the active embargo (the disagreement Concern #3884
+found; the content gate `find_excluded_actor_ids` reads the *list*):
+
+- **Every activation advances the holders of the new id.**
+  `_consent_at_activation` is the one consent effect of an activation, shared
+  by the owner path of `accept_embargo_invite` and by `activate_embargo`. On a
+  replacement it records the owner's acceptance first and then runs the
+  EP-05-001 arms; on *every* activation, first or replacement, it advances a
+  non-signatory whose list already holds the id (`_advance_holders_of`) —
+  the proposer of a first embargo holds its id list-only until then.
+- **A `DECLINED` participant holds no consent.** `_record_actor_pec_acceptance`
+  records nothing for a `DECLINED` actor, list included: `ACCEPT` is not legal
+  from `DECLINED` (CM-18-003), so an id on its list would admit through the
+  gate an actor whose state says declined. It is re-invited first.
+- **Withdrawal leaves the revisions too.** A `DECLINE` that names the active
+  embargo also drops every open proposal's id from the actor's list (every
+  open proposal is a revision of the one active embargo, ADR-0113). When *no*
+  embargo is in force a Reject of a proposal is withdrawal from any state —
+  there is nothing for a `SIGNATORY` to stay signatory to.
+
 ---
 
 ## Pocket Veto (Timer-Based Transitions)

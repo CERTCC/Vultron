@@ -105,6 +105,16 @@ receiver that records a participant's answer without deciding the proposal —
 the received `Reject(Invite(EmbargoEvent))` tree calls it through
 `RecordParticipantRejectionNode`, so both sides apply one MSM-07-004 rule.
 
+The received-side nodes name their own no-ops and gaps, and the handler keys on
+that rather than on the store: `RecordParticipantRejectionNode` prefixes a
+repeat of a recorded Reject with `ALREADY_DECLINED_PREFIX` (the handler reports
+`SKIPPED`; a `DECLINED` actor's Reject of an *unknown* embargo stays `REFUSED`,
+HP-01-003), and `RecordParticipantAcceptanceNode` prefixes a FAILURE caused by
+the *replaced* embargo being unreplicated here with
+`REPLACED_EMBARGO_UNREPLICATED_PREFIX` (the handler reports `DEFERRED` — parked
+for replay, not refused). A replica lacking the record the EP-05-001 comparison
+needs is a partial-replica gap; the catch-up path is tracked in #4004.
+
 **`TransitionMode`**: `STRICT` enforces valid transitions and precondition
 guards (used by trigger-side BT behaviors).  `OBSERVED` syncs local state
 unconditionally to match a remote party's assertion (used by received-side use
