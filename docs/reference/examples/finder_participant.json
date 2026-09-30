@@ -1,8 +1,8 @@
 {
-  "id": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15/participants/finndervul",
+  "id": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927/participants/finndervul",
   "type": "CaseParticipant",
   "name": "Finn der Vul",
-  "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
+  "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
   "attributedTo": "https://vultron.example/users/finndervul",
   "caseRoles": [
     "finder",
@@ -10,12 +10,12 @@
   ],
   "participantStatuses": [
     {
-      "id": "urn:uuid:4fcf1be7-e690-44f5-90b4-6755602c4af7",
+      "id": "urn:uuid:5581d2b3-e7dd-4144-a6f3-1651611eb222",
       "type": "ParticipantStatus",
       "name": "START",
-      "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
-      "published": "2026-09-30T14:34:16+00:00",
-      "updated": "2026-09-30T14:34:16+00:00",
+      "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+      "published": "2026-09-30T16:00:59+00:00",
+      "updated": "2026-09-30T16:00:59+00:00",
       "attributedTo": "https://vultron.example/users/finndervul",
       "rmState": "START",
       "caseEngagement": true,

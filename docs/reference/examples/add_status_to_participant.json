@@ -1,7 +1,7 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Add",
-  "id": "urn:uuid:6014c6ba-f838-4750-90e7-86fe3d82524d",
+  "id": "urn:uuid:82e961d3-3f89-47b7-b776-0052f6fda8de",
   "name": "https://vultron.example/organizations/vendorco Add RECEIVED Vf NONE pxa to https://vultron.example/cases/1/participants/vendor",
   "actor": "https://vultron.example/organizations/vendorco",
   "target": "https://vultron.example/cases/1/participants/vendor",

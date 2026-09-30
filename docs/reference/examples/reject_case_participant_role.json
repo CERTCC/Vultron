@@ -1,9 +1,9 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Reject",
-  "id": "urn:uuid:b63fa358-2455-4450-a73f-9db22316e689",
-  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/organizations/vendorco Offer urn:uuid:b0e01089-ea09-45c3-9076-ababc2361768 to Coordinator LLC",
-  "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
+  "id": "urn:uuid:d244b6b7-8e00-4369-9477-f2b53b4bbadd",
+  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/organizations/vendorco Offer urn:uuid:54e9de42-0506-45c4-b4fe-573df1ae69fc to Coordinator LLC",
+  "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
   "content": "We're declining the role you offered.",
   "to": [
     "https://vultron.example/organizations/vendorco"
@@ -12,46 +12,12 @@
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Offer",
-    "id": "urn:uuid:9a230144-0b0f-4a89-acd2-9463c7ec394b",
-    "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:b0e01089-ea09-45c3-9076-ababc2361768 to Coordinator LLC",
-    "context": {
-      "id": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
-      "type": "VulnerabilityCase",
-      "name": "VendorCo Case #82112039",
-      "published": "2026-09-30T14:34:16+00:00",
-      "updated": "2026-09-30T14:34:16+00:00",
-      "attributedTo": "https://vultron.example/organizations/vendorco",
-      "caseParticipants": [],
-      "actorParticipantIndex": {},
-      "vulnerabilityReports": [],
-      "caseStatuses": [
-        {
-          "id": "urn:uuid:cc14e61e-20d4-4a13-ae55-38fec2a409e3",
-          "type": "CaseStatus",
-          "name": "NONE pxa",
-          "context": "urn:uuid:67b99967-7776-4ba8-873d-9cddb6db2c15",
-          "published": "2026-09-30T14:34:16+00:00",
-          "updated": "2026-09-30T14:34:16+00:00",
-          "attributedTo": "https://vultron.example/organizations/vendorco",
-          "emState": "NONE",
-          "pxaState": "pxa",
-          "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
-        }
-      ],
-      "notes": [],
-      "proposedEmbargoes": [],
-      "pendingEmbargoProposalIndex": {},
-      "recommendationRecommenderIndex": {},
-      "caseActivity": [],
-      "genesisHash": "0379ef1cb967c2895a558300653befaab2037dc7c165e2a98c36727bdf507757",
-      "parentCases": [],
-      "childCases": [],
-      "siblingCases": [],
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
-    },
-    "published": "2026-09-30T14:34:16+00:00",
-    "updated": "2026-09-30T14:34:16+00:00",
-    "content": "We're offering the coordinator role on case VendorCo Case #82112039 to Coordinator LLC.",
+    "id": "urn:uuid:e512896e-5536-4df4-a4d3-f58e1274f2eb",
+    "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:54e9de42-0506-45c4-b4fe-573df1ae69fc to Coordinator LLC",
+    "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+    "published": "2026-09-30T16:00:59+00:00",
+    "updated": "2026-09-30T16:00:59+00:00",
+    "content": "We're offering the coordinator role on case VendorCo Case #12759345 to Coordinator LLC.",
     "to": [
       "https://vultron.example/organizations/coordinator"
     ],
@@ -61,8 +27,8 @@
       "type": "Organization",
       "id": "https://vultron.example/organizations/coordinator",
       "name": "Coordinator LLC",
-      "published": "2026-09-30T14:34:16+00:00",
-      "updated": "2026-09-30T14:34:16+00:00",
+      "published": "2026-09-30T16:00:59+00:00",
+      "updated": "2026-09-30T16:00:59+00:00",
       "inbox": {
         "@context": "https://www.w3.org/ns/activitystreams",
         "type": "OrderedCollection",
@@ -79,9 +45,9 @@
     "object": {
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "CaseParticipantRole",
-      "id": "urn:uuid:b0e01089-ea09-45c3-9076-ababc2361768",
-      "published": "2026-09-30T14:34:16+00:00",
-      "updated": "2026-09-30T14:34:16+00:00",
+      "id": "urn:uuid:54e9de42-0506-45c4-b4fe-573df1ae69fc",
+      "published": "2026-09-30T16:00:59+00:00",
+      "updated": "2026-09-30T16:00:59+00:00",
       "role": "coordinator"
     }
   }
