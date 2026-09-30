@@ -26,10 +26,13 @@ The fix: move the ``note_id is None`` check inside ``demo_step`` so
 after the block so no downstream code runs against a ``None`` note ID.
 """
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import httpx2 as httpx
 
+import vultron.demo.scenario.fcv_reject_demo as demo
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.utils import reset_demo_failures
 
@@ -116,3 +119,80 @@ class TestParticipantAddsNoteNoNoteId:
                 note_content="test content",
             )
         assert result is None
+
+
+class TestFcvRejectInviteChainSkipsDependents:
+    """Phase 2: a failed invite trigger or delivery lookup skips the reject.
+
+    Before the fix ``invite_result.activity`` was read on a ``None`` sentinel
+    after the suppressing ``demo_step`` (crash, #3038 sibling), and the
+    delivery wait was a ``demo_check`` that let the reject post regardless
+    (EDF-06-005).
+    """
+
+    def setup_method(self):
+        reset_demo_failures()
+
+    @staticmethod
+    def _actor(id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    @staticmethod
+    def _client():
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def _run(self, *, invite_trigger, invite_lookup):
+        vendor = self._actor("urn:test:vendor")
+        with (
+            patch.object(
+                ActorSession, "invite_actor_to_case", **invite_trigger
+            ),
+            patch.object(ActorSession, "reject_case_invite") as reject_invite,
+            patch.object(
+                demo, "find_case_invite_for_actor", **invite_lookup
+            ) as find_invite,
+            patch.object(demo, "get_actor_by_id", return_value=vendor),
+            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(
+                demo, "resolve_case_actor_store_id", return_value="urn:t:ca"
+            ),
+            patch.object(demo, "wait_for_case_participants"),
+        ):
+            # Must not raise: every failure is accumulated, never escaped.
+            demo._phase_invite_vendor_reject(
+                coordinator_client=self._client(),
+                vendor_client=self._client(),
+                finder=self._actor("urn:test:finder"),
+                coordinator_in_coordinator=self._actor("urn:test:coordinator"),
+                coordinator=self._actor("urn:test:coordinator"),
+                vendor=vendor,
+                case=self._actor("urn:test:case"),
+            )
+        return find_invite, reject_invite
+
+    def test_invite_trigger_failure_skips_lookup_and_reject(self):
+        find_invite, reject_invite = self._run(
+            invite_trigger={
+                "side_effect": RuntimeError("invite trigger failed")
+            },
+            invite_lookup={"return_value": "urn:test:invite"},
+        )
+        find_invite.assert_not_called()
+        reject_invite.assert_not_called()
+
+    def test_invite_lookup_failure_skips_reject(self):
+        _, reject_invite = self._run(
+            invite_trigger={
+                "return_value": SimpleNamespace(
+                    activity=MagicMock(id_="urn:test:invite")
+                )
+            },
+            invite_lookup={
+                "side_effect": AssertionError("timed out polling for Invite")
+            },
+        )
+        reject_invite.assert_not_called()
