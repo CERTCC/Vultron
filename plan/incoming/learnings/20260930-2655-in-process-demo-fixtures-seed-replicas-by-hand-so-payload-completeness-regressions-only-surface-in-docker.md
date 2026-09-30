@@ -44,5 +44,5 @@ instance: an in-process topology whose participant node starts *empty* and is
 bootstrapped only by delivered activities (the harness in `test/demo/conftest.py`
 supports it — `test_pcr_bootstrap.py` does this for a two-node Announce), and a
 ratchet on the sealed body itself, which #3923 added for the trigger port
-(`test_sealed_body_audit.py`) but which does not cover the receive-side
-projections that consume the payload.
+(`test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py`) but
+which does not cover the receive-side projections that consume the payload.
