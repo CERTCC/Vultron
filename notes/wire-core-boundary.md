@@ -7,12 +7,16 @@ description: >
   evidence, and why "zero wire->core imports" was unreachable. The remedy it
   proposed (one declarative pairing registry, one adapter-side translator,
   extra="forbid" on the core branch) is superseded by ADR-0099, which removes the
-  second hierarchy instead. Read it for the problem, not the mechanism.
+  second hierarchy instead. Read it for the problem, not the mechanism. Also the
+  home of the inbound unknown-key rule (MV-11): decided at the parse edge, not by
+  class ancestry.
 related_specs:
-  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-20-008, ARCH-20-009,
-    ARCH-22-001, ARCH-23-005)
+  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-20-008,
+    ARCH-20-009, ARCH-21-002, ARCH-22-001, ARCH-23-005)
   - specs/code-style.yaml (CS-08-001, CS-08-002)
   - specs/error-handling.yaml (EH-07-001, EH-07-003)
+  - specs/message-validation.yaml (MV-04-003, MV-11-001 through MV-11-005)
+  - specs/status-dimension-objects.yaml (SDO-03-005)
   - specs/vocabulary-model.yaml
 related_notes:
   - notes/vocabulary-registry.md
@@ -481,3 +485,61 @@ reconstruction in core nodes projects camelCase spellings via
 `project_wire_snapshot_to_core`, which ARCH-20-008 names as the one seam core
 has for a snapshot `dict`; the `WireParsePort` (#2938) that was to own it was
 rejected by ADR-0099, so the helper is not interim.
+
+## Inbound Unknown Keys Are Decided at the Parse Edge, Not by Class Ancestry (#3900)
+
+`extra="forbid"` above answers one question: *did this process build or store
+an object with a key it does not know?* That is always a bug. It was never a
+decision about what a receiver does with a peer's property, but under one
+object model it became one by accident. An inline domain object is a core
+class, so an unknown key on it drew a 422; the envelope, a generic AS2 object,
+a `Link` and an untyped inline dict are wire classes on `as_Base`, which keeps
+Pydantic's default `extra="ignore"`, so the same key vanished with no log line.
+Measured through `parse_activity` on 2026-09-30:
+
+| Where the unknown key sat | Before MV-11 |
+|---|---|
+| envelope, `Note`, `Link`, untyped inline dict | dropped silently |
+| envelope near miss (`Actor` beside `actor`, `attributed_to`) | dropped silently |
+| inline `VulnerabilityCase`, inline `Organization` actor | refused, 422 |
+
+The docs disagreed with each other about it too: ARCH-21-002 says inbound wire
+data stays lenient, ARCH-12-003 forbids on every core object including inline
+inbound ones, and the 2026-09-29 amendment of ADR-0099 detail 7 adopted
+fail-loudly with an envelope carve-out that had no principle behind it beyond
+"that is what the code does".
+
+**The rule (MV-11, ADR-0099 details 7 and 8 as amended 2026-09-30).** The parser
+is the inbound wire-to-core seam. It already walks every inline dict at every
+depth, resolves each to its class, and knows the field path. So the disposition
+is stated once there and holds everywhere:
+
+1. Partition the arriving keys against the resolved class's declared spellings
+   — field names, generated camelCase aliases, explicit validation aliases,
+   `@context` (MV-11-001).
+2. A **near miss** — the same string after lowercasing and removing
+   non-alphanumerics, or a retired name — **refuses** the whole activity naming
+   both spellings (MV-11-002). The sender meant a field we read; proceeding
+   without it is the #2232 shape with a log line attached. Nothing fuzzier than
+   that normalisation, ever: AS2 has too many short property names one
+   character apart, and pinning down a richer "near" is not worth the time.
+3. Any **other** unknown key is **set aside and reported** at INFO with
+   `activity_id`, the sender's `actor_id`, field path and key; the activity
+   proceeds on its declared fields (MV-11-003). Never carry the key on the
+   object — it would leak into the stored form, which `forbid` refuses
+   (ISSUE-3489). The received evidence is the only copy.
+4. **Core `forbid` is unchanged** (MV-11-004). The parse edge is the only door
+   inbound data enters by, so a core class never sees an inbound unknown key.
+   The retired-name list lives on the wire side and is consulted only at the
+   parse edge; `ParticipantStatus._reject_retired_vfd_keys` is the one core
+   guard SDO-03-005 already forbids, and it goes when the wire list arrives.
+5. **Never re-validate from the raw body after parse** (MV-11-005).
+   `inbox_storage._reparse_as_specific_type` re-parses an inline object from
+   the raw request dict and falls back to a base class on failure with a DEBUG
+   line. Once keys are set aside at parse, that path sees them again on a core
+   class and silently stores the wrong type. Its purpose ended when the parser
+   began resolving inline objects to their specific class (MV-04-003).
+
+Ratchet: `test/wire/as2/test_unknown_key_disposition.py` — one matrix over
+every position, `xfail(strict=True)` on the rows not yet built so the marks must
+come off with the implementation.
