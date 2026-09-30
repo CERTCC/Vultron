@@ -18,7 +18,10 @@ import argparse
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from typing import TextIO
 
 TREE_LIMIT = 200
 TREE_MAX_DEPTH = 3
@@ -247,6 +250,8 @@ LINT_FILES = [
     ".golangci.yaml",
     "setup.cfg",
     ".flake8",
+    "ruff.toml",
+    ".ruff.toml",
     ".pylintrc",
     "mypy.ini",
     ".rubocop.yml",
@@ -795,247 +800,202 @@ def print_section(title: str, content: list[str], output_file=None) -> None:
         print(text, end="")
 
 
+@contextmanager
+def _open_output(path: str | None) -> Iterator[TextIO | None]:
+    """Yield the opened output file for ``path``, or None to write to stdout."""
+    if not path:
+        yield None
+        return
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as output_file:
+        print(f"Writing output to: {path}", file=sys.stderr)
+        yield output_file
+
+
+def _print_or_fallback(
+    title: str, content: list[str], fallback: str, output_file=None
+) -> None:
+    """Print a section, substituting a single fallback line when content is empty."""
+    print_section(title, content if content else [fallback], output_file)
+
+
+def _manifest_section(output_file=None) -> None:
+    """Print the stack-detection section built from manifest file previews."""
+    manifests = find_manifest_files()
+    if not manifests:
+        print_section(
+            "STACK DETECTION (manifest files)",
+            ["No recognized manifest files found in project root."],
+            output_file,
+        )
+        return
+    manifest_content = [""]
+    for manifest in manifests:
+        manifest_content.append(f"--- {manifest} ---")
+        if manifest == "bun.lockb":
+            manifest_content.append(
+                "[Binary lockfile — see package.json for dependency details.]"
+            )
+        else:
+            manifest_content.append(read_file_preview(Path(manifest)))
+    print_section(
+        "STACK DETECTION (manifest files)", manifest_content, output_file
+    )
+
+
+def _entry_points_section(output_file=None) -> None:
+    """Print the entry-points section."""
+    _print_or_fallback(
+        "ENTRY POINTS",
+        [f"Found: {e}" for e in find_entry_points()],
+        "No common entry points found. Check 'main' or 'scripts.start' in manifest files above.",
+        output_file,
+    )
+
+
+def _lint_config_section(output_file=None) -> None:
+    """Print the linting and formatting config section."""
+    _print_or_fallback(
+        "LINTING AND FORMATTING CONFIG",
+        [f"Found: {path}" for path in find_lint_config()],
+        "No linting or formatting config files found in project root.",
+        output_file,
+    )
+
+
+def _env_templates_section(output_file=None) -> None:
+    """Print the environment variable templates section with file previews."""
+    env_content = []
+    for filename, filepath in find_env_templates():
+        env_content.append(f"--- {filename} ---")
+        env_content.append(read_file_preview(filepath))
+    _print_or_fallback(
+        "ENVIRONMENT VARIABLE TEMPLATES",
+        env_content,
+        "No .env.example or .env.template found. Identify required environment variables by searching the code and config for environment variable reads.",
+        output_file,
+    )
+
+
+def _git_sections(output_file=None) -> None:
+    """Print the recent-commits and high-churn sections."""
+    if not is_git_repo():
+        print_section(
+            "GIT RECENT COMMITS (last 20)",
+            ["Not a git repository or no commits yet."],
+            output_file,
+        )
+        print_section(
+            "HIGH-CHURN FILES (last 90 days, top 20)",
+            ["Not a git repository."],
+            output_file,
+        )
+        return
+    _print_or_fallback(
+        "GIT RECENT COMMITS (last 20)",
+        get_git_commits(),
+        "No commits found.",
+        output_file,
+    )
+    _print_or_fallback(
+        "HIGH-CHURN FILES (last 90 days, top 20)",
+        get_git_churn(),
+        "None found.",
+        output_file,
+    )
+
+
+def _code_metrics_section(output_file=None) -> None:
+    """Print the code metrics section."""
+    metrics = collect_code_metrics()
+    metrics_output = [
+        f"Total files scanned: {metrics['total_files']}",
+        f"Total lines of code: {metrics['total_lines']}",
+        "",
+    ]
+    if metrics["by_language"]:
+        metrics_output.append("Files by language:")
+        for lang, count in sorted(
+            metrics["by_language"].items(),
+            key=lambda x: x[1],
+            reverse=True,
+        ):
+            metrics_output.append(f"  {lang}: {count}")
+    if metrics["largest_files"]:
+        metrics_output.append("")
+        metrics_output.append("Top 10 largest files:")
+        metrics_output.extend(metrics["largest_files"])
+    print_section("CODE METRICS", metrics_output, output_file)
+
+
+def _write_all_sections(output_file=None) -> None:
+    """Print every scan section in order, followed by the completion marker."""
+    print_section(
+        f"DIRECTORY TREE (max depth {TREE_MAX_DEPTH}, source files only)",
+        get_directory_tree(),
+        output_file,
+    )
+    _manifest_section(output_file)
+    _entry_points_section(output_file)
+    _lint_config_section(output_file)
+    _env_templates_section(output_file)
+    _print_or_fallback(
+        "TODO / FIXME / HACK (production code only, test dirs excluded)",
+        search_todos(),
+        "None found.",
+        output_file,
+    )
+    _git_sections(output_file)
+    _print_or_fallback(
+        "MONOREPO SIGNALS",
+        detect_monorepo(),
+        "No monorepo signals detected.",
+        output_file,
+    )
+    _code_metrics_section(output_file)
+    _print_or_fallback(
+        "CI/CD PIPELINES",
+        detect_ci_cd_pipelines(),
+        "No CI/CD pipelines detected.",
+        output_file,
+    )
+    _print_or_fallback(
+        "CONTAINERS & ORCHESTRATION",
+        detect_containers(),
+        "No containerization configs detected.",
+        output_file,
+    )
+    _print_or_fallback(
+        "SECURITY & COMPLIANCE",
+        detect_security_configs(),
+        "No security configs detected.",
+        output_file,
+    )
+    _print_or_fallback(
+        "PERFORMANCE & TESTING",
+        detect_performance_markers(),
+        "No performance testing configs detected.",
+        output_file,
+    )
+
+    final_msg = "\n=== SCAN COMPLETE ===\n"
+    if output_file:
+        output_file.write(final_msg)
+    else:
+        print(final_msg, end="")
+
+
 def main():
     """Main entry point."""
     args = parse_args()
 
-    output_file = None
-    if args.output:
-        output_dir = Path(args.output).parent
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_file = open(args.output, "w", encoding="utf-8")
-        print(f"Writing output to: {args.output}", file=sys.stderr)
-
-    try:
-        # Directory tree
-        print_section(
-            f"DIRECTORY TREE (max depth {TREE_MAX_DEPTH}, source files only)",
-            get_directory_tree(),
-            output_file,
-        )
-
-        # Stack detection
-        manifests = find_manifest_files()
-        if manifests:
-            manifest_content = [""]
-            for manifest in manifests:
-                manifest_path = Path(manifest)
-                manifest_content.append(f"--- {manifest} ---")
-                if manifest == "bun.lockb":
-                    manifest_content.append(
-                        "[Binary lockfile — see package.json for dependency details.]"
-                    )
-                else:
-                    manifest_content.append(read_file_preview(manifest_path))
-            print_section(
-                "STACK DETECTION (manifest files)",
-                manifest_content,
-                output_file,
-            )
-        else:
-            print_section(
-                "STACK DETECTION (manifest files)",
-                ["No recognized manifest files found in project root."],
-                output_file,
-            )
-
-        # Entry points
-        entries = find_entry_points()
-        if entries:
-            entry_content = [f"Found: {e}" for e in entries]
-            print_section("ENTRY POINTS", entry_content, output_file)
-        else:
-            print_section(
-                "ENTRY POINTS",
-                [
-                    "No common entry points found. Check 'main' or 'scripts.start' in manifest files above."
-                ],
-                output_file,
-            )
-
-        # Linting config
-        lint = find_lint_config()
-        if lint:
-            lint_content = [f"Found: {path}" for path in lint]
-            print_section(
-                "LINTING AND FORMATTING CONFIG", lint_content, output_file
-            )
-        else:
-            print_section(
-                "LINTING AND FORMATTING CONFIG",
-                [
-                    "No linting or formatting config files found in project root."
-                ],
-                output_file,
-            )
-
-        # Environment templates
-        envs = find_env_templates()
-        if envs:
-            env_content = []
-            for filename, filepath in envs:
-                env_content.append(f"--- {filename} ---")
-                env_content.append(read_file_preview(filepath))
-            print_section(
-                "ENVIRONMENT VARIABLE TEMPLATES", env_content, output_file
-            )
-        else:
-            print_section(
-                "ENVIRONMENT VARIABLE TEMPLATES",
-                [
-                    "No .env.example or .env.template found. Identify required environment variables by searching the code and config for environment variable reads."
-                ],
-                output_file,
-            )
-
-        # TODOs
-        todos = search_todos()
-        if todos:
-            print_section(
-                "TODO / FIXME / HACK (production code only, test dirs excluded)",
-                todos,
-                output_file,
-            )
-        else:
-            print_section(
-                "TODO / FIXME / HACK (production code only, test dirs excluded)",
-                ["None found."],
-                output_file,
-            )
-
-        # Git info
-        if is_git_repo():
-            commits = get_git_commits()
-            if commits:
-                print_section(
-                    "GIT RECENT COMMITS (last 20)", commits, output_file
-                )
-            else:
-                print_section(
-                    "GIT RECENT COMMITS (last 20)",
-                    ["No commits found."],
-                    output_file,
-                )
-
-            churn = get_git_churn()
-            if churn:
-                print_section(
-                    "HIGH-CHURN FILES (last 90 days, top 20)",
-                    churn,
-                    output_file,
-                )
-            else:
-                print_section(
-                    "HIGH-CHURN FILES (last 90 days, top 20)",
-                    ["None found."],
-                    output_file,
-                )
-        else:
-            print_section(
-                "GIT RECENT COMMITS (last 20)",
-                ["Not a git repository or no commits yet."],
-                output_file,
-            )
-            print_section(
-                "HIGH-CHURN FILES (last 90 days, top 20)",
-                ["Not a git repository."],
-                output_file,
-            )
-
-        # Monorepo detection
-        monorepo = detect_monorepo()
-        if monorepo:
-            print_section("MONOREPO SIGNALS", monorepo, output_file)
-        else:
-            print_section(
-                "MONOREPO SIGNALS",
-                ["No monorepo signals detected."],
-                output_file,
-            )
-
-        # Code metrics
-        metrics = collect_code_metrics()
-        metrics_output = [
-            f"Total files scanned: {metrics['total_files']}",
-            f"Total lines of code: {metrics['total_lines']}",
-            "",
-        ]
-        if metrics["by_language"]:
-            metrics_output.append("Files by language:")
-            for lang, count in sorted(
-                metrics["by_language"].items(),
-                key=lambda x: x[1],
-                reverse=True,
-            ):
-                metrics_output.append(f"  {lang}: {count}")
-        if metrics["largest_files"]:
-            metrics_output.append("")
-            metrics_output.append("Top 10 largest files:")
-            metrics_output.extend(metrics["largest_files"])
-        print_section("CODE METRICS", metrics_output, output_file)
-
-        # CI/CD Detection
-        ci_cd = detect_ci_cd_pipelines()
-        if ci_cd:
-            print_section("CI/CD PIPELINES", ci_cd, output_file)
-        else:
-            print_section(
-                "CI/CD PIPELINES",
-                ["No CI/CD pipelines detected."],
-                output_file,
-            )
-
-        # Container Detection
-        containers = detect_containers()
-        if containers:
-            print_section(
-                "CONTAINERS & ORCHESTRATION", containers, output_file
-            )
-        else:
-            print_section(
-                "CONTAINERS & ORCHESTRATION",
-                ["No containerization configs detected."],
-                output_file,
-            )
-
-        # Security Configs
-        security = detect_security_configs()
-        if security:
-            print_section("SECURITY & COMPLIANCE", security, output_file)
-        else:
-            print_section(
-                "SECURITY & COMPLIANCE",
-                ["No security configs detected."],
-                output_file,
-            )
-
-        # Performance Markers
-        performance = detect_performance_markers()
-        if performance:
-            print_section("PERFORMANCE & TESTING", performance, output_file)
-        else:
-            print_section(
-                "PERFORMANCE & TESTING",
-                ["No performance testing configs detected."],
-                output_file,
-            )
-
-        # Final message
-        final_msg = "\n=== SCAN COMPLETE ===\n"
-        if output_file:
-            output_file.write(final_msg)
-        else:
-            print(final_msg, end="")
-
+    with _open_output(args.output) as output_file:
+        try:
+            _write_all_sections(output_file)
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
         return 0
-
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
-
-    finally:
-        if output_file:
-            output_file.close()
 
 
 if __name__ == "__main__":
