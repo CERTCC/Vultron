@@ -25,6 +25,73 @@ groups:
     priority: MUST
     kind: project
     statement: Activities added to outbox MUST be persisted to DataLayer immediately
+  - id: OX-01-004
+    priority: MUST
+    kind: project
+    statement: >-
+      At most one drain of an actor's outbox MUST run at a time. A drain requested while
+      another is draining the same outbox MUST wait for it (or be satisfied by it) rather
+      than pop rows from the same queue concurrently.
+    rationale: >-
+      Every inbound activity's background task and the OutboxMonitor call the drain, and
+      concurrent drains each pop the next row and await its POST, so rows complete delivery
+      in an order unrelated to their enqueue order (28 in flight at once, a 14-row backfill
+      arriving as 4, 7, 1, 8, 5, 2, … in CI run 35917721682, #3602). Serializing the drain is
+      what makes OX-01-002's FIFO mean anything at the recipient. See ADR-0112.
+    verification: >-
+      `test/adapters/driving/fastapi/test_outbox_handler_lanes.py` runs two drains of one
+      outbox concurrently and asserts per-recipient enqueue order and that the second drain
+      pops nothing while the first holds the outbox; the architecture ratchet
+      `test/architecture/test_outbox_drain_under_actor_lock.py` pins that every drain enters
+      through `outbox_handler` and its lock.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-01-002
+    adr:
+    - ADR-0112
+  - id: OX-01-005
+    priority: MUST
+    kind: project
+    statement: >-
+      Delivery MUST preserve enqueue order per recipient: for any two queued activities
+      that share a recipient, the earlier-enqueued one MUST have completed its delivery
+      attempt to that recipient before the later one is attempted.
+    rationale: >-
+      A ledger fan-out is one Announce(CaseLedgerEntry) row per participant, and a replica
+      that receives entry N+1 before entry N buffers a forward gap and sends a
+      Reject(CaseLedgerEntry) (SYNC-14-002), which the CASE_MANAGER answers with a
+      full-suffix replay into the same outbox. Per-recipient order at delivery is the
+      property the ledger transport actually needs; order *across* recipients is not.
+      See ADR-0112 (docs/adr/0112-per-recipient-ordered-outbox-delivery.md).
+    verification: >-
+      `test/adapters/driving/fastapi/test_outbox_handler_lanes.py` asserts that rows to one
+      recipient complete in enqueue order under concurrent drains and that a row addressed
+      to two recipients waits for the earlier row in each of its lanes.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-01-002
+    adr:
+    - ADR-0112
+  - id: OX-01-006
+    priority: MUST
+    kind: project
+    statement: >-
+      An actor's outbox MUST NOT have more than one delivery in flight to the same
+      recipient at a time. Deliveries to distinct recipients MAY proceed concurrently.
+    rationale: >-
+      One in-flight delivery per (actor, recipient) is how OX-01-005 is enforced without
+      falling back to a single serial drain, in which one slow or unreachable recipient
+      (a 30 s POST timeout, SYNC-05-004) would hold up every other recipient's rows.
+      See ADR-0112 (docs/adr/0112-per-recipient-ordered-outbox-delivery.md).
+    verification: >-
+      `test/adapters/driving/fastapi/test_outbox_handler_lanes.py` asserts at most one
+      in-flight delivery per recipient and that a slow recipient does not delay the row
+      queued behind it for a different recipient.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-01-005
+    adr:
+    - ADR-0112
 - id: OX-02
   title: Outbox Population
   specs:
@@ -532,6 +599,34 @@ groups:
       spec_id: OX-13-006
     adr:
     - ADR-0066
+  - id: OX-13-012
+    priority: MUST
+    kind: project
+    statement: >-
+      When a delivery attempt fails and the activity is re-queued, every later-enqueued
+      activity that shares a recipient with it MUST be re-queued behind it in enqueue
+      order and MUST NOT be attempted before it in that drain pass. Activities that share
+      no recipient with the failed one are unaffected.
+    rationale: >-
+      Re-queueing a failed activity at the tail of a single FIFO lets the rows behind it
+      overtake it, so one transient failure on ledger entry N delivers N+1… first and every
+      recipient takes the SYNC-14 forward-gap path for a reordering the sender produced
+      (#3878). Holding back only the rows that share a recipient keeps the per-recipient
+      order (OX-01-005) without head-of-line blocking across recipients (OX-01-006). See
+      ADR-0112 (docs/adr/0112-per-recipient-ordered-outbox-delivery.md).
+    verification: >-
+      `test/adapters/driving/fastapi/test_outbox_handler_lanes.py` fails a row past the
+      per-pass cap and asserts the row queued behind it for the same recipient is not
+      attempted, the queue afterwards reads in enqueue order, a row appended during the
+      stalled pass lands behind the stalled rows, and a different recipient's row is
+      delivered.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-13-011
+    - rel_type: refines
+      spec_id: OX-01-005
+    adr:
+    - ADR-0112
 - id: OX-14
   title: Undelivered-Activity Correlation
   description: >

@@ -111,7 +111,7 @@ A case can be *Active* while a Participant who joined later, or who declined, is
 
 The two are linked at two points:
 
-- when the case enters *Revise*, every Participant who had agreed to the old terms must agree again;
+- when the case owner activates revised terms that end later than the ones in force, every Participant who had agreed to the old terms and not to the new ones lapses and must agree again; a revision that is merely proposed, or one that ends no later than the terms in force, changes nobody's consent;
 - when the case enters *eXited*, every Participant's consent resets, because there is no longer an embargo to agree to.
 
 [Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how the case and Participant scopes interact.

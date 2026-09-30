@@ -30,7 +30,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import UriString, CoreRecord
+from vultron.core.models.base import UriString, CoreRecord, NonEmptyString
 
 
 class PendingCreateCaseActivity(CoreRecord):
@@ -72,7 +72,7 @@ class PendingCreateCaseActivity(CoreRecord):
         ...,
         description="URI of the vendor recipient of Create(VulnerabilityCase)",
     )
-    create_activity_payload: dict[str, Any] = Field(
+    create_activity_payload: dict[NonEmptyString, Any] = Field(
         default_factory=dict,
         description=(
             "Pre-constructed Create(VulnerabilityCase) payload "

@@ -9,6 +9,7 @@ related_specs:
   - specs/case-management.yaml
 related_notes:
   - notes/case-ledger-authority.md
+  - notes/outbox-delivery-reliability.md
   - notes/flaky-tests.md
   - notes/case-state-model.md
   - notes/message-type-reference.md
@@ -433,6 +434,16 @@ recovery is itself order-fragile — `SendMissingEntriesNode` replays each missi
 entry as a *separate* `Announce`, which can reorder again and hit the same drop
 — so under adversarial reordering an entry could be lost indefinitely
 (issue #1556, observed as Vendor2 stalling at case closure in the FVV demo).
+
+**Since ADR-0112 the sender no longer reorders its own fan-out.** The transport
+still guarantees nothing, but the reordering actually measured in CI was the
+CASE_MANAGER's own outbox being drained concurrently (28 rows in flight at
+once; a 14-row backfill arriving as 4, 7, 1, 8, …): one drain per actor with
+per-recipient lanes (OX-01-004/005/006) makes a forward gap the exception it
+was designed to be, and a replay no longer re-queues an `Announce` the outbox
+already holds for that peer (SYNC-15-012). The buffer-and-reject machinery
+below is the backstop for loss, not the steady state — see
+[outbox-delivery-reliability](outbox-delivery-reliability.md).
 
 **Resolution: receiver-side buffering makes convergence order-independent.**
 

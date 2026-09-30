@@ -26,7 +26,7 @@ class VultronNote(CoreObject):
     ``type_`` is ``"Note"`` to match the wire value.
     """
 
-    type_: str = Field(
+    type_: NonEmptyString = Field(
         default="Note",
         validation_alias="type",
         serialization_alias="type",

@@ -34,14 +34,41 @@ from typing import Annotated
 
 from pydantic import AfterValidator
 
+_BLANK_MESSAGE = "must be a non-empty string"
+
+
+def is_blank_string(value: str) -> bool:
+    """True when *value* is empty or whitespace-only.
+
+    The project's one predicate for "blank" (CS-08-001, "if present, then
+    non-empty"): ``NonEmptyString``, :func:`require_non_empty` and the wire
+    layer's ``is_blank`` all decide through it, so a guard that catches ``""``
+    cannot miss ``"   "`` one character over.
+    """
+    return not value.strip()
+
 
 def _non_empty(v: str) -> str:
-    if not v.strip():
-        raise ValueError("must be a non-empty string")
+    if is_blank_string(v):
+        raise ValueError(_BLANK_MESSAGE)
     return v
 
 
 NonEmptyString = Annotated[str, AfterValidator(_non_empty)]
+
+
+def require_non_empty(value: str, field_name: str) -> str:
+    """Return *value* if it is non-blank, else raise ``ValueError`` naming the field.
+
+    The plain-function form of ``NonEmptyString`` for the few core records that
+    are stdlib dataclasses rather than Pydantic models (CS-08-001 reaches them
+    too, but an ``Annotated`` validator does not).  Call it from
+    ``__post_init__``.
+    """
+    if is_blank_string(value):
+        raise ValueError(f"{field_name} {_BLANK_MESSAGE}")
+    return value
+
 
 _URI_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+\-.]*:[^\s]")
 
@@ -54,4 +81,9 @@ def _valid_uri(v: str) -> str:
 
 UriString = Annotated[NonEmptyString, AfterValidator(_valid_uri)]
 
-__all__ = ["NonEmptyString", "UriString"]
+__all__ = [
+    "NonEmptyString",
+    "UriString",
+    "is_blank_string",
+    "require_non_empty",
+]

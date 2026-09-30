@@ -135,7 +135,7 @@ Three things happen without anyone asking you.
 | Event | What it means for you |
 |---|---|
 | A case begins already under embargo | A report recipient that publishes a default embargo period in its vulnerability disclosure policy has made a standing proposal, and a Reporter who submits without proposing other terms has accepted it ([Default Embargoes](../process_models/em/defaults.md)). Publishing your own default is the most useful thing your organization can do before its first case. |
-| The terms are revised | Your consent lapses until you accept the new terms. The old terms stay in force meanwhile. |
+| The terms are revised | A proposed revision changes nothing for you: the old terms stay in force and so does your consent to them. When the case owner activates the revision, you are carried over if it ends no later than the terms you accepted; if it ends later and you have not accepted it, your consent lapses until you do. |
 | The vulnerability, an exploit for it, or attacks using it become public | The embargo ends for everyone, and every participant's consent resets ([Early Termination](../process_models/em/early_termination.md)). Be prepared for this before you accept. |
 
 Who else to bring into an embargoed case, and when, is the subject of [Adding Participants to an Embargoed Case](../process_models/em/working_with_others.md).

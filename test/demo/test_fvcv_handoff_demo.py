@@ -1344,6 +1344,7 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             patch.object(demo, "wait_for_case_on_container"),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_case_attributed_to"),
+            patch.object(demo, "wait_for_case_actor_ledger_event"),
             patch.object(
                 demo, "wait_for_event_type_in_ledger"
             ) as mock_ledger_wait,
@@ -1695,6 +1696,246 @@ class TestFvcvHandoffRmTriageTimeout:
         )
 
 
+# ---------------------------------------------------------------------------
+# #3602: the handoff phase gates on the CaseActor's commit before any replica
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("EDF-06-002")
+@pytest.mark.spec("CM-21-007")
+class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
+    """The transfer reaches a replica in two hops, and the phase waits on each.
+
+    Hop 1 is the CaseActor committing ``accept_case_ownership_transfer``; hop 2
+    is the ``Announce(CaseLedgerEntry)`` fan-out applying it on every replica —
+    the *only* thing that updates Vendor1's replica, since the CaseActor's own
+    node writes only the CaseActor's store (ADR-0073).  In CI run 35917721682
+    the fan-out row to Vendor1 waited 14.4 s in the CaseActor's outbox behind
+    replay rows for another peer and the single 20 s replica wait expired
+    (#3602).  The phase now gates on the commit, read from the CaseActor's own
+    store, then checks the replicas against one shared budget, so a late
+    fan-out is reported as such.
+
+    These tests run the real ``demo_gate`` / ``demo_check`` context managers:
+    patching them out would let the assertion propagate and prove nothing
+    about the gate (``vultron/demo/AGENTS.md`` rule 8).
+    """
+
+    COMMIT_EVENT = "accept_case_ownership_transfer"
+
+    @staticmethod
+    def _actor(id_: str):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _run(self, *, commit_raises: bool = False) -> tuple[list, dict]:
+        """Run the phase with every network wait recorded in call order.
+
+        Returns ``(calls, clients)`` where ``calls`` is a list of
+        ``(kind, kwargs)`` in the order the waits were invoked.
+        """
+        import contextlib
+
+        from vultron.demo import utils as demo_utils
+
+        clients = {
+            name: MagicMock(name=name)
+            for name in ("finder", "vendor", "coordinator")
+        }
+        for c in clients.values():
+            c.get.return_value = {}
+        coordinator = self._actor("urn:test:coordinator")
+        case = MagicMock()
+        case.id_ = "urn:test:case"
+        calls: list[tuple[str, dict]] = []
+
+        def _record(kind: str, *, raises: bool = False):
+            def _side_effect(**kwargs):
+                calls.append((kind, kwargs))
+                if raises:
+                    raise AssertionError(f"{kind} timed out")
+
+            return _side_effect
+
+        trigger_seq = iter(
+            {
+                "activity": {
+                    "id": f"urn:test:{n}",
+                    "type": t,
+                    "actor": "http://t/a",
+                    "object": "http://t/o",
+                }
+            }
+            for n, t in (
+                ("invite", "Invite"),
+                ("accept-invite", "Accept"),
+                ("offer", "Offer"),
+                ("accept-ownership", "Accept"),
+            )
+        )
+
+        demo_utils.reset_demo_failures()
+        with (
+            patch(
+                "vultron.demo.actor_session.post_to_trigger",
+                side_effect=lambda **_: next(trigger_seq),
+            ),
+            patch.object(
+                demo,
+                "find_ownership_transfer_offer_for_actor",
+                return_value="urn:test:forwarded-offer",
+            ),
+            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(
+                demo,
+                "wait_for_case_actor_ledger_event",
+                side_effect=_record("commit", raises=commit_raises),
+            ),
+            patch.object(
+                demo,
+                "wait_for_case_attributed_to",
+                side_effect=_record("attributed_to"),
+            ),
+            patch.object(
+                demo,
+                "wait_for_event_type_in_ledger",
+                side_effect=_record("replica_ledger"),
+            ),
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            # demo_step is not under test here; demo_gate / demo_check are
+            # deliberately the real ones.
+            patch.object(
+                demo,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_vc.model_validate.return_value = case
+            demo._phase_ownership_handoff(
+                finder_client=clients["finder"],
+                vendor_client=clients["vendor"],
+                coordinator_client=clients["coordinator"],
+                finder=self._actor("urn:test:finder"),
+                vendor=self._actor("urn:test:vendor"),
+                vendor_in_vendor=self._actor("urn:test:vendor"),
+                coordinator=coordinator,
+                coordinator_in_coordinator=coordinator,
+                case=case,
+            )
+        self._failures = list(demo_utils._demo_failures)
+        demo_utils.reset_demo_failures()
+        return calls, clients
+
+    def test_commit_is_awaited_on_the_case_actor_before_any_replica(self):
+        """Hop 1 first: the CaseActor's own ledger, through the host container."""
+        calls, clients = self._run()
+
+        kinds = [k for k, _ in calls]
+        assert kinds[0] == "commit", kinds
+        commit_kwargs = calls[0][1]
+        assert commit_kwargs["client"] is clients["vendor"], (
+            "the commit gate reads the CaseActor's store through the container"
+            " that hosts it (Vendor1's), not a replica"
+        )
+        assert commit_kwargs["event_type"] == self.COMMIT_EVENT
+        assert kinds[1:] == [
+            "attributed_to",
+            "attributed_to",
+            "replica_ledger",
+        ], kinds
+
+    def test_replica_waits_share_one_fan_out_budget(self):
+        """Hop 2's three waits draw on one budget, never exceeding it."""
+        calls, _ = self._run()
+
+        budgets = [kw["timeout_seconds"] for k, kw in calls if k != "commit"]
+        assert len(budgets) == 3
+        assert all(0 < b <= demo.LATE_JOINER_TIMEOUT for b in budgets), budgets
+        assert budgets == sorted(
+            budgets, reverse=True
+        ), "each replica wait must receive what is left of the shared budget"
+
+    def test_failed_commit_gate_skips_every_replica_wait(self):
+        """A missing commit is one GATE FAILED, not three misleading CHECK FAILEDs."""
+        calls, _ = self._run(commit_raises=True)
+
+        assert [k for k, _ in calls] == ["commit"]
+        assert len(self._failures) == 1
+        assert self._failures[0].startswith("GATE FAILED: CaseActor committed")
+
+    def test_replica_wait_failure_does_not_block_the_other_replicas(self):
+        """Hop-2 waits are checks: one late replica still lets the others be read."""
+        import contextlib
+
+        from vultron.demo import utils as demo_utils
+
+        # Reuse _run but make the *first* attributed_to wait fail.
+        calls: list[str] = []
+
+        def attributed_to(**kwargs):
+            calls.append("attributed_to")
+            if len(calls) == 1:
+                raise AssertionError("Vendor1 replica late")
+
+        demo_utils.reset_demo_failures()
+        with (
+            patch(
+                "vultron.demo.actor_session.post_to_trigger",
+                return_value={
+                    "activity": {
+                        "id": "urn:test:x",
+                        "type": "Accept",
+                        "actor": "http://t/a",
+                        "object": "http://t/o",
+                    }
+                },
+            ),
+            patch.object(
+                demo,
+                "find_ownership_transfer_offer_for_actor",
+                return_value="urn:test:forwarded-offer",
+            ),
+            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_case_actor_ledger_event"),
+            patch.object(
+                demo, "wait_for_case_attributed_to", side_effect=attributed_to
+            ),
+            patch.object(demo, "wait_for_event_type_in_ledger") as finder_wait,
+            patch.object(demo, "as_VulnerabilityCase"),
+            patch.object(
+                demo,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            client = MagicMock()
+            client.get.return_value = {}
+            actor = self._actor("urn:test:a")
+            demo._phase_ownership_handoff(
+                finder_client=client,
+                vendor_client=client,
+                coordinator_client=client,
+                finder=actor,
+                vendor=actor,
+                vendor_in_vendor=actor,
+                coordinator=actor,
+                coordinator_in_coordinator=actor,
+                case=self._actor("urn:test:case"),
+            )
+        failures = list(demo_utils._demo_failures)
+        demo_utils.reset_demo_failures()
+
+        assert calls == ["attributed_to", "attributed_to"]
+        finder_wait.assert_called_once()
+        assert len(failures) == 1
+        assert failures[0].startswith("CHECK FAILED")
+
+
 class TestFvcvHandoffOwnershipHandoffSkipsDependents:
     """Phase 2: a failed trigger or lookup skips the steps that depend on it.
 
@@ -1750,6 +1991,7 @@ class TestFvcvHandoffOwnershipHandoffSkipsDependents:
         with (
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch.object(demo, "wait_for_case_actor_ledger_event"),
             patch.object(demo, "wait_for_case_attributed_to"),
             patch.object(demo, "wait_for_event_type_in_ledger"),
             patch.object(

@@ -69,7 +69,7 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.base import ValidatedAssignmentMixin
+from vultron.core.models.base import NonEmptyString, ValidatedAssignmentMixin
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +184,7 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
     SYNC-01-005, SYNC-07-001; CLP-04-007.
     """
 
-    case_id: str = Field(
+    case_id: NonEmptyString = Field(
         ..., description="URI of the parent VulnerabilityCase"
     )
     log_index: int = Field(
@@ -196,13 +196,13 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         default=None,
         description="Raft cluster term; None for single-node deployments",
     )
-    object_id: str = Field(
+    object_id: NonEmptyString = Field(
         ..., description="Full URI of the asserted activity or primary object"
     )
-    event_type: str = Field(
+    event_type: NonEmptyString = Field(
         ..., description="Short machine-readable event descriptor"
     )
-    payload_snapshot: dict[str, Any] = Field(
+    payload_snapshot: dict[NonEmptyString, Any] = Field(
         default_factory=dict,
         description="Normalized snapshot of the asserted activity payload for replay",
     )

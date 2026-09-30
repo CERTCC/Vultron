@@ -472,3 +472,59 @@ class TestCaseActorParticipantIdIn:
             find_case_actor_participant_id(client, "urn:uuid:case-cap")
             == actor_id
         )
+
+
+# ---------------------------------------------------------------------------
+# #3602: CaseActor-ledger gate and shared fan-out budget
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("EDF-06-002")
+def test_wait_for_case_actor_ledger_event_reads_the_case_actor_store(
+    monkeypatch,
+):
+    """The gate scopes the ledger read to the CaseActor's own store."""
+    from vultron.demo.helpers import polling
+
+    client = MagicMock()
+    seen: dict = {}
+    monkeypatch.setattr(
+        polling,
+        "resolve_case_actor_store_id",
+        lambda c, case_id: "urn:test:case-actor",
+    )
+    monkeypatch.setattr(
+        polling,
+        "wait_for_event_type_in_ledger",
+        lambda **kwargs: seen.update(kwargs),
+    )
+
+    polling.wait_for_case_actor_ledger_event(
+        client=client,
+        case_id="urn:test:case",
+        event_type="accept_case_ownership_transfer",
+        timeout_seconds=7.0,
+    )
+
+    assert seen["client"] is client
+    assert seen["dl_actor_id"] == "urn:test:case-actor"
+    assert seen["event_type"] == "accept_case_ownership_transfer"
+    assert seen["timeout_seconds"] == 7.0
+
+
+@pytest.mark.spec("EDF-06-008")
+def test_shared_budget_hands_out_what_is_left_and_never_goes_negative(
+    monkeypatch,
+):
+    from vultron.demo.helpers import polling
+
+    now = [1000.0]
+    monkeypatch.setattr(polling.time, "monotonic", lambda: now[0])
+    budget = polling.SharedBudget(10.0)
+
+    assert budget.remaining() == 10.0
+    now[0] += 4.0
+    assert budget.remaining() == 6.0
+    now[0] += 60.0
+    assert budget.remaining() == 0.0
+    assert "remaining=0.0s" in repr(budget)

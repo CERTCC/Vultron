@@ -11,7 +11,8 @@ See ADR-0069.
 use this URI as the `@context` value for all outbound Vultron messages ([§5.5](index.md#55-serialization)).
 
 That URI does not currently dereference.
-The context document is withheld from publication while the declared term set is still changing, so the namespace is a stable identifier rather than a retrievable document at this version.
+The context document is withheld from publication until it is served at the wire-versioned path that ADR-0106 defines.
+At this version the namespace is therefore a stable identifier, not a retrievable document.
 An implementation MUST therefore cite the URI without depending on resolving it, and MUST NOT require a successful fetch to process a message.
 
 **AS2 extension type naming conventions.** Vultron type names follow PascalCase

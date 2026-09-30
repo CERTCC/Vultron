@@ -470,26 +470,44 @@ groups:
     lint_suppress:
     - missing_story_reference
 - id: EP-05
-  title: Counter-Revision PEC Cascade Rule
+  title: Revision Activation PEC Cascade Rule
   specs:
   - id: EP-05-001
     priority: MUST
     kind: protocol
     statement: >-
-      When an embargo transitions from `ACTIVE` to `REVISE` (counter-revision proposed),
-      the CASE_MANAGER MUST call `_cascade_pec_revise()` to reset each `SIGNATORY`
-      participant's PEC state to `INVITED` so they can re-consent to the revised terms.
+      When the case owner activates a revised embargo that ends later than the embargo
+      it replaces (`REVISE → ACTIVE`), the CASE_MANAGER MUST move each `SIGNATORY`
+      participant whose `accepted_embargo_ids` lacks the revised embargo to `LAPSED` via
+      the PEC `REVISE` trigger, so that their consent to the longer terms is explicit.
+      A revised embargo that ends no later than the one it replaces MUST carry every
+      existing signatory over: the revised id is recorded in their `accepted_embargo_ids`
+      and their consent state is unchanged. In either case a participant in any other
+      state whose `accepted_embargo_ids` already holds the revised id MUST advance to
+      `SIGNATORY` via the PEC `ACCEPT` trigger (MSM-07-005).
     rationale: >-
-      Without the PEC cascade, a participant who signed for embargo terms `T1` would
-      remain `SIGNATORY` when the embargo is revised to `T2` — implying consent they
-      never gave. The cascade makes re-consent explicit.
+      A participant who signed for terms `T1` has not consented to longer terms `T2`;
+      leaving them `SIGNATORY` once `T2` is in force would imply consent they never gave.
+      Shorter terms ask nothing new: agreeing to N days is agreeing to every shorter
+      period, the same containment that makes shortest-wins (EP-04-003) and the
+      termination reset (MSM-07-006) safe without asking anyone. The cascade fires at
+      activation rather than at proposal because the participant remains bound by `T1`
+      for as long as `T1` is the active embargo (ADR-0093).
     verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm that an
-      `ACTIVE→REVISE` transition resets each `SIGNATORY` participant's PEC state to
-      `INVITED` via `_cascade_pec_revise()`.
+      Unit tests in `test/core/services/embargo_lifecycle/test_proposals.py` assert that
+      the owner's acceptance of a revision ending later than the active embargo moves
+      exactly the signatories lacking the revised id to `LAPSED`, and that acceptance of
+      a revision ending no later than it moves nobody and records the revised id on every
+      signatory.
+    note: >-
+      The verification describes the target state decided by ADR-0093 (revised 2026-09-29). The
+      implementation is tracked in #3891; until it lands, inspection of the named modules shows the
+      superseded lapse-on-propose behaviour.
     relationships:
     - rel_type: implements
       spec_id: CM-18-001
+    adr:
+    - ADR-0093
     stories:
     - story_2022_014
     - story_2022_027
@@ -497,14 +515,28 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      When the embargo is already in `REVISE` state and a further revision proposal
-      arrives (`REVISE → REVISE`), the CASE_MANAGER MUST NOT call `_cascade_pec_revise()`
-      again. The PEC states were already reset by the initial `ACTIVE → REVISE` transition;
-      a double cascade would incorrectly re-invite participants who may have already
-      re-consented.
+      A revision proposal (`ACTIVE → REVISE`) and any further counter-revision
+      (`REVISE → REVISE`) MUST NOT change any participant's PEC state. Consent is
+      re-evaluated only when the case owner activates a revision (EP-05-001); until then
+      the prior embargo is in force and every signatory to it remains `SIGNATORY`.
+    rationale: >-
+      A participant cannot lapse until the embargo on the case differs from the one they
+      agreed to. Lapsing on proposal stranded signatories when the revision was rejected,
+      reported `embargo_adherence` false for participants still bound and still receiving
+      embargoed content, and lapsed the proposer of the revision (ADR-0093, Concern #3884).
+    verification: >-
+      Unit tests in `test/core/services/embargo_lifecycle/test_proposals.py` assert that
+      `propose_embargo()` from `ACTIVE` and from `REVISE` reports no participant consent
+      changes.
+    note: >-
+      The verification describes the target state decided by ADR-0093 (revised 2026-09-29). The
+      implementation is tracked in #3891; until it lands, inspection of the named modules shows the
+      superseded lapse-on-propose behaviour.
     relationships:
     - rel_type: refines
       spec_id: EP-05-001
+    adr:
+    - ADR-0093
 - id: EP-06
   title: PEC Idempotency
   specs:

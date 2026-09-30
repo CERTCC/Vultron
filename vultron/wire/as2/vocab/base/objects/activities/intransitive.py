@@ -93,7 +93,9 @@ class as_Question(as_IntransitiveActivity):
     # its own output.  A lone option is still accepted, as AS2 allows.
     anyOf: _QuestionOptions = None
     oneOf: _QuestionOptions = None
-    closed: as_Object | as_Link | str | datetime | bool | None = None
+    closed: as_Object | as_Link | NonEmptyString | datetime | bool | None = (
+        None
+    )
 
     @model_validator(mode="after")
     def _options_are_exclusive(self) -> "as_Question":

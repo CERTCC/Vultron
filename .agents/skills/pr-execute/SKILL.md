@@ -244,8 +244,19 @@ After tests pass, run the xfail ratchet per [REFERENCE.md](REFERENCE.md)
 #### Step 4 — Push
 
 ```bash
-git push
+upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)
+if [[ "$upstream" == */"<head_ref>" ]]; then
+  git push
+else
+  git push -u origin "HEAD:<head_ref>"
+fi
 ```
+
+A branch already tracking the PR head (including a fork remote from
+`gh pr checkout`) keeps its bare push. One with no upstream, or tracking
+`<base_ref>` because it was created from it, is pushed to the PR head by name
+and gets that as its upstream — never to a branch named after the local
+checkout, which would leave the PR head unmoved (#3893).
 
 If git demands a force-push, stop — something rewrote history and that needs
 a human.

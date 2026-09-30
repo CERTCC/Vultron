@@ -346,3 +346,33 @@ def test_parse_published_returns_none_for_non_datetime_type():
 
     assert parse_published(42) is None
     assert parse_published(None) is None
+
+
+# --- strip_annotated ------------------------------------------------------
+
+
+def test_strip_annotated_unwraps_non_empty_string_to_str():
+    """``NonEmptyString`` is ``Annotated[str, ...]``; introspection sees ``str``.
+
+    The IRI branch of every reference union is ``NonEmptyString`` (CS-08-001),
+    so code that classifies a union branch with ``is str`` must look through
+    the wrapper — ``_is_generic_object_ref`` and ``_annotation_branches`` both
+    do, via this helper.
+    """
+    from typing import Annotated
+
+    from pydantic import AfterValidator
+
+    from vultron.core.models._helpers import strip_annotated
+    from vultron.primitives import NonEmptyString
+
+    assert strip_annotated(NonEmptyString) is str
+    assert strip_annotated(Annotated[int, AfterValidator(abs)]) is int
+
+
+def test_strip_annotated_leaves_a_bare_type_alone():
+    from vultron.core.models._helpers import strip_annotated
+
+    assert strip_annotated(str) is str
+    assert strip_annotated(list[str]) == list[str]
+    assert strip_annotated(str | None) == (str | None)

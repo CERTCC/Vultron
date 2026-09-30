@@ -243,12 +243,14 @@ draft_docs: |
   developer/
   # The Vultron vocabulary namespace is withheld: publishing the site would make
   # `https://certcc.github.io/Vultron/ns/context.jsonld` resolve for the first
-  # time, and a namespace URI is a long-lived commitment. The gate on lifting
-  # this is the term set settling, not the drift check — #2943 landed that check
-  # (`wire-context --check`), but #3487 and #3488 still delete the `as_*` classes
-  # the declared terms name, under an ADR-0099 that is `accepted-provisional`.
-  # A draft pattern also withholds static files, so `context.jsonld` goes with
-  # the page.
+  # time, and a namespace URI is a long-lived commitment. The term set has
+  # settled (ADR-0099 is accepted; #2943 checks drift), so the remaining gate is
+  # the path: ADR-0106 puts the wire version in the context URL, and #3653 moves
+  # the document there. `ns/` leaves this list in the change that lands #3653,
+  # so the first context URI ever to resolve is the versioned one. The same
+  # condition is stated in notes/vocabulary-registry.md § 4a and in
+  # vultron/metadata/docs/withheld.py. A draft pattern also withholds static
+  # files, so `context.jsonld` goes with the page.
   ns/
 theme:
   logo: 'assets/Software_Engineering_Institute_Unitmark_White.svg'

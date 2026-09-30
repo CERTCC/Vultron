@@ -43,7 +43,7 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.base import CoreObject
+from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.wire_keys import wire_key
 
 
@@ -80,7 +80,7 @@ class CaseLedgerEntry(CoreObject):
         validation_alias="type",
         serialization_alias="type",
     )
-    case_id: str = Field(
+    case_id: NonEmptyString = Field(
         ..., description="URI of the parent VulnerabilityCase"
     )
     log_index: int = Field(
@@ -92,19 +92,19 @@ class CaseLedgerEntry(CoreObject):
         default=None,
         description="Raft cluster term; None for single-node deployments",
     )
-    log_object_id: str = Field(
+    log_object_id: NonEmptyString = Field(
         ...,
         description="Full URI of the asserted activity or primary object",
         validation_alias="logObjectId",
         serialization_alias="logObjectId",
     )
-    event_type: str = Field(
+    event_type: NonEmptyString = Field(
         ...,
         description="Short machine-readable event descriptor",
         validation_alias="eventType",
         serialization_alias="eventType",
     )
-    payload_snapshot: dict[str, Any] = Field(
+    payload_snapshot: dict[NonEmptyString, Any] = Field(
         default_factory=dict,
         description="Normalised snapshot of the asserted activity payload",
         validation_alias="payloadSnapshot",

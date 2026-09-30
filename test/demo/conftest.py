@@ -591,6 +591,17 @@ def client():
     )
 
     with TestClient(api_app) as test_client:
+        # The root lifespan now starts the production OutboxMonitor
+        # (OX-09-002).  These tests assert on the effect of a trigger right
+        # after its 202 and rely on the TestClient running the inline drain
+        # before it returns; a monitor draining concurrently would take the
+        # rows first and hand the inline drain a "look again" no-op, turning
+        # that immediate read into a race.  The monitor's own behaviour is
+        # covered by test_outbox_monitor.py, the root-lifespan test and the
+        # Docker demo matrix.
+        monitor = getattr(api_app.state, "outbox_monitor", None)
+        if monitor is not None:
+            monitor.stop()
         # Build a router that routes deliveries back to the single app and
         # drops anything sent to external fictional URLs.
         router = _TestClientRouter()
