@@ -156,6 +156,8 @@ It does not replace it.
 Source: Concerns #3892, #3836 and #3863, planned as one bundle under epic #3408 (embargo negotiation, defaults and lifecycle).
 The shared design idea is that a revision proposal must be visible to every replica while it is open and retired everywhere when the embargo it revises ends.
 
+Follow-on: Concern #3918 audits where the relay-and-record rule reaches beyond embargo revisions (the initial proposal, RSVP deadline placement, EK acknowledgements, counter-proposal rounds, the protocol-asks model, the demo scenario specs, emit-side optimism), blocked until this decision merges.
+
 Related decisions: ADR-0093 (consent is per embargo; lapse fires at activation), ADR-0100 (no multi-candidate embargo poll), ADR-0108 (one move, one mover), ADR-0109 (a container emits only as actors it hosts).
 
 Generated spec requirements: `embargo-policy.yaml` EP-09-001 through EP-09-007, EP-04-011, EP-08-004; `em-behavior.yaml` EMB-03 group description.
