@@ -17,6 +17,7 @@ related_specs:
   - specs/case-management.yaml
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
+  - specs/protocol-asks.yaml
 related_notes:
   - notes/sync-ledger-replication.md
   - notes/case-ledger-authority.md
@@ -28,6 +29,7 @@ related_notes:
   - notes/fv-demo.md
   - notes/outbox.md
   - notes/use-case-protocol.md
+  - notes/protocol-asks.md
 relevant_packages:
   - vultron/core/use_cases/triggers
   - vultron/core/use_cases/received
@@ -297,27 +299,34 @@ not exist: the Activity is sent directly by the requesting participant, with
 
 ---
 
-## Embargo Revision Relay: the Ledger Carries State, It Never Asks (EP-09, ADR-0113)
+## Embargo Relay: the Ledger Carries State, It Never Asks (EP-09, ADR-0113)
 
-The case Invite above is one instance of a general shape, and the embargo
-revision is the second. A participant addresses its revision proposal to the
-CASE_MANAGER only (PCR-08-001). The CASE_MANAGER adjudicates it, moves the
-canonical case to `EM.REVISE`, commits the proposal, and *then* relays it: one
+The case Invite above is one instance of a general shape, and every embargo
+proposal — the first one for a case or a revision — is the second. A
+participant addresses its proposal to the CASE_MANAGER only (PCR-08-001). The
+CASE_MANAGER adjudicates it, moves the canonical case (`NONE → PROPOSED` or
+`ACTIVE → REVISE`), commits the proposal, and *then* relays it: one
 `Invite(EmbargoEvent)` per participant except the proposer, `actor` the
-CASE_MANAGER, `attributedTo` the proposer (CM-24), each emission committed.
-Participants answer the Invite addressed to them, to the CASE_MANAGER; the
-CASE_MANAGER commits each answer; the owner's answer also decides the embargo.
-Replicas reconstruct every step from the ledger (RSH-08-004).
+CASE_MANAGER, `attributedTo` the proposer (CM-24), `end_time` stamped by the
+manager (CM-28-012), each emission committed. Participants answer the Invite
+addressed to them, to the CASE_MANAGER; the CASE_MANAGER commits each answer;
+the owner's answer also decides the embargo. Replicas reconstruct every step
+from the ledger (RSH-08-004).
 
 ```text
 Participant P sends Invite(EmbargoEvent B) → CASE_MANAGER
-  CASE_MANAGER: EM ACTIVE → REVISE, commit proposal      → Announce to all
-  CASE_MANAGER: Invite(B) → each participant ≠ P, commit → Announce to all
+  CASE_MANAGER: EM NONE → PROPOSED (or ACTIVE → REVISE), commit → Announce to all
+  CASE_MANAGER: Invite(B, end_time) → each participant ≠ P, commit → Announce to all
 Each participant Q answers Accept/Reject(Invite(B))     → CASE_MANAGER
   CASE_MANAGER: record Q's consent, commit               → Announce to all
 Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
-  CASE_MANAGER: EC activates B / EJ keeps A, commit      → Announce to all
+  CASE_MANAGER: EA/EC activates B or ER/EJ clears/keeps, commit → Announce to all
 ```
+
+The proposer's own trigger writes no EM state unless the proposer holds the
+CASE_MANAGER role: it emits, records the ask in the pending-assertion store,
+and its replica moves on the announced commit (EP-09-008). The manager's
+commit is also the acknowledgement the behavioural specs call EK (EP-09-009).
 
 The rule this pins down, because it kept getting mixed up: **an
 `Announce(CaseLedgerEntry)` is a channel for case state, not a protocol
@@ -333,8 +342,13 @@ The owner MAY decide without waiting for answers and SHOULD wait for some to
 gauge consensus; the protocol defines no quorum (EP-09-005, EP-09-006). The
 Invites still matter under fiat because their answers are the consent records
 the EP-05-001 activation cascade reads. Full write-up:
-`notes/embargo-lifecycle.md` § "Revision Negotiation Relays Through the
+`notes/embargo-lifecycle.md` § "Embargo Negotiation Relays Through the
 CASE_MANAGER".
+
+**There is no "no CASE_MANAGER" arm.** Both case-creation paths register a
+holder at birth and delegation hands the role on, so the resolver finding nobody
+means a corrupt roster, not a topology. CM-24-003's "send directly" fallback is
+superseded by CM-24-006; a resolver that finds no holder fails.
 
 ---
 

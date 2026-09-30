@@ -3210,6 +3210,40 @@ groups:
     verification: Inspection of `vultron/core/` confirms that all trigger use cases emitting
       delegated Activities share a single helper (e.g., `_prepare_delegated_context()`) that
       enforces the actor/attributed_to/outbox invariants.
+  - id: CM-24-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A case MUST have a participant holding `CVDRole.CASE_MANAGER` from case creation
+      onward: both creation paths register one (the CaseActor as `COORDINATOR` +
+      `CASE_MANAGER` under ADR-0041, or the creating actor as `CASE_OWNER` + `CASE_MANAGER`
+      under CM-02-015), and role delegation transfers it without a gap. No trigger, received
+      tree or shared helper MAY carry an arm for a case with no CASE_MANAGER: a resolver that
+      finds none MUST fail, and MUST NOT succeed with a warning or send the activity
+      directly. This supersedes CM-24-003.
+    rationale: >-
+      CM-24-003 codified a "no dedicated CASE_MANAGER, send directly" fallback that no
+      creation path can produce; it survived in the delegated-context helper, in two nodes
+      that returned SUCCESS with a warning when the resolver found nobody, and in tests that
+      asserted the fallback. An arm for an unreachable state is where a corrupt roster hides
+      (#3918, ADR-0113 as amended).
+    verification: >-
+      Tests of both case-creation trees assert a `CASE_MANAGER` holder exists in
+      `actor_participant_index` after creation; a test of the close-case emit and the
+      embargo teardown announce asserts FAILURE, not SUCCESS, when no holder is found; the
+      delegated-context helper has no fallback branch. Until the retirement lands the
+      failure tests are strict `xfail`s naming their tracking issue.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-24-001
+    - rel_type: depends_on
+      spec_id: CM-22-002
+    adr:
+    - ADR-0113
+    - ADR-0109
+    stories:
+    - story_2022_106
+
 - id: CM-25
   title: Observer Participant Semantics
   description: >-
@@ -3682,6 +3716,97 @@ groups:
       spec_id: CM-18-002
     adr:
     - ADR-0096
+    stories:
+    - story_2022_014
+    - story_2022_027
+  - id: CM-28-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER relays an `Invite(EmbargoEvent)` to a participant (EP-09-002) it
+      MUST set `Invite.end_time` to that Invite's `published` time plus the configured RSVP
+      window, subject to the EP-07-002 minimum and the EP-07-006 ceiling. The Invites of one
+      relay round are emitted in sequence and need not share one deadline.
+    rationale: >-
+      No trigger put a deadline on the wire, so every receiving store fell to the EP-07-001
+      fallback and derived a deadline from its own `ActorConfig` window, and two replicas
+      could disagree about when the same invitation closed. The relaying CASE_MANAGER is the
+      enforcement authority (CM-28-003); it states the deadline once and everyone reads the
+      same number off the same object, which is also what ASK-03-004 requires of an ask
+      (#3918, ADR-0113 as amended).
+    verification: >-
+      A test of the relay asserts every emitted Invite carries `end_time` equal to its
+      `published` plus the configured window, clamped per EP-07-002 and EP-07-006. Until the
+      implementation lands the test is a strict `xfail` naming its tracking issue.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-28-002
+    - rel_type: depends_on
+      spec_id: EP-09-002
+    - rel_type: depends_on
+      spec_id: EP-07-002
+    - rel_type: depends_on
+      spec_id: EP-07-006
+    adr:
+    - ADR-0113
+    stories:
+    - story_2022_014
+    - story_2022_027
+  - id: CM-28-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST record the RSVP deadline on the invitee's participant record at
+      its commit of the Invite emission, and the replica apply node for that entry MUST
+      record the same deadline (EP-09-007). A participant MUST NOT derive or store an RSVP
+      deadline on receipt of an Invite (EP-09-003).
+    rationale: >-
+      The deadline is case state about the invitee; like every other case state it is written
+      once by the CASE_MANAGER and reaches replicas through the ledger (ADR-0108). Writing it
+      at receipt was the one-store shape ADR-0113 retired for EM (#3918).
+    verification: >-
+      A test asserts the invitee's `invite_rsvp_deadline` is set in the CASE_MANAGER's store
+      when the Invite emission is committed and in a replica's store when the entry is
+      replayed, and is unset on a participant that received the Invite directly. Until the
+      implementation lands the tests are strict `xfail`s naming their tracking issue.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-28-012
+    - rel_type: depends_on
+      spec_id: EP-09-007
+    - rel_type: refines
+      spec_id: EP-09-003
+    adr:
+    - ADR-0113
+    stories:
+    - story_2022_014
+    - story_2022_027
+  - id: CM-28-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Only the CASE_MANAGER evaluates invite lapse (CM-28-003). The lapsed-invitation ledger
+      entry (CM-28-009) MUST be committed behind the CASE_MANAGER role gate (BT-17-001) and
+      MUST have a replica apply node reachable from `create_announce_log_entry_tree`
+      (RSH-08-004); a replica learns a lapse from that entry and never computes one.
+    rationale: >-
+      The lapse commit ran unconditionally in whichever store processed a late `Accept`, so a
+      non-manager could author a ledger entry, and no replay node existed for the event type,
+      so a lapse recorded by the manager reached no replica (#3918).
+    verification: >-
+      A test runs the late-`Accept` path as a non-manager and asserts no lapse entry is
+      committed; a test replays an `invite_to_embargo_on_case_lapsed` entry into a replica
+      and asserts the participant reads `DECLINED`. Until the implementation lands the tests
+      are strict `xfail`s naming their tracking issue.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-28-009
+    - rel_type: depends_on
+      spec_id: RSH-08-004
+    - rel_type: depends_on
+      spec_id: BT-17-001
+    adr:
+    - ADR-0113
     stories:
     - story_2022_014
     - story_2022_027

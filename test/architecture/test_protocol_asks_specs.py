@@ -783,3 +783,39 @@ def test_production_status_authorization_default_is_conservative() -> None:
             f"STATUS_AUTHORIZATION_PERMISSIVE.{name} is not permissive; the "
             "opt-in bundle must be the only permissive one."
         )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "ASK-03-007: no ask-kind descriptor exists, so Invite(EmbargoEvent) is "
+        "not declared as an ask kind. Tracked by #2884 (Concern #3918, "
+        "ADR-0113)."
+    ),
+)
+@pytest.mark.spec("ASK-03-007")
+def test_embargo_invite_is_a_declared_ask_kind() -> None:
+    """Invite(EmbargoEvent) is an ask kind with Accept/Reject closers (ASK-03-007)."""
+    kinds = _first_available(
+        (
+            ("vultron.core.models.ask_kind", "AskKind"),
+            ("vultron.core.models.ask_kinds", "AskKind"),
+        )
+    )
+    assert kinds is not None, "No AskKind descriptor type is importable."
+    declared = {str(name).upper() for name in dir(kinds)}
+    assert any("EMBARGO" in name for name in declared)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "ASK-04-010: no outstanding-ask register exists, so a relayed ask is "
+        "recorded by nobody. Tracked by #2883 (Concern #3918, ADR-0113)."
+    ),
+)
+@pytest.mark.spec("ASK-04-010")
+def test_relayed_ask_is_recorded_by_the_relaying_case_manager() -> None:
+    """The CASE_MANAGER records relayed Invites as its own asks (ASK-04-010)."""
+    register = _first_available(_ASK_REGISTER_CANDIDATES)
+    assert register is not None, "No outstanding-ask register is importable."

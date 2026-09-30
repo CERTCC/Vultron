@@ -19,9 +19,11 @@ participant that receives an Invite writes no case or consent state on receipt;
 consent moves when the CASE_MANAGER commits its answer.  A revision Invite to a
 ``SIGNATORY`` changes nothing.
 
-Every test here is a strict ``xfail`` pinning behaviour #3913 (manager-side
-relay) and #3915 (participant side and replay) will deliver.  Each fails today for the reason
-its docstring names; when the feature lands the ``xfail`` auto-promotes.
+Every test here but the acknowledgement check is a strict ``xfail`` pinning
+behaviour #3913 (manager-side relay), #3915 (participant side and replay) and
+the Tasks opened from Concern #3918 (first proposal, RSVP deadline, invitee
+resolution) will deliver.  Each fails today for the reason its docstring names;
+when the feature lands the ``xfail`` auto-promotes.
 """
 
 from typing import cast
@@ -46,6 +48,7 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from .conftest import make_embargo_case_with_actor
 
 _TRACKING = "Tracked by #3913 (manager-side relay) and #3915 (participant side, replay); Concern #3892, ADR-0113."
+_TRACKING_3918 = "Tracked by the Tasks the #3918 planning PR opened; Concern #3918, ADR-0113."
 
 MANAGER = "https://example.org/users/coord"
 PROPOSER = "https://example.org/users/vendor"
@@ -250,3 +253,235 @@ def test_revision_invite_to_a_signatory_succeeds_and_changes_nothing(
 
     assert verdict.disposition is HandlerDisposition.APPLIED
     assert _pec_of(dl, case_id, OTHER_A) is PEC.SIGNATORY
+
+
+def _unbound_case(
+    case_id: str, *, store_actor: str, participants: list[str]
+) -> tuple[SqliteDataLayer, as_EmbargoEvent]:
+    """Case at ``EM.NONE`` with no embargo, plus a first proposal."""
+    dl, _ = _active_case_with_revision(
+        case_id, store_actor=store_actor, participants=participants
+    )
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    case.current_status.em.state = EM.NONE
+    case.active_embargo = None
+    case.proposed_embargoes = []
+    dl.save(case)
+    first = as_EmbargoEvent(
+        id_=f"{case_id}/embargo_events/first",
+        content="First terms",
+        context=case_id,
+        end_time=days_from_now_utc(45),
+    )
+    dl.create(first)
+    return dl, first
+
+
+def _deadline_of(dl: SqliteDataLayer, case_id: str, actor_id: str):
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    participant = cast(
+        CaseParticipant, dl.read(case.actor_participant_index[actor_id])
+    )
+    return participant.invite_rsvp_deadline
+
+
+def _relayed_invites(dl: SqliteDataLayer) -> list[VultronActivity]:
+    return [
+        a
+        for a in (cast(VultronActivity, dl.read(i)) for i in dl.outbox_list())
+        if a.type_ == "Invite"
+    ]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "EP-09-001: the CASE_MANAGER does not move the canonical case to "
+        "EM.PROPOSED on a received first proposal. " + _TRACKING_3918
+    ),
+)
+@pytest.mark.spec("EP-09-001")
+@pytest.mark.spec("EMB-01-001")
+def test_case_manager_moves_first_proposal_to_proposed(make_payload):
+    """The Participant receiving EP is the CASE_MANAGER: NONE → PROPOSED."""
+    case_id = "https://example.org/cases/relay-first"
+    dl, first = _unbound_case(
+        case_id, store_actor=MANAGER, participants=[PROPOSER]
+    )
+    proposal = em_propose_embargo_activity(
+        first,
+        context=case_id,
+        actor=PROPOSER,
+        to=[MANAGER],
+        id_=f"{case_id}/embargo_proposals/first",
+    )
+
+    _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
+
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    assert case.current_status.em.state == EM.PROPOSED
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-28-012: no relayed Invite exists yet, so none carries the "
+        "CASE_MANAGER-stamped end_time. " + _TRACKING_3918
+    ),
+)
+@pytest.mark.spec("CM-28-012")
+def test_relayed_invites_carry_the_managers_rsvp_deadline(make_payload):
+    """Each relayed Invite has end_time = its own published + the window."""
+    case_id = "https://example.org/cases/relay-deadline-wire"
+    dl, revision = _active_case_with_revision(
+        case_id, store_actor=MANAGER, participants=[PROPOSER, OTHER_A]
+    )
+    proposal = em_propose_embargo_activity(
+        revision,
+        context=case_id,
+        actor=PROPOSER,
+        to=[MANAGER],
+        id_=f"{case_id}/embargo_proposals/revision",
+    )
+
+    _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
+
+    relayed = _relayed_invites(dl)
+    assert relayed, "no Invite was relayed"
+    for invite in relayed:
+        assert invite.published is not None
+        assert invite.end_time is not None
+        assert invite.end_time > invite.published
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-28-013: the RSVP deadline is written at receipt in every store, "
+        "not at the CASE_MANAGER's commit of the relayed Invite. "
+        + _TRACKING_3918
+    ),
+)
+@pytest.mark.spec("CM-28-013")
+def test_manager_stores_invitee_deadline_at_its_commit(make_payload):
+    """The invitee's deadline appears in the manager's store after the relay."""
+    case_id = "https://example.org/cases/relay-deadline-store"
+    dl, revision = _active_case_with_revision(
+        case_id, store_actor=MANAGER, participants=[PROPOSER, OTHER_A]
+    )
+    proposal = em_propose_embargo_activity(
+        revision,
+        context=case_id,
+        actor=PROPOSER,
+        to=[MANAGER],
+        id_=f"{case_id}/embargo_proposals/revision",
+    )
+
+    _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
+
+    assert _deadline_of(dl, case_id, OTHER_A) is not None
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-28-013: a participant derives and stores an RSVP deadline on "
+        "receipt of a relayed Invite. " + _TRACKING_3918
+    ),
+)
+@pytest.mark.spec("CM-28-013")
+@pytest.mark.spec("EP-09-003")
+def test_participant_stores_no_deadline_on_receipt(make_payload):
+    """A relayed Invite is stored; the deadline arrives by replay, not receipt."""
+    case_id = "https://example.org/cases/relay-deadline-replica"
+    dl, revision = _active_case_with_revision(
+        case_id, store_actor=OTHER_A, participants=[PROPOSER, OTHER_A]
+    )
+    relayed = em_propose_embargo_activity(
+        revision,
+        context=case_id,
+        actor=MANAGER,
+        attributed_to=PROPOSER,
+        to=[OTHER_A],
+        id_=f"{case_id}/embargo_invites/other-a",
+    )
+
+    _deliver(dl, relayed, make_payload, receiving_actor_id=OTHER_A)
+
+    assert _deadline_of(dl, case_id, OTHER_A) is None
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "EP-09-010: resolve_invitee_id accepts a multi-recipient Invite and "
+        "picks the receiving actor. " + _TRACKING_3918
+    ),
+)
+@pytest.mark.spec("EP-09-010")
+def test_invite_with_several_recipients_is_refused(make_payload):
+    """The invitee is the sole ``to`` recipient; several is a misrouting."""
+    case_id = "https://example.org/cases/relay-two-recipients"
+    dl, revision = _active_case_with_revision(
+        case_id, store_actor=OTHER_A, participants=[PROPOSER, OTHER_A, OTHER_B]
+    )
+    invite = em_propose_embargo_activity(
+        revision,
+        context=case_id,
+        actor=MANAGER,
+        attributed_to=PROPOSER,
+        to=[OTHER_A, OTHER_B],
+        id_=f"{case_id}/embargo_invites/pair",
+    )
+
+    result = _deliver(dl, invite, make_payload, receiving_actor_id=OTHER_A)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "recipient" in (result.reason or "").lower()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "EP-09-010: resolve_invitee_id falls back to the receiving actor when "
+        "the Invite names no recipient. " + _TRACKING_3918
+    ),
+)
+@pytest.mark.spec("EP-09-010")
+def test_invite_with_no_recipient_is_refused(make_payload):
+    """No ``to`` recipient means no invitee; refuse rather than guess."""
+    case_id = "https://example.org/cases/relay-no-recipient"
+    dl, revision = _active_case_with_revision(
+        case_id, store_actor=OTHER_A, participants=[PROPOSER, OTHER_A]
+    )
+    invite = em_propose_embargo_activity(
+        revision,
+        context=case_id,
+        actor=MANAGER,
+        attributed_to=PROPOSER,
+        to=[],
+        id_=f"{case_id}/embargo_invites/nobody",
+    )
+
+    result = _deliver(dl, invite, make_payload, receiving_actor_id=OTHER_A)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "recipient" in (result.reason or "").lower()
+
+
+@pytest.mark.spec("EP-09-009")
+def test_no_embargo_acknowledgement_message_exists():
+    """The CASE_MANAGER's commit is the EK; no ack semantic or pattern exists."""
+    from vultron.core.models.events.base import MessageSemantics
+    from vultron.wire.as2.extractor import _instances
+
+    ack_semantics = [
+        m.name
+        for m in MessageSemantics
+        if "ACK" in m.name and "EMBARGO" in m.name
+    ]
+    assert ack_semantics == []
+    ack_patterns = [
+        name for name in dir(_instances) if "Ack" in name and "Embargo" in name
+    ]
+    assert ack_patterns == []
