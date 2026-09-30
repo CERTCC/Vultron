@@ -13,6 +13,7 @@ related_notes:
   - notes/stub-objects.md
   - notes/embargo-lifecycle.md
   - notes/embargo-default-semantics.md
+  - notes/case-communication-model.md
   - notes/message-type-reference.md
 relevant_packages:
   - transitions
@@ -140,9 +141,41 @@ costs: a rejected revision stranded every signatory (no trigger restores
 implemented); `embargo_adherence` read false for participants still bound by A
 and still receiving embargoed content, because the gate reads the list and not
 the scalar; the proposer lapsed too; and the owner's own EJ recorded the owner
-as `DECLINED`. The cascade also ran only in the proposer's store, since no
-received path drives a replica's EM to `REVISE`. Treat any code that changes a
-participant's consent inside a *proposal* path as a defect.
+as `DECLINED`. The cascade also ran only in the proposer's store, because at the
+time no received path moved any other store's EM to `REVISE` (#3892; closed by
+the relay in EP-09 / ADR-0113, under which the CASE_MANAGER moves the canonical
+case and replicas replay it). Treat any code that changes a participant's
+consent inside a *proposal* path as a defect.
+
+### A Revision Invite Asks a Signatory; It Does Not Re-Invite Them
+
+The CASE_MANAGER relays every revision proposal to every participant except the
+proposer as an `Invite(EmbargoEvent)` (EP-09-002; see `embargo-lifecycle.md`
+§ "Revision Negotiation Relays Through the CASE_MANAGER"). For a participant not
+yet bound (`UNBOUND`, `LAPSED`, `DECLINED`) that Invite is an invitation into the
+revised terms and `INVITE` applies. For a `SIGNATORY` it is a question about
+terms they are not yet bound by, and it changes **nothing** in the consent state
+(EP-09-004): `INVITE` is illegal from `SIGNATORY` (CM-18-003), and a proposal
+changes no consent (EP-05-002). Their answer lands in `accepted_embargo_ids`
+only, exactly as the table above says. A receive tree that applies `INVITE`
+unconditionally therefore faults on precisely the participants a revision most
+concerns. Under EP-09-003 the participant's receive tree writes no consent at
+all; the `INVITE` write belongs to the CASE_MANAGER's commit of the Invite
+emission and to the replay node that reconstructs it, and *that* is where the
+state check lives.
+
+Two further rules from the same decision matter to consent:
+
+- **A participant writes no consent on receipt of an Invite** (EP-09-003). It
+  stores the Invite and answers the CASE_MANAGER; the CASE_MANAGER's commit of
+  the answer is what moves consent, and the replica learns it from the ledger.
+  An `Announce(CaseLedgerEntry)` carrying a proposal or an Invite never asks a
+  participant to answer anything.
+- **The owner MAY decide without waiting and SHOULD wait to gauge consensus**
+  (EP-09-005, EP-09-006). The Invites are not a vote; they gather the consent
+  records that the EP-05-001 activation cascade reads, which is why they are
+  sent even though the owner may act by fiat. No quorum or voting rule is
+  defined at the protocol level — the waiting policy is the actor's.
 
 ---
 

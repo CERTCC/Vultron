@@ -5,9 +5,12 @@ description: >
   Canonical communication model for post-case-creation participant messaging:
   all participant messages route through the CASE_MANAGER exclusively, and all
   state updates propagate via CaseLedgerEntry broadcast. Captures the routing
-  rule, its rationale, common antipatterns, and BT implementation guidance.
+  rule, its rationale, common antipatterns, BT implementation guidance, and the
+  embargo revision relay (EP-09, ADR-0113): ledger entries carry state to
+  replicas but never set a parse-and-respond expectation.
 related_specs:
   - specs/architecture.yaml
+  - specs/embargo-policy.yaml
   - specs/participant-case-replica.yaml
   - specs/sync-ledger-replication.yaml
   - specs/case-ledger-processing.yaml
@@ -17,6 +20,9 @@ related_specs:
 related_notes:
   - notes/sync-ledger-replication.md
   - notes/case-ledger-authority.md
+  - notes/embargo-lifecycle.md
+  - notes/participant-embargo-consent.md
+  - notes/embargo-default-semantics.md
   - notes/event-driven-control-flow.md
   - notes/participant-case-replica.md
   - notes/fv-demo.md
@@ -291,6 +297,47 @@ not exist: the Activity is sent directly by the requesting participant, with
 
 ---
 
+## Embargo Revision Relay: the Ledger Carries State, It Never Asks (EP-09, ADR-0113)
+
+The case Invite above is one instance of a general shape, and the embargo
+revision is the second. A participant addresses its revision proposal to the
+CASE_MANAGER only (PCR-08-001). The CASE_MANAGER adjudicates it, moves the
+canonical case to `EM.REVISE`, commits the proposal, and *then* relays it: one
+`Invite(EmbargoEvent)` per participant except the proposer, `actor` the
+CASE_MANAGER, `attributedTo` the proposer (CM-24), each emission committed.
+Participants answer the Invite addressed to them, to the CASE_MANAGER; the
+CASE_MANAGER commits each answer; the owner's answer also decides the embargo.
+Replicas reconstruct every step from the ledger (RSH-08-004).
+
+```text
+Participant P sends Invite(EmbargoEvent B) → CASE_MANAGER
+  CASE_MANAGER: EM ACTIVE → REVISE, commit proposal      → Announce to all
+  CASE_MANAGER: Invite(B) → each participant ≠ P, commit → Announce to all
+Each participant Q answers Accept/Reject(Invite(B))     → CASE_MANAGER
+  CASE_MANAGER: record Q's consent, commit               → Announce to all
+Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
+  CASE_MANAGER: EC activates B / EJ keeps A, commit      → Announce to all
+```
+
+The rule this pins down, because it kept getting mixed up: **an
+`Announce(CaseLedgerEntry)` is a channel for case state, not a protocol
+interaction.** A participant that sees a proposal or an Invite *inside a ledger
+entry* is being told the case's state; it is not being asked anything, and it
+answers only an Invite addressed to it (EP-09-003). Conversely, a non-manager
+that receives a peer's proposal *directly* is seeing a misrouting: it stores the
+activity and writes nothing (RSH-08-003). Neither path gets parse-and-respond
+handling. The protocol interactions the behavioural specs define (EV/EC/EJ)
+still happen — relayed — and the ledger records them; it does not replace them.
+
+The owner MAY decide without waiting for answers and SHOULD wait for some to
+gauge consensus; the protocol defines no quorum (EP-09-005, EP-09-006). The
+Invites still matter under fiat because their answers are the consent records
+the EP-05-001 activation cascade reads. Full write-up:
+`notes/embargo-lifecycle.md` § "Revision Negotiation Relays Through the
+CASE_MANAGER".
+
+---
+
 ## Delegated-Message Pattern
 
 Some case-scoped Activities are logically initiated by a participant but MUST
@@ -343,6 +390,7 @@ and ownership-transfer triggers still run the delegated emit locally.
 |---|---|
 | `SvcInviteActorToCaseUseCase` | ✅ uses `_prepare_delegated_context()` |
 | `SvcOfferCaseOwnershipTransferUseCase` | ✅ fixed in #2173 |
+| CASE_MANAGER received revision-Invite tree (EP-09-002) | planned (ADR-0113) — a *received*-side delegated emit, as CM-24-004 allows: relays `Invite(EmbargoEvent)` to every participant except the proposer with `attributed_to=proposer`, committed in the emitting tree |
 | Other trigger use cases | audit complete — no other delegated-emit callsites |
 
 ### Shared-Helper Requirement (CM-24-005)
