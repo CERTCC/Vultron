@@ -201,6 +201,10 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
         MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
         MessageSemantics.VALIDATE_REPORT,
+        # UPDATE_CASE broadcasts Announce(VulnerabilityCase) to the
+        # participants (CM-06-001); the adapter builds and seals it
+        # (VM-08-003).
+        MessageSemantics.UPDATE_CASE,
     }
 )
 

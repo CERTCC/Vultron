@@ -404,6 +404,179 @@ class TestAnnounceVulnerabilityCase:
         assert dl.read(activity_id) is not None
 
 
+class TestCaseOnTheWireCarriesItsParticipants:
+    """CBT-05-005 / CBT-01-007: a case put on the wire carries its participants
+    (and reports) inline, not as ids.
+
+    The recipient of a bootstrap ``Create`` or ``Announce`` stores each embedded
+    participant as its own record; with ids alone it has no participant at
+    ``RM.RECEIVED`` to validate and no CASE_MANAGER participant to route its
+    reply to — the vendor's validate-report trigger failed with "no routable
+    recipients" and "RM.START -> RM.VALID" in the fcvcv demo once the outbox
+    stopped expanding them at delivery time (#3923).
+    """
+
+    @staticmethod
+    def _case_with_participant_ids(dl):
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            as_VulnerabilityReport,
+        )
+
+        case_id = "https://example.org/cases/wire-participants"
+        manager = CaseParticipant(
+            context=case_id,
+            attributed_to=_ACTOR,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        vendor = CaseParticipant(
+            context=case_id, attributed_to=_PEER, case_roles=[CVDRole.VENDOR]
+        )
+        report = as_VulnerabilityReport(name="CVE-2025-030", content="PoC")
+        for obj in (manager, vendor, report):
+            dl.create(obj)
+        case = as_VulnerabilityCase(
+            id_=case_id,
+            name="CVE-2025-030",
+            attributed_to=_ACTOR,
+            case_participants=[str(manager.id_), str(vendor.id_)],
+            actor_participant_index={
+                _ACTOR: str(manager.id_),
+                _PEER: str(vendor.id_),
+            },
+            vulnerability_reports=[str(report.id_)],
+        )
+        dl.create(case)
+        return case, {str(manager.id_), str(vendor.id_)}, str(report.id_)
+
+    @staticmethod
+    def _sealed_case(dl, activity_id):
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+        body = read_sealed_body_dict(dl, activity_id)
+        assert body is not None
+        return body["object"]
+
+    @pytest.mark.spec("CBT-05-005")
+    @pytest.mark.spec("CBT-01-007")
+    def test_create_case_carries_participants_and_reports(self, adapter, dl):
+        case, participant_ids, report_id = self._case_with_participant_ids(dl)
+
+        activity_id, _ = adapter.create_case(
+            case_id=case.id_, actor=_ACTOR, to=[_PEER]
+        )
+
+        wire_case = self._sealed_case(dl, activity_id)
+        carried = wire_case["caseParticipants"]
+        assert all(
+            isinstance(p, dict) and p["type"] == "CaseParticipant"
+            for p in carried
+        ), carried
+        assert {p["id"] for p in carried} == participant_ids
+        [report] = wire_case["vulnerabilityReports"]
+        assert report["id"] == report_id and report["content"] == "PoC"
+
+    @pytest.mark.spec("CBT-01-007")
+    def test_announce_carries_participants(self, adapter, dl):
+        case, participant_ids, _ = self._case_with_participant_ids(dl)
+
+        activity_id = adapter.announce_vulnerability_case(
+            case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
+        )
+
+        carried = self._sealed_case(dl, activity_id)["caseParticipants"]
+        assert {p["id"] for p in carried} == participant_ids
+        assert all(p["type"] == "CaseParticipant" for p in carried)
+
+    def test_the_stored_case_still_holds_ids(self, adapter, dl):
+        """Carrying is done on a copy: the store keeps its reference shape."""
+        case, participant_ids, _ = self._case_with_participant_ids(dl)
+
+        adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+
+        stored = dl.read(case.id_)
+        assert {
+            p if isinstance(p, str) else p.id_
+            for p in stored.case_participants
+        } == participant_ids
+
+    def test_a_participant_the_store_lacks_stays_an_id(
+        self, adapter, dl, caplog
+    ):
+        case = as_VulnerabilityCase(
+            name="CVE-2025-031",
+            attributed_to=_ACTOR,
+            case_participants=["https://example.org/participants/absent"],
+        )
+        dl.create(case)
+
+        with caplog.at_level("WARNING"):
+            activity_id, _ = adapter.create_case(
+                case_id=case.id_, actor=_ACTOR, to=[_PEER]
+            )
+
+        assert self._sealed_case(dl, activity_id)["caseParticipants"] == [
+            "https://example.org/participants/absent"
+        ]
+        assert any(
+            "cannot be carried inline" in r.message for r in caplog.records
+        )
+
+
+class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
+    """CBT-01-007: the Announce embeds each report the case names, or is not
+    sent.  The sealed body is delivered as built, so a bare reference here
+    would reach a recipient that cannot resolve it."""
+
+    def _case_naming(self, dl, report_ids):
+        case = as_VulnerabilityCase(name="CVE-2025-020")
+        case.vulnerability_reports.extend(report_ids)
+        dl.create(case)
+        return case
+
+    @pytest.mark.spec("CBT-01-007")
+    def test_a_report_the_store_lacks_refuses_the_announce(self, adapter, dl):
+        case = self._case_naming(
+            dl, ["https://example.org/reports/not-in-this-store"]
+        )
+
+        with pytest.raises(VultronNotFoundError):
+            adapter.announce_vulnerability_case(
+                case_id=case.id_,
+                actor=_ACTOR,
+                context_id=_CONTEXT_ID,
+                to=[_PEER],
+            )
+
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CBT-01-007")
+    def test_a_held_report_is_embedded_inline(self, adapter, dl):
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            as_VulnerabilityReport,
+        )
+
+        report = as_VulnerabilityReport(name="CVE-2025-020", content="PoC")
+        dl.create(report)
+        case = self._case_naming(dl, [report.id_])
+
+        activity_id = adapter.announce_vulnerability_case(
+            case_id=case.id_,
+            actor=_ACTOR,
+            context_id=_CONTEXT_ID,
+            to=[_PEER],
+        )
+
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+        body = read_sealed_body_dict(dl, activity_id)
+        assert body is not None
+        [embedded] = body["object"]["vulnerabilityReports"]
+        assert embedded["id"] == report.id_
+        assert embedded["content"] == "PoC"
+
+
 class TestRejectCaseProposal:
     """CP-05-004: the case actor service's refusal of a proposal."""
 

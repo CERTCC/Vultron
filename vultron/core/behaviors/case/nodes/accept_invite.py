@@ -31,10 +31,6 @@ from vultron.core.behaviors.sync.commit_tree import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
-    _snapshot_with_context,
-)
-from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +52,10 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
     backfilled entries it extends (SYNC-14 forward gap) — #2898.
 
     Uses ``trigger_activity_factory.add_participant_to_case()`` to build and
-    persist the activity.  The activity's ``payloadSnapshot`` is built with
-    ``context=case_id`` injected so ``_validate_canonical_entry`` can verify
-    the ``("Add", "CaseParticipant")`` signature (CLP-07-005).
+    persist the activity.  The activity's ``payloadSnapshot`` is the blob the
+    port returned, unchanged: the factory sets ``context`` to the case URI, so
+    ``_validate_canonical_entry`` can verify the ``("Add", "CaseParticipant")``
+    signature without core patching anything (CLP-07-005, VM-08-003).
 
     Fan-out recipients are resolved from ``case.actor_participant_index`` (HTTP
     actor URLs), excluding the newly added invitee.  The index keys are always
@@ -125,29 +122,6 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
             if actor_url != self.invitee_id
         ]
 
-    def _build_snapshot(self, activity_id: str) -> dict:
-        stored = self.datalayer.read(activity_id)  # type: ignore[union-attr]
-        if stored is None or not hasattr(stored, "model_dump"):
-            raise VultronValidationError(
-                f"Add(CaseParticipant) activity '{activity_id}' not found in"
-                " DataLayer; cannot build payload snapshot (ARCH-15-001)"
-            )
-        # ARCH-20-001 permits this ``by_alias=True``: the subject is the stored
-        # ``Add(CaseParticipant)`` activity read straight back out of the
-        # DataLayer, which hands it back already wire-shaped, and the result is a
-        # ledger payload snapshot — AS2-shaped by definition (CLP-07-001).  No
-        # wire shape is being synthesised for a core-branch object here.
-        raw: dict = stored.model_dump(
-            mode="json",
-            by_alias=True,
-            serialize_as_any=True,
-            exclude_none=True,
-        )
-        snapshot: dict = _snapshot_with_context(raw, self.case_id)
-        if not snapshot.get("actor") and self.actor_id:
-            snapshot = {**snapshot, "actor": self.actor_id}
-        return snapshot
-
     def _call_factory(self) -> tuple[str, str]:
         """Build Add(CaseParticipant) activity and commit the canonical ledger entry."""
         assert self.datalayer is not None
@@ -164,13 +138,18 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
         if failure is not None:
             raise RuntimeError(f"{self.name}: case '{self.case_id}' not found")
         others = self._resolve_actor_recipients(case)
-        activity_id = self.trigger_activity_factory.add_participant_to_case(
-            participant_id=participant_id,
-            case_id=self.case_id,
-            actor=self.actor_id,
-            to=others or None,
+        activity_id, activity_blob = (
+            self.trigger_activity_factory.add_participant_to_case(
+                participant_id=participant_id,
+                case_id=self.case_id,
+                actor=self.actor_id,
+                to=others or None,
+            )
         )
-        snapshot = self._build_snapshot(activity_id)
+        # The recorded snapshot is the exact blob the port returned; the
+        # factory owns its completeness and the outbox delivers the same text
+        # (VM-08-003).
+        snapshot: dict = json.loads(activity_blob)
         commit_tree = create_commit_log_entry_tree(
             case_id=self.case_id,
             object_id=activity_id,
@@ -185,7 +164,7 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
                 f"{self.name}: ledger commit failed for"
                 f" add_case_participant/{participant_id}"
             )
-        return activity_id, json.dumps(snapshot)
+        return activity_id, activity_blob
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         participant_id = _as_id(self._new_invite_participant_bb)

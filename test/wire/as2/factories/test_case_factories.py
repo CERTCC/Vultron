@@ -632,3 +632,60 @@ def test_all_case_factories_importable_from_package():
         rm_reject_invite_to_case_activity,
         update_case_activity,
     )
+
+
+# ---------------------------------------------------------------------------
+# CM-17-002: the Invite stub is enriched from a case whose embargo is inline
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CM-17-002")
+def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
+    sample_actor,
+):
+    """A case seeded from a sealed Announce carries ``active_embargo`` as the
+    ``EmbargoEvent`` object, not its id.  The stub must still name the embargo
+    by id and carry its end time — and needs no separate ``embargo_obj`` when
+    the case already holds the object."""
+    from vultron.core.models._helpers import days_from_now_utc
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.core.models.dimensions import EmDimension
+    from vultron.core.models.embargo_event import EmbargoEvent
+    from vultron.core.states.em import EM
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseStub,
+    )
+
+    case_id = "https://example.org/cases/inline-embargo"
+    embargo = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="CVE-2025-010",
+        attributed_to="https://example.org/actors/coordinator",
+        case_statuses=[
+            CaseStatus(
+                context=case_id,
+                attributed_to="https://example.org/actors/coordinator",
+                em=EmDimension(state=EM.ACTIVE),
+            )
+        ],
+        active_embargo=embargo,
+    )
+
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor,
+        target=case,
+        actor="https://example.org/actors/coordinator",
+    )
+
+    stub = invite.target
+    assert isinstance(stub, as_VulnerabilityCaseStub)
+    assert stub.id_ == case_id
+    assert isinstance(stub.active_embargo, as_EmbargoEvent)
+    assert stub.active_embargo.id_ == embargo.id_
+    assert stub.active_embargo.end_time is not None
+    assert isinstance(stub.case_status, as_CaseStatus)
+    assert stub.case_status.em is not None
+    assert stub.case_status.em.state == EM.ACTIVE

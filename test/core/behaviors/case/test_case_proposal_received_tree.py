@@ -39,6 +39,9 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
@@ -179,7 +182,9 @@ class TestWriteCreateCaseMarkerNode:
         client.accept_activity_id = accept_id
 
         result = BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute_with_setup(tree=tree, actor_id=actor_id)
         return result.status
 
@@ -422,7 +427,10 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
         event = self._make_event(make_payload)
 
         CreateCaseProposalReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -452,7 +460,10 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             return_value=py_trees.common.Status.FAILURE,
         ):
             CreateCaseProposalReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -485,7 +496,10 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             return_value=py_trees.common.Status.FAILURE,
         ):
             CreateCaseProposalReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -532,7 +546,10 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
 
         with patch.object(ClearCreateCaseMarkerNode, "update", _skip_delete):
             CreateCaseProposalReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -607,6 +624,7 @@ def _run_full_bt(make_payload, dl: SqliteDataLayer, actor_config=None) -> None:
         event,
         actor_config=actor_config,
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(dl),
     ).execute()
 
 
@@ -1428,7 +1446,10 @@ class TestADR0041InlineParticipantsPayload:
 
         with patch.object(ClearCreateCaseMarkerNode, "update", _skip_delete):
             CreateCaseProposalReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -1474,7 +1495,10 @@ class TestADR0041InlineParticipantsPayload:
 
         with patch.object(ClearCreateCaseMarkerNode, "update", _skip_delete):
             CreateCaseProposalReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -2459,7 +2483,10 @@ class TestEP04SenderProposalAtCaseCreation:
             make_payload, sender_days=sender_days, **terms_kwargs
         )
         CreateCaseProposalReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
         (case,) = [
             c
@@ -2659,6 +2686,7 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
         dl,
         event,
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
     ).execute()
 
@@ -2717,6 +2745,7 @@ def test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
