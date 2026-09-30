@@ -69,7 +69,7 @@ or `IMPROVE`:
 
 1. Apply the fix (edit files as needed).
 2. Do not commit yet — batch all fixes, then commit once at the end of this phase.
-3. After all fixes are applied: `uv run black <changed files>` then commit:
+3. After all fixes are applied: `uv run ruff format` then commit:
 
    ```text
    fix(pr-execute): address <N> findings from triage
@@ -236,7 +236,7 @@ Resolution Rules". Read both sides before editing. Never resolve by
 wholesale `--ours`/`--theirs` on a file you have not read.
 
 ```bash
-uv run black <changed files>
+uv run ruff format
 git add <resolved files>
 git commit --no-edit
 ```

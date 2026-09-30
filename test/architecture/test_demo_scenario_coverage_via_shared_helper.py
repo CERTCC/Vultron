@@ -27,7 +27,7 @@ to touch most of them and why their timeouts drifted (Concern #3042).
 The forbidden names are the two primitives the spec itself lists.  A direct
 call, an import (however aliased) and any other reference to the name — a
 bound alias, an attribute read off the polling module, a ``functools.partial``
-argument — are all flagged: each is how the call gets there, and flake8 would
+argument — are all flagged: each is how the call gets there, and a linter would
 only report the import once it went unused.
 
 Spec: ``specs/multi-actor-demo.yaml`` DEMOMA-23-005, DEMOMA-23-006, DEMOMA-23-007.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # run-if-changed.sh — run a command only if its relevant inputs changed since
-# the last successful run. Lets black/flake8/mypy/pyright be invoked from
+# the last successful run. Lets ruff/mypy/pyright be invoked from
 # several places (format-code, run-linters, the pre-commit hook) without
 # re-doing identical whole-tree work when nothing relevant changed.
 #
@@ -18,7 +18,7 @@
 #
 # The command runs when the fingerprint differs from the last success (or when
 # the fingerprint can't be computed — e.g. outside a git repo). On success the
-# post-run fingerprint is stored, so mutating tools like black stabilize after
+# post-run fingerprint is stored, so mutating tools like ruff format stabilize after
 # one run. Cache lives in .git/ (per-worktree, never committed).
 
 set -uo pipefail
@@ -68,7 +68,7 @@ fi
 status=$?
 
 if [ "$status" -eq 0 ]; then
-  # Recompute after the run so mutating tools (black) store their result state.
+  # Recompute after the run so mutating tools (ruff format) store their result state.
   post="$(fingerprint)"
   if [ -n "$post" ]; then
     mkdir -p "$cache_dir"

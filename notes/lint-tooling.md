@@ -6,7 +6,8 @@ description: >
   linter and formatter, family-level `select` with a short annotated `ignore`,
   and `RUF100` as the mechanism that keeps baselined findings from becoming
   permanent. Records what belongs in an `ignore` entry, how to tighten the
-  ruleset, and which pitfalls the flake8-era setup left behind.
+  ruleset, which pitfalls the flake8-era setup left behind, and how the commit
+  loop changed when ruff replaced it.
 related_specs:
   - specs/tech-stack.yaml
   - specs/code-style.yaml
@@ -17,15 +18,7 @@ related_notes:
 
 # Lint Tooling Policy — Ruff Configuration, Exclusions, and Baselining
 
-> **Status: decided, not yet built.** ADR-0094 is accepted, but the configuration
-> this note describes lands with **#3352**. Until it does, `ruff` is not installed,
-> there is no `[tool.ruff]` table in `pyproject.toml`, and flake8, black and isort
-> are still the live gate. Read what follows as the policy that governs the ruff
-> config once it exists — not as a description of the current tree.
-> [notes/devcontainer-tooling.md](devcontainer-tooling.md) remains authoritative
-> for today's commit loop.
-
-Ruff is to be the sole Python linter and formatter (IMPLTS-07-017). `mypy` and
+Ruff is the sole Python linter and formatter (IMPLTS-07-017). `mypy` and
 `pyright` remain separate type-checking jobs. Black, flake8 and isort are retired
 by ADR-0094 and MUST NOT be reintroduced alongside ruff — leaving a superseded
 linter in place as a fallback recreates the duplicate-gate problem that decision
@@ -61,10 +54,11 @@ names a package is narrowing the gate by accident.
 When you change scope, verify with:
 
 ```bash
-uv run ruff check --show-files | wc -l
+uv run ruff check --show-files > /tmp/ruff-files-after.txt
 ```
 
-**Not** `--show-settings`. See the two silent failures below for why.
+and diff that list against the one from before the change. **Not**
+`--show-settings`. See the two silent failures below for why.
 
 ## Two scoping mechanisms that fail silently
 
@@ -106,6 +100,15 @@ breaks a requirement:
 | `target-version` | IMPLTS-01-001, the Python floor |
 | `[tool.ruff.lint.mccabe] max-complexity` | IMPLTS-07-008, the complexity gate, formerly in `.flake8` |
 | `per-file-ignores` for `__init__.py` | the `.flake8` re-export exemption |
+
+`per-file-ignores` also holds a few **permanent** exemptions, each justified in
+the comment beside it: `S311` (non-cryptographic `random`) for the `vultron/bt/`
+simulator, the demo fuzzers and `test/`, which draw random outcomes by design;
+and `S603`/`S607` (subprocess with an argv list, resolved on `PATH`) for the dev
+tooling in `vultron/metadata/`, `scripts/`, `.agents/` and `test/`. These are
+standing reasons of the kind an `ignore` entry needs, narrowed to the directories
+where they hold. They are not a baseline store — see below for why a file-scoped
+list cannot be one.
 
 `C901` is the project's **only** complexity gate. The `PLR09xx` counters
 (arguments, returns, branches, statements) are excluded on purpose: a second,
@@ -154,8 +157,8 @@ future violations too; baselining does not.
 
 ### Exclusions worth knowing about
 
-**`PLC0415` (`import-outside-top-level`) is excluded in the configuration
-that #3352 lands with, and that entry is deleted, not kept — #3949 removes it
+**`PLC0415` (`import-outside-top-level`) is excluded in the configuration that
+issue #3352 landed, and that entry is deleted, not kept — #3949 removes it
 and places the markers, and #3950 drains them.** Its ADR-0094 row was provisional and
 pointed at #3350, which asked whether CS-05-002's "last resort" described the
 design or an aspiration. The planning measurement answered it: hoisting every
@@ -259,30 +262,32 @@ eradication carried by epic #3329, so they add a gate, not a backlog.
 Never tighten by enabling a family. Families are the coarse dial for what is
 already clean; individual rules are the dial for taking on new debt.
 
-## Consequences for the commit loop (once #3352 lands)
+## Consequences for the commit loop
 
-Ruff will make the whole-tree lint and format gate roughly a second, which changes
-three habits the flake8 era requires:
+Ruff makes the whole-tree lint and format gate roughly a second, which changed
+the habits the flake8 era required:
 
-- The pre-commit ruff hook is to be invoked **directly**, not through
+- The pre-commit ruff hook is invoked **directly**, not through
   `.agents/skills/shared/run-if-changed.sh`. Fingerprint memoization (#3153)
   exists to avoid repeating expensive whole-tree work; at this speed the cache
   lookup costs a meaningful fraction of the work it is avoiding, so the wrapper
   stops paying for itself. `run-if-changed.sh` stays in place for `mypy` and
   `pyright`, which remain the genuinely slow checks.
 - The ten-minute `git commit` timeout that
-  [notes/devcontainer-tooling.md](devcontainer-tooling.md) prescribes exists
-  because the flake8 hook lints all of `vultron/` and `test/` regardless of what is
-  staged. Retiring that hook removes the cause, so #3352 (AC-11) updates that note
-  to say what remains instead of leaving a dead workaround prescribed. Until then
-  the timeout is still needed.
+  [notes/devcontainer-tooling.md](devcontainer-tooling.md) used to prescribe
+  existed because the flake8 hook linted all of `vultron/` and `test/` regardless
+  of what was staged. The ruff hook lints only the staged files, so that cause is
+  gone; that note records what remains.
 - `ruff check` is cheap enough to run repeatedly while editing, rather than once
   before committing.
-- **Do not run a whole-tree `ruff check --fix`** to clean up as you go: it will
-  autofix files your change has nothing to do with, and a mechanical rewrite
-  riding along in an unrelated diff is the drift that bit #3244. This is the one
-  place the no-paths rule above does not settle the question, because it governs
-  *gates* — the CI job, the hook, the skills — and `--fix` is not a gate. For an
-  interactive cleanup, name the files you touched (`ruff check --fix <paths>`) and
-  understand that you are deliberately narrowing scope for that one run. Never
-  encode a path into anything a gate invokes.
+- **Read `ruff check` before you `--fix`.** CI and the hook hold the tree at zero
+  findings, so a bare `ruff check --fix` normally rewrites only the files your
+  change touched — which is why `run-linters` and `format-code` run it bare. When
+  `ruff check` reports a finding in a file you did **not** touch (a ruff upgrade,
+  a newly selected rule, a branch behind `main`), do not `--fix` the whole tree:
+  a mechanical rewrite riding along in an unrelated diff is the drift that bit
+  #3244. Name the files you touched (`ruff check --fix <paths>`) for that one run,
+  and take the rest to its own PR. This is the one place the no-paths rule above
+  does not settle the question, because it governs *gates* — the CI job, the
+  hook, the skills' checks — and `--fix` is not a gate. Never encode a path into
+  anything a gate invokes.

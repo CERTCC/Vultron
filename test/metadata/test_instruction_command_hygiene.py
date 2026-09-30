@@ -59,7 +59,7 @@ _REPO_ROOT = Path(__file__).parents[2]
 _GATE_COMMANDS = (
     "pytest",
     "mkdocs build",
-    "flake8",
+    "ruff",
     "mypy",
     "pyright",
     "markdownlint",
@@ -166,8 +166,8 @@ def test_masking_pipe_regex_matches_the_forms_that_regressed() -> None:
 
     should_not_match = (
         'uv run pytest --tb=short > /tmp/x.log 2>&1; rc=$?; tail -5 /tmp/x.log; echo "exit: $rc"; (exit $rc)',
-        "uv run flake8 vultron/ test/ && uv run mypy && uv run pyright",
-        "uv run black vultron/ test/",
+        "uv run ruff check && uv run mypy && uv run pyright",
+        "uv run ruff format",
         # grep's own status is the intended signal here, not a masked gate.
         'git merge-tree $(git merge-base HEAD main) HEAD main | grep -i "^CONFLICT" || true',
     )

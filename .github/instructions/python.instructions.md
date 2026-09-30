@@ -23,10 +23,10 @@ applyTo: "**/*.py"
 
 ### Formatting, Linting & Static Analysis
 
-- **Black**: Run `black` on Python sources before committing. The project
-  enforces Black formatting via pre-commit hooks.
-- **Linting**: Run `flake8` (and optionally `pylint`) against `vultron/` and
-  `test/` to catch style and simple correctness issues before opening a PR.
+- **Formatting**: Run `uv run ruff format` before committing. The project
+  enforces ruff formatting via a pre-commit hook.
+- **Linting**: Run `uv run ruff check` (no path arguments — the scope lives in
+  `pyproject.toml`) to catch style and correctness issues before opening a PR.
 - **Type Checking**: Use `mypy` or `pyright` for static typing checks. Prefer
   explicit types and avoid `Any` unless justified.
 
@@ -88,7 +88,7 @@ applyTo: "**/*.py"
 ### Dependencies & Tooling
 
 - **Do not introduce new frameworks** without maintainer approval. Use the
-  project's approved tooling (Black, flake8, mypy/pyright, pytest, mkdocs).
+  project's approved tooling (ruff, mypy/pyright, pytest, mkdocs).
 - **Dependency Changes**: When adding packages, update `pyproject.toml` and
   include a brief rationale in the PR.
 
@@ -97,7 +97,7 @@ applyTo: "**/*.py"
 - **Docstrings & Comments**: Document public functions, classes, and ports. 
   Use google-style docstrings. Add comments to explain non-obvious logic or  
   design decisions.
-- **Docs Linting**: Do not run Black on markdown. Use `markdownlint-cli2` for
+- **Docs Linting**: `ruff format` skips markdown. Use `markdownlint-cli2` for
   markdown checks and keep lines under 88 characters where practical.
 
 

@@ -9,9 +9,10 @@ Spec: ``specs/case-proposal.yaml`` CP-01-001 through CP-01-006.
 
 # pyright: reportGeneralTypeIssues=false
 # Rationale: as_CaseProposal narrows several optional base-class fields to
-# required.  Black wraps the Field() calls across multiple lines, making
-# inline pyright-ignore comments unreliable (see notes/codebase-structure.md
-# § "Black Can Invalidate Inline pyright Suppressions on Wrapped Fields").
+# required.  The formatter wraps the Field() calls across multiple lines,
+# making inline pyright-ignore comments unreliable (see
+# notes/codebase-structure-fastapi-patterns.md
+# § "The Formatter Can Invalidate Inline Type-Checker Suppressions").
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

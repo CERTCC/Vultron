@@ -100,7 +100,7 @@ _ACTIVITIES_ROOT = (
 _CLASS_DECL = re.compile(r"^class (\w+Activity)\((as_\w+)\)", re.MULTILINE)
 
 # Every activity class declaration, whatever its bases. Used to prove
-# _CLASS_DECL did not silently skip one (a mixin, or a black-wrapped
+# _CLASS_DECL did not silently skip one (a mixin, or a formatter-wrapped
 # declaration, would not match the single-base form above).
 _ANY_CLASS_DECL = re.compile(r"^class (\w+Activity)\(", re.MULTILINE)
 
@@ -324,7 +324,7 @@ def test_class_verb_map_covers_every_activity_class():
     """Every activity class declaration must land in the map.
 
     ``_CLASS_DECL`` matches only a single ``(as_X)`` base on one physical line.
-    A mixin (``class _FooActivity(as_Create, SomeMixin)``) or a black-wrapped
+    A mixin (``class _FooActivity(as_Create, SomeMixin)``) or a formatter-wrapped
     declaration would not match, dropping that activity from the map — and,
     because an unmapped name is skipped rather than reported, silently
     unchecking every pairing the docs assert for it.  Asserting equality rather

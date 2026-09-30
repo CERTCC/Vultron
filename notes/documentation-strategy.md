@@ -624,7 +624,7 @@ clean signal suppresses the review it replaced (DF-09-009).
 
 Whether a fix is safe to apply in bulk depends on whether it is a deterministic
 substitution or a model rewriting prose, not on how many files are in the target
-set. `markdownlint --fix` and `black` run tree-wide with no threshold because
+set. `markdownlint --fix` and `ruff format` run tree-wide with no threshold because
 their edits are substitutions. An LLM deleting filler "where the sentence
 survives it" or rewriting a sentence for a quadrant's voice carries per-edit
 risk that does not shrink with volume. A file-count guard conflates the two: it
