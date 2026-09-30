@@ -49,6 +49,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
+from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.actor import (
     CoreActor,
@@ -620,6 +621,9 @@ def post_actor_outbox(
     # No clone: the injected DataLayer already is this actor's store.
     actor_dl = cast(Any, dl)
     actor_dl.create(object_to_record(activity))
+    # Seal what was posted: the outbox delivers this body, not a re-read of
+    # the record (VM-08-003).
+    seal_outbound_body(actor_dl, activity)
     actor_dl.outbox_append(activity.id_)
 
     emitter = getattr(request.app.state, "emitter", None)

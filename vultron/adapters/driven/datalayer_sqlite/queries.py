@@ -285,8 +285,10 @@ def find_case_by_report_id(
     """Find a ``VulnerabilityCase`` referencing the given report ID.
 
     Each entry in ``vulnerability_reports`` may be stored as either a
-    plain string ID or a serialised inline object dict (with an ``id_``
-    key).  Both forms are checked.
+    plain string ID or a serialised inline object dict.  A stored row is
+    re-keyed to the wire spelling on write (``_rekey_wire_identity``), so an
+    inline report carries ``id``; ``id_`` is still accepted for rows written
+    before that.  All three forms are checked.
 
     Args:
         dl: The SqliteDataLayer instance.
@@ -314,7 +316,10 @@ def find_case_by_report_id(
         for entry in reports:
             if entry == report_id:
                 return cast(PersistableModel | None, dl._from_row(row))
-            if isinstance(entry, dict) and entry.get("id_") == report_id:
+            if isinstance(entry, dict) and report_id in (
+                entry.get("id"),
+                entry.get("id_"),
+            ):
                 return cast(PersistableModel | None, dl._from_row(row))
     return None
 

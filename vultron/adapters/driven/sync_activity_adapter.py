@@ -33,6 +33,7 @@ See also:
 
 import logging
 
+from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import add_activity_to_outbox
@@ -106,6 +107,7 @@ class SyncActivityAdapter:
             to=to,
         )
         self._dl.save(reject)
+        seal_outbound_body(self._dl, reject)
         # ``self._dl`` selects the queue; *actor_id* is passed for the log label
         # only (see ``add_activity_to_outbox``).  It no longer guards against a
         # shared or differently-scoped DataLayer — there is no unscoped store to
@@ -189,6 +191,7 @@ class SyncActivityAdapter:
             to=to,
         )
         self._dl.save(announce)
+        seal_outbound_body(self._dl, announce)
         add_activity_to_outbox(actor_id, announce.id_, self._dl)
         logger.debug(
             "sync adapter: queued Announce(CaseLedgerEntry) '%s' → %s",

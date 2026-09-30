@@ -129,9 +129,13 @@ _ACTOR_TYPES: frozenset[str] = frozenset(
 ) | {"CoreActor"}
 
 
-def _snapshot_object_type(snapshot: dict[str, Any]) -> str | None:
+def _snapshot_object_type(
+    snapshot: dict[str, Any], case_id: str
+) -> str | None:
     # Invite(Actor, target=Case): object_ is the actor; use target.type so the
     # signature resolves to ('Invite','VulnerabilityCase') not ('Invite','Org').
+    # A target that is the case URI itself names the same thing (see
+    # ``_bare_inline_object_path``), so it resolves the same way.
     obj = snapshot.get("object") or snapshot.get("object_")
     if not isinstance(obj, dict):
         return None
@@ -144,24 +148,38 @@ def _snapshot_object_type(snapshot: dict[str, Any]) -> str | None:
             target_type = target.get("type") or target.get("type_")
             if isinstance(target_type, str) and target_type:
                 return target_type
+        if isinstance(target, str) and target == case_id:
+            return "VulnerabilityCase"
     return object_type
 
 
 def _bare_inline_object_path(
-    value: Any, path: str = _PAYLOAD_SNAPSHOT
+    value: Any, case_id: str, path: str = _PAYLOAD_SNAPSHOT
 ) -> str | None:
+    """Return the path of the first bare-string inline-object value, or ``None``.
+
+    A ``target`` that is the entry's own case URI is not a substitution
+    requiring an out-of-band lookup (CLP-07-006): the entry is *about* that
+    case, every replica holds it, and the factories address a case by its URI
+    (AKM-02-003).  It is therefore accepted at any depth.  Every other bare
+    string in an inline-object slot is refused.
+    """
     if isinstance(value, dict):
         for key, child in value.items():
             child_path = f"{path}.{key}"
             if key in _INLINE_OBJECT_KEYS and isinstance(child, str):
+                if key == "target" and child == case_id:
+                    continue
                 return child_path
-            nested_path = _bare_inline_object_path(child, child_path)
+            nested_path = _bare_inline_object_path(child, case_id, child_path)
             if nested_path is not None:
                 return nested_path
         return None
     if isinstance(value, list):
         for index, item in enumerate(value):
-            nested_path = _bare_inline_object_path(item, f"{path}[{index}]")
+            nested_path = _bare_inline_object_path(
+                item, case_id, f"{path}[{index}]"
+            )
             if nested_path is not None:
                 return nested_path
     return None
@@ -337,10 +355,10 @@ def _validate_canonical_entry(
         )
 
     activity_type = _snapshot_type(payload_snapshot)
-    object_type = _snapshot_object_type(payload_snapshot)
+    object_type = _snapshot_object_type(payload_snapshot, case_id)
     signature = (activity_type or "", object_type or "")
 
-    bare_reference_path = _bare_inline_object_path(payload_snapshot)
+    bare_reference_path = _bare_inline_object_path(payload_snapshot, case_id)
     if bare_reference_path is not None:
         raise VultronCanonicalEntryError(
             f"{event_type}: {bare_reference_path} must be an inline object, "

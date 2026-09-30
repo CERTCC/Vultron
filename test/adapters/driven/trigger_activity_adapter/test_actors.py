@@ -52,6 +52,58 @@ def _make_participant(dl, case_id: str) -> as_CaseParticipant:
     return participant
 
 
+class TestInviteActorToCaseWithInlineEmbargo:
+    """A case seeded from a sealed Announce carries ``active_embargo`` inline.
+
+    ``VulnerabilityCase.inline_required_refs`` names ``active_embargo``, so a
+    stored case may hold the ``EmbargoEvent`` object rather than its id.  The
+    adapter used to hand that object to ``dl.read`` and the Coordinator's
+    invite trigger failed with "expected string or bytes-like object, got
+    'EmbargoEvent'" (fvcv-handoff, #3923).  The stub must still carry the
+    embargo's id and end time (CM-17-002).
+    """
+
+    @pytest.mark.spec("CM-17-002")
+    def test_invite_stub_carries_the_inline_embargo(self, adapter, dl):
+        from vultron.core.models._helpers import days_from_now_utc
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_status import CaseStatus
+        from vultron.core.models.dimensions import EmDimension
+        from vultron.core.models.embargo_event import EmbargoEvent
+        from vultron.core.states.em import EM
+
+        case_id = "https://example.org/cases/case-inline-embargo"
+        embargo = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="CVE-2025-009",
+            attributed_to=_ACTOR,
+            case_statuses=[
+                CaseStatus(
+                    context=case_id,
+                    attributed_to=_ACTOR,
+                    em=EmDimension(state=EM.ACTIVE),
+                )
+            ],
+            active_embargo=embargo,
+        )
+        dl.create(case)
+        stored = dl.read(case_id)
+        assert isinstance(
+            stored.active_embargo, EmbargoEvent
+        ), "precondition: the store hands the embargo back inline"
+
+        _, blob = adapter.invite_actor_to_case(
+            invitee_id=_INVITEE, case_id=case_id, actor=_ACTOR, to=[_INVITEE]
+        )
+
+        target = json.loads(blob)["target"]
+        assert target["id"] == case_id
+        assert target["activeEmbargo"]["id"] == embargo.id_
+        assert target["activeEmbargo"]["endTime"]
+        assert target["caseStatus"]["emState"] == "ACTIVE"
+
+
 class TestInviteActorToCase:
     def test_returns_id_and_dict(self, adapter, dl):
         activity_id, activity_dict = adapter.invite_actor_to_case(
@@ -201,23 +253,28 @@ class TestSuggestActorToCase:
 
 
 class TestAddParticipantToCase:
-    def test_returns_activity_id(self, adapter, dl):
+    def test_returns_id_and_blob(self, adapter, dl):
         case = _make_case(dl)
         participant = _make_participant(dl, case.id_)
 
-        activity_id = adapter.add_participant_to_case(
+        activity_id, blob = adapter.add_participant_to_case(
             participant_id=participant.id_,
             case_id=case.id_,
             actor=_ACTOR,
         )
 
         assert activity_id
+        body = json.loads(blob)
+        assert body["type"] == "Add"
+        assert body["object"]["type"] == "CaseParticipant"
+        # The factory, not the emitting node, completes ``context`` (#2654).
+        assert body["context"] == case.id_
 
     def test_persists_add_activity(self, adapter, dl):
         case = _make_case(dl)
         participant = _make_participant(dl, case.id_)
 
-        activity_id = adapter.add_participant_to_case(
+        activity_id, _blob = adapter.add_participant_to_case(
             participant_id=participant.id_,
             case_id=case.id_,
             actor=_ACTOR,

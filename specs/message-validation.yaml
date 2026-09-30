@@ -253,11 +253,14 @@ groups:
     kind: protocol
     statement: >-
       The outbox handler MUST raise `VultronOutboxObjectIntegrityError` and abort delivery
-      if an outbound activity's `object_` field is a bare string or `as_Link` after any DataLayer
-      expansion attempt.
+      if the sealed body of an outbound initiating activity carries a bare string or an
+      `as_Link` as its `object`. The handler MUST NOT attempt to expand the reference from the
+      DataLayer first: it is a dumb relay (VM-08-003), so a reference in `object` is refused as a
+      factory defect, not repaired at delivery time.
     verification: >-
-      A unit test confirms that submitting an outbound activity with `object_` set to a
-      bare string raises `VultronOutboxObjectIntegrityError` before any delivery attempt.
+      A unit test confirms that an outbound activity whose sealed body has `object` set to a
+      bare string raises `VultronOutboxObjectIntegrityError` before any delivery attempt and
+      without any DataLayer read beyond the sealed body itself.
     lint_suppress:
     - missing_story_reference
   - id: MV-09-003

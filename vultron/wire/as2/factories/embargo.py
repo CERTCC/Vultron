@@ -34,6 +34,7 @@ from vultron.core.models.rsvp_deadline import (
     RsvpDeadlineClamp,
     resolve_rsvp_deadline,
 )
+from vultron.wire.as2.factories._context import case_target_ref
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
@@ -275,7 +276,7 @@ def activate_embargo_activity(
     try:
         return _ActivateEmbargoActivity(
             object_=embargo,
-            target=target,
+            target=case_target_ref(target),
             in_reply_to=in_reply_to,
             **kwargs,
         )
@@ -312,7 +313,7 @@ def add_embargo_to_case_activity(
     """
     try:
         return _AddEmbargoToCaseActivity(
-            object_=embargo, target=target, **kwargs
+            object_=embargo, target=case_target_ref(target), **kwargs
         )
     except ValidationError as exc:
         logger.warning(

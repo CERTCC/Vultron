@@ -1,20 +1,20 @@
 {
-  "id": "urn:uuid:155f809e-bbf5-4818-85b0-46e5cf48ae82",
-  "type": "Remove",
-  "name": "https://vultron.example/organizations/vendorco Remove Embargo for VendorCo Case #16418220 from urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
   "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Remove",
+  "id": "urn:uuid:2c496ec5-28d6-45aa-a931-17c841a782b4",
+  "name": "https://vultron.example/organizations/vendorco Remove Embargo for VendorCo Case #12759345 from urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
   "actor": "https://vultron.example/organizations/vendorco",
-  "origin": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
+  "origin": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
   "object": {
-    "id": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae/embargo_events/2026-12-23T00:00:00+00:00",
+    "id": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927/embargo_events/2026-12-29T00:00:00+00:00",
     "type": "EmbargoEvent",
-    "name": "Embargo for VendorCo Case #16418220",
-    "context": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
-    "startTime": "2026-09-24T14:21:00+00:00",
-    "endTime": "2026-12-23T00:00:00+00:00",
-    "published": "2026-09-24T14:21:06+00:00",
-    "updated": "2026-09-24T14:21:06+00:00",
-    "content": "We propose to embargo VendorCo Case #16418220 for 90 days.",
+    "name": "Embargo for VendorCo Case #12759345",
+    "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+    "startTime": "2026-09-30T16:00:00+00:00",
+    "endTime": "2026-12-29T00:00:00+00:00",
+    "published": "2026-09-30T16:00:59+00:00",
+    "updated": "2026-09-30T16:00:59+00:00",
+    "content": "We propose to embargo VendorCo Case #12759345 for 90 days.",
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

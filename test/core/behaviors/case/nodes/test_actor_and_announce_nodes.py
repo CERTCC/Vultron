@@ -19,12 +19,15 @@ and EmitInviteActorToCaseNode._read_suggested_roles."""
 from typing import Any, cast
 
 import py_trees
+import json
+
 import pytest
 
 from vultron.core.models._helpers import now_utc
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
@@ -627,7 +630,8 @@ class TestEmitAddCaseParticipantNode:
 
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.add_participant_to_case.return_value = (
-            EMIT_ADD_ACTIVITY_ID
+            EMIT_ADD_ACTIVITY_ID,
+            dump_outbound_body(add_activity),
         )
 
         bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
@@ -652,15 +656,13 @@ class TestEmitAddCaseParticipantNode:
             e.event_type == "add_case_participant" for e in entries
         ), f"Expected add_case_participant ledger entry; got {[e.event_type for e in entries]}"
 
-    def test_snapshot_strips_bare_target_from_stored_activity(self, dl):
-        """_build_snapshot must strip bare target from stored as_Add (IMPROVE-2).
+    def test_snapshot_is_the_exact_blob_the_port_returned(self, dl):
+        """The ledger snapshot is the port's blob, unchanged (VM-08-003, #2654).
 
-        The real TriggerActivityAdapter stores the as_Add in the datalayer and
-        returns its id.  model_dump() of the stored object includes
-        ``"target": "<case_uri>"`` as a bare string.  _validate_canonical_entry
-        rejects bare inline-object values, so _build_snapshot MUST call
-        _snapshot_with_context (which calls _drop_bare_inline_refs) rather than
-        returning raw model_dump output.
+        The factory addresses the case by its URI (``"target": "<case_uri>"``)
+        and sets ``context`` to it; the node records exactly that, and the
+        commit boundary accepts a bare ``target`` naming the entry's own case.
+        No stripping, no patching.
         """
         from unittest.mock import MagicMock
 
@@ -687,11 +689,10 @@ class TestEmitAddCaseParticipantNode:
         dl.create(case)
         participant = _make_add_node_fixture(dl)
 
-        # Build and store the real as_Add activity so datalayer.read() returns it.
-        # Use target as a bare string URI — that is what the real adapter does
-        # (TriggerActivityAdapterActorsMixin.add_participant_to_case passes case_id
-        # as the target kwarg).  model_dump() serialises this as "target": "<uri>"
-        # which _validate_canonical_entry would reject without _drop_bare_inline_refs.
+        # Build the real as_Add activity the way the adapter does: target is the
+        # bare case URI (add_participant_to_case passes case_id as the target
+        # kwarg) and the factory fills in context.  The commit boundary accepts
+        # a bare target naming the entry's own case, so the blob commits as is.
         wire_participant = as_CaseParticipant(
             id_=EMIT_ADD_PARTICIPANT_ID,
             attributed_to=EMIT_ADD_INVITEE_ID,
@@ -707,7 +708,8 @@ class TestEmitAddCaseParticipantNode:
 
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.add_participant_to_case.return_value = (
-            EMIT_ADD_ACTIVITY_ID
+            EMIT_ADD_ACTIVITY_ID,
+            dump_outbound_body(add_activity),
         )
 
         bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
@@ -722,15 +724,22 @@ class TestEmitAddCaseParticipantNode:
         )
 
         assert result.status == Status.SUCCESS, (
-            "Snapshot with stored as_Add must not fail validation "
-            "(bare target must be stripped by _snapshot_with_context)"
+            "the exact blob must pass the commit boundary as the factory"
+            " produced it"
         )
         entries = [
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == EMIT_ADD_CASE_ID
+            if isinstance(e, CaseLedgerEntry)
+            and e.case_id == EMIT_ADD_CASE_ID
+            and e.event_type == "add_case_participant"
         ]
-        assert any(e.event_type == "add_case_participant" for e in entries)
+        assert len(entries) == 1
+        assert entries[0].payload_snapshot == json.loads(
+            dump_outbound_body(add_activity)
+        )
+        assert entries[0].payload_snapshot["target"] == EMIT_ADD_CASE_ID
+        assert entries[0].payload_snapshot["context"] == EMIT_ADD_CASE_ID
 
     def test_skips_when_already_participant(self, dl):
         """SUCCESS without emitting when invitee_already_participant=True."""
@@ -870,7 +879,8 @@ class TestEmitAddCaseParticipantNode:
 
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.add_participant_to_case.return_value = (
-            EMIT_ADD_ACTIVITY_ID
+            EMIT_ADD_ACTIVITY_ID,
+            dump_outbound_body(add_act_to),
         )
 
         bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)

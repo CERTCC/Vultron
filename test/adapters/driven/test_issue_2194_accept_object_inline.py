@@ -12,9 +12,9 @@ exactly as the production ``TriggerActivityAdapter.validate_report()`` does — 
 
 The DataLayer dehydrates ``as_ObjectRef``-typed fields (``object_``) to a bare ID
 string on store (``vultron/adapters/driven/db_record.py::_dehydrate_data``). When
-the outbox reads the activity back for delivery
-(``vultron/adapters/driving/fastapi/outbox_delivery.py::_load_outbound_activity``),
-``_rehydrate_fields`` tries to resolve that ID via ``dl.read(offer_id)``. In the
+the activity was read back for delivery (the pre-#2655 outbox path; delivery now
+relays the sealed body instead), ``_rehydrate_fields`` tried to resolve that ID
+via ``dl.read(offer_id)``. In the
 invite / reconstitution path the submit-report Offer activity was never persisted
 as a standalone record under ``offer_id`` (it is reconstituted on demand from a
 ``VultronOfferRecord``), so rehydration finds nothing, logs "Could not rehydrate
@@ -109,7 +109,9 @@ def test_outbox_gate_rejects_bare_string_object():
     """
     with pytest.raises(VultronOutboxObjectIntegrityError):
         _validate_inline_object(
-            "urn:uuid:some-accept", "Accept", "urn:uuid:bare-offer-ref"
+            {"type": "Accept", "object": "urn:uuid:bare-offer-ref"},
+            "urn:uuid:some-accept",
+            "Accept",
         )
 
 
@@ -120,8 +122,10 @@ def test_stored_validate_report_accept_carries_inline_typed_object(dl):
 
     Production adapter persists the Accept with ``dl.create(activity)`` and does
     NOT separately persist the Offer under ``offer_id`` on the reconstitution
-    path. Reading the activity back (as ``_load_outbound_activity`` does) yields
-    ``object_`` as a bare string today -> AKM-03-001 rejection.
+    path. Reading the activity back (as the pre-#2655 delivery path did) yielded
+    ``object_`` as a bare string -> AKM-03-001 rejection.  Delivery now relays the
+    sealed body, but the stored record's read-back is still what the domain side
+    sees, so it stays inline-typed here.
     """
     accept, _offer_id = _build_validate_report_accept()
 

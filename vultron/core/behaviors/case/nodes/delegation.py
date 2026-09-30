@@ -120,9 +120,9 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
 
         assert self.datalayer is not None
         assert self.actor_id is not None
+        # Exact blob as snapshot (VM-08-003): the factory sets ``context`` to
+        # the case URI from the offer it embeds, so nothing is patched here.
         snapshot_dict: dict = json.loads(payload_snapshot)
-        if snapshot_dict.get("context") != self.case_id:
-            snapshot_dict["context"] = self.case_id
         commit_tree = create_commit_log_entry_tree(
             case_id=self.case_id,
             object_id=accept_id,

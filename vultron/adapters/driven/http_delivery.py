@@ -31,13 +31,11 @@ Port: ``vultron.core.ports.emitter.ActivityEmitter``
 """
 
 import asyncio
-import json
 import logging
 import random
 
 import httpx2 as httpx
 
-from vultron.core.models.activity import VultronActivity
 from vultron.core.ports.emitter import (  # noqa: F401 — port reference
     ActivityEmitter,
 )
@@ -126,46 +124,30 @@ class HttpDeliveryAdapter:
 
     async def emit(
         self,
-        activity: VultronActivity,
+        activity_id: str,
+        json_body: str,
         recipients: list[str],
     ) -> None:
-        """Deliver *activity* to each recipient's inbox via HTTP POST.
+        """Deliver *json_body* to each recipient's inbox via HTTP POST.
 
         Derives each inbox URL as ``{actor_uri}/inbox/`` and POSTs the
-        JSON-serialised activity payload using an async HTTP client.
-        Per-recipient failures are retried with exponential backoff; after
-        all retries are exhausted the failure is logged at ERROR level and
-        delivery continues to the next recipient.  After all recipients have
-        been attempted, :class:`DeliveryError` is raised if any failed so
-        that ``outbox_handler`` can requeue the activity (OX-05-002).
+        sealed body exactly as handed over — no re-serialisation
+        (VM-08-003).  Per-recipient failures are retried with exponential
+        backoff; after all retries are exhausted the failure is logged at
+        ERROR level and delivery continues to the next recipient.  After all
+        recipients have been attempted, :class:`DeliveryError` is raised if
+        any failed so that ``outbox_handler`` can requeue the activity
+        (OX-05-002).
 
         Args:
-            activity: The domain activity to deliver.  Must expose either
-                ``model_dump_json(by_alias=True)`` (Pydantic) or be convertible
-                via ``dict()``.
+            activity_id: The id of the activity being delivered (for logs).
+            json_body: The sealed AS2 document to deliver.
             recipients: List of recipient actor ID strings (full URIs).
 
         Raises:
             DeliveryError: If any recipient could not be reached after all
                 retry attempts (OX-12-001).
         """
-        activity_id = getattr(activity, "id_", None) or getattr(
-            activity, "id", None
-        )
-        # Use model_dump_json() so Pydantic's encoder handles datetime, UUID,
-        # and enum values correctly.  Passing model_dump() output to httpx's
-        # json= parameter fails for any activity whose nested objects contain
-        # datetime fields (e.g. VulnerabilityCase.events[].received_at).
-        if hasattr(activity, "model_dump_json"):
-            # serialize_as_any=True preserves nested-object subtype fields on
-            # the wire (e.g. inline CaseLedgerEntry fields) — SYNC-02-004,
-            # SYNC-13-004.
-            json_body: str = activity.model_dump_json(
-                by_alias=True, exclude_none=True, serialize_as_any=True
-            )
-        else:
-            json_body = json.dumps(dict(activity), default=str)
-
         failed: list[str] = []
         limits = httpx.Limits(max_connections=20, max_keepalive_connections=5)
         async with httpx.AsyncClient(limits=limits) as client:

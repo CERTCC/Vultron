@@ -188,23 +188,42 @@ groups:
     - rel_type: depends_on
       spec_id: ID-02-001
 - id: OX-07
-  title: Outbound Reference Dehydration
+  title: Outbound Body Sealing and Relay
   specs:
   - id: OX-07-001
     priority: MUST
     kind: project
     statement: >-
-      The outbox handler MUST dehydrate the following ActivityStreams reference fields to
-      URI strings before wire delivery: `actor`, `target`, `to`, `cc`, `bto`, `bcc`, `origin`,
-      `result`, `instrument`
+      Every adapter that persists an outbound activity for its actor's outbox MUST seal the
+      activity's body — the factory object's own JSON dump — in that actor's store at the moment
+      it persists the activity, and the outbox handler MUST deliver that sealed body exactly as
+      sealed. The handler MUST NOT read the activity record back to build the payload, MUST NOT
+      dehydrate, expand, hydrate, re-type, or re-serialise any field of the body, and MUST drop
+      (with an ERROR log) a queued id for which no sealed body exists rather than deliver a
+      reconstruction.
     rationale: >-
-      Core and BT nodes construct activities using full domain objects for type safety and
-      convenience; wire delivery requires URI strings in peripheral reference fields (ActivityPub
-      federation convention)
+      The activity record cannot serve as the delivery payload: persistence dehydrates reference
+      fields to ids and read-back rehydrates them from whatever the store holds now, so a re-read
+      is a reconstruction and the ledger's `payloadSnapshot` (the factory blob, VM-08-003) and the
+      wire disagreed — an Invite's enriched case stub reached the invitee as a bare URI. Reference
+      fields (`actor`, `target`, `to`, ...) are URI strings or intentional stubs because the
+      factory built them so; shaping them is the factory's responsibility, never the handler's.
+    relationships:
+    - rel_type: depends_on
+      spec_id: VM-08-003
+    verification: >-
+      `test/adapters/driving/fastapi/test_outbox_sealed_body_delivery.py` seals through the real
+      adapter and asserts the emitter receives the identical text;
+      `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py` checks every
+      `TriggerActivityPort` method seals what it returns.
   - id: OX-07-002
     priority: MUST_NOT
     kind: project
-    statement: The `object_` field of outbound activities MUST NOT be dehydrated
+    statement: >-
+      The `object` field of an outbound activity MUST NOT be dehydrated to a reference at any
+      stage — construction, persistence of the sealed body, or delivery. A sealed body whose
+      `object` is a bare URI or `as_Link` on an initiating activity is a factory defect that the
+      handler refuses (AKM-03-002), never repairs.
     relationships:
     - rel_type: depends_on
       spec_id: AKM-03-001

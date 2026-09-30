@@ -20,38 +20,37 @@ ActivityStreams activities to recipient actor inboxes.  Defining it here,
 alongside the other core ports, makes the architectural role explicit and
 allows concrete emitter implementations to be injected in tests.
 
-Port direction: **outbound (driven)** — core use cases call
-``emit(activity, recipients)`` to dispatch a completed domain action to
-one or more recipient actors.  The adapter layer handles the actual
-delivery mechanics (local DataLayer write, HTTP POST, queue, etc.) without
-coupling the core to any transport.
+Port direction: **outbound (driven)** — the outbox handler calls
+``emit(activity_id, json_body, recipients)`` to hand a sealed activity body
+to one or more recipient actors.  The adapter layer handles the actual
+delivery mechanics (HTTP POST, in-process routing in tests, etc.) without
+coupling the core to any transport, and delivers the body unchanged
+(VM-08-003).
 
 See also: ``core/ports/dispatcher.py`` (inbound counterpart) and
 ``vultron/core/ports/AGENTS.md`` "Dispatch vs Emit Terminology".
 """
 
-from typing import TYPE_CHECKING, Protocol
-
-if TYPE_CHECKING:
-    from vultron.core.models.activity import VultronActivity
+from typing import Protocol
 
 
 class ActivityEmitter(Protocol):
-    """Driven port: delivers an outbound domain activity to recipient actors.
+    """Driven port: delivers an outbound activity's sealed body to recipients.
 
-    Core use cases call ``emit()`` after completing a state transition that
-    produces an outbound activity.  The concrete implementation resolves
-    each recipient's inbox and performs the delivery — writing to a local
-    DataLayer collection for same-server actors or enqueuing an HTTP POST
-    for remote actors.
+    The outbox handler calls ``emit()`` with the JSON text the emitting
+    adapter sealed for the activity (VM-08-003).  The concrete implementation
+    resolves each recipient's inbox and POSTs that text as-is; it is a dumb
+    relay and MUST NOT parse, enrich, or re-serialise the body (ADR-0074).
 
-    ``activity`` is the domain activity to deliver.
+    ``activity_id`` names the activity, for logging and error reporting.
+    ``json_body`` is the sealed AS2 document to deliver, byte for byte.
     ``recipients`` is a sequence of actor ID strings (URI-formatted) that
     should receive the activity.
     """
 
     async def emit(
         self,
-        activity: "VultronActivity",
+        activity_id: str,
+        json_body: str,
         recipients: list[str],
     ) -> None: ...

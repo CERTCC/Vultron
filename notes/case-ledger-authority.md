@@ -697,10 +697,11 @@ recognized as a canonical payload signature, which is why `"CoreActor"` was
 added to `_ACTOR_TYPES` in
 `vultron/core/behaviors/sync/nodes/canonical_entry.py`.
 
-**Snapshot construction**: the `payloadSnapshot` is built with
-`_snapshot_with_context(raw, case_id)` to strip any bare-string inline
-object references (`object`, `object_`, `target`) that
-`_validate_canonical_entry` would otherwise reject.
+**Snapshot construction**: the `payloadSnapshot` is `json.loads(activity_blob)`
+— the exact blob the trigger port returned, which is also the body the outbox
+delivers (VM-08-003, #2654). Nothing is stripped or patched in core: the factory
+sets `context` to the case URI, and `_validate_canonical_entry` accepts a bare
+`target` that names the entry's own case (see below).
 
 **This is the only commit for the Invite** (ADR-0109, CM-17-006). Before
 concern #2996 was planned, the emitted Invite also carried the CaseActor's own
@@ -728,13 +729,16 @@ in the DataLayer). Using bare UUIDs as inbox delivery targets causes
 `"Request URL is missing 'http://'"` errors. The actor-participant index
 keys are always proper HTTP URIs.
 
-**Snapshot bare-ref pattern**: factory methods serialize `target=case_id`
-as a bare URI string in the stored activity. `_build_snapshot` must call
-`_snapshot_with_context(raw, case_id)` (which calls `_drop_bare_inline_refs`)
-before passing the snapshot to `create_commit_log_entry_tree`. Skipping this
-step will cause `_validate_canonical_entry` to reject the entry with
-`"bare string found"`. See also
-`notes/plan/incoming/learnings/20260727-snapshot-bare-ref-pattern.md`.
+**Bare `target` naming the case**: the factories address a case by its URI, so
+`target` is the bare case URI in `Offer(CaseParticipant)`, `Add(CaseParticipant)`
+and the recommendation replies, and the snapshot is the factory's exact blob.
+`_validate_canonical_entry` therefore accepts a bare-string `target` **only when
+it equals the entry's case URI**, at any depth (an `Accept` embedding an `Offer`
+carries the same target inside); any other bare string in an inline-object slot
+is still refused (CLP-07-006). Core used to strip the bare target before
+committing (`_snapshot_with_context` / `_drop_bare_inline_refs`); that helper is
+gone (#2654) — do not reintroduce a core-side rewrite to satisfy the validator,
+fix the factory.
 
 ---
 
