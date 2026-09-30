@@ -34,6 +34,7 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
+    create_participant_replica_gated_tree,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -221,3 +222,67 @@ class TestGateStructure:
             node, (py_trees.composites.Selector, py_trees.composites.Sequence)
         ), f"{node.name} carries no memory flag to check"
         assert node.memory is False
+
+
+class TestParticipantReplicaGate:
+    """The complement gate: runs the work for everyone *but* the CASE_MANAGER."""
+
+    @pytest.mark.executes_as(MANAGER_ACTOR_ID)
+    def test_the_case_manager_skips_without_running_the_children(
+        self, bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
+    ) -> None:
+        child = _Spy("ReplicaWork")
+        result = bt_scenario.run(
+            create_participant_replica_gated_tree("Gate", CASE_ID, [child]),
+            actor_id=MANAGER_ACTOR_ID,
+        )
+        assert result.status == Status.SUCCESS
+        assert child.ticks == 0
+
+    @pytest.mark.executes_as(NON_MANAGER_ACTOR_ID)
+    def test_a_non_manager_runs_the_children(
+        self, bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
+    ) -> None:
+        child = _Spy("ReplicaWork")
+        result = bt_scenario.run(
+            create_participant_replica_gated_tree("Gate", CASE_ID, [child]),
+            actor_id=NON_MANAGER_ACTOR_ID,
+        )
+        assert result.status == Status.SUCCESS
+        assert child.ticks == 1
+
+    @pytest.mark.executes_as(NON_MANAGER_ACTOR_ID)
+    def test_a_failure_by_a_non_manager_is_not_masked(
+        self, bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
+    ) -> None:
+        """The first arm is a pure condition, so the work's FAILURE is the gate's."""
+        child = _Spy("ReplicaWork", Status.FAILURE)
+        result = bt_scenario.run(
+            create_participant_replica_gated_tree("Gate", CASE_ID, [child]),
+            actor_id=NON_MANAGER_ACTOR_ID,
+        )
+        assert child.ticks == 1
+        assert result.status == Status.FAILURE
+
+    @pytest.mark.executes_as(NON_MANAGER_ACTOR_ID)
+    def test_the_two_gates_are_mutually_exclusive(
+        self, bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
+    ) -> None:
+        """Side by side in one Sequence, exactly one arm runs for any actor."""
+        manager_work = _Spy("ManagerWork")
+        replica_work = _Spy("ReplicaWork")
+        tree = py_trees.composites.Sequence(
+            name="Both",
+            memory=False,
+            children=[
+                create_case_manager_gated_tree(
+                    "ManagerGate", CASE_ID, [manager_work]
+                ),
+                create_participant_replica_gated_tree(
+                    "ReplicaGate", CASE_ID, [replica_work]
+                ),
+            ],
+        )
+        result = bt_scenario.run(tree, actor_id=NON_MANAGER_ACTOR_ID)
+        assert result.status == Status.SUCCESS
+        assert (manager_work.ticks, replica_work.ticks) == (0, 1)

@@ -453,3 +453,34 @@ class TestAcceptedEmbargoList:
         assert participant.remove_accepted_embargo("urn:e1") is True
         assert participant.remove_accepted_embargo("urn:e1") is False
         assert participant.accepted_embargo_ids == ["urn:e2"]
+
+
+class TestAcceptsPecTrigger:
+    """accepts_pec_trigger() is the read-only twin of apply_pec_transition()."""
+
+    @pytest.mark.spec("CM-18-003")
+    @pytest.mark.parametrize(
+        "state, accepts",
+        [
+            (PEC.UNBOUND, True),
+            (PEC.LAPSED, True),
+            (PEC.DECLINED, True),
+            (PEC.INVITED, False),
+            (PEC.SIGNATORY, False),
+        ],
+    )
+    def test_invite_is_legal_only_from_unbound_lapsed_or_declined(
+        self, state, accepts
+    ):
+        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+
+        p = _make(embargo_consent_state=state)
+        assert p.accepts_pec_trigger(PEC_Trigger.INVITE) is accepts
+
+    def test_asking_changes_nothing(self):
+        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+
+        p = _make(embargo_consent_state=PEC.SIGNATORY)
+        p.accepts_pec_trigger(PEC_Trigger.INVITE)
+        p.accepts_pec_trigger(PEC_Trigger.DECLINE)
+        assert p.embargo_consent_state == PEC.SIGNATORY

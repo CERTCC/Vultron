@@ -44,6 +44,9 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 CoreCase = VulnerabilityCase
@@ -422,9 +425,15 @@ class TestInviteeIsTheAddressee:
         event = make_payload(invite, receiving_actor_id=_COORD)
 
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
+        # The CASE_MANAGER adjudicates its own proposal and relays it: the
+        # invitee's INVITED is written at the manager's commit of the relayed
+        # Invite (EP-09-002, AC-3), the proposer records only its consent.
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.INVITED
         assert invitee.invite_rsvp_deadline == _FUTURE
@@ -453,7 +462,10 @@ class TestInviteeIsTheAddressee:
         assert event.receiving_actor_id is None
 
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         invitee = self._read_participant(dl, invitee_p_id)
@@ -629,7 +641,15 @@ class TestInviteeIsTheAddressee:
     def test_multi_recipient_not_addressed_to_this_store_warns(
         self, make_payload, caplog
     ):
-        """Several recipients, none of them this store's actor — ambiguous."""
+        """Several recipients, none of them this store's actor — ambiguous.
+
+        The subject resolver still names the ambiguity.  What the CASE_MANAGER
+        then *does* no longer depends on ``to:`` at all: a proposal reaching
+        the manager is adjudicated and relayed to every participant except
+        the proposer (EP-09-002), and the manager never addresses mail to
+        itself (ADR-0109) — so it is the roster, not the ``to:`` list or a
+        fallback to the receiving actor, that says who gets INVITED.
+        """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee6"
         embargo_id = "https://example.org/cases/addressee6/embargos/e6"
@@ -649,22 +669,23 @@ class TestInviteeIsTheAddressee:
 
         caplog.set_level("WARNING")
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert any(
             "cannot tell which participant" in record.message
             for record in caplog.records
         )
-        # Degrades to the receiving actor rather than guessing to[0]; neither
-        # named recipient is touched on the strength of a positional guess.
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.UNBOUND
+        assert invitee.embargo_consent_state == PEC.INVITED
         other = self._read_participant(dl, other_p_id)
-        assert other.embargo_consent_state == PEC.UNBOUND
+        assert other.embargo_consent_state == PEC.INVITED
 
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.INVITED
+        assert coord.embargo_consent_state == PEC.UNBOUND
 
     def test_unresolvable_addressee_warns_rather_than_silently_skipping(
         self, make_payload, caplog
@@ -676,12 +697,20 @@ class TestInviteeIsTheAddressee:
         fallback in ``OptionalLookupParticipantNode`` exists for "no
         participant on this peer yet"; when a subject *was* named it must not
         be indistinguishable from that.
+
+        The lenient lookup is the participant replica's arm of the tree —
+        the CASE_MANAGER relays from its roster and never resolves ``to:`` —
+        so the Invite lands in a participant's store.  A store other than
+        the named invitee's, because ``inbox_handler`` canonicalises the
+        receiving actor against ``to:`` (HP-09-001) and would repair the
+        slash; a misrouted copy in a third participant's store is where the
+        raw, sender-supplied subject reaches the lookup.
         """
-        dl = _make_dl(actor_id=_COORD)
+        dl = _make_dl(actor_id=_OTHER)
         case_id = "https://example.org/cases/addressee7"
         embargo_id = "https://example.org/cases/addressee7/embargos/e7"
         case, embargo, coord_p_id, invitee_p_id = self._seed_case(
-            dl, case_id, embargo_id
+            dl, case_id, embargo_id, extra_actors=(_OTHER,)
         )
 
         invite = em_propose_embargo_activity(
@@ -691,7 +720,7 @@ class TestInviteeIsTheAddressee:
             to=[_INVITEE + "/"],  # non-canonical: trailing slash
             rsvp_deadline=_FUTURE,
         )
-        event = make_payload(invite, receiving_actor_id=_COORD)
+        event = make_payload(invite, receiving_actor_id=_OTHER)
 
         caplog.set_level("WARNING")
         InviteToEmbargoOnCaseReceivedUseCase(
@@ -702,11 +731,13 @@ class TestInviteeIsTheAddressee:
             "No participant found for actor" in record.message
             for record in caplog.records
         )
-        # Nothing is written to either real participant.
+        # Nothing is written to any real participant.
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.UNBOUND
         coord = self._read_participant(dl, coord_p_id)
         assert coord.embargo_consent_state == PEC.UNBOUND
+        other = self._read_participant(dl, self.extra_participant_ids[_OTHER])
+        assert other.embargo_consent_state == PEC.UNBOUND
 
     def test_reject_tree_threads_subject_to_participant_lookup(self):
         """``reject_invite_to_embargo_tree`` wires its subject to the node.
@@ -1040,10 +1071,14 @@ class TestInviteeIsTheAddressee:
     def test_invite_to_already_invited_is_skipped(self, make_payload):
         """A repeated Invite to an already-INVITED invitee changes nothing.
 
-        INVITE is not a legal PEC trigger from INVITED, so the tree fails.
-        That failure is a duplicate, not a refusal of the message (#2255).
+        INVITE is not a legal PEC trigger from INVITED (CM-18-003), so the
+        replica arm records that nothing moved.  That is a duplicate, not a
+        refusal of the message (#2255), and the handler reads it off the
+        node's own result rather than re-reading the store.  Delivered into
+        the invitee's store: at the CASE_MANAGER the same message is a
+        proposal to adjudicate and relay, which *is* an effect (EP-09-001).
         """
-        dl = _make_dl(actor_id=_COORD)
+        dl = _make_dl(actor_id=_INVITEE)
         case_id = "https://example.org/cases/addressee10"
         embargo_id = "https://example.org/cases/addressee10/embargos/e10"
         case, embargo, _, invitee_p_id = self._seed_case(
@@ -1057,7 +1092,7 @@ class TestInviteeIsTheAddressee:
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
         )
-        event = make_payload(invite, receiving_actor_id=_COORD)
+        event = make_payload(invite, receiving_actor_id=_INVITEE)
 
         result = InviteToEmbargoOnCaseReceivedUseCase(
             dl, event, wire_render_port=As2WireRenderAdapter()
