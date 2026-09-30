@@ -145,7 +145,7 @@ def test_em_propose_embargo_rsvp_below_min_window_raises(sample_embargo):
 @pytest.mark.spec("EP-07-002")
 def test_em_propose_embargo_naive_deadline_raises(sample_embargo):
     """AC-3 (outbound): naive rsvp_deadline raises VultronActivityConstructionError."""
-    naive_deadline = datetime.now() + timedelta(days=5)  # no tzinfo
+    naive_deadline = datetime.now() + timedelta(days=5)  # noqa: DTZ005 — deliberately naive
     with pytest.raises(
         VultronActivityConstructionError, match="timezone-aware"
     ):

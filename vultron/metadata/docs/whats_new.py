@@ -184,7 +184,8 @@ def added_doc_pages(
     working directory, which is the repository root during a MkDocs build.
     """
     since = (
-        datetime.date.today() - datetime.timedelta(days=since_days)
+        datetime.datetime.now(datetime.UTC).date()
+        - datetime.timedelta(days=since_days)
     ).isoformat()
     result = subprocess.run(
         [

@@ -422,7 +422,8 @@ async def _deliver_row(
                 return return_now
             per_err = err_counts[activity_id]
             # Back off before retrying to avoid hammering a busy recipient.
-            backoff = (2 ** (per_err - 1)) + random.uniform(0, 0.5)
+            # Retry jitter, not a secret: a PRNG is the correct tool.
+            backoff = (2 ** (per_err - 1)) + random.uniform(0, 0.5)  # noqa: S311
             await asyncio.sleep(backoff)
 
 

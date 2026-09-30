@@ -869,7 +869,7 @@ def test_propose_embargo_trigger_naive_end_time_raises_422(
     dl, actor, case_no_participant
 ):
     """propose_embargo_trigger raises PydanticValidationError for a timezone-naive end_time."""
-    naive_dt = datetime(2099, 12, 1)
+    naive_dt = datetime(2099, 12, 1)  # noqa: DTZ001 — deliberately naive
     with pytest.raises(PydanticValidationError):
         TriggerService(
             dl,

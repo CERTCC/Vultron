@@ -443,7 +443,8 @@ class CVDmodel:
             if n:
                 p = 1 / n
 
-            next_state = random.choice(neighbors)
+            # A random walk over the state graph, not a secret.
+            next_state = random.choice(neighbors)  # noqa: S311
             step = (current, next_state)
             path.append(step)
             probabilities.append(p)

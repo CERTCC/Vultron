@@ -244,6 +244,19 @@ combine-as-imports = true
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]         # re-exports, carried from the retired .flake8
+# Permanent, justified exemptions — not a baseline store (notes/lint-tooling.md).
+# suspicious-non-cryptographic-random-usage: the bt/ simulator and the demo
+# fuzzers draw random outcomes by design, and tests draw random fixtures; none
+# of it is a secret. Elsewhere each `random` call carries its own noqa.
+"vultron/bt/**" = ["S311"]
+"vultron/demo/fuzzer/**" = ["S311"]
+# subprocess-without-shell / start-process-with-partial-path: dev tooling
+# shells out to git, gh and uv with argv lists (never shell=True), resolved on
+# the developer's PATH on purpose.
+"vultron/metadata/**" = ["S603", "S607"]
+"scripts/**" = ["S603", "S607"]
+".agents/**" = ["S603", "S607"]
+"test/**" = ["S311", "S603", "S607"]
 
 [tool.ruff.format]
 # ruff formats Python fenced inside Markdown; black never did. Excluding it

@@ -447,7 +447,7 @@ def test_invite_rsvp_deadline_normalized_when_naive_end_time():
     they reach the extractor, so a naive input produces a valid UTC rsvp_deadline.
     """
 
-    naive_deadline = datetime.now() + timedelta(days=5)  # no tzinfo
+    naive_deadline = datetime.now() + timedelta(days=5)  # noqa: DTZ005 — deliberately naive
     assert naive_deadline.tzinfo is None
     invite = _make_embargo_invite(end_time=naive_deadline)
     # validate_datetime normalises naive → UTC; invite.end_time is now UTC-aware

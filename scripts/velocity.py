@@ -161,7 +161,7 @@ def month_key(d: date) -> str:
 
 def build_metrics(issues: list[dict], start: date) -> dict:
     # Collect all weeks and months in range up to today
-    today = date.today()
+    today = datetime.now(UTC).date()
     all_weeks = []
     all_months = set()
     cursor = start - timedelta(days=start.weekday())  # Monday of start week

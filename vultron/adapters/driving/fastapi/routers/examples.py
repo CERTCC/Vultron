@@ -79,7 +79,8 @@ def get_example_actor() -> AS2JSONResponse:
         vocab_examples.vendor,
         vocab_examples.coordinator,
     ]
-    func = random.choice(options)
+    # Picks a sample document to display; nothing depends on it being secret.
+    func = random.choice(options)  # noqa: S311
 
     return AS2JSONResponse(func())
 

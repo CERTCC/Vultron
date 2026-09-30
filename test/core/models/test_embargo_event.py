@@ -32,7 +32,7 @@ from vultron.wire.as2.factories.embargo import em_propose_embargo_activity
 from vultron.wire.as2.parser import parse_activity
 
 _FUTURE_DT = datetime(2099, 12, 31, tzinfo=UTC)
-_NAIVE_DT = datetime(2099, 12, 31, 12, 30)
+_NAIVE_DT = datetime(2099, 12, 31, 12, 30)  # noqa: DTZ001 — deliberately naive
 _CONTEXT = "urn:uuid:case-123"
 
 

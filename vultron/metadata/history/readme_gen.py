@@ -87,7 +87,9 @@ def _parse_entry(path: Path) -> _EntryMeta:
 def _month_label(yymm: str) -> str:
     """Convert ``YYMM`` to a human-readable label, e.g. ``2604`` → ``April 2026``."""
     try:
-        dt = datetime.datetime.strptime(yymm, "%y%m")
+        dt = datetime.datetime.strptime(yymm, "%y%m").replace(
+            tzinfo=datetime.UTC
+        )
         return dt.strftime("%B %Y")
     except ValueError:
         return yymm

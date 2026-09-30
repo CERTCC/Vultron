@@ -127,7 +127,7 @@ def test_status_recency_key_normalises_naive_to_utc():
 
     from vultron.core.models._helpers import status_recency_key
 
-    naive = datetime(2026, 1, 1)  # no tzinfo
+    naive = datetime(2026, 1, 1)  # noqa: DTZ001 — deliberately naive
     key = status_recency_key(naive, None)
     assert key == datetime(2026, 1, 1, tzinfo=UTC)
     # Comparable against the timestampless floor without raising.
@@ -148,7 +148,7 @@ def test_as_utc_with_naive_datetime_returns_utc_aware():
 
     from vultron.core.models._helpers import as_utc
 
-    naive = datetime(2026, 1, 1, 12, 0, 0)
+    naive = datetime(2026, 1, 1, 12, 0, 0)  # noqa: DTZ001 — deliberately naive
     result = as_utc(naive)
     assert result is not None
     assert result.tzinfo is UTC
@@ -171,7 +171,7 @@ def test_as_utc_with_datetime_never_returns_none():
 
     from vultron.core.models._helpers import as_utc
 
-    naive = datetime(2026, 6, 15)
+    naive = datetime(2026, 6, 15)  # noqa: DTZ001 — deliberately naive
     aware = datetime(2026, 6, 15, tzinfo=UTC)
     assert as_utc(naive) is not None
     assert as_utc(aware) is not None
@@ -211,7 +211,7 @@ def test_parse_published_with_datetime_never_returns_none():
 
     from vultron.core.models._helpers import parse_published
 
-    naive = datetime(2026, 6, 15, 12, 0, 0)
+    naive = datetime(2026, 6, 15, 12, 0, 0)  # noqa: DTZ001 — deliberately naive
     aware_utc = datetime(2026, 6, 15, 12, 0, 0, tzinfo=UTC)
     assert parse_published(naive) is not None
     assert parse_published(aware_utc) is not None
@@ -222,7 +222,7 @@ def test_parse_published_with_naive_datetime_returns_utc():
 
     from vultron.core.models._helpers import parse_published
 
-    naive = datetime(2026, 6, 15, 12, 0, 0)
+    naive = datetime(2026, 6, 15, 12, 0, 0)  # noqa: DTZ001 — deliberately naive
     result = parse_published(naive)
     assert result is not None
     assert result.tzinfo is UTC

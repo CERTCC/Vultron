@@ -320,7 +320,7 @@ def append_history_entry(
         )
 
     resolved_root = _find_repo_root(repo_root)
-    resolved_date = target_date or datetime.date.today()
+    resolved_date = target_date or datetime.datetime.now(_UTC).date()
     yymm = resolved_date.strftime("%y%m")
     entry_id = _sanitize_entry_id(validated.source)
 

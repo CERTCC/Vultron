@@ -228,7 +228,8 @@ class HttpDeliveryAdapter:
                     last_exc,
                     delay,
                 )
-                await asyncio.sleep(delay + random.uniform(0, 0.5))
+                # Retry jitter, not a secret: a PRNG is the correct tool.
+                await asyncio.sleep(delay + random.uniform(0, 0.5))  # noqa: S311
                 delay = min(delay * self._backoff_multiplier, self._max_delay)
             else:
                 logger.error(
