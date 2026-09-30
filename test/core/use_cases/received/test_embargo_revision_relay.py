@@ -19,8 +19,8 @@ participant that receives an Invite writes no case or consent state on receipt;
 consent moves when the CASE_MANAGER commits its answer.  A revision Invite to a
 ``SIGNATORY`` changes nothing.
 
-Every test here is a strict ``xfail`` pinning behaviour the implementation
-issues spawned by Concern #3892 will deliver.  Each fails today for the reason
+Every test here is a strict ``xfail`` pinning behaviour #3913 (manager-side
+relay) and #3915 (participant side and replay) will deliver.  Each fails today for the reason
 its docstring names; when the feature lands the ``xfail`` auto-promotes.
 """
 
@@ -45,7 +45,7 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import make_embargo_case_with_actor
 
-_TRACKING = "Tracked by the implementation issues of Concern #3892 (ADR-0113)."
+_TRACKING = "Tracked by #3913 (manager-side relay) and #3915 (participant side, replay); Concern #3892, ADR-0113."
 
 MANAGER = "https://example.org/users/coord"
 PROPOSER = "https://example.org/users/vendor"

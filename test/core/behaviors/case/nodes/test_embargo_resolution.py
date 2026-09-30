@@ -513,8 +513,7 @@ def test_a_longer_sender_duration_without_its_event_fails_loudly(
         "EP-04-011: the creation-time revision is appended to "
         "proposed_embargoes but never indexed in "
         "pending_embargo_proposal_index, so the owner's default selection "
-        "cannot reach it. Tracked by the implementation issue of Concern "
-        "#3863 (ADR-0113)."
+        "cannot reach it. Tracked by #3916 (Concern #3863, ADR-0113)."
     ),
 )
 @pytest.mark.spec("EP-04-011")

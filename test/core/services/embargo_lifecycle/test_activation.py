@@ -193,7 +193,7 @@ def test_terminate_active_embargo_observed_invalid_no_raise(
     reason=(
         "EP-08-004: termination prunes only the terminated embargo's own "
         "entry and leaves open revisions of it in both records. Tracked by "
-        "the implementation issue of Concern #3836 (ADR-0113)."
+        "#3914 (Concern #3836, ADR-0113)."
     ),
 )
 @pytest.mark.spec("EP-08-004")
