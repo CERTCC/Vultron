@@ -1,6 +1,7 @@
 """Tests for the unified SemanticRegistry module."""
 
 import importlib
+import inspect
 
 import pytest
 
@@ -88,6 +89,44 @@ def test_use_case_map_keys_match_semantics():
     registered = set(ucm.keys())
     expected = set(MessageSemantics)
     assert registered == expected
+
+
+@pytest.mark.spec("HP-02-002")
+@pytest.mark.spec("HP-03-002")
+def test_each_use_case_accepts_the_event_class_its_semantics_route():
+    """Each registry row pairs a semantics with a handler that reads its event.
+
+    The dispatcher keys on ``event.semantic_type``; the handler it reaches must
+    annotate ``request`` as that row's ``event_class`` (or a base of it), so
+    the semantics verified at dispatch and the typed event the handler reads
+    are the same registry row.
+    """
+    mismatched: dict[str, str] = {}
+    checked = 0
+    for entry in SEMANTIC_REGISTRY:
+        if entry.event_class is None or entry.use_case_class is None:
+            continue
+        checked += 1
+        annotation = (
+            inspect.signature(entry.use_case_class.__init__)
+            .parameters["request"]
+            .annotation
+        )
+        # A ``TYPE_CHECKING``-only name elsewhere in the signature keeps
+        # ``get_type_hints`` from resolving, so compare by name (or by the
+        # resolved class when the annotation is one).
+        name = getattr(annotation, "__name__", None) or str(annotation)
+        accepts = name == entry.event_class.__name__ or (
+            isinstance(annotation, type)
+            and issubclass(entry.event_class, annotation)
+        )
+        if not accepts:
+            mismatched[entry.semantics.name] = (
+                f"{entry.use_case_class.__name__}(request: {name}) "
+                f"routed for {entry.event_class.__name__}"
+            )
+    assert checked > 0, "no registry entries carry both classes"
+    assert mismatched == {}, mismatched
 
 
 @pytest.mark.spec("SE-02-001")

@@ -43,11 +43,14 @@ groups:
       `VultronEvent` subclass — and their `execute()` method MUST take no arguments
     verification: >-
       `test/architecture/test_use_case_execute_returns_result.py` reads every
-      `execute()` under `vultron/core/use_cases/` and fails on one that lacks a
-      `UseCaseResult` return annotation; the `(dl, request)` constructor and the
-      argument-free `execute()` are declared by the `UseCase` Protocol in
-      `vultron/core/ports/use_case.py`. No ratchet yet rejects an `execute()`
-      that takes arguments.
+      `execute()` under `vultron/core/use_cases/` (outside `triggers/`) and
+      fails on one that takes any parameter beyond `self` or lacks a
+      `UseCaseResult` return annotation;
+      `test/test_semantic_registry.py::test_each_use_case_accepts_the_event_class_its_semantics_route`
+      checks that each handler's `__init__` annotates `request` as the
+      `VultronEvent` subclass its `SEMANTIC_REGISTRY` entry pairs it with. The
+      `(dl, request)` constructor shape is declared by the `UseCase` Protocol in
+      `vultron/core/ports/use_case.py`.
   - id: HP-01-002
     priority: MUST
     kind: project
@@ -86,6 +89,14 @@ groups:
       promote it to `InboxOutcome.status == "rejected"` and produce false alarms; conflating
       a deferral with `APPLIED` or `SKIPPED` hides the fact that a replay is pending. See
       ADR-0095 and issue #2255.
+    verification: >-
+      `test/core/ports/test_use_case.py::TestUnknownUseCase::test_execute_refuses_unrecognized_activity`
+      and the `HP-01-003`-marked tests under `test/core/use_cases/received/` drive each
+      handler through its skip, defer, and refuse exits and assert the disposition each one
+      earns — a redelivered duplicate is `SKIPPED`, a parked item is `DEFERRED`, and only a
+      rejected assertion is `REFUSED`;
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` carries each disposition
+      through the dispatcher to `InboxOutcome`.
     adr:
     - ADR-0095
   - id: HP-01-004
@@ -102,6 +113,12 @@ groups:
       `processed`. Note this is a layering rule, not a claim about which outcomes a handler
       can cause: a handler can produce a deferral (`HandlerDisposition.DEFERRED`), it just
       must not say so in `InboxOutcome`'s words.
+    verification: >-
+      `test/architecture/test_use_cases_no_inbox_outcome.py` fails when any module under
+      `vultron/core/use_cases/` names `InboxOutcome` or `InboxOutcomeStatus` (exact
+      `KNOWN_VIOLATIONS` set, ARCH-18-001);
+      `test/core/behaviors/inbox/test_process_payload.py::TestProcessPayloadHandlerDisposition`
+      shows `DispatchNode` alone mapping each `HandlerDisposition` onto `InboxOutcome.status`.
     adr:
     - ADR-0095
   - id: HP-01-005
@@ -147,6 +164,13 @@ groups:
     priority: MUST
     kind: architecture
     statement: All handlers MUST have semantic type verification before execution
+    verification: >-
+      `test/test_behavior_dispatcher.py::test_dispatch_refuses_a_semantics_with_no_registered_use_case`
+      shows `DispatcherBase._handle()` resolving the handler from `event.semantic_type`
+      before any `execute()` runs and raising `VultronApiHandlerNotFoundError` when the
+      semantics has no entry;
+      `test/test_semantic_registry.py::test_use_case_map_keys_match_semantics` pins the
+      routing table to the `MessageSemantics` enum.
     relationships:
     - rel_type: depends_on
       spec_id: DR-01-003
@@ -155,6 +179,11 @@ groups:
     kind: architecture
     statement: The verification mechanism MUST check that the activity's semantic type matches the handler's expected type
     rationale: Prevents routing errors where wrong handler processes an activity
+    verification: >-
+      `test/test_semantic_registry.py::test_each_use_case_accepts_the_event_class_its_semantics_route`
+      checks, for every `SEMANTIC_REGISTRY` entry, that the routed handler's `__init__`
+      annotates `request` as that entry's `event_class`, so the `semantic_type` the
+      dispatcher keys on and the typed event the handler reads are the same registry row.
     relationships:
     - rel_type: refines
       spec_id: DR-01-003
@@ -165,6 +194,10 @@ groups:
     priority: MUST
     kind: architecture
     statement: All handlers MUST be discoverable via a handler registry mechanism
+    verification: >-
+      `test/test_semantic_registry.py::test_registry_covers_all_semantics` and
+      `::test_non_unknown_entries_have_use_case_class` fail when a `MessageSemantics` value
+      has no `SEMANTIC_REGISTRY` entry or an entry names no handler class.
     relationships:
     - rel_type: derives_from
       spec_id: DR-02-001
@@ -172,6 +205,11 @@ groups:
     priority: MUST
     kind: architecture
     statement: Registry keys MUST match handler semantic verification types
+    verification: >-
+      `test/test_semantic_registry.py::test_use_case_map_keys_match_semantics` asserts the
+      keys of `use_case_map()` equal the `MessageSemantics` enum, and
+      `::test_each_use_case_accepts_the_event_class_its_semantics_route` asserts each key's
+      handler accepts the event class registered under that same key.
     relationships:
     - rel_type: refines
       spec_id: DR-02-002
@@ -197,10 +235,13 @@ groups:
     verification: >-
       `test/architecture/test_core_no_wire_imports.py` (ARCH-01-001) confirms no
       module under `vultron/core/` imports the wire layer, so a handler cannot
-      reach the AS2 parser or the semantic extractor; `VultronEvent.activity` in
-      `vultron/core/models/events/base.py` is typed as the core `VultronActivity`
-      (optional on the base, narrowed to required by subclasses that always carry
-      one), never a wire class.
+      reach the AS2 parser or the semantic extractor; its
+      `test_vultron_event_activity_is_the_core_activity_type` and
+      `test_every_event_subclass_carries_a_core_activity` resolve the `activity`
+      annotation of `VultronEvent` (`vultron/core/models/events/base.py`) and of
+      every subclass and fail unless it is the core `VultronActivity` (optional
+      on the base, narrowed to required by subclasses that always carry one),
+      never a wire class.
     adr:
     - ADR-0032
     - ADR-0035
@@ -216,25 +257,60 @@ groups:
     priority: MUST
     kind: architecture
     statement: Handlers MUST raise exceptions for unrecoverable errors
+    verification: >-
+      `test/test_behavior_dispatcher.py::test_dispatch_rejects_a_use_case_that_returns_no_handler_result`
+      and `::test_dispatch_refuses_a_semantics_with_no_registered_use_case` show contract
+      breaches raising (`TypeError`, `VultronApiHandlerNotFoundError`) rather than
+      returning; `test/architecture/test_no_broad_except_outside_bt_update.py` (CS-23-001)
+      fails on any `except Exception` outside a BT node's `update()` under
+      `vultron/core/behaviors/`, so a handler's tree cannot swallow an unexpected error.
   - id: HP-05-002
     priority: MUST
     kind: architecture
     statement: Handlers MUST log expected errors without raising exceptions
+    verification: >-
+      `test/core/ports/test_use_case.py::TestUnknownUseCase::test_execute_logs_warning`,
+      `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_receiving_actor_in_cc_logs_warning_no_case`,
+      and
+      `test/core/test_fail_fast_silent_sites.py::TestExtractCaseIdRaisesUnroutableActivityError::test_unroutable_event_is_dropped_not_retried`
+      each drive an expected condition (unrecognised activity, `cc`-only addressing,
+      unroutable event), assert the log record or refusal it produces, and complete
+      with no exception escaping the handler or `dispatch()`.
 - id: HP-06
   title: Logging
   specs:
   - id: HP-06-001
     priority: MUST
     kind: project
-    statement: Handlers MUST log entry at DEBUG level with handler name
+    statement: Handler entry MUST be logged at DEBUG level with the handler class name
+    rationale: >-
+      `DispatcherBase._handle()` emits the entry line immediately before it calls
+      `execute()`, so every handler gets it from one place and no handler carries
+      its own copy.
+    verification: >-
+      `test/test_behavior_dispatcher.py::test_dispatch_logs_handler_entry_at_debug_with_handler_name`
+      dispatches to a handler and asserts one DEBUG record naming the handler class, the
+      activity id, and the semantics.
   - id: HP-06-002
     priority: MUST
     kind: project
     statement: Handlers MUST log state transitions at INFO level with before/after states
+    verification: >-
+      `test/core/behaviors/test_narrative_log.py` (`TestLogCsTransition`,
+      `TestLogRmTransition`, `TestLogEmTransition`) asserts each `log_*_transition()`
+      helper emits one INFO record naming the before and after states and nothing for a
+      no-op; `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      (`test_rm_transition_logged_at_info`, `test_vf_transition_logged_at_info`,
+      `test_pxa_transition_logged_at_info`) asserts the record is emitted through the
+      state-write nodes a handler's tree runs.
   - id: HP-06-003
     priority: MUST
     kind: project
     statement: Handlers MUST log errors at ERROR level with full context
+    verification: >-
+      `test/core/test_fail_fast_silent_sites.py::TestExtractCaseIdRaisesUnroutableActivityError::test_unroutable_event_is_logged_at_error_with_context`
+      asserts the dispatcher's ERROR record for a dropped activity carries the activity id,
+      semantics, and actor id.
     relationships:
     - rel_type: depends_on
       spec_id: SL-03-001
@@ -255,12 +331,12 @@ groups:
     kind: architecture
     statement: Handlers MUST complete execution within 30 seconds
     rationale: Prevents indefinite blocking of background task queue
-    scope:
-    - production
-  - id: HP-07-003
-    priority: MUST
-    kind: architecture
-    statement: Long-running operations MUST be broken into async subtasks
+    verification: >-
+      Every handler test in the unit tier runs under the 30-second per-test ceiling set by
+      `[tool.pytest.ini_options] timeout` in `pyproject.toml`, so a handler whose
+      `execute()` blocks past it fails its own test;
+      `test/test_integration_timeout_tier.py::test_unit_item_is_left_at_the_global_default`
+      pins that the unit tier keeps that ceiling.
     scope:
     - production
 - id: HP-08
@@ -280,11 +356,17 @@ groups:
       `save()` and `create()` are the write paths that keep the stored record
       consistent with the domain model and that `dl.read()` can rehydrate
       (ADR-0034). The record-level method is retained only as a compatibility
-      shim for the adapter layer and for one legacy generic-update BT node.
+      shim for the adapter layer and for the legacy generic `UpdateObject` /
+      `CreateObject` BT nodes in `vultron/core/behaviors/helpers.py`.
     verification: >-
-      `grep -rn "object_to_record\|\.update(" vultron/core/use_cases/` matches
-      nothing; every write under `vultron/core/use_cases/` is `dl.save(...)` or
-      `dl.create(...)` with a domain object.
+      `test/architecture/test_no_record_level_persistence_in_core.py` scans
+      `vultron/core/use_cases/` and `vultron/core/behaviors/` for a reference to
+      `object_to_record`, a hand-built `StorableRecord(...)`, or a record-level
+      `.update(id_, record)` call and pins the one legacy site
+      (`vultron/core/behaviors/helpers.py`) in an exact `KNOWN_VIOLATIONS` set
+      (ARCH-18-001). A record-level `create(record)` is caught through the
+      `StorableRecord(...)` it must first build, since by call shape alone it is
+      indistinguishable from the typed `dl.create(obj)`.
   - id: HP-08-002
     priority: MUST_NOT
     kind: project
@@ -307,23 +389,52 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: Pydantic validators MUST NOT overwrite existing field values during deserialization
+    verification: >-
+      `test/core/models/test_case_participant.py::TestSetNameIfEmpty::test_explicit_name_preserved`
+      and `::TestInitParticipantStatusIfEmpty::test_pre_populated_list_preserved` construct
+      a `CaseParticipant` with `name` and `participant_statuses` already set and assert the
+      defaulting validators leave them untouched.
   - id: HP-08-004
     priority: MUST
     kind: project
     statement: The DataLayer and handlers MUST treat object IDs as opaque URI strings
+    verification: >-
+      `test/adapters/driven/test_sqlite_crud.py::test_create_wire_shaped_storable_record_reads_back_as_core`
+      and `::test_update_wire_shaped_storable_record_reads_back_as_core` store and read
+      objects under `urn:uuid:` ids, and `::test_read_returns_none_for_missing_id` looks
+      one up — round trips that hold only if the store keys on the id string as given;
+      MV-05-002 states the same rule for the wire layer.
   - id: HP-08-005
     priority: MUST
     kind: project
     statement: Handlers that add status updates MUST append full status objects (not bare ID strings) to the case/participant
       status history lists
+    verification: >-
+      `test/core/models/test_case.py::TestVulnerabilityCaseAddCaseStatus` and
+      `test/core/models/test_case_participant.py::TestAddParticipantStatus` show the only
+      history mutators (`add_case_status`, `add_participant_status`) accepting a core
+      status object and raising on anything else;
+      `test/core/behaviors/status/test_add_case_status_bt.py::TestAppendCaseStatusToCaseNode::test_appends_status_to_case`
+      and
+      `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_case_status_to_case_appends_status`
+      drive the append through the handler's tree.
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-006
   - id: HP-08-006
     priority: MUST
     kind: project
-    statement: The `AddNoteToCase` handler MUST persist a Note object and append its ID as a `as_NoteRef` to `VulnerabilityCase.notes`.
+    statement: >-
+      The `AddNoteToCaseReceivedUseCase` handler MUST append the note's id to
+      `VulnerabilityCase.notes` (a list of note ids) and commit the attachment as a
+      ledger entry; the Note object itself is persisted by `CreateNoteReceivedUseCase`
+      on `Create(Note)`.
     rationale: Ensures notes are fully persisted and linked to cases, consistent with the case management data model
+    verification: >-
+      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_to_case_appends_note`
+      runs the handler at the CASE_MANAGER and asserts the note id is in the re-read case's
+      `notes`; `::test_add_note_to_case_idempotent` asserts a redelivery appends it once;
+      `::test_create_note_stores_note` asserts `Create(Note)` persists the Note object.
 - id: HP-09
   title: Offer Recipient Addressing
   specs:
@@ -332,8 +443,13 @@ groups:
     kind: protocol
     statement: Handlers processing an inbound `Offer` activity MUST determine case-creation eligibility from the `to` field
       only
-    verification: Inspect the `SubmitReportReceivedUseCase` (or equivalent Offer handler) to confirm eligibility logic
-      branches only on the `to` field; `cc` and `target` fields are not consulted for eligibility determination.
+    verification: >-
+      `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics`
+      drives `SubmitReportReceivedUseCase` with the receiver in `to`, in `cc` only, and in
+      neither, and asserts a case is proposed only from `to`;
+      `::test_offer_target_not_consulted_to_wins` and
+      `::test_offer_target_set_but_not_in_to_no_case` show `target` never changes that
+      outcome.
     stories:
     - story_2022_002
     - story_2022_012
@@ -342,6 +458,10 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: The `target` field MUST NOT be used to determine case-creation eligibility for `Offer` activities
+    verification: >-
+      `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_offer_target_not_consulted_to_wins`
+      and `::test_offer_target_set_but_not_in_to_no_case` set `target` to a case-eligible
+      actor with and without that actor in `to` and assert eligibility follows `to` alone.
     relationships:
     - rel_type: depends_on
       spec_id: VAM-01-008
@@ -353,8 +473,11 @@ groups:
     kind: protocol
     statement: When a receiving actor finds itself in the `cc` field of an inbound `Offer(Report)` activity, the handler MUST
       log a WARNING and discard the activity without creating a case
-    verification: A unit or integration test confirms that an `Offer(Report)` addressed to the receiver via `cc`
-      produces a WARNING log entry and neither creates a case nor enqueues any outbound activities.
+    verification: >-
+      `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_receiving_actor_in_cc_logs_warning_no_case`
+      asserts a WARNING record naming `cc` and that no case is created;
+      `::TestSubmitReportDisposition::test_cc_only_is_refused` asserts the handler reports
+      `REFUSED` with a reason naming `cc`.
     rationale: '`cc` addressing has no defined handler semantics in the current protocol version. Implementing an "informational
       receive" use case for `cc` recipients would require defining what "informational only" means, which is deferred. Deliberate
       simplification.'

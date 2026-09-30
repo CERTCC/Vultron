@@ -512,8 +512,9 @@ class TestOfferAddressingSemantics:
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         assert dl.read(link_id) is None
 
+    @pytest.mark.spec("HP-10-001")
     def test_receiving_actor_in_cc_logs_warning_no_case(self, caplog):
-        """HP-09-002: Receiving actor in Offer.cc → WARNING logged, no case."""
+        """HP-10-001: Receiving actor in Offer.cc → WARNING logged, no case."""
         import logging
 
         event = self._make_event(
@@ -538,6 +539,7 @@ class TestOfferAddressingSemantics:
             "cc" in warning_text.lower()
         ), "Expected a WARNING mentioning cc addressing"
 
+    @pytest.mark.spec("HP-09-001")
     def test_receiving_actor_in_neither_logs_warning_no_case(self, caplog):
         """HP-09-001: Receiving actor in neither to nor cc → WARNING, no case."""
         import logging
@@ -564,6 +566,8 @@ class TestOfferAddressingSemantics:
             self.VENDOR_ID in warning_text
         ), "Expected WARNING to mention the receiving actor ID"
 
+    @pytest.mark.spec("HP-09-001")
+    @pytest.mark.spec("HP-09-002")
     def test_offer_target_not_consulted_to_wins(self):
         """HP-09-002: Offer.target is not consulted; to field determines proposal (ADR-0041).
 
@@ -587,6 +591,7 @@ class TestOfferAddressingSemantics:
             " even if target differs"
         )
 
+    @pytest.mark.spec("HP-09-002")
     def test_offer_target_set_but_not_in_to_no_case(self):
         """HP-09-002 inverse: target=VENDOR_ID but to=[OTHER_ID] → no case.
 
@@ -785,6 +790,7 @@ class TestSubmitReportDisposition:
         assert result.disposition == HandlerDisposition.SKIPPED
 
     @pytest.mark.spec("HP-01-005")
+    @pytest.mark.spec("HP-10-001")
     def test_cc_only_is_refused(self):
         result, _ = self._run(cc=[self.VENDOR_ID])
         assert result.disposition == HandlerDisposition.REFUSED
