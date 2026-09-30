@@ -45,9 +45,8 @@ def random_external_event_message() -> Message:
 
 def generate_inbound_message(state: ActorState) -> Message | None:
     # if no report yet, receive a report
-    if state.q_rm == RM.START:
-        if random.random() < 0.4:
-            return _message_gen(MessageTypes.RS)
+    if state.q_rm == RM.START and random.random() < 0.4:
+        return _message_gen(MessageTypes.RS)
 
     # otherwise, with 1 in 5 chance, maybe something happened out in the world
     if random.random() < 0.10:

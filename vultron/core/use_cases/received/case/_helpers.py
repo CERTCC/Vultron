@@ -58,12 +58,11 @@ def _find_report_case_link(
     the case snapshot embeds the report.
     """
     for obj in dl.list_objects("ReportCaseLink"):
-        if isinstance(obj, VultronReportCaseLink):
-            if (
-                obj.trusted_case_creator_id == creator_id
-                and obj.case_id is None
-            ):
-                return obj
+        if isinstance(obj, VultronReportCaseLink) and (
+            obj.trusted_case_creator_id == creator_id
+            and obj.case_id is None
+        ):
+            return obj
     return None
 
 

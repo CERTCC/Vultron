@@ -101,12 +101,11 @@ def _has_attributed_to_assignment(scope: ast.AST) -> bool:
                 and isinstance(node.target.ctx, ast.Store)
             ):
                 return True
-        elif isinstance(node, ast.AugAssign):
-            if (
-                isinstance(node.target, ast.Attribute)
-                and node.target.attr == "attributed_to"
-            ):
-                return True
+        elif isinstance(node, ast.AugAssign) and (
+            isinstance(node.target, ast.Attribute)
+            and node.target.attr == "attributed_to"
+        ):
+            return True
     return False
 
 
