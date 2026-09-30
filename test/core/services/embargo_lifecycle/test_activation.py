@@ -186,3 +186,44 @@ def test_terminate_active_embargo_observed_invalid_no_raise(
     )
 
     assert result.em_after == EM.EXITED
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "EP-08-004: termination prunes only the terminated embargo's own "
+        "entry and leaves open revisions of it in both records. Tracked by "
+        "#3914 (Concern #3836, ADR-0113)."
+    ),
+)
+@pytest.mark.spec("EP-08-004")
+def test_terminate_clears_every_open_revision_of_the_terminated_embargo(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Termination decides every open proposal (EP-08-004).
+
+    A case has one active embargo, so every proposal open while EM is ACTIVE
+    or REVISE is a revision of it, and a revision of an embargo that no longer
+    exists cannot be accepted.  Both open-proposal records are empty after
+    teardown with a revision pending.
+    """
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
+    active = _make_embargo(dl, case.id_)
+    revision = _make_embargo(dl, case.id_)
+    case.active_embargo = active.id_
+    case.proposed_embargoes = [revision.id_]
+    case.pending_embargo_proposal_index = {
+        revision.id_: f"{case.id_}/embargo_proposals/revision",
+    }
+    dl.save(case)
+
+    result = EmbargoLifecycle(persistence=dl).terminate_active_embargo(
+        case_id=case.id_, actor_id=owner.id_
+    )
+
+    assert result.em_after == EM.EXITED
+    torn_down = cast(VulnerabilityCase, dl.read(case.id_))
+    assert torn_down.active_embargo is None
+    assert torn_down.proposed_embargoes == []
+    assert torn_down.pending_embargo_proposal_index == {}

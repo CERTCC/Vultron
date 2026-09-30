@@ -9,8 +9,9 @@ description: >
   happy-path embargo requires no explicit negotiation exchange; why there is no
   pre-case embargo phase; why an RSVP deadline may not outlive its embargo; and
   how EP-04-003's two-party shortest-wins relates to EP-08's general
-  earliest-expiration ordering for N open proposals; and why the creation-time
-  revision's registration order no longer touches consent (ADR-0093).
+  earliest-expiration ordering for N open proposals; why the creation-time
+  revision's registration order no longer touches consent (ADR-0093); and how
+  the creation-time revision is relayed to the other party (EP-04-011, ADR-0113).
 related_specs:
   - specs/case-management.yaml
   - specs/case-proposal.yaml
@@ -20,6 +21,7 @@ related_specs:
 related_notes:
   - notes/participant-embargo-consent.md
   - notes/embargo-lifecycle.md
+  - notes/case-communication-model.md
   - notes/case-proposal.md
   - notes/configuration.md
   - notes/bt-pitfalls.md
@@ -246,8 +248,22 @@ embargo, whose terms are still in force under REVISE, and under ADR-0093 a
 proposal changes nobody's consent, so the order of registration and seeding no
 longer affects the consent record (it once did — the superseded lapse-on-propose
 cascade would have lapsed both seeds had the revision been registered after
-them). Whether the pending revision should also be announced to peers as an
-`Invite(EmbargoEvent)` is the decision tracked as #3863.
+them).
+
+The registration alone is not enough, and for two reasons that #3863 surfaced
+(decided by ADR-0113, EP-04-011). First, `propose_embargo` appends to
+`proposed_embargoes` but never to `pending_embargo_proposal_index`, so the
+owner's default earliest-expiring selection (EP-08-002) could not even name the
+revision. Second, nobody but the CASE_MANAGER knew it existed. The creation-time
+revision is a revision like any other and follows the relay in
+`embargo-lifecycle.md` § "Revision Negotiation Relays Through the CASE_MANAGER":
+the CASE_MANAGER proposes it *on behalf of the party whose terms lost*
+(`initial_embargo_duration.source` on the blackboard says which), attributes it
+to that party, commits it as a proposal entry, indexes it, and relays it as an
+`Invite(EmbargoEvent)` to the other party. The loser is the proposer and is not
+invited — when the reporter's longer terms lost, the owner is invited; when the
+owner's longer default lost, the reporter is. A tie registers nothing and relays
+nothing. The owner may then accept or reject as with any revision (EP-09-005).
 
 The sender's event arrives under the sender's id, and an id is a sender-supplied
 value. `persist_creation_time_embargo` (`nodes/embargo.py`) therefore refuses a

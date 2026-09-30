@@ -3684,9 +3684,11 @@ groups:
       authority's tail — whether as the causal gate before the notes phase or as
       the temporal check after case closure — MUST be performed through a shared
       helper in `vultron/demo/helpers/sync.py` that reads the authority tail,
-      iterates the replicas, applies the named late-joiner and cross-container
-      timeout constants from `vultron/demo/helpers/polling.py`, and wraps each
-      per-replica wait in a demo context internally.
+      iterates the replicas, applies the named ledger-coverage timeout constants
+      from `vultron/demo/helpers/polling.py` (a default budget and a wider
+      late-joiner budget, neither below any budget a scenario carried before
+      the loop was shared), and wraps each per-replica wait in a demo context
+      internally.
     rationale: >-
       The same read-tail-then-poll-replicas block was repeated in every scenario
       module, once before the notes phase and once after closure. Its timeouts
@@ -3698,8 +3700,10 @@ groups:
     verification: >-
       Unit tests for the shared helper assert that the per-replica wait is
       skipped when the authority-tail read yields nothing, that a late joiner
-      receives the late-joiner replica timeout, and that a raising per-replica
-      timeout is recorded by the failure accumulator rather than propagating.
+      receives the late-joiner coverage budget and every other replica the
+      default coverage budget, that neither budget is below the values the
+      scenario copies carried, and that a raising per-replica timeout is
+      recorded by the failure accumulator rather than propagating.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001

@@ -6,8 +6,8 @@ description: >
   run under `uv run`, why `PYTHONPATH` must be cleared, the `UV_NO_SYNC=1`
   workaround for root-owned venvs, the 10-minute commit timeout the whole-tree
   flake8 hook demands, the hanging `actionlint` hook, pushing to `origin`
-  with `-u` rather than a token URL, and the `.claude/skills` symlink to
-  `.agents/skills`.
+  with `-u` rather than a token URL, the HTTP/2 push that never gets a reply,
+  and the `.claude/skills` symlink to `.agents/skills`.
 related_notes:
   - notes/docker-build.md
   - notes/git-workflow-pitfalls.md
@@ -114,6 +114,27 @@ git -c credential.https://github.com.helper= \
 ```
 
 Sources: ISSUE-2186, #3893
+
+## `git push` Hangs After "Writing objects" — Force HTTP/1.1
+
+Symptom: `git push` prints `Writing objects: 100% ... done.` and then sits
+forever. `git ls-remote` and `git fetch` still answer at once, so the network is
+up; `GIT_CURL_VERBOSE=1` shows the `POST .../git-receive-pack` request sent over
+HTTP/2 and no response ever arriving. Killing and retrying over HTTP/2 hangs the
+same way; the same push over HTTP/1.1 completes in seconds:
+
+```bash
+git -c http.version=HTTP/1.1 push -u origin HEAD
+```
+
+Seen while opening #3905, where two HTTP/2 attempts sat for more than eight
+minutes each. The pack was also far larger than the one commit warranted
+(thousands of objects the remote already held), which is a separate curiosity
+and not the cause — the HTTP/1.1 retry uploaded the same pack. Do not "fix"
+this by raising `http.postBuffer`: the upload had already finished when the
+hang began.
+
+Sources: #3846
 
 ## `.claude/skills` Is a Symlink to `.agents/skills` — Edit Only `.agents/`
 

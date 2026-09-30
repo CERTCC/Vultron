@@ -86,17 +86,15 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
+    LATE_JOINER_TIMEOUT,
     drain_phase1_ledger,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
     find_cp_offer_for_case,
-    LATE_JOINER_TIMEOUT,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
-    wait_for_contiguous_ledger_coverage,
-    wait_for_participants_on_replicas,
     wait_for_event_type_in_ledger,
     wait_for_participant_d_state,
     wait_for_participant_rm_state,
@@ -108,8 +106,8 @@ from vultron.demo.helpers.seeding import (
     seed_containers_fcvcv,
 )
 from vultron.demo.helpers.sync import (
-    _get_log_entries_for_case,
-    verify_replica_state,
+    run_sync_verification_phase,
+    wait_for_replica_ledger_coverage,
 )
 from vultron.demo.helpers.workflow import (
     reporter_submits_report,
@@ -627,70 +625,30 @@ def _phase_sync_verification(
     logger.info("Phase 3: Replica synchronization verification (M1)")
     logger.info("─" * 80)
 
-    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
-        wait_for_case_on_container(client=finder_client, case_id=case.id_)
-        c1_entries = _get_log_entries_for_case(c1_client, case.id_)
-        if c1_entries:
-            c1_tail = max(c1_entries, key=lambda e: e["log_index"])
-            c1_tail_index: int = c1_tail["log_index"]
-            c1_tail_hash: str = c1_tail["entry_hash"]
-            logger.info(
-                "Waiting for replicas to sync C1 tail (hash=%s… index=%d)",
-                c1_tail_hash[:16],
-                c1_tail_index,
-            )
-            for replica_client, label in [
-                (finder_client, "Finder"),
-                (v1_client, "V1"),
-                (c2_client, "C2"),
-                # V2 is a late joiner that must catch up from genesis; allow extra
-                # time for the full history to be delivered (LedgerFanout late-joiner).
-                (v2_client, "V2"),
-            ]:
-                # V2 joins after Phase 1 completes, so it has more entries to sync.
-                timeout = 45.0 if label == "V2" else 30.0
-                with demo_gate(
-                    f"{label} ledger coverage (sync-verification phase)"
-                ):
-                    wait_for_contiguous_ledger_coverage(
-                        client=replica_client,
-                        case_id=case.id_,
-                        expected_tail_index=c1_tail_index,
-                        timeout_seconds=timeout,
-                    )
-                logger.info("  %s ledger synchronized", label)
-
-    # V2 is a late joiner — allow extra time for participant index propagation.
-    wait_for_participants_on_replicas(
-        replica_clients=(finder_client, v1_client, c2_client, v2_client),
+    run_sync_verification_phase(
+        auth_client=c1_client,
+        auth_label="C1",
+        auth_actor_id=c1.id_,
+        finder_client=finder_client,
+        finder_actor_id=finder.id_,
+        replicas=[
+            (finder_client, "Finder"),
+            (v1_client, "V1"),
+            (c2_client, "C2"),
+            (v2_client, "V2"),
+        ],
         case_id=case.id_,
-        expected_actor_ids={
+        expected_participant_ids={
             finder.id_,
             c1.id_,
             v1.id_,
             c2_in_c2.id_,
             v2.id_,
         },
+        # V2 joins after Phase 1 completes and catches up from genesis.
         late_joiners=(v2_client,),
+        state_checks=[(finder_client, "Finder"), (v2_client, "V2")],
     )
-
-    with demo_check("Finder replica matches authoritative C1 state"):
-        verify_replica_state(
-            auth_client=c1_client,
-            replica_client=finder_client,
-            case_id=case.id_,
-            vendor_actor_id=c1.id_,
-            reporter_actor_id=finder.id_,
-        )
-
-    with demo_check("V2 replica matches authoritative C1 state"):
-        verify_replica_state(
-            auth_client=c1_client,
-            replica_client=v2_client,
-            case_id=case.id_,
-            vendor_actor_id=c1.id_,
-            reporter_actor_id=finder.id_,
-        )
 
     logger.info("✓ M1: All five replicas synchronized (LedgerFanout verified)")
 
@@ -1112,29 +1070,23 @@ def _phase_case_closure(
             event_type="close_case",
         )
 
-    c1_entries = _get_log_entries_for_case(c1_client, case.id_)
-    if c1_entries:
-        c1_tail = max(c1_entries, key=lambda e: e["log_index"])
-        c1_tail_index: int = c1_tail["log_index"]
-        c1_tail_hash: str = c1_tail["entry_hash"]
-        logger.info(
-            "Waiting for replicas to receive C1 tail after closure"
-            " (hash=%s… index=%d)",
-            c1_tail_hash[:16],
-            c1_tail_index,
-        )
-        for replica_client, label in [
+    # Temporal (EDF-06-006): after close_case the authority's outbox fans out
+    # Announce(CaseLedgerEntry) to each replica via BackgroundTasks; nothing
+    # but the ledger dump depends on it. Bounded per replica by
+    # LEDGER_COVERAGE_TIMEOUT / LATE_JOINER_COVERAGE_TIMEOUT (EDF-06-008).
+    wait_for_replica_ledger_coverage(
+        auth_client=c1_client,
+        replicas=[
             (finder_client, "Finder"),
             (v1_client, "V1"),
             (c2_client, "C2"),
             (v2_client, "V2"),
-        ]:
-            with demo_check(f"{label} ledger coverage (close phase)"):
-                wait_for_contiguous_ledger_coverage(
-                    client=replica_client,
-                    case_id=case.id_,
-                    expected_tail_index=c1_tail_index,
-                )
+        ],
+        case_id=case.id_,
+        late_joiners=(v2_client,),
+        phase_label="close phase",
+        causal=False,
+    )
 
 
 def _phase_dump_case_ledgers(
