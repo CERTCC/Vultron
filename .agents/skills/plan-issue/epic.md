@@ -57,12 +57,16 @@ unilaterally.
 - `notes/<topic>.md` — Add design decisions or implementation guidance if needed
 - ADR in `docs/adr/` if ADR determination recommended one
 
-Docs updates are optional. Skip if Phase A found no gaps.
+Docs updates are optional. Skip if Phase A found no gaps. These are planning
+docs; name each reader-facing `docs/` page a Task will change in that Task's
+ACs instead (`SKILL.md` Phase 8).
 
 ## Implementation Issues
 
 Create one Task sub-issue per decomposition cluster from Phase B. Every Task
-body carries a `Governing specs:` line (see `SKILL.md` Phase 8). Wire each as:
+body carries a `Governing specs:` line (see `SKILL.md` Phase 8). Keep the
+`<docs/ page> describes` AC only when a reader-facing `docs/` page is known to
+be affected; delete it otherwise. Wire each as:
 
 - `--blocked-by <N>` for any sequencing constraints
 - `--issue-type-id "$(bash .agents/skills/shared/board-id.sh issue-type Task)"`
@@ -79,6 +83,7 @@ Governing specs: <spec/group IDs this Task must satisfy> ← or \"none — <reas
 
 ## Acceptance Criteria
 - [ ] AC-1: <from Phase B>
+- [ ] AC-N: <docs/ page> describes <changed behavior>
 
 ## Reference
 Epic: #${ISSUE_NUMBER}" \

@@ -64,7 +64,8 @@ For each finding where `decision_outcome` is `fix-now` and `severity` is `FAIL`
 or `IMPROVE`:
 
 > Note: findings with `severity: NEW-ISSUE` are handled exclusively in Phase 3,
-> regardless of their `decision_outcome`. Do not process them here.
+> regardless of their `decision_outcome`. Do not process them here. Phase 9
+> docs-currency findings are handled in Phase 3b.
 
 1. Apply the fix (edit files as needed).
 2. Do not commit yet — batch all fixes, then commit once at the end of this phase.
@@ -129,6 +130,41 @@ closed. Nor does citing the PR that surfaced it: a merged PR number is not a
 tracking reference. In the 2026-09-02 audit, nearly every finding parked this way
 was eventually re-found and filed by a later session — the deferral bought
 nothing but the rediscovery cost, and four findings fell through entirely.
+
+### Phase 3b — Refresh the `Docs:` Line
+
+Execute's fix commits can change behavior that `docs/` describes, which makes
+the PR body's `Docs:` line stale (PD-03-007, PD-03-008). After Phases 2–3 and
+before the CI loop:
+
+1. Diff the fix commits this run made, and answer `check-docs-sync` Q1 and
+   Q2 against that diff: which `docs/` pages describe what those commits
+   changed. If triage flagged the `Docs:` line as missing or placeholder,
+   answer them against the whole PR diff (`git diff origin/<base_ref>...HEAD`)
+   instead — the author never recorded a determination. Phase 9
+   docs-currency findings from triage already name their pages; this phase
+   owns them, and Phase 2 skips them.
+2. For each affected page, apply the update the way `check-docs-sync` Step 3
+   does (`lint-docs` gate, then `build-docs`), and commit it as
+   `docs: sync docs/ for PR #<number>`.
+3. Rewrite the PR body's `Docs:` line so it lists every page the PR now
+   updates, in the forms of `.agents/skills/shared/pr-body-guide.md`
+   § "Implementation PR rules", then `gh pr edit <number> --body-file <file>`.
+   When the fix commits touch no described behavior, leave the line as written
+   unless triage flagged it.
+4. Record the result in the artifact's `docs_refresh` block (see
+   [REFERENCE.md](REFERENCE.md) § "Execute Artifact Schema").
+5. Add a `results` entry for every Phase 9 docs-currency finding this phase
+   owns, so `results` still covers every triage finding. A page update gets
+   `outcome: fixed` with the docs commit as `commit_ref`. A fix that only
+   rewrote the `Docs:` line (for example a placeholder replaced by
+   `Docs: no docs impact — …`) has no commit: record `commit_ref: null` and
+   `fix_kind: "pr-body"`, and `pr-verify` checks it against the live body.
+
+Phase 5's CI-fix commits land after this phase. Before Phase 6 writes the
+artifact, repeat steps 1–3 for any CI-fix commit, add it to
+`docs_refresh.fix_commits_checked`, and append any further docs commit to
+`docs_refresh.docs_commit_refs`.
 
 ### Phase 4 — Resolve Review Thread Comments
 

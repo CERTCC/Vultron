@@ -186,7 +186,7 @@ entry vs. both.
    Supersedes `format-code`, so run it alone — no separate `format-code` step.
 2. `run-tests` — unit suite once; read the `exit:` line. If `vultron/demo/` or
    `test/demo/` touched, also run the full suite (`-m ""`, same redirect form).
-3. `build-docs` — only if `docs/` modified
+3. `build-docs` if `docs/` modified; `check-docs-sync` runs regardless (PD-03-008)
 4. `commit` skill — include Co-authored-by trailer
 
 **PR body**: use `.agents/skills/shared/pr-body-guide.md` template. Put
