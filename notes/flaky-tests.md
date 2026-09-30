@@ -143,8 +143,8 @@ No open entries.
 | `fvcv-handoff Demo Integration` — `Case attributed_to updated to Coordinator on Vendor1's DataLayer (AC-1)` timeout | #3602 | 2026-09-23 |
 | `fcv-reject Demo Integration` | #3033 | 2026-09-02 |
 | `fcv-reject Invariant Harness` | #3033 | 2026-09-02 |
-| `fccv-handoff Demo Integration` — `M6 receiver: pxa_state is not public-aware, found None` | #3903 | 2026-09-29 |
-| `fcv Demo Integration` — `M6 receiver: pxa_state is not public-aware, found None` | #3903 | 2026-09-29 |
+| `fccv-handoff Demo Integration` — `M6 receiver: pxa_state is not public-aware, found None` | #3903 | 2026-09-30 |
+| `fcv Demo Integration` — `M6 receiver: pxa_state is not public-aware, found None` | #3903 | 2026-09-30 |
 
 > **Root fix landed 2026-09-29 for the #2898 / #3033 rows** (one PR closing
 > both). Two faults compounded: the CaseActor queued its initialization ledger
@@ -175,6 +175,13 @@ No open entries.
 > rows added 2026-09-29 → #3903**: the first `main` run after #3883
 > (36623680376) failed both at the publication milestone with a signature
 > closed #1839 once carried; distinct from every ownership/fan-out gate above.
+> **Root fix landed 2026-09-30 (one PR closing #3903 and #3981):**
+> `verify_publicly_disclosed` polled `pxa_state` on the reporter replica only
+> (the #2376 fix) and then read the receiver replica once. The CaseActor's
+> ledger fan-out reaches each replica independently, and in run 36770113456
+> the receiver applied the entry 66 ms after that read. The helper now polls
+> every replica it asserts. Same deletion rule as above: **keep until
+> post-merge `main` runs stay green for this signature.**
 >
 > `fcv-reject Demo Integration` / `fcv-reject Invariant Harness` were
 > **repointed from closed #2390 to #3033 on 2026-09-29**: the 2026-09-02

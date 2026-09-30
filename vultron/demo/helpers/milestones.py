@@ -361,16 +361,6 @@ def verify_publicly_disclosed(
             )
         logger.info("✓ publicly disclosed %s: EM.EXITED", label)
 
-    # Gate: poll reporter replica until receiver_actor_id's pxa_state is
-    # public-aware.  actor_notifies_published returns HTTP 202 before the
-    # CaseActor's Add(CaseStatus) broadcast reaches the reporter's DataLayer,
-    # so an instant assertion races the async commit (ADR-0058).
-    wait_for_participant_pxa_state(
-        client=reporter_client,
-        case_id=case_id,
-        actor_id=receiver_actor_id,
-    )
-
     # Verify receiver participant's pxa state (and VFD only for vendor/deployer)
     # on both the coordinator's and reporter's DataLayer replicas.
     vfd_roles = {CVDRole.VENDOR, CVDRole.DEPLOYER}
@@ -378,6 +368,16 @@ def verify_publicly_disclosed(
         ("receiver", receiver_client),
         ("reporter", reporter_client),
     ]:
+        # Gate each replica on the status actually landing before asserting
+        # it.  actor_notifies_published returns HTTP 202 before the CaseActor
+        # fans the ledger entry out, and that fan-out reaches every replica
+        # independently, so an instant read of *either* replica races the
+        # async apply (ADR-0058; #2376 reporter, #3903 receiver).
+        wait_for_participant_pxa_state(
+            client=c,
+            case_id=case_id,
+            actor_id=receiver_actor_id,
+        )
         p = _fetch_participant(c, case_id, receiver_actor_id)
         if p is None:
             raise AssertionError(
