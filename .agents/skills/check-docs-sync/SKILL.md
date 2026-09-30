@@ -188,7 +188,8 @@ The caller writes this line into the PR body, replacing the placeholder:
 
 ```bash
 gh pr view <PR> --json body --jq .body > /tmp/pr-body-<PR>.md
-# Replace the "Docs: pending check-docs-sync" line with the emitted line, then:
+# Replace the line that *begins* with "Docs:" (anchor on line start: the
+# Changes prose may quote the placeholder), then:
 gh pr edit <PR> --body-file /tmp/pr-body-<PR>.md
 ```
 
