@@ -220,7 +220,7 @@ class FastAPIIngressAdapter:
         """Expand reference fields on the *parsed* activity, without a re-read."""
         try:
             hydrated = self._dl.hydrate(activity)
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326  # pragma: no cover - defensive
             logger.warning(
                 "FastAPIIngressAdapter.rehydrate: hydrate failed (%s);"
                 " returning parsed activity unchanged.",

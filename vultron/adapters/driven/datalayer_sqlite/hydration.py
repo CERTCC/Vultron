@@ -159,7 +159,7 @@ def _core_classes_by_type_value() -> dict[str, type[BaseModel] | None]:
     Built once per registry state rather than per read: every activity row
     misses the class-name lookup and would otherwise rescan the registry.
     """
-    global _TYPE_VALUE_INDEX
+    global _TYPE_VALUE_INDEX  # noqa: PLW0603  # ruff-baseline #3985
     registered = tuple(CORE_VOCABULARY.values())
     cached, index = _TYPE_VALUE_INDEX
     if cached == registered:

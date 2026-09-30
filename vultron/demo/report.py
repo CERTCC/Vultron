@@ -1160,14 +1160,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         report = generate_report(input_dir, args.format)
     except ReportError as exc:
-        logger.error("error: %s", exc)
+        logger.error("error: %s", exc)  # noqa: TRY400  # ruff-baseline #3353
         return 1
 
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(report, encoding="utf-8")
     except OSError as exc:
-        logger.error("error: cannot write %s: %s", output_path, exc)
+        logger.error("error: cannot write %s: %s", output_path, exc)  # noqa: TRY400  # ruff-baseline #3353
         return 1
 
     logger.info("Wrote %s report → %s", args.format, output_path)

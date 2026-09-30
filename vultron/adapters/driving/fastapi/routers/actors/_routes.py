@@ -231,7 +231,7 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
         # A client-supplied id that names no actor (``"/"``, ``"//"``) is a bad
         # request, not a server fault: it must not become a 500, and it must not
         # be allowed to mint a store for a phantom actor.
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         )
@@ -436,7 +436,7 @@ def get_action_rules(
         if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
             case_obj = dl.find_case_by_short_id(case_id)
         if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
-            raise VultronNotFoundError("VulnerabilityCase", case_id)
+            raise VultronNotFoundError("VulnerabilityCase", case_id)  # noqa: TRY301  # ruff-baseline #3353
         canonical_actor_id = canonical
         if actor_obj is not None and hasattr(actor_obj, "id_"):
             canonical_actor_id = actor_obj.id_
@@ -464,12 +464,12 @@ def get_action_rules(
             .model_dump(mode="json")
         )
     except VultronNotFoundError as exc:
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         )
     except VultronValidationError as exc:
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         )

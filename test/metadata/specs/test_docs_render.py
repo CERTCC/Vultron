@@ -429,7 +429,7 @@ def test_behavioral_spec_empty_scope_raises():
     """BehavioralSpec must still reject scope=[] (parent validator not shadowed)."""
     from vultron.metadata.specs.schema import BehavioralSpec, RFC2119Priority
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         BehavioralSpec(
             id="BHV-01-001",
             priority=RFC2119Priority.MUST,
@@ -447,7 +447,7 @@ def test_behavioral_spec_empty_preconditions_raises():
         Scope,
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         BehavioralSpec(
             id="BHV-01-001",
             priority=RFC2119Priority.MUST,

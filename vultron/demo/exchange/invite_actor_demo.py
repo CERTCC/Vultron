@@ -91,7 +91,7 @@ def _find_case_manager_actor(
     try:
         case_data = client.get(client.dl_path(case_id, actor_id=vendor_id))
         case_obj = as_VulnerabilityCase(**case_data)
-    except Exception:
+    except Exception:  # noqa: BLE001  # ruff-baseline #3326
         return None
 
     for p_ref in case_obj.case_participants:
@@ -108,7 +108,7 @@ def _find_case_manager_actor(
                     if isinstance(attr, str)
                     else getattr(attr, "id_", None)
                 )
-        except Exception:
+        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3326
             continue
     return None
 

@@ -35,7 +35,7 @@ STATELOG: list[dict[str, Any]] = []
 
 
 def reset_statelog():
-    global STATELOG
+    global STATELOG  # noqa: PLW0603  # ruff-baseline #3985
     STATELOG = []
 
 

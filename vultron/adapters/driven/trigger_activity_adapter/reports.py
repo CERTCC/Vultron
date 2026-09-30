@@ -77,7 +77,7 @@ def _reconstitute_offer(
             actor=offer_record.offer_actor_id,
             id_=offer_id,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
         logger.warning(
             "_reconstitute_offer: failed to reconstitute offer '%s': %s",
             offer_id,

@@ -50,7 +50,7 @@ class _HistoryEntryBase(BaseModel):
     @classmethod
     def must_be_non_empty(cls, v: object) -> str:
         if not isinstance(v, str):
-            raise ValueError("must be a string")
+            raise ValueError("must be a string")  # noqa: TRY004  # ruff-baseline #3353
         stripped = v.strip()
         if not stripped:
             raise ValueError("must not be empty or whitespace-only")

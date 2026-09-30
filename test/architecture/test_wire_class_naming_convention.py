@@ -60,8 +60,8 @@ def _import_tree(package: str) -> None:
     for _, name, _ in pkgutil.walk_packages(mod.__path__, package + "."):
         try:
             importlib.import_module(name)
-        except (
-            Exception
+        except (  # noqa: S112  # ruff-baseline #3326
+            Exception  # noqa: BLE001  # ruff-baseline #3326
         ):  # pragma: no cover - a broken module is another test's problem
             continue
 

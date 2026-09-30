@@ -345,8 +345,8 @@ class TransitionCStoFixDeployed(DataLayerActionWithPorts):
                     self._case_id,
                 )
             return result.status
-        except Exception as e:
-            self.logger.error(
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: Error transitioning to VFD: %s", self.name, e
             )
             return Status.FAILURE

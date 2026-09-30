@@ -121,7 +121,7 @@ class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
             cast(CaseOutboxPersistence, self.datalayer).outbox_append(
                 activity_id
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
             self.feedback_message = f"create_case_proposal failed: {exc}"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -201,7 +201,7 @@ class RequeuePendingCreateCaseActivityNode(DataLayerAction):
             already_queued = self.activity_id in outbox.outbox_list()
         except Exception as exc:  # noqa: BLE001 - recovery must not crash boot
             self.feedback_message = f"could not read outbox: {exc}"
-            self.logger.error(
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: could not read outbox for actor '%s': %s",
                 self.name,
                 self.marker.case_actor_id,
@@ -223,7 +223,7 @@ class RequeuePendingCreateCaseActivityNode(DataLayerAction):
             outbox.outbox_append(self.activity_id)
         except Exception as exc:  # noqa: BLE001
             self.feedback_message = f"could not enqueue: {exc}"
-            self.logger.error(
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: could not enqueue Create(VulnerabilityCase) '%s'"
                 " for actor '%s': %s",
                 self.name,

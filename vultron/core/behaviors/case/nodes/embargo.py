@@ -85,7 +85,7 @@ def persist_creation_time_embargo(
             or stored.context != case_id
             or stored.end_time != embargo.end_time
         ):
-            raise VultronError(
+            raise VultronError(  # noqa: B904  # ruff-baseline #3353
                 f"embargo id {embargo.id_!r} is already held by a different"
                 f" object ({type(stored).__name__}, context"
                 f" {getattr(stored, 'context', None)!r}); refusing to bind"
@@ -171,7 +171,7 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
             persist_creation_time_embargo(self.datalayer, embargo, case_id)
         except VultronError as exc:
             self.feedback_message = f"{self.name}: {exc}"
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         self._set_output("default_embargo_id", embargo.id_)
@@ -281,7 +281,7 @@ class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
                 transition_mode=TransitionMode.STRICT,
             )
         except VultronError as exc:
-            self.logger.error(
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: Failed to propose embargo '%s' for case '%s': %s",
                 self.name,
                 embargo_id,
@@ -344,7 +344,7 @@ class AttachEmbargoToCaseNode(DataLayerActionWithPorts):
                 )
             except VultronError as exc:
                 self.feedback_message = str(exc)
-                self.logger.error(
+                self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                     "%s: Failed to activate embargo '%s' on case '%s': %s",
                     self.name,
                     embargo_id,

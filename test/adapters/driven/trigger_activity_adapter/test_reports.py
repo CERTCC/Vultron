@@ -99,7 +99,7 @@ class TestSubmitReport:
 
         def failing_create(obj):
             if isinstance(obj, VultronOfferRecord):
-                raise RuntimeError("simulated DB failure")
+                raise RuntimeError("simulated DB failure")  # noqa: TRY004  # ruff-baseline #3353
             return original_create(obj)
 
         dl.create = failing_create
@@ -165,7 +165,7 @@ class TestSubmitReport:
 
         def failing_create(obj):
             if isinstance(obj, VultronOfferRecord):
-                raise RuntimeError("simulated DB failure")
+                raise RuntimeError("simulated DB failure")  # noqa: TRY004  # ruff-baseline #3353
             return original_create(obj)
 
         def failing_delete(table, id_):

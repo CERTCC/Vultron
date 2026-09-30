@@ -91,7 +91,7 @@ def log_index(entry: dict) -> int:
             f"Ledger entry eventType={event_type(entry)!r} has no logIndex"
         )
     if not isinstance(raw, int) or isinstance(raw, bool):
-        raise ValueError(
+        raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
             f"Ledger entry eventType={event_type(entry)!r} has non-integer "
             f"logIndex={raw!r}"
         )

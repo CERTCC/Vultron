@@ -133,7 +133,7 @@ def _persist_prepared_activity(
             cast(CaseOutboxPersistence, dl)
         ).emit_prepared_create_case(marker.create_activity_payload)
     except VultronError as exc:
-        logger.error(
+        logger.error(  # noqa: TRY400  # ruff-baseline #3353
             "retry_pending: could not persist Create(VulnerabilityCase)"
             " from marker '%s': %s",
             marker.id_,

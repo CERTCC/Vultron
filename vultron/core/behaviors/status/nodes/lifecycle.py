@@ -301,11 +301,11 @@ class EmitCloseCaseNode(DataLayerActionWithPorts):
                 activity_id,
                 case_manager_id,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
             self.feedback_message = (
                 f"EmitCloseCase: failed to emit close_case: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         return Status.SUCCESS

@@ -104,7 +104,7 @@ def ensure_valid_pattern(func: F) -> F:
         pat = args[0]
         try:
             is_valid_pattern(pat)
-        except PatternValidationError:
+        except PatternValidationError:  # noqa: TRY203  # ruff-baseline #3353
             raise
         return func(*args, **kwargs)
 
@@ -131,7 +131,7 @@ def is_valid_state(state: str) -> None:
     try:
         is_valid_pattern(state)
     except PatternValidationError as e:
-        raise StateValidationError(e)
+        raise StateValidationError(e)  # noqa: B904  # ruff-baseline #3353
 
     # disqualify impossible states
     if re.match("vF....", state):
@@ -165,7 +165,7 @@ def ensure_valid_state(func: F) -> F:
         state = args[0]
         try:
             is_valid_state(state)
-        except StateValidationError:
+        except StateValidationError:  # noqa: TRY203  # ruff-baseline #3353
             raise
         return func(*args, **kwargs)
 
@@ -222,7 +222,7 @@ def ensure_valid_state_method_wrapper(func: F) -> F:
         for state in states:
             try:
                 is_valid_state(state)
-            except StateValidationError:
+            except StateValidationError:  # noqa: TRY203  # ruff-baseline #3353
                 raise
 
         return func(self, *args, **kwargs)
@@ -262,7 +262,7 @@ def _ensure_transition_state(state: str) -> None:
     try:
         is_valid_state(state)
     except StateValidationError as e:
-        raise TransitionValidationError(e)
+        raise TransitionValidationError(e)  # noqa: B904  # ruff-baseline #3353
 
 
 def _transition_diff(src: str, dst: str) -> list[tuple[str, str]]:
@@ -372,7 +372,7 @@ def ensure_valid_history(func: F) -> F:
         history = args[0]
         try:
             is_valid_history(history)
-        except HistoryValidationError:
+        except HistoryValidationError:  # noqa: TRY203  # ruff-baseline #3353
             raise
         return func(*args, **kwargs)
 

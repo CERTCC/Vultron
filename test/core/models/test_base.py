@@ -154,7 +154,7 @@ def test_domain_object_expected_as_types():
 
 
 def test_vultron_note_content_required():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         VultronNote()
     note = VultronNote(content="test content")
     assert note.content == "test content"
@@ -178,7 +178,7 @@ def test_vultron_participant_required_fields():
 
 
 def test_vultron_case_status_required_fields():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         CaseStatus()
     # attributed_to is optional; context alone is sufficient
     cs_no_attr = CaseStatus(context="urn:uuid:case-123")
@@ -193,11 +193,11 @@ def test_vultron_case_status_required_fields():
 
 def test_vultron_embargo_event_required_fields():
     # context is required; omitting it must raise
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         EmbargoEvent(end_time=_FUTURE_DT)
     # end_time is required too — no implicit default duration (EP-04-010,
     # #3404); context alone is not sufficient
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         EmbargoEvent(context="urn:uuid:case-123")
     # both supplied is the only valid construction
     em = EmbargoEvent(context="urn:uuid:case-123", end_time=_FUTURE_DT)

@@ -18,7 +18,7 @@ def domain_error_translation() -> Generator[None, None, None]:
     try:
         yield
     except (VultronError, PydanticValidationError) as e:
-        raise translate_domain_errors(e)
+        raise translate_domain_errors(e)  # noqa: B904  # ruff-baseline #3353
 
 
 def translate_domain_errors(exc: Exception) -> HTTPException:

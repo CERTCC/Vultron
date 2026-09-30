@@ -186,7 +186,7 @@ class ParsePayloadNode(_InboxNodeWithPorts):
 
         try:
             activity = ingress.parse(payload)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
             return self._reject(f"Parse raised exception: {exc}")
 
         if activity is None:
@@ -246,7 +246,7 @@ class RehydrateActivityNode(_InboxNodeWithPorts):
 
         try:
             rehydrated = ingress.rehydrate(activity)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
             return self._reject(f"Rehydrate raised exception: {exc}")
 
         self._set_output(KEY_ACTIVITY, rehydrated)
@@ -308,7 +308,7 @@ class ExtractSemanticsNode(_InboxNodeWithPorts):
                 min_rsvp_window=cfg.min_rsvp_window if cfg else None,
                 default_rsvp_window=cfg.default_rsvp_window if cfg else None,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
             return self._reject(f"extract_event raised exception: {exc}")
 
         self._set_output(KEY_EVENT, event)

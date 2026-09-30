@@ -98,7 +98,7 @@ class _SendEmbargoActivityBase(DataLayerActionWithPorts):
             activity_id, _extra = self._call_factory(
                 self.actor_id, embargo_id, case_manager_id
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
             self.feedback_message = (
                 f"Factory call failed for case '{self._case_id}': {exc}"
             )
@@ -111,7 +111,7 @@ class _SendEmbargoActivityBase(DataLayerActionWithPorts):
                 activity_id,
                 self.datalayer,  # type: ignore[arg-type]
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
             return self._on_outbox_write_failure(activity_id, exc)
 
         self.feedback_message = (

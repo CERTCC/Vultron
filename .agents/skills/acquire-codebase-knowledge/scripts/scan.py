@@ -438,7 +438,7 @@ def read_file_preview(
         if len(lines) > max_lines:
             preview += f"\n[TRUNCATED] Showing first {max_lines} of {len(lines)} lines."
         return preview
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
         return f"[Error reading file: {e}]"
 
 
@@ -510,9 +510,9 @@ def search_todos() -> list[str]:
                                     todos.append(
                                         f"{rel_path}:{line_num}: {line.strip()}"
                                     )
-                except Exception:
+                except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
                     pass
-    except Exception:
+    except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
         pass
 
     return todos[:TODO_LIMIT]
@@ -535,7 +535,7 @@ def get_git_commits() -> list[str]:
                 else []
             )
         return []
-    except Exception:
+    except Exception:  # noqa: BLE001  # ruff-baseline #3326
         return []
 
 
@@ -567,7 +567,7 @@ def get_git_churn() -> list[str]:
                 for filename, count in churn[:CHURN_LIMIT]
             ]
         return []
-    except Exception:
+    except Exception:  # noqa: BLE001  # ruff-baseline #3326
         return []
 
 
@@ -582,7 +582,7 @@ def is_git_repo() -> bool:
             check=False,
         )
         return result.returncode == 0
-    except Exception:
+    except Exception:  # noqa: BLE001  # ruff-baseline #3326
         return False
 
 
@@ -607,7 +607,7 @@ def detect_monorepo() -> list[str]:
                     signals.append(
                         "package.json has 'workspaces' field (npm/yarn workspaces monorepo)"
                     )
-        except Exception:
+        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
 
     return signals
@@ -626,7 +626,7 @@ def detect_ci_cd_pipelines() -> list[str]:
             try:
                 if list(path.glob("*.yml")) or list(path.glob("*.yaml")):
                     pipelines.append(f"CI/CD: {pipeline_name}")
-            except Exception:
+            except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
                 pass
 
     return pipelines
@@ -653,7 +653,7 @@ def detect_containers() -> list[str]:
                     containers.append(
                         f"Container/Orchestration: {config}/ directory found"
                     )
-            except Exception:
+            except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
                 pass
 
     return containers
@@ -687,7 +687,7 @@ def detect_performance_markers() -> list[str]:
                     performance.append(
                         f"Performance: {marker}/ directory found"
                     )
-            except Exception:
+            except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
                 pass
 
     return performance
@@ -766,9 +766,9 @@ def collect_code_metrics() -> dict:
                                 errors="ignore",
                             ) as f:
                                 metrics["total_lines"] += len(f.readlines())
-                        except Exception:
+                        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
                             pass
-                except Exception:
+                except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
                     pass
 
         # Top 10 largest files
@@ -777,7 +777,7 @@ def collect_code_metrics() -> dict:
             f"{f!s}: {s / 1024:.1f}KB" for f, s in file_sizes[:10]
         ]
 
-    except Exception:
+    except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
         pass
 
     return metrics
@@ -992,7 +992,7 @@ def main():
     with _open_output(args.output) as output_file:
         try:
             _write_all_sections(output_file)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
             print(f"Error: {e}", file=sys.stderr)
             return 1
         return 0

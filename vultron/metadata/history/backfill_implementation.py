@@ -487,7 +487,7 @@ def _require_manifest_entry_int(
 ) -> int:
     value = data.get(field)
     if not isinstance(value, int):
-        raise ValueError(message)
+        raise ValueError(message)  # noqa: TRY004  # ruff-baseline #3353
     return value
 
 
@@ -496,7 +496,7 @@ def _require_manifest_entry_str(
 ) -> str:
     value = data.get(field)
     if not isinstance(value, str):
-        raise ValueError(message)
+        raise ValueError(message)  # noqa: TRY004  # ruff-baseline #3353
     return value
 
 
@@ -507,7 +507,7 @@ def _optional_manifest_entry_str(
     if value is None:
         return None
     if not isinstance(value, str):
-        raise ValueError(f"manifest entry {field} is malformed")
+        raise ValueError(f"manifest entry {field} is malformed")  # noqa: TRY004  # ruff-baseline #3353
     return value
 
 
@@ -525,7 +525,7 @@ def _manifest_entry_str_list(
 def _coerce_manifest_entry(data: object) -> ManifestEntry:
     """Validate and coerce JSON-loaded manifest entry data."""
     if not isinstance(data, dict):
-        raise ValueError("manifest entry is malformed")
+        raise ValueError("manifest entry is malformed")  # noqa: TRY004  # ruff-baseline #3353
 
     return ManifestEntry(
         heading_line=_require_manifest_entry_int(
@@ -580,7 +580,7 @@ def _coerce_manifest_entry(data: object) -> ManifestEntry:
 def _coerce_manifest(data: object) -> BackfillManifest:
     """Validate and coerce JSON-loaded manifest data."""
     if not isinstance(data, dict):
-        raise ValueError("manifest is malformed")
+        raise ValueError("manifest is malformed")  # noqa: TRY004  # ruff-baseline #3353
 
     kind = data.get("kind")
     generated_at = data.get("generated_at")
@@ -591,19 +591,19 @@ def _coerce_manifest(data: object) -> BackfillManifest:
     raw_entries = data.get("entries")
 
     if not isinstance(kind, str):
-        raise ValueError("manifest kind is missing")
+        raise ValueError("manifest kind is missing")  # noqa: TRY004  # ruff-baseline #3353
     if not isinstance(generated_at, str):
-        raise ValueError("manifest generated_at is missing")
+        raise ValueError("manifest generated_at is missing")  # noqa: TRY004  # ruff-baseline #3353
     if not isinstance(legacy_file, str):
-        raise ValueError("manifest legacy_file is missing")
+        raise ValueError("manifest legacy_file is missing")  # noqa: TRY004  # ruff-baseline #3353
     if not isinstance(entry_count, int):
-        raise ValueError("manifest entry_count is missing")
+        raise ValueError("manifest entry_count is missing")  # noqa: TRY004  # ruff-baseline #3353
     if not isinstance(status, str):
-        raise ValueError("manifest status is missing")
+        raise ValueError("manifest status is missing")  # noqa: TRY004  # ruff-baseline #3353
     if not isinstance(blocking_entry_count, int):
-        raise ValueError("manifest blocking_entry_count is missing")
+        raise ValueError("manifest blocking_entry_count is missing")  # noqa: TRY004  # ruff-baseline #3353
     if not isinstance(raw_entries, list):
-        raise ValueError("manifest entries are missing or malformed")
+        raise ValueError("manifest entries are missing or malformed")  # noqa: TRY004  # ruff-baseline #3353
 
     entries = [_coerce_manifest_entry(raw_entry) for raw_entry in raw_entries]
     return BackfillManifest(
@@ -626,7 +626,7 @@ def main() -> None:
     try:
         if args.write:
             if args.manifest is None:
-                raise ValueError("--write requires --manifest")
+                raise ValueError("--write requires --manifest")  # noqa: TRY301  # ruff-baseline #3353
             manifest_path = Path(args.manifest)
             manifest = _coerce_manifest(
                 json.loads(manifest_path.read_text(encoding="utf-8"))

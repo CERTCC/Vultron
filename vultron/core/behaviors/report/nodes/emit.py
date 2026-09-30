@@ -140,8 +140,8 @@ class _EmitCaseActorReportActivityBase(DataLayerActionWithPorts):
                 self.offer_id,
             )
             return Status.SUCCESS
-        except Exception as e:
-            self.logger.error("%s: Error emitting activity: %s", self.name, e)
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+            self.logger.error("%s: Error emitting activity: %s", self.name, e)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -421,8 +421,8 @@ class EmitSubmitReportActivity(DataLayerActionWithPorts):
                 self.recipient_id,
             )
             return Status.SUCCESS
-        except Exception as e:
-            self.logger.error(
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: Error emitting submit-report offer: %s", self.name, e
             )
             return Status.FAILURE

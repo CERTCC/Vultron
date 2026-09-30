@@ -678,7 +678,7 @@ def _poll_datalayer_for(
                         obj_id = str(raw_id)
                         logger.info(log_msg, obj_id)
                         return obj_id
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
         time.sleep(poll_interval)
     raise AssertionError(error_msg)
@@ -932,7 +932,7 @@ def find_case_actor_participant_id(
         return case_actor_participant_id_in(
             as_VulnerabilityCase.model_validate(case_data)
         )
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
         pass
     return None
 
@@ -1095,7 +1095,7 @@ def wait_for_object_stored(
                     client.base_url,
                 )
                 return True
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
         return False
 

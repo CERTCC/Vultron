@@ -67,7 +67,7 @@ class SvcAddParticipantStatusUseCase(SvcBTTriggerBase):
             if not isinstance(status_id, str) or not isinstance(
                 participant_id, str
             ):
-                raise RuntimeError(
+                raise RuntimeError(  # noqa: TRY004  # ruff-baseline #3353
                     "CreateParticipantStatusNode did not populate result_out"
                     " before activity_builder was called"
                 )

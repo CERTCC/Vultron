@@ -143,7 +143,7 @@ def read_rm_states(
             "Non-canonical ParticipantStatus shape for participant"
             f" '{participant_id}': {exc}"
         )
-        node.logger.error(f"{node.name}: {node.feedback_message}")
+        node.logger.error(f"{node.name}: {node.feedback_message}")  # noqa: TRY400  # ruff-baseline #3353
         return None
 
 
@@ -810,9 +810,9 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts):
         try:
             activity_id, activity_blob = self._call_factory()
             self._emit_through_seam(activity_id, activity_blob)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
             self.feedback_message = f"{self.__class__.__name__} failed: {e}"
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
         self._on_success(activity_id, activity_blob)
         return Status.SUCCESS
@@ -1038,11 +1038,11 @@ class ReadObject(DataLayerConditionWithPorts):
             self.logger.debug(self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
             self.feedback_message = (
                 f"Error reading {self.table}/{self.object_id}: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1159,9 +1159,9 @@ class UpdateObject(DataLayerActionWithPorts):
             self.logger.info(self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
             self.feedback_message = f"Error updating {self.object_id}: {e}"
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1230,11 +1230,11 @@ class CreateObject(DataLayerAction):
             self.logger.info(self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
             self.feedback_message = (
                 f"Error creating object in {self.table}: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1317,6 +1317,6 @@ class UpdateActorOutbox(DataLayerActionWithPorts):
 
             return Status.SUCCESS
 
-        except Exception as e:
-            self.logger.error(f"{self.name}: Error updating actor outbox: {e}")
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+            self.logger.error(f"{self.name}: Error updating actor outbox: {e}")  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE

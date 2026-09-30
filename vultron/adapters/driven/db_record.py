@@ -421,7 +421,7 @@ class Record(StorableRecord):
             # records keyed only in CORE_TYPE_MAP (VM-06-008).
             cls = find_in_vocabulary(self.type_, include_core=True)
         except KeyError:
-            raise ValueError(
+            raise ValueError(  # noqa: B904  # ruff-baseline #3353
                 f"Type '{self.type_}' not found in vocabulary for Record conversion"
             )
         obj = cls.model_validate(self.data_)

@@ -73,8 +73,8 @@ class PersistCase(DataLayerActionWithPorts):
             self._set_output("case_id", self.case_obj.id_)
             return Status.SUCCESS
 
-        except Exception as e:
-            self.logger.error(f"{self.name}: Error persisting case: {e}")
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+            self.logger.error(f"{self.name}: Error persisting case: {e}")  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 

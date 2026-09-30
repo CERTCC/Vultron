@@ -145,7 +145,7 @@ class PxaEmInvariantDiagnosticNode(DataLayerActionWithPorts):
                 activity_id,
                 self.case_id,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
             logger.warning(
                 "PxaEmInvariantDiagnosticNode: failed to post Note for"
                 " CSB-18 violation in case '%s': %s",

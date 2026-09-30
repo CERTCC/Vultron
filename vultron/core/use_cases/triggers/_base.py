@@ -174,7 +174,7 @@ class SvcEmbargoTriggerBase(SvcBTTriggerBase):
     def _handle_result(self) -> None:
         lifecycle_result = self._result_out.get("lifecycle_result")
         if not isinstance(lifecycle_result, EmbargoLifecycleResult):
-            raise RuntimeError(
+            raise RuntimeError(  # noqa: TRY004  # ruff-baseline #3353
                 f"{type(self).__name__} did not capture lifecycle result"
                 " in BT output"
             )

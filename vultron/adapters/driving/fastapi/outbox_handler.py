@@ -116,7 +116,7 @@ def _resolve_ledger_entry_id(activity_id: str, dl: DataLayer) -> str | None:
     """
     try:
         body = read_sealed_body_dict(dl, activity_id)
-    except Exception:
+    except Exception:  # noqa: BLE001  # ruff-baseline #3326
         return None
     if body is None:
         return None
@@ -410,7 +410,7 @@ async def _deliver_row(
                 # The retry store itself failed.  The row is not lost — the
                 # caller re-queues a stalled row — but nothing more can be
                 # learned about it this pass (OX-13-011).
-                logger.error(
+                logger.error(  # noqa: TRY400  # ruff-baseline #3353
                     "Outbox retry bookkeeping failed for '%s' (actor '%s'):"
                     " %s; stalling the row for this pass",
                     activity_id,

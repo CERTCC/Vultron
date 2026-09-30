@@ -139,7 +139,7 @@ def _check_group_order(
                 entry.pattern.model_dump(exclude_none=True)
             )
             enriched.append((idx, entry, dump))
-        except Exception:
+        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3326
             continue
 
     for (idx_a, entry_a, dump_a), (idx_b, entry_b, dump_b) in combinations(

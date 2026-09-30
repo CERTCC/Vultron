@@ -214,11 +214,11 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
         try:
             activity_id, activity_blob = self._call_factory()
             self._emit_through_seam(activity_id, activity_blob)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
             # Includes Regime 1 (ADR-0087, #3101) case-not-found:
             # a missing case is an anomaly, not a silent empty-recipient
             # emit+commit.
-            self.logger.error(
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: add_case_participant emit failed: %s", self.name, exc
             )
             return Status.FAILURE

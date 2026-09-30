@@ -339,7 +339,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
                     payload_snapshot
                 )
             except VultronValidationError as exc:
-                self.logger.error(
+                self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                     "%s: refusing ledger commit for case '%s':"
                     " override validation failed: %s",
                     self.name,

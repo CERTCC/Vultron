@@ -114,7 +114,7 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         if v is None:
             return None
         if not isinstance(v, datetime):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
                 f"rsvp_deadline must be a datetime, got {type(v).__name__}"
             )
         if v.tzinfo is None:

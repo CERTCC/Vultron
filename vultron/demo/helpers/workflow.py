@@ -571,7 +571,7 @@ def _load_case_from_datalayer(
         return as_VulnerabilityCase.model_validate(
             client.get(client.dl_path(item, actor_id=actor_id))
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
         logger.warning("Could not fetch case %s: %s", item, exc)
         return None
 

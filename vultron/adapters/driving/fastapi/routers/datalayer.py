@@ -87,7 +87,7 @@ def get_object(
     try:
         wire_obj = record_to_object(rec)
         return AS2JSONResponse(wire_obj)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
         logger.debug(
             "get_object: wire conversion failed for %r: %s", object_id, exc
         )
@@ -373,7 +373,7 @@ def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_actor_dl)):
     try:
         wire_obj = record_to_object(rec)
         return AS2JSONResponse(wire_obj)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
         logger.debug(
             "get_object_by_key: wire conversion failed for %r: %s", key, exc
         )

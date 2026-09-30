@@ -216,7 +216,7 @@ def init_dispatcher() -> None:
     and its one remaining caller reached for the unscoped ``get_datalayer()``
     to satisfy it — which ADR-0073 removes.
     """
-    global _DISPATCHER
+    global _DISPATCHER  # noqa: PLW0603  # ruff-baseline #3985
     _DISPATCHER = make_dispatcher()
     logger.info("Initialised inbox dispatcher: %s", type(_DISPATCHER).__name__)
 
@@ -440,8 +440,8 @@ def _process_inbox_item(
             actor_id,
         )
         return False
-    except Exception as e:
-        logger.error(
+    except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        logger.error(  # noqa: TRY400  # ruff-baseline #3353
             "Error processing inbox item %s for actor %s: %s"
             " — re-queuing for retry",
             item_id,

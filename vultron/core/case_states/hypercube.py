@@ -287,7 +287,7 @@ class CVDmodel:
             try:
                 is_valid_transition(state, successor)
             except TransitionValidationError as e:
-                raise CVDmodelError(e)
+                raise CVDmodelError(e)  # noqa: B904  # ruff-baseline #3353
 
             edge_data = self.G.get_edge_data(state, successor)
             if edge_data["label"] == transition:
@@ -610,7 +610,7 @@ class CVDmodel:
         try:
             is_valid_history(h)
         except HistoryValidationError:
-            raise ScoringError(f"Invalid history {h}")
+            raise ScoringError(f"Invalid history {h}")  # noqa: B904  # ruff-baseline #3353
 
         D_h = {(e1, e2): h.index(e1) < h.index(e2) for (e1, e2) in self._D}
         return D_h
@@ -828,7 +828,7 @@ class CVDmodel:
         try:
             is_valid_pattern(pat)
         except PatternValidationError as e:
-            raise CVDmodelError(e)
+            raise CVDmodelError(e)  # noqa: B904  # ruff-baseline #3353
 
         matches = []
         for state in self.states:
@@ -850,7 +850,7 @@ class CVDmodel:
         try:
             is_valid_transition(from_state, to_state)
         except TransitionValidationError as e:
-            logger.error(
+            logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 f"Invalid transition from {from_state} to {to_state}: {e}"
             )
             raise

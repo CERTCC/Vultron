@@ -150,8 +150,8 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
             return f
         try:
             accept_id, payload_snapshot = self._call_factory()
-        except Exception as exc:
-            self.logger.error(
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: error creating Accept for offer '%s': %s",
                 self.name,
                 self.offer_id,

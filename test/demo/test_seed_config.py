@@ -53,7 +53,7 @@ class TestLocalActorConfig:
 
 class TestPeerActorConfig:
     def test_requires_id(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             PeerActorConfig.model_validate({"name": "Bob"})  # id required
 
     def test_valid_peer(self):
@@ -178,7 +178,7 @@ class TestSeedConfigFromFile:
     def test_from_file_invalid_schema_raises(self, tmp_path):
         config_file = tmp_path / "bad.yaml"
         config_file.write_text("bad_key: bad_value\n")
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             SeedConfig.from_file(str(config_file))
 
 

@@ -204,7 +204,7 @@ class HttpDeliveryAdapter:
                 if 400 <= exc.response.status_code < 500:
                     # 4xx is deterministic: the same payload will never succeed.
                     # Raise immediately without consuming retry slots (OX-13-005).
-                    logger.error(
+                    logger.error(  # noqa: TRY400  # ruff-baseline #3353
                         "Terminal delivery failure (HTTP %d) for activity %s"
                         " to %s — not retrying (OX-13-005).",
                         exc.response.status_code,
@@ -213,7 +213,7 @@ class HttpDeliveryAdapter:
                     )
                     raise DeliveryError([recipient_id], activity_id) from exc
                 last_exc = exc
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
                 last_exc = exc
 
             # Retryable failure (5xx or network error).

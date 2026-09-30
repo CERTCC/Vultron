@@ -118,7 +118,7 @@ class DispatcherBase:
         try:
             self._enforce_join_backfill_gate(event, dl)
         except UnroutableActivityError as exc:
-            logger.error(
+            logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "Activity '%s' is unroutable and will be dropped"
                 " (semantics=%s actor_id=%s): no case_id extractable",
                 event.activity_id,

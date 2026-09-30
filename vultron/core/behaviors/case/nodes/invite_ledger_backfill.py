@@ -350,8 +350,8 @@ class EmitAnnounceCaseToInviteeNode(DataLayerAction):
                 self.case_id,
             )
             return Status.SUCCESS
-        except Exception as exc:
-            self.logger.error(
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: failed to emit AnnounceVulnerabilityCase for case '%s'"
                 " to '%s': %s",
                 self.name,

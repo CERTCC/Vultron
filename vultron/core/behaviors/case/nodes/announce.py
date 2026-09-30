@@ -185,9 +185,9 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts):
                 self._request.actor_id,
             )
             return Status.SUCCESS
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
             self.feedback_message = str(exc)
-            self.logger.error(
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: failed to seed case '%s': %s",
                 self.name,
                 self.case_id,

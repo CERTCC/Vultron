@@ -406,7 +406,7 @@ class TestProcessPayloadThreadSafety:
                 dispatch = _StubDispatchAdapter()
                 outcome = process_payload({}, ingress, dispatch)
                 results.append(outcome)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
                 errors.append(exc)
 
         threads = [threading.Thread(target=_run) for _ in range(4)]

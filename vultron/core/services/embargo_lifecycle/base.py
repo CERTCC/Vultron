@@ -110,7 +110,7 @@ class _LifecycleBase:
                     case_id,
                     em_before,
                 )
-                raise VultronInvalidStateTransitionError(
+                raise VultronInvalidStateTransitionError(  # noqa: B904  # ruff-baseline #3353
                     f"Cannot apply '{trigger}' to embargo: case '{case_id}'"
                     f" EM state '{em_before}' does not allow this transition."
                 )

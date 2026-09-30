@@ -147,8 +147,8 @@ class OutboxMonitor:
                     dl,
                     emitter=self._emitter,
                 )
-            except Exception as exc:
-                logger.error(
+            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+                logger.error(  # noqa: TRY400  # ruff-baseline #3353
                     "OutboxMonitor: unhandled error draining outbox"
                     " for actor '%s': %s",
                     actor_id,

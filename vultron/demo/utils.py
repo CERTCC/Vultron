@@ -311,8 +311,8 @@ class DataLayerClient(BaseModel):
             data = response.json()
             logger.debug(f"Response JSON: {json.dumps(data, indent=2)}")
         except ValueError as e:
-            logger.error(f"Exception: {e}")
-            logger.error(f"Response text: {response.text}")
+            logger.error(f"Exception: {e}")  # noqa: TRY400  # ruff-baseline #3353
+            logger.error(f"Response text: {response.text}")  # noqa: TRY400  # ruff-baseline #3353
 
         if response.status_code == 404:
             logger.error(
@@ -345,7 +345,7 @@ class DataLayerClient(BaseModel):
         """
         data = self.call(HTTPMethod.GET, path, **kwargs)
         if not isinstance(data, list):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
                 f"Expected JSON array from GET {path}, "
                 f"got {type(data).__name__}"
             )
@@ -601,7 +601,7 @@ def log_case_state(
         )
         logger.debug(f"Case detail [{label}]: {logfmt(case)}")
         return case
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
         logger.warning(f"Could not fetch case state [{label}]: {e}")
         return None
 
@@ -921,7 +921,7 @@ def check_server_availability(
             pass
         except httpx.TimeoutException:
             pass
-        except Exception:
+        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
         if attempt < max_retries - 1:
             time.sleep(retry_delay)

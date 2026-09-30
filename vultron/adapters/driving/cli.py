@@ -54,7 +54,7 @@ def deliver(actor_id: str, activity_json) -> None:
 
     try:
         activity = parse_activity(raw)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
         click.echo(f"Parse error: {e}", err=True)
         sys.exit(1)
 

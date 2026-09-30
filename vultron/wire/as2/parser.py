@@ -155,7 +155,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     try:
         cls = find_in_vocabulary(type_)
     except KeyError:
-        raise VultronParseUnknownTypeError(
+        raise VultronParseUnknownTypeError(  # noqa: B904  # ruff-baseline #3353
             f"Unrecognized activity type: {type_!r}."
         )
 

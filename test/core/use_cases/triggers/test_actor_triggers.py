@@ -288,7 +288,7 @@ class TestSvcInviteActorToCaseUseCase:
             case_id=missing_case_id,
             invitee_id=invitee.id_,
         )
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             SvcInviteActorToCaseUseCase(
                 dl,
                 request,
@@ -1116,7 +1116,7 @@ class TestSvcAcceptActorRecommendationUseCase:
             cp_offer_id="https://example.org/activities/no-such-offer",
             case_actor_id=case_actor.id_,
         )
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             SvcAcceptActorRecommendationUseCase(
                 dl,
                 request,
@@ -1272,7 +1272,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             case_id="https://example.org/cases/nope",
             transferee_id=transferee.id_,
         )
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             SvcOfferCaseOwnershipTransferUseCase(
                 dl,
                 request,

@@ -83,7 +83,7 @@ def _pattern_dump(pattern: Any) -> dict[str, Any]:
             if callable(pattern) and not hasattr(pattern, "model_dump")
             else pattern
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # ruff-baseline #3326
         obj = pattern
 
     if hasattr(obj, "model_dump"):
@@ -198,7 +198,7 @@ def test_non_overlapping_activity_patterns():
         for pat in group_patterns:
             try:
                 dumped = _pattern_dump(pat)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
                 problems.append(
                     {
                         "group": group_name,

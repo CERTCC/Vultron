@@ -47,7 +47,7 @@ def _ci_scenarios() -> set[str]:
     """Return the set of scenario names defined in .github/demo-scenarios.json."""
     entries = json.loads(_CI_SCENARIOS_JSON.read_text())
     if not isinstance(entries, list):
-        raise AssertionError(
+        raise AssertionError(  # noqa: TRY004  # ruff-baseline #3353
             f"Expected a JSON array in {_CI_SCENARIOS_JSON}, got {type(entries).__name__}"
         )
     return {entry["demo"] for entry in entries}

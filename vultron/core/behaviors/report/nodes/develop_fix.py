@@ -156,8 +156,8 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
                     self._case_id,
                 )
             return result.status
-        except Exception as e:
-            self.logger.error(
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: Error transitioning to VF=VF: %s", self.name, e
             )
             return Status.FAILURE
@@ -251,8 +251,8 @@ class _EmitParticipantStatusActivityBase(DataLayerActionWithPorts):
                 self._case_id,
             )
             return Status.SUCCESS
-        except Exception as e:
-            self.logger.error(
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: Error emitting participant-status activity: %s",
                 self.name,
                 e,

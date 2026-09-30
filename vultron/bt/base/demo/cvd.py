@@ -147,7 +147,7 @@ def _print_sim_result():
 
 def _setup_logger(args):
     """Configure the root logger using the log level from parsed arguments."""
-    global logger
+    global logger  # noqa: PLW0603  # ruff-baseline #3985
     logger = logging.getLogger()
     logger.setLevel(args.log_level)
     hdlr = logging.StreamHandler()
