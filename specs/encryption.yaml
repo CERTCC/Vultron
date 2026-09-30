@@ -139,7 +139,7 @@ groups:
   specs:
   - id: ENC-03-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Decryption of inbound encrypted activities MUST occur in the inbox handler before the
       activity is passed to semantic extraction or dispatch
@@ -154,8 +154,6 @@ groups:
       spec_id: SE-01-001
     - rel_type: implements
       spec_id: VP-15-003
-    lint_suppress:
-    - missing_story_reference
   - id: ENC-03-002
     priority: MUST
     kind: protocol

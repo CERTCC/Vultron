@@ -16,17 +16,15 @@ groups:
   specs:
   - id: SE-01-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The system MUST match activities using activity type and object type patterns
     verification: >-
       Inspection of `vultron/wire/` confirms that `find_matching_semantics()` tests
       each registered `ActivityPattern` against both the activity type and object
       type of the incoming activity.
-    lint_suppress:
-    - missing_story_reference
   - id: SE-01-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The semantic extraction algorithm MUST handle both fully expanded objects and URI string
       references defensively
@@ -34,8 +32,6 @@ groups:
       Inspection of `vultron/wire/` confirms that the semantic extraction algorithm
       attempts to rehydrate bare URI string `object_` values before pattern matching,
       handling both expanded objects and unresolved URI strings defensively.
-    lint_suppress:
-    - missing_story_reference
   - id: SE-01-003
     priority: MUST
     kind: protocol
@@ -49,7 +45,7 @@ groups:
     - missing_story_reference
   - id: SE-01-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Pattern matching MUST support type/subclass matching semantics for actor/object classes
     verification: >-
@@ -60,22 +56,18 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: SE-01-002
-    lint_suppress:
-    - missing_story_reference
 - id: SE-02
   title: Semantic Type Assignment
   specs:
   - id: SE-02-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The system MUST assign MessageSemantics enum value via `find_matching_semantics()`
     verification: >-
       Inspection of `vultron/wire/` confirms that the inbox handler invokes
       `find_matching_semantics()` as the sole code path for assigning a
       `MessageSemantics` enum value to each received AS2 activity.
-    lint_suppress:
-    - missing_story_reference
   - id: SE-02-002
     priority: MUST
     kind: protocol
@@ -231,14 +223,12 @@ groups:
     - missing_story_reference
   - id: SE-05-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: All patterns MUST have unit test coverage
     verification: >-
       Inspection of `test/` confirms that each `ActivityPattern` in
       `SEMANTIC_REGISTRY` has at least one test exercising
       `find_matching_semantics()` for the corresponding semantic type.
-    lint_suppress:
-    - missing_story_reference
   - id: SE-05-004
     priority: SHOULD
     kind: protocol
@@ -388,7 +378,7 @@ groups:
   specs:
   - id: SE-08-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       When two or more `ActivityPattern` entries share the same `activity_` type AND
       `object_` type, the more-specific pattern MUST include an additional discriminator
@@ -407,11 +397,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SE-03-002
-    lint_suppress:
-    - missing_story_reference
   - id: SE-08-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       A wire activity class whose semantic identity depends on a target-field discriminator
       MUST declare that target field as required (not optional) so that a sender omitting it
@@ -427,8 +415,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SE-08-001
-    lint_suppress:
-    - missing_story_reference
   - id: SE-08-003
     priority: SHOULD
     kind: protocol
@@ -449,7 +435,7 @@ groups:
       spec_id: SE-08-001
   - id: SE-08-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       When an `ActivityPattern` uses `target_` as the sole field that distinguishes it from
       a less-specific competing pattern, `strict=True` MUST be set on that pattern so that
@@ -469,11 +455,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SE-08-001
-    lint_suppress:
-    - missing_story_reference
   - id: SE-08-005
     priority: MUST
-    kind: protocol
+    kind: project
     deprecated: true
     statement: >-
       The `OFFER_CASE_MANAGER_ROLE` semantic and its wire format
@@ -496,5 +480,4 @@ groups:
     - rel_type: refines
       spec_id: SE-08-003
     lint_suppress:
-    - missing_story_reference
     - phantom_symbol_ref

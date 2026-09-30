@@ -37,7 +37,7 @@ groups:
     - story_2022_038
   - id: IE-02-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The endpoint MUST reject non-POST requests with HTTP 405
     rationale: >-
       The inbox is a delivery target, not a mailbox other actors may read: ActivityPub
@@ -54,8 +54,6 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001
-    lint_suppress:
-    - missing_story_reference
   - id: IE-02-004
     priority: MUST_NOT
     kind: architecture
@@ -86,14 +84,12 @@ groups:
       spec_id: ARCH-12-006
     - rel_type: depends_on
       spec_id: DL-07-001
-    lint_suppress:
-    - missing_story_reference
 - id: IE-03
   title: Request Handling
   specs:
   - id: IE-03-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The endpoint MUST validate Content-Type header
     verification: >-
       Integration tests in `test/demo/` confirm that requests missing or carrying
@@ -101,11 +97,9 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-01-001
-    lint_suppress:
-    - missing_story_reference
   - id: IE-03-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The endpoint MUST enforce a configurable maximum request body size.
     verification: >-
       Inspection of `vultron/adapters/driving/fastapi/` confirms that the
@@ -113,11 +107,9 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-02-001
-    lint_suppress:
-    - missing_story_reference
   - id: IE-03-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Requests exceeding the maximum request body size MUST be rejected with HTTP 413.
     rationale: >-
       Rejecting oversized payloads with an explicit 413 prevents resource exhaustion
@@ -128,8 +120,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: IE-03-002
-    lint_suppress:
-    - missing_story_reference
   - id: IE-03-004
     priority: MUST
     kind: protocol
@@ -161,7 +151,7 @@ groups:
     - story_2022_089
   - id: IE-04-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The endpoint MUST return HTTP 422 for validation failures
     verification: >-
       Integration tests in `test/demo/` confirm that a schema-invalid activity
@@ -169,14 +159,12 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001
-    lint_suppress:
-    - missing_story_reference
 - id: IE-05
   title: Response Timing
   specs:
   - id: IE-05-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The endpoint MUST return HTTP 202 within 100ms
     verification: >-
       Integration tests in `test/demo/` confirm that the endpoint returns HTTP 202
@@ -184,8 +172,6 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-06-001
-    lint_suppress:
-    - missing_story_reference
   - id: IE-05-002
     priority: MUST_NOT
     kind: protocol
@@ -231,14 +217,12 @@ groups:
       spec_id: IE-06-002
     - rel_type: depends_on
       spec_id: BT-11-004
-    lint_suppress:
-    - missing_story_reference
 - id: IE-07
   title: Error Responses
   specs:
   - id: IE-07-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The endpoint MUST return HTTP 202 for successfully accepted activities,
       HTTP 400 for malformed requests or Activities whose addressing provably
@@ -252,14 +236,12 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001
-    lint_suppress:
-    - missing_story_reference
 - id: IE-08
   title: Response Format
   specs:
   - id: IE-08-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Response body MUST be JSON with fields: `status`, `activity_id`, `message`'
     verification: >-
       Integration tests in `test/demo/` confirm that every response body contains
@@ -268,14 +250,12 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: EH-05-001
-    lint_suppress:
-    - missing_story_reference
 - id: IE-09
   title: Logging
   specs:
   - id: IE-09-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The endpoint MUST log all requests at INFO level
     verification: >-
       Inspection of `vultron/adapters/driving/fastapi/` confirms that a structured
@@ -287,14 +267,12 @@ groups:
       spec_id: SL-02-001
     - rel_type: depends_on
       spec_id: SL-03-001
-    lint_suppress:
-    - missing_story_reference
 - id: IE-10
   title: Idempotency
   specs:
   - id: IE-10-001
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       The endpoint SHOULD detect a redelivered activity early, at ingress storage:
       when the activity id is already held in the receiving actor's store, the stored
@@ -315,8 +293,6 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: ID-05-002
-    lint_suppress:
-    - missing_story_reference
 - id: IE-11
   title: Activity Addressing
   specs:

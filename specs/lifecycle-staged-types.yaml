@@ -15,7 +15,7 @@ groups:
   specs:
   - id: LST-01-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A lifecycle milestone MUST be modeled as a distinct staged type only when it changes the set of guaranteed
       (required, non-None) fields on the domain object.
     rationale: A subtype whose field set is identical to its parent's adds type ceremony without a type-checker payoff and
@@ -24,11 +24,9 @@ groups:
       field relative to its parent type.
     adr:
     - ADR-0033
-    lint_suppress:
-    - missing_story_reference
   - id: LST-01-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A milestone that only changes which actions are permitted, without changing which fields are present, MUST
       be modeled in the transition model and precondition specs, not as a distinct type.
     rationale: Action-gating is a precondition on transitions, not a change in data shape. See ADR-0033 and LST-05.
@@ -36,8 +34,6 @@ groups:
       to its parent's; action-gating milestones appear only in transition logic.
     adr:
     - ADR-0033
-    lint_suppress:
-    - missing_story_reference
 - id: LST-02
   title: VulnerabilityCase Staged Types
   specs:

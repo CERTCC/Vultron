@@ -172,7 +172,14 @@ groups:
     - missing_story_reference
   - id: PRM-03-003
     priority: MUST_NOT
-    kind: protocol
+    kind: project
+    verification: >-
+      `test/architecture/test_validate_assignment_ratchet.py` scans every core
+      module for a direct `participant_statuses` write — attribute assignment or
+      in-place list mutation — outside `vultron/core/models/case_participant.py`
+      and fails on any hit; `test/core/models/test_case_participant.py` covers
+      the canonical mutator accepting a core-shaped status and rejecting a
+      wire-shaped one.
     statement: >-
       Core code under `vultron/core/` MUST NOT mutate `participant_statuses`
       directly on a CaseParticipant instance after construction (e.g.
@@ -221,7 +228,7 @@ groups:
   specs:
   - id: PRM-05-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Unit tests for `CaseParticipant.add_role()` MUST cover: (a) adding a new role, (b) idempotent re-add (no
       exception, INFO log), and (c) `raise_when_present=True` raising `KeyError`.'
     rationale: 'Each distinct branch of the method must be independently verified.'
@@ -230,11 +237,9 @@ groups:
       re-add with INFO-log assertion, and `raise_when_present=True` raising `KeyError`.
     tags:
     - testing
-    lint_suppress:
-    - missing_story_reference
   - id: PRM-05-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Unit tests for `CaseParticipant.remove_role()` MUST cover: (a) removing a present role, (b) idempotent
       remove-when-missing (no exception, INFO log), and (c) `raise_when_missing=True` raising `KeyError`.'
     rationale: 'Each distinct branch of the method must be independently verified.'
@@ -244,11 +249,9 @@ groups:
       raising `KeyError`.
     tags:
     - testing
-    lint_suppress:
-    - missing_story_reference
   - id: PRM-05-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Unit tests for `CaseParticipant.has_role()` MUST cover both the case where the role is present (returns
       True) and the case where it is absent (returns False).'
     rationale: 'Both branches of the boolean predicate must be verified.'
@@ -257,8 +260,6 @@ groups:
       role is present (returns `True`) and one where it is absent (returns `False`).
     tags:
     - testing
-    lint_suppress:
-    - missing_story_reference
   - id: PRM-05-004
     priority: SHOULD
     kind: project
@@ -293,7 +294,7 @@ groups:
     - missing_story_reference
   - id: PRM-06-002
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: >-
       A participant holding ``CVDRole.VENDOR`` MUST NOT assert a VF state of
       ``CS_vf.vf`` (vendor-unaware).  Valid Vendor VF states are
@@ -353,7 +354,7 @@ groups:
     - protocol
   - id: PRM-06-005
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: >-
       ``f→F`` (fix ready, ``CS_vf.VF``) MUST NOT be asserted by any actor
       other than the Vendor-role holder.  Fix readiness is not externally

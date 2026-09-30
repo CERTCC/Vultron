@@ -1317,7 +1317,7 @@ groups:
     - story_2022_014
   - id: EMB-14-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The create_terminate_active_embargo_tree factory MUST include an
       EmbargoExitPolicyGuard Evaluator call-out point that runs after the
@@ -1352,8 +1352,6 @@ groups:
     - rel_type: refines
       spec_id: EMB-14-001
 
-    lint_suppress:
-    - missing_story_reference
   - id: EMB-14-003
     priority: SHOULD
     kind: protocol

@@ -5,6 +5,7 @@ mismatch) and advisory warnings (testable_without_steps, rationale_too_long,
 missing_tags) including lint_suppress suppression.
 """
 
+import pytest
 import yaml
 
 from vultron.metadata.specs.lint import lint
@@ -1564,3 +1565,140 @@ def test_protocol_should_suppress_advisory_story_warn(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 0
     assert "missing_story_reference" not in captured.out
+
+
+# ---------------------------------------------------------------------------
+# MS-12-006: protocol_kind_with_code_reference — hard error, story-bearing
+# exemption, suppression path, and the tiers SR-11-003 does not reach
+# ---------------------------------------------------------------------------
+
+
+def _protocol_spec_naming_code(
+    tmp_path,
+    *,
+    field="verification",
+    text=None,
+    priority="MUST",
+    kind="protocol",
+):
+    """Return (spec_dir, data): a story-less spec whose *field* names a real
+    ``test/`` file inside the fake repo, so only MS-12-006 can fire on it."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    (repo / "test" / "test_thing.py").write_text("")
+    data = _minimal_spec_no_stories(priority=priority, kind=kind)
+    data["groups"][0]["specs"][0][field] = (
+        text or "Covered by `test/test_thing.py`, which drives the transition."
+    )
+    return spec_dir, data
+
+
+def _ms12_lines(captured_err: str) -> list[str]:
+    return [line for line in captured_err.splitlines() if "MS-12-006" in line]
+
+
+def test_protocol_no_stories_code_reference_is_hard_error(tmp_path, capsys):
+    """kind=protocol, no stories:, verification names test/…py → exit 1 (MS-12-006)."""
+    spec_dir, data = _protocol_spec_naming_code(tmp_path)
+    data["groups"][0]["specs"][0]["lint_suppress"] = [
+        "missing_story_reference"
+    ]
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    lines = _ms12_lines(captured.err)
+    assert len(lines) == 1
+    assert "TST-01-001" in lines[0]
+    assert "verification" in lines[0]
+    assert "test/test_thing.py" in lines[0]
+    assert "protocol_kind_with_code_reference" in lines[0]
+
+
+def test_protocol_code_reference_message_names_the_tree_not_a_kind(
+    tmp_path, capsys
+):
+    """The message directs to MS-12-001 → MS-12-005 and prescribes no kind (MS-12-005).
+
+    ``pytest``, ``test/`` and ``scripts/`` land in territory MS-12-001 claims
+    for ``process``, so a message that said "use kind: project" would misroute
+    them; the remedy is the ordered tree.
+    """
+    spec_dir, data = _protocol_spec_naming_code(tmp_path)
+    data["groups"][0]["specs"][0]["lint_suppress"] = [
+        "missing_story_reference"
+    ]
+    _write_yaml(spec_dir, data)
+    lint(spec_dir)
+    (line,) = _ms12_lines(capsys.readouterr().err)
+    assert "MS-12-001" in line and "MS-12-005" in line
+    for kind in ("project", "process", "architecture"):
+        assert f"kind: {kind}" not in line
+        assert f"kind={kind}" not in line
+
+
+def test_protocol_with_stories_and_code_reference_passes(tmp_path, capsys):
+    """A story-bearing protocol spec is exempt by construction (MS-12-006)."""
+    spec_dir, data = _protocol_spec_naming_code(tmp_path)
+    data["groups"][0]["specs"][0]["stories"] = ["story_2022_001"]
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "MS-12-006" not in captured.err
+
+
+def test_protocol_code_reference_suppressed(tmp_path, capsys):
+    """lint_suppress: [protocol_kind_with_code_reference] silences MS-12-006."""
+    spec_dir, data = _protocol_spec_naming_code(tmp_path)
+    data["groups"][0]["specs"][0]["lint_suppress"] = [
+        "missing_story_reference",
+        "protocol_kind_with_code_reference",
+    ]
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "MS-12-006" not in captured.err
+
+
+def test_non_protocol_kind_with_code_reference_not_flagged(tmp_path, capsys):
+    """A kind=project spec naming code is the tree's correct outcome, not a fault."""
+    spec_dir, data = _protocol_spec_naming_code(tmp_path, kind="project")
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "MS-12-006" not in captured.err
+
+
+@pytest.mark.parametrize(
+    "priority", ["MUST_NOT", "SHOULD", "SHOULD_NOT", "MAY"]
+)
+def test_protocol_code_reference_is_not_priority_scoped(
+    tmp_path, capsys, priority
+):
+    """MS-12-006 fires on every tier; SR-11-003's MUST-only gate never reached these."""
+    spec_dir, data = _protocol_spec_naming_code(tmp_path, priority=priority)
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert len(_ms12_lines(captured.err)) == 1
+
+
+def test_protocol_code_reference_in_statement_is_hard_error(tmp_path, capsys):
+    """A token in the statement is caught too; the field is named in the message."""
+    spec_dir, data = _protocol_spec_naming_code(
+        tmp_path,
+        field="statement",
+        text="The tree MUST be built from `py_trees` composites",
+    )
+    data["groups"][0]["specs"][0]["lint_suppress"] = [
+        "missing_story_reference"
+    ]
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    (line,) = _ms12_lines(capsys.readouterr().err)
+    assert result == 1
+    assert "its statement" in line
+    assert "'py_trees'" in line

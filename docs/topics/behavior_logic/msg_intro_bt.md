@@ -40,7 +40,7 @@ The behavioral requirements for the message-receive behaviors are specified in t
 - [CSB-04](../../reference/specs/protocol.md#csb-04) — Receive CP (Public Aware)
 - [CSB-05](../../reference/specs/protocol.md#csb-05) — Receive CX (Exploit Public)
 - [CSB-06](../../reference/specs/protocol.md#csb-06) — Receive CA (Attacks Observed)
-- [CSB-07](../../reference/specs/protocol.md#csb-07) — Receive CE (CS Error)
+- [CSB-07](../../reference/specs/project.md#csb-07) — Receive CE (CS Error)
 - [CSB-08](../../reference/specs/protocol.md#csb-08) — Receive CK (CS Acknowledgment)
 
 !!! note "Implementation approach"

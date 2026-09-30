@@ -204,14 +204,12 @@ groups:
     rationale: The BT is the domain documentation; behaviors outside the tree are invisible to analysis, audit, and explainability.
   - id: BT-06-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Prototype use-case BTs MUST correspond to identifiable subtrees of the canonical CVD protocol BT
     verification: >-
       Inspection of `vultron/core/behaviors/` confirms that each use-case BT implements a
       subtree identifiable in `vultron/bt/` by name or documented correspondence in the
       spec.
-    lint_suppress:
-    - missing_story_reference
   - id: BT-06-003
     priority: SHOULD
     kind: project
@@ -467,7 +465,7 @@ groups:
     - production
   - id: BT-11-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`BTBridge` MUST acquire a `threading.RLock` (re-entrant lock), not a plain `threading.Lock`, when serializing
       BT execution. Any code path in which `execute_with_setup()` calls back into `BTBridge` (directly or transitively) will
       deadlock with a plain `Lock` because the same thread attempts to acquire a non-reentrant lock it already holds.'
@@ -481,8 +479,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BT-11-001
-    lint_suppress:
-    - missing_story_reference
 - id: BT-13
   title: BT Failure Diagnosis
   specs:
@@ -1605,8 +1601,6 @@ groups:
     adr:
     - ADR-0076
     - ADR-0080
-    lint_suppress:
-    - missing_story_reference
   - id: BT-23-013
     priority: MUST
     kind: project

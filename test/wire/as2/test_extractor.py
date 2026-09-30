@@ -374,7 +374,7 @@ def _make_embargo_invite(end_time=None, embargo_end=None, published=None):
     return as_Invite(**kwargs)
 
 
-@pytest.mark.spec("CM-27-001")
+@pytest.mark.spec("CM-28-001")
 def test_invite_rsvp_deadline_extracted_when_present():
     """AC-2: activity-level end_time is extracted as rsvp_deadline on the event."""
     deadline = datetime.now(tz=timezone.utc) + timedelta(days=5)
@@ -407,7 +407,7 @@ def test_extract_event_honours_custom_default_rsvp_window():
     assert cast(Any, event).rsvp_deadline == published + timedelta(days=10)
 
 
-@pytest.mark.spec("CM-27-001")
+@pytest.mark.spec("CM-28-001")
 def test_invite_rsvp_deadline_distinct_from_embargo_end_time():
     """AC-2: invite.end_time and invite.object_.end_time are distinct fields."""
     rsvp = datetime.now(tz=timezone.utc) + timedelta(days=5)

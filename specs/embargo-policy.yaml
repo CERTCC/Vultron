@@ -467,8 +467,6 @@ groups:
       remains on `EmbargoEvent.end_time`.
     adr:
     - ADR-0096
-    lint_suppress:
-    - missing_story_reference
   - id: EP-04-011
     priority: MUST
     kind: protocol
@@ -558,7 +556,7 @@ groups:
     - story_2022_027
   - id: EP-05-002
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: >-
       A revision proposal (`ACTIVE → REVISE`) and any further counter-revision
       (`REVISE → REVISE`) MUST NOT change any participant's PEC state. Consent is

@@ -88,7 +88,8 @@ adoption until 2026-09, and by then a large fraction of the `kind: protocol`
 corpus was carrying `lint_suppress: [missing_story_reference]` instead of a
 corrected `kind` — code naming conventions, test-coverage requirements, and
 build-file formats all tagged as wire-protocol obligations. For the live count,
-read the ratchet constant that MS-12-007 pins under `test/architecture/`; it is
+read `MAX_MISSING_STORY_SUPPRESSIONS` in
+`test/architecture/test_spec_kind_ratchet.py`, the ceiling MS-12-007 pins; it is
 the authoritative figure and it only goes down. Suppressing the
 story-traceability gate is almost never the right response to it firing; a spec
 that cannot be traced to a user story is usually mis-classified, not story-less.
@@ -134,6 +135,26 @@ The general lesson, from ISSUE-3480: **an enforced MUST advertises itself throug
 full compliance in the artifacts; an unenforced one anti-advertises.** A rule at
 half adoption reads to the next author as "no rule here" — worse than one at zero
 adoption, which at least reads as "not done yet".
+
+#### Relabeling a `kind:` moves more than the field
+
+A relabel pass (the MS-12 passes in #3600 and #3601) has three mechanical
+consequences, each with a tool:
+
+- **Anchors move.** A spec renders only on its own kind's docs page (SR-09-002),
+  so every prose link to `specs/protocol.md#xx-nn-nnn` dangles the moment the
+  item becomes `project`, and so does a group anchor once its last protocol item
+  leaves. Run `uv run python scripts/relink_requirement_anchors.py` after the
+  relabel; it repoints each link at the page its anchor now renders on.
+- **Verification travels with the spec (MS-10-008).** An unverified MUST or
+  MUST_NOT that changes kind gains its `verification:` in the same change, or the
+  destination kind's ceiling would have to rise.
+- **The suppression goes with the old kind.** `scripts/relabel_spec_kinds.py`
+  applies a `{spec_id: kind}` mapping and strips `missing_story_reference` from
+  each item in one pass, preserving every other line byte for byte. The
+  protocol-coverage ceiling (`MAX_UNCOVERED_PROTOCOL_SPECS`) then drops too, since
+  a spec that leaves the protocol tier leaves that population; lower it to the new
+  live count in the same PR.
 
 ### Valid `priority:` Values — Underscores, Not Spaces
 

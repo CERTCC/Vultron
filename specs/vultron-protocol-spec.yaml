@@ -1747,7 +1747,7 @@ groups:
   specs:
   - id: VP-17-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: All direct mutations to the canonical case state MUST route through the CASE_MANAGER; no participant or use-case
       handler MAY write to canonical case state directly.
     rationale: >-
@@ -1763,8 +1763,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-02-001
-    lint_suppress:
-    - missing_story_reference
   - id: VP-17-002
     priority: MUST_NOT
     kind: protocol
