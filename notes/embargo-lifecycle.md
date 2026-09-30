@@ -18,6 +18,7 @@ related_specs:
   - specs/received-status-handling.yaml
 related_notes:
   - notes/embargo-default-semantics.md
+  - notes/bt-integration.md
   - notes/participant-embargo-consent.md
   - notes/case-communication-model.md
   - notes/case-ledger-authority.md
@@ -182,6 +183,24 @@ When implementing any code that transitions embargo state:
 7. **Several proposals can be open at once, and order is by expiration, not
    arrival** (EP-08, ADR-0100). See the section below before touching any
    proposal-selection code.
+8. **Reading EM state inside an action node** goes through `ReadEmStateNode`
+   (`vultron/core/behaviors/embargo/nodes/em_state.py`), never
+   `case.current_status.em` inline (AC-1, #1474; `WriteEmStateNode` was retired
+   in #2712 — writes go through the service). The pattern:
+
+   ```python
+   result_out: dict[str, object] = {}
+   read_node = ReadEmStateNode(case_id=case_id, result_out=result_out)
+   read_node.datalayer = self.datalayer
+   if read_node.update() != Status.SUCCESS:
+       self.feedback_message = read_node.feedback_message
+       return Status.FAILURE
+   current_em = result_out["em_before"]
+   assert isinstance(current_em, EM)
+   ```
+
+   Moved here from `vultron/core/behaviors/AGENTS.md` (CONCERN-2559) when that
+   file reached its line ceiling.
 
 ---
 

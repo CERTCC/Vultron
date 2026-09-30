@@ -12,153 +12,158 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Architecture ratchet: no direct DataLayer mutations in execute() methods.
+"""Architecture ratchet: no DataLayer mutations reachable from execute().
 
 Each ``execute()`` method in ``vultron/core/use_cases/`` MUST delegate all
 DataLayer mutations (``save``, ``create``, ``update``, ``delete``) to a BT
-leaf node via ``BTBridge.execute_with_setup()``.  Direct calls like
-``self._dl.save(...)`` inside ``execute()`` bypass the BT audit trail,
-skip the hash-chained ledger-commit path, and constitute protocol-significant
+leaf node via ``BTBridge.execute_with_setup()``.  A call like
+``self._dl.save(...)`` inside ``execute()`` bypasses the BT audit trail,
+skips the hash-chained ledger-commit path, and constitutes protocol-significant
 behavior outside the tree — the exact anti-pattern BT-06-001 and BT-15-001
 prohibit.
 
-This test uses ``ast.walk`` to detect mutation calls whose receiver is
-``self._dl``, ``self.dl``, or a local variable named ``dl``, and whose
-method name is one of ``save``, ``create``, ``update``, or ``delete``.
+Two rules, one ratchet:
+
+1. **Direct writes, every use case.**  A mutation call whose receiver is
+   ``self._dl``, ``self.dl``, or a local ``dl`` inside the body of any
+   ``execute()`` under ``vultron/core/use_cases/`` is a violation of that
+   file.  Nested functions and lambdas defined inside ``execute()`` are their
+   own scope and are not counted here.
+
+2. **Writes reached through helpers, received side (CLP-10-020).**  For an
+   ``execute()`` under ``vultron/core/use_cases/received/``, a mutation that
+   the body reaches through any function or method defined under
+   ``vultron/core/use_cases/`` — a module-level helper, a ``self._method()``,
+   a helper imported from a sibling module, and so on transitively — is a
+   violation of the file that holds the ``execute()``.  Resolution stops at
+   the use-case package boundary: a write inside a BT node the tree runs is
+   the tree's business, not a violation.  A helper is named as a violation of
+   its *caller*, never of the module that defines it, because the rule is
+   about what ``execute()`` does (CLP-10-005), not where code lives.
+   Trigger-side ``execute()`` and ``_prepare()`` bodies are governed by
+   BT-15-001 and are not resolved transitively here.
+
+Resolution lives in ``_use_case_call_graph.py``; that module's docstring
+lists the call shapes it does not follow (an inline-built instance's method, an
+inherited method from another module, a lambda or nested function handed to a
+helper — the last for the same reason the direct rule skips them).
+
+The helper rule exists because eleven received ``execute()`` bodies in nine
+files once stored the received object through one shared ``_idempotent_create``
+helper and a few bespoke ones, invisible to a body-only scan (ISSUE-3339,
+ADR-0111).  Intake — the first stage of every received tree — now archives the
+activity (CLP-10-017), and the core record goes to an effect node, so every
+entry below is a migration the issue named on it owes.
 
 A ``KNOWN_VIOLATIONS`` ratchet tracks pre-existing sites awaiting migration.
-The set is **exact**: new violations fail the test immediately, and resolved
-violations (entries in ``KNOWN_VIOLATIONS`` that no longer appear in the scan)
-also fail — prompting the entry to be removed from ``KNOWN_VIOLATIONS``.
+The set is **exact** (ARCH-18-001): new violations fail the test immediately,
+and resolved violations (entries in ``KNOWN_VIOLATIONS`` that no longer appear
+in the scan) also fail — prompting the entry to be removed (ARCH-18-002).
 
-Spec: CLP-10-005 (``specs/case-ledger-processing.yaml``).
+Spec: CLP-10-005, CLP-10-020 (``specs/case-ledger-processing.yaml``).
 BT specs: BT-06-001, BT-15-001 (``specs/behavior-tree-integration.yaml``).
-AGENTS.md pitfall: "Direct DataLayer Mutations in execute() Are Not Caught by
-the Import-Based Ratchet".
+Corpus: TB-13-001, TB-13-003 (``specs/testability.yaml``).
 """
 
 import ast
+from collections.abc import Mapping
 from pathlib import Path
 
 from test.architecture import _corpus
+from test.architecture._use_case_call_graph import (
+    _UseCaseCorpus,
+    _has_dl_mutation_in_execute,
+    _has_dl_mutation_in_execute_tree,
+)
 
 _USE_CASES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "use_cases"
-
-_DL_MUTATION_METHODS: frozenset[str] = frozenset(
-    {"save", "create", "update", "delete"}
-)
-_DL_RECEIVER_ATTRS: frozenset[str] = frozenset({"_dl", "dl"})
+_RECEIVED_ROOT = _USE_CASES_ROOT / "received"
+_USE_CASES_PKG = "vultron.core.use_cases"
 
 
-def _is_dl_mutation_call(node: ast.AST) -> bool:
-    """Return True if *node* is a DataLayer mutation call expression.
+def _build_corpus() -> _UseCaseCorpus:
+    """Index every module of the real use-case package.
 
-    Detects:
-    - ``self._dl.METHOD(...)``
-    - ``self.dl.METHOD(...)``
-    - ``dl.METHOD(...)``  (local variable named ``dl``)
-
-    where METHOD is one of ``save``, ``create``, ``update``, ``delete``.
+    ``all_trees`` rather than a fragment prefilter (TB-13-002's escape
+    hatch): a helper chain can pass through a module that never spells
+    ``dl.`` itself, and dropping that module would break the chain.
     """
-    if not isinstance(node, ast.Call):
-        return False
-    func = node.func
-    if not isinstance(func, ast.Attribute):
-        return False
-    if func.attr not in _DL_MUTATION_METHODS:
-        return False
-    recv = func.value
-    # self._dl.METHOD or self.dl.METHOD
-    if (
-        isinstance(recv, ast.Attribute)
-        and recv.attr in _DL_RECEIVER_ATTRS
-        and isinstance(recv.value, ast.Name)
-        and recv.value.id == "self"
-    ):
-        return True
-    # dl.METHOD (local variable)
-    if isinstance(recv, ast.Name) and recv.id in _DL_RECEIVER_ATTRS:
-        return True
-    return False
+    return _UseCaseCorpus(
+        dict(_corpus.all_trees(under=_USE_CASES_ROOT)),
+        root=_USE_CASES_ROOT,
+        package=_USE_CASES_PKG,
+    )
 
 
-def _walk_own_scope(node: ast.AST):
-    """Yield all descendants of *node* without crossing nested function scopes.
-
-    Unlike ``ast.walk``, this generator stops descending when it encounters a
-    ``FunctionDef``, ``AsyncFunctionDef``, or ``Lambda`` that is not the root
-    *node* itself.  This prevents mutation calls inside inner helper functions
-    or lambda bodies defined inside ``execute()`` from being counted as direct
-    violations of ``execute()``.
-    """
-    yield node
-    for child in ast.iter_child_nodes(node):
-        if isinstance(
-            child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
-        ):
-            continue
-        yield from _walk_own_scope(child)
-
-
-def _has_dl_mutation_in_execute_tree(tree: ast.AST) -> bool:
-    """Return True if *tree* contains an execute() method with a direct DL mutation."""
-    for node in ast.walk(tree):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        if node.name != "execute":
-            continue
-        for child in _walk_own_scope(node):
-            if _is_dl_mutation_call(child):
-                return True
-    return False
-
-
-def _has_dl_mutation_in_execute(source_path: Path) -> bool:
-    """Return True if *source_path* contains an execute() method with a direct
-    DataLayer mutation call in its own scope (excluding inner functions).
-    """
-    try:
-        source = source_path.read_text(encoding="utf-8")
-        tree = _corpus.parse_inline(source, filename=str(source_path))
-    except (OSError, SyntaxError):
-        return False
-    return _has_dl_mutation_in_execute_tree(tree)
+def _violations_in(
+    corpus: _UseCaseCorpus,
+    direct_trees: Mapping[Path, ast.AST],
+    *,
+    received_root: Path,
+    repo_root: Path,
+) -> frozenset[str]:
+    """Repo-relative paths whose ``execute()`` writes, directly or via helpers."""
+    violations: set[str] = set()
+    for path, tree in direct_trees.items():
+        if _has_dl_mutation_in_execute_tree(tree):
+            violations.add(path.relative_to(repo_root).as_posix())
+    for module, path in corpus.modules_under(received_root):
+        if corpus.execute_reaches_mutation(module):
+            violations.add(path.relative_to(repo_root).as_posix())
+    return frozenset(violations)
 
 
 def _collect_violations() -> frozenset[str]:
     """Return repo-relative paths of use-case files with DL mutations in execute()."""
-    violations: set[str] = set()
-    for py_file, tree in _corpus.files_mentioning(
-        "dl.", under=_USE_CASES_ROOT
-    ):
-        if _has_dl_mutation_in_execute_tree(tree):
-            violations.add(py_file.relative_to(_corpus.REPO_ROOT).as_posix())
-    return frozenset(violations)
+    return _violations_in(
+        _build_corpus(),
+        dict(_corpus.files_mentioning("dl.", under=_USE_CASES_ROOT)),
+        received_root=_RECEIVED_ROOT,
+        repo_root=_corpus.REPO_ROOT,
+    )
 
 
 # ---------------------------------------------------------------------------
 # Known pre-existing violations awaiting migration to BT leaf nodes.
 #
-# These files call self._dl.save/create/update/delete directly inside
-# their execute() methods, bypassing the BT audit trail and hash-chained
-# ledger-commit path (BT-06-001, BT-15-001, CLP-10-005).
+# Each file's execute() reaches self._dl.save/create/update/delete — directly
+# or through a use-case helper — bypassing the BT audit trail and the
+# hash-chained ledger-commit path (BT-06-001, BT-15-001, CLP-10-005,
+# CLP-10-020).  Most store the received object before the tree runs; intake
+# now archives the activity (CLP-10-017), and the core record each handler
+# wrote from the inlined object becomes an effect node of its tree (ADR-0111
+# as amended).
 #
-# Remove an entry once that file's execute() has been refactored to
-# delegate all DataLayer mutations via BTBridge.execute_with_setup().
-# Migration tracked in issue #1076.
+# Remove an entry in the same commit that migrates it (ARCH-18-002).  The
+# issue named beside each entry owns its removal.
 # ---------------------------------------------------------------------------
 KNOWN_VIOLATIONS: frozenset[str] = frozenset(
     {
+        # #3871 — participant status, case participant, participant role
+        "vultron/core/use_cases/received/status.py",
+        "vultron/core/use_cases/received/case_participant.py",
+        "vultron/core/use_cases/received/actor/accept_reject_case_participant_role.py",
+        # #3872 — report, embargo, invite, ownership
+        "vultron/core/use_cases/received/report.py",
+        "vultron/core/use_cases/received/embargo.py",
+        "vultron/core/use_cases/received/actor/invite.py",
+        "vultron/core/use_cases/received/actor/ownership.py",
+        # #3873 — case lifecycle (add report) and note (remove note): direct
+        # writes with no tree at all
         "vultron/core/use_cases/received/case/lifecycle.py",
         "vultron/core/use_cases/received/note.py",
+        # #3874 — case create and engage/defer: embedded participants and
+        # the case replica
+        "vultron/core/use_cases/received/case/create.py",
+        "vultron/core/use_cases/received/case/engage_defer.py",
     }
 )
 
 
 def test_no_dl_mutations_in_execute():
-    """execute() methods in use_cases/ must not call DataLayer mutations directly.
+    """execute() methods in use_cases/ must not reach DataLayer mutations.
 
-    Spec: CLP-10-005. BT specs: BT-06-001, BT-15-001.
+    Spec: CLP-10-005, CLP-10-020. BT specs: BT-06-001, BT-15-001.
 
     See module docstring for the ratchet strategy.
     """
@@ -169,15 +174,16 @@ def test_no_dl_mutations_in_execute():
     diff_lines: list[str] = []
     if new_violations:
         diff_lines.append(
-            "NEW violations (execute() must not call self._dl.save/create/"
-            "update/delete directly — delegate to a BT leaf node instead,"
-            " CLP-10-005 / BT-15-001):"
+            "NEW violations (execute() must not reach self._dl.save/create/"
+            "update/delete, directly or through a use-case helper — delegate"
+            " to a BT leaf node instead, CLP-10-005 / CLP-10-020 /"
+            " BT-15-001):"
         )
         diff_lines.extend(f"  + {v}" for v in sorted(new_violations))
     if resolved:
         diff_lines.append(
             "RESOLVED violations (remove these entries from KNOWN_VIOLATIONS"
-            " — migration #1076 complete for these files):"
+            " in this commit — ARCH-18-002):"
         )
         diff_lines.extend(f"  - {v}" for v in sorted(resolved))
 
@@ -185,7 +191,7 @@ def test_no_dl_mutations_in_execute():
 
 
 # ---------------------------------------------------------------------------
-# Synthetic detector-validation tests
+# Synthetic detector-validation tests — direct rule
 # ---------------------------------------------------------------------------
 
 
@@ -233,10 +239,14 @@ def test_detector_does_not_flag_reads(tmp_path: Path) -> None:
     ), "Detector falsely flagged read-only DataLayer calls"
 
 
-def test_detector_does_not_flag_mutations_in_helper_methods(
+def test_direct_rule_does_not_flag_mutations_in_uncalled_helper_methods(
     tmp_path: Path,
 ) -> None:
-    """Mutations inside helper methods (not execute()) must not be flagged."""
+    """The direct rule sees only execute()'s own body.
+
+    A helper method that writes is not a direct violation; whether execute()
+    *reaches* it is the transitive rule's question (see below).
+    """
     clean_file = tmp_path / "synthetic_helper_mutation.py"
     clean_file.write_text(
         "class FakeUseCase:\n"
@@ -248,7 +258,7 @@ def test_detector_does_not_flag_mutations_in_helper_methods(
     )
     assert not _has_dl_mutation_in_execute(
         clean_file
-    ), "Detector falsely flagged a mutation inside a non-execute helper method"
+    ), "Direct rule flagged a mutation inside a non-execute helper method"
 
 
 def test_detector_does_not_flag_mutations_in_inner_function(
@@ -305,3 +315,210 @@ def test_detector_catches_local_dl_variable(tmp_path: Path) -> None:
     assert _has_dl_mutation_in_execute(
         violation_file
     ), "Detector did not flag dl.save() via local dl variable"
+
+
+# ---------------------------------------------------------------------------
+# Synthetic detector-validation tests — transitive rule (CLP-10-020)
+# ---------------------------------------------------------------------------
+
+_SYNTHETIC_PKG = "vultron.core.use_cases"
+
+
+def _synthetic_violations(
+    tmp_path: Path, files: Mapping[str, str]
+) -> frozenset[str]:
+    """Run both rules over a synthetic use-case package laid out in *tmp_path*.
+
+    *files* maps a path relative to the package root (``received/x.py``,
+    ``_helpers.py``, ``../behaviors/node.py`` for an out-of-package module) to
+    its source.  Returns the violation set relative to *tmp_path*.
+    """
+    root = tmp_path / "vultron" / "core" / "use_cases"
+    trees: dict[Path, ast.AST] = {}
+    for rel, source in files.items():
+        path = (root / rel).resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+        trees[path] = _corpus.parse_inline(source, filename=str(path))
+    in_package = {
+        p: t for p, t in trees.items() if p.is_relative_to(root.resolve())
+    }
+    corpus = _UseCaseCorpus(
+        in_package, root=root.resolve(), package=_SYNTHETIC_PKG
+    )
+    return _violations_in(
+        corpus,
+        in_package,
+        received_root=(root / "received").resolve(),
+        repo_root=tmp_path.resolve(),
+    )
+
+
+_RECEIVED = "vultron/core/use_cases/received/uc.py"
+
+
+def test_transitive_rule_flags_helper_one_call_deep(tmp_path: Path) -> None:
+    """execute() → module helper → dl.save() is a violation of the caller."""
+    found = _synthetic_violations(
+        tmp_path,
+        {
+            "received/uc.py": (
+                "from vultron.core.use_cases._helpers import store\n"
+                "class UC:\n"
+                "    def execute(self):\n"
+                "        store(self._dl, self._obj)\n"
+            ),
+            "_helpers.py": ("def store(dl, obj):\n" "    dl.save(obj)\n"),
+        },
+    )
+    assert found == frozenset({_RECEIVED})
+
+
+def test_transitive_rule_flags_helper_two_calls_deep(tmp_path: Path) -> None:
+    """execute() → helper → helper → dl.create() is still the caller's."""
+    found = _synthetic_violations(
+        tmp_path,
+        {
+            "received/uc.py": (
+                "from vultron.core.use_cases.received.glue import prepare\n"
+                "class UC:\n"
+                "    def execute(self):\n"
+                "        prepare(self._dl, self._obj)\n"
+            ),
+            "received/glue.py": (
+                "from vultron.core.use_cases._helpers import store\n"
+                "def prepare(dl, obj):\n"
+                "    store(dl, obj)\n"
+            ),
+            "_helpers.py": ("def store(dl, obj):\n" "    dl.create(obj)\n"),
+        },
+    )
+    assert found == frozenset({_RECEIVED})
+
+
+def test_transitive_rule_flags_self_method_helper(tmp_path: Path) -> None:
+    """execute() → self._persist() → self._dl.save() is a violation."""
+    found = _synthetic_violations(
+        tmp_path,
+        {
+            "received/uc.py": (
+                "class UC:\n"
+                "    def execute(self):\n"
+                "        self._persist()\n"
+                "    def _persist(self):\n"
+                "        self._dl.save(self._obj)\n"
+            ),
+        },
+    )
+    assert found == frozenset({_RECEIVED})
+
+
+def test_transitive_rule_follows_relative_imports(tmp_path: Path) -> None:
+    """``from ._helpers import store`` resolves like its absolute form."""
+    found = _synthetic_violations(
+        tmp_path,
+        {
+            "received/case/uc.py": (
+                "from ._helpers import store\n"
+                "class UC:\n"
+                "    def execute(self):\n"
+                "        store(self._dl, self._obj)\n"
+            ),
+            "received/case/_helpers.py": (
+                "def store(dl, obj):\n" "    dl.save(obj)\n"
+            ),
+        },
+    )
+    assert found == frozenset({"vultron/core/use_cases/received/case/uc.py"})
+
+
+def test_transitive_rule_stops_at_the_package_boundary(
+    tmp_path: Path,
+) -> None:
+    """A write in a module outside use_cases/ reached from execute() is not flagged.
+
+    That is the tree's business: a BT node the handler runs writes through
+    the bridge, which is exactly where CLP-10-005 wants the write.
+    """
+    found = _synthetic_violations(
+        tmp_path,
+        {
+            "received/uc.py": (
+                "from vultron.core.behaviors.node import run_tree\n"
+                "class UC:\n"
+                "    def execute(self):\n"
+                "        run_tree(self._dl, self._obj)\n"
+            ),
+            "../behaviors/node.py": (
+                "def run_tree(dl, obj):\n" "    dl.save(obj)\n"
+            ),
+        },
+    )
+    assert found == frozenset()
+
+
+def test_transitive_rule_ignores_uncalled_helpers(tmp_path: Path) -> None:
+    """A writing helper that execute() never calls is nobody's violation."""
+    found = _synthetic_violations(
+        tmp_path,
+        {
+            "received/uc.py": (
+                "from vultron.core.use_cases._helpers import store\n"
+                "class UC:\n"
+                "    def execute(self):\n"
+                "        self._dl.read(self._id)\n"
+                "    def _later(self):\n"
+                "        store(self._dl, self._obj)\n"
+            ),
+            "_helpers.py": ("def store(dl, obj):\n" "    dl.save(obj)\n"),
+        },
+    )
+    assert found == frozenset()
+
+
+def test_transitive_rule_is_received_side_only(tmp_path: Path) -> None:
+    """A trigger-side execute() reaching a helper write is out of scope.
+
+    Trigger-side bodies are governed by BT-15-001; only a *direct* write in
+    their execute() is this ratchet's business.
+    """
+    found = _synthetic_violations(
+        tmp_path,
+        {
+            "triggers/uc.py": (
+                "from vultron.core.use_cases._helpers import store\n"
+                "class UC:\n"
+                "    def execute(self):\n"
+                "        store(self._dl, self._obj)\n"
+            ),
+            "triggers/direct.py": (
+                "class UC:\n"
+                "    def execute(self):\n"
+                "        self._dl.save(self._obj)\n"
+            ),
+            "_helpers.py": ("def store(dl, obj):\n" "    dl.save(obj)\n"),
+        },
+    )
+    assert found == frozenset({"vultron/core/use_cases/triggers/direct.py"})
+
+
+def test_transitive_rule_survives_recursive_helpers(tmp_path: Path) -> None:
+    """Mutually recursive helpers terminate and are judged on their writes."""
+    found = _synthetic_violations(
+        tmp_path,
+        {
+            "received/uc.py": (
+                "from vultron.core.use_cases._helpers import ping\n"
+                "class UC:\n"
+                "    def execute(self):\n"
+                "        ping(self._dl)\n"
+            ),
+            "_helpers.py": (
+                "def ping(dl):\n"
+                "    pong(dl)\n"
+                "def pong(dl):\n"
+                "    ping(dl)\n"
+            ),
+        },
+    )
+    assert found == frozenset()

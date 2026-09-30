@@ -10,6 +10,8 @@ related_specs:
   - specs/handler-protocol.yaml
   - specs/inbox-endpoint.yaml
   - specs/case-ledger-processing.yaml
+  - specs/participant-case-replica.yaml
+  - specs/case-bootstrap-trust.yaml
 related_notes:
   - notes/bt-canonical-reference.md
   - notes/case-ledger-authority.md
@@ -346,20 +348,37 @@ Nothing domain-significant lives outside the tree. In particular, a call from
 `execute()` to a helper function that writes to the DataLayer is **not** glue:
 the write is outside the tree whatever the helper is named, and the mutation
 ratchet (`test/architecture/test_no_dl_mutations_in_execute.py`) resolves such
-calls through the use-case package transitively (CLP-10-020). Eleven received
-`execute()` bodies in nine files once reached a write this way, most through one
-shared `_idempotent_create` helper and the rest through bespoke ones, invisible to
-the ratchet because the write sat one call away (ISSUE-3339, ADR-0111).
+calls through the use-case package transitively (CLP-10-020): a write that a
+received `execute()` reaches through any function or method defined under
+`vultron/core/use_cases/` — module helper, `self._method()`, relative or
+re-exported import, any depth — is a violation of the file holding the
+`execute()`. Resolution stops at the package boundary, so a BT node's write is
+never one. Trigger-side bodies get only the direct rule (BT-15-001 governs
+them). Eleven received `execute()` bodies in nine files reached a write this way
+when the rule was widened, most through one shared `_idempotent_create` helper
+and the rest through bespoke ones, invisible to the earlier body-only scan
+because the write sat one call away (ISSUE-3339, ADR-0111). They are held as the
+exact `KNOWN_VIOLATIONS` set, each entry annotated with the issue that retires
+it.
 
 ### The Four Received-Side Stages (ADR-0111)
 
 A received-side tree composed via `create_receive_activity_tree` runs four
 stages in a fixed order (CLP-10-006, CLP-10-010):
 
-1. **Intake** — one shared node stores the received activity and every object
-   the sender inlined in it, exactly as received, idempotently. It decides
-   nothing and ledgers nothing (CLP-10-017). It runs first, so a refusal a
-   moment later still leaves the receiver holding what arrived (CLP-10-018).
+1. **Intake** — one shared node, `IntakeReceivedActivityNode`
+   (`vultron/core/behaviors/case/nodes/intake.py`), archives the mail: the
+   received activity exactly as received, idempotently. It decides nothing,
+   ledgers nothing, and writes nothing else (CLP-10-017). It runs first, so a
+   refusal a moment later still leaves the receiver holding the archive
+   (CLP-10-018). The letter's contents are not core's records: a case, note,
+   status or embargo carried inline is a *message shaped like* that object, and
+   the record core keeps is written by an effect node from the event's copy,
+   after the guards. Intake writing them would let any sender seed a replica
+   ahead of the trust checks — a stored case row *is* the replica (PCR-03-004,
+   CBT-01-005). A stored `VultronActivity` dehydrates `object`/`target` to ids,
+   so the faithful copy is the received evidence ADR-0107 step 5 seals at parse;
+   #3742 persists it beside the archived row, through this node.
 2. **Guards** — read-only precondition checks that return FAILURE to refuse.
    They write nothing. A refusal goes to the process log and, where the
    protocol calls for it, a `Reject` back to the sender — never to the ledger
@@ -371,13 +390,26 @@ stages in a fixed order (CLP-10-006, CLP-10-010):
    any cascades.
 
 Intake is the only path that stores the received activity (CLP-10-019). Do not
-add a per-tree store node or a handler-local store helper; the factory already
-supplies the intake node as the first child of every tree it builds. A receive
-tree that composes `create_case_manager_gated_tree` directly bypasses intake, so
-every receive tree composes through the factory (#3870 moves the two that do
-not). Intake is also where the receiver keeps the raw material ADR-0107 needs:
-the sealed received evidence for deferred replay, and the objects a later ledger
-entry may name only by reference.
+add a per-tree store node or a handler-local store helper; the factory
+(`create_receive_activity_tree`, `vultron/core/behaviors/case/receive_activity_tree.py`)
+already supplies the intake node as the first child of every tree it builds. A
+receive tree that does not compose through the factory runs no intake. #3870
+moved the two that composed `create_case_manager_gated_tree` directly (add-note,
+update-case) and found more that never used the factory; those are held as an
+exact set in `test_receive_side_bt_commit_ordering.py`
+(`KNOWN_FACTORIES_BYPASSING_INTAKE`) — fifteen in all once a receive-side tree is
+defined as one a received use case calls rather than one whose name says
+"received". Each moves with the handler migration that owns its area
+(#3871–#3874); the sync and dead-letter trees move with #3935.
+
+The factory commits only when it is given a `case_id`, and CLP-10-013 requires
+the commit exactly when the received `(type, object)` pair is a canonical payload
+signature (`_CANONICAL_PAYLOAD_SIGNATURES`) — otherwise the CASE_MANAGER would
+refuse its own commit. `Update(VulnerabilityCase)` is not one, so
+`create_update_case_received_tree` passes `case_id=None` and the CASE_MANAGER
+publishes the update through its `Announce` broadcast (CM-06-001) as before;
+whether an owner's update should become a ledgered assertion (ADR-0108) is
+issue #3936.
 
 ### Trigger/Received Parity
 

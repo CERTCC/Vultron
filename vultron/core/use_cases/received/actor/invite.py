@@ -175,15 +175,11 @@ class InviteActorToCaseReceivedUseCase:
                     )
             return stored
 
-        # CaseActor self-delivery path (CLP-10-001): the BT handles idempotent
-        # storage via StoreActivityNode and commits the canonical CaseLedgerEntry
-        # via GuardedCommitCaseLedgerEntryBT (CLP-10-006).
+        # CaseActor self-delivery path (CLP-10-001): intake stores the Invite
+        # as received (CLP-10-017) and GuardedCommitCaseLedgerEntryBT commits
+        # the canonical CaseLedgerEntry (CLP-10-006).
         case_id = request.target_id or ""
-        tree = create_invite_actor_to_case_received_tree(
-            invite_id=request.activity_id,
-            invite_obj=request.activity,
-            case_id=case_id,
-        )
+        tree = create_invite_actor_to_case_received_tree(case_id=case_id)
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,

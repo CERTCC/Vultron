@@ -44,7 +44,7 @@ from vultron.core.behaviors.case.nodes.delegation import (
     AutoAcceptCaseParticipantRoleNode,
     EmitRejectCaseParticipantRoleNode,
 )
-from vultron.core.behaviors.case.nodes.lifecycle import (
+from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.report.nodes.storage import StoreActivityNode

@@ -64,7 +64,7 @@ Chosen option: **"Intake is a mandatory first stage, before the guards"**, becau
 
 - Good, because the receiver's record of what arrived no longer depends on the verdict, which is what CM-15-002 and the invitee trust anchor already required.
 - Good, because the procedural store sites and the shared helper behind them collapse into one node, composed once.
-- Good, because the intake record is the natural home for the received evidence ADR-0107 seals at parse, and for the object a later ledger entry names only by reference. Step 5 of that ADR persists the evidence for deferred replay; intake is where that persistence happens.
+- Good, because the intake record is the natural home for the received evidence ADR-0107 seals at parse. Step 5 of that ADR persists the evidence for deferred replay; intake is where that persistence happens (see the amendment: the objects a later entry names by reference are recovered from that evidence, not from records intake wrote).
 - Good, because a handler-local write can no longer hide from the ratchet behind a helper name.
 - Bad, because every existing tree the factory builds changes shape, the two receive trees that bypass the factory today must be moved onto it, and the ordering ratchet, the intake node, and the widened mutation ratchet must land before the handlers can migrate.
 - Bad, because intake stores every received activity, including ones a guard refuses a moment later. Storage grows with traffic the receiver declines. This is the cost of treating receipt as a fact, and the process log already recorded these arrivals; the DataLayer now does too.
@@ -94,6 +94,30 @@ Chosen option: **"Intake is a mandatory first stage, before the guards"**, becau
 - Good, because nothing moves.
 - Bad, because it contradicts the single-tree contract (CLP-10-005) that ADR-0022 set, and keeps nine permanent exemptions in a ratchet whose purpose is to reach zero.
 - Bad, because the sites differ in detail, so "glue" would have to be defined by enumeration rather than by rule.
+
+## Amendment — 2026-09-30
+
+Building the intake node (#3870) overturned three premises above, and the decision is amended rather than superseded because its core — intake first, before any guard — stands.
+
+**Intake archives the mail, not the letter's contents.**
+Detail 2 said intake stores "every object inlined" in the activity.
+That treated an inlined case, note or status as core's record of that object.
+It is not: it is a message shaped like the object, and the record core keeps is written by an effect node from the copy the event carries, after the guards.
+Writing the inlined objects at intake would let any sender seed a case replica ahead of the trust checks (PCR-03-004, CBT-01-005), because a stored case row *is* the actor's Participant Case Replica, and the same holds for a `CaseLedgerEntry` inlined in the replication envelope.
+So intake archives the received activity only, exactly as received, and CLP-10-017, CLP-10-018 and CLP-10-019 now say so.
+The stored `VultronActivity` dehydrates `object` and `target` to ids, so the faithful copy of what arrived is the received evidence ADR-0107 seals at parse; #3742 persists it beside the archived row, and the intake node is where.
+Detail 5 stands with the correction that the handler-local helpers are replaced by effect nodes that write the core record from the copy, not by intake storing it (#3871–#3874 re-scoped accordingly).
+
+**Fifteen trees bypassed the factory, not two.**
+Detail 7 assumed the two trees composing the CASE_MANAGER gate directly were the only ones outside `create_receive_activity_tree`.
+Defining a receive-side tree as one a received use case calls, the ordering ratchet found fifteen.
+They are held as an exact set (`KNOWN_FACTORIES_BYPASSING_INTAKE`, ARCH-18-001) and each moves with the handler migration that owns its area, or with #3935 for the sync and dead-letter trees.
+
+**The commit stage needs a canonical signature.**
+CLP-10-013 required every factory-built tree to pass `case_id` and commit.
+`Update(VulnerabilityCase)` has no canonical payload signature, so the CASE_MANAGER refused its own commit the moment the update tree moved onto the factory.
+CLP-10-013 is amended to require the commit exactly when the received `(type, object)` pair is a canonical signature; the update tree and the sync trees pass `case_id=None`.
+Whether an owner's update should become a ledgered assertion (ADR-0108) is #3936.
 
 ## More Information
 

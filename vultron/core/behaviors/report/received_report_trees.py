@@ -41,7 +41,7 @@ from vultron.core.models.events.report import (
     InvalidateReportReceivedEvent,
 )
 from vultron.core.behaviors.case.nodes.case_lookup import RequireCaseForReport
-from vultron.core.behaviors.case.nodes.lifecycle import (
+from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.case.nodes.conditions import (

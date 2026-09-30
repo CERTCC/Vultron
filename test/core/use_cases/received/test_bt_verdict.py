@@ -24,8 +24,12 @@ from test.core.use_cases.received.conftest import (
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTExecutionResult
+from vultron.core.behaviors.case.nodes.intake import (
+    IntakeReceivedActivityNode,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received._bt_verdict import (
+    intake_verdict,
     applied_or_raise,
     failure_reason,
     find_named,
@@ -187,6 +191,68 @@ def test_applied_or_raise_passes_success_through():
         tree, BTExecutionResult(status=Status.SUCCESS), label="TestBT"
     )
     assert verdict.disposition == HandlerDisposition.APPLIED
+
+
+# ---------------------------------------------------------------------------
+# intake_verdict (HP-01-003, ADR-0111)
+# ---------------------------------------------------------------------------
+
+
+class _Intake(IntakeReceivedActivityNode):
+    """An intake node that reports a fixed outcome without a DataLayer."""
+
+    def __init__(self, stored: list[str]) -> None:
+        super().__init__(name="Intake")
+        self._stored = stored
+
+    def initialise(self) -> None:  # no ports: ticked without a bridge
+        pass
+
+    def update(self) -> Status:
+        self.stored_ids = list(self._stored)
+        return Status.SUCCESS
+
+
+@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("CLP-10-017")
+def test_intake_verdict_is_applied_when_intake_stored_something():
+    tree = _ran(_Intake(stored=["https://example.org/activities/a-1"]))
+    verdict = intake_verdict(
+        tree, BTExecutionResult(status=Status.SUCCESS), label="IntakeBT"
+    )
+    assert verdict.disposition == HandlerDisposition.APPLIED
+
+
+@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("CLP-10-017")
+def test_intake_verdict_is_skipped_when_everything_was_already_stored():
+    """A redelivery is a benign no-op, not a refusal (HP-01-003)."""
+    tree = _ran(_Intake(stored=[]))
+    verdict = intake_verdict(
+        tree, BTExecutionResult(status=Status.SUCCESS), label="IntakeBT"
+    )
+    assert verdict.disposition == HandlerDisposition.SKIPPED
+    assert verdict.reason is not None and "already held" in verdict.reason
+
+
+@pytest.mark.spec("HP-01-003")
+def test_intake_verdict_keeps_a_refusal():
+    """A guard's FAILURE after intake is still the sender's refusal."""
+    tree = _ran(_Intake(stored=["x"]), _Guard("Refuse", Status.FAILURE, "no"))
+    verdict = intake_verdict(
+        tree, BTExecutionResult(status=Status.FAILURE), label="IntakeBT"
+    )
+    assert verdict.disposition == HandlerDisposition.REFUSED
+    assert verdict.reason == "IntakeBT: no"
+
+
+def test_intake_verdict_raises_when_the_tree_has_no_intake_node():
+    """Asking intake's verdict of a tree without intake is a wiring fault."""
+    tree = _ran(_Fixed("Ok", Status.SUCCESS))
+    with pytest.raises(VultronBTInternalError, match="no intake node"):
+        intake_verdict(
+            tree, BTExecutionResult(status=Status.SUCCESS), label="IntakeBT"
+        )
 
 
 # ---------------------------------------------------------------------------

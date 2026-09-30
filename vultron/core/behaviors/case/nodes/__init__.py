@@ -28,6 +28,8 @@ Submodules:
 - ``participant``: Participant creation and attachment leaf action nodes
 - ``embargo``: Default embargo initialization action nodes
 - ``communication``: Outbound activity emission action nodes
+- ``intake``: Intake node — archives the received activity as received,
+  first in every received tree (ADR-0111)
 - ``lifecycle``: Case log entry commit action node
 - ``proposal``: CaseProposal send nodes (ADR-0041 vendor-side slimmed tree)
 - ``proposal_admission_conditions``: case-actor-side admission guards (CP-05-002)
@@ -117,10 +119,11 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
 from vultron.core.behaviors.case.nodes.embargo_revision import (
     RegisterLongerProposalAsRevisionNode,
 )
+from vultron.core.behaviors.case.nodes.intake import (
+    IntakeReceivedActivityNode,
+)
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
-    create_guarded_commit_case_ledger_entry_tree,
-    create_receive_activity_tree,
 )
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
@@ -264,8 +267,6 @@ __all__ = [
     "EmitCreateCaseActivity",
     # lifecycle
     "CommitCaseLedgerEntryNode",
-    "create_guarded_commit_case_ledger_entry_tree",
-    "create_receive_activity_tree",
     # update
     "CheckCaseUpdateOwnerNode",
     "CaptureCaseUpdateBroadcastExclusionsNode",

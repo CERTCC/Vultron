@@ -14,22 +14,29 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Structural test: receive-side BT tree factories must not call
-``create_guarded_commit_case_ledger_entry_tree`` directly.
+Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
 
-All tree factory files under ``vultron/core/behaviors/`` that build
-receive-side BTs must use ``create_receive_activity_tree`` instead, which
-enforces the correct ledger-commit-before-effects ordering (CLP-10-006).
+1. No tree factory under ``vultron/core/behaviors/`` may call
+   ``create_guarded_commit_case_ledger_entry_tree`` directly.  Every
+   receive-side BT composes through ``create_receive_activity_tree``, which
+   fixes the stage order intake → guards → commit → effects.  Only
+   ``vultron/core/behaviors/case/receive_activity_tree.py`` — which *defines*
+   both factories — is exempt.
+2. No rejection validator sits in ``effect_nodes`` (CLP-10-009).
+3. Every receive-side tree factory composes through the shared factory
+   (CLP-10-017, ADR-0111 detail 7), so the intake node is the first child of
+   every received tree.  The factories that still bypass it are held as an
+   exact set (ARCH-18-001) that only shrinks.
+4. No node that any factory uses as a protocol effect appears as a
+   precondition guard anywhere — a corpus-derived check that no effect
+   precedes the commit (CLP-10-006 verification).
 
-Only ``vultron/core/behaviors/case/nodes/lifecycle.py`` — which *defines*
-``create_guarded_commit_case_ledger_entry_tree`` and is called by
-``create_receive_activity_tree`` — is exempt from this rule.
-
-This test is a ratchet: if a new violation is introduced, the test fails
-immediately rather than silently accumulating debt.
+Each is a ratchet: a new violation fails immediately rather than silently
+accumulating debt.
 """
 
 import ast
+import re
 
 import pytest
 
@@ -37,7 +44,7 @@ from test.architecture import _corpus
 
 # Exempt files: may contain direct calls (definition site only).
 EXEMPT_FILES = {
-    "vultron/core/behaviors/case/nodes/lifecycle.py",
+    "vultron/core/behaviors/case/receive_activity_tree.py",
 }
 
 BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
@@ -72,8 +79,8 @@ def _find_violations() -> list[tuple[str, int]]:
     return violations
 
 
-def test_no_direct_calls_to_guarded_commit_outside_lifecycle() -> None:
-    """No tree factory outside lifecycle.py may call create_guarded_commit_case_ledger_entry_tree.
+def test_no_direct_calls_to_guarded_commit_outside_factory_module() -> None:
+    """Only receive_activity_tree.py may call create_guarded_commit_case_ledger_entry_tree.
 
     All receive-side tree factories must use create_receive_activity_tree,
     which enforces commit-before-effects ordering (CLP-10-006).
@@ -85,7 +92,7 @@ def test_no_direct_calls_to_guarded_commit_outside_lifecycle() -> None:
         )
         pytest.fail(
             f"Found {len(violations)} direct call(s) to"
-            f" `{FORBIDDEN_CALL}` outside the exempt lifecycle module.\n"
+            f" `{FORBIDDEN_CALL}` outside the exempt factory module.\n"
             f"Use `create_receive_activity_tree` instead (CLP-10-006):\n"
             f"{lines}"
         )
@@ -182,5 +189,265 @@ def test_no_rejection_validators_in_effect_nodes() -> None:
             f"Found {len(violations)} rejection validator(s) in effect_nodes"
             " of create_receive_activity_tree.\n"
             "Move them to precondition_guards (CLP-10-009, ISSUE-2254):\n"
+            f"{lines}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# CLP-10-017 ratchet: every receive-side tree factory composes through
+# create_receive_activity_tree, so intake is its first child (ADR-0111)
+# ---------------------------------------------------------------------------
+
+
+#: A tree factory whose name says it handles a received activity.
+_RECEIVE_FACTORY_NAME = re.compile(r"^create_.*(received|receive).*_tree$")
+_TREE_FACTORY_NAME = re.compile(r"_tree$")
+
+_RECEIVED_USE_CASES_ROOT = (
+    _corpus.REPO_ROOT / "vultron" / "core" / "use_cases" / "received"
+)
+
+
+def _factories_called_from_received_use_cases() -> set[str]:
+    """Names of ``*_tree`` factories a received-side use case calls.
+
+    The received use-case package is the authority on which trees are
+    receive-side: a factory it calls builds a tree that runs on a received
+    activity, whatever the factory is named.
+    """
+    called: set[str] = set()
+    for _, tree in _corpus.files_mentioning(
+        "_tree(", under=_RECEIVED_USE_CASES_ROOT
+    ):
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and (name := _call_name(node.func)) is not None
+                and _TREE_FACTORY_NAME.search(name)
+            ):
+                called.add(name)
+    return called
+
+
+def _receive_factories() -> dict[str, tuple[str, set[str]]]:
+    """Map each receive-side factory name to ``(rel_path, names it calls)``.
+
+    A factory under ``vultron/core/behaviors/`` is receive-side when a
+    received use case calls it, or when its name says so (a factory only
+    reached through another factory).
+    """
+    from_use_cases = _factories_called_from_received_use_cases()
+    factories: dict[str, tuple[str, set[str]]] = {}
+    for py_file, tree in _corpus.files_mentioning(
+        "_tree(", under=BEHAVIORS_ROOT
+    ):
+        rel_path = str(py_file.relative_to(_corpus.REPO_ROOT))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef):
+                continue
+            if node.name == RECEIVE_ACTIVITY_TREE_CALL:
+                continue
+            if not (
+                node.name in from_use_cases
+                or _RECEIVE_FACTORY_NAME.match(node.name)
+            ):
+                continue
+            called = {
+                name
+                for call in ast.walk(node)
+                if isinstance(call, ast.Call)
+                and (name := _call_name(call.func)) is not None
+            }
+            factories[node.name] = (rel_path, called)
+    return factories
+
+
+def _composes_through_shared_factory(
+    name: str,
+    factories: dict[str, tuple[str, set[str]]],
+    seen: frozenset[str] = frozenset(),
+) -> bool:
+    """True if *name* calls the shared factory, directly or via another factory."""
+    _, called = factories[name]
+    if RECEIVE_ACTIVITY_TREE_CALL in called:
+        return True
+    return any(
+        _composes_through_shared_factory(other, factories, seen | {name})
+        for other in called
+        if other in factories and other not in seen
+    )
+
+
+#: Receive-side factories that do not yet compose through the shared factory
+#: and therefore run no intake node (CLP-10-017).  Exact set (ARCH-18-001):
+#: remove an entry in the commit that moves the factory (ARCH-18-002).
+#: ADR-0111 detail 7 named the two that composed the CASE_MANAGER gate
+#: directly; those moved with #3870.  The rest were found by this ratchet and
+#: move with the handler migration that owns their area (#3871–#3874), or
+#: with #3935 for the sync and dead-letter trees.  Intake archives only the
+#: activity (ADR-0111 as amended), so the ``CaseLedgerEntry`` the sync trees
+#: carry stays the chain check's business.
+KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
+    {
+        # case
+        "create_accept_case_proposal_received_tree",
+        "create_add_case_participant_received_tree",
+        "create_announce_vulnerability_case_received_tree",
+        "create_case_proposal_received_tree",
+        "create_receive_report_case_tree",
+        "create_reject_case_proposal_received_tree",
+        "create_remove_case_participant_received_tree",
+        # report
+        "create_close_report_received_tree",
+        "create_invalidate_report_received_tree",
+        "create_report_received_tree",
+        # note
+        "create_note_tree",
+        # sync — #3935
+        "create_announce_log_entry_tree",
+        "create_commit_log_entry_tree",
+        "create_reject_log_entry_tree",
+        # inbox
+        "create_store_dead_letter_tree",
+    }
+)
+
+
+@pytest.mark.spec("CLP-10-017")
+def test_receive_side_factories_compose_through_shared_factory() -> None:
+    """Every receive-side tree factory composes through create_receive_activity_tree.
+
+    A factory that does not gets no intake node, so a refused assertion
+    leaves no record of what arrived (CLP-10-018).  The bypassing set is
+    exact: it may only shrink.
+    """
+    factories = _receive_factories()
+    assert factories, "no receive-side tree factories found — regex drifted?"
+    bypassing = frozenset(
+        name
+        for name in factories
+        if not _composes_through_shared_factory(name, factories)
+    )
+    new = bypassing - KNOWN_FACTORIES_BYPASSING_INTAKE
+    resolved = KNOWN_FACTORIES_BYPASSING_INTAKE - bypassing
+    lines: list[str] = []
+    if new:
+        lines.append(
+            "NEW receive-side factories bypassing create_receive_activity_tree"
+            " (CLP-10-017 — compose through the shared factory):"
+        )
+        lines.extend(f"  + {n}  ({factories[n][0]})" for n in sorted(new))
+    if resolved:
+        lines.append(
+            "RESOLVED — remove from KNOWN_FACTORIES_BYPASSING_INTAKE"
+            " (ARCH-18-002):"
+        )
+        lines.extend(f"  - {n}" for n in sorted(resolved))
+    assert bypassing == KNOWN_FACTORIES_BYPASSING_INTAKE, "\n\n" + "\n".join(
+        lines
+    )
+
+
+@pytest.mark.spec("CLP-10-010")
+@pytest.mark.spec("CLP-10-017")
+def test_shared_factory_orders_intake_guards_commit_effects() -> None:
+    """The four stages appear in CLP-10-010 order, intake first, with or without a commit."""
+    from py_trees.behaviours import Success
+
+    from vultron.core.behaviors.case.nodes.intake import (
+        IntakeReceivedActivityNode,
+    )
+    from vultron.core.behaviors.case.receive_activity_tree import (
+        create_receive_activity_tree,
+    )
+
+    guard = Success(name="Guard")
+    effect = Success(name="Effect")
+    tree = create_receive_activity_tree(
+        name="OrderedBT",
+        case_id="https://example.org/cases/order",
+        precondition_guards=[guard],
+        effect_nodes=[effect],
+    )
+    names = [child.name for child in tree.children]
+    assert isinstance(tree.children[0], IntakeReceivedActivityNode)
+    assert names == [
+        "IntakeReceivedActivityNode",
+        "Guard",
+        "GuardedCommitCaseLedgerEntryBT",
+        "Effect",
+    ]
+
+    no_commit = create_receive_activity_tree(
+        name="NoCommitBT",
+        case_id=None,
+        precondition_guards=[Success(name="Guard")],
+        effect_nodes=[Success(name="Effect")],
+    )
+    assert isinstance(no_commit.children[0], IntakeReceivedActivityNode)
+    assert [c.name for c in no_commit.children] == [
+        "IntakeReceivedActivityNode",
+        "Guard",
+        "Effect",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# CLP-10-006 ratchet: no protocol-effect node precedes the commit.  A node any
+# factory places in ``effect_nodes`` is, by that factory's own declaration, a
+# protocol effect; the same node in another factory's ``precondition_guards``
+# would run before the commit.
+# ---------------------------------------------------------------------------
+
+
+def _list_arg_names(call: ast.Call, arg: str) -> set[str]:
+    """Bare callee names of the elements of the ``arg=[...]`` keyword list."""
+    for kw in call.keywords:
+        if kw.arg != arg or not isinstance(kw.value, ast.List):
+            continue
+        return {
+            name
+            for elem in kw.value.elts
+            if isinstance(elem, ast.Call)
+            and (name := _call_name(elem.func)) is not None
+        }
+    return set()
+
+
+def _stage_rosters() -> tuple[set[str], dict[str, list[str]]]:
+    """Return (names used as effects anywhere, guard names → factory sites)."""
+    effects: set[str] = set()
+    guards: dict[str, list[str]] = {}
+    for py_file, tree in _corpus.files_mentioning(
+        RECEIVE_ACTIVITY_TREE_CALL, under=BEHAVIORS_ROOT
+    ):
+        rel_path = str(py_file.relative_to(_corpus.REPO_ROOT))
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and _call_name(node.func) == RECEIVE_ACTIVITY_TREE_CALL
+            ):
+                continue
+            effects |= _list_arg_names(node, "effect_nodes")
+            for name in _list_arg_names(node, "precondition_guards"):
+                guards.setdefault(name, []).append(f"{rel_path}:{node.lineno}")
+    return effects, guards
+
+
+@pytest.mark.spec("CLP-10-006")
+def test_no_effect_node_is_used_as_a_precondition_guard() -> None:
+    """A node used as a protocol effect anywhere never precedes the commit anywhere."""
+    effects, guards = _stage_rosters()
+    assert effects, "no effect_nodes found — corpus prefilter drifted?"
+    offenders = {
+        name: sites for name, sites in guards.items() if name in effects
+    }
+    if offenders:
+        lines = "\n".join(
+            f"  {name} used as a guard at {', '.join(sites)}"
+            for name, sites in sorted(offenders.items())
+        )
+        pytest.fail(
+            "Protocol-effect nodes placed before the commit (CLP-10-006):\n"
             f"{lines}"
         )

@@ -49,8 +49,8 @@ consent resolved). BT-06-001, BT-15-001, BT-17-001.
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes import (
-    create_case_manager_gated_tree,
+from vultron.core.behaviors.case.nodes import create_case_manager_gated_tree
+from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.case.nodes.accept_invite import (

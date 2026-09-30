@@ -29,7 +29,7 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.lifecycle import (
+from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (

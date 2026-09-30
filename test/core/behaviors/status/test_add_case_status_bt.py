@@ -542,7 +542,9 @@ class TestAddCaseStatusTree:
             request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
         )
         bridge = BTBridge(datalayer=populated_dl)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.SUCCESS
 
         updated_case = populated_dl.read(CASE_ID)
@@ -564,7 +566,9 @@ class TestAddCaseStatusTree:
 
         tree = add_case_status_tree(request=event)
         bridge = BTBridge(datalayer=populated_dl)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.FAILURE
         assert BTBridge.get_failure_reason(tree) == CASE_STATUS_ALREADY_PRESENT
 
@@ -593,7 +597,9 @@ class TestAddCaseStatusTree:
 
         tree = add_case_status_tree(request=event)
         bridge = BTBridge(datalayer=dl)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.FAILURE
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
@@ -634,7 +640,9 @@ class TestAddCaseStatusTree:
 
         tree = add_case_status_tree(request=event)
         bridge = BTBridge(datalayer=dl)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.FAILURE
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
@@ -683,7 +691,9 @@ class TestAddCaseStatusTree:
             request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
         )
         bridge = BTBridge(datalayer=dl)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
 
         assert result.status == Status.SUCCESS
 
@@ -863,7 +873,9 @@ class TestAddCaseStatusTree:
             children=[tree, _CaptureOverride(name="CaptureOverride")],
         )
         bridge = BTBridge(datalayer=dl)
-        result = bridge.execute_with_setup(tree=probed, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=probed, actor_id=ACTOR_ID, activity=event
+        )
         assert result.status == Status.SUCCESS
 
         override = cast(dict, captured.get("override"))
