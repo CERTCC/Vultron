@@ -810,7 +810,7 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts):
         try:
             activity_id, activity_blob = self._call_factory()
             self._emit_through_seam(activity_id, activity_blob)
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"{self.__class__.__name__} failed: {e}"
             self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
@@ -1038,7 +1038,7 @@ class ReadObject(DataLayerConditionWithPorts):
             self.logger.debug(self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Error reading {self.table}/{self.object_id}: {e}"
             )
@@ -1159,7 +1159,7 @@ class UpdateObject(DataLayerActionWithPorts):
             self.logger.info(self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"Error updating {self.object_id}: {e}"
             self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
@@ -1230,7 +1230,7 @@ class CreateObject(DataLayerAction):
             self.logger.info(self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Error creating object in {self.table}: {e}"
             )
@@ -1317,6 +1317,6 @@ class UpdateActorOutbox(DataLayerActionWithPorts):
 
             return Status.SUCCESS
 
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.error(f"{self.name}: Error updating actor outbox: {e}")  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE

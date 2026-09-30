@@ -38,7 +38,7 @@ class SaveNoteNode(DataLayerActionWithPorts):
             self.datalayer.save(self.note_obj)
             self.logger.info(f"{self.name}: Saved note {self.note_obj.id_}")
             return Status.SUCCESS
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 f"{self.name}: Error saving note {self.note_obj.id_}: {e}"
             )

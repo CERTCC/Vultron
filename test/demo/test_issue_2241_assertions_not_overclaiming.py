@@ -120,7 +120,7 @@ def test_participant_adds_note_no_unbound_on_trigger_failure(monkeypatch):
         )
     except UnboundLocalError:
         raised_unbound = True
-    except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
+    except Exception:  # noqa: BLE001, S110  # ruff-baseline #3989
         # Any other exception (e.g. AssertionError from note_id is None)
         # is acceptable — it is not the UnboundLocalError that masked failures.
         pass

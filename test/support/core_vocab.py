@@ -115,6 +115,6 @@ def build_core_vocab(
         kwargs.update(extra or {})
         try:
             built.append((name, base_cls(**kwargs)))
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
             unconstructible[name] = f"{type(exc).__name__}: {exc}"
     return built, unconstructible

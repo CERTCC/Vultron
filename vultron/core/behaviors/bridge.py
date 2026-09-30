@@ -612,7 +612,7 @@ class BTBridge:
             # this handler used to build.
             return self._exception_result(e, prefix="BT execution failed")
 
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             # Anything else is a programming error — a wrong-typed port, a
             # missing attribute, a bad key.  Still caught, because a half-ticked
             # tree must not escape into a FastAPI background task, but flagged
@@ -820,7 +820,7 @@ class BTBridge:
                     )
                 except VultronError as e:
                     return self._exception_result(e, prefix="BT setup failed")
-                except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+                except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
                     return self._exception_result(
                         e, prefix="BT setup failed", internal_error=True
                     )
@@ -836,7 +836,7 @@ class BTBridge:
                     return self._exception_result(
                         e, prefix="BT execution failed"
                     )
-                except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+                except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
                     return self._exception_result(
                         e, prefix="BT execution failed", internal_error=True
                     )

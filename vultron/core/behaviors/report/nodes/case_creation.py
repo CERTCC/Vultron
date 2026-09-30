@@ -139,7 +139,7 @@ class CreateCaseNode(DataLayerActionWithPorts):
             self._set_output("case_id", case.id_)
             return Status.SUCCESS
 
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.error(f"{self.name}: Error creating case: {e}")  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
@@ -243,7 +243,7 @@ class CreateCaseActivity(DataLayerActionWithPorts):
             self._set_output("activity_id", create_case_activity.id_)
             return Status.SUCCESS
 
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 f"{self.name}: Error creating CreateCaseActivity activity: {e}"
             )

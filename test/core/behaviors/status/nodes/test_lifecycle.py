@@ -164,7 +164,7 @@ def _make_dl_with_em_state(
         case.active_embargo = embargo.id_
         try:
             dl.create(embargo)
-        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
+        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3989
             pass
 
     participant = CaseParticipant(

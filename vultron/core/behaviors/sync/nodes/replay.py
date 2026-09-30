@@ -443,7 +443,7 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
                 activity_id,
                 peer_id,
             )
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.warning(
                 "%s: could not queue AnnounceVulnerabilityCase for peer '%s': %s",
                 self.name,

@@ -230,7 +230,7 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
 
         try:
             self.datalayer.save(record)
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             # A well-formed effect that could not be written IS a failed
             # effect: fail so the Selector blocks PersistReceivedLogEntry and
             # the entry is not persisted without it (SYNC-12-001).

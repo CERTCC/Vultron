@@ -114,7 +114,7 @@ class ConstructActivitiesNode(DataLayerActionWithPorts):
 
         try:
             activity_ids = self._activity_builder(case_manager_id)
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"Activity construction failed: {exc}"
             self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             self._set_output("activity_ids", None)  # BT-17-003
@@ -165,7 +165,7 @@ class QueueToOutboxNode(DataLayerActionWithPorts):
                     activity_id,
                     dl,  # type: ignore[arg-type]
                 )
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Failed to queue activity to outbox: {exc}"
             )

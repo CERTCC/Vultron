@@ -1194,7 +1194,7 @@ class TestWaitForAllParticipantsRmClosed:
             demo._all_fetchable_participants_rm_closed(
                 vendor_client, fetched_case
             )
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
             pytest.fail(
                 f"_all_fetchable_participants_rm_closed crashed on"
                 f" URL-based actor ID {actor_id!r}: {exc}"

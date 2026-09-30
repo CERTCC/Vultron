@@ -145,7 +145,7 @@ class CheckCaseAlreadyExists(DataLayerConditionWithPorts):
             )
             return Status.SUCCESS
 
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 f"{self.name}: Error checking case existence: {e}"
             )
@@ -199,7 +199,7 @@ class CheckCaseExistsForReport(DataLayerConditionWithPorts):
             )
             return Status.SUCCESS
 
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 f"{self.name}: Error checking case existence: {e}"
             )
@@ -356,7 +356,7 @@ class CheckPendingProposalExistsForReport(DataLayerConditionWithPorts):
                 link.proposal_rejected,
             )
             return Status.FAILURE
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: error checking pending proposal for report '%s': %s",
                 self.name,

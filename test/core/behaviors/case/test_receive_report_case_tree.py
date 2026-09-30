@@ -681,7 +681,7 @@ class TestConcurrentExecution:
                 )
                 with _lock:
                     results[key] = result.status
-            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
                 with _lock:
                     errors.append(f"{key}: {exc}")
 

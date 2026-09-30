@@ -258,7 +258,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
 
         try:
             self.datalayer.save(marker)
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"Failed to write marker: {exc}"
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

@@ -180,7 +180,7 @@ class _TestClientRouter:
                     inbox_path,
                     response.status_code,
                 )
-            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
                 logger.warning(
                     "_TestClientRouter: delivery to %s failed: %s",
                     inbox_path,

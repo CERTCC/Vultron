@@ -166,7 +166,7 @@ class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
 
         try:
             activity_id, activity_dict = self._activity_builder(case_id)
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"CreateCase activity construction failed: {exc}"
             )

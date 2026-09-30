@@ -56,7 +56,7 @@ def make_testclient_call(client: TestClient, base: str):
             )
         try:
             return resp.json()
-        except Exception:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception:  # noqa: BLE001  # ruff-baseline #3989
             return resp.text
 
     return testclient_call

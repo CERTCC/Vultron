@@ -224,7 +224,7 @@ class EmitCreateVulnerabilityCaseNode(DataLayerAction):
             cast(CaseOutboxPersistence, self.datalayer).outbox_append(
                 activity_id
             )
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Failed to enqueue Create(VulnerabilityCase) to outbox: {exc}"
             )

@@ -102,7 +102,7 @@ def _call_use_case(
 
     try:
         result = use_case_class(dl, event).execute()
-    except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+    except Exception as e:  # noqa: BLE001  # ruff-baseline #3989
         pytest.fail(f"Use case raised an exception: {e}")
     # A handler reports what it did with the message (HP-01-003, #2255).
     assert result.disposition is expected, result.reason

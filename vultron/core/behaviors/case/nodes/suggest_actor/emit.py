@@ -270,7 +270,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                 self.case_id,
             )
             return Status.SUCCESS
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"EmitOfferCaseParticipantToOwner failed: {e}"
             )
@@ -369,7 +369,7 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
                 self.case_id,
             )
             return Status.SUCCESS
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"EmitNoteDuplicateRecommendationToOwner failed: {e}"
             )

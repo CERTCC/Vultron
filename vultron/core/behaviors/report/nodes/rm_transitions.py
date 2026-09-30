@@ -148,7 +148,7 @@ class _ReportPhaseRMTransition(DataLayerActionWithPorts):
                 self.report_id,
             )
             return Status.SUCCESS
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: Error transitioning to %s: %s",
                 self.name,

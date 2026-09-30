@@ -157,7 +157,7 @@ class EmitRMGapNoteNode(DataLayerActionWithPorts):
                 to_rm,
                 self.case_id,
             )
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.warning(
                 "EmitRMGapNoteNode: failed to emit note for RM anomaly"
                 " in case '%s': %s",

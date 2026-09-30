@@ -76,7 +76,7 @@ def get_protocol_spec_ids(specs_dir: Path) -> set[str]:
     for yaml_path in sorted(specs_dir.glob("*.yaml")):
         try:
             data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
             print(f"  [SKIP] {yaml_path.name}: {exc}", file=sys.stderr)
             continue
         if not isinstance(data, dict):
@@ -188,7 +188,7 @@ def _collect_protocol_must_no_stories(
 
     try:
         data = _yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001  # ruff-baseline #3326
+    except Exception:  # noqa: BLE001  # ruff-baseline #3989
         return set()
     if not isinstance(data, dict):
         return set()

@@ -246,7 +246,7 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
             status_obj = ParticipantStatus.model_validate(
                 project_wire_snapshot_to_core(ParticipantStatus, status_data)
             )
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.warning(
                 "%s: failed to reconstruct ParticipantStatus from"
                 " payload_snapshot for '%s': %s",
