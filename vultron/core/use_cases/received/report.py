@@ -167,7 +167,7 @@ def _run_submit_report_case_creation(
     from vultron.core.behaviors.case import receive_report_case_tree
     from vultron.core.behaviors.case.nodes import (
         CheckAutoCaseCreationEnabledNode,
-        CheckPendingProposalExistsForReport,
+        CheckProposalAlreadySentForReport,
     )
 
     logger.info(
@@ -202,7 +202,7 @@ def _run_submit_report_case_creation(
         raise VultronBTInternalError(
             f"case proposal for report '{report_id}' failed: {verdict.reason}"
         )
-    if node_succeeded(tree, CheckPendingProposalExistsForReport):
+    if node_succeeded(tree, CheckProposalAlreadySentForReport):
         return HandlerResult.skipped(
             f"case proposal for report '{report_id}' already sent"
         )

@@ -21,6 +21,7 @@ persona (finder, vendor).
 """
 
 import logging
+from datetime import datetime
 from typing import Optional, Tuple
 
 from vultron.adapters.utils import parse_id
@@ -66,6 +67,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -74,6 +76,15 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: The one report every scenario submits, stated once for both arms of
+#: :func:`reporter_submits_report`.
+_DEMO_REPORT_NAME = "Remote Code Execution in Network Stack"
+_DEMO_REPORT_CONTENT = (
+    "A critical remote code execution vulnerability was discovered "
+    "in the network stack component. An attacker can exploit this "
+    "issue to execute arbitrary code with elevated privileges."
+)
 
 
 def _provision_case_actor(receiver_client, report) -> None:
@@ -112,6 +123,7 @@ def reporter_submits_report(
     reporter: as_Actor,
     receiver: as_Actor,
     reporter_client: Optional[DataLayerClient] = None,
+    proposed_embargo_end_time: Optional[datetime] = None,
 ) -> Tuple[as_VulnerabilityReport, as_Offer]:
     """Reporter creates a vulnerability report and submits it to the receiver.
 
@@ -133,11 +145,22 @@ def reporter_submits_report(
     submits without a counter-proposal, this constitutes *tacit acceptance*
     of the receiver's default (EP-04-001), and the case reaches ``EM.ACTIVE``
     immediately — no ``ProposeEmbargo`` / ``AcceptEmbargo`` message exchange
-    occurs.  This is intentional protocol behavior, not a missing step.  All
-    demo scenarios that call this function exercise this default path.  A
-    demo that includes an explicit embargo-negotiation round-trip is
-    implementing the *negotiated path* (EP-04-003), which is distinct.
-    See ``notes/embargo-default-semantics.md`` for the full model.
+    occurs.  This is intentional protocol behavior, not a missing step.  Every
+    call that leaves ``proposed_embargo_end_time`` unset exercises this
+    default path.
+
+    **Negotiated path (EP-04-003).**  When ``proposed_embargo_end_time`` is
+    given, the Reporter states embargo terms *with* the submission: the Offer
+    carries an ``EmbargoEvent`` ending then as ``proposedEmbargo``
+    (EP-04-004), and at case creation the CASE_MANAGER activates the shorter
+    of those terms and the receiver's actor default, registering the longer
+    as a pending revision (``EM.REVISE``).  Still no ``ProposeEmbargo`` /
+    ``AcceptEmbargo`` exchange is visible — the negotiation is settled at
+    creation — so a reader distinguishes the two paths by whether terms were
+    stated on the Offer, not by the messages on the wire.  The
+    ``report-with-embargo`` exchange demo is the negotiated path's
+    demonstration.  See ``notes/embargo-default-semantics.md`` for the full
+    model.
 
     Args:
         receiver_client: Client connected to the receiver's container.
@@ -146,17 +169,14 @@ def reporter_submits_report(
         reporter_client: Optional client connected to the reporter container.
             When provided, the submit-report trigger is called on the reporter
             container; when absent the legacy in-memory path is used.
+        proposed_embargo_end_time: The Reporter's proposed embargo end for this
+            report, timezone-aware and in the future; ``None`` proposes
+            nothing.
 
     Returns:
         Tuple of ``(report, offer)``.
     """
     if reporter_client is not None:
-        report_name = "Remote Code Execution in Network Stack"
-        report_content = (
-            "A critical remote code execution vulnerability was discovered "
-            "in the network stack component. An attacker can exploit this "
-            "issue to execute arbitrary code with elevated privileges."
-        )
         result = None
         with demo_step(
             "Reporter submits vulnerability report to receiver's inbox"
@@ -164,9 +184,10 @@ def reporter_submits_report(
             result = ActorSession(
                 client=reporter_client, actor=reporter
             ).submit_report(
-                report_name=report_name,
-                report_content=report_content,
+                report_name=_DEMO_REPORT_NAME,
+                report_content=_DEMO_REPORT_CONTENT,
                 recipient_id=receiver.id_,
+                proposed_embargo_end_time=proposed_embargo_end_time,
             )
         offer_dict = (result.offer or {}) if result is not None else {}
         report, offer = parse_submit_report_offer(offer_dict)
@@ -181,18 +202,22 @@ def reporter_submits_report(
     else:
         report = as_VulnerabilityReport(
             attributed_to=reporter.id_,
-            name="Remote Code Execution in Network Stack",
-            content=(
-                "A critical remote code execution vulnerability was discovered "
-                "in the network stack component. An attacker can exploit this "
-                "issue to execute arbitrary code with elevated privileges."
-            ),
+            name=_DEMO_REPORT_NAME,
+            content=_DEMO_REPORT_CONTENT,
+        )
+        proposed_embargo = (
+            as_EmbargoEvent(
+                context=report.id_, end_time=proposed_embargo_end_time
+            )
+            if proposed_embargo_end_time is not None
+            else None
         )
         offer = rm_submit_report_activity(
             report,
             actor=reporter.id_,
             target=receiver.id_,
             to=receiver.id_,
+            proposed_embargo=proposed_embargo,
         )
         with demo_step(
             "Reporter submits vulnerability report to receiver's inbox"
@@ -701,6 +726,58 @@ def wait_for_case_for_offer(
         f" {offer_id!r} to arrive in the store at {client.base_url} — the"
         " CaseActor's Create(VulnerabilityCase) may not have been delivered"
         " (ADR-0041, PCR-01-003)",
+        swallow_exceptions=True,
+    )
+    return found["case"]
+
+
+def wait_for_case_by_report(
+    client: DataLayerClient,
+    report_id: str,
+    actor_id: str,
+    timeout_seconds: float = 20.0,
+    poll_interval: float = 0.5,
+) -> as_VulnerabilityCase:
+    """Poll *actor_id*'s store on *client* until the case for *report_id* exists.
+
+    The canonical case is created by the CaseActor in *its own* store when it
+    accepts the vendor's ``Create(CaseProposal)`` (ADR-0041, ADR-0073), some
+    time after the report Offer was delivered — a background task on the
+    receiver, then another on the CaseActor.  Pass the CaseActor's id to read
+    the canonical case, or a participant's id to wait for that participant's
+    replica of it.  This is :func:`find_case_by_report_id`'s polling wrapper
+    and lives beside it for the reason :func:`wait_for_case_for_offer` gives.
+
+    Args:
+        client: DataLayerClient connected to the container hosting *actor_id*.
+        report_id: Full URI of the ``as_VulnerabilityReport``.
+        actor_id: Whose store to read — the CaseActor's for the canonical case.
+        timeout_seconds: Maximum time to wait.
+        poll_interval: Seconds between polls.
+
+    Returns:
+        The ``as_VulnerabilityCase`` referencing *report_id* in that store.
+
+    Raises:
+        AssertionError: If no such case appears within *timeout_seconds*.
+    """
+    found: dict[str, as_VulnerabilityCase] = {}
+
+    def _check() -> bool:
+        case = find_case_by_report_id(client, report_id, actor_id=actor_id)
+        if case is None:
+            return False
+        found["case"] = case
+        return True
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for a VulnerabilityCase referencing report"
+        f" {report_id!r} in the store of {actor_id!r} at {client.base_url}"
+        " — the CaseActor's Create(CaseProposal) handling may not have"
+        " completed (ADR-0041)",
         swallow_exceptions=True,
     )
     return found["case"]

@@ -66,6 +66,7 @@ from vultron.core.use_cases.query.action_rules import (
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
+from vultron.adapters.driving.fastapi.routers.actors import _embargo_policy
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _activity_addressed_to,
     parse_activity,
@@ -632,6 +633,12 @@ def post_actor_outbox(
     )
 
     return None
+
+
+# Included ahead of the catch-all below on purpose: FastAPI matches routes in
+# registration order, and ``GET /{actor_id:path}`` would otherwise claim
+# ``/actors/{slug}/embargo-policy`` with the suffix folded into the segment.
+router.include_router(_embargo_policy.router)
 
 
 @router.get(

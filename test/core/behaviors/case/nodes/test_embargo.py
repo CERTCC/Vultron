@@ -36,6 +36,7 @@ from vultron.core.behaviors.case.nodes.embargo import (
     SeedOwnerAsSignatoryNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
+    CaseEmbargoAlreadyInitializedNode,
     CaseNotEmbargoEligibleNode,
     ResolveEmbargoDurationNode,
 )
@@ -211,10 +212,101 @@ class TestInitializeDefaultEmbargoNode:
         assert participant is not None
         assert participant.embargo_consent_state == PEC.SIGNATORY
 
+    def test_a_second_run_creates_no_orphan_embargo_event(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: CaseActor,
+        actor_id: str,
+        case_obj: VulnerabilityCase,
+    ) -> None:
+        """Default path, run twice: exactly one ``EmbargoEvent`` is stored.
+
+        Before the idempotency arm the creation arm re-ran on the initialized
+        case, minting a second event that nothing attached — an orphan left
+        by every repeated proposal for the same report.
+        """
+        for _ in range(2):
+            result = bt_scenario.run(
+                InitializeDefaultEmbargoNode(),
+                actor_id=actor_id,
+                case_id=case_obj.id_,
+            )
+            assert result.status == Status.SUCCESS
+
+        events = list(bt_scenario.dl.list_objects("EmbargoEvent"))
+        assert len(events) == 1
+
+    @pytest.mark.spec("EP-04-003")
+    def test_a_second_run_registers_no_second_revision(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: CaseActor,
+        actor_id: str,
+        case_obj: VulnerabilityCase,
+    ) -> None:
+        """Contested path, run twice: one revision, and EM stays REVISE.
+
+        The demo that first exercised the negotiated path (#3393) delivered
+        its report Offer twice and found two pending revisions on the case —
+        one per ``Create(CaseProposal)`` — because the creation arm ran again
+        on the case it had already initialized.
+        """
+        from datetime import timedelta
+
+        from vultron.core.models._helpers import days_from_now_utc
+        from vultron.core.models.embargo_policy import EmbargoPolicy
+
+        bt_scenario.dl.create(
+            EmbargoPolicy(
+                actor_id=actor_id,
+                inbox=f"{actor_id}/inbox",
+                preferred_duration=timedelta(days=30),
+            )
+        )
+        proposal = EmbargoEvent(
+            context="https://example.org/reports/r-1",
+            end_time=days_from_now_utc(10),
+        )
+        for _ in range(2):
+            result = bt_scenario.run(
+                InitializeDefaultEmbargoNode(),
+                actor_id=actor_id,
+                case_id=case_obj.id_,
+                sender_proposed_embargo_duration=timedelta(days=10),
+                sender_proposed_embargo=proposal,
+            )
+            assert result.status == Status.SUCCESS
+
+        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
+        assert stored_case.current_status.em.state == EM.REVISE
+        assert len(stored_case.proposed_embargoes) == 1
+        assert stored_case.active_embargo_id == proposal.id_
+        # The Reporter's event plus the one registered revision, nothing else.
+        events = list(bt_scenario.dl.list_objects("EmbargoEvent"))
+        assert len(events) == 2
+
+    def test_already_initialized_guard_raises_on_a_missing_case(
+        self, bt_scenario: BTTestScenario, actor_id: str
+    ) -> None:
+        """A refusal arm ahead of a write raises rather than falls through:
+        FAILURE here would run the creation arm against an unreadable case."""
+        result = bt_scenario.run(
+            CaseEmbargoAlreadyInitializedNode(),
+            actor_id=actor_id,
+            case_id="https://example.org/cases/absent",
+        )
+
+        # The raise reaches BTBridge, which fails the whole tree and names the
+        # case; a plain FAILURE from the node would have run the creation arm.
+        assert result.status == Status.FAILURE
+        assert "BtNodePreconditionError" in result.feedback_message
+        assert "https://example.org/cases/absent" in result.feedback_message
+
     def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
         node = InitializeDefaultEmbargoNode()
 
-        refusal_arm, creation_arm = node.children
+        initialized_arm, refusal_arm, creation_arm = node.children
+        assert isinstance(initialized_arm, CaseEmbargoAlreadyInitializedNode)
         assert isinstance(refusal_arm, CaseNotEmbargoEligibleNode)
         assert [type(child) for child in creation_arm.children] == [
             ResolveEmbargoDurationNode,

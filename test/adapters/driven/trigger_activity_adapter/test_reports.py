@@ -232,3 +232,84 @@ class TestInvalidateReport:
         )
 
         assert dl.read(activity_id) is not None
+
+
+class TestSubmitReportProposedEmbargo:
+    """``proposed_embargo_id`` names the Reporter's stored terms (EP-04-004)."""
+
+    def _terms(self, dl, report):
+        from vultron.core.models._helpers import days_from_now_utc
+        from vultron.core.models.embargo_event import EmbargoEvent
+
+        terms = EmbargoEvent(
+            context=report.id_, end_time=days_from_now_utc(10)
+        )
+        dl.create(terms)
+        return terms
+
+    def test_the_offer_carries_the_stored_terms(self, adapter, dl):
+        report = _make_report(dl)
+        terms = self._terms(dl, report)
+
+        _, offer_json = adapter.submit_report(
+            report_id=report.id_,
+            actor=_ACTOR,
+            to=_COORDINATOR,
+            target=_CASE_ID,
+            proposed_embargo_id=terms.id_,
+        )
+
+        proposed = json.loads(offer_json)["proposedEmbargo"]
+        assert proposed["id"] == terms.id_
+        assert proposed["context"] == report.id_
+
+    def test_no_id_means_no_terms(self, adapter, dl):
+        report = _make_report(dl)
+
+        _, offer_json = adapter.submit_report(
+            report_id=report.id_,
+            actor=_ACTOR,
+            to=_COORDINATOR,
+            target=_CASE_ID,
+        )
+
+        assert "proposedEmbargo" not in json.loads(offer_json)
+
+    def test_an_unknown_id_is_a_fault_not_a_dropped_proposal(
+        self, adapter, dl
+    ):
+        from vultron.errors import VultronNotFoundError
+
+        report = _make_report(dl)
+
+        with pytest.raises(VultronNotFoundError):
+            adapter.submit_report(
+                report_id=report.id_,
+                actor=_ACTOR,
+                to=_COORDINATOR,
+                target=_CASE_ID,
+                proposed_embargo_id="urn:uuid:00000000-0000-0000-0000-000000000000",
+            )
+        assert list(dl.list_objects("Offer")) == []
+
+    def test_terms_about_another_subject_are_refused(self, adapter, dl):
+        """The factory's EP-04-009 rule holds through the adapter."""
+        from vultron.core.models._helpers import days_from_now_utc
+        from vultron.core.models.embargo_event import EmbargoEvent
+        from vultron.errors import VultronActivityConstructionError
+
+        report = _make_report(dl)
+        foreign = EmbargoEvent(
+            context="https://example.org/reports/someone-elses",
+            end_time=days_from_now_utc(10),
+        )
+        dl.create(foreign)
+
+        with pytest.raises(VultronActivityConstructionError):
+            adapter.submit_report(
+                report_id=report.id_,
+                actor=_ACTOR,
+                to=_COORDINATOR,
+                target=_CASE_ID,
+                proposed_embargo_id=foreign.id_,
+            )

@@ -12,10 +12,11 @@ field.  Leaf request classes subclass one of these intermediaries and only add
 fields (or override optionals to required) where the specific use case demands it.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from vultron.core.models._helpers import require_future_aware
 from vultron.core.models.base import NonEmptyString, UriString
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.rm import RM
@@ -77,11 +78,25 @@ class SubmitReportTriggerRequest(TriggerRequest):
 
     Creates a ``VulnerabilityReport`` in the actor's DataLayer and queues an
     ``RmSubmitReportActivity`` offer to the specified recipient.
+
+    ``proposed_embargo_end_time`` states the Reporter's embargo terms for this
+    report (EP-04-004): when present, an ``EmbargoEvent`` ending then, with the
+    report as its ``context`` (EP-04-009), is stored and carried on the Offer
+    as ``proposedEmbargo``.  Absent means the Reporter states no terms and
+    tacitly accepts the receiver's default (EP-04-001).
     """
 
     report_name: NonEmptyString
     report_content: NonEmptyString
     recipient_id: UriString
+    proposed_embargo_end_time: datetime | None = None
+
+    @field_validator("proposed_embargo_end_time")
+    @classmethod
+    def proposed_end_must_be_tz_aware_and_future(
+        cls, v: datetime | None
+    ) -> datetime | None:
+        return require_future_aware(v, "proposed_embargo_end_time")
 
 
 class EngageCaseTriggerRequest(CaseTriggerRequest):
@@ -109,11 +124,7 @@ class ProposeEmbargoTriggerRequest(CaseTriggerRequest):
     @field_validator("end_time")
     @classmethod
     def end_time_must_be_tz_aware_and_future(cls, v: datetime) -> datetime:
-        if v.tzinfo is None or v.utcoffset() is None:
-            raise ValueError("end_time must be timezone-aware")
-        if v <= datetime.now(tz=timezone.utc):
-            raise ValueError("end_time must be in the future")
-        return v
+        return require_future_aware(v)
 
 
 class AcceptEmbargoTriggerRequest(CaseTriggerRequest):
@@ -134,11 +145,7 @@ class ProposeEmbargoRevisionTriggerRequest(CaseTriggerRequest):
     @field_validator("end_time")
     @classmethod
     def end_time_must_be_tz_aware_and_future(cls, v: datetime) -> datetime:
-        if v.tzinfo is None or v.utcoffset() is None:
-            raise ValueError("end_time must be timezone-aware")
-        if v <= datetime.now(tz=timezone.utc):
-            raise ValueError("end_time must be in the future")
-        return v
+        return require_future_aware(v)
 
 
 class TerminateEmbargoTriggerRequest(CaseTriggerRequest):

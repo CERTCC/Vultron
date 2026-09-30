@@ -56,6 +56,7 @@ class TriggerServicePort(Protocol):
         report_name: str,
         report_content: str,
         recipient_id: str,
+        proposed_embargo_end_time: datetime | None = None,
     ) -> dict[str, Any]: ...
 
     def validate_report(

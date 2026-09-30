@@ -29,6 +29,7 @@ actor's own outbox. This is appropriate for exchange demos because:
 | `initialize-participant` | `initialize_participant_demo.py` | Initializing a standalone CaseParticipant       |
 | `invite-actor`           | `invite_actor_demo.py`           | Inviting an actor to participate in a case      |
 | `establish-embargo`      | `establish_embargo_demo.py`      | Establishing a coordinated disclosure embargo   |
+| `report-with-embargo`    | `report_with_embargo_demo.py`    | Reporter proposes embargo terms with the report |
 | `acknowledge`            | `acknowledge_demo.py`            | Acknowledging receipt of a vulnerability report |
 | `status-updates`         | `status_updates_demo.py`         | Posting case status updates and notes           |
 | `suggest-actor`          | `suggest_actor_demo.py`          | Suggesting an actor for a case                  |

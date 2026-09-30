@@ -273,7 +273,7 @@ The following nodes are **removed** from the vendor's
 ReceiveReportCaseBT (Sequence)
 ├─ CheckAutoCaseCreationEnabledNode
 └─ ReceiveReportCaseSelector (Selector)
-   ├─ CheckPendingProposalExistsForReport    # idempotency
+   ├─ CheckProposalAlreadySentForReport    # idempotency
    └─ ReceiveReportProposalFlow (Sequence)
       ├─ WritePendingReportCaseLinkNode      # VultronReportCaseLink(status=PENDING_PROPOSAL)
       └─ ProposeCaseToActorNode              # Create(as_CaseProposal) → CaseActor
@@ -484,6 +484,22 @@ For first-time proposals, `EmitAcceptCaseProposalNode` also sets
 `result` of an Accept always names the `VulnerabilityCase` the proposal
 produced (or reused), regardless of whether the proposal is a first send or a
 retry.
+
+**Reusing the case means reusing its embargo.** The AC-1 flow runs the same
+native-initialization nodes as a first proposal, so each of them has to be a
+no-op on a case that already has what it would create. Participants and
+ledger entries were (their tests are in `TestADR0041Idempotency`); the embargo
+subtree was not until #3393: `InitializeDefaultEmbargoNode`'s creation arm
+re-ran on the existing case, minting an orphan `EmbargoEvent` on the default
+path and registering the losing candidate as a *second* pending revision on
+the contested one (EP-04-003) — one revision per delivery of the same report.
+`CaseEmbargoAlreadyInitializedNode` is now the subtree's first arm: an active
+embargo attached means initialization already ran. The vendor stops feeding
+the duplicate too — `CheckProposalAlreadySentForReport` treats an answered
+`ReportCaseLink` (case linked) as "already proposed", so a re-delivered Offer
+does not re-propose. What the case-actor *answers* a same-report duplicate
+with — a fresh `Accept`, as this section describes, or the stored original
+CP-05-006 now requires — is open in #3977.
 
 ### Implementation: `VultronAccept.result`
 

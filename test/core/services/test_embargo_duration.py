@@ -29,6 +29,7 @@ from vultron.core.services.embargo_duration import (
     owner_embargo_policies,
     resolve_initial_embargo_duration,
     select_actor_default,
+    select_actor_default_policy,
 )
 
 ACTOR_ID = "https://example.org/actors/vendor"
@@ -90,6 +91,17 @@ class TestOwnerEmbargoPolicies:
 class TestSelectActorDefault:
     def test_no_policies_is_none(self) -> None:
         assert select_actor_default([]) is None
+        assert select_actor_default_policy([]) is None
+
+    @pytest.mark.spec("EP-04-010")
+    def test_the_policy_shown_is_the_one_whose_duration_is_used(self) -> None:
+        """The embargo-policy endpoint shows ``select_actor_default_policy``'s
+        choice, so it must be the record ``select_actor_default`` reads."""
+        policies = [_policy("a", 45), _policy("b", 14), _policy("c", 60)]
+        chosen = select_actor_default_policy(policies)
+        assert chosen is not None
+        assert chosen.id_ == _policy("b", 14).id_
+        assert chosen.preferred_duration == select_actor_default(policies)
 
     @pytest.mark.spec("EP-04-010")
     def test_shortest_wins_regardless_of_order(self) -> None:

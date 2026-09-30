@@ -37,6 +37,7 @@ it MUST NOT be imported anywhere except this module and
 
 import logging
 from dataclasses import dataclass, replace
+from datetime import datetime
 from typing import Any, cast
 from urllib.parse import urlsplit
 
@@ -205,17 +206,30 @@ class ActorSession:
     # -- report triggers --------------------------------------------------
 
     def submit_report(
-        self, *, report_name: str, report_content: str, recipient_id: str
+        self,
+        *,
+        report_name: str,
+        report_content: str,
+        recipient_id: str,
+        proposed_embargo_end_time: datetime | None = None,
     ) -> TriggerResult:
-        """Create a report and offer it to *recipient_id* (submit-report)."""
-        return self._post(
-            "submit-report",
-            {
-                "report_name": report_name,
-                "report_content": report_content,
-                "recipient_id": recipient_id,
-            },
-        )
+        """Create a report and offer it to *recipient_id* (submit-report).
+
+        *proposed_embargo_end_time* states the Reporter's embargo terms for
+        the report; the Offer then carries them as ``proposedEmbargo``
+        (EP-04-004).  ``None`` states none — the receiver's default applies
+        (EP-04-001).
+        """
+        body: dict[str, Any] = {
+            "report_name": report_name,
+            "report_content": report_content,
+            "recipient_id": recipient_id,
+        }
+        if proposed_embargo_end_time is not None:
+            body["proposed_embargo_end_time"] = (
+                proposed_embargo_end_time.isoformat()
+            )
+        return self._post("submit-report", body)
 
     def validate_report(
         self, *, offer_id: str, note: str | None = None

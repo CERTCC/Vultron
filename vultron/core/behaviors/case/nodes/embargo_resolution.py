@@ -13,12 +13,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Initial-embargo eligibility and duration nodes for case creation.
+"""Initial-embargo guard, eligibility and duration nodes for case creation.
 
-The first two steps of ``InitializeDefaultEmbargoNode``: decide whether a
-case may receive an embargo at all (EP-04-008), then resolve the duration it
-is created with (EP-04-005 through EP-04-007, EP-04-010).  The remaining leaf
-nodes live in the sibling ``embargo.py``.
+The first steps of ``InitializeDefaultEmbargoNode``: recognise a case whose
+creation-time embargo already exists so a repeated proposal initializes
+nothing twice, decide whether a case may receive an embargo at all
+(EP-04-008), then resolve the duration it is created with (EP-04-005 through
+EP-04-007, EP-04-010).  The remaining leaf nodes live in the sibling
+``embargo.py``.
 
 Per specs/embargo-policy.yaml EP-04 and ADR-0096.
 """
@@ -45,6 +47,93 @@ from vultron.errors import (
     BtNodePreconditionError,
     VultronInvalidStateTransitionError,
 )
+
+
+def _refusal_arm_case_id(
+    node: DataLayerConditionWithPorts, purpose: str
+) -> str:
+    """Return the ``case_id`` a refusal arm decides on, or raise.
+
+    Shared by the guard arms of ``InitializeDefaultEmbargoNode``.  A missing
+    store or an unusable ``case_id`` *raises* rather than returning FAILURE:
+    in a Selector, FAILURE would run the creation arm, which persists an
+    ``EmbargoEvent`` before anything re-checks (``notes/bt-pitfalls.md``
+    § "A Refusal Arm in a Selector Fails Toward 'Admit'").
+    """
+    if node.datalayer is None:
+        raise BtNodePreconditionError(
+            f"{node.name}: DataLayer not available; cannot {purpose}"
+        )
+    case_id = node._try_get_input("case_id")
+    if not isinstance(case_id, str):
+        raise TypeError(
+            f"{node.name}: case_id {case_id!r} is not a string; cannot"
+            f" {purpose}"
+        )
+    return case_id
+
+
+class CaseEmbargoAlreadyInitializedNode(DataLayerConditionWithPorts):
+    """SUCCESS when the case already carries an active embargo — nothing to do.
+
+    The idempotency arm of ``InitializeDefaultEmbargoNode``.  Creation-time
+    initialization runs once, when the case is created; a later
+    ``Create(CaseProposal)`` for the same report reuses the case (CP-05-006)
+    and must not run it again.  Without this arm the creation arm re-ran on
+    the existing case: the default path minted and stored a second, orphan
+    ``EmbargoEvent``, and the contested path registered the losing candidate
+    as a *second* pending revision (EP-04-003) — one revision per delivery of
+    the same report (#3393).
+
+    "Initialized" is read as "an active embargo is attached", the same
+    evidence ``AdvanceEMStateToActiveNode`` and ``AttachEmbargoToCaseNode``
+    read to skip their own step; it is a question about the case's embargo
+    reference, not about the EM state machine, so no ``ReadEmStateNode`` is
+    involved.  A case at ``EM.NONE`` after refusal (EP-04-008) has no active
+    embargo and falls through to the eligibility arm, which refuses it again.
+
+    Like every guard ahead of a write in a Selector, a missing case or store
+    *raises*: returning FAILURE would run the creation arm against a case
+    that cannot be read (``notes/bt-pitfalls.md`` § "A Refusal Arm in a
+    Selector Fails Toward 'Admit'").
+    """
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def update(self) -> Status:
+        case_id = _refusal_arm_case_id(
+            self, "tell whether the case already has an embargo"
+        )
+        # Regime 1 resolution through the shared helper (ADR-0087) for the
+        # canonical log line; the FAILURE it hands back is then *raised*, not
+        # returned, because this arm sits ahead of the creation arm's writes.
+        case, failure = self._require_case(case_id)
+        if failure is not None:
+            raise BtNodePreconditionError(
+                f"{self.name}: case '{case_id}' is not in this store; the"
+                " creation-time embargo cannot be initialized for a case"
+                " that cannot be read"
+            )
+        active_id = case.active_embargo_id
+        if active_id is None:
+            return Status.FAILURE
+        self.logger.info(
+            "Case '%s' already carries active embargo '%s'; creation-time"
+            " initialization is not repeated",
+            case_id,
+            active_id,
+        )
+        return Status.SUCCESS
 
 
 class CaseNotEmbargoEligibleNode(DataLayerConditionWithPorts):
@@ -75,17 +164,8 @@ class CaseNotEmbargoEligibleNode(DataLayerConditionWithPorts):
         return {"case_id": "/case_id"}
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            raise BtNodePreconditionError(
-                f"{self.name}: DataLayer not available; cannot decide"
-                " embargo eligibility"
-            )
-        case_id = self._try_get_input("case_id")
-        if not isinstance(case_id, str):
-            raise TypeError(
-                f"{self.name}: case_id {case_id!r} is not a string; cannot"
-                " decide embargo eligibility"
-            )
+        case_id = _refusal_arm_case_id(self, "decide embargo eligibility")
+        assert self.datalayer is not None  # narrowed by the helper's raise
 
         lifecycle = EmbargoLifecycle(persistence=self.datalayer)
         try:

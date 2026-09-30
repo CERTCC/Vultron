@@ -372,10 +372,12 @@ class EmitSubmitReportActivity(DataLayerActionWithPorts):
         recipient_id: str,
         captured: dict | None = None,
         name: str | None = None,
+        proposed_embargo_id: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.report_id = report_id
         self.recipient_id = recipient_id
+        self.proposed_embargo_id = proposed_embargo_id
         self._captured = captured
 
     def _call_factory(self) -> tuple[str, str]:
@@ -387,6 +389,7 @@ class EmitSubmitReportActivity(DataLayerActionWithPorts):
             actor=self.actor_id,
             to=self.recipient_id,
             target=self.recipient_id,
+            proposed_embargo_id=self.proposed_embargo_id,
         )
 
     def _validate_context(self) -> Status | None:

@@ -107,8 +107,13 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: str,
         target: str,
+        proposed_embargo_id: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityReport)`` activity.
+
+        *proposed_embargo_id* names the Reporter's stored ``EmbargoEvent`` for
+        this report (EP-04-004); when given, the Offer carries it as
+        ``proposedEmbargo``.
 
         Returns ``(offer_id, offer_dict)``.
         """

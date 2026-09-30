@@ -55,6 +55,7 @@ import vultron.demo.exchange.manage_case_demo as manage_case_demo
 import vultron.demo.exchange.manage_embargo_demo as manage_embargo_demo
 import vultron.demo.exchange.manage_participants_demo as manage_participants_demo
 import vultron.demo.exchange.receive_report_demo as receive_report_demo
+import vultron.demo.exchange.report_with_embargo_demo as report_with_embargo_demo
 import vultron.demo.exchange.status_updates_demo as status_updates_demo
 import vultron.demo.exchange.suggest_actor_demo as suggest_actor_demo
 import vultron.demo.exchange.transfer_ownership_demo as transfer_ownership_demo
@@ -81,6 +82,7 @@ DEMOS = [
     ("initialize-participant", initialize_participant_demo),
     ("invite-actor", invite_actor_demo),
     ("establish-embargo", establish_embargo_demo),
+    ("report-with-embargo", report_with_embargo_demo),
     ("acknowledge", acknowledge_demo),
     ("status-updates", status_updates_demo),
     ("suggest-actor", suggest_actor_demo),

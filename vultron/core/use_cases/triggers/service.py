@@ -145,13 +145,19 @@ class TriggerService:
         report_name: str,
         report_content: str,
         recipient_id: str,
+        proposed_embargo_end_time: datetime | None = None,
     ) -> dict[str, Any]:
-        """Create a VulnerabilityReport and offer it to *recipient_id*."""
+        """Create a VulnerabilityReport and offer it to *recipient_id*.
+
+        *proposed_embargo_end_time* states the Reporter's embargo terms for the
+        report (EP-04-004); ``None`` states none.
+        """
         req = SubmitReportTriggerRequest(
             actor_id=actor_id,
             report_name=report_name,
             report_content=report_content,
             recipient_id=recipient_id,
+            proposed_embargo_end_time=proposed_embargo_end_time,
         )
         return SvcSubmitReportUseCase(
             self._dl, req, trigger_activity=self._trigger_activity

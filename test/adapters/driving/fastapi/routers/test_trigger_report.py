@@ -961,3 +961,58 @@ class TestTriggerReportOutboxScheduling:
         # test/architecture/test_outbox_handler_emitter_keyword.py).
         assert len(mock_outbox.call_args.args) == 2
         assert "emitter" not in mock_outbox.call_args.kwargs
+
+
+# ===========================================================================
+# submit-report — proposed_embargo_end_time (EP-04-004, #3971)
+# ===========================================================================
+
+
+class TestSubmitReportProposedEmbargo:
+    _BODY = {
+        "report_name": "Remote Code Execution in Widget",
+        "report_content": "A critical RCE vulnerability was found.",
+        "recipient_id": "https://example.org/actors/vendor",
+    }
+
+    @pytest.mark.spec("EP-04-004")
+    @pytest.mark.spec("TRIG-04-001")
+    def test_the_offer_in_the_response_carries_the_proposed_terms(
+        self, client_triggers, actor
+    ):
+        end = days_from_now_utc(10)
+        resp = client_triggers.post(
+            f"/actors/{actor.id_}/trigger/submit-report",
+            json={**self._BODY, "proposed_embargo_end_time": end.isoformat()},
+        )
+
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        offer = resp.json()["offer"]
+        assert offer["proposedEmbargo"]["context"] == offer["object"]["id"]
+        assert offer["proposedEmbargo"]["endTime"].startswith(
+            end.strftime("%Y-%m-%dT%H:%M:%S")
+        )
+
+    def test_without_the_field_the_offer_carries_no_terms(
+        self, client_triggers, actor
+    ):
+        resp = client_triggers.post(
+            f"/actors/{actor.id_}/trigger/submit-report", json=self._BODY
+        )
+
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        assert "proposedEmbargo" not in resp.json()["offer"]
+
+    @pytest.mark.spec("HTTP-03-009")
+    @pytest.mark.parametrize(
+        "bad",
+        ["2030-01-01T00:00:00", "2020-01-01T00:00:00+00:00", "soon"],
+        ids=["naive", "past", "not-a-datetime"],
+    )
+    def test_a_bad_end_time_is_422(self, client_triggers, actor, bad):
+        resp = client_triggers.post(
+            f"/actors/{actor.id_}/trigger/submit-report",
+            json={**self._BODY, "proposed_embargo_end_time": bad},
+        )
+
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT

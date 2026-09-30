@@ -968,3 +968,23 @@ def test_terminate_embargo_trigger_adds_activity_to_outbox(
 
     after = set(dl.outbox_list())
     assert len(after - before) >= 1
+
+
+@pytest.mark.spec("EP-04-004")
+def test_submit_report_trigger_carries_a_proposed_embargo_end(dl, actor):
+    """The service hands the Reporter's end time through to the use case."""
+    from vultron.core.models._helpers import days_from_now_utc
+
+    end = days_from_now_utc(10)
+    result = TriggerService(
+        dl, trigger_activity=TriggerActivityAdapter(dl)
+    ).submit_report(
+        actor_id=actor.id_,
+        report_name="CVE-2026-0001",
+        report_content="details",
+        recipient_id="https://example.org/actors/vendor",
+        proposed_embargo_end_time=end,
+    )
+
+    offer = result["offer"]
+    assert offer["proposedEmbargo"]["context"] == offer["object"]["id"]

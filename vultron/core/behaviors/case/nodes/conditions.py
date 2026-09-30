@@ -311,12 +311,22 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class CheckPendingProposalExistsForReport(DataLayerConditionWithPorts):
-    """Return SUCCESS when a pending ``VultronReportCaseLink`` exists for the report.
+class CheckProposalAlreadySentForReport(DataLayerConditionWithPorts):
+    """SUCCESS when a proposal for the report has already been sent and not refused.
 
-    Used as the idempotency guard in the slimmed vendor tree (ADR-0041).
-    A link is "pending" when ``case_id is None`` and
-    ``proposal_rejected is False``.
+    The idempotency guard in the slimmed vendor tree (ADR-0041): a
+    ``VultronReportCaseLink`` exists for the report and its proposal was not
+    rejected.  That covers both the *pending* link (``case_id is None``, the
+    answer has not arrived) and the *answered* one (``case_id`` set, the
+    CaseActor accepted and the case is linked).  Only a rejected proposal
+    (``proposal_rejected is True``) falls through, so the vendor proposes
+    again after a ``Reject`` and never otherwise.
+
+    The answered link used to fall through too, so a report Offer delivered
+    a second time *after* the case was linked — an outbox retry, or a demo
+    delivering what the trigger's own outbox already delivered — re-proposed
+    the case under a fresh proposal id, and the CaseActor re-ran creation-time
+    initialization on the case it already held (#3393).
 
     Per specs/case-proposal.yaml CP-04-001.
     """
@@ -339,26 +349,26 @@ class CheckPendingProposalExistsForReport(DataLayerConditionWithPorts):
                     self.report_id,
                 )
                 return Status.FAILURE
-            if link.case_id is None and not link.proposal_rejected:
+            if not link.proposal_rejected:
                 self.logger.info(
-                    "%s: pending proposal already exists for report '%s'"
-                    " — skipping (idempotent)",
+                    "%s: a proposal for report '%s' was already sent"
+                    " (case_id=%r) — skipping (idempotent)",
                     self.name,
                     self.report_id,
+                    link.case_id,
                 )
                 return Status.SUCCESS
             self.logger.debug(
-                "%s: ReportCaseLink for report '%s' is not pending"
-                " (case_id=%r, proposal_rejected=%r)",
+                "%s: the proposal for report '%s' was rejected"
+                " (case_id=%r); proposing again",
                 self.name,
                 self.report_id,
                 link.case_id,
-                link.proposal_rejected,
             )
             return Status.FAILURE
         except Exception as e:
             self.logger.error(
-                "%s: error checking pending proposal for report '%s': %s",
+                "%s: error checking whether a proposal was sent for report '%s': %s",
                 self.name,
                 self.report_id,
                 e,
