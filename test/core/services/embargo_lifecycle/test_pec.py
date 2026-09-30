@@ -78,7 +78,7 @@ def test_cascade_pec_reset_skips_unbound_and_resets_the_rest(
     case, participants = _make_case(
         dl, owner.id_, extra_participant_ids=[signer.id_, invitee.id_]
     )
-    owner_p, signer_p, invitee_p = participants
+    _owner_p, signer_p, invitee_p = participants
     _force_pec(dl, signer_p.id_, PEC.SIGNATORY)
     _force_pec(dl, invitee_p.id_, PEC.INVITED)
 

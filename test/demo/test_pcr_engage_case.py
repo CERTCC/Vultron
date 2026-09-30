@@ -435,7 +435,7 @@ class TestEngageCaseParticipantExpansion:
         """
         owner_iso, reporter_iso, owner_tc, reporter_tc = two_app_setup
 
-        case_id, owner_actor_id, reporter_actor_id = _bootstrap_and_engage(
+        _case_id, _owner_actor_id, reporter_actor_id = _bootstrap_and_engage(
             owner_iso,
             reporter_iso,
             owner_tc,

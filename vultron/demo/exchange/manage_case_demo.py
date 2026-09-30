@@ -259,7 +259,7 @@ def demo_defer_reengage_path(
         "Steps 1–2: Submit report, validate, create case with vendor "
         "participant"
     ):
-        report, case = setup_report_and_case(
+        _report, case = setup_report_and_case(
             client=client,
             finder=finder,
             vendor=vendor,

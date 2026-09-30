@@ -389,7 +389,7 @@ class TestSeedCLIWithDeterministicId:
 
     def test_finder_seed_uses_deterministic_id(self):
         config_path = _SEED_CONFIGS_DIR / "seed-finder.yaml"
-        calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
+        calls, _peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
         local_call = next((c for c in calls if c["name"] == "Finder"), None)
         assert local_call is not None
@@ -397,7 +397,7 @@ class TestSeedCLIWithDeterministicId:
 
     def test_vendor_seed_uses_deterministic_id(self):
         config_path = _SEED_CONFIGS_DIR / "seed-vendor.yaml"
-        calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
+        calls, _peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
         local_call = next((c for c in calls if c["name"] == "Vendor"), None)
         assert local_call is not None
@@ -405,7 +405,7 @@ class TestSeedCLIWithDeterministicId:
 
     def test_case_actor_seed_uses_deterministic_id(self):
         config_path = _SEED_CONFIGS_DIR / "seed-case-actor.yaml"
-        calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
+        calls, _peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
         local_call = next((c for c in calls if c["name"] == "CaseActor"), None)
         assert local_call is not None
@@ -413,7 +413,7 @@ class TestSeedCLIWithDeterministicId:
 
     def test_finder_seed_registers_all_peers(self):
         config_path = _SEED_CONFIGS_DIR / "seed-finder.yaml"
-        calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
+        _calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
         registered_peer_ids = {c["peer_id"] for c in peer_calls}
         assert VENDOR_ID in registered_peer_ids
@@ -442,7 +442,7 @@ class TestSeedCLIWithDeterministicId:
 
     def test_vendor_deployer_seed_uses_deterministic_id(self):
         config_path = _SEED_CONFIGS_DIR / "seed-actor6.yaml"
-        calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
+        calls, _peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
         local_call = next(
             (c for c in calls if c["name"] == "VendorDeployer"), None

@@ -224,7 +224,7 @@ class TestCaseProposalRoundTrip:
         whose ``object_`` is an ``as_CaseProposal`` must exist in the
         DataLayer (CP-04-001, CP-04-002).
         """
-        vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
+        vendor_iso, _reporter_iso, vendor_tc, reporter_tc = two_app_setup
 
         vendor_base_api = f"{_VENDOR_BASE}/api/v2"
         reporter_base_api = f"{_REPORTER_BASE}/api/v2"
@@ -286,7 +286,7 @@ class TestCaseProposalRoundTrip:
         case-actor inbox, the case-actor service must emit Accept and
         Create(VulnerabilityCase) back to the vendor (CP-05-003).
         """
-        vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
+        vendor_iso, _reporter_iso, vendor_tc, reporter_tc = two_app_setup
 
         vendor_base_api = f"{_VENDOR_BASE}/api/v2"
         reporter_base_api = f"{_REPORTER_BASE}/api/v2"
@@ -386,7 +386,7 @@ class TestCaseProposalRejectRoundTrip:
         )
         from vultron.core.behaviors.call_out.nodes import AlwaysFail
 
-        vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
+        vendor_iso, _reporter_iso, vendor_tc, reporter_tc = two_app_setup
 
         # The deployment's admission policy: refuse.  Patched on the adapter
         # module, which is where a real deployment substitutes its own bundle.

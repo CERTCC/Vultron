@@ -197,7 +197,7 @@ def demo_invalidate_and_close(
 
     report = offer = None
     with demo_step("Step 1: Finder submits a low-quality report to vendor"):
-        report, offer = _submit_report(
+        _report, offer = _submit_report(
             client=client,
             finder=finder,
             vendor=vendor,

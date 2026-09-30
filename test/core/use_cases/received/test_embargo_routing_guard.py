@@ -148,7 +148,7 @@ class TestInviteToEmbargoRoutingGuard:
         dl.actor_id (CASE_ACTOR_ID), so the guarded commit fires and the
         ``invite_to_embargo_on_case`` ledger entry IS written.
         """
-        dl, case_actor, case, embargo = self._setup()
+        dl, _case_actor, _case, embargo = self._setup()
 
         proposal = em_propose_embargo_activity(
             embargo,
@@ -180,7 +180,7 @@ class TestInviteToEmbargoRoutingGuard:
 
         Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry.
         """
-        dl, case_actor, case, embargo = self._setup()
+        dl, _case_actor, _case, embargo = self._setup()
 
         proposal = em_propose_embargo_activity(
             embargo,
@@ -211,7 +211,7 @@ class TestInviteToEmbargoRoutingGuard:
 
         Per CLP-10-003: the invitee (non-CaseActor) must skip the commit.
         """
-        dl, case_actor, case, embargo = self._setup()
+        dl, _case_actor, _case, embargo = self._setup()
 
         proposal = em_propose_embargo_activity(
             embargo,
@@ -278,7 +278,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
 
         Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry.
         """
-        dl, case_actor, case, accept = self._setup()
+        dl, _case_actor, _case, accept = self._setup()
 
         event = make_payload(accept, receiving_actor_id=self.CASE_ACTOR_ID)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
@@ -302,7 +302,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
 
         Per CLP-10-003: non-CaseActor receiving actors must skip the commit.
         """
-        dl, case_actor, case, accept = self._setup()
+        dl, _case_actor, _case, accept = self._setup()
 
         non_case_actor_id = "https://example.org/actors/other-vendor"
         event = make_payload(accept, receiving_actor_id=non_case_actor_id)
@@ -328,7 +328,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         dl.actor_id (CASE_ACTOR_ID), so the guarded commit fires and the
         ``accept_invite_to_embargo_on_case`` ledger entry IS written.
         """
-        dl, case_actor, case, accept = self._setup()
+        dl, _case_actor, _case, accept = self._setup()
 
         event = make_payload(accept, receiving_actor_id=None)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
@@ -389,7 +389,7 @@ class TestRemoveEmbargoRoutingGuard:
 
         Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry.
         """
-        dl, case_actor, case, embargo = self._setup()
+        dl, _case_actor, _case, embargo = self._setup()
 
         remove_activity = remove_embargo_from_case_activity(
             embargo,
@@ -421,7 +421,7 @@ class TestRemoveEmbargoRoutingGuard:
 
         Per CLP-10-003: non-CaseActor receiving actors must skip the commit.
         """
-        dl, case_actor, case, embargo = self._setup()
+        dl, _case_actor, _case, embargo = self._setup()
 
         remove_activity = remove_embargo_from_case_activity(
             embargo,
@@ -452,7 +452,7 @@ class TestRemoveEmbargoRoutingGuard:
         dl.actor_id (CASE_ACTOR_ID), so the guarded commit fires and the
         ``remove_embargo_event_from_case`` ledger entry IS written.
         """
-        dl, case_actor, case, embargo = self._setup()
+        dl, _case_actor, _case, embargo = self._setup()
 
         remove_activity = remove_embargo_from_case_activity(
             embargo,

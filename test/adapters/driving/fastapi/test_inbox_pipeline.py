@@ -390,7 +390,7 @@ def test_rehydrate_protocol_violation_returns_none_not_raises(
 
     monkeypatch.setattr(ip_module, "rehydrate", _raise_protocol)
 
-    pipeline, dl = test_pipeline
+    pipeline, _dl = test_pipeline
     result = pipeline.process("https://example.org/activities/bad-rehydrate")
 
     assert result is None, (
@@ -415,7 +415,7 @@ def test_rehydrate_generic_exception_returns_none_not_raises(
 
     monkeypatch.setattr(ip_module, "rehydrate", _raise_generic)
 
-    pipeline, dl = test_pipeline
+    pipeline, _dl = test_pipeline
     activity_id = "https://example.org/activities/transient-rehydrate"
     result = pipeline.process(activity_id)
 

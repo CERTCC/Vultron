@@ -129,7 +129,7 @@ def demo_notes_workflow(
     logger.info("DEMO: Notes Workflow")
     logger.info("=" * 80)
 
-    case, participant = _setup_initialized_case(client, finder, vendor)
+    case, _participant = _setup_initialized_case(client, finder, vendor)
 
     note = None
     with demo_step("Step 1: Vendor creates note"):

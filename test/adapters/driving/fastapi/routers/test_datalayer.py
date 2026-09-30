@@ -349,7 +349,7 @@ class TestResetFansOutOverEveryHostedActor:
         returning 200.
         """
         registered_id, registered_dl = self._store("reset-registered")
-        untouched_id, untouched_dl = self._store("reset-untouched")
+        _untouched_id, untouched_dl = self._store("reset-untouched")
         registered_dl.create(object_to_record(offer))
         untouched_dl.create(object_to_record(offer))
 

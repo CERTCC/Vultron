@@ -443,7 +443,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 
         RECOMMENDATION_ID = "https://example.org/activities/orig-offer-001"
 
-        dl, actor_id = _seed_dl_for_case_actor()
+        dl, _actor_id = _seed_dl_for_case_actor()
         # Seed the recommender index as OfferActorToCaseReceivedUseCase would.
         case = dl.read(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
@@ -635,7 +635,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
 
         RECOMMENDATION_ID = "https://example.org/activities/orig-offer-001"
 
-        dl, actor_id = _seed_dl_for_case_actor()
+        dl, _actor_id = _seed_dl_for_case_actor()
         case = dl.read(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
         case.recommendation_recommender_index[RECOMMENDATION_ID] = (

@@ -584,7 +584,7 @@ class TestInviteeIsTheAddressee:
         dl = _make_dl(actor_id=_INVITEE)
         case_id = "https://example.org/cases/addressee-slash"
         embargo_id = "https://example.org/cases/addressee-slash/embargos/e"
-        case, embargo, coord_p_id, invitee_p_id = self._seed_case(
+        case, embargo, _coord_p_id, invitee_p_id = self._seed_case(
             dl, case_id, embargo_id, extra_actors=(_OTHER,)
         )
 
@@ -937,7 +937,7 @@ class TestLateAcceptHandling:
         stale_embargo_id = "https://example.org/cases/ea2/embargos/stale"
 
         # Case has current_embargo active, not stale_embargo
-        case, current_embargo, _ = _make_active_embargo_case(
+        case, _current_embargo, _ = _make_active_embargo_case(
             dl,
             case_id,
             current_embargo_id,
@@ -999,7 +999,7 @@ class TestLateAcceptHandling:
         case_id = "https://example.org/cases/ea3"
         embargo_id = "https://example.org/cases/ea3/embargos/e3"
 
-        case, embargo, participant_id = _make_active_embargo_case(
+        case, embargo, _participant_id = _make_active_embargo_case(
             dl,
             case_id,
             embargo_id,
@@ -1302,7 +1302,7 @@ class TestLateAcceptHandling:
         )
 
         # Participant is SIGNATORY on the current embargo.
-        case, current_embargo, _ = _make_active_embargo_case(
+        case, _current_embargo, _ = _make_active_embargo_case(
             dl,
             case_id,
             current_embargo_id,

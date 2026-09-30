@@ -302,13 +302,13 @@ def _first3(s):
 
 @ensure_valid_state
 def vfd(state):
-    vf, d, pxa = state_string_to_enums(state)
+    vf, d, _pxa = state_string_to_enums(state)
     return (vf, d)
 
 
 @ensure_valid_state
 def pxa(state):
-    vf, d, pxa = state_string_to_enums(state)
+    _vf, _d, pxa = state_string_to_enums(state)
     value = pxa.value
     return value
 

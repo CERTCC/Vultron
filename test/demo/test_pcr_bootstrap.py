@@ -440,7 +440,7 @@ class TestBootstrapSequence:
             "the bootstrap sequence begins."
         )
 
-        case_id, owner_actor_id, participant_actor_id = (
+        case_id, _owner_actor_id, participant_actor_id = (
             _bootstrap_case_for_participant(
                 owner_iso,
                 participant_iso,

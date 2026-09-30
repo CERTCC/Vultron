@@ -933,7 +933,7 @@ class TestGitHubCommentMode:
             )
 
         assert mock_run.called
-        _, kwargs = mock_run.call_args
+        _, _kwargs = mock_run.call_args
         args_passed = mock_run.call_args[0][0]
         body_idx = args_passed.index("--body") + 1
         posted_body = args_passed[body_idx]

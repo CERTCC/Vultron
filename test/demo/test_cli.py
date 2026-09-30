@@ -168,7 +168,7 @@ class TestCliAll:
         """The `all` sub-command must not invoke subsequent demos after a failure."""
         runner = CliRunner()
         fail_index = 2
-        fail_name, fail_module = DEMOS[fail_index]
+        fail_name, _fail_module = DEMOS[fail_index]
 
         call_order: list[str] = []
 
@@ -206,7 +206,7 @@ class TestCliAll:
         """The `all` sub-command must exit non-zero when a demo raises."""
         runner = CliRunner()
 
-        name0, module0 = DEMOS[0]
+        name0, _module0 = DEMOS[0]
         mock_fail = MagicMock(side_effect=RuntimeError("demo failed"))
         mock_ok = MagicMock()
 

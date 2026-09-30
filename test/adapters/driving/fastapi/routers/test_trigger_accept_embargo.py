@@ -184,7 +184,7 @@ def test_trigger_accept_embargo_activates_embargo(
     client_triggers, dl, actor, case_with_proposal
 ):
     """accept-embargo activates the embargo and sets EM state to ACTIVE."""
-    case_obj, proposal, embargo = case_with_proposal
+    case_obj, proposal, _embargo = case_with_proposal
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/accept-embargo",

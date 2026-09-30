@@ -260,7 +260,7 @@ class TestAcceptRejectFromCoreState:
         actor = as_Service(id_=actor_id, name="AcceptActor")
         dl.create(actor)
 
-        case, embargo, proposal = self._make_proposed_case(dl, actor_id, actor)
+        case, _embargo, proposal = self._make_proposed_case(dl, actor_id, actor)
 
         request = AcceptEmbargoTriggerRequest(
             actor_id=actor_id,
@@ -466,7 +466,7 @@ class TestReceivedRejectPrunesOpenProposals:
 
     @pytest.mark.spec("EP-08-003")
     def test_owners_reject_prunes_both_records_on_the_replica(self):
-        dl, case, embargo, proposal, received_reject_by = (
+        dl, case, _embargo, _proposal, received_reject_by = (
             self._replica_with_open_proposal()
         )
 

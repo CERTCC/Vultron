@@ -79,7 +79,7 @@ class TestSeedContainersFvv:
         vendor_client = make_client(base)
         vendor2_client = make_client(base)
 
-        finder, vendor, vendor2 = demo.seed_containers_fvv(
+        finder, _vendor, _vendor2 = demo.seed_containers_fvv(
             finder_client=finder_client,
             vendor_client=vendor_client,
             vendor2_client=vendor2_client,
@@ -92,7 +92,7 @@ class TestSeedContainersFvv:
         vendor_client = make_client(base)
         vendor2_client = make_client(base)
 
-        finder, vendor, vendor2 = demo.seed_containers_fvv(
+        _finder, vendor, _vendor2 = demo.seed_containers_fvv(
             finder_client=finder_client,
             vendor_client=vendor_client,
             vendor2_client=vendor2_client,
@@ -105,7 +105,7 @@ class TestSeedContainersFvv:
         vendor_client = make_client(base)
         vendor2_client = make_client(base)
 
-        finder, vendor, vendor2 = demo.seed_containers_fvv(
+        _finder, _vendor, vendor2 = demo.seed_containers_fvv(
             finder_client=finder_client,
             vendor_client=vendor_client,
             vendor2_client=vendor2_client,
@@ -120,7 +120,7 @@ class TestSeedContainersFvv:
         vendor_client = make_client(base)
         vendor2_client = make_client(base)
 
-        finder, vendor, vendor2 = demo.seed_containers_fvv(
+        _finder, _vendor, _vendor2 = demo.seed_containers_fvv(
             finder_client=finder_client,
             vendor_client=vendor_client,
             vendor2_client=vendor2_client,

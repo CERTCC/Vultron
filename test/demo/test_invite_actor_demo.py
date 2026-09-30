@@ -99,7 +99,7 @@ def test_setup_initialized_case_registers_case_manager(demo_env, client):
     base = str(client.base_url).rstrip("/") + "/api/v2"
     dl_client = DataLayerClient(base_url=base, actor_id=None)
     seed_exchange_actors(dl_client)
-    finder, vendor, coordinator = discover_actors(dl_client)
+    finder, vendor, _coordinator = discover_actors(dl_client)
 
     case = setup_initialized_case(dl_client, finder, vendor)
 

@@ -1102,7 +1102,7 @@ class TestParticipantStatusLogEntryCascade:
 
         actor_id = "https://example.org/users/vendor"
         case_id = "https://example.org/cases/st_le_abs"
-        dl, case_actor_id, participant, pstatus = self._make_dl(
+        dl, _case_actor_id, participant, pstatus = self._make_dl(
             case_id, actor_id
         )
         case = cast(as_VulnerabilityCase, dl.read(case_id))

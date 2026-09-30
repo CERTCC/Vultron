@@ -294,7 +294,7 @@ def test_three_open_proposals_resolve_to_the_earliest_expiring(
     entry is the answer, so an arrival-order or a last-writer resolver both
     fail here.
     """
-    finder, finder_dl = finder_actor_and_dl
+    _finder, finder_dl = finder_actor_and_dl
     owner = _persist_actor(finder_dl, "Vendor Co")
     case = VulnerabilityCase(
         name="Three open proposals", attributed_to=owner.id_

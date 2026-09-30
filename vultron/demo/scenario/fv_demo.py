@@ -928,7 +928,7 @@ def run_fv_demo(
         logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("fv") as harness:
-        finder, vendor, vendor_in_vendor, report, offer, case = (
+        finder, vendor, vendor_in_vendor, report, _offer, case = (
             _phase_report_submission(
                 finder_client,
                 vendor_client,

@@ -1059,7 +1059,7 @@ class TestCM14005ReporterSignatory:
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
-        participant, case = self._get_reporter_participant(dl)
+        participant, _case = self._get_reporter_participant(dl)
         assert participant is not None, "Reporter participant must exist"
         assert participant.embargo_consent_state == PEC.SIGNATORY, (
             "Reporter must be seeded SIGNATORY on the active embargo"

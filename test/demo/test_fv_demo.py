@@ -268,7 +268,7 @@ class TestSeedContainers:
         finder_client = make_client(base)
         vendor_client = make_client(base)
 
-        finder, vendor = demo.seed_containers(
+        finder, _vendor = demo.seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
         )
@@ -281,7 +281,7 @@ class TestSeedContainers:
         finder_client = make_client(base)
         vendor_client = make_client(base)
 
-        finder, vendor = demo.seed_containers(
+        _finder, vendor = demo.seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
         )
@@ -294,7 +294,7 @@ class TestSeedContainers:
         finder_client = make_client(base)
         vendor_client = make_client(base)
 
-        finder, vendor = demo.seed_containers(
+        _finder, vendor = demo.seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
         )
@@ -951,7 +951,7 @@ class TestActorNotifiesFixReady:
 
     def test_returns_response(self, client: TestClient, base: str):
         """Returns a response dict from the trigger endpoint."""
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
         result = (
@@ -968,7 +968,7 @@ class TestActorNotifiesFixReady:
         from vultron.demo.utils import reset_demo_failures
 
         reset_demo_failures()
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, vendor, _case = (
             _setup_case_with_3_participants(base)
         )
         # With the accumulator pattern, no exception propagates; failure is recorded.
@@ -995,7 +995,7 @@ class TestActorNotifiesFixDeployed:
         """Vendor-only actor is blocked from VFD (d→D) by CheckDeployerRoleNode."""
         from vultron.demo.utils import post_to_trigger
 
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
         ActorSession(client=vendor_client, actor=vendor).with_case(
@@ -1028,7 +1028,7 @@ class TestActorNotifiesPublished:
 
     def test_returns_response(self, client: TestClient, base: str):
         """Returns a response dict from the trigger endpoint."""
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
         result = (
@@ -1044,7 +1044,7 @@ class TestActorClosesCase:
 
     def test_returns_response(self, client: TestClient, base: str):
         """Returns a response dict from the trigger endpoint."""
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
         result = (
@@ -1060,7 +1060,7 @@ class TestWaitForParticipantVfState:
 
     def test_times_out_for_unknown_actor(self, client: TestClient, base: str):
         """Raises AssertionError when the actor is not a participant."""
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, _vendor, case = (
             _setup_case_with_3_participants(base)
         )
         from vultron.core.states.cs import CS_vf
@@ -1083,7 +1083,7 @@ class TestWaitForCaseEmTerminated:
         self, client: TestClient, base: str
     ):
         """Raises AssertionError when embargo is still ACTIVE."""
-        _, vendor_client, _, vendor, case = _setup_case_with_3_participants(
+        _, vendor_client, _, _vendor, case = _setup_case_with_3_participants(
             base
         )
 
@@ -1103,7 +1103,7 @@ class TestWaitForAllParticipantsRmClosed:
         self, client: TestClient, base: str
     ):
         """Raises AssertionError when participants are not RM.CLOSED."""
-        _, vendor_client, _, vendor, case = _setup_case_with_3_participants(
+        _, vendor_client, _, _vendor, case = _setup_case_with_3_participants(
             base
         )
 
@@ -1163,7 +1163,7 @@ class TestWaitForAllParticipantsRmClosed:
         """
         from urllib.parse import quote
 
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, _vendor, case = (
             _setup_case_with_3_participants(base)
         )
         case_data = vendor_client.get(vendor_client.dl_path(case.id_))

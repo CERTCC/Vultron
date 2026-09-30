@@ -298,7 +298,7 @@ class TestSvcInviteActorToCaseUseCase:
 
     def test_invite_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
-        actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
+        _actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
         invitee, _ = _make_actor_dl("Finder")
         dl.create(invitee)
         case = as_VulnerabilityCase(
@@ -432,7 +432,7 @@ class TestInviteRolesAndEmbargoEnrichment:
 
     def test_ac6_roles_field_accepted_in_request(self):
         """AC-6: InviteActorToCaseTriggerRequest accepts optional roles field."""
-        actor, invitee, dl, case = self._setup_invite()
+        actor, invitee, _dl, case = self._setup_invite()
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
             case_id=case.id_,
@@ -792,7 +792,7 @@ class TestSvcSuggestActorToCaseUseCase:
 
     def test_suggest_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
-        actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
+        _actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
         case_actor, _ = _make_actor_dl("Case Actor")
         suggested, _ = _make_actor_dl("Vendor")
         dl.create(case_actor)
@@ -1488,7 +1488,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         assert stored is not None
 
     def test_accept_raises_when_offer_not_in_dl(self):
-        owner, dl = _make_actor_dl("Vendor")
+        _owner, dl = _make_actor_dl("Vendor")
         transferee, _ = _make_actor_dl("Coordinator")
         dl.create(transferee)
 

@@ -619,7 +619,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
         )
         case_id = f"{self.CASE_ID}/{pxa_state_name}"
         embargo_id = f"{case_id}/embargo_events/e1"
-        case, embargo, proposal = _make_pxa_case(
+        case, _embargo, proposal = _make_pxa_case(
             dl,
             case_id=case_id,
             coordinator_id=self.COORD_ID,
@@ -651,7 +651,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
         )
         case_id = f"{self.CASE_ID}/{pxa_state_name}/er"
         embargo_id = f"{case_id}/embargo_events/e1"
-        case, embargo, proposal = _make_pxa_case(
+        _case, _embargo, proposal = _make_pxa_case(
             dl,
             case_id=case_id,
             coordinator_id=self.COORD_ID,
@@ -734,7 +734,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         )
         case_id = f"{self.CASE_ID}/{pxa_state_name}"
         embargo_id = f"{case_id}/embargo_events/e1"
-        case, embargo, proposal = _make_pxa_case(
+        case, _embargo, proposal = _make_pxa_case(
             dl,
             case_id=case_id,
             coordinator_id=self.COORD_ID,
@@ -771,7 +771,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         )
         case_id = f"{self.CASE_ID}/{pxa_state_name}/er"
         embargo_id = f"{case_id}/embargo_events/e1"
-        case, embargo, proposal = _make_pxa_case(
+        case, _embargo, proposal = _make_pxa_case(
             dl,
             case_id=case_id,
             coordinator_id=self.COORD_ID,
