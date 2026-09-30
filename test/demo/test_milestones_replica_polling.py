@@ -508,6 +508,78 @@ class TestVerifyPubliclyDisclosedPollsEveryReplica:
         polled = [c.kwargs["client"] for c in mock_poll.call_args_list]
         assert receiver_client in polled
         assert reporter_client in polled
+        for c in mock_poll.call_args_list:
+            assert c.kwargs["case_id"] == _PXA_CASE_ID
+            assert c.kwargs["actor_id"] == _PXA_RECEIVER_ID
+
+    def test_polls_em_exited_on_both_replicas(self):
+        """EM.EXITED races the same fan-out, so it is polled per replica too."""
+        receiver_client = MagicMock(name="receiver_client")
+        reporter_client = MagicMock(name="reporter_client")
+
+        participant = _public_aware_participant(_PXA_RECEIVER_ID)
+
+        with (
+            patch(
+                "vultron.demo.helpers.milestones.wait_for_case_em_terminated"
+            ) as mock_em_poll,
+            patch(
+                "vultron.demo.helpers.milestones.wait_for_participant_pxa_state"
+            ),
+            patch(
+                "vultron.demo.helpers.milestones._fetch_participant",
+                return_value=participant,
+            ),
+        ):
+            verify_publicly_disclosed(
+                receiver_client=cast(DataLayerClient, receiver_client),
+                reporter_client=cast(DataLayerClient, reporter_client),
+                case_id=_PXA_CASE_ID,
+                receiver_actor_id=_PXA_RECEIVER_ID,
+            )
+
+        polled = [c.kwargs["client"] for c in mock_em_poll.call_args_list]
+        assert receiver_client in polled
+        assert reporter_client in polled
+        for c in mock_em_poll.call_args_list:
+            assert c.kwargs["case_id"] == _PXA_CASE_ID
+
+    def test_succeeds_when_receiver_replica_exits_em_late(self):
+        """The receiver replica still reads EM.ACTIVE for two polls."""
+        receiver_reads = 0
+
+        def _receiver_get(path: str) -> dict:
+            nonlocal receiver_reads
+            receiver_reads += 1
+            return _pxa_case_payload(
+                em_state="ACTIVE" if receiver_reads <= 2 else "EXITED"
+            )
+
+        receiver_client = MagicMock(name="receiver_client")
+        receiver_client.get.side_effect = _receiver_get
+        reporter_client = MagicMock(name="reporter_client")
+        reporter_client.get.return_value = _pxa_case_payload()
+
+        participant = _public_aware_participant(_PXA_RECEIVER_ID)
+
+        with (
+            patch(
+                "vultron.demo.helpers.milestones.wait_for_participant_pxa_state"
+            ),
+            patch(
+                "vultron.demo.helpers.milestones._fetch_participant",
+                return_value=participant,
+            ),
+            patch("vultron.demo.helpers.polling.time.sleep"),
+        ):
+            verify_publicly_disclosed(
+                receiver_client=cast(DataLayerClient, receiver_client),
+                reporter_client=cast(DataLayerClient, reporter_client),
+                case_id=_PXA_CASE_ID,
+                receiver_actor_id=_PXA_RECEIVER_ID,
+            )
+
+        assert receiver_reads > 2, "receiver replica must have been polled"
 
     def test_succeeds_when_receiver_replica_applies_status_late(self):
         """The receiver replica reads ``None`` for two polls, then catches up."""
