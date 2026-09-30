@@ -15,7 +15,9 @@ of the build (SR-05-005); #3921 built the partition
 """
 
 import ast
+import importlib
 import logging
+import pkgutil
 from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import Any
@@ -720,8 +722,24 @@ def test_envelope_with_only_at_type_is_refused_as_missing_type() -> None:
         parse_activity(body)
 
 
+def _raise_on_import_error(name: str) -> None:
+    """``walk_packages`` error hook: a failed subpackage import is a failure."""
+    raise ImportError(f"could not import {name} while filling registries")
+
+
 def _registered_classes() -> list[type[BaseModel]]:
-    """Every class a wire or core registry holds."""
+    """Every class a wire or core registry holds, after importing all of it.
+
+    A class registers when its module is imported, so reading the registries
+    as they stand covers only what earlier tests happened to import.  Walking
+    every ``vultron`` module first makes the ratchet order-independent.
+    """
+    import vultron
+
+    for info in pkgutil.walk_packages(
+        vultron.__path__, "vultron.", onerror=_raise_on_import_error
+    ):
+        importlib.import_module(info.name)
     found = {
         *VOCABULARY.values(),
         *WIRE_TYPE_MAP.values(),
@@ -747,7 +765,15 @@ def test_no_class_declares_a_jsonld_keyword_as_a_spelling() -> None:
 
     keywords = {k for k, _ in JSONLD_KEYWORDS}
     classes = _registered_classes()
-    assert len(classes) > 1, "registries are empty; the check is vacuous"
+    names = {cls.__qualname__ for cls in classes}
+    # One class from each root and each layer that registers: if these are
+    # missing, the walk did not fill the registries and the check is vacuous.
+    assert {
+        "as_Note",
+        "VulnerabilityCase",
+        "CaseStatus",
+        "OutboxDeadLetterEntry",
+    } <= names, sorted(names)
     offenders = [
         f"{cls.__module__}.{cls.__qualname__}: {sorted(found)}"
         for cls in classes
@@ -761,8 +787,10 @@ def test_no_exemption_names_a_jsonld_keyword() -> None:
     """`@id`/`@type` sit in no exemption set, and no source spells them (AC-4).
 
     The set checks cover the partition's own exemptions; the source scan
-    (grep-style, over every string constant under ``vultron/``) catches a new
-    alias or exemption before it reaches a registry.  The scan is deliberately
+    (every string constant under ``vultron/`` that *equals* ``"@id"`` or
+    ``"@type"``) catches a new alias or exemption before it reaches a registry.
+    It does not see a keyword assembled at run time; the registry ratchet
+    above covers that case for every declared spelling.  The scan is deliberately
     package-wide: AS2 compacts both keywords away (MV-11-002), so no Vultron
     module has a reason to spell them, and one that does needs a reviewer.
     """
@@ -775,6 +803,7 @@ def test_no_exemption_names_a_jsonld_keyword() -> None:
         "OPAQUE_PAYLOAD_KEYS": unknown_keys.OPAQUE_PAYLOAD_KEYS,
         "RETIRED_NAMES": frozenset(unknown_keys.RETIRED_NAMES),
         "CASE_STUB_KEYS": unknown_keys.CASE_STUB_KEYS,
+        "_CASE_STUB_INPUT_KEYS": unknown_keys._CASE_STUB_INPUT_KEYS,
     }
     assert {
         name: sorted(keywords & keys)
