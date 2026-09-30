@@ -40,7 +40,7 @@ stakeholder_type: [project-contributor]
   - `vultron-demo` → `vultron.demo.cli:main`; `vultron-demo-report` → `vultron.demo.report:main`
   - `vultrabot` / `vultrabot_cvd` → `vultron.bt.base.demo.cvd:main`; `vultrabot_pacman` → `...demo.pacman:main`; `vultrabot_robot` → `...demo.robot:main`
   - `spec-dump` / `spec-dump-llm-json` → `vultron.metadata.specs.render:main_llm_json`
-  - `spec-lint` → `vultron.metadata.specs.lint:main`; `spec-coverage` → `vultron.metadata.specs.coverage:main`
+  - `spec-lint` → `vultron.metadata.specs.lint:main` (hard errors exit 1; unverified `MUST`/`MUST_NOT` requirements are printed as one count-versus-ceiling line per kind, with `--list-unverified` naming the IDs); `spec-coverage` → `vultron.metadata.specs.coverage:main`
   - `spec-backstop` → `vultron.metadata.specs.backstop:main` (spec groups governing the changed code, checked against a Spec manifest)
   - `glossary-index` → `vultron.metadata.docs.glossary_index:main` (term index of `docs/reference/glossary.md`)
   - `adr-index` → `vultron.metadata.adr.index_gen:main`

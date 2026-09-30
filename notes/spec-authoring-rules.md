@@ -87,14 +87,16 @@ is what produced the defect behind ISSUE-2601: MS-12 went unenforced from its
 adoption until 2026-09, and by then a large fraction of the `kind: protocol`
 corpus was carrying `lint_suppress: [missing_story_reference]` instead of a
 corrected `kind` — code naming conventions, test-coverage requirements, and
-build-file formats all tagged as wire-protocol obligations. For the live count,
-read the ratchet constant that MS-12-007 pins under `test/architecture/`; it is
-the authoritative figure and it only goes down. Suppressing the
-story-traceability gate is almost never the right response to it firing; a spec
-that cannot be traced to a user story is usually mis-classified, not story-less.
-MS-12-006 now makes the unambiguous cases a hard error, and MS-12-007 ratchets
-the suppression count downward, but neither detects a misclassification whose
-statement names no code.
+build-file formats all tagged as wire-protocol obligations. The live count is
+`grep -c missing_story_reference specs/*.yaml` until the ratchet MS-12-007
+requires lands (#3600, AC-4); once it does, its pinned constant under
+`test/architecture/` is the authoritative figure and it only goes down.
+Suppressing the story-traceability gate is almost never the right response to it
+firing; a spec that cannot be traced to a user story is usually mis-classified,
+not story-less. Once #3600 lands, MS-12-006 will make the unambiguous cases a
+hard error (its AC-2) and MS-12-007 will ratchet the suppression count downward
+(its AC-4); neither is built yet, and neither will detect a misclassification
+whose statement names no code.
 
 #### Why MS-12-006 is scoped the way it is
 
@@ -240,11 +242,19 @@ inventing a sequence.
 
 `spec-lint`'s `must_without_verification` names exactly the "MUST with nothing
 checking it" defect — and fired on MS-13-001 and MS-13-002 themselves for as long
-as they went unenforced. It did not help, because well over half the corpus's
-MUST items have no `verification:` field, so that one warning produced the large
-majority of the run's `[WARN]` lines. A defect class at that volume is
-indistinguishable from background noise, and a newly-introduced instance is
-invisible.
+as they went unenforced. As a per-item `[WARN]` it did not help, because well
+over half the corpus's MUST items had no `verification:` field, so that one
+warning produced the large majority of the run's `[WARN]` lines. A defect class
+at that volume is indistinguishable from background noise, and a newly-introduced
+instance is invisible.
+
+It is now a count. `spec-lint` prints one line per kind — the live number of
+unverified MUST-tier requirements beside that kind's ceiling and owner — and
+lists the IDs only under `--list-unverified` (MS-10-005). The ceilings live in
+`vultron/metadata/specs/verification.py` and
+`test/metadata/specs/test_must_verification_ratchet.py` pins each to the live
+count in both directions (MS-10-006). The number a kind shows is also what its
+backfill issue is working down, so progress is legible in the same line.
 
 When you add a per-item advisory, decide up front what happens when it is
 routinely true: collapse it to a count plus an opt-in listing, pin the count to
@@ -259,28 +269,35 @@ worse than one nobody has started.
 
 RFC 2119 gives `MUST NOT` the same absolute strength as `MUST`, and `SHOULD NOT`
 the same strength as `SHOULD`. Every gate that selects requirements by priority
-must therefore select a *tier* (MS-02-003). In the code, that will mean asking a
-shared tier definition on `RFC2119Priority` (MS-02-004, which #3522 adds), never
-`spec.priority == RFC2119Priority.MUST`.
+must therefore select a *tier* (MS-02-003). In the code, that means asking the
+shared tier definition on `RFC2119Priority` — `spec.priority.is_must_tier` or
+`.tier` (MS-02-004) — never
+`spec.priority == RFC2119Priority.MUST`. A static test,
+`test/metadata/specs/test_priority_tier_gate.py`, fails on any comparison
+against an individual member or a priority string under
+`vultron/metadata/specs/` or `scripts/`; its allowlist holds exactly one entry,
+SR-11-003's selector, and fails if that entry stops matching, so retiring the
+exception also retires the allowlist.
 
 The literal comparison is easy to write and fails silently: nothing errors, and
 the prohibitions simply drop out. That happened more than once before MS-02-003:
 
 - `must_without_verification` was scoped to "MUST requirements" by the wording
   of the issue that introduced it (#2466), and a unit test then pinned the
-  exclusion (`test_lint_must_not_without_verification_no_warn`). The test reads
-  as a deliberate decision but only preserves the wording of that AC. So the
-  #2467 protocol-tier backfill reported the tier complete while most protocol
-  `MUST_NOT`s had no `verification:` at all (#2535, #3612).
-- SR-11-003's story gate and SR-11-004's advisory have the same shape. The
-  first skips `MUST_NOT`, and the second skips `SHOULD_NOT`; SR-11-004 now names
-  `SHOULD_NOT`, and #3522 makes the lint code match.
-  So the protocol story requirement that #2717 plans against was undercounted.
-  SR-11-003 is the one recorded exception, because extending it needs stories
-  that do not exist yet (see its `note:`).
+  exclusion. The test read as a deliberate decision but only preserved the
+  wording of that AC. So the #2467 protocol-tier backfill reported the tier
+  complete while most protocol `MUST_NOT`s had no `verification:` at all
+  (#2535, #3612). The count now covers both keywords.
+- SR-11-003's story gate and SR-11-004's advisory had the same shape. The
+  second now covers `SHOULD_NOT` by selecting "below the MUST tier" rather than
+  naming keywords. SR-11-003 is the one recorded exception, still `MUST`-only
+  because extending it needs stories that do not exist yet (see its `note:`);
+  the exception is written once, in `sr_11_003_gate_applies()` in
+  `vultron/metadata/specs/lint.py`, and `scripts/backfill_stories.py` selects
+  through that predicate rather than carrying a second copy of it.
 - `spec-backstop` got it right (`priority in ("MUST", "MUST_NOT")`), but as a
   second hand-written copy of the tiering, which is the drift MS-02-004's
-  single shared definition prevents.
+  single shared definition prevents. It now asks `is_must_tier`.
 
 When a priority-scoped rule is proposed, read "MUST" in its AC as the tier
 unless the AC explicitly excludes the negative form *and says why*. If you find
