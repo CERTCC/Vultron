@@ -132,6 +132,6 @@ A deferred activity replayed by `StoredActivityIngressAdapter` is rebuilt from s
 - [ADR-0074](0074-wire-activity-artifact-immutability.md) states the principle this ADR keeps: a received activity is evidence.
 - [ADR-0099](0099-one-object-model-as2-is-a-serialization.md) records why its `frozen` mechanism no longer holds for nested objects.
 - #3258 records the dereference gap that step 2 closes.
-- #3947 records the state before step 5: the receive-side snapshot is the extractor's rebuilt `VultronActivity` rendered through the port, so only the normalization branch of CLP-07-011 is reachable, and the sealed evidence stops at the wire activity because the dispatched event does not carry it.
+- #3947 records the state before step 5: the receive-side snapshot is the extractor's rebuilt `VultronActivity` re-dumped by alias in core, so only the normalization branch of CLP-07-011 is reachable, and the sealed evidence stops at the wire activity because the dispatched event does not carry it.
 
-Source: ISSUE-3584.
+Source: ISSUE-3584, ISSUE-3947.

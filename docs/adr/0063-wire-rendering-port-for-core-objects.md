@@ -35,7 +35,7 @@ The reason the alias generator is load-bearing rather than merely wrong is that
 core code needs camelCase JSON for one specific purpose: building
 `CaseLedgerEntry.payloadSnapshot` values. The case ledger's purpose is to wrap
 "things that were received or sent to/from the case manager in the course of
-managing the case", and those are by definition wire-shaped. CLP-07-001 requires
+managing the case", and those are by definition wire-shaped. CLP-07-011 requires
 the snapshot to be the verbatim AS2 activity or a deterministic canonical
 normalization of it, and CLP-01-003/CLP-01-004 make the ledger the replication
 substrate that receivers project into their own replica. A payload snapshot must
@@ -82,7 +82,7 @@ a wire representation".
 
 - ARCH-12-003 (core MUST NOT carry `alias_generator=to_camel`) and SDO-03-003
   (no flat-field shims) are both MUST-level and both currently violated.
-- CLP-07-001 requires payload snapshots to be valid, receiver-reconstitutable
+- CLP-07-011 requires payload snapshots to be valid, receiver-reconstitutable
   wire JSON; ADR-0017's two-branch hierarchy already assigns wire shape to the
   `as_*` branch, which has correct `from_core()` projections.
 - ARCH-01-001 forbids `core/` importing `wire/`; ARCH-01-004 says such
@@ -229,7 +229,7 @@ routes into `_wire_object_from_row` → `_project_wire_row_to_core`
 - A round-trip test asserts that for each core type with a wire counterpart,
   `WireRenderPort.render(core_obj)` equals
   `as_X.from_core(core_obj).model_dump(by_alias=True, exclude_none=True)`, and
-  that the result revalidates through `as_X.model_validate` (CLP-07-001
+  that the result revalidates through `as_X.model_validate` (CLP-07-011
   reconstitutability).
 - A test asserts `ParticipantStatus.model_validate({"rm_state": "RECEIVED"})`
   raises `VultronValidationError` rather than silently yielding `RM.START`.

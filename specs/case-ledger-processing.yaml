@@ -499,7 +499,7 @@ groups:
       is a core domain object rather than a received activity, the wire shape MUST
       be produced through the core→wire rendering port (ARCH-20-001), never by dumping
       the core object with `by_alias=True` or by rewriting dumped keys in core.
-    rationale: 'CLP-07-001 requires the snapshot to be reconstitutable by receivers,
+    rationale: 'CLP-07-011 requires the snapshot to be reconstitutable by receivers,
       and CLP-01-003/CLP-01-004 make it the replication substrate. Two distinct failure
       modes existed: core objects with no `alias_generator` were inlined in snake_case
       (unreconstitutable), and `ParticipantStatus` was dumped with a core `by_alias=True`
@@ -510,7 +510,7 @@ groups:
       via `model_validate`, with no key renaming applied first.
     relationships:
     - rel_type: refines
-      spec_id: CLP-07-001
+      spec_id: CLP-07-011
     - rel_type: depends_on
       spec_id: ARCH-20-001
     adr:

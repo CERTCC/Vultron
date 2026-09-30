@@ -87,10 +87,12 @@ and the dispatcher sees only the event. What core holds is the extractor's
 rebuilt `VultronActivity`, which keeps a chosen subset of fields, so the
 receive-side ledger snapshot is a rendering of that subset — CLP-07-011's
 "deterministic canonical normalization" branch, not its "verbatim" one — while
-an emitted entry already records the factory's sealed blob (VM-08-003). The
-CASE_MANAGER's ledger therefore carries two snapshot provenances until ADR-0107
-step 5 (#3742) records the evidence verbatim, which first has to carry it onto
-the event at the parse edge (ISSUE-3947).
+an emitted entry already records the factory's sealed blob (VM-08-003). For
+activities that were actually sent, the CASE_MANAGER's ledger therefore carries
+two snapshot provenances until ADR-0107 step 5 (#3742) records the evidence
+verbatim, which first has to carry it onto the event at the parse edge
+(ISSUE-3947). The hand-built Lapse and case-closed entries are a third, which
+step 6 (#3743) turns into emitted activities.
 
 Source: ISSUE-3584, ISSUE-3947.
 

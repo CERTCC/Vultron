@@ -1186,7 +1186,7 @@ class TestLateAcceptHandling:
         lapse_entry = lapse_entries[0]
         # Entry must be distinguishable from an explicit Reject
         assert lapse_entry.event_type != "reject_invite_to_embargo_on_case"
-        # payloadSnapshot must be non-empty (CLP-07-001)
+        # payloadSnapshot must be non-empty (CLP-02-003)
         assert lapse_entry.payload_snapshot
 
     def test_late_accept_ac2_signatory_participant_no_crash(

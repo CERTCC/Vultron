@@ -17,14 +17,14 @@
 
 Split out of ``_helpers.py`` (#3515), which had grown past the CS-18-001 500-line
 cap by holding two unrelated concerns.  This is the self-contained one: building
-the AS2-shaped, self-inlining ``payloadSnapshot`` that CLP-07-001 defines and
+the AS2-shaped, self-inlining ``payloadSnapshot`` that CLP-07-011 defines and
 CLP-07-006 requires to carry full nested objects rather than bare ID strings.
 
 ``_helpers.py`` re-exports everything here, so no caller needs to change its
 import.  Kept private to the use-cases package (``_`` prefix) for the same reason
 ``_helpers`` is.
 
-Specs: CLP-07-001, CLP-07-006, ARCH-20-001.
+Specs: CLP-07-011, CLP-07-006, ARCH-20-001.
 """
 
 import logging
@@ -134,7 +134,7 @@ def _inline_snapshot_reference_value(
             # ARCH-20-001: the port is the sanctioned route and is used whenever
             # it is injected.  This fallback runs only when no port was supplied
             # — CLI and replay paths — and the object being dumped is being
-            # inlined into a payload snapshot, which CLP-07-001 defines as
+            # inlined into a payload snapshot, which CLP-07-011 defines as
             # AS2-shaped.  ``resolved`` comes from the DataLayer and may be a
             # core-branch object, in which case this *is* core producing a wire
             # shape for one.  Since ADR-0099 detail 4 the port's own render is
@@ -176,7 +176,7 @@ def build_activity_payload_snapshot(
 
     # ARCH-20-001 permits this ``by_alias=True``: *activity* is the inbound
     # activity being captured, and the result is the ledger payload snapshot,
-    # which CLP-07-001 defines as the AS2 serialization of what arrived.  The
+    # which CLP-07-011 defines as the AS2 serialization of what arrived.  The
     # AS2 shape is the requirement here, not an accident of the dump.
     snapshot: dict[str, Any] = activity.model_dump(
         mode="json",
