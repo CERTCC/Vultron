@@ -33,8 +33,10 @@ Sub-modules
   ``seed_containers``, ``seed_containers_fvv``, ``seed_containers_fccv``,
   ``seed_containers_fcv``, ``seed_containers_fcvcv``, and
   ``reset_containers``.
-- :mod:`~vultron.demo.helpers.sync` — LedgerFanout ``trigger_log_commit`` and
-  ``verify_replica_state``.
+- :mod:`~vultron.demo.helpers.ledger_commit` — ``trigger_log_commit``.
+- :mod:`~vultron.demo.helpers.sync` — ``verify_replica_state`` and the shared
+  sync-verification phase helpers ``wait_for_replica_ledger_coverage`` and
+  ``run_sync_verification_phase``.
 - :mod:`~vultron.demo.helpers.verification` — lower-level participant and
   case-state assertion primitives, plus ``verify_activity_in_inbox``,
   ``verify_receiver_case_state``, and ``verify_case_actor_unused``.
@@ -73,8 +75,10 @@ from vultron.demo.helpers.notes import (  # noqa: F401
 )
 from vultron.demo.helpers.polling import (  # noqa: F401
     CROSS_CONTAINER_TIMEOUT,
+    LATE_JOINER_COVERAGE_TIMEOUT,
     LATE_JOINER_REPLICA_TIMEOUT,
     LATE_JOINER_TIMEOUT,
+    LEDGER_COVERAGE_TIMEOUT,
     PARTICIPANT_JOIN_TIMEOUT,
     REPLICA_PARTICIPANT_TIMEOUT,
     _poll_until,
@@ -110,12 +114,15 @@ from vultron.demo.helpers.seeding import (  # noqa: F401
     seed_containers_fcvcv,
     seed_containers_fvv,
 )
+from vultron.demo.helpers.ledger_commit import (  # noqa: F401
+    trigger_log_commit,
+)
 from vultron.demo.helpers.sync import (  # noqa: F401
     _extract_ref_id,
     _get_log_entries_for_case,
-    trigger_log_commit,
-    verify_finder_replica_state,
+    run_sync_verification_phase,
     verify_replica_state,
+    wait_for_replica_ledger_coverage,
 )
 from vultron.demo.helpers.verification import (  # noqa: F401
     _all_fetchable_participants_rm_closed,

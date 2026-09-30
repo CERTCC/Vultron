@@ -6,14 +6,21 @@ description: >
   instantiation anti-pattern in trigger use cases; P/X/A embargo-eligibility
   precondition guards in EmbargoLifecycle; the earliest-expiration resolution
   order for multiple open proposals (EP-08); and the fragmentation concern that
-  motivates the EmbargoLifecycle service (see #538).
+  motivates the EmbargoLifecycle service (see #538); and the revision relay
+  through the CASE_MANAGER, under which the ledger carries state but never asks
+  (EP-09, ADR-0113).
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
+  - specs/em-behavior.yaml
   - specs/message-semantics-mapping.yaml
+  - specs/participant-case-replica.yaml
+  - specs/received-status-handling.yaml
 related_notes:
   - notes/embargo-default-semantics.md
   - notes/participant-embargo-consent.md
+  - notes/case-communication-model.md
+  - notes/case-ledger-authority.md
   - notes/call-out-configuration.md
   - notes/activitystreams-semantics.md
   - notes/protocol-asks.md
@@ -223,10 +230,13 @@ Two rules follow for any new proposal-selection code:
   `RemoveFromProposedEmbargoesNode(decided_by=<rejecting actor>)`, which prunes only
   when that actor is the case owner — without it the owner's Reject left the decided
   proposal in every participant's records, where a later default selection could still
-  pick it. One gap remains by EP-08-003's own text: termination prunes the
-  terminated embargo's entry, not open *revision* proposals against it, which
-  survive in both records and compete in the next default selection after
-  `EXITED → PROPOSED` — tracked as #3836.
+  pick it. Termination decides *every* open proposal, not only the terminated
+  embargo's own entry (EP-08-004, ADR-0113): a case has one active embargo
+  (VP-04-002), so every proposal open while EM is `ACTIVE` or `REVISE` is a
+  revision of it, and a revision of an embargo that no longer exists cannot be
+  accepted. No field linking a revision to its embargo is needed. Because the
+  teardown replay node runs `terminate_active_embargo(OBSERVED)`, the rule holds
+  on every replica for free.
 
 There is **no multi-candidate poll activity** — ADR-0100 retired
 `ChoosePreferredEmbargo` (#3469). Offering alternatives means sending several
@@ -236,3 +246,60 @@ not automated; `propose_embargo_revision_trigger_bt` exists for callers that wan
 it.
 
 ---
+
+## Revision Negotiation Relays Through the CASE_MANAGER (EP-09, ADR-0113)
+
+The behavioural specs EMB-03 through EMB-05 speak in the voice of the formal
+protocol, where every Participant is a peer and every Participant "receives EV".
+In this project's topology a participant addresses its proposal to the
+CASE_MANAGER alone (PCR-08-001), so **the Participant receiving EV is the
+CASE_MANAGER**, and every other participant learns the resulting case state
+from the ledger. Concerns #3892, #3836 and #3863 all reduced to one question:
+how does a revision proposal become visible to every replica, and what does a
+participant do about it? The answer, in order:
+
+1. A participant sends its `Invite(EmbargoEvent)` to the CASE_MANAGER only.
+2. The CASE_MANAGER adjudicates it: still embargo-eligible → EM
+   `ACTIVE → REVISE` through `propose_embargo` under the role gate (or no
+   transition for a counter-revision), and the proposal is committed; P/X/A set →
+   refused with ER (EMB-03-003). The fan-out tells replicas the case is under
+   revision, and that is *all* it tells them (EP-09-001).
+3. The CASE_MANAGER emits a revision Invite to **every participant except the
+   proposer**, `actor=CASE_MANAGER`, `attributed_to=proposer` (CM-24), and
+   commits each emission (EP-09-002). Proposing terms is consenting to them
+   (ADR-0093), so an Invite to the proposer asks an answered question — and the
+   response call-out could let a proposer decline its own proposal, a state the
+   protocol has no name for.
+4. A participant answers the Invite addressed to it (`Accept`/`Reject` to the
+   CASE_MANAGER) through the response decision tree. On receipt it writes **no**
+   case or consent state; consent moves when the CASE_MANAGER commits the answer
+   (EP-09-003). A revision Invite to a `SIGNATORY` changes no consent state —
+   `INVITE` is legal only from UNBOUND/LAPSED/DECLINED (EP-09-004), so the receive
+   tree must never apply it unconditionally.
+5. The owner's answer is consent *and* decision: `Accept` activates the revision
+   (with the EP-05-001 cascade), `Reject` keeps the prior terms. The owner MAY
+   decide without waiting (EP-09-005) and SHOULD wait for some answers to gauge
+   consensus (EP-09-006); no quorum or vote is defined — that is actor policy,
+   a call-out point.
+6. Replay nodes reconstruct every step (proposal, each Invite, each answer, the
+   decision) via `EmbargoLifecycle(OBSERVED)` (EP-09-007, RSH-08-004), which is
+   what makes the participant-side embargo trees gateable.
+
+**Why invite at all if the owner decides by fiat.** The Invites are not a vote.
+They gather the consent records the activation cascade reads: when the owner
+activates longer terms, signatories who accepted stay bound and signatories who
+did not lapse (EP-05-001). The decision settles the embargo; the answers settle
+who is bound by it.
+
+**The ledger never asks.** An `Announce(CaseLedgerEntry)` carrying a proposal or
+an Invite sets no parse-and-respond expectation. A participant answers only an
+Invite addressed to it. Building a handler for "a non-manager received a peer's
+proposal" is building for a misrouting (RSH-08-003: store it, write nothing).
+
+**Emit-side optimism, left alone.** A proposer's trigger still moves its own
+local EM to `REVISE` before the CASE_MANAGER answers. ADR-0108 left the emit
+side unchanged; do not read that local write as the mechanism by which the case
+moved.
+
+The creation-time revision from shortest-wins follows the same relay
+(EP-04-011) — see `notes/embargo-default-semantics.md`.

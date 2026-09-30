@@ -27,16 +27,27 @@ M4/M5 blocks are skipped entirely (ADR-0058).
 #2337: fcvcv Demo Integration — intermittent Finder ledger-coverage timeout
 demo_check with 15 s timeout for Finder/V1/C2 ledger coverage.  Under CI
 load 15 s is too tight; the error log showed 0 of 29 entries present after
-the check fired.  Fix: demo_gate (causal gate, not advisory check) and 30 s
-timeout for non-V2 replicas (V2 retains 45 s as a late-joiner).
+the check fired.  Fix: demo_gate (causal gate, not advisory check) and a 30 s
+budget for the non-V2 replicas; V2 keeps the late-joiner budget.
+
+Since #3846 the coverage loop lives in
+``vultron.demo.helpers.sync.wait_for_replica_ledger_coverage``, whose default
+early-replica budget is ``LEDGER_COVERAGE_TIMEOUT`` (30 s) and whose late-joiner
+budget is ``LATE_JOINER_COVERAGE_TIMEOUT`` (45 s), so the #2337 guards below run
+the real helper (patching its collaborators on the sync module) and assert the
+*parameters* the helper applies, not a literal.
 """
 
 from unittest.mock import MagicMock
 
-import vultron.demo.scenario.fcvcv_demo as fcvcv_demo_module
+import vultron.demo.helpers.sync as sync_module
 import vultron.demo.scenario.fv_demo as fv_demo_module
 import vultron.demo.utils as demo_utils
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.polling import (
+    LATE_JOINER_COVERAGE_TIMEOUT,
+    LEDGER_COVERAGE_TIMEOUT,
+)
 from vultron.demo.scenario.fcvcv_demo import _phase_sync_verification
 from vultron.demo.scenario.fv_demo import _phase_fix_lifecycle
 from vultron.demo.utils import reset_demo_failures
@@ -215,12 +226,12 @@ def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
     case.id_ = _CASE_ID
 
     monkeypatch.setattr(
-        fcvcv_demo_module,
+        sync_module,
         "wait_for_case_on_container",
         lambda *a, **kw: None,
     )
     monkeypatch.setattr(
-        fcvcv_demo_module,
+        sync_module,
         "_get_log_entries_for_case",
         lambda *a, **kw: [{"log_index": 5, "entry_hash": "abc123deadbeef0a"}],
     )
@@ -234,17 +245,17 @@ def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
             )
 
     monkeypatch.setattr(
-        fcvcv_demo_module,
+        sync_module,
         "wait_for_contiguous_ledger_coverage",
         _ledger_coverage,
     )
     monkeypatch.setattr(
-        fcvcv_demo_module,
+        sync_module,
         "wait_for_participants_on_replicas",
         lambda *a, **kw: None,
     )
     monkeypatch.setattr(
-        fcvcv_demo_module, "verify_replica_state", lambda *a, **kw: None
+        sync_module, "verify_replica_state", lambda *a, **kw: None
     )
 
     _phase_sync_verification(
@@ -283,7 +294,9 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
     """Non-V2 ledger coverage timeout must be at least 30 s.
 
     Before the fix the timeout for Finder/V1/C2 was 15 s — too tight for CI
-    load.  After the fix it is 30 s.  V2 retains its 45 s as a late-joiner.
+    load.  Those replicas now receive the shared helper's
+    ``LEDGER_COVERAGE_TIMEOUT`` and V2, the late joiner, its
+    ``LATE_JOINER_COVERAGE_TIMEOUT`` (#3846).
 
     Regression guard for #2337.
     """
@@ -307,12 +320,12 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
     case.id_ = _CASE_ID
 
     monkeypatch.setattr(
-        fcvcv_demo_module,
+        sync_module,
         "wait_for_case_on_container",
         lambda *a, **kw: None,
     )
     monkeypatch.setattr(
-        fcvcv_demo_module,
+        sync_module,
         "_get_log_entries_for_case",
         lambda *a, **kw: [{"log_index": 5, "entry_hash": "abc123deadbeef0a"}],
     )
@@ -325,17 +338,17 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
         timeouts_by_client_id[id(client)] = timeout_seconds
 
     monkeypatch.setattr(
-        fcvcv_demo_module,
+        sync_module,
         "wait_for_contiguous_ledger_coverage",
         _ledger_coverage,
     )
     monkeypatch.setattr(
-        fcvcv_demo_module,
+        sync_module,
         "wait_for_participants_on_replicas",
         lambda *a, **kw: None,
     )
     monkeypatch.setattr(
-        fcvcv_demo_module, "verify_replica_state", lambda *a, **kw: None
+        sync_module, "verify_replica_state", lambda *a, **kw: None
     )
 
     _phase_sync_verification(
@@ -360,3 +373,8 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
         f"Finder ledger coverage timeout is {finder_timeout} s, expected >= 30.0 s. "
         f"CI load requires at least 30 s for non-V2 replicas (#2337)."
     )
+    assert finder_timeout == LEDGER_COVERAGE_TIMEOUT
+    assert timeouts_by_client_id[id(v1_client)] == LEDGER_COVERAGE_TIMEOUT
+    assert timeouts_by_client_id[id(c2_client)] == LEDGER_COVERAGE_TIMEOUT
+    assert timeouts_by_client_id[id(v2_client)] == LATE_JOINER_COVERAGE_TIMEOUT
+    assert timeouts_by_client_id[id(v2_client)] >= 45.0

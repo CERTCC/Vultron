@@ -396,3 +396,177 @@ groups:
     - story_2022_023
     - story_2022_026
     - story_2022_052
+- id: MV-11
+  title: Inbound Unknown-Key Disposition
+  specs:
+  - id: MV-11-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The parse edge (`parse_activity` in `vultron/wire/as2/parser.py`) MUST decide what
+      happens to an unrecognised key on inbound data for every object at every depth — the
+      activity envelope, an inline object whose `type` resolves to a wire class, an inline
+      object whose `type` resolves to a core class, an inline `Link`, and an inline object
+      with no `type` — by partitioning the arriving keys against the resolved class's declared
+      spellings before validating it. A declared spelling is a field name, the camelCase alias
+      the class generates for it, an explicit validation alias, or `@context`. The disposition
+      MUST NOT depend on which branch the resolved class belongs to.
+    rationale: >-
+      Measured on 2026-09-30, an unknown key was refused with a 422 when the inline object
+      happened to be a domain type (a core class carrying `extra="forbid"`, ARCH-12-003) and
+      dropped silently when it landed on the envelope, a generic AS2 object, a `Link`, or an
+      untyped inline dict (wire classes inheriting Pydantic's default `extra="ignore"`).
+      Neither outcome was chosen for inbound data; both were inherited from a configuration
+      whose purpose is elsewhere. Under one object model (ADR-0099) the parser is the inbound
+      wire-to-core seam, so it is the one place a receive-side rule can be stated once and
+      hold everywhere (ADR-0032: validate at the edge; ARCH-21-002: inbound wire data stays
+      lenient).
+    verification: >-
+      `test/wire/as2/test_unknown_key_disposition.py` drives `parse_activity` with an unknown
+      key in each of the positions this requirement names and asserts the same disposition in
+      every one: refused when the key is a near miss (MV-11-002), set aside and reported when
+      it is foreign (MV-11-003). Rows for behaviour not yet built are `xfail(strict=True)`
+      until the implementation (#3921) lands.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MV-04-003
+      note: MV-04-003 decides which class an inline object resolves to; this requirement decides what happens to the keys that class does not declare.
+    adr:
+    - ADR-0099
+    - ADR-0032
+    lint_suppress:
+    - missing_story_reference
+  - id: MV-11-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse the whole activity, with the schema-fault response MV-02-002
+      requires, when an unrecognised inbound key is a near miss for a declared spelling of the
+      resolved class or matches a retired name. A key is a near miss when lowercasing it and
+      removing every non-alphanumeric character yields the same string as a declared spelling
+      treated the same way (so `Actor`, `attributed-to` and `ATTRIBUTEDTO` are near misses of
+      `actor` and `attributedTo`). A spelling the resolved class accepts on input is declared,
+      never a near miss: both roots validate by field name as well as by alias (CS-14-001,
+      CS-14-002), so the snake_case field name `attributed_to` is a declared spelling of
+      `attributedTo`. The refusal MUST name the arriving key and the declared or
+      retired spelling it resembles. The near-miss test MUST be exactly this normalisation plus
+      the retired-name list: edit distance, prefix matching, or any other similarity measure
+      MUST NOT be used.
+    rationale: >-
+      A near miss is a key the sender meant us to read. Proceeding without it loses their data
+      with a log line attached, which is the #2232 shape; refusing tells the sender which field
+      to fix. The normalisation is deliberately shallow: AS2 has many two- and three-letter
+      property names within one character of each other, so an edit-distance model would
+      misfire constantly, and pinning down a richer notion of "near" is not worth the time
+      (ADR-0099 detail 8). A retired name is not a spelling of anything, so it is in the list
+      by name rather than by normalisation.
+    verification: >-
+      `test/wire/as2/test_unknown_key_disposition.py` asserts that a case variant and a
+      separator variant (`attributed-to`) on the envelope and on an inline object, and a retired
+      name on an inline object (the retired-name list holds status-dimension keys, which never
+      sit on the envelope), each raise `VultronParseValidationError` whose message names both
+      the arriving key and the spelling it resembles; that a snake_case field name is accepted
+      as a declared spelling with nothing reported; and that no module under
+      `vultron/wire/as2/` contains an edit-distance or similarity helper (`difflib`,
+      Levenshtein, or equivalent).
+    relationships:
+    - rel_type: refines
+      spec_id: MV-11-001
+    - rel_type: depends_on
+      spec_id: MV-02-002
+    adr:
+    - ADR-0099
+    lint_suppress:
+    - missing_story_reference
+  - id: MV-11-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An unrecognised inbound key that is not a near miss and not a retired name MUST be set
+      aside and reported, not refused: the activity proceeds on its declared fields, and the
+      receiver logs one INFO record per set-aside key carrying `activity_id`, the sender's
+      `actor_id`, the dotted field path of the object the key sat on, and the key itself. A
+      set-aside key MUST NOT be carried into the parsed object or appear in any dump of it;
+      the raw body remains available as received evidence (VM-08-002).
+    rationale: >-
+      AS2 is designed to be extended, and refusing a peer's whole message for one property
+      Vultron does not read is a federation cost with no benefit to the protocol. Silence is
+      not acceptable either: an operator needs to see what peers send that Vultron ignores,
+      and a spelling defect on Vultron's own side that escapes the near-miss net shows up here
+      first. Carrying the key on the object would leak it into the stored form, which
+      `extra="forbid"` refuses (the cross-class revalidation break of ISSUE-3489), so the
+      report is the only trace and the received evidence is the only copy.
+    verification: >-
+      `test/wire/as2/test_unknown_key_disposition.py` asserts, for an unknown key in each
+      position MV-11-001 names, that `parse_activity` returns an activity, that the parsed
+      object and its `by_alias` dump do not contain the key, and that exactly one INFO record
+      names the key, the path, the activity id and the sender.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-11-001
+    - rel_type: depends_on
+      spec_id: SL-02-001
+    - rel_type: depends_on
+      spec_id: SL-02-002
+    adr:
+    - ADR-0099
+    - ADR-0086
+    lint_suppress:
+    - missing_story_reference
+  - id: MV-11-004
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Setting inbound unknown keys aside at the parse edge MUST NOT loosen `extra="forbid"` on
+      any core type (ARCH-12-003). The parse edge is the only door inbound data enters by, so a
+      core class never sees an inbound unknown key; an unknown key on in-process or stored data
+      remains a refusal. The retired-name list MV-11-002 consults MUST live in the wire layer
+      and be consulted only at the parse edge; core types MUST NOT carry a per-class
+      retired-key reject-guard (SDO-03-005).
+    rationale: >-
+      The two rules answer different questions. `extra="forbid"` asks "did this process build
+      or store an object with a key it does not know?" — always a bug. The parse edge asks
+      "did a peer send a property we do not read?" — usually an extension. Keeping them
+      separate is what lets the receive side be liberal without reopening the #2232 hole on
+      the stored side. `ParticipantStatus._reject_retired_vfd_keys` predates this rule and is
+      the one guard SDO-03-005 already forbids; it goes when the wire-side list arrives.
+    verification: >-
+      `test/architecture/test_core_extra_forbid.py` continues to assert every `CoreObject`
+      subclass forbids extras with no exemption list. A grep of `vultron/core/models/` finds no
+      `mode="before"` validator that rejects a retired key by name — until #3921 lands that
+      grep still finds `ParticipantStatus._reject_retired_vfd_keys`; deleting it is #3921's
+      AC-4, and the grep is the ratchet that build turns green.
+    relationships:
+    - rel_type: constrains
+      spec_id: ARCH-12-003
+    - rel_type: refines
+      spec_id: SDO-03-005
+    adr:
+    - ADR-0099
+  - id: MV-11-005
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      After `parse_activity` returns, the receive path MUST NOT re-validate an inline object
+      from the raw request body. The parsed object graph is the authority for what arrived in
+      each slot; the raw body is received evidence, kept for audit, not a second source to
+      parse from.
+    rationale: >-
+      A re-parse from the raw body sees the keys the parse edge set aside and, on a core class,
+      fails on them. `inbox_storage._reparse_as_specific_type` did exactly that and fell back
+      to a base class on failure with a DEBUG line, so once keys are set aside it would store
+      the wrong class silently. Its purpose — recovering the specific class when the parser
+      had validated an inline object as the base type — ended when the parser began resolving
+      inline objects to their specific class itself (MV-04-003).
+    verification: >-
+      No function under `vultron/adapters/driving/` or `vultron/core/` passes a dict taken
+      from the request body or from `received_evidence` to `model_validate` on the receive
+      path; `_reparse_as_specific_type` is deleted or consumes the parsed object only. Tracked
+      in #3922.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MV-11-003
+    - rel_type: depends_on
+      spec_id: MV-04-003
+    adr:
+    - ADR-0099
