@@ -167,7 +167,7 @@ class BtNode:
             the node's status (as a NodeStatus enum)
         """
         if self.name is not None:
-            logger.debug(_indent(depth) + f"{self._pfx} {self.name}")
+            logger.debug("%s%s %s", _indent(depth), self._pfx, self.name)
 
         with self:
             self._pre_tick(depth=depth)
@@ -176,7 +176,7 @@ class BtNode:
             self._post_tick(depth=depth)
 
         if self.name is not None:
-            logger.debug(_indent(depth + 1) + f"= {self.status}")
+            logger.debug("%s= %s", _indent(depth + 1), self.status)
 
         return status
 

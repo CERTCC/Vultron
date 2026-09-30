@@ -261,6 +261,7 @@ class TestCLI:
             ["git", "rev-parse", "--verify", "origin/main"],
             capture_output=True,
             text=True,
+            check=False,
         )
         if probe.returncode != 0:
             pytest.skip("origin/main not available in this clone")

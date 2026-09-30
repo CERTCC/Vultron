@@ -189,11 +189,10 @@ class InboxPipeline:
                 )
             return event
         except VultronProtocolViolationError:
-            logger.error(
+            logger.exception(
                 "Protocol violation in inbox item '%s'"
                 " — not re-queuing (permanent failure)",
                 activity_id,
-                exc_info=True,
             )
             return None
         except VultronValidationError:
@@ -205,10 +204,9 @@ class InboxPipeline:
             requeued = self._requeue(activity_id, queue_dl, receiving_actor_id)
             return None
         except Exception:
-            logger.error(
+            logger.exception(
                 "Error processing inbox item '%s' in InboxPipeline",
                 activity_id,
-                exc_info=True,
             )
             requeued = self._requeue(activity_id, queue_dl, receiving_actor_id)
             return None

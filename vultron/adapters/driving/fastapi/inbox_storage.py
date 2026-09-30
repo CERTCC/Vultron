@@ -120,12 +120,11 @@ def _store_nested_inbox_object(dl: DataLayer, activity: as_Activity) -> None:
         # Swallowing this silently alongside the duplicate case left the row
         # absent and downstream nodes reporting a misleading "participant not
         # found", so it is logged loudly instead.
-        logger.error(
+        logger.exception(
             "Not pre-storing inline %s %s from ingress: it cannot be projected"
             " to the canonical core shape.",
             nested.type_,
             getattr(nested, "id_", "<no id>"),
-            exc_info=True,
         )
     except VultronAlreadyExistsError:
         logger.debug(

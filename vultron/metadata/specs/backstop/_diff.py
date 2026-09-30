@@ -66,7 +66,11 @@ def parse_diff_hunks(diff: str) -> tuple[dict[str, set[int]], set[str]]:
 def _run_git(root: Path) -> GitRunner:
     def run(args: Sequence[str]) -> str:
         proc = subprocess.run(  # nosec B603 B607 - fixed git argv
-            ["git", *args], cwd=root, capture_output=True, text=True
+            ["git", *args],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if proc.returncode != 0:
             detail = proc.stderr.strip() or f"exit {proc.returncode}"

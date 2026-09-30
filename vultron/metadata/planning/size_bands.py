@@ -216,7 +216,11 @@ def markdown_table() -> str:
 def _git(*args: str) -> str:
     """Run a read-only git command, raising with its own stderr on failure."""
     result = subprocess.run(
-        ["git", *args], capture_output=True, text=True, cwd=repo_root()
+        ["git", *args],
+        capture_output=True,
+        text=True,
+        cwd=repo_root(),
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(

@@ -521,6 +521,7 @@ def get_git_commits() -> list[str]:
             capture_output=True,
             text=True,
             cwd=Path.cwd(),
+            check=False,
         )
         if result.returncode == 0:
             return (
@@ -547,6 +548,7 @@ def get_git_churn() -> list[str]:
             capture_output=True,
             text=True,
             cwd=Path.cwd(),
+            check=False,
         )
         if result.returncode == 0:
             files = [f.strip() for f in result.stdout.split("\n") if f.strip()]
@@ -572,6 +574,7 @@ def is_git_repo() -> bool:
             capture_output=True,
             cwd=Path.cwd(),
             timeout=2,
+            check=False,
         )
         return result.returncode == 0
     except Exception:

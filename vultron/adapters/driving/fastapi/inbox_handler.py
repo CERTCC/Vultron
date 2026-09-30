@@ -378,18 +378,16 @@ def _rehydrate_inbox_item(
     try:
         obj = rehydrate(item_id, dl=dl)
     except VultronProtocolViolationError:
-        logger.error(
+        logger.exception(
             "Protocol violation rehydrating inbox item %s"
             " — skipping (permanent failure)",
             item_id,
-            exc_info=True,
         )
         return None
     except Exception:
-        logger.error(
+        logger.exception(
             "Error rehydrating inbox item %s — re-queuing for retry",
             item_id,
-            exc_info=True,
         )
         queue_dl.inbox_append(item_id)
         return None
@@ -435,12 +433,11 @@ def _process_inbox_item(
                 )
         return True
     except VultronProtocolViolationError:
-        logger.error(
+        logger.exception(
             "Protocol violation processing inbox item %s for actor %s"
             " — skipping (permanent failure)",
             item_id,
             actor_id,
-            exc_info=True,
         )
         return False
     except Exception as e:

@@ -200,5 +200,6 @@ def added_doc_pages(
         capture_output=True,
         text=True,
         cwd=repo_root,
+        check=False,
     )
     return keep_existing_pages(result.stdout.splitlines(), repo_root=repo_root)

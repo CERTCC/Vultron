@@ -413,6 +413,7 @@ def _post_github_comment(
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(

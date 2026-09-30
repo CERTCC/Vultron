@@ -109,8 +109,8 @@ def _run_bt_pipeline(actor_config: ActorConfig | None = None) -> Status:
             final_status = bt.root.status
             if final_status in (Status.SUCCESS, Status.FAILURE):
                 break
-    except Exception as exc:
-        logger.exception("process_payload: BT tick raised exception: %s", exc)
+    except Exception:
+        logger.exception("process_payload: BT tick raised exception")
         final_status = Status.FAILURE
     finally:
         bt.shutdown()

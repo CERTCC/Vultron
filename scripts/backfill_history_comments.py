@@ -81,6 +81,7 @@ def _post_comment(
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -95,6 +96,7 @@ def _git_rm(path: Path) -> None:
         ["git", "rm", str(path)],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(
