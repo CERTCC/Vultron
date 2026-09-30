@@ -23,6 +23,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 AC-4 of ISSUE-1976: milestone assertion tests at each phase boundary.
 """
 
+import contextlib
 import importlib
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -161,6 +162,7 @@ class TestFccvExtensionMilestoneAssertions:
             ),
             patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 ActorSession,
                 "invite_actor_to_case",
@@ -712,6 +714,7 @@ class TestFccvExtensionRmTriageTimeout:
                 demo, "run_direct_path_rm_triage", return_value=case
             ) as mock_rm_triage,
             patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 ActorSession,
                 "invite_actor_to_case",
@@ -887,3 +890,138 @@ class TestFccvExtensionInviteTriggerFailureSkipsDependents:
         ], "replica_wait ran for the skipped dependent: " + str(
             replica_wait.call_args_list
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 drain goes through the shared coverage helper (DEMOMA-23-005, #3906)
+# ---------------------------------------------------------------------------
+
+
+class TestFccvExtensionPhase1DrainViaSharedHelper:
+    """AC-1 (#3956): the Phase 1 drain is ``wait_for_replica_ledger_coverage``
+    with the same authority (C1) and replica pairs the deleted
+    ``drain_phase1_ledger`` received."""
+
+    @staticmethod
+    def _actor(id_: str):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _run_report_submission(
+        self, clients: dict, stack: contextlib.ExitStack
+    ):
+        """Run ``_phase_report_submission`` with every other collaborator patched.
+
+        The scenario module's ``demo_*`` context managers become ``nullcontext``
+        so only call shapes are observed, never gate control flow.
+        """
+        case = MagicMock()
+        case.id_ = "urn:test:case"
+        stack.enter_context(patch.object(demo, "reset_containers"))
+        stack.enter_context(
+            patch.object(
+                demo,
+                "seed_containers_fccv",
+                return_value=(
+                    self._actor("urn:test:finder"),
+                    self._actor("urn:test:c1"),
+                    self._actor("urn:test:c2"),
+                    self._actor("urn:test:vendor"),
+                ),
+            )
+        )
+        stack.enter_context(
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                side_effect=[
+                    self._actor("urn:test:c1"),
+                    self._actor("urn:test:c2"),
+                ],
+            )
+        )
+        stack.enter_context(
+            patch.object(
+                demo,
+                "reporter_submits_report",
+                return_value=(MagicMock(), MagicMock(id_="urn:test:offer")),
+            )
+        )
+        stack.enter_context(
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case)
+        )
+        for name in (
+            "wait_for_case_participants",
+            "post_to_inbox_and_wait",
+            "verify_object_stored",
+            "wait_for_case_on_container",
+            "find_case_invite_for_actor",
+            "run_invite_path_rm_triage",
+            "verify_case_active",
+        ):
+            stack.enter_context(patch.object(demo, name))
+        stack.enter_context(
+            patch.object(
+                ActorSession,
+                "invite_actor_to_case",
+                return_value=SimpleNamespace(
+                    activity=MagicMock(id_="urn:test:invite")
+                ),
+            )
+        )
+        for name in (
+            "accept_case_invite",
+            "suggest_actor_to_case",
+            "accept_actor_recommendation",
+        ):
+            stack.enter_context(patch.object(ActorSession, name))
+        mock_vc = stack.enter_context(
+            patch.object(demo, "as_VulnerabilityCase")
+        )
+        mock_vc.model_validate.return_value = case
+        for name in ("demo_gate", "demo_check", "demo_step"):
+            stack.enter_context(
+                patch.object(
+                    demo, name, side_effect=lambda _: contextlib.nullcontext()
+                )
+            )
+        demo._phase_report_submission(
+            finder_id=None,
+            c1_id=None,
+            c2_id=None,
+            vendor_id=None,
+            **clients,
+        )
+        return case
+
+    def test_phase1_drain_calls_shared_helper_with_same_authority_and_replicas(
+        self,
+    ):
+        clients = {
+            k: MagicMock(name=k)
+            for k in (
+                "finder_client",
+                "c1_client",
+                "c2_client",
+                "vendor_client",
+            )
+        }
+        with contextlib.ExitStack() as stack:
+            coverage = stack.enter_context(
+                patch.object(demo, "wait_for_replica_ledger_coverage")
+            )
+            case = self._run_report_submission(clients, stack)
+
+        coverage.assert_called_once()
+        kwargs = coverage.call_args.kwargs
+        assert kwargs["auth_client"] is clients["c1_client"]
+        assert kwargs["replicas"] == [
+            (clients["finder_client"], "Finder"),
+            (clients["c2_client"], "C2"),
+        ]
+        assert kwargs["case_id"] == case.id_
+        assert kwargs["phase_label"] == "Phase 1 drain before Phase 2"
+        # The drain is a causal gate for Phase 2 (EDF-06-005): the helper's
+        # default, so the scenario must not pass causal=False.
+        assert "causal" not in kwargs
