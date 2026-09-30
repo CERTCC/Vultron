@@ -806,7 +806,7 @@ def test_full_deploy_arm_completes_and_emits_cd(
     before = len(participant.participant_statuses)
 
     bundle = DeployFixCallOutBundle(
-        deploy_fix_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
+        deploy_fix_factory=AlwaysSucceed,  # type: ignore[arg-type]
     )
     tree = create_deploy_fix_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle

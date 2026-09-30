@@ -1840,7 +1840,7 @@ class TestActorDiscoveryCallOut:
                 return Status.RUNNING
 
         running_bundle = ActorDiscoveryCallOutBundle(
-            resolve_actor_factory=lambda name: _Running(name)  # type: ignore[arg-type]
+            resolve_actor_factory=_Running  # type: ignore[arg-type]
         )
 
         actor, dl = _make_actor_dl("Coordinator")

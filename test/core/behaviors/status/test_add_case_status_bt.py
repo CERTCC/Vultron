@@ -1897,9 +1897,7 @@ class TestPxaEmInvariantDiagnosticNode:
         event = self._make_event(dl, status_obj)
 
         call_out = StatusAuthorizationCallOutBundle(
-            embargo_teardown_authorization_gate_factory=lambda name: AlwaysFail(
-                name
-            )
+            embargo_teardown_authorization_gate_factory=AlwaysFail
         )
         tree = add_case_status_tree(request=event, call_out=call_out)
         bridge = BTBridge(

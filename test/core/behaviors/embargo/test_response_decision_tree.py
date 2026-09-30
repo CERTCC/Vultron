@@ -629,8 +629,8 @@ class TestBTBridgeIntegration:
         # EvaluateProposal or accept_bt).
         # WillingToCounter returns SUCCESS so counter arm is then taken.
         accept_fail_bundle = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
-            willing_to_counter_factory=lambda name: _stub(name),  # type: ignore[arg-type]
+            case_owner_approves_embargo_response_factory=_failing_stub,  # type: ignore[arg-type]
+            willing_to_counter_factory=_stub,  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
@@ -671,8 +671,8 @@ class TestBTBridgeIntegration:
         Counter arm fails because WillingToCounter → FAILURE.
         """
         deny_all = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
-            willing_to_counter_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
+            case_owner_approves_embargo_response_factory=_failing_stub,  # type: ignore[arg-type]
+            willing_to_counter_factory=_failing_stub,  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
@@ -738,7 +738,7 @@ class TestBTBridgeIntegration:
         EvaluateEmbargoProposal is never reached, so no factory override needed.
         """
         deny_accept = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
+            case_owner_approves_embargo_response_factory=_failing_stub,  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)

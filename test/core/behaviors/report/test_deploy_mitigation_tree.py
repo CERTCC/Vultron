@@ -375,7 +375,7 @@ def test_early_exit_when_mitigation_already_deployed(
     must not run.
     """
     bundle = DeployMitigationCallOutBundle(
-        mitigation_deployed_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
+        mitigation_deployed_factory=AlwaysSucceed,  # type: ignore[arg-type]
     )
     tree = create_deploy_mitigation_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle
@@ -443,9 +443,9 @@ def test_deploy_arm_completes_when_mitigation_succeeds(
     # Pin all three deploy-arm call-outs explicitly so the test is independent
     # of future changes to the DETERMINISTIC defaults.
     bundle = DeployMitigationCallOutBundle(
-        mitigation_available_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
-        prioritize_deployment_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
-        deploy_mitigation_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
+        mitigation_available_factory=AlwaysSucceed,  # type: ignore[arg-type]
+        prioritize_deployment_factory=AlwaysSucceed,  # type: ignore[arg-type]
+        deploy_mitigation_factory=AlwaysSucceed,  # type: ignore[arg-type]
     )
     tree = create_deploy_mitigation_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle
@@ -467,7 +467,7 @@ def test_deploy_arm_falls_through_to_monitor_when_deploy_mitigation_fails(
     _seed_rm_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.ACCEPTED)
 
     bundle = DeployMitigationCallOutBundle(
-        mitigation_available_factory=lambda n: AlwaysFail(n),  # type: ignore[arg-type]
+        mitigation_available_factory=AlwaysFail,  # type: ignore[arg-type]
     )
     tree = create_deploy_mitigation_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle

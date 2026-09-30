@@ -98,7 +98,7 @@ def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
     _queue = [item_id]
     mock_dl.inbox_list.side_effect = lambda: list(_queue)
     mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
-    mock_dl.inbox_append.side_effect = lambda x: _queue.append(x)
+    mock_dl.inbox_append.side_effect = _queue.append
     # Prevent outbox_handler (called at end of inbox_handler) from looping
     mock_dl.outbox_list.return_value = []
 
@@ -136,7 +136,7 @@ def test_inbox_handler_rehydrate_protocol_violation_does_not_propagate(
     _queue = [item_id]
     mock_dl.inbox_list.side_effect = lambda: list(_queue)
     mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
-    mock_dl.inbox_append.side_effect = lambda x: _queue.append(x)
+    mock_dl.inbox_append.side_effect = _queue.append
     mock_dl.outbox_list.return_value = []
 
     monkeypatch.setattr(
@@ -165,7 +165,7 @@ def test_inbox_handler_rehydrate_transient_error_requeues_item(monkeypatch):
     _queue = [item_id]
     mock_dl.inbox_list.side_effect = lambda: list(_queue)
     mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
-    mock_dl.inbox_append.side_effect = lambda x: _queue.append(x)
+    mock_dl.inbox_append.side_effect = _queue.append
     mock_dl.outbox_list.return_value = []
 
     monkeypatch.setattr(

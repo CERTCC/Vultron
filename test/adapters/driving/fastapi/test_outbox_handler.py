@@ -61,7 +61,7 @@ def _mock_dl_with_queue(
     mock_dl.find_actor_by_short_id.return_value = actor
     mock_dl.outbox_list.side_effect = lambda: list(queue)
     mock_dl.outbox_pop.side_effect = lambda: queue.pop(0) if queue else None
-    mock_dl.outbox_append.side_effect = lambda x: queue.append(x)
+    mock_dl.outbox_append.side_effect = queue.append
     # Default: no prior attempts (below MAX_TOTAL_ATTEMPTS), so existing tests
     # retain their retry-and-requeue behaviour unchanged.
     mock_dl.get_outbox_attempt_count.return_value = 0
@@ -467,7 +467,7 @@ def _mock_dl_for_ox14(
     mock_dl.find_actor_by_short_id.return_value = None
     mock_dl.outbox_list.side_effect = lambda: list(queue)
     mock_dl.outbox_pop.side_effect = lambda: queue.pop(0) if queue else None
-    mock_dl.outbox_append.side_effect = lambda x: queue.append(x)
+    mock_dl.outbox_append.side_effect = queue.append
     mock_dl.get_outbox_attempt_count.return_value = oh.MAX_TOTAL_ATTEMPTS - 1
     return mock_dl
 

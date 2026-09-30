@@ -1469,7 +1469,7 @@ class TestCli:
         _write_replicas(tmp_path, {"vendor": [_camel_entry()]})
         calls: list[str] = []
         monkeypatch.setattr(
-            report.webbrowser, "open", lambda url: calls.append(url)
+            report.webbrowser, "open", calls.append
         )
         out_file = tmp_path / "report.html"
         rc = main(
@@ -1490,7 +1490,7 @@ class TestCli:
         _write_replicas(tmp_path, {"vendor": [_camel_entry()]})
         calls: list[str] = []
         monkeypatch.setattr(
-            report.webbrowser, "open", lambda url: calls.append(url)
+            report.webbrowser, "open", calls.append
         )
         out_file = tmp_path / "report.html"
         rc = main(

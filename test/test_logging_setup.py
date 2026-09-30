@@ -167,7 +167,7 @@ def test_configure_logging_wires_up_suppression(monkeypatch):
     calls: list[int] = []
     monkeypatch.setattr(
         "vultron.logging_setup.suppress_third_party_info_noise",
-        lambda level: calls.append(level),
+        calls.append,
     )
 
     app_module.configure_logging()

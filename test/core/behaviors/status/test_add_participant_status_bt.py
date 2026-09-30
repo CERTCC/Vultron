@@ -1077,7 +1077,7 @@ class TestAddParticipantStatusTree:
         """
         bridge = self._bridge_with_factory(populated_dl)
         reject_bundle = StatusAuthorizationCallOutBundle(
-            status_adoption_gate_factory=lambda name: AlwaysFail(name)  # type: ignore[arg-type]
+            status_adoption_gate_factory=AlwaysFail  # type: ignore[arg-type]
         )
         cm_status_id = f"{STATUS_ID}/cm"
         cm_status = as_ParticipantStatus(id_=cm_status_id, context=CASE_ID)
@@ -1422,7 +1422,7 @@ class TestStatusAuthorizationCallOutBundle:
     def test_custom_bundle_with_always_fail(self, populated_bridge):
         """Custom bundle with AlwaysFail factory → call-out denies approval."""
         bundle = StatusAuthorizationCallOutBundle(
-            status_adoption_gate_factory=lambda name: AlwaysFail(name)  # type: ignore[arg-type]
+            status_adoption_gate_factory=AlwaysFail  # type: ignore[arg-type]
         )
         node = bundle.status_adoption_gate_factory(
             "CaseOwnerApprovesStatusUpdate"

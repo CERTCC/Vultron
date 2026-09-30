@@ -391,7 +391,7 @@ class TestCaseProposalRejectRoundTrip:
         # The deployment's admission policy: refuse.  Patched on the adapter
         # module, which is where a real deployment substitutes its own bundle.
         declining = CaseProposalCallOutBundle(
-            evaluate_proposal_factory=lambda name: AlwaysFail(name),  # type: ignore[arg-type]
+            evaluate_proposal_factory=AlwaysFail,  # type: ignore[arg-type]
         )
         monkeypatch.setattr(
             importlib.import_module(
