@@ -201,6 +201,9 @@ It does not replace it.
 Source: Concerns #3892, #3836 and #3863, planned as one bundle under epic #3408 (embargo negotiation, defaults and lifecycle); generalised from revisions to every proposal, and extended to the RSVP deadline, the acknowledgement, the ask model, the trigger-side write and the no-manager arm, by Concern #3918's audit of where the rule reaches.
 The shared design idea is that a proposal must be visible to every replica while it is open and retired everywhere when the embargo it concerns ends.
 
+Rewritten in place on 2026-09-30 for Concern #3918, as a same-day ADR is (`notes/specs-vs-adrs.md`): the original decided the revision case only, and details 7 and 10 through 14 are new.
+Spec and notes references to "ADR-0113 as amended" mean this rewrite; the file name keeps the original slug so inbound links resolve.
+
 Implementation: #3913 (the CASE_MANAGER adjudicates and relays, first proposal and revision alike), #3915 (participant side and replay), #3914 (termination clears every open proposal), #3916 (the creation-time revision), #3814 (replay-then-gate, with the lapse event type in its inventory), #2884 (the embargo Invite as an ask kind), plus the Tasks the #3918 planning PR opened for the RSVP deadline, the trigger-side write gate, the invitee resolution and the CM-24-003 retirement.
 
 Ordering: `propose_embargo` still lapses every signatory on `ACTIVE → REVISE` until #3891 lands, so #3913 depends on #3891; otherwise the first relayed revision would lapse the whole case.

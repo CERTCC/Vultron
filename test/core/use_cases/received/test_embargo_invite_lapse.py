@@ -826,7 +826,9 @@ class TestInviteeIdProperty:
         )
         return make_payload(invite)
 
+    @pytest.mark.spec("EP-09-010")
     def test_sole_recipient_is_the_invitee(self, make_payload):
+        """The invitee is the Invite's sole ``to`` recipient (EP-09-010)."""
         event = self._event(make_payload, [_INVITEE])
         assert event.to_recipients == [_INVITEE]
         assert event.invitee_id == _INVITEE

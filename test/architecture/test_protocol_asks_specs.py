@@ -805,6 +805,11 @@ def test_embargo_invite_is_a_declared_ask_kind() -> None:
     assert kinds is not None, "No AskKind descriptor type is importable."
     declared = {str(name).upper() for name in dir(kinds)}
     assert any("EMBARGO" in name for name in declared)
+    # The kind must be able to say what closes it and what a late reply
+    # means (ASK-03-001, ASK-03-002): Accept/Reject closers, stale expiry.
+    fields = _field_names(kinds)
+    assert "reply_event_types" in fields
+    assert fields & {"expiry_consequence", "on_expiry"}
 
 
 @pytest.mark.xfail(
@@ -819,3 +824,17 @@ def test_relayed_ask_is_recorded_by_the_relaying_case_manager() -> None:
     """The CASE_MANAGER records relayed Invites as its own asks (ASK-04-010)."""
     register = _first_available(_ASK_REGISTER_CANDIDATES)
     assert register is not None, "No outstanding-ask register is importable."
+    # A relayed ask is recorded by its emitter: the register must carry who
+    # asked, so the CASE_MANAGER's entries for relayed Invites are its own and
+    # the proposer's register holds only its proposal (ASK-04-001, ASK-04-010).
+    fields = _field_names(register)
+    assert fields & {
+        "asker",
+        "asker_id",
+        "actor_id",
+        "emitter_id",
+    }, "the register does not record who emitted the ask"
+    assert any(
+        hasattr(register, name)
+        for name in ("record_outgoing", "record_emitted", "record_ask", "add")
+    ), "the register has no outgoing-ask recording method"

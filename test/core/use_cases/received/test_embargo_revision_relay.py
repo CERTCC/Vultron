@@ -437,7 +437,9 @@ def test_invite_with_several_recipients_is_refused(make_payload):
     result = _deliver(dl, invite, make_payload, receiving_actor_id=OTHER_A)
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "recipient" in (result.reason or "").lower()
+    reason = (result.reason or "").lower()
+    assert "recipient" in reason
+    assert "2" in reason, "the refusal names the recipient count"
 
 
 @pytest.mark.xfail(
@@ -466,7 +468,9 @@ def test_invite_with_no_recipient_is_refused(make_payload):
     result = _deliver(dl, invite, make_payload, receiving_actor_id=OTHER_A)
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "recipient" in (result.reason or "").lower()
+    reason = (result.reason or "").lower()
+    assert "recipient" in reason
+    assert "0" in reason, "the refusal names the recipient count"
 
 
 @pytest.mark.spec("EP-09-009")

@@ -3125,19 +3125,23 @@ groups:
   - id: CM-24-003
     priority: MUST
     kind: protocol
+    deprecated: true
+    superseded_by: CM-24-006
     statement: >-
-      When no dedicated CASE_MANAGER exists for a case (no participant with
-      CVDRole.CASE_MANAGER in the actor_participant_index), the Activity is sent
-      directly by the requesting participant.  In this case `actor` MUST be the
-      requesting participant's actor ID and `attributed_to` MUST be None.
+      This requirement is superseded by CM-24-006; a case has a `CVDRole.CASE_MANAGER`
+      holder from creation onward, so the "no dedicated CASE_MANAGER, send directly"
+      fallback it required (`actor` = requesting participant, `attributed_to` = None)
+      describes a state no creation path can produce.
     rationale: >-
-      Without a CASE_MANAGER the delegation channel does not exist.  Forcing
-      `actor=None` or a fallback CASE_MANAGER ID would produce an invalid wire
-      message.  The SvcInviteActorToCaseUseCase reference implementation
-      demonstrates this fallback at actor.py:160-166.
-    verification: Integration tests in `test/demo/` confirm that when no dedicated CASE_MANAGER is
-      found, the Activity is sent with `actor` set to the requesting participant's actor ID and
-      `attributed_to` set to `None`.
+      The fallback was written when a case could be minted without a manager. Both creation
+      paths now register one (ADR-0041, CM-02-015) and delegation hands the role on, so the
+      arm only ever fired on a corrupt roster, where sending directly hid the fault. Retired
+      by Concern #3918 (ADR-0113 as rewritten 2026-09-30); the code paths that carried it
+      are removed by #3964.
+    verification: >-
+      Retired. `_prepare_delegated_context` has no fallback branch and no node succeeds with
+      a warning when the resolver finds no holder (CM-24-006); the tests that asserted the
+      fallback are deleted with it (#3964).
     relationships:
     - rel_type: refines
       spec_id: CM-24-001
@@ -3236,6 +3240,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-24-001
+    - rel_type: supersedes
+      spec_id: CM-24-003
     - rel_type: depends_on
       spec_id: CM-22-002
     adr:

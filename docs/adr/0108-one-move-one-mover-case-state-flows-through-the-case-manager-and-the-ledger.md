@@ -162,7 +162,7 @@ Design notes: `notes/received-status-authorization.md` § "One move, one mover",
 
 ## Amendment — 2026-09-30
 
-This decision left the emit side unchanged: a participant's trigger could still write its own local state before sending the act to the CASE_MANAGER, and ADR-0113 detail 10 recorded that latitude for the embargo proposer.
+This decision left the emit side unchanged: a participant's trigger could still write its own local state before sending the act to the CASE_MANAGER, and the original text of ADR-0113 (before its 2026-09-30 rewrite for Concern #3918) recorded that latitude for the embargo proposer in its detail 10.
 Concern #3918 withdraws it for shared case state.
 A trigger writes shared EM state only when its actor holds `CVDRole.CASE_MANAGER` for the case; otherwise it emits the act to the manager, records it in the pending-assertion store, and its replica moves when the manager's commit is announced (EP-09-008, ADR-0113 as amended).
 The distinction is the one this ADR already draws: a participant is authoritative about its own progress (RSH-06-001), so `Add(ParticipantStatus)` and the RM triggers keep their local write; it is not authoritative about the case's embargo, which has one writer.

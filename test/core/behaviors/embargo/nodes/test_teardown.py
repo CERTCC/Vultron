@@ -874,6 +874,36 @@ class TestSendAnnounceEmbargoEventNode:
         assert node.status == py_trees.common.Status.SUCCESS
         factory.announce_embargo.assert_not_called()
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CM-24-006: SendAnnounceEmbargoEventNode returns SUCCESS with a "
+            "warning when the roster names no CASE_MANAGER. Tracked by #3964 "
+            "(Concern #3918, ADR-0113)."
+        ),
+    )
+    @pytest.mark.spec("CM-24-006")
+    def test_fails_when_no_case_manager(self):
+        """A roster with no CASE_MANAGER is a fault: FAILURE, not a skip."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, embargo = make_case_and_embargo("saee4b", em_state=EM.ACTIVE)
+        dl.create(case)  # no CASE_MANAGER participant
+        factory = self._make_factory()
+
+        _setup_blackboard_with_factory(dl, factory)
+        node = SendAnnounceEmbargoEventNode(
+            case_id=case.id_, embargo_id=embargo.id_
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+        factory.announce_embargo.assert_not_called()
+
     def test_returns_failure_when_factory_raises(self):
         """Node returns FAILURE when the factory call raises an exception."""
         case, _, dl = make_case_with_manager("saee5", em_state=EM.ACTIVE)

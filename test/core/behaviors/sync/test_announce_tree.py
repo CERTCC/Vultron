@@ -20,6 +20,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.enums.roles import CVDRole
@@ -420,6 +421,152 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
 
 
 NOTE_ID = "https://example.org/notes/test-note-1"
+
+
+def _make_relayed_invite_entry(
+    log_index: int, prev_hash: str = _ZERO_HASH
+) -> CaseLedgerEntry:
+    """Entry the CASE_MANAGER commits for a relayed ``Invite(EmbargoEvent)``.
+
+    The relayed Invite carries the manager's RSVP deadline as ``endTime``
+    (CM-28-012); the replica apply node records it on the invitee (CM-28-013).
+    """
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=f"https://example.org/activities/invite-{log_index}",
+            event_type="invite_to_embargo_on_case",
+            payload_snapshot={
+                "type": "Invite",
+                "id": f"https://example.org/activities/invite-{log_index}",
+                "actor": CASE_ACTOR_ACTOR_ID,
+                "attributedTo": OWNER_ACTOR_ID,
+                "to": [PARTICIPANT_ACTOR_ID],
+                "context": CASE_ID,
+                "published": "2026-09-30T12:00:00+00:00",
+                "endTime": "2026-10-07T12:00:00+00:00",
+                "object": {
+                    "type": "EmbargoEvent",
+                    "id": f"{CASE_ID}/embargo_events/e1",
+                    "context": CASE_ID,
+                    "endTime": "2026-11-14T12:00:00+00:00",
+                },
+            },
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
+def _make_invite_lapsed_entry(
+    log_index: int, prev_hash: str = _ZERO_HASH
+) -> CaseLedgerEntry:
+    """Entry the CASE_MANAGER commits when an invitation lapses (CM-28-009)."""
+    invite_id = f"https://example.org/activities/invite-{log_index}"
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=invite_id,
+            event_type="invite_to_embargo_on_case_lapsed",
+            payload_snapshot={
+                "type": "Lapse",
+                "actor": PARTICIPANT_ACTOR_ID,
+                "context": CASE_ID,
+                "published": "2026-10-08T12:00:00+00:00",
+                "object": {
+                    "type": "Invite",
+                    "id": invite_id,
+                    "object": {
+                        "type": "EmbargoEvent",
+                        "id": f"{CASE_ID}/embargo_events/e1",
+                    },
+                },
+            },
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
+def _seed_invited_participant(datalayer, case_obj, pec: PEC) -> str:
+    """Give the replica a participant record for this store's actor."""
+    participant = CaseParticipant(
+        attributed_to=PARTICIPANT_ACTOR_ID,
+        context=CASE_ID,
+        embargo_consent_state=pec,
+    )
+    datalayer.create(participant)
+    case_obj.actor_participant_index[PARTICIPANT_ACTOR_ID] = participant.id_
+    datalayer.save(case_obj)
+    return participant.id_
+
+
+class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
+    """Replicas learn the RSVP deadline and a lapse from the ledger, never
+    by computing either themselves (CM-28-013, CM-28-014; ADR-0113)."""
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CM-28-013: no replica apply node records the relayed Invite's "
+            "end_time as the invitee's RSVP deadline. Tracked by #3961 "
+            "(Concern #3918, ADR-0113)."
+        ),
+    )
+    @pytest.mark.spec("CM-28-013")
+    def test_replica_records_invitee_deadline_from_relayed_invite_entry(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """The invitee's deadline appears in the replica after replay."""
+        participant_id = _seed_invited_participant(
+            datalayer, case_obj, PEC.UNBOUND
+        )
+        entry = _make_relayed_invite_entry(0, case_obj.genesis_hash)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(participant_id)
+        assert isinstance(updated, CaseParticipant)
+        assert updated.invite_rsvp_deadline is not None
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CM-28-014: no replica apply node exists for "
+            "invite_to_embargo_on_case_lapsed, so a lapse the CASE_MANAGER "
+            "recorded reaches no replica. Tracked by #3961 (Concern #3918, "
+            "ADR-0113)."
+        ),
+    )
+    @pytest.mark.spec("CM-28-014")
+    def test_replica_reads_declined_from_lapse_entry(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """A replica learns a lapse from the entry and never computes one."""
+        participant_id = _seed_invited_participant(
+            datalayer, case_obj, PEC.INVITED
+        )
+        entry = _make_invite_lapsed_entry(0, case_obj.genesis_hash)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(participant_id)
+        assert isinstance(updated, CaseParticipant)
+        assert updated.embargo_consent_state is PEC.DECLINED
 
 
 def _make_add_note_entry(

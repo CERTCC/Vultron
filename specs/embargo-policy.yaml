@@ -620,6 +620,12 @@ groups:
       apply the configured default window, measured from the invitation's
       `published` timestamp. The default value SHOULD be 7 days, matching
       CM-18-002.
+    note: >-
+      Under the embargo relay (EP-09, ADR-0113) this fallback is discharged by the
+      CASE_MANAGER when it stamps `Invite.end_time` on each relayed Invite (CM-28-012):
+      the configured default window is what it adds to its own `published`. No receiving
+      participant applies the fallback on receipt; it derives no deadline and stores none
+      (CM-28-013).
     rationale: >-
       Aligning the fallback with the pre-existing CM-18-002 policy window means
       an invitation that omits `end_time` behaves exactly as it does today, so
@@ -691,6 +697,12 @@ groups:
       embargo. Where both would apply — a remaining embargo shorter than the
       configured window — EP-07-002 has already reduced the minimum to the
       remaining embargo, so the two agree rather than fight.
+
+      Under the embargo relay (EP-09, ADR-0113) the "receiving actor" this clause binds
+      is the CASE_MANAGER at the point it stamps the relayed Invite (CM-28-012): it
+      computes the applicable minimum and clamps before emission, so every replica reads
+      one deadline off one object. A participant that receives a relayed Invite stores it
+      and neither derives nor clamps a deadline (CM-28-013).
     rationale: >-
       Clamping makes a coercive deadline ineffective rather than fatal.
       Rejecting the invitation outright would hand the sender exactly what a
@@ -773,6 +785,10 @@ groups:
       "the configured minimum window". The applicable minimum is now derived (EP-07-002:
       the lesser of the configured window and the time remaining in the embargo), and a
       second clamp direction exists. Both are adjustments a reader of the log needs to see.
+
+      Under the embargo relay (EP-09, ADR-0113) the clamps are applied — and therefore
+      logged — by the CASE_MANAGER when it stamps the relayed Invite (CM-28-012); a
+      participant receiver applies none (CM-28-013).
     verification: >-
       A unit test confirms that clamping a sub-minimum deadline emits a log entry at
       the appropriate level recording both the original and the effective deadline
@@ -1228,10 +1244,11 @@ groups:
       the manager refused, so a proposer's replica could sit at `PROPOSED` while the canonical
       case never moved (#3918). The manager is the one writer of shared case state
       (ADR-0108); a participant's replica of it comes from the ledger like everyone else's.
+    note: >-
       Participant self-status (RM, `Add(ParticipantStatus)`) is the participant's own claim
       and keeps its local write (RSH-06-001). The role gate covers the owner that still holds
       the manager role after creation (CM-24-006): it writes canonically until it delegates.
-    note: >-
+
       Same ordering constraint as RSH-08-004: the replay nodes of EP-09-007 MUST exist before
       the trigger-side write is gated, or a non-manager's replica never moves. The
       pending-assertion store is the ephemeral half of the outstanding-ask register
@@ -1291,6 +1308,11 @@ groups:
       MUST resolve the invitee from that single recipient, MUST refuse an Invite that names
       no `to` recipient or more than one as a misrouting (OX-08-001), and MUST NOT infer the
       invitee from the receiving actor.
+    note: >-
+      Scope: the relayed Invite a participant receives (EP-09-002). A proposal addressed to
+      the CASE_MANAGER is adjudicated under EP-09-001 and relayed under EP-09-002; the
+      CASE_MANAGER is that Invite's adjudicator, not its invitee, and has no invitee to
+      resolve until it relays.
     rationale: >-
       Every emitter sends a single-recipient Invite — a participant to the CASE_MANAGER, the
       CASE_MANAGER to one participant per relayed Invite (EP-09-002) — so the multi-recipient

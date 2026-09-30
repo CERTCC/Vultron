@@ -293,9 +293,10 @@ activity_id = trigger_activity.invite_actor_to_case(
 add_activity_to_outbox(actor_id, activity_id, dl)   # ← dl *is* the manager's store
 ```
 
-When a case has no `CVDRole.CASE_MANAGER` participant the delegation channel does
-not exist: the Activity is sent directly by the requesting participant, with
-`actor` set to it and `attributed_to` set to `None` (CM-24-003).
+A case always has a `CVDRole.CASE_MANAGER` participant (CM-24-006), so there is
+no un-delegated path: a resolver that finds no holder fails rather than sending
+directly. The CM-24-003 fallback (`actor` = requester, `attributed_to = None`)
+is retired; #3964 removes it from `_prepare_delegated_context()`.
 
 ---
 
@@ -364,8 +365,8 @@ Requesting actor calls trigger: <trigger-name>
   → Trigger use case _prepare():
       self._actor_id     = case_actor_id      ← CASE_MANAGER sends (CM-24-001)
       self._attributed_to = requesting_actor_id  ← attribution preserved (CM-24-002)
-      # When unresolvable: self._actor_id = requesting_actor_id,
-      #                     self._attributed_to = None (CM-24-003)
+      # No holder found: raise (CM-24-006) — the CM-24-003 "send directly"
+      #                   fallback is retired (#3964)
   → BT runs under the CASE_MANAGER's identity → activity queued in its outbox (CM-24-004)
 
 Recipient receives Activity:
@@ -380,7 +381,7 @@ implementation.  All delegated-emit trigger use cases MUST call this helper
 (CM-24-005):
 
 ```python
-# Delegated-message contract (CM-24-001..003)
+# Delegated-message contract (CM-24-001, CM-24-002, CM-24-006)
 self._actor_id, self._attributed_to = _prepare_delegated_context(
     self._dl, self._case.id_, requesting_actor_id
 )

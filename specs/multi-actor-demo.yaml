@@ -2909,11 +2909,12 @@ groups:
       helper follows DEMOMA-17-001 (DRY for demo code). The three-party
       propose→accept→active flow is a composable unit that both rcv-embargo
       and rcvv-embargo scenarios require; a single helper prevents duplication
-      and ensures both scenarios exercise identical protocol steps. The
-      sequence was first written in the peer voice ("coordinator polls for the
-      EP message"); under ADR-0113 the proposal reaches the other participants
-      only as the CASE_MANAGER's relayed Invite, and their replicas move only
-      through the ledger (#3918).
+      and ensures both scenarios exercise identical protocol steps.
+    note: >-
+      The sequence was first written in the peer voice ("coordinator polls for
+      the EP message"); under ADR-0113 the proposal reaches the other
+      participants only as the CASE_MANAGER's relayed Invite, and their replicas
+      move only through the ledger (#3918).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -3189,11 +3190,12 @@ groups:
       The revision exchange (EV→EC) is a self-contained composable unit that
       can be reused if future scenarios add multiple revision cycles. Accepting
       from REVISE state uses the same `trigger_accept_embargo` endpoint as
-      accepting from PROPOSED; no new endpoint is needed. The sequence was
-      first written in the peer voice, with a non-owner's acceptance moving
-      `REVISE → ACTIVE`; under ADR-0113 only the owner's answer decides the
-      embargo (EP-09-005), a non-owner's answer is a consent record, and both
-      reach every replica through the ledger (#3918).
+      accepting from PROPOSED; no new endpoint is needed.
+    note: >-
+      The sequence was first written in the peer voice, with a non-owner's
+      acceptance moving `REVISE → ACTIVE`; under ADR-0113 only the owner's
+      answer decides the embargo (EP-09-005), a non-owner's answer is a consent
+      record, and both reach every replica through the ledger (#3918).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -3286,7 +3288,7 @@ groups:
       commit path emits, read from the code rather than hand-listed here.
     rationale: >-
       The scenario-specific invariants confirm all four embargo-variation
-      protocol paths were exercised and recorded: EP (b), EV (c), EJ (c), and
+      protocol paths were exercised and recorded: EP (b), EV (c), EC (c), and
       auto-collapse via CS.P (d). The late-joiner backfill check for V2
       verifies that the ledger synchronization worked correctly when V2 joined
       mid-scenario after an embargo revision. Invariant (f) distinguishes
