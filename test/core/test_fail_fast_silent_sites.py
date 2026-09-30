@@ -47,7 +47,7 @@ from vultron.core.models.events import (
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.errors import UnroutableActivityError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase as as_VulnerabilityCase,
+    as_VulnerabilityCase,
 )
 
 _FACTORY_PATH = (
