@@ -320,6 +320,9 @@ deliberately not restated in `specs/` or `notes/` (MS-16-001).
 | `UP040`, `UP047` PEP 695 syntax | 52 | Type-alias and generic-syntax modernization with no requirement behind it. |
 | `PYI042` snake-case-type-alias | 35 | `snake_case` type aliases are established house style. |
 | `E501`, `E203` | — | Line length and slice whitespace belong to the formatter. Carried over verbatim from `.flake8`'s `extend-ignore`. |
+| `RUF012` mutable-class-default | 202 (2026-09-30) | *Added during implementation (#3352).* A false positive on the two dominant shapes: 182 findings are py_trees `INPUT_PORTS`/`OUTPUT_PORTS` tables, which must stay un-annotated because py_trees' `PortsMixin` declares them as instance attributes and a `ClassVar` override is a mypy error; the rest are pydantic models that ruff cannot see through an indirect base (`as_Object`), where `ClassVar` would delete a field. The project's own class-level tables carry `ClassVar` explicitly. #3352 had listed this rule for hand-fixing; the measurement showed there was nothing to fix. |
+| `RUF022` unsorted-dunder-all | 74 (2026-09-30) | *Added during implementation (#3352).* Package `__all__` lists are grouped by submodule under section comments; sorting them alphabetically scatters the groups and strands the comments. |
+| `S101` assert | 14,621 (2026-09-30) | *Added during implementation (#3352).* `assert` is pytest's assertion idiom in `test/`, and in `vultron/` it narrows types and states invariants; the `python -O` stripping hazard the rule guards against does not apply to how this project runs. |
 | `EXE` family (not selected) | 850 | `EXE001` fires on every file carrying the standard `#!/usr/bin/env python` + CMU copyright header — a file template, not a defect. Excluded by not selecting the family, so no `ignore` entry is needed. |
 
 Selecting the remaining families across the whole tracked Python surface (1,384

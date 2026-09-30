@@ -1649,7 +1649,7 @@ def wait_for_pending_inbox_quiescent(
                 return True
             activity_ids = data.get("activity_ids", [])
             return len(activity_ids) == 0
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001  # ruff-baseline #3326
             return True
 
     _poll_until(

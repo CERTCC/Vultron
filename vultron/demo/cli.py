@@ -310,7 +310,7 @@ def run_all(skip_health_check: bool) -> None:
         try:
             module.main(skip_health_check=skip_health_check)
             results.append((name, True, ""))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
             results.append((name, False, str(exc)))
             click.echo(f"\n❌  Demo '{name}' FAILED: {exc}", err=True)
             _print_summary(results)

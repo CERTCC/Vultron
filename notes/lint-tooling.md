@@ -31,14 +31,18 @@ here (MS-16-001) — read them from the ADR, where they carry a measurement date
 
 ## Invoke with no path arguments
 
-Every caller that acts as a **gate** — a CI job, a pre-commit hook, an agent
-skill, or a documented developer command — MUST run exactly these, with **no
-paths**:
+Every caller that acts as a **gate** — a CI job, an agent skill, or a
+documented developer command — MUST run exactly these, with **no paths**:
 
 ```bash
 uv run ruff check          # or --fix
 uv run ruff format         # or --check
 ```
+
+The pre-commit hook is the one caller that passes paths, and it does not choose
+them: pre-commit appends the staged filenames, and `force-exclude = true` (below)
+makes ruff apply the config's exclusions to them, so the hook's scope is still
+the config's. Its `entry` names no path of its own.
 
 Scope lives in the config, never in the invocation (**IMPLTS-07-021**). This is
 not a style preference — a scope expressed as arguments is duplicated at every

@@ -221,7 +221,7 @@ class RequeuePendingCreateCaseActivityNode(DataLayerAction):
 
         try:
             outbox.outbox_append(self.activity_id)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"could not enqueue: {exc}"
             self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: could not enqueue Create(VulnerabilityCase) '%s'"

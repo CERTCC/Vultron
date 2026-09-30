@@ -133,7 +133,7 @@ def configure_default_emitter(emitter: ActivityEmitter) -> None:
     Called once during app lifespan to install the ``HttpDeliveryAdapter``
     (ADR-0042) so all inter-actor deliveries use the uniform HTTP path.
     """
-    global _default_emitter  # noqa: PLW0603
+    global _default_emitter  # noqa: PLW0603  # ruff-baseline #3985
     _default_emitter = emitter
 
 
@@ -406,7 +406,7 @@ async def _deliver_row(
                 return_now = _bookkeep_failure(
                     actor_id, activity_id, dl, retry, err_counts, e
                 )
-            except Exception as bookkeeping_error:  # noqa: BLE001
+            except Exception as bookkeeping_error:  # noqa: BLE001  # ruff-baseline #3326
                 # The retry store itself failed.  The row is not lost — the
                 # caller re-queues a stalled row — but nothing more can be
                 # learned about it this pass (OX-13-011).

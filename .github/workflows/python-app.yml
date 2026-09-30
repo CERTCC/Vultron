@@ -10,9 +10,9 @@ on:
     paths:
       - vultron/**
       - test/**
-      # ruff lints every tracked Python file, not only the package and tests.
-      - scripts/**
-      - .agents/**/*.py
+      # ruff lints every tracked Python file, not only the package and tests
+      # (IMPLTS-07-018), so any Python change must trigger the lint-ruff job.
+      - '**/*.py'
       - pyproject.toml
       # A Dependabot bump inside the existing version range touches only the
       # lockfile; demo-integration.yml skips Dependabot PRs on the premise that
@@ -25,9 +25,9 @@ on:
     paths:
       - vultron/**
       - test/**
-      # ruff lints every tracked Python file, not only the package and tests.
-      - scripts/**
-      - .agents/**/*.py
+      # ruff lints every tracked Python file, not only the package and tests
+      # (IMPLTS-07-018), so any Python change must trigger the lint-ruff job.
+      - '**/*.py'
       - pyproject.toml
       - uv.lock
       - pyrightconfig.json

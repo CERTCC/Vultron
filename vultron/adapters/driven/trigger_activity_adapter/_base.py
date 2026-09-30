@@ -198,7 +198,7 @@ def _carried_embargo(dl: CasePersistence, case: Any, case_id: str) -> Any:
         return None
     try:
         return _to_wire(stored, as_EmbargoEvent)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
         logger.warning(
             "_case_for_wire: could not project active_embargo '%s' of case"
             " '%s' to its wire shape (%s); sending the reference alone",

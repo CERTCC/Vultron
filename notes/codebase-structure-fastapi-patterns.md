@@ -183,7 +183,7 @@ did this at several call sites in the tree-wide reformat of #3352.
 
 **Fix**: Re-run `mypy` and `pyright` after every format pass (the
 `run-linters` order does this). For a wrapped call, move the pragma onto the
-line that carries the flagged argument. For Pydantic inheritance, use file-level pyright directives
+line that carries the flagged argument. Use file-level pyright directives
 (`# pyright: reportGeneralTypeIssues=false` at the top of the file) for
 Pydantic inheritance edge cases where an optional base field is intentionally
 narrowed to required in a subclass. Use this sparingly and only when weakening

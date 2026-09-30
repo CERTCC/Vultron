@@ -59,7 +59,7 @@ from test.ci.invariants.common import (
 )
 
 
-def make_universal_invariant_tests(  # noqa: C901
+def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested test closure; each is simple
     replicas_fixture: str,
     chain_actors: list,
     expected_event_types: list,
