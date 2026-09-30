@@ -69,7 +69,7 @@ def trigger_engage_case(
     with domain_error_translation():
         result = svc.engage_case(actor_id, body.case_id)
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -101,7 +101,7 @@ def trigger_defer_case(
     with domain_error_translation():
         result = svc.defer_case(actor_id, body.case_id)
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -138,7 +138,7 @@ def trigger_add_object_to_case(
             object_id=body.object_id,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -176,7 +176,7 @@ def trigger_create_case(
             to=body.to,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()
 
 
 @router.post(
@@ -210,4 +210,4 @@ def trigger_add_report_to_case(
             report_id=body.report_id,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return result.model_dump()

@@ -22,6 +22,7 @@ one-module-per-use-case while preserving existing imports such as:
 """
 
 from vultron.core.use_cases.triggers._base import (
+    SvcActivityTriggerBase,
     SvcBTTriggerBase,
     SvcEmbargoTriggerBase,
 )
@@ -47,6 +48,7 @@ __all__ = [
     "ProposeEmbargoTriggerRequest",
     "RejectEmbargoTriggerRequest",
     "SvcAcceptEmbargoUseCase",
+    "SvcActivityTriggerBase",
     "SvcBTTriggerBase",
     "SvcEmbargoTriggerBase",
     "SvcEvaluateEmbargoUseCase",

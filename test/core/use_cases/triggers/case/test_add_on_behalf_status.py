@@ -117,7 +117,7 @@ class TestAddOnBehalfStatusVtoV:
             self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
         ).execute()
 
-        assert result.get("status_id") is not None
+        assert result.status_id is not None
 
         # Vendor now has a CaseParticipant in the case
         updated_case = self.dl.read_case(self.case.id_)

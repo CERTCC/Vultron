@@ -21,6 +21,7 @@ import py_trees.behaviour
 from vultron.core.behaviors.case.create_case_trigger_tree import (
     create_case_trigger_bt,
 )
+from vultron.core.models.use_case_result import CaseResult
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import resolve_actor
 from vultron.core.use_cases.triggers.requests import CreateCaseTriggerRequest
@@ -29,7 +30,7 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 logger = logging.getLogger(__name__)
 
 
-class SvcCreateCaseUseCase(SvcBTTriggerBase):
+class SvcCreateCaseUseCase(SvcBTTriggerBase[CaseResult]):
     """Create a new VulnerabilityCase and emit a CreateCaseActivity.
 
     The actor creates a local case and queues the activity for delivery to
@@ -87,7 +88,8 @@ class SvcCreateCaseUseCase(SvcBTTriggerBase):
             activity.get("id") if isinstance(activity, dict) else None,
         )
 
-    def execute(self) -> dict:
-        result = super().execute()
-        result["case_id"] = self._captured.get("case_id")
-        return result
+    def _build_result(self) -> CaseResult:
+        """The activity body plus the id of the case the tree created."""
+        return CaseResult(
+            **self._activity_fields(), case_id=self._captured.get("case_id")
+        )

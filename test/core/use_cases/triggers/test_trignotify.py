@@ -24,6 +24,11 @@ from typing import Any
 
 import pytest
 
+from vultron.core.models.use_case_result import (
+    ActivityResult,
+    OfferResult,
+    TriggerResult,
+)
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -204,13 +209,13 @@ def _make_two_actor_case(
     return case
 
 
-def _new_outbox_activity(vendor, vendor_dl, result: dict):
+def _new_outbox_activity(vendor, vendor_dl, result: TriggerResult):
     """Return the first new activity added to vendor's outbox during execute()."""
     activity_id = None
-    if "activity" in result and result["activity"]:
-        activity_id = result["activity"].get("id")
-    if activity_id is None and "offer" in result:
-        activity_id = result["offer"].get("id")
+    if isinstance(result, ActivityResult) and result.activity:
+        activity_id = result.activity.get("id")
+    elif isinstance(result, OfferResult) and result.offer:
+        activity_id = result.offer.get("id")
     if activity_id is None:
         return None, None
     obj = vendor_dl.read(activity_id)
@@ -327,7 +332,8 @@ class TestCaseTriggerToField:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        act_obj = self.dl.read(result["activity_id"])
+        assert result.activity_id is not None
+        act_obj = self.dl.read(result.activity_id)
         recipients = _to_field(act_obj)
 
         assert recipients is not None

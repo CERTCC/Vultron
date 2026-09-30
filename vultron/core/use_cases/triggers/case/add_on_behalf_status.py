@@ -22,6 +22,7 @@ from vultron.core.behaviors.case.add_on_behalf_status_trigger_tree import (
     add_on_behalf_status_trigger_bt,
 )
 from vultron.core.states.cs import CS_d, CS_vf
+from vultron.core.models.use_case_result import StatusResult
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
@@ -35,7 +36,7 @@ from vultron.enums.roles import CVDRole
 logger = logging.getLogger(__name__)
 
 
-class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase):
+class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase[StatusResult]):
     """Assert v→V or d→D on behalf of a notified-but-not-joined vendor/deployer.
 
     The ``actor_id`` in the request is the *asserting* actor (Case Manager or
@@ -107,9 +108,9 @@ class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase):
             self._case_id,
         )
 
-    def execute(self) -> dict[str, Any]:
-        super().execute()
-        return {
-            "activity_id": self._result_out.get("activity_id"),
-            "status_id": self._result_out.get("status_id"),
-        }
+    def _build_result(self) -> StatusResult:
+        """The ids of the ``Add(ParticipantStatus)`` activity and the record."""
+        return StatusResult(
+            activity_id=self._output_id("activity_id"),
+            status_id=self._output_id("status_id"),
+        )

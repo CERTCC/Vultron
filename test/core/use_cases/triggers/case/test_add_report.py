@@ -23,6 +23,7 @@ Spec: specs/triggerable-behaviors.yaml TRIG-10-002.
 
 import pytest
 
+from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -115,9 +116,7 @@ class TestSvcAddReportToCaseUseCase:
         ), "Activity should be queued in actor's outbox"
 
         # Verify result contains activity
-        assert "activity" in result, "Result should contain 'activity' key"
-        activity_dict = result["activity"]
-        assert activity_dict is not None
+        activity_dict = activity_of(result)
         assert activity_dict.get("type") == "Add"
 
     def test_add_report_to_case_outbox_activity_to_field(self):
@@ -241,8 +240,7 @@ class TestSvcAddReportToCaseUseCase:
         ).execute()
 
         # Verify activity ID is in result
-        assert "activity" in result
-        activity_dict = result["activity"]
+        activity_dict = activity_of(result)
         activity_id = activity_dict.get("id")
         assert activity_id is not None
 
@@ -273,8 +271,7 @@ class TestSvcAddReportToCaseUseCase:
         ).execute()
 
         # Verify the result structure (should match SvcAddObjectToCaseUseCase result)
-        assert "activity" in result
-        activity_dict = result["activity"]
+        activity_dict = activity_of(result)
         assert activity_dict.get("type") == "Add"
 
     def test_add_multiple_reports_to_case(self):
@@ -319,5 +316,5 @@ class TestSvcAddReportToCaseUseCase:
         assert len(items) == 2, "Both activities should be queued"
 
         # Verify result contains activities
-        assert "activity" in result1
-        assert "activity" in result2
+        assert result1.activity is not None
+        assert result2.activity is not None

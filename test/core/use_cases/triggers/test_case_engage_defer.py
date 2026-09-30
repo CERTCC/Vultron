@@ -312,7 +312,7 @@ class TestAddNoteToCaseViaBT:
 
         # The returned note should be non-None (BT created it)
         assert (
-            result.get("note") is not None
+            result.note is not None
         ), "Expected note dict in result after BT-driven creation"
 
         # The case's notes list should contain the new note id
@@ -337,6 +337,4 @@ class TestAddNoteToCaseViaBT:
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        assert (
-            result.get("activity") is not None
-        ), "Expected activity dict in result"
+        assert result.activity is not None, "Expected activity dict in result"

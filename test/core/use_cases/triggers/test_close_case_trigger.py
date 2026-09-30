@@ -29,6 +29,7 @@ CASE_OWNER, causing execute() to raise VultronBTError.
 
 import pytest
 
+from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -174,7 +175,7 @@ class TestSvcCloseCaseUseCase:
 
     @pytest.mark.spec("TRIG-07-001")
     def test_close_case_returns_activity_dict(self):
-        """execute() returns result['activity'] as Reject(Offer) dict (DL-06-001)."""
+        """execute() returns result.activity as Reject(Offer) dict (DL-06-001)."""
         self._seed_accepted()
         request = CloseReportTriggerRequest(
             actor_id=self.vendor.id_,
@@ -185,8 +186,8 @@ class TestSvcCloseCaseUseCase:
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
-        assert result.get("activity") is not None
-        assert result["activity"].get("type") == "Reject"
+        assert result.activity is not None
+        assert activity_of(result).get("type") == "Reject"
 
     @pytest.mark.spec("TRIG-07-001")
     @pytest.mark.spec("TRIG-02-001")
