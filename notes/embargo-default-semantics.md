@@ -256,7 +256,7 @@ The registration alone is not enough, and for two reasons that #3863 surfaced
 owner's default earliest-expiring selection (EP-08-002) could not even name the
 revision. Second, nobody but the CASE_MANAGER knew it existed. The creation-time
 revision is a revision like any other and follows the relay in
-`embargo-lifecycle.md` § "Revision Negotiation Relays Through the CASE_MANAGER":
+`embargo-lifecycle.md` § "Embargo Negotiation Relays Through the CASE_MANAGER":
 the CASE_MANAGER proposes it *on behalf of the party whose terms lost*
 (`initial_embargo_duration.source` on the blackboard says which), attributes it
 to that party, commits it as a proposal entry, indexes it, and relays it as an

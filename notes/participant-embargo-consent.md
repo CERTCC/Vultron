@@ -9,12 +9,14 @@ related_specs:
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
   - specs/message-semantics-mapping.yaml
+  - specs/protocol-asks.yaml
 related_notes:
   - notes/stub-objects.md
   - notes/embargo-lifecycle.md
   - notes/embargo-default-semantics.md
   - notes/case-communication-model.md
   - notes/message-type-reference.md
+  - notes/protocol-asks.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -310,16 +312,20 @@ Do not introduce a second timeout notion — they will drift.
 - The timeout is a **configurable policy option** (per-case or global setting)
 - Enforcement authority is the CASE_MANAGER (CM-28-003)
 - The deadline is stored on the **invited participant's** record
-  (`CaseParticipant.invite_rsvp_deadline`), and `detect_and_apply_lapse()`
-  reads the record of the actor whose lapse is being evaluated. Those two must
-  name the same participant or enforcement silently never fires — see
-  "Whose record holds the deadline" below
-- Enforcement is **lazy**, not scheduled: lapse is derived from
-  `(end_time, now)` whenever PEC state is read or an inbound `Accept`/`Reject`
-  is processed. No scheduler is required for correctness. The
-  `EmbargoTimerExpired` Sentinel (#1893) is an optional proactive accelerator
+  (`CaseParticipant.invite_rsvp_deadline`) by the CASE_MANAGER at its commit of
+  the relayed Invite, and reaches replicas by replay (CM-28-013);
+  `detect_and_apply_lapse()` reads the record of the actor whose lapse is being
+  evaluated. Those two must name the same participant or enforcement silently
+  never fires — see "Whose record holds the deadline" below
+- Enforcement is **lazy**, not scheduled, and it is the **CASE_MANAGER's alone**
+  (CM-28-014): lapse is derived from `(end_time, now)` whenever PEC state is
+  read or an inbound `Accept`/`Reject` is processed at the manager. No scheduler
+  is required for correctness. The `EmbargoTimerExpired` Sentinel (#1893) is an
+  optional proactive accelerator
 - When a lapse is detected, the CASE_MANAGER records the `DECLINE` transition and
-  authors a ledger entry distinguishing it from an explicit refusal (CM-28-005)
+  authors a ledger entry distinguishing it from an explicit refusal (CM-28-005);
+  the entry is role-gated and replayed, so a replica learns a lapse and never
+  computes one
 
 > **Provenance note**: the header of this file cites
 > `archived_notes/demo-review-26042001.md` as a source. The term "pocket veto"
@@ -365,18 +371,23 @@ needed to add this.
 
 ### Whose record holds the deadline
 
-*Source: ISSUE-2762.*
+*Source: ISSUE-2762; revised for #3918 (ADR-0113).*
 
 The RSVP deadline and the `PEC_Trigger.INVITE` transition both belong to the
 **invited participant** — the actor the `Invite` names in `to:` — not to
-whichever actor's replica happens to be processing the message.
-`_store_invite_deadline()` writes `invite_rsvp_deadline` on the participant
-record found via `case.actor_participant_index[invitee_id]`, and
-`EmbargoLifecycle.detect_and_apply_lapse()` later reads the record of the actor
-whose lapse it is evaluating. If the write and the read name different
-participants, enforcement cannot fire and nothing raises: the invitee has no
-deadline to lapse against, and the record that *did* receive one is not the one
-being checked.
+whichever actor's replica happens to be processing the message. Under the relay
+the deadline is set once: the CASE_MANAGER stamps `Invite.end_time` on each
+relayed Invite as its `published` plus the configured window (CM-28-012), and
+writes `invite_rsvp_deadline` on the invitee's record at its commit of that
+emission; the replica apply node writes the same value (CM-28-013). A
+participant that receives an Invite stores it and derives nothing (EP-09-003).
+Before the relay, no trigger set `end_time`, so every receiving store fell to
+the EP-07-001 fallback and derived its own deadline from its own `ActorConfig` —
+two replicas could disagree about when one invitation closed.
+`EmbargoLifecycle.detect_and_apply_lapse()` reads the record of the actor whose
+lapse it is evaluating. If the write and the read name different participants,
+enforcement cannot fire and nothing raises: the invitee has no deadline to lapse
+against, and the record that *did* receive one is not the one being checked.
 
 The failure is silent in both directions, which is why it survived for a
 release: `OptionalLookupParticipantNode` is lenient by design and
@@ -386,11 +397,14 @@ expiry, so deriving the invitee from the receiving actor puts the deadline on
 the enforcer's own record and disarms exactly the actor responsible for acting
 on it.
 
-Resolve the invitee by addressee membership rather than by position —
-`resolve_invitee_id()` in `vultron/core/use_cases/received/embargo.py` — so a
-multi-recipient `Invite` is correct in every recipient's replica instead of
-only the first one's. See also `notes/bt-integration.md` § "The message subject
-is a fourth identity, and it must stay separate".
+The invitee is the Invite's **sole** `to:` recipient (EP-09-010). Every emitter
+sends a single-recipient Invite — a participant to the CASE_MANAGER, the
+CASE_MANAGER to one participant per relayed Invite — so the multi-recipient
+resolution `resolve_invitee_id()` once carried was built for a shape nothing
+emits, and its fallback to the receiving actor put the deadline on the
+enforcer's own record. An Invite with no recipient or several is refused as a
+misrouting, never guessed at. See also `notes/bt-integration.md` § "The message
+subject is a fourth identity, and it must stay separate".
 
 ### It Is an `Invite`, Not an `Offer`
 
