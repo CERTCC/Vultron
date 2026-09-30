@@ -211,7 +211,7 @@ def cs_transition_event(src: CS, dst: CS) -> CSEvent | None:
     """
     changed = [
         event
-        for event, before, after in zip(CS_EVENTS, src.name, dst.name)
+        for event, before, after in zip(CS_EVENTS, src.name, dst.name, strict=False)
         if before != after
     ]
     if len(changed) != 1:

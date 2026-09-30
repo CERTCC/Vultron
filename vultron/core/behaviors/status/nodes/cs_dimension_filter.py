@@ -392,7 +392,7 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
                 "fields": {
                     key: getattr(filtered, field).state.name
                     for key, field in zip(
-                        CASE_STATUS_PATCH_KEYS, CASE_STATUS_PATCH_FIELDS
+                        CASE_STATUS_PATCH_KEYS, CASE_STATUS_PATCH_FIELDS, strict=False
                     )
                 },
             },

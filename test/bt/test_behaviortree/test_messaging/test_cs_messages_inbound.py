@@ -100,7 +100,7 @@ class MyTestCase(unittest.TestCase):
         """
         for expect_success_on, cls in zip(
             [Mt.CV, Mt.CF, Mt.CD],
-            [vmc._HandleCv, vmc._HandleCf, vmc._HandleCd],
+            [vmc._HandleCv, vmc._HandleCf, vmc._HandleCd], strict=False,
         ):
             for msg_type, q_cs in product(Mt, CS):
                 with self.subTest(

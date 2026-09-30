@@ -110,7 +110,7 @@ def _diffstate(s1, s2):
     except TransitionValidationError:
         return None
 
-    diff = [(c1, c2) for c1, c2 in zip(s1, s2) if c1 != c2]
+    diff = [(c1, c2) for c1, c2 in zip(s1, s2, strict=False) if c1 != c2]
     c1, c2 = diff[0]
 
     assert c1.upper() == c2.upper()

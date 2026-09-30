@@ -191,7 +191,7 @@ class MyTestCase(unittest.TestCase):
         # all single char changes from valid state to valid state are ok
         for a, b in product(ok_states, ok_states):
             diff = []
-            for c1, c2 in zip(a, b):
+            for c1, c2 in zip(a, b, strict=False):
                 if c1 != c2:
                     diff.append((c1, c2))
             if len(diff) == 1:

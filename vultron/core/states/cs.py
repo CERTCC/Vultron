@@ -369,7 +369,7 @@ def state_string_to_enum2(
     ]
 
     resolved_enums = []
-    for value, enum in zip(s, enums):
+    for value, enum in zip(s, enums, strict=False):
         resolved_enums.append(enum[value])
 
     return tuple(resolved_enums)
@@ -630,7 +630,7 @@ def _is_monotonic_forward(
     if source == dest:
         return False
     return not any(
-        _is_component_regression(s, d) for s, d in zip(source, dest)
+        _is_component_regression(s, d) for s, d in zip(source, dest, strict=False)
     )
 
 

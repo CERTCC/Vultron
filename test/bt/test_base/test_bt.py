@@ -133,7 +133,7 @@ class MyTestCase(unittest.TestCase):
         parent.add_children()
         self.assertEqual(n, len(parent.children))
 
-        for child_cls, child_inst in zip(children, parent.children):
+        for child_cls, child_inst in zip(children, parent.children, strict=False):
             self.assertIsInstance(child_inst, child_cls)
             self.assertEqual(child_inst.indent_level, parent.indent_level + 1)
 

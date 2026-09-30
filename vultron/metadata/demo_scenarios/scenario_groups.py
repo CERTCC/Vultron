@@ -247,7 +247,7 @@ def planned_scenarios(root: Path | None = None) -> tuple[PlannedScenario, ...]:
             issues=tuple(_ISSUE_RE.findall(issue)),
             spec_ids=tuple(SPEC_ID_RE.findall(ids)),
         )
-        for name, issue, ids in zip(names, issues, spec_ids)
+        for name, issue, ids in zip(names, issues, spec_ids, strict=False)
     )
 
 

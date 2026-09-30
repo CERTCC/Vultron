@@ -133,7 +133,7 @@ def test_stochastic_child_is_correct_fuzzer_node(index, cls):
     assert isinstance(unwrap_call_out(tree.children[index]), cls)
 
 
-@pytest.mark.parametrize("field,index", list(zip(_FACTORY_FIELDS, range(10))))
+@pytest.mark.parametrize("field,index", list(zip(_FACTORY_FIELDS, range(10), strict=False)))
 def test_each_factory_is_wired(field, index):
     """Each factory field in a bundle is individually wired into the corresponding child."""
     label = f"Custom_{index}"

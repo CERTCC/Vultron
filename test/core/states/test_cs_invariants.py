@@ -82,7 +82,7 @@ def _all_candidate_state_strings() -> list[str]:
         combos.append(
             "".join(
                 letter.upper() if bit == "1" else letter
-                for letter, bit in zip("vfdpxa", bits)
+                for letter, bit in zip("vfdpxa", bits, strict=False)
             )
         )
     return combos
@@ -372,7 +372,7 @@ def test_transitions_are_monotone():
     """No transition ever un-sets a bit; CS events are irreversible."""
     for src in CS:
         for dst in next_cs_states(src):
-            for before, after in zip(src.name, dst.name):
+            for before, after in zip(src.name, dst.name, strict=False):
                 assert not (before.isupper() and after.islower())
 
 

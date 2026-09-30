@@ -71,7 +71,7 @@ def is_valid_pattern(pat: str) -> None:
     if not len(pat) == 6:
         raise PatternValidationError(f"Invalid Pattern [{pat}]")
 
-    for p, c in zip(pat.lower(), "vfdpxa"):
+    for p, c in zip(pat.lower(), "vfdpxa", strict=False):
         if p == c:
             continue
         # if you got here, the chars don't match
@@ -266,7 +266,7 @@ def _ensure_transition_state(state: str) -> None:
 
 
 def _transition_diff(src: str, dst: str) -> list[tuple[str, str]]:
-    return [(c1, c2) for c1, c2 in zip(src, dst) if c1 != c2]
+    return [(c1, c2) for c1, c2 in zip(src, dst, strict=False) if c1 != c2]
 
 
 def _validate_transition_case(diff: tuple[str, str]) -> None:

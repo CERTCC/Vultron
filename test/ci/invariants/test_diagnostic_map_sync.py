@@ -206,7 +206,7 @@ def _map_rows() -> Mapping[str, str]:
 
     rows: dict[str, str] = {}
     for name, status in zip(
-        table.column("Test function"), table.column("Status")
+        table.column("Test function"), table.column("Status"), strict=False
     ):
         # The function-name pattern is deliberately wider than
         # ``test_invariant_*``: three rows are named for a spec clause or a

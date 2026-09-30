@@ -59,7 +59,7 @@ class MyTestCase(unittest.TestCase):
 
             # only one character should be different
             self.assertNotEqual(s1, s2)
-            diff = [x for x in zip(s1, s2) if x[0] != x[1]]
+            diff = [x for x in zip(s1, s2, strict=False) if x[0] != x[1]]
             self.assertEqual(len(diff), 1)
 
             # and it should be a lower to upper case transition

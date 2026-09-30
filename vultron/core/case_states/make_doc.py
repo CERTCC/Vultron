@@ -102,7 +102,7 @@ def _write_path_links(fp, paths, sg) -> None:
         transitions = sg.transitions_in_path(path)
         links = [
             f"[**{t}**]({_fname(end)})"
-            for t, (_start, end) in zip(transitions, path)
+            for t, (_start, end) in zip(transitions, path, strict=False)
         ]
         fp.write(_bullet(" &rarr; ".join(links)))
 

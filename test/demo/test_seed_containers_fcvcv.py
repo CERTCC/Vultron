@@ -156,5 +156,5 @@ class TestSeedContainersFcvcv:
         )
         first = seed_containers_fcvcv(**shared_kwargs)  # type: ignore[arg-type]
         second = seed_containers_fcvcv(**shared_kwargs)  # type: ignore[arg-type]
-        for a, b in zip(first, second):
+        for a, b in zip(first, second, strict=False):
             assert a.id_ == b.id_

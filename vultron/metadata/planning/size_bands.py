@@ -143,7 +143,7 @@ def _floors(
     """
     floors: dict[str, int] = {}
     previous: int | None = None
-    for label, ceiling in zip(labels, ceilings):
+    for label, ceiling in zip(labels, ceilings, strict=False):
         floors[label] = 0 if previous is None else previous + 1
         if ceiling is not None:
             previous = ceiling
