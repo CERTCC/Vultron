@@ -12,8 +12,13 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""terminate_active_embargo — EM to EXITED, active embargo cleared, PEC reset
-(activation.py)."""
+"""terminate_active_embargo and activate_embargo (activation.py).
+
+Termination: EM to EXITED, active embargo cleared, every open proposal
+forgotten (EP-08-004), PEC reset.  Activation: EM to ACTIVE, the proposal
+that carried the embargo decided (EP-08-003), and — when it replaces an
+embargo already in force — the EP-05-001 consent re-evaluation.
+"""
 
 from typing import cast
 
@@ -32,9 +37,12 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 
 from .conftest import (
+    _accepted_ids_of,
     _make_actor,
     _make_case,
     _make_embargo,
+    _pec_of,
+    _seed_consent,
 )
 
 
@@ -188,14 +196,6 @@ def test_terminate_active_embargo_observed_invalid_no_raise(
     assert result.em_after == EM.EXITED
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "EP-08-004: termination prunes only the terminated embargo's own "
-        "entry and leaves open revisions of it in both records. Tracked by "
-        "#3914 (Concern #3836, ADR-0113)."
-    ),
-)
 @pytest.mark.spec("EP-08-004")
 def test_terminate_clears_every_open_revision_of_the_terminated_embargo(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
@@ -227,3 +227,133 @@ def test_terminate_clears_every_open_revision_of_the_terminated_embargo(
     assert torn_down.active_embargo is None
     assert torn_down.proposed_embargoes == []
     assert torn_down.pending_embargo_proposal_index == {}
+
+
+@pytest.mark.spec("EP-08-004")
+def test_terminate_in_observed_mode_clears_every_open_revision_too(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The replica path: the teardown replay node runs this in OBSERVED mode.
+
+    ``ClearActiveEmbargoNode`` / ``ApplyEmbargoTeardownNode`` call
+    ``terminate_active_embargo(transition_mode=OBSERVED)``, so the rule that
+    termination decides every open proposal holds on every replica with no
+    node of its own — this pins that the mode makes no difference.
+    """
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.ACTIVE)
+    active = _make_embargo(dl, case.id_)
+    revision_a = _make_embargo(dl, case.id_, days=60)
+    revision_b = _make_embargo(dl, case.id_, days=90)
+    case.active_embargo = active.id_
+    case.proposed_embargoes = [revision_a.id_, revision_b.id_]
+    case.pending_embargo_proposal_index = {
+        revision_a.id_: f"{case.id_}/embargo_proposals/a",
+        revision_b.id_: f"{case.id_}/embargo_proposals/b",
+    }
+    dl.save(case)
+
+    result = EmbargoLifecycle(persistence=dl).terminate_active_embargo(
+        case_id=case.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert result.em_after == EM.EXITED
+    torn_down = cast(VulnerabilityCase, dl.read(case.id_))
+    assert torn_down.active_embargo is None
+    assert torn_down.proposed_embargoes == []
+    assert torn_down.pending_embargo_proposal_index == {}
+
+
+@pytest.mark.spec("EP-05-001")
+@pytest.mark.spec("MSM-07-005")
+def test_activate_embargo_replacing_a_longer_one_carries_signatories_over(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """``activate_embargo`` runs the same cascade as the owner's accept (shorter arm)."""
+    owner, dl = owner_and_dl
+    signer = _make_actor(dl, "Signer")
+    case, (owner_p, signer_p) = _make_case(
+        dl, owner.id_, extra_participant_ids=[signer.id_], em_state=EM.REVISE
+    )
+    active = _make_embargo(dl, case.id_)
+    revision = _make_embargo(dl, case.id_, days=30)
+    case.active_embargo = active.id_
+    case.proposed_embargoes = [revision.id_]
+    dl.save(case)
+    _seed_consent(dl, owner_p.id_, PEC.SIGNATORY, [active.id_])
+    _seed_consent(dl, signer_p.id_, PEC.SIGNATORY, [active.id_])
+
+    result = EmbargoLifecycle(persistence=dl).activate_embargo(
+        case_id=case.id_, embargo_id=revision.id_, actor_id=owner.id_
+    )
+
+    assert result.em_after == EM.ACTIVE
+    assert result.participant_changes == []
+    for pid in (owner_p.id_, signer_p.id_):
+        assert _pec_of(dl, pid) == PEC.SIGNATORY.value
+        assert _accepted_ids_of(dl, pid) == [active.id_, revision.id_]
+
+
+@pytest.mark.spec("EP-05-001")
+@pytest.mark.spec("MSM-07-005")
+def test_activate_embargo_replacing_a_shorter_one_lapses_non_acceptors(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """``activate_embargo`` (longer arm, OBSERVED — a replica syncing an Add)."""
+    owner, dl = owner_and_dl
+    signer = _make_actor(dl, "Signer")
+    acceptor = _make_actor(dl, "Acceptor")
+    case, (owner_p, signer_p, acceptor_p) = _make_case(
+        dl,
+        owner.id_,
+        extra_participant_ids=[signer.id_, acceptor.id_],
+        em_state=EM.REVISE,
+    )
+    active = _make_embargo(dl, case.id_)
+    revision = _make_embargo(dl, case.id_, days=90)
+    case.active_embargo = active.id_
+    case.proposed_embargoes = [revision.id_]
+    dl.save(case)
+    _seed_consent(dl, owner_p.id_, PEC.SIGNATORY, [active.id_, revision.id_])
+    _seed_consent(dl, signer_p.id_, PEC.SIGNATORY, [active.id_])
+    _seed_consent(
+        dl, acceptor_p.id_, PEC.SIGNATORY, [active.id_, revision.id_]
+    )
+
+    result = EmbargoLifecycle(persistence=dl).activate_embargo(
+        case_id=case.id_,
+        embargo_id=revision.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert result.em_after == EM.ACTIVE
+    assert [
+        (c.participant_id, c.pec_after) for c in result.participant_changes
+    ] == [(signer_p.id_, PEC.LAPSED.value)]
+    assert _pec_of(dl, owner_p.id_) == PEC.SIGNATORY.value
+    assert _pec_of(dl, acceptor_p.id_) == PEC.SIGNATORY.value
+    assert _pec_of(dl, signer_p.id_) == PEC.LAPSED.value
+
+
+def test_activate_embargo_first_activation_re_evaluates_nobody(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """PROPOSED → ACTIVE replaces nothing, so there is no A to compare B against."""
+    owner, dl = owner_and_dl
+    signer = _make_actor(dl, "Signer")
+    case, (_owner_p, signer_p) = _make_case(
+        dl, owner.id_, extra_participant_ids=[signer.id_], em_state=EM.PROPOSED
+    )
+    embargo = _make_embargo(dl, case.id_)
+    _seed_consent(dl, signer_p.id_, PEC.INVITED, [])
+
+    result = EmbargoLifecycle(persistence=dl).activate_embargo(
+        case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+    )
+
+    assert result.em_after == EM.ACTIVE
+    assert result.participant_changes == []
+    assert _pec_of(dl, signer_p.id_) == PEC.INVITED.value

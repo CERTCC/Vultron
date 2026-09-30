@@ -52,8 +52,8 @@ from vultron.core.behaviors.embargo.nodes import (
     IsActiveEmbargoNode,
     OptionalLookupParticipantNode,
     RecordParticipantAcceptanceNode,
+    RecordParticipantRejectionNode,
     RemoveFromProposedEmbargoesNode,
-    RemoveStaleAcceptanceNode,
     ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
     SetEmbargoActiveNode,
@@ -280,48 +280,53 @@ def reject_invite_to_embargo_tree(
     invite_id: str,
     embargo_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
-    """Create the BT for rejecting embargo invitation (protocol EA).
+    """Create the BT for rejecting embargo invitation (protocol ER / EJ).
 
-    Handles receipt of a ``Reject(InviteToEmbargoOnCase)`` activity.
-    Optionally looks up the rejecting participant (skips silently if
-    case/participant not found), removes any stale embargo acceptance
-    (pocket-veto), advances their PEC state to DECLINED, and commits
-    a canonical ledger entry.  When the rejecting actor is the case owner
-    the Reject *decides* the proposal, so this replica also forgets it as
-    an open proposal (EP-08-003) — the received Accept path prunes through
-    ``accept_embargo_invite`` and the Reject path must not lag it, or a
-    later default selection here would still see the rejected terms.
+    Handles receipt of a ``Reject(InviteToEmbargoOnCase)`` activity.  Records
+    the rejecting participant's consent through
+    :class:`RecordParticipantRejectionNode`, which applies the same
+    MSM-07-004 rule as ``EmbargoLifecycle.reject_embargo_invite`` (ADR-0093):
+    a Reject naming the case's *active* embargo is consent withdrawal
+    (``DECLINE`` from any state, ``SIGNATORY`` included); one naming a
+    *proposed* embargo drops the id from ``accepted_embargo_ids`` and
+    declines only a participant not yet ``SIGNATORY``; the owner's EJ changes
+    nobody's record.  When the rejecting actor is the case owner the Reject
+    *decides* the proposal, so this replica also forgets it as an open
+    proposal (EP-08-003) — the received Accept path prunes through
+    ``accept_embargo_invite`` and the Reject path must not lag it, or a later
+    default selection here would still see the rejected terms.
 
-    BT always returns SUCCESS (best-effort operations).
-    Always commits the ledger entry regardless of BT result.
+    Without an ``embargo_id`` the Reject names no terms to refuse, so the
+    tree records nothing: it stores and commits receipt only.
+
+    Commits the ledger entry before the effects (CLP-10-006); a Reject naming
+    an embargo the case knows nothing about fails the effect, so the handler
+    reports a refusal.
 
     Args:
         case_id: ID of the VulnerabilityCase.
         rejecting_actor_id: Actor ID of the participant rejecting.
         invite_id: ID of the InviteToEmbargoOnCase activity.
-        embargo_id: ID of the EmbargoEvent (optional, for pocket-veto).
+        embargo_id: ID of the EmbargoEvent the Reject names.
 
     Returns:
         Root node of the ``RejectInviteToEmbargoBT`` Sequence.
     """
-    effect_nodes: list[py_trees.behaviour.Behaviour] = [
-        # The DECLINE belongs to the actor who rejected, not to whoever's
-        # replica this is: a Reject routes through the CaseActor (PCR-08), so
-        # leaving target_actor_id unset made the node fall back to the BT
-        # execution actor and decline the CaseActor's own consent instead.
-        OptionalLookupParticipantNode(
-            case_id=case_id, target_actor_id=rejecting_actor_id
-        ),
-        UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.DECLINE),
-    ]
+    effect_nodes: list[py_trees.behaviour.Behaviour] = []
     if embargo_id is not None:
-        # Only attempt pocket-veto removal when we know which embargo to check.
-        effect_nodes.insert(
-            1, RemoveStaleAcceptanceNode(embargo_id=embargo_id)
+        effect_nodes.append(
+            # The consent belongs to the actor who rejected, not to whoever's
+            # replica this is: a Reject routes through the CASE_MANAGER
+            # (PCR-08), so recording against the BT execution actor would
+            # decline the manager's own consent instead.
+            RecordParticipantRejectionNode(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                rejecting_actor_id=rejecting_actor_id,
+            )
         )
         # The owner's Reject decides the proposal; a participant's is consent
-        # and prunes nothing (EP-08-003, #3470).  Last, so the DECLINE above
-        # is recorded whatever this node finds.
+        # and prunes nothing (EP-08-003, #3470).
         effect_nodes.append(
             RemoveFromProposedEmbargoesNode(
                 case_id=case_id,

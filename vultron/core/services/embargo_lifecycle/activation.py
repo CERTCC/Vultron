@@ -15,8 +15,9 @@
 
 Both operate on ``case.active_embargo`` directly rather than answering an
 invite — activation is the owner's atomic accept at case creation
-(EP-04-002), termination is the ``ET`` teardown that also resets every
-participant's consent.
+(EP-04-002) or a replica's sync of an announced activation, termination is
+the ``ET`` teardown that also resets every participant's consent and decides
+every open proposal (EP-08-004).
 """
 
 import logging
@@ -28,6 +29,7 @@ from vultron.core.services.embargo_lifecycle.pec import (
 )
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
+    ParticipantPECChange,
     TransitionMode,
 )
 from vultron.core.states.em import EM, EM_Trigger
@@ -50,8 +52,13 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
         """Terminate the active embargo on a case.
 
         Drives ``ACTIVE → EXITED`` (or ``REVISE → EXITED``), clears
-        ``case.active_embargo``, and resets all participants' PEC state to
-        ``UNBOUND`` via :meth:`_cascade_pec_reset`.
+        ``case.active_embargo``, forgets **every** open proposal in both
+        records (EP-08-004, ADR-0113: one active embargo makes every open
+        proposal a revision of it, and a revision of an embargo that no
+        longer exists cannot be accepted), and resets all participants' PEC
+        state to ``UNBOUND`` via :meth:`_cascade_pec_reset`.  The teardown
+        replay node runs this in ``OBSERVED`` mode, so the rule holds on
+        every replica.
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
@@ -94,9 +101,9 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
 
         case.current_status.em = EmDimension(state=em_after)
         case.active_embargo = None
-        if embargo_id is not None:
-            # A torn-down embargo is no longer an open proposal (EP-08-003).
-            case.discard_proposed_embargo(embargo_id)
+        # Termination decides every open proposal, not only the terminated
+        # embargo's own entry (EP-08-004).
+        case.discard_all_proposed_embargoes()
 
         participant_changes = self._cascade_pec_reset(case)
 
@@ -135,6 +142,15 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
         mode only PROPOSED and REVISE are valid sources.  In ``OBSERVED`` mode
         the transition is applied unconditionally (state-sync override).
 
+        When this replaces an active embargo A with *embargo_id* (B), every
+        participant's consent is re-evaluated against B (EP-05-001,
+        MSM-07-005) exactly as the owner's ``accept_embargo_invite`` does:
+        a shorter-or-equal B carries every signatory over, a longer B lapses
+        the signatories whose ``accepted_embargo_ids`` lack it, and a
+        non-signatory that already holds B becomes ``SIGNATORY``.  The
+        cascade runs in both modes, so a replica syncing an announced
+        activation keeps its consent records in step with the CASE_MANAGER.
+
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
             embargo_id: ID of the ``EmbargoEvent`` to set as active.
@@ -145,7 +161,9 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
             :class:`EmbargoLifecycleResult` describing what changed.
 
         Raises:
-            VultronNotFoundError: If *case_id* does not resolve to a case.
+            VultronNotFoundError: If *case_id* does not resolve to a case, or
+                the embargo being replaced cannot be read for the EP-05-001
+                comparison.
             VultronInvalidStateTransitionError: In ``STRICT`` mode, if the EM
                 state does not allow an ACCEPT trigger (valid sources: PROPOSED,
                 REVISE).
@@ -153,6 +171,7 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
         case = self._read_case(case_id)
 
         em_before = case.current_status.em.state
+        previous_embargo_id = case.active_embargo_id
 
         em_after = self._drive_em_transition(
             case_id=case_id,
@@ -170,6 +189,17 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
         case.discard_proposed_embargo(embargo_id)
         self._persistence.save(case)
 
+        participant_changes: list[ParticipantPECChange] = []
+        if (
+            previous_embargo_id is not None
+            and previous_embargo_id != embargo_id
+        ):
+            participant_changes = self._reevaluate_consent_at_activation(
+                case,
+                previous_embargo_id=previous_embargo_id,
+                revised_embargo_id=embargo_id,
+            )
+
         logger.info(
             "Actor '%s' activated embargo '%s' on case '%s' (EM %s → %s)",
             actor_id,
@@ -185,4 +215,5 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
             case_changed=True,
             case_embargo_changed=True,
             pec_reset=False,
+            participant_changes=participant_changes,
         )

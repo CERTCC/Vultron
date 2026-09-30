@@ -14,6 +14,7 @@
 compatibility (#2213)."""
 
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
 import pytest
 
@@ -24,7 +25,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
@@ -329,20 +330,34 @@ class TestInviteeIsTheAddressee:
         embargo_id: str,
         invitee_pec: PEC = PEC.UNBOUND,
         extra_actors: tuple[str, ...] = (),
+        *,
+        embargo_is: str = "proposed",
+        invitee_accepted: tuple[str, ...] = (),
     ):
         """Case with the coordinator as CASE_MANAGER and a separate invitee.
 
         ``extra_actors`` seeds additional VENDOR participants at
         ``PEC.UNBOUND``; their participant IDs are returned in a dict keyed
         by actor ID so multi-recipient tests can assert on them.
+
+        ``embargo_is`` places the embargo on the case: ``"proposed"`` (EM
+        PROPOSED, an open proposal), ``"active"`` (EM ACTIVE, the embargo
+        in force) or ``"unknown"`` (EM PROPOSED, the case has never seen
+        it).  ``invitee_accepted`` seeds the invitee's ``accepted_embargo_ids``.
         """
         case = VulnerabilityCase(
             id_=case_id, name="Addressee Test", attributed_to=_COORD
         )
-        case.append_case_status(em_state=EM.PROPOSED)
+        case.append_case_status(
+            em_state=EM.ACTIVE if embargo_is == "active" else EM.PROPOSED
+        )
         embargo = as_EmbargoEvent(
             id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
         )
+        if embargo_is == "active":
+            case.set_embargo(embargo_id)
+        elif embargo_is == "proposed":
+            case.proposed_embargoes = [embargo_id]
 
         coord_cp = WireCP(
             attributed_to=_COORD,
@@ -354,6 +369,7 @@ class TestInviteeIsTheAddressee:
             context=case_id,
             embargo_consent_state=invitee_pec,
             case_roles=[CVDRole.VENDOR],
+            accepted_embargo_ids=list(invitee_accepted),
         )
 
         dl.create(case)
@@ -702,38 +718,46 @@ class TestInviteeIsTheAddressee:
         from vultron.core.behaviors.embargo.announce_teardown_tree import (
             reject_invite_to_embargo_tree,
         )
-        from vultron.core.behaviors.embargo.nodes.conditions import (
-            OptionalLookupParticipantNode,
+        from vultron.core.behaviors.embargo.nodes.proposal import (
+            RecordParticipantRejectionNode,
         )
 
         tree = reject_invite_to_embargo_tree(
             case_id="https://example.org/cases/wiring",
             rejecting_actor_id=_INVITEE,
             invite_id="https://example.org/cases/wiring/proposals/p1",
-            embargo_id=None,
+            embargo_id="https://example.org/cases/wiring/embargos/e1",
         )
 
-        lookups = [
+        recorders = [
             node
             for node in tree.iterate()
-            if isinstance(node, OptionalLookupParticipantNode)
+            if isinstance(node, RecordParticipantRejectionNode)
         ]
-        assert lookups, "no OptionalLookupParticipantNode in the reject tree"
-        assert all(node.target_actor_id == _INVITEE for node in lookups)
+        assert (
+            recorders
+        ), "no RecordParticipantRejectionNode in the reject tree"
+        assert all(node.rejecting_actor_id == _INVITEE for node in recorders)
 
+    @pytest.mark.spec("MSM-07-004")
+    @pytest.mark.spec("CM-18-003")
     def test_reject_from_signatory_transitions_to_declined(self, make_payload):
-        """A SIGNATORY rejecting transitions to DECLINED (ADR-0093).
+        """A SIGNATORY rejecting the *active* embargo withdraws → DECLINED (ADR-0093).
 
-        ``DECLINE`` is now valid from ``SIGNATORY`` — the received side applies
-        the ``DECLINE`` PEC trigger directly, and the participant moves to
-        ``DECLINED``.  The case-level EM state is not changed (VP-13-009);
-        only the invitee's own consent record is updated.
+        ``DECLINE`` is valid from ``SIGNATORY``; the received side applies it
+        when the Reject names the embargo in force.  The case-level EM state
+        is not changed (VP-13-009); only the invitee's own consent record is.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee8"
         embargo_id = "https://example.org/cases/addressee8/embargos/e8"
         case, embargo, coord_p_id, invitee_p_id = self._seed_case(
-            dl, case_id, embargo_id, invitee_pec=PEC.SIGNATORY
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.SIGNATORY,
+            embargo_is="active",
+            invitee_accepted=(embargo_id,),
         )
 
         proposal = em_propose_embargo_activity(
@@ -759,9 +783,178 @@ class TestInviteeIsTheAddressee:
         # Invitee's consent withdrawal is recorded as DECLINED.
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.DECLINED
+        assert embargo_id not in invitee.accepted_embargo_ids
         # CASE_MANAGER's own PEC is unaffected.
         coord = self._read_participant(dl, coord_p_id)
         assert coord.embargo_consent_state == PEC.UNBOUND
+        assert (
+            cast(VulnerabilityCase, dl.read(case_id)).current_status.em.state
+            == EM.ACTIVE
+        )
+
+    @pytest.mark.spec("MSM-07-004")
+    def test_reject_of_a_proposed_revision_leaves_a_signatory_bound(
+        self, make_payload
+    ):
+        """The received tree applies the same rule as the trigger side.
+
+        A signatory to active embargo A rejecting proposed revision B refuses
+        B only: B leaves its list, its state stays SIGNATORY (ADR-0093), and
+        the handler reports the Reject as applied.
+        """
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/addressee10"
+        active_id = f"{case_id}/embargos/active"
+        case, active, coord_p_id, invitee_p_id = self._seed_case(
+            dl,
+            case_id,
+            active_id,
+            invitee_pec=PEC.SIGNATORY,
+            embargo_is="active",
+        )
+        revision = as_EmbargoEvent(
+            id_=f"{case_id}/embargos/revision",
+            context=case_id,
+            end_time=days_from_now_utc(90),
+        )
+        dl.create(revision)
+        case_obj = cast(VulnerabilityCase, dl.read(case_id))
+        case_obj.proposed_embargoes = [revision.id_]
+        dl.save(case_obj)
+        invitee = self._read_participant(dl, invitee_p_id)
+        invitee.accepted_embargo_ids = [active_id, revision.id_]
+        dl.save(invitee)
+
+        proposal = em_propose_embargo_activity(
+            embargo=revision,
+            context=case_id,
+            actor=_COORD,
+            to=[_INVITEE],
+            id_=f"{case_id}/proposals/revision",
+        )
+        dl.create(proposal)
+        reject = em_reject_embargo_activity(
+            proposal=proposal, context=case_id, actor=_INVITEE, to=[_COORD]
+        )
+        event = make_payload(reject, receiving_actor_id=_COORD)
+
+        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        invitee = self._read_participant(dl, invitee_p_id)
+        assert invitee.embargo_consent_state == PEC.SIGNATORY
+        assert invitee.accepted_embargo_ids == [active_id]
+        # A participant's Reject is consent, not a decision (EP-08-003).
+        case_after = cast(VulnerabilityCase, dl.read(case_id))
+        assert case_after.proposed_embargoes == [revision.id_]
+
+    @pytest.mark.spec("MSM-07-004")
+    def test_owner_reject_of_a_revision_changes_no_record_on_receipt(
+        self, make_payload
+    ):
+        """The owner's EJ received here decides the proposal and moves no consent.
+
+        The coordinator owns the case (``attributed_to``): its Reject of
+        proposed B prunes B from the open-proposal records and leaves every
+        participant's state and list as they were — the owner's included.
+        """
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/addressee11"
+        active_id = f"{case_id}/embargos/active"
+        case, active, coord_p_id, invitee_p_id = self._seed_case(
+            dl,
+            case_id,
+            active_id,
+            invitee_pec=PEC.SIGNATORY,
+            embargo_is="active",
+            invitee_accepted=(active_id,),
+        )
+        revision = as_EmbargoEvent(
+            id_=f"{case_id}/embargos/revision",
+            context=case_id,
+            end_time=days_from_now_utc(90),
+        )
+        dl.create(revision)
+        case_obj = cast(VulnerabilityCase, dl.read(case_id))
+        case_obj.proposed_embargoes = [revision.id_]
+        case_obj.pending_embargo_proposal_index = {
+            revision.id_: f"{case_id}/proposals/revision"
+        }
+        dl.save(case_obj)
+        coord = self._read_participant(dl, coord_p_id)
+        coord.apply_pec_transition(PEC_Trigger.ACCEPT)
+        coord.accepted_embargo_ids = [active_id]
+        dl.save(coord)
+
+        proposal = em_propose_embargo_activity(
+            embargo=revision,
+            context=case_id,
+            actor=_INVITEE,
+            to=[_COORD],
+            id_=f"{case_id}/proposals/revision",
+        )
+        dl.create(proposal)
+        reject = em_reject_embargo_activity(
+            proposal=proposal, context=case_id, actor=_COORD, to=[_INVITEE]
+        )
+        event = make_payload(reject, receiving_actor_id=_COORD)
+
+        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        coord = self._read_participant(dl, coord_p_id)
+        assert coord.embargo_consent_state == PEC.SIGNATORY
+        assert coord.accepted_embargo_ids == [active_id]
+        invitee = self._read_participant(dl, invitee_p_id)
+        assert invitee.embargo_consent_state == PEC.SIGNATORY
+        assert invitee.accepted_embargo_ids == [active_id]
+        case_after = cast(VulnerabilityCase, dl.read(case_id))
+        assert case_after.proposed_embargoes == []
+        assert case_after.pending_embargo_proposal_index == {}
+        assert case_after.active_embargo_id == active_id
+
+    def test_reject_naming_an_unknown_embargo_is_refused(self, make_payload):
+        """A Reject of an embargo the case has never seen is a protocol error.
+
+        Neither active nor proposed: no consent changes and the handler
+        reports a refusal rather than guessing which terms were meant.
+        """
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/addressee12"
+        embargo_id = f"{case_id}/embargos/stranger"
+        case, embargo, _coord_p_id, invitee_p_id = self._seed_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            embargo_is="unknown",
+        )
+
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case_id,
+            actor=_COORD,
+            to=[_INVITEE],
+            id_=f"{case_id}/proposals/p1",
+        )
+        dl.create(proposal)
+        reject = em_reject_embargo_activity(
+            proposal=proposal, context=case_id, actor=_INVITEE, to=[_COORD]
+        )
+        event = make_payload(reject, receiving_actor_id=_COORD)
+
+        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "neither the active" in (result.reason or "")
+        invitee = self._read_participant(dl, invitee_p_id)
+        assert invitee.embargo_consent_state == PEC.INVITED
 
     @pytest.mark.spec("HP-01-003")
     def test_reject_from_declined_is_skipped(self, make_payload):

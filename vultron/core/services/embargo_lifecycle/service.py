@@ -21,6 +21,9 @@ class.
 from vultron.core.services.embargo_lifecycle.activation import (
     _ActivationOperationsMixin,
 )
+from vultron.core.services.embargo_lifecycle.answers import (
+    _AnswerOperationsMixin,
+)
 from vultron.core.services.embargo_lifecycle.consent import (
     _ConsentOperationsMixin,
 )
@@ -31,6 +34,7 @@ from vultron.core.services.embargo_lifecycle.proposals import (
 
 class EmbargoLifecycle(
     _ProposalOperationsMixin,
+    _AnswerOperationsMixin,
     _ActivationOperationsMixin,
     _ConsentOperationsMixin,
 ):
@@ -53,6 +57,7 @@ class EmbargoLifecycle(
         - :meth:`terminate_active_embargo`
         - :meth:`activate_embargo`
         - :meth:`record_participant_consent` (no EM transition; no mode param)
+        - :meth:`record_embargo_rejection` (no EM transition; no mode param)
         - :meth:`detect_and_apply_lapse` (no EM transition; no mode param)
         - :meth:`assert_embargo_eligible` (guard only; no mode param)
     """

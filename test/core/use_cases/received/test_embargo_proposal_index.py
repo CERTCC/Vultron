@@ -563,6 +563,10 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
             embargo=embargo, context=case.id_, actor=actor_id
         )
         dl.create(proposal)
+        # A Reject must name an open proposal (or the active embargo).
+        case_obj = cast(VulnerabilityCase, dl.read(case.id_))
+        case_obj.proposed_embargoes = [embargo.id_]
+        dl.save(case_obj)
 
         reject_activity = em_reject_embargo_activity(
             proposal=proposal,

@@ -19,6 +19,7 @@ One test module per submodule of ``vultron/core/services/embargo_lifecycle/``
 """
 
 from collections.abc import Generator
+from typing import cast
 
 import pytest
 
@@ -100,10 +101,45 @@ def _make_case(
     return case, participants
 
 
-def _make_embargo(dl: SqliteDataLayer, case_id: str) -> as_EmbargoEvent:
-    embargo = as_EmbargoEvent(context=case_id, end_time=days_from_now_utc(45))
+def _make_embargo(
+    dl: SqliteDataLayer, case_id: str, *, days: int = 45
+) -> as_EmbargoEvent:
+    """Persist an ``EmbargoEvent`` ending *days* from now (the A-vs-B knob)."""
+    embargo = as_EmbargoEvent(
+        context=case_id, end_time=days_from_now_utc(days)
+    )
     dl.create(embargo)
     return embargo
+
+
+def _force_pec(dl: SqliteDataLayer, participant_id: str, state: PEC) -> None:
+    """Seed a PEC state directly — test setup only, never a consent write."""
+    participant = cast(CaseParticipant, dl.read(participant_id))
+    object.__setattr__(participant, "embargo_consent_state", state)
+    dl.save(participant)
+
+
+def _pec_of(dl: SqliteDataLayer, participant_id: str) -> str:
+    return cast(CaseParticipant, dl.read(participant_id)).embargo_consent_state
+
+
+def _accepted_ids_of(dl: SqliteDataLayer, participant_id: str) -> list[str]:
+    return list(
+        cast(CaseParticipant, dl.read(participant_id)).accepted_embargo_ids
+    )
+
+
+def _seed_consent(
+    dl: SqliteDataLayer,
+    participant_id: str,
+    state: PEC,
+    accepted: list[str],
+) -> None:
+    """Seed a participant's PEC state and accepted-embargo list together."""
+    participant = cast(CaseParticipant, dl.read(participant_id))
+    object.__setattr__(participant, "embargo_consent_state", state)
+    participant.accepted_embargo_ids = list(accepted)
+    dl.save(participant)
 
 
 # ---------------------------------------------------------------------------

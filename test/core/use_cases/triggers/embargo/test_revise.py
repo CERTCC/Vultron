@@ -135,8 +135,10 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     """SvcProposeEmbargoRevisionUseCase succeeds when EM is already REVISE.
 
     Guards against a regression where EM.REVISE → EM.REVISE counter-revision
-    is incorrectly blocked.  Participant PEC states MUST NOT be reset on this
-    path (only ACTIVE → REVISE triggers _cascade_pec_revise).
+    is incorrectly blocked.  Participant PEC states MUST NOT change on this
+    path — nor on ACTIVE → REVISE: a revision *proposal* changes nobody's
+    consent (EP-05-002, ADR-0093); the REVISE cascade fires only when the
+    owner activates longer terms a signatory has not accepted.
     """
     actor, dl = finder_actor_and_dl
 
@@ -164,6 +166,8 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     assert "activity" in result
     updated_case = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.REVISE
+    participant_after = cast(as_CaseParticipant, dl.read(participant_id))
+    assert participant_after.embargo_consent_state == pec_before
     assert len(updated_case.proposed_embargoes) == 2
 
     participant_after = cast(as_CaseParticipant, dl.read(participant_id))
