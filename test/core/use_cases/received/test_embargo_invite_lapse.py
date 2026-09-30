@@ -826,7 +826,9 @@ class TestInviteeIdProperty:
         )
         return make_payload(invite)
 
+    @pytest.mark.spec("EP-09-010")
     def test_sole_recipient_is_the_invitee(self, make_payload):
+        """The invitee is the Invite's sole ``to`` recipient (EP-09-010)."""
         event = self._event(make_payload, [_INVITEE])
         assert event.to_recipients == [_INVITEE]
         assert event.invitee_id == _INVITEE
@@ -1186,7 +1188,7 @@ class TestLateAcceptHandling:
         lapse_entry = lapse_entries[0]
         # Entry must be distinguishable from an explicit Reject
         assert lapse_entry.event_type != "reject_invite_to_embargo_on_case"
-        # payloadSnapshot must be non-empty (CLP-07-001)
+        # payloadSnapshot must be non-empty (CLP-02-003)
         assert lapse_entry.payload_snapshot
 
     def test_late_accept_ac2_signatory_participant_no_crash(
@@ -1302,3 +1304,62 @@ class TestLateAcceptHandling:
         assert isinstance(participant, CaseParticipant)
         # Already SIGNATORY for current embargo — no re-invite needed.
         assert participant.embargo_consent_state == PEC.SIGNATORY
+
+
+class TestLapseIsTheManagersAlone:
+    """CM-28-014: only the CASE_MANAGER evaluates lapse and commits its entry."""
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CM-28-014: the lapse ledger entry is committed unconditionally in "
+            "whichever store processes the late Accept. Tracked by #3961 "
+            "(Concern #3918, ADR-0113)."
+        ),
+    )
+    @pytest.mark.spec("CM-28-014")
+    def test_non_manager_commits_no_lapse_entry(self, make_payload):
+        """A replica that sees a late Accept writes no lapse entry."""
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        dl = _make_dl(actor_id=_OTHER)
+        case_id = "https://example.org/cases/lapse-replica"
+        embargo_id = f"{case_id}/embargos/e1"
+        case, embargo, _ = _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            invitee_deadline=_PAST,
+        )
+        manager_cp = WireCP(
+            attributed_to=_COORD,
+            context=case_id,
+            case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
+        )
+        dl.create(manager_cp)
+        case.actor_participant_index[_COORD] = manager_cp.id_
+        dl.save(case)
+
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            to=[_INVITEE],
+            id_=f"{case_id}/proposals/p1",
+        )
+        dl.create(proposal)
+        accept = em_accept_embargo_activity(
+            proposal=proposal, context=case.id_, actor=_INVITEE
+        )
+        event = make_payload(accept, receiving_actor_id=_OTHER)
+
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        lapse_entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+            and e.event_type == "invite_to_embargo_on_case_lapsed"
+        ]
+        assert lapse_entries == []

@@ -88,7 +88,7 @@ class VultronOfferRecord(CoreRecord):
 #: carries the two Offer provenance facts an invited actor needs to rebuild a
 #: :class:`VultronOfferRecord` from a SYNC backfill (ISSUE-2134, SYNC-02-002).
 #:
-#: A payload snapshot is a *wire object*: CLP-07-001 makes it the AS2
+#: A payload snapshot is a *wire object*: CLP-07-011 makes it the AS2
 #: serialization of the inbound activity, so its keys are AS2-spelled by
 #: definition.  These two are snapshot-only extension properties with no core
 #: model of their own to carry a field alias, so they are derived here from this

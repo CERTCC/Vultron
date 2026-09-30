@@ -796,7 +796,7 @@ groups:
   description: >-
     Governs how core domain objects are rendered into wire-shaped (AS2 camelCase) JSON. Core
     legitimately needs a wire representation in one place — the `CaseLedgerEntry.payloadSnapshot`,
-    which CLP-07-001 requires to be receiver-reconstitutable AS2 — and this group makes a driven
+    which CLP-07-011 requires to be receiver-reconstitutable AS2 — and this group makes a driven
     port the single seam that produces it. Under one object model (ADR-0099) the spelling lives
     on the core class (detail 2) and a dimension serializes to a bare state value (detail 5), so
     the port's adapter is a plain `by_alias` dump of the core object; what the group still
@@ -819,7 +819,7 @@ groups:
       rewriting dumped keys into wire spellings. The `alias_generator` a core object inherits
       from `CoreObject` (ARCH-12-003) is the mechanism behind the port, not a licence for core to
       dump directly. Dumping an already-wire-shaped object that core holds (e.g. a received
-      activity being captured verbatim per CLP-07-001) is unaffected by this requirement.
+      activity being captured verbatim per CLP-07-011) is unaffected by this requirement.
     rationale: >-
       A single rendering seam keeps the decision of what goes on the wire (which object, with
       which `@context`, failing closed on anything without an AS2 shape) in one adapter instead
@@ -873,7 +873,7 @@ groups:
       return `None`, or emit a partially-rendered object. The absence of a separate wire class is
       not a failure.
     rationale: >-
-      A silently core-shaped payload snapshot is unreconstitutable by receivers (CLP-07-001) and
+      A silently core-shaped payload snapshot is unreconstitutable by receivers (CLP-07-011) and
       is indistinguishable from a correct one at the call site. Failing loudly is required by
       ARCH-15-002. The `CoreObject` gate is what stops a bookkeeping record such as
       `VultronOfferRecord` from leaking into a delivered payload now that a missing counterpart

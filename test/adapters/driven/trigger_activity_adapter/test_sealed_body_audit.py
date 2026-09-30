@@ -55,7 +55,9 @@ from vultron.core.models.fault_classes import (
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.parser import _VULNERABILITY_CASE_STUB_KEYS
+from vultron.wire.as2.unknown_keys import (
+    CASE_STUB_KEYS as _VULNERABILITY_CASE_STUB_KEYS,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent

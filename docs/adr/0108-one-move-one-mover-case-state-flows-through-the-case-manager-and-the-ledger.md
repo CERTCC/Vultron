@@ -159,3 +159,11 @@ The inventory that grounds this decision, one row per wire form per state machin
 Related decisions: [ADR-0083](0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) (formal↔wire divergence is deliberate; this ADR covers wire↔wire), [ADR-0084](0084-participant-assertion-authority.md) (self-declaration; extended here to the whole receive side), [ADR-0061](0061-per-dimension-partial-accept.md) and [ADR-0086](0086-report-every-violation-reject-the-batch.md) (liberal accept; extended here to the activity-typed handlers), [ADR-0089](0089-one-participant-status-writer.md) (one writer; the store-versus-subject conflation this ADR names again), [ADR-0046](0046-received-status-authorization.md) (two-gate adoption model; RSH-01-003/004 corrected to match the direct-write shape of RSH-04-004), [ADR-0050](0050-leave-vul-case-canonical-rm-closure.md) and CM-23-001 (the one prior per-transition authority rule, which this ADR generalizes).
 
 Design notes: `notes/received-status-authorization.md` § "One move, one mover", `notes/message-type-reference.md` § "Collapses", `notes/bt-pitfalls.md` § "The Store Is Not the Subject".
+
+## Amendment — 2026-09-30
+
+This decision left the emit side unchanged: a participant's trigger could still write its own local state before sending the act to the CASE_MANAGER, and the original text of ADR-0113 (before its 2026-09-30 rewrite for Concern #3918) recorded that latitude for the embargo proposer in its detail 10.
+Concern #3918 withdraws it for shared case state.
+A trigger writes shared EM state only when its actor holds `CVDRole.CASE_MANAGER` for the case; otherwise it emits the act to the manager, records it in the pending-assertion store, and its replica moves when the manager's commit is announced (EP-09-008, ADR-0113 as amended).
+The distinction is the one this ADR already draws: a participant is authoritative about its own progress (RSH-06-001), so `Add(ParticipantStatus)` and the RM triggers keep their local write; it is not authoritative about the case's embargo, which has one writer.
+The receive-side rule, the subject rule and the pipeline order are unchanged.

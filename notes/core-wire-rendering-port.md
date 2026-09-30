@@ -13,13 +13,14 @@ description: >
 related_specs:
   - architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-20, ARCH-20-001,
     ARCH-20-002, ARCH-20-003, ARCH-21-002)
-  - vocabulary-model.yaml (VM-10-001)
-  - case-ledger-processing.yaml (CLP-07-001, CLP-07-006, CLP-07-009, CLP-07-010)
+  - vocabulary-model.yaml (VM-10-001, VM-08-002)
+  - case-ledger-processing.yaml (CLP-07-011, CLP-07-006, CLP-07-009, CLP-07-010)
   - status-dimension-objects.yaml (SDO-03-003, SDO-03-005)
   - datalayer.yaml (DL-05-001)
 related_notes:
   - notes/wire-core-boundary.md
   - notes/vocabulary-registry.md
+  - notes/wire-artifact-immutability.md
 related_adrs:
   - ADR-0017
   - ADR-0036
@@ -27,6 +28,7 @@ related_adrs:
   - ADR-0063
   - ADR-0082
   - ADR-0099
+  - ADR-0107
 ---
 
 # Core-to-Wire Rendering Port
@@ -78,7 +80,7 @@ were received or sent to/from the case manager in the course of managing the
 case*, and those things are by definition wire-shaped. The specs say so
 directly:
 
-- **CLP-07-001** — the snapshot MUST be the verbatim AS2 activity that was
+- **CLP-07-011** — the snapshot MUST be the verbatim AS2 activity that was
   asserted, or a deterministic canonical normalization of it.
 - **CLP-01-003 / CLP-01-004** — the ledger is the replication substrate;
   receivers project entries into their own replica.
@@ -202,12 +204,17 @@ Also vestigial: `CoreActor.to_json()` (`core/models/actor.py:76-77`) dumps
 always-available bypass of the port seam will be picked up by the next agent who
 needs camelCase (ARCH-20-005).
 
-`build_activity_payload_snapshot` in `core/use_cases/_helpers.py` is **not** in
-this list and should be left alone: it captures a received activity verbatim
-(CLP-07-001) by duck-typing, so core needs no wire import and no rendering. It
-is the model the rest of the snapshot path should converge toward — synthesis is
-only needed where there is no received activity to capture, i.e. case-proposal
-bootstrap.
+`build_activity_payload_snapshot` in `core/use_cases/_snapshot_helpers.py` is
+**not** in this list, but not because it captures what arrived. What it dumps is
+the extractor's rebuilt `VultronActivity`, which keeps a chosen subset of the
+inbound fields, so the receive-side snapshot is the "deterministic canonical
+normalization" branch of CLP-07-011, not its "verbatim" one, and it is not the
+received evidence VM-08-002 seals (see `notes/wire-artifact-immutability.md` §
+"Received Evidence", ISSUE-3947). ADR-0107 step 5 (#3742) replaces the dump
+with that evidence recorded unchanged, so this site is deleted rather than
+routed through the port. Until then it is the one receive-side by-alias dump;
+synthesis through the port is needed only where there is no received activity
+to capture, i.e. case-proposal bootstrap.
 
 ## Deleting a flat-field shim: the guard is mandatory
 

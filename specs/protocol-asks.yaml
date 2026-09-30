@@ -297,6 +297,33 @@ groups:
     - ADR-0080
     tags:
     - security
+  - id: ASK-03-007
+    priority: MUST
+    kind: protocol
+    statement: >
+      `Invite(EmbargoEvent)` is an ask kind. Its closing replies are
+      `Accept(Invite(EmbargoEvent))` and `Reject(Invite(EmbargoEvent))` from the
+      invitee; its deadline is `Invite.end_time` (CM-28-001, CM-28-012); its
+      expiry consequence is stale, not void: a reply after the deadline is still
+      honoured under EMB-17 once the lapse has been recorded as `DECLINED`
+      (CM-28-004).
+    rationale: >
+      The embargo invitation already has every property an ask kind declares,
+      and the relay (EP-09) emits one per participant per proposal, so the
+      outstanding-ask register must track it without a special case. Declaring
+      the kind here keeps `find_protocol_pair`'s one-open-request assumption from
+      being applied to N simultaneous Invites of one event type. Source: #3918,
+      ADR-0113 as amended.
+    verification: >
+      The ask-kind registry, when it lands (#2884), declares this kind with the
+      two closing reply types and stale expiry; until then a strict `xfail`
+      names the tracking issue.
+    adr:
+    - ADR-0080
+    - ADR-0113
+    stories:
+    - story_2022_014
+
 - id: ASK-04
   title: Outstanding-Ask Register
   description: >
@@ -439,6 +466,31 @@ groups:
     - ADR-0080
     tags:
     - wire-format
+  - id: ASK-04-010
+    priority: MUST
+    kind: protocol
+    statement: >
+      When the CASE_MANAGER relays an ask on a participant's behalf (CM-24-001,
+      CM-24-002; EP-09-002) it MUST record each relayed ask in its own
+      outstanding-ask register as the asker. The participant whose proposal was
+      relayed records only its own proposal to the CASE_MANAGER and MUST NOT
+      record the relayed Invites, which it did not emit.
+    rationale: >
+      ASK-04-001 says the emitter records; a relayed Invite's `actor` is the
+      CASE_MANAGER with the proposer in `attributedTo`, so the manager is the
+      emitter and the one that owes the bookkeeping. Giving the proposer a
+      register entry for each relayed Invite would let it reap or re-ask on the
+      manager's behalf. Source: #3918, ADR-0113 as amended.
+    verification: >
+      When the register lands, a relay test asserts the CASE_MANAGER's register
+      holds one outgoing entry per relayed Invite and the proposer's holds only
+      its proposal; until then a strict `xfail` names the tracking issue.
+    adr:
+    - ADR-0080
+    - ADR-0113
+    stories:
+    - story_2022_014
+
 - id: ASK-05
   title: Expiry and Reaping
   description: >
