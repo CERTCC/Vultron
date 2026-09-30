@@ -1714,7 +1714,7 @@ class TestADR0041GenesisCommitFailure:
         _seed_report(dl)
         # Build a real case so the node reaches the commit step.
         _run_full_bt(make_payload, dl)
-        case = list(dl.list_objects("VulnerabilityCase"))[0]
+        case = next(iter(dl.list_objects("VulnerabilityCase")))
 
         # Wire up the node against the real DL + case, forcing every commit
         # (including genesis create_case) to report failure.

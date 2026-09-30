@@ -337,7 +337,7 @@ class TestCreateCaseProposalIdempotency:
         first_accepts = list(dl.list_objects("Accept"))
         assert first_accepts, "First proposal must produce an Accept"
         first_accept_ids = {a.id_ for a in first_accepts}
-        first_case_id = list(dl.list_objects("VulnerabilityCase"))[0].id_
+        first_case_id = next(iter(dl.list_objects("VulnerabilityCase"))).id_
 
         # Resend with the same proposal
         _run_create_proposal(dl, proposal, make_payload)
