@@ -81,7 +81,8 @@ Use this decision tree for anything you find beyond the original issue. FILE
 Check against `.agents/skills/shared/pr-body-guide.md`:
 
 - Closing references at the **top**, one per bullet
-- Required sections present (Summary, Changes, Specs, Verification for impl PRs)
+- Required sections present (Summary, Changes, Specs, Docs, Verification for
+  impl PRs)
 - Test counts in Verification are real numbers, not placeholders
 
 ### Phase 4 — Domain Context
@@ -150,6 +151,11 @@ against the branch diff to surface bugs, logic errors, and security issues.
    to run `uv run mkdocs build --strict` (or confirm CI did so).
 4. **Silent contradiction**: If the PR's behavior change conflicts with an
    `active` note's guidance without updating that note: **FAIL**.
+5. **Docs currency (PD-03-009)**: whether or not the diff touches `docs/`,
+   determine which `docs/` pages describe the changed behavior and compare
+   with the PR body's `Docs:` line. Follow the procedure in
+   [`../pr-triage/REFERENCE.md`](../pr-triage/REFERENCE.md) § "Docs currency
+   procedure (PD-03-009)" — the same verdicts apply here.
 
 ### Phase 10 — Test Coverage
 

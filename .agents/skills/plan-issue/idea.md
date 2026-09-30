@@ -34,6 +34,10 @@ These are proposals to confirm, not new questions.
 - `notes/<topic>.md` — Add design decisions or implementation guidance (optional)
 - ADR in `docs/adr/` if ADR determination recommended one
 
+These are planning docs. The reader-facing `docs/` pages the implementation
+will change are not edited here; name each known one in an impl-issue AC
+instead (`SKILL.md` Phase 8).
+
 ## Archive and Close
 
 After implementation issues are created, archive and close the source Idea issue.

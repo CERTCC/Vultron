@@ -297,6 +297,12 @@ File: `.claude/pr-{number}-execute.json`
     "merge_state_status_after_sync": "CLEAN",
     "undrafted": false
   },
+  "docs_refresh": {
+    "fix_commits_checked": ["abc1234"],
+    "pages_updated": ["docs/reference/messages/em.md"],
+    "docs_commit_refs": ["bcd2345"],
+    "docs_line": "Docs: updated docs/reference/messages/em.md"
+  },
   "results": [
     {
       "finding_id": "phase5-missing-nonemptystring-0",
@@ -321,6 +327,15 @@ File: `.claude/pr-{number}-execute.json`
       "issue_number": 999,
       "skip_reason": null,
       "comment_resolution": "'also' excursion — filed #999 and fixed it in this PR; PR closes #999."
+    },
+    {
+      "finding_id": "phase9-docs-line-placeholder-0",
+      "outcome": "fixed",
+      "commit_ref": null,
+      "fix_kind": "pr-body",
+      "issue_number": null,
+      "skip_reason": null,
+      "comment_resolution": "Replaced the placeholder with `Docs: no docs impact — internal refactor`."
     }
   ],
   "execute_comment_url": "https://github.com/CERTCC/Vultron/pull/1234#issuecomment-..."
@@ -335,6 +350,10 @@ File: `.claude/pr-{number}-execute.json`
 | `deferred-ask` | Gate 1: issue filed, a measured remainder presented, and the user **explicitly approved** deferral. Silence does not produce this outcome — silence produces `fixed` |
 | `halted` | Gate 2: an inversion the user did not resolve; PR set to draft/blocked; pipeline stopped |
 | `skipped` | Could not address (e.g., unresolved conflict, pre-existing failure filed with evidence); skip_reason explains why |
+
+`fix_kind` is `"code"` (the default when absent) or `"pr-body"`. A
+`pr-body` fix changed only the PR body, so it has `commit_ref: null`;
+`pr-verify` checks it against the live body instead of a commit.
 
 There is no standalone `filed` outcome — filing a record is not an endpoint.
 A filed finding is either `fixed` (the PR closes it) or `deferred-ask`
@@ -361,6 +380,19 @@ diverge (indicating execute was interrupted before completion).
 block as a hard gate failure — an execute run that never checked mergeability
 cannot produce a READY-TO-MERGE verdict.
 
+### `docs_refresh` Fields
+
+| Field | Meaning |
+|---|---|
+| `fix_commits_checked` | Short SHAs of the non-merge fix commits Phase 3b diffed, including Phase 5 CI-fix commits; `[]` when execute made none |
+| `pages_updated` | `docs/` pages Phase 3b changed; `[]` when none were affected |
+| `docs_commit_refs` | SHAs of every `docs: sync docs/ …` commit execute made (Phase 3b and after CI fixes); `[]` when none |
+| `docs_line` | The PR body's `Docs:` line as execute left it |
+
+`docs_refresh` is **required** for implementation and bug-fix PRs. `pr-verify`
+reads it to check that the `Docs:` line is not stale relative to the fix
+commits.
+
 ---
 
 ## Execute Comment Format
@@ -375,6 +407,7 @@ cannot produce a READY-TO-MERGE verdict.
 **Tests run**: unit only / unit + integration
 **CI status**: ✅ passing / ❌ failing / ⏳ timed out
 **Base sync**: ✅ merged `<base_ref>` @ `def5678` — <N> conflicts resolved / ✅ already current / ❌ conflicts unresolved
+**Docs line**: `<docs_refresh.docs_line>` — <N> pages updated by execute
 
 ---
 

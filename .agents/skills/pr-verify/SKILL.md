@@ -140,9 +140,43 @@ cannot be ready to merge no matter what those checks find.
    re-triggered after execute finished, or unusually slow CI). Under normal
    operation execute already waited for CI, so this path should be rare.
 
+### Phase 3b — Docs Line Freshness
+
+For implementation and bug-fix PRs (scope in
+`.agents/skills/shared/pr-body-guide.md` § "Implementation PR rules"), check
+that the PR body's `Docs:` line is
+not stale relative to execute's fix commits (PD-03-008):
+
+1. Read the live PR body (`gh pr view <number> --json body`). A missing `Docs:`
+   line or `Docs: pending check-docs-sync` → flag `STALE-DOCS-LINE`.
+2. Read `execute.docs_refresh`. If it is absent → flag `STALE-DOCS-LINE`
+   (execute never checked its fix commits).
+3. List execute's fix commits: the non-merge commits after the commit triage
+   judged (`git log --no-merges <triage.pr_metadata.head_sha>..HEAD`),
+   excluding every SHA in `docs_refresh.docs_commit_refs`. With no
+   `head_sha` (an older triage artifact), use `origin/<base_ref>..HEAD`;
+   the extra author commits are then answered by the Q1 fallback below.
+   Base-sync merge commits carry the base's changes, not the PR's, so they
+   are not checked. Every listed commit must appear in
+   `docs_refresh.fix_commits_checked`, and the live `Docs:` line must equal
+   `docs_refresh.docs_line`. Otherwise answer `check-docs-sync` Q1 for the
+   unchecked commits yourself: if any of them changes behavior a `docs/` page
+   describes and that page is neither listed on the line nor updated in the
+   diff → flag `STALE-DOCS-LINE`.
+4. Every page named on an `updated` line must be changed in the PR diff; one
+   that is not → flag `STALE-DOCS-LINE`.
+
+`STALE-DOCS-LINE` blocks `READY-TO-MERGE`. Verify does not fix it — re-run
+`/pr-execute`.
+
 ### Phase 4 — Spot-Verify FAIL Findings
 
 For each finding with `severity: FAIL` and `outcome: fixed`:
+
+A `fix_kind: "pr-body"` result has no commit to check. It is `CONFIRMED`
+when Phase 3b read a final-form `Docs:` line and flagged no
+`STALE-DOCS-LINE`, and `UNRESOLVED` otherwise. Steps 1–3 apply to every
+other fix.
 
 1. Confirm `commit_ref` exists on the PR branch:
    `git log --oneline <commit_ref>` must not error.
@@ -162,7 +196,8 @@ For each finding with `severity: FAIL` and `outcome: fixed`:
 
 Lighter check:
 
-1. Confirm `commit_ref` exists on the branch.
+1. Confirm `commit_ref` exists on the branch (a `fix_kind: "pr-body"`
+   result is judged against the live body as in Phase 4).
 2. Check the file at HEAD for the improvement (same HEAD-check as Phase 4).
 3. Assign `CONFIRMED` or `UNRESOLVED`.
 
@@ -179,10 +214,10 @@ For findings with `outcome: deferred-ask`, `halted`, or `skipped`: assign
    | # | Condition | Verdict |
    |---|---|---|
    | 1 | `MERGE-CONFLICT` flagged | `CONFLICTS-FOUND` |
-   | 2 | Any FAIL `UNRESOLVED`/`MISSING-COMMIT`, or `INCOMPLETE-EXECUTE`, or `UNVERIFIED-CI-FAILING` | `GAPS-FOUND` |
+   | 2 | Any FAIL `UNRESOLVED`/`MISSING-COMMIT`, or `INCOMPLETE-EXECUTE`, `UNVERIFIED-CI-FAILING`, or `STALE-DOCS-LINE` | `GAPS-FOUND` |
    | 3 | `MERGE-STATE-UNKNOWN` flagged | `PENDING-MERGE-CHECK` |
    | 4 | CI still pending | `PENDING-CI` |
-   | 5 | All FAIL findings `CONFIRMED`, CI green, `mergeable == MERGEABLE`, and no `UNSYNCED-EXECUTE` / `BRANCH-BEHIND` / `PR-IS-DRAFT` flag | `READY-TO-MERGE` |
+   | 5 | All FAIL findings `CONFIRMED`, CI green, `mergeable == MERGEABLE`, and no `STALE-DOCS-LINE` / `UNSYNCED-EXECUTE` / `BRANCH-BEHIND` / `PR-IS-DRAFT` flag | `READY-TO-MERGE` |
    | 6 | Otherwise | `GAPS-FOUND` (name the flag that blocked it) |
 
    `READY-TO-MERGE` requires a live `MERGEABLE`. There is no path to it via
