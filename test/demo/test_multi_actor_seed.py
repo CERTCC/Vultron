@@ -286,7 +286,7 @@ class TestSeedConfigCrossConsistency:
             CASE_ACTOR_ID: _load_seed_config("seed-case-actor.yaml"),
             VENDOR2_ID: _load_seed_config("seed-actor5.yaml"),
         }
-        for own_id, cfg in configs.items():
+        for own_id, _cfg in configs.items():
             for other_id, other_cfg in configs.items():
                 if own_id == other_id:
                     continue

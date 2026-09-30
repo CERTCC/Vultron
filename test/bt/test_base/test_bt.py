@@ -151,17 +151,17 @@ class MyTestCase(unittest.TestCase):
 
     def test_always_succeed(self):
         s = btz.AlwaysSucceed()
-        for i in range(1000):
+        for _i in range(1000):
             self.assertEqual(NodeStatus.SUCCESS, s.tick())
 
     def test_always_fail(self):
         s = btz.AlwaysFail()
-        for i in range(1000):
+        for _i in range(1000):
             self.assertEqual(NodeStatus.FAILURE, s.tick())
 
     def test_always_running(self):
         s = btz.AlwaysRunning()
-        for i in range(1000):
+        for _i in range(1000):
             self.assertEqual(NodeStatus.RUNNING, s.tick())
 
     def test_btnode_objcount(self):

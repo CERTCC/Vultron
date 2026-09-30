@@ -57,7 +57,7 @@ def main():
 
     notes = []
     # walk through the docs directory and process each .md file
-    for root, dirs, files in os.walk(docs_dir):
+    for root, _dirs, files in os.walk(docs_dir):
         for file in files:
             if file.endswith(".md"):
                 file_path = os.path.join(root, file)

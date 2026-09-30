@@ -95,7 +95,7 @@ def test_every_core_object_forbids_extra_with_no_exemption_list() -> None:
 
 def test_unknown_key_raises_for_every_core_vocabulary_entry() -> None:
     """AC-3: an unknown key raises rather than being silently dropped."""
-    for name, obj in _constructible_vocab():
+    for _name, obj in _constructible_vocab():
         payload = obj.model_dump(mode="json")
         payload["totallyUnknownKey"] = "x"
         with pytest.raises(ValidationError):

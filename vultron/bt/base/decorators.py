@@ -141,7 +141,7 @@ class RetryN(LoopDecorator):
 
     def _tick(self, depth=0):
         only_child = self.children[0]
-        for i in range(self.n):
+        for _i in range(self.n):
             child_status = only_child.tick(depth + 1)
             self.count += 1
             if child_status == NodeStatus.FAILURE:
@@ -163,7 +163,7 @@ class RepeatN(LoopDecorator):
 
     def _tick(self, depth=0):
         only_child = self.children[0]
-        for i in range(self.n):
+        for _i in range(self.n):
             child_status = only_child.tick(depth + 1)
             self.count += 1
             if child_status == NodeStatus.SUCCESS:

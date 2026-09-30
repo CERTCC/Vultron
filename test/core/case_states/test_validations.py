@@ -69,7 +69,7 @@ class MyTestCase(unittest.TestCase):
         for length in range(1, 10):
             if length == 6:
                 continue
-            for i in range(100):
+            for _i in range(100):
                 test_str = "".join(
                     random.choice(alpha) for _ in range(length)
                 )
@@ -83,7 +83,7 @@ class MyTestCase(unittest.TestCase):
         :return:
         """
         # wrong chars
-        for i in range(1000):
+        for _i in range(1000):
             ch = [a for a in alpha if a not in "vfdpxa"]
             test_str = "".join(random.choice(ch) for _ in range(6))
             self.assertEqual(6, len(test_str))
@@ -117,7 +117,7 @@ class MyTestCase(unittest.TestCase):
         for length in range(1, 10):
             if length == 6:
                 continue
-            for i in range(100):
+            for _i in range(100):
                 test_str = "".join(
                     random.choice(alpha) for _ in range(length)
                 )
@@ -131,7 +131,7 @@ class MyTestCase(unittest.TestCase):
         :return:
         """
         # wrong chars
-        for i in range(1000):
+        for _i in range(1000):
             ch = [a for a in alpha if a not in "vfdpxa"]
             test_str = "".join(random.choice(ch) for _ in range(6))
             self.assertEqual(6, len(test_str))
