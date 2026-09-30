@@ -142,9 +142,11 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
         mode only PROPOSED and REVISE are valid sources.  In ``OBSERVED`` mode
         the transition is applied unconditionally (state-sync override).
 
-        When this replaces an active embargo A with *embargo_id* (B), every
-        participant's consent is re-evaluated against B (EP-05-001,
-        MSM-07-005) exactly as the owner's ``accept_embargo_invite`` does:
+        When this replaces an active embargo A with *embargo_id* (B), the
+        case owner's acceptance of B is recorded (activation is the owner's
+        decision, so the owner is never lapsed by it) and every participant's
+        consent is re-evaluated against B (EP-05-001, MSM-07-005) exactly as
+        the owner's ``accept_embargo_invite`` does:
         a shorter-or-equal B carries every signatory over, a longer B lapses
         the signatories whose ``accepted_embargo_ids`` lack it, and a
         non-signatory that already holds B becomes ``SIGNATORY``.  The
@@ -172,6 +174,16 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
 
         em_before = case.current_status.em.state
         previous_embargo_id = case.active_embargo_id
+        # Decide the EP-05-001 arm before anything is written (fail closed).
+        ends_no_later = (
+            self._revision_ends_no_later(
+                previous_embargo_id=previous_embargo_id,
+                revised_embargo_id=embargo_id,
+            )
+            if previous_embargo_id is not None
+            and previous_embargo_id != embargo_id
+            else None
+        )
 
         em_after = self._drive_em_transition(
             case_id=case_id,
@@ -190,14 +202,27 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
         self._persistence.save(case)
 
         participant_changes: list[ParticipantPECChange] = []
-        if (
-            previous_embargo_id is not None
-            and previous_embargo_id != embargo_id
-        ):
-            participant_changes = self._reevaluate_consent_at_activation(
-                case,
-                previous_embargo_id=previous_embargo_id,
-                revised_embargo_id=embargo_id,
+        if ends_no_later is not None:
+            # Activating B in place of A is the owner's acceptance of B: record
+            # it first, so the owner is never lapsed by its own activation
+            # (as the owner path of accept_embargo_invite does), then
+            # re-evaluate everyone else (EP-05-001).
+            owner_id = _as_id(case.attributed_to)
+            if (
+                owner_id is not None
+                and owner_id in case.actor_participant_index
+            ):
+                participant_changes.extend(
+                    self._record_actor_pec_acceptance(
+                        case, owner_id, embargo_id
+                    )
+                )
+            participant_changes.extend(
+                self._reevaluate_consent_at_activation(
+                    case,
+                    revised_embargo_id=embargo_id,
+                    ends_no_later=ends_no_later,
+                )
             )
 
         logger.info(

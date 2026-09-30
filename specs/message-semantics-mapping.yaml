@@ -792,11 +792,20 @@ groups:
       scalar state reports the participant's position on the active embargo, so
       accepting a revision that is not yet active is recorded on the list and
       becomes the participant's position only if the owner activates it.
+    note: >-
+      The "active embargo" condition governs revisions: while embargo A is in force,
+      a non-owner's Accept of proposed revision B records B on the list and moves no
+      state; the EP-05-001 activation cascade advances every holder of B when the owner
+      activates it. An Accept of a *first* proposal — no embargo yet in force — advances
+      the acceptor to SIGNATORY at accept time, as CM-14-005's implicit consent already
+      does: `PROPOSED → ACTIVE` replaces nothing and runs no cascade, so a deferred
+      advance would strand every early acceptor at INVITED once the owner activated.
     verification: >-
-      Inspection of vultron/core/use_cases/received/embargo.py confirms
-      AcceptInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle
-      with the sending actor's PEC updated to SIGNATORY regardless of whether
-      the actor is the case owner driving EM.
+      Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` assert that
+      a non-owner SIGNATORY accepting a proposed revision records the id with no state
+      change, that a non-signatory accepting one advances only when the owner activates
+      it, and that an accept of the embargo in force (or of a first proposal) advances
+      the acceptor to SIGNATORY.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003

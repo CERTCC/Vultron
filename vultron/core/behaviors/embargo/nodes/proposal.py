@@ -216,12 +216,19 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         service = EmbargoLifecycle(persistence=self.datalayer)
-        result = service.accept_embargo_invite(
-            case_id=self.case_id,
-            embargo_id=self.embargo_id,
-            actor_id=actor_id,
-            transition_mode=TransitionMode.OBSERVED,
-        )
+        try:
+            result = service.accept_embargo_invite(
+                case_id=self.case_id,
+                embargo_id=self.embargo_id,
+                actor_id=actor_id,
+                transition_mode=TransitionMode.OBSERVED,
+            )
+        except (VultronNotFoundError, VultronValidationError) as exc:
+            # A partial replica may lack the embargo the accepted one
+            # replaces, and the EP-05-001 comparison fails closed on it.
+            self.feedback_message = str(exc)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
         if result.em_after == EM.ACTIVE and result.em_before not in (
             EM.PROPOSED,
@@ -329,72 +336,4 @@ class RecordParticipantRejectionNode(DataLayerActionWithPorts):
             f" ({len(result.participant_changes)} PEC state change(s))"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
-
-
-class RemoveStaleAcceptanceNode(DataLayerActionWithPorts):
-    """Remove stale embargo acceptance from participant (pocket-veto).
-
-    Reads participant from blackboard, removes embargo_id from
-    accepted_embargo_ids if present (pocket-veto semantics).
-
-    Always returns SUCCESS.
-    """
-
-    def __init__(
-        self,
-        embargo_id: str,
-        name: str | None = None,
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.embargo_id = embargo_id
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "participant": PortInformation(data_type=object, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"participant": "/participant"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._participant = None
-        try:
-            self._participant = self.get_input("participant")
-        except (NoDataAvailable, NotImplementedError):
-            self._participant = None
-
-    def update(self) -> Status:
-        if self.datalayer is None:
-            return Status.SUCCESS
-
-        participant = self._participant
-        if participant is None:
-            self.logger.debug(
-                "%s: participant not found in blackboard", self.name
-            )
-            return Status.SUCCESS
-
-        if not isinstance(participant, CaseParticipant):
-            self.logger.debug(
-                "%s: invalid participant on blackboard", self.name
-            )
-            return Status.SUCCESS
-
-        if self.embargo_id in participant.accepted_embargo_ids:
-            participant.accepted_embargo_ids.remove(self.embargo_id)
-            self.datalayer.save(participant)
-            self.feedback_message = (
-                f"Removed stale acceptance '{self.embargo_id}' from"
-                f" participant '{participant.id_}' (pocket-veto)"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-        else:
-            self.feedback_message = (
-                f"No stale acceptance '{self.embargo_id}' to remove"
-                f" from participant"
-            )
-
         return Status.SUCCESS

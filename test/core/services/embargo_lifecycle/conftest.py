@@ -136,8 +136,8 @@ def _seed_consent(
     accepted: list[str],
 ) -> None:
     """Seed a participant's PEC state and accepted-embargo list together."""
+    _force_pec(dl, participant_id, state)
     participant = cast(CaseParticipant, dl.read(participant_id))
-    object.__setattr__(participant, "embargo_consent_state", state)
     participant.accepted_embargo_ids = list(accepted)
     dl.save(participant)
 

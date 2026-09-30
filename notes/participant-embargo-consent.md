@@ -292,7 +292,7 @@ and #538), so its sites remain the most critical to keep correct. In
 `pec.py` every cascade goes through one `_cascade_pec(trigger, select)` loop —
 the RESET cascade, the activation-time REVISE cascade (signatories lacking the
 revised id) and the activation-time ACCEPT pass (non-signatories holding it) are
-three `select` predicates, not three loops. The received `Reject(Invite)` tree
+each a `select` predicate, never a loop of their own. The received `Reject(Invite)` tree
 writes consent through `RecordParticipantRejectionNode` →
 `record_embargo_rejection`, so the MSM-07-004 classification lives in the
 service once (`_assert_rejectable`) rather than in a node.

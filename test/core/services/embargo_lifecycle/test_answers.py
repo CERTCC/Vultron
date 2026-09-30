@@ -42,6 +42,7 @@ from vultron.core.models.case_participant import CaseParticipant
 
 from .conftest import (
     _accepted_ids_of,
+    _force_pec,
     _make_actor,
     _make_case,
     _make_embargo,
@@ -64,9 +65,7 @@ def test_accept_embargo_invite_owner_strict_valid(
     embargo = _make_embargo(dl, case.id_)
 
     # Seed owner to INVITED so ACCEPT transition is valid
-    owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    object.__setattr__(owner_p, "embargo_consent_state", PEC.INVITED)
-    dl.save(owner_p)
+    _force_pec(dl, owner_participant_id, PEC.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.accept_embargo_invite(
@@ -100,9 +99,7 @@ def test_accept_embargo_invite_non_owner_strict(
     # Seed finder to INVITED so ACCEPT transition is valid
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
-    finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
-    object.__setattr__(finder_p, "embargo_consent_state", PEC.INVITED)
-    dl.save(finder_p)
+    _force_pec(dl, finder_participant_id, PEC.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.accept_embargo_invite(
@@ -193,9 +190,7 @@ def test_accept_embargo_invite_idempotent(
     embargo = _make_embargo(dl, case.id_)
 
     # Seed as INVITED so first ACCEPT is valid
-    owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    object.__setattr__(owner_p, "embargo_consent_state", PEC.INVITED)
-    dl.save(owner_p)
+    _force_pec(dl, owner_participant_id, PEC.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     lifecycle.accept_embargo_invite(
@@ -238,9 +233,7 @@ def test_reject_embargo_invite_owner_proposed_to_none(
     dl.save(case)
 
     # Seed owner to INVITED so DECLINE transition is valid
-    owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    object.__setattr__(owner_p, "embargo_consent_state", PEC.INVITED)
-    dl.save(owner_p)
+    _force_pec(dl, owner_participant_id, PEC.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.reject_embargo_invite(
@@ -258,14 +251,15 @@ def test_reject_embargo_invite_owner_proposed_to_none(
 
 
 @pytest.mark.spec("MSM-07-004")
-def test_reject_embargo_invite_signatory_owner_rejecting_first_proposal_declines(
+def test_reject_embargo_invite_signatory_owner_rejecting_first_proposal_keeps_state(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """With no embargo in force, a SIGNATORY owner's ER is a DECLINE — there is no
-    active embargo for the refusal to leave the owner bound to.
+    """A SIGNATORY owner's ER decides the proposal; its own state is untouched.
 
-    (A participant reaches SIGNATORY without an active embargo only through
-    implicit consent, CM-14-005; the case-level state is what the rule reads.)
+    MSM-07-004 rule 2 reads the named embargo, not the case: a Reject of a
+    *proposed*, non-active embargo leaves a SIGNATORY's state unchanged and
+    drops the id from its list.  (A participant is SIGNATORY without an
+    active embargo only through implicit consent, CM-14-005.)
     """
     owner, dl = owner_and_dl
     case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
@@ -334,9 +328,7 @@ def test_reject_embargo_invite_non_owner_strict(
     # Seed finder to INVITED so DECLINE transition is valid
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
-    finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
-    object.__setattr__(finder_p, "embargo_consent_state", PEC.INVITED)
-    dl.save(finder_p)
+    _force_pec(dl, finder_participant_id, PEC.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.reject_embargo_invite(
@@ -397,12 +389,17 @@ def test_reject_embargo_invite_signatory_non_owner_transitions_to_declined(
 def test_reject_embargo_invite_strict_invalid_state_raises(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Reject from invalid EM state (NONE) raises in STRICT mode."""
+    """Reject from invalid EM state (NONE) raises in STRICT mode — and writes nothing.
+
+    The EM guard runs before the consent write, so a refused transition
+    leaves the owner's record (and its accepted list) exactly as it was.
+    """
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+    case, (owner_p,) = _make_case(dl, owner.id_, em_state=EM.NONE)
     embargo = _make_embargo(dl, case.id_)
     case.proposed_embargoes = [embargo.id_]
     dl.save(case)
+    _seed_consent(dl, owner_p.id_, PEC.INVITED, [embargo.id_])
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -411,6 +408,9 @@ def test_reject_embargo_invite_strict_invalid_state_raises(
             embargo_id=embargo.id_,
             actor_id=owner.id_,
         )
+
+    assert _pec_of(dl, owner_p.id_) == PEC.INVITED.value
+    assert _accepted_ids_of(dl, owner_p.id_) == [embargo.id_]
 
 
 def test_reject_embargo_invite_observed_invalid_no_raise(

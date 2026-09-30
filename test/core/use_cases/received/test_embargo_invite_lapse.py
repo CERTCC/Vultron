@@ -14,7 +14,7 @@
 compatibility (#2213)."""
 
 from datetime import datetime, timedelta, timezone
-from typing import cast
+from typing import Literal, cast
 
 import pytest
 
@@ -331,7 +331,7 @@ class TestInviteeIsTheAddressee:
         invitee_pec: PEC = PEC.UNBOUND,
         extra_actors: tuple[str, ...] = (),
         *,
-        embargo_is: str = "proposed",
+        embargo_is: Literal["proposed", "active", "unknown"] = "proposed",
         invitee_accepted: tuple[str, ...] = (),
     ):
         """Case with the coordinator as CASE_MANAGER and a separate invitee.

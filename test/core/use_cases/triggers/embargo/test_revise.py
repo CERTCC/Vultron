@@ -166,8 +166,6 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     assert "activity" in result
     updated_case = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.REVISE
-    participant_after = cast(as_CaseParticipant, dl.read(participant_id))
-    assert participant_after.embargo_consent_state == pec_before
     assert len(updated_case.proposed_embargoes) == 2
 
     participant_after = cast(as_CaseParticipant, dl.read(participant_id))

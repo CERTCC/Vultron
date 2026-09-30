@@ -64,26 +64,6 @@ def _pec_change(
     )
 
 
-def _with_embargo_id(participant: CaseParticipant, embargo_id: str) -> bool:
-    """Record *embargo_id* on *participant*'s accepted list; True if it was new."""
-    if embargo_id in participant.accepted_embargo_ids:
-        return False
-    participant.accepted_embargo_ids = list(
-        dict.fromkeys(participant.accepted_embargo_ids + [embargo_id])
-    )
-    return True
-
-
-def _without_embargo_id(participant: CaseParticipant, embargo_id: str) -> bool:
-    """Drop *embargo_id* from *participant*'s accepted list; True if it was there."""
-    if embargo_id not in participant.accepted_embargo_ids:
-        return False
-    participant.accepted_embargo_ids = [
-        e for e in participant.accepted_embargo_ids if e != embargo_id
-    ]
-    return True
-
-
 class _PecEffectsMixin(_LifecycleBase):
     """PEC bookkeeping shared by the EM transition operations."""
 
@@ -158,7 +138,7 @@ class _PecEffectsMixin(_LifecycleBase):
             participant.apply_pec_transition(PEC_Trigger.ACCEPT)
             changed = True
 
-        if _with_embargo_id(participant, embargo_id):
+        if participant.add_accepted_embargo(embargo_id):
             changed = True
 
         if not changed:
@@ -204,7 +184,7 @@ class _PecEffectsMixin(_LifecycleBase):
             participant.apply_pec_transition(PEC_Trigger.DECLINE)
             changed = True
 
-        if _without_embargo_id(participant, embargo_id):
+        if participant.remove_accepted_embargo(embargo_id):
             changed = True
 
         if not changed:
@@ -237,24 +217,38 @@ class _PecEffectsMixin(_LifecycleBase):
             f" open proposal of case '{_as_id(case)}': nothing to reject."
         )
 
-    def _apply_rejection_consent(
+    def _rejection_consent(
         self, case: VulnerabilityCase, actor_id: str, embargo_id: str
     ) -> list[ParticipantPECChange]:
-        """Apply the consent effect of *actor_id* rejecting *embargo_id*.
+        """The whole MSM-07-004 consent effect of *actor_id* rejecting *embargo_id*.
 
         :meth:`_assert_rejectable` decides whether the Reject withdraws from
-        the active embargo or refuses proposed terms;
-        :meth:`_record_actor_pec_rejection` records it (MSM-07-004).
+        the active embargo or refuses proposed terms.  The owner's EJ — the
+        owner refusing a proposed revision while an embargo is in force —
+        changes nobody's record, the owner's included: the owner is keeping
+        the prior terms, not declining them.  Every other Reject is recorded
+        by :meth:`_record_actor_pec_rejection`.  Shared by
+        ``reject_embargo_invite`` and ``record_embargo_rejection`` so the two
+        sides cannot drift; call it before the owner's decision prunes the
+        proposal.
 
         Raises:
             VultronValidationError: If *embargo_id* is neither the active
                 embargo nor an open proposal of the case.
         """
+        is_active = self._assert_rejectable(case, embargo_id)
+        is_owner = _as_id(case.attributed_to) == actor_id
+        if is_owner and not is_active and case.active_embargo_id is not None:
+            logger.info(
+                "Owner '%s' rejected proposed revision '%s' on case '%s';"
+                " no consent record changes (EJ)",
+                actor_id,
+                embargo_id,
+                _as_id(case),
+            )
+            return []
         return self._record_actor_pec_rejection(
-            case,
-            actor_id,
-            embargo_id,
-            withdrawal=self._assert_rejectable(case, embargo_id),
+            case, actor_id, embargo_id, withdrawal=is_active
         )
 
     # -- every participant's record ----------------------------------------
@@ -331,21 +325,45 @@ class _PecEffectsMixin(_LifecycleBase):
         for _participant_id, participant in self._each_participant(case):
             if participant.embargo_consent_state != PEC.SIGNATORY.value:
                 continue
-            if _with_embargo_id(participant, revised_embargo_id):
+            if participant.add_accepted_embargo(revised_embargo_id):
                 self._persistence.save(participant)
+
+    def _revision_ends_no_later(
+        self, *, previous_embargo_id: str, revised_embargo_id: str
+    ) -> bool:
+        """True when revision B ends no later than the embargo A it replaces.
+
+        The A-vs-B comparison shares :func:`earliest_expiring_embargo_id`'s
+        read path (EP-08), so an unreadable record fails closed rather than
+        silently deciding the arm; a tie keeps B, the first candidate, so
+        equal terms carry everyone over.  Call it *before* the case is
+        mutated, so a failure leaves EM and ``active_embargo`` untouched.
+
+        Raises:
+            VultronNotFoundError: If either embargo does not resolve.
+            VultronValidationError: If either record is not an ``EmbargoEvent``.
+        """
+        return (
+            earliest_expiring_embargo_id(
+                self._persistence, [revised_embargo_id, previous_embargo_id]
+            )
+            == revised_embargo_id
+        )
 
     def _reevaluate_consent_at_activation(
         self,
         case: VulnerabilityCase,
         *,
-        previous_embargo_id: str,
         revised_embargo_id: str,
+        ends_no_later: bool,
     ) -> list[ParticipantPECChange]:
         """Re-evaluate every participant's consent when A is replaced by B.
 
         The EP-05-001 / MSM-07-005 cascade, run when the case owner activates
-        revision *revised_embargo_id* in place of *previous_embargo_id*
-        (``REVISE → ACTIVE`` with ``active_embargo`` changing):
+        revision *revised_embargo_id* in place of the previous active embargo
+        (``REVISE → ACTIVE`` with ``active_embargo`` changing); *ends_no_later*
+        is :meth:`_revision_ends_no_later`'s answer, taken before the case was
+        mutated:
 
         - B ends no later than A: every signatory to A is carried over as a
           signatory to B (:meth:`_carry_signatories_over`); nobody lapses.
@@ -354,22 +372,7 @@ class _PecEffectsMixin(_LifecycleBase):
         - Either arm: a participant in any other state (``INVITED``,
           ``UNBOUND``, ``LAPSED``) whose list already holds B advances to
           ``SIGNATORY`` via ``ACCEPT`` — it accepted the embargo now in force.
-
-        The A-vs-B comparison shares :func:`earliest_expiring_embargo_id`'s
-        read path (EP-08), so an unreadable record fails closed rather than
-        silently deciding the arm; a tie keeps B, the first candidate, so
-        equal terms carry everyone over.
-
-        Raises:
-            VultronNotFoundError: If either embargo does not resolve.
-            VultronValidationError: If either record is not an ``EmbargoEvent``.
         """
-        ends_no_later = (
-            earliest_expiring_embargo_id(
-                self._persistence, [revised_embargo_id, previous_embargo_id]
-            )
-            == revised_embargo_id
-        )
         changes: list[ParticipantPECChange] = []
         if ends_no_later:
             self._carry_signatories_over(
@@ -392,11 +395,10 @@ class _PecEffectsMixin(_LifecycleBase):
             )
         )
         logger.info(
-            "Re-evaluated consent on case '%s': embargo '%s' replaced '%s'"
-            " (%s); %d participant state change(s)",
+            "Re-evaluated consent on case '%s' against embargo '%s' (%s);"
+            " %d participant state change(s)",
             _as_id(case),
             revised_embargo_id,
-            previous_embargo_id,
             (
                 "shorter or equal — signatories carried over"
                 if ends_no_later

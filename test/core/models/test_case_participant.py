@@ -424,3 +424,32 @@ class TestApplyPecTransition:
         assert status is not None
         assert status.consent is not None
         assert status.consent.state == PEC.LAPSED
+
+
+class TestAcceptedEmbargoList:
+    """``add_accepted_embargo`` / ``remove_accepted_embargo`` (CM-10-001)."""
+
+    def test_add_is_idempotent_and_reports_whether_the_id_was_new(self):
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.participant_embargo_consent import PEC
+
+        participant = CaseParticipant(
+            attributed_to="urn:actor", context="urn:case"
+        )
+        assert participant.add_accepted_embargo("urn:e1") is True
+        assert participant.add_accepted_embargo("urn:e1") is False
+        assert participant.accepted_embargo_ids == ["urn:e1"]
+        # The list is the per-embargo record; the scalar state is untouched.
+        assert participant.embargo_consent_state == PEC.UNBOUND
+
+    def test_remove_is_idempotent_and_reports_whether_the_id_was_there(self):
+        from vultron.core.models.case_participant import CaseParticipant
+
+        participant = CaseParticipant(
+            attributed_to="urn:actor",
+            context="urn:case",
+            accepted_embargo_ids=["urn:e1", "urn:e2"],
+        )
+        assert participant.remove_accepted_embargo("urn:e1") is True
+        assert participant.remove_accepted_embargo("urn:e1") is False
+        assert participant.accepted_embargo_ids == ["urn:e2"]

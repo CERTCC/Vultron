@@ -109,6 +109,24 @@ class TestMalformedEmbargoMessagesAreRefused:
         _assert_refused(result, "missing")
 
     @pytest.mark.spec("HP-01-003")
+    def test_reject_missing_embargo_id(self):
+        """A Reject that names no embargo is malformed, like an Accept that does.
+
+        Which terms are refused decides the consent effect (MSM-07-004), so
+        the handler refuses rather than guessing.
+        """
+        request = _request(
+            case_id="https://example.org/cases/c1",
+            embargo_id=None,
+            invite_id="i1",
+            actor_id=_VENDOR,
+        )
+        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+            _make_dl(), request
+        ).execute()
+        _assert_refused(result, "embargo")
+
+    @pytest.mark.spec("HP-01-003")
     def test_reject_missing_case_id(self):
         request = _request(case_id=None, invite_id="i1", actor_id=_VENDOR)
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(

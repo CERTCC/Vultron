@@ -859,6 +859,15 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             return HandlerResult.refused(
                 "Reject(Invite(EmbargoEvent)) does not name a case"
             )
+        if not embargo_id:
+            # Which terms are refused decides the consent effect (MSM-07-004);
+            # a Reject that names none is malformed, like an Accept that does.
+            logger.warning(
+                "reject_invite_to_embargo_on_case: cannot resolve embargo_id"
+            )
+            return HandlerResult.refused(
+                "Reject(Invite(EmbargoEvent)) does not name an embargo"
+            )
 
         tree = reject_invite_to_embargo_tree(
             case_id=case_id,

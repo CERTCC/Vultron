@@ -278,7 +278,7 @@ def reject_invite_to_embargo_tree(
     case_id: str,
     rejecting_actor_id: str,
     invite_id: str,
-    embargo_id: str | None = None,
+    embargo_id: str,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for rejecting embargo invitation (protocol ER / EJ).
 
@@ -296,9 +296,6 @@ def reject_invite_to_embargo_tree(
     ``accept_embargo_invite`` and the Reject path must not lag it, or a later
     default selection here would still see the rejected terms.
 
-    Without an ``embargo_id`` the Reject names no terms to refuse, so the
-    tree records nothing: it stores and commits receipt only.
-
     Commits the ledger entry before the effects (CLP-10-006); a Reject naming
     an embargo the case knows nothing about fails the effect, so the handler
     reports a refusal.
@@ -307,33 +304,30 @@ def reject_invite_to_embargo_tree(
         case_id: ID of the VulnerabilityCase.
         rejecting_actor_id: Actor ID of the participant rejecting.
         invite_id: ID of the InviteToEmbargoOnCase activity.
-        embargo_id: ID of the EmbargoEvent the Reject names.
+        embargo_id: ID of the EmbargoEvent the Reject names (required: which
+            terms are refused decides the consent effect, MSM-07-004).
 
     Returns:
         Root node of the ``RejectInviteToEmbargoBT`` Sequence.
     """
-    effect_nodes: list[py_trees.behaviour.Behaviour] = []
-    if embargo_id is not None:
-        effect_nodes.append(
-            # The consent belongs to the actor who rejected, not to whoever's
-            # replica this is: a Reject routes through the CASE_MANAGER
-            # (PCR-08), so recording against the BT execution actor would
-            # decline the manager's own consent instead.
-            RecordParticipantRejectionNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                rejecting_actor_id=rejecting_actor_id,
-            )
-        )
+    effect_nodes: list[py_trees.behaviour.Behaviour] = [
+        # The consent belongs to the actor who rejected, not to whoever's
+        # replica this is: a Reject routes through the CASE_MANAGER (PCR-08),
+        # so recording against the BT execution actor would decline the
+        # manager's own consent instead.
+        RecordParticipantRejectionNode(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            rejecting_actor_id=rejecting_actor_id,
+        ),
         # The owner's Reject decides the proposal; a participant's is consent
         # and prunes nothing (EP-08-003, #3470).
-        effect_nodes.append(
-            RemoveFromProposedEmbargoesNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                decided_by=rejecting_actor_id,
-            )
-        )
+        RemoveFromProposedEmbargoesNode(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            decided_by=rejecting_actor_id,
+        ),
+    ]
     root = create_receive_activity_tree(
         name="RejectInviteToEmbargoBT",
         case_id=case_id,

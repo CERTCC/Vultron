@@ -23,7 +23,6 @@ EP-04-008).
 import logging
 from datetime import datetime
 
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle.pec import _PecEffectsMixin
 from vultron.core.services.embargo_lifecycle.results import (
@@ -97,30 +96,15 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         """
         case = self._read_case(case_id)
         em_state = case.current_status.em.state
-
-        is_owner = _as_id(case.attributed_to) == actor_id
-        is_active = self._assert_rejectable(case, embargo_id)
-        if is_owner and not is_active and case.active_embargo_id is not None:
-            # EJ: the owner keeps the embargo in force (MSM-07-004).
-            logger.info(
-                "Owner '%s' rejected proposed revision '%s' on case '%s';"
-                " no consent record changes",
-                actor_id,
-                embargo_id,
-                case_id,
-            )
-            return _unchanged(em_state)
-
-        participant_changes = self._record_actor_pec_rejection(
-            case, actor_id, embargo_id, withdrawal=is_active
+        participant_changes = self._rejection_consent(
+            case, actor_id, embargo_id
         )
         logger.info(
             "Recorded rejection of embargo '%s' by actor '%s' on case '%s'"
-            " (%s; %d PEC state change(s))",
+            " (%d PEC state change(s))",
             embargo_id,
             actor_id,
             case_id,
-            "active embargo — withdrawal" if is_active else "proposed terms",
             len(participant_changes),
         )
         return _unchanged(em_state, participant_changes=participant_changes)
@@ -188,16 +172,10 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
             changed = True
 
         if pec_trigger == PEC_Trigger.ACCEPT and embargo_id is not None:
-            if embargo_id not in participant.accepted_embargo_ids:
-                participant.accepted_embargo_ids = list(
-                    dict.fromkeys(
-                        participant.accepted_embargo_ids + [embargo_id]
-                    )
-                )
+            if participant.add_accepted_embargo(embargo_id):
                 changed = True
         elif pec_trigger == PEC_Trigger.DECLINE and embargo_id is not None:
-            if embargo_id in participant.accepted_embargo_ids:
-                participant.accepted_embargo_ids.remove(embargo_id)
+            if participant.remove_accepted_embargo(embargo_id):
                 changed = True
 
         if changed:

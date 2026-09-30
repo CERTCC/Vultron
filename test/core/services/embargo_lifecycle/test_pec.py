@@ -28,7 +28,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from .conftest import (
@@ -249,3 +249,46 @@ def test_assert_rejectable_classifies_active_proposed_and_unknown(
     assert EmbargoLifecycle._assert_rejectable(case, proposed.id_) is False
     with pytest.raises(VultronValidationError, match="neither the active"):
         EmbargoLifecycle._assert_rejectable(case, stranger.id_)
+
+
+@pytest.mark.spec("EP-05-001")
+def test_revision_ends_no_later_orders_by_end_time_and_keeps_b_on_a_tie(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Shorter B → carry over; longer B → lapse arm; equal terms carry over."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+    active = _make_embargo(dl, case.id_, days=45)
+    shorter = _make_embargo(dl, case.id_, days=30)
+    longer = _make_embargo(dl, case.id_, days=90)
+    equal = _make_embargo(dl, case.id_, days=45)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+
+    def ends_no_later(revised: str) -> bool:
+        return lifecycle._revision_ends_no_later(
+            previous_embargo_id=active.id_, revised_embargo_id=revised
+        )
+
+    assert ends_no_later(shorter.id_) is True
+    assert ends_no_later(longer.id_) is False
+    assert ends_no_later(equal.id_) is True
+
+
+def test_revision_comparison_fails_closed_on_an_unreadable_embargo(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A replica that lacks the replaced embargo cannot decide the arm — it raises.
+
+    Neither arm is silently chosen: ``accept_embargo_invite`` and
+    ``activate_embargo`` take this answer *before* mutating the case, so the
+    failure leaves EM and ``active_embargo`` untouched.
+    """
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+    revision = _make_embargo(dl, case.id_, days=90)
+
+    with pytest.raises(VultronNotFoundError):
+        EmbargoLifecycle(persistence=dl)._revision_ends_no_later(
+            previous_embargo_id="https://example.org/embargoes/gone",
+            revised_embargo_id=revision.id_,
+        )

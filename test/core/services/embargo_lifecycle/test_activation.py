@@ -31,7 +31,10 @@ from vultron.core.services.embargo_lifecycle import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -357,3 +360,65 @@ def test_activate_embargo_first_activation_re_evaluates_nobody(
     assert result.em_after == EM.ACTIVE
     assert result.participant_changes == []
     assert _pec_of(dl, signer_p.id_) == PEC.INVITED.value
+
+
+@pytest.mark.spec("EP-05-001")
+def test_activate_embargo_records_the_owners_acceptance_before_the_cascade(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Activating B is the owner's decision, so the owner never lapses by it.
+
+    A replica syncing an announced activation (``SetEmbargoActiveNode``,
+    OBSERVED) sees the owner SIGNATORY to A with no B in its list; the owner
+    gains B and stays SIGNATORY while a silent signatory lapses.
+    """
+    owner, dl = owner_and_dl
+    signer = _make_actor(dl, "Signer")
+    case, (owner_p, signer_p) = _make_case(
+        dl, owner.id_, extra_participant_ids=[signer.id_], em_state=EM.REVISE
+    )
+    active = _make_embargo(dl, case.id_)
+    revision = _make_embargo(dl, case.id_, days=90)
+    case.active_embargo = active.id_
+    case.proposed_embargoes = [revision.id_]
+    dl.save(case)
+    _seed_consent(dl, owner_p.id_, PEC.SIGNATORY, [active.id_])
+    _seed_consent(dl, signer_p.id_, PEC.SIGNATORY, [active.id_])
+
+    result = EmbargoLifecycle(persistence=dl).activate_embargo(
+        case_id=case.id_,
+        embargo_id=revision.id_,
+        actor_id="https://example.org/actors/replica",
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert _pec_of(dl, owner_p.id_) == PEC.SIGNATORY.value
+    assert _accepted_ids_of(dl, owner_p.id_) == [active.id_, revision.id_]
+    assert _pec_of(dl, signer_p.id_) == PEC.LAPSED.value
+    assert [
+        (c.participant_id, c.pec_after) for c in result.participant_changes
+    ] == [(signer_p.id_, PEC.LAPSED.value)]
+
+
+def test_activate_embargo_with_an_unreadable_previous_embargo_changes_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The A-vs-B read fails closed *before* EM or active_embargo move."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
+    revision = _make_embargo(dl, case.id_, days=90)
+    case.active_embargo = "https://example.org/embargoes/not-replicated"
+    case.proposed_embargoes = [revision.id_]
+    dl.save(case)
+
+    with pytest.raises(VultronNotFoundError):
+        EmbargoLifecycle(persistence=dl).activate_embargo(
+            case_id=case.id_, embargo_id=revision.id_, actor_id=owner.id_
+        )
+
+    untouched = cast(VulnerabilityCase, dl.read(case.id_))
+    assert untouched.current_status.em.state == EM.REVISE
+    assert untouched.active_embargo_id == (
+        "https://example.org/embargoes/not-replicated"
+    )
+    assert untouched.proposed_embargoes == [revision.id_]
