@@ -534,7 +534,7 @@ def case_addressees(
     """
     return [
         actor_id
-        for actor_id in case.actor_participant_index.keys()
+        for actor_id in case.actor_participant_index
         if actor_id != excluding_actor_id
     ]
 

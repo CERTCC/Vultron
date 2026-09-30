@@ -1173,7 +1173,7 @@ class TestWaitForAllParticipantsRmClosed:
         # HTTP URL while participant IDs (values) are urn:uuid: URNs.
         url_based_actor_ids = [
             actor_id
-            for actor_id in fetched_case.actor_participant_index.keys()
+            for actor_id in fetched_case.actor_participant_index
             if actor_id.startswith("http")
         ]
         assert (

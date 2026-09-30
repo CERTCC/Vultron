@@ -120,7 +120,7 @@ class CollectNonClosedLogEntryRecipientsNode(DataLayerActionWithPorts):
 
         recipients = [
             actor_id
-            for actor_id in case_obj.actor_participant_index.keys()
+            for actor_id in case_obj.actor_participant_index
             if actor_id != self.actor_id
             and not self._is_rm_closed(
                 case_obj.actor_participant_index.get(actor_id, "")

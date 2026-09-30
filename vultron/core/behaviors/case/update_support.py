@@ -120,7 +120,7 @@ def broadcast_case_update(
 
     participant_ids = [
         actor_id
-        for actor_id in getattr(case, "actor_participant_index", {}).keys()
+        for actor_id in getattr(case, "actor_participant_index", {})
         if actor_id not in excluded
     ]
     if not participant_ids:
