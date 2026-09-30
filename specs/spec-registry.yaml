@@ -925,7 +925,11 @@ groups:
       with `priority: SHOULD`, `priority: SHOULD_NOT`, or `priority: MAY` that has no
       `stories:` entry. This
       check SHOULD be suppressible per-spec via `lint_suppress: [missing_story_reference]`.
-    tracking_issue: '#3522'
+    verification: >-
+      `test/metadata/specs/test_lint.py::test_protocol_should_no_stories_is_advisory`,
+      `::test_protocol_should_not_no_stories_is_advisory`, and
+      `::test_protocol_may_no_stories_is_advisory` cover the three priorities;
+      `::test_protocol_should_with_stories_no_story_warn` covers the pass.
     relationships:
     - rel_type: refines
       spec_id: SR-11-003
