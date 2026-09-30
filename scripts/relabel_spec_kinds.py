@@ -33,10 +33,12 @@ _SPECS_DIR = _REPO_ROOT / "specs"
 
 _SUPPRESSION = "missing_story_reference"
 
-_KIND_RE = re.compile(r"^(\s+)kind:\s*\S+\s*$")
+# A trailing ``# comment`` on a scalar line is kept and re-emitted verbatim.
+_KIND_RE = re.compile(r"^(\s+)kind:\s*(\S+)(\s+#.*)?\s*$")
 _LINT_SUPPRESS_BLOCK_RE = re.compile(r"^(\s+)lint_suppress:\s*$")
 _LINT_SUPPRESS_FLOW_RE = re.compile(r"^(\s+)lint_suppress:\s*\[(.*)\]\s*$")
-_LIST_ITEM_RE = re.compile(r"^\s+-\s+(\S+)\s*$")
+# A list entry: a code, optionally quoted, optionally followed by a comment.
+_LIST_ITEM_RE = re.compile(r"^\s+-\s+['\"]?(\w+)['\"]?\s*(?:#.*)?$")
 _COMMENT_RE = re.compile(r"^\s*#")
 
 
@@ -49,6 +51,7 @@ class _RunTally:
         self.stripped = 0
         self.unchanged_kind: list[str] = []
         self.no_suppression: list[str] = []
+        self.kind_not_found: list[str] = []
 
 
 def _strip_from_block(
@@ -59,8 +62,16 @@ def _strip_from_block(
     Returns ``(lines_to_emit, next_index, removed)``. Each entry is an item
     line plus the comment lines that precede it, so a comment justifying a
     suppression leaves with the item it justifies; trailing comments with no
-    item are kept. The header is dropped when no item remains.
+    item are kept. The header is dropped only when the list had entries and
+    none remain; a header with no parsed entries (a null ``lint_suppress:``)
+    is not a target and is left untouched.
+
+    A line that still belongs to the list — it starts with a dash, or sits
+    deeper than the header — but is not a list entry raises ``ValueError``:
+    silently breaking out would drop the header and orphan the entries after
+    it, producing unparseable YAML.
     """
+    header_indent = len(header) - len(header.lstrip())
     entries: list[tuple[list[str], str, str]] = []
     pending_comments: list[str] = []
     j = start
@@ -72,6 +83,15 @@ def _strip_from_block(
             continue
         im = _LIST_ITEM_RE.match(candidate)
         if im is None:
+            body = candidate.rstrip("\n\r")
+            in_list = body.lstrip().startswith("-") or (
+                body and len(body) - len(body.lstrip()) > header_indent
+            )
+            if in_list:
+                raise ValueError(
+                    f"unparseable lint_suppress entry under "
+                    f"{header.strip()!r}: {body!r}"
+                )
             break
         entries.append((pending_comments, candidate, im.group(1)))
         pending_comments = []
@@ -79,7 +99,7 @@ def _strip_from_block(
 
     remaining = [e for e in entries if e[2] != _SUPPRESSION]
     out: list[str] = []
-    if remaining:
+    if remaining or not entries:
         out.append(header)
         for comments, item, _code in remaining:
             out.extend(comments)
@@ -99,18 +119,19 @@ def _rewrite_item(
     )
     out: list[str] = []
     stripped_here = False
+    kind_seen = False
     j = 0
     while j < len(item_lines):
         line = item_lines[j]
 
         km = _KIND_RE.match(line)
         if km and km.group(1) == field_indent and new_kind is not None:
-            current = line.split(":", 1)[1].strip()
-            if current == new_kind:
+            kind_seen = True
+            if km.group(2) == new_kind:
                 tally.unchanged_kind.append(spec_id)
             else:
                 tally.relabeled += 1
-            out.append(f"{field_indent}kind: {new_kind}\n")
+            out.append(f"{field_indent}kind: {new_kind}{km.group(3) or ''}\n")
             j += 1
             continue
 
@@ -143,6 +164,8 @@ def _rewrite_item(
         tally.stripped += 1
     else:
         tally.no_suppression.append(spec_id)
+    if new_kind is not None and not kind_seen:
+        tally.kind_not_found.append(spec_id)
     return out
 
 
@@ -171,6 +194,10 @@ def main(argv: list[str]) -> int:
     specs_dir = _SPECS_DIR
     if "--specs-dir" in argv:
         at = argv.index("--specs-dir")
+        if at + 1 >= len(argv):
+            print("--specs-dir requires a directory", file=sys.stderr)
+            print(__doc__, file=sys.stderr)
+            return 2
         specs_dir = Path(argv[at + 1])
         argv = argv[:at] + argv[at + 2 :]
     args = [a for a in argv if not a.startswith("--")]
@@ -203,10 +230,18 @@ def main(argv: list[str]) -> int:
             f"no {_SUPPRESSION} suppression to remove "
             f"({len(tally.no_suppression)}): {sorted(tally.no_suppression)}"
         )
+    failed = False
+    if tally.kind_not_found:
+        print(
+            f"kind: line not found (relabel not applied): "
+            f"{sorted(tally.kind_not_found)}",
+            file=sys.stderr,
+        )
+        failed = True
     if tally.pending:
         print(f"NOT FOUND in specs/: {sorted(tally.pending)}", file=sys.stderr)
-        return 1
-    return 0
+        failed = True
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

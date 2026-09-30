@@ -14,7 +14,7 @@ from vultron.metadata.specs.kind_classification import (
 )
 from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.schema import StatementSpec
-from test.metadata.specs.test_lint import _write_yaml
+from test.metadata.specs._helpers import write_yaml
 
 
 def _spec(**fields) -> StatementSpec:
@@ -66,6 +66,14 @@ def test_domain_english_and_lookalikes_do_not_match(text):
     """Backticked wire field names, bare `module`/`class`/`function`, and
     tokens that merely contain a code word are not codebase references."""
     assert code_reference_in(_spec(statement=text)) is None
+
+
+def test_token_is_not_widened_across_a_line_break():
+    """The reported token stops at a newline before the match, not just at the start of the text."""
+    hit = code_reference_in(
+        _spec(statement="Pinned by the ratchet.\ntest/architecture/test_x.py")
+    )
+    assert hit == ("statement", "test/architecture/test_x.py")
 
 
 def test_verification_is_scanned_after_statement():
@@ -141,7 +149,7 @@ def _registry_with_carriers(tmp_path):
             }
         ],
     }
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     return load_registry(tmp_path)
 
 

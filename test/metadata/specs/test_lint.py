@@ -6,17 +6,13 @@ missing_tags) including lint_suppress suppression.
 """
 
 import pytest
-import yaml
 
+from test.metadata.specs._helpers import write_yaml
 from vultron.metadata.specs.lint import lint
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _write_yaml(path, data, filename="specs.yaml"):
-    (path / filename).write_text(yaml.dump(data))
 
 
 def _minimal_spec(spec_id="TST-01-001", priority="MUST", extra=None):
@@ -52,7 +48,7 @@ def _minimal_spec(spec_id="TST-01-001", priority="MUST", extra=None):
 
 
 def test_lint_clean_dir(tmp_path, capsys):
-    _write_yaml(tmp_path, _minimal_spec())
+    write_yaml(tmp_path, _minimal_spec())
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -74,8 +70,8 @@ def test_lint_duplicate_spec_ids(tmp_path):
     data["id"] = "DUP"
     data["groups"][0]["id"] = "DUP-01"
     data["groups"][0]["specs"][0]["statement"] = "DUP-01-001 MUST be unique"
-    _write_yaml(tmp_path, data, "file1.yaml")
-    _write_yaml(tmp_path, data, "file2.yaml")
+    write_yaml(tmp_path, data, "file1.yaml")
+    write_yaml(tmp_path, data, "file2.yaml")
     result = lint(tmp_path)
     assert result == 1
 
@@ -88,7 +84,7 @@ def test_lint_dangling_relationship(tmp_path, capsys):
             ]
         }
     )
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 1
@@ -118,7 +114,7 @@ def test_lint_prefix_mismatch(tmp_path, capsys):
             }
         ],
     }
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 1
@@ -132,7 +128,7 @@ def test_lint_prefix_mismatch(tmp_path, capsys):
 
 def test_lint_advisory_testable_without_steps(tmp_path, capsys):
     data = _minimal_spec(extra={"testable": False})
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -142,7 +138,7 @@ def test_lint_advisory_testable_without_steps(tmp_path, capsys):
 
 def test_lint_advisory_rationale_too_long(tmp_path, capsys):
     data = _minimal_spec(extra={"rationale": "x" * 501})
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -153,7 +149,7 @@ def test_lint_advisory_rationale_too_long(tmp_path, capsys):
 def test_lint_advisory_missing_tags(tmp_path, capsys):
     data = _minimal_spec()
     del data["groups"][0]["specs"][0]["tags"]
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -173,7 +169,7 @@ def test_lint_suppress_testable_without_steps(tmp_path, capsys):
             "lint_suppress": ["testable_without_steps"],
         }
     )
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -187,7 +183,7 @@ def test_lint_suppress_rationale_too_long(tmp_path, capsys):
             "lint_suppress": ["rationale_too_long"],
         }
     )
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -198,7 +194,7 @@ def test_lint_suppress_missing_tags(tmp_path, capsys):
     data = _minimal_spec()
     del data["groups"][0]["specs"][0]["tags"]
     data["groups"][0]["specs"][0]["lint_suppress"] = ["missing_tags"]
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -208,7 +204,7 @@ def test_lint_suppress_missing_tags(tmp_path, capsys):
 def test_lint_must_without_verification_warns(tmp_path, capsys):
     """MUST requirement with no verification: field emits advisory warning."""
     data = _minimal_spec(priority="MUST")
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -222,7 +218,7 @@ def test_lint_must_with_verification_no_warn(tmp_path, capsys):
         priority="MUST",
         extra={"verification": "Run the unit tests; assert no hard errors."},
     )
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -232,7 +228,7 @@ def test_lint_must_with_verification_no_warn(tmp_path, capsys):
 def test_lint_should_without_verification_no_warn(tmp_path, capsys):
     """SHOULD requirement with no verification: field does not trigger the MUST warning."""
     data = _minimal_spec(priority="SHOULD")
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -245,7 +241,7 @@ def test_lint_suppress_must_without_verification(tmp_path, capsys):
         priority="MUST",
         extra={"lint_suppress": ["must_without_verification"]},
     )
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -255,7 +251,7 @@ def test_lint_suppress_must_without_verification(tmp_path, capsys):
 def test_lint_must_not_without_verification_no_warn(tmp_path, capsys):
     """MUST_NOT requirement does not trigger the MUST verification warning."""
     data = _minimal_spec(priority="MUST_NOT")
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -291,7 +287,7 @@ def test_lint_spec_id_prefix_mismatch(tmp_path, capsys):
             }
         ],
     }
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 1
@@ -302,7 +298,7 @@ def test_lint_spec_id_prefix_mismatch(tmp_path, capsys):
 def test_lint_spec_id_prefix_match_passes(tmp_path, capsys):
     """A spec ID whose prefix matches its group must not produce an error."""
     data = _minimal_spec("TST-01-001")  # lives in group TST-01 — correct
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -330,7 +326,7 @@ def _make_adr_dir(tmp_path, adr_numbers=None):
 def test_lint_adr_ref_missing_emits_warn(tmp_path, capsys):
     """A rationale referencing ADR-0099 that has no file emits a [WARN]."""
     data = _minimal_spec(extra={"rationale": "Derived from ADR-0099."})
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     adr_dir = _make_adr_dir(tmp_path)  # no 0099 file
     result = lint(tmp_path, adr_dir=adr_dir)
     captured = capsys.readouterr()
@@ -342,7 +338,7 @@ def test_lint_adr_ref_missing_emits_warn(tmp_path, capsys):
 def test_lint_adr_ref_present_no_warn(tmp_path, capsys):
     """A rationale referencing ADR-0099 when the file exists emits no warning."""
     data = _minimal_spec(extra={"rationale": "Derived from ADR-0099."})
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     adr_dir = _make_adr_dir(tmp_path, ["0099"])
     result = lint(tmp_path, adr_dir=adr_dir)
     captured = capsys.readouterr()
@@ -353,7 +349,7 @@ def test_lint_adr_ref_present_no_warn(tmp_path, capsys):
 def test_lint_adr_ref_no_adr_dir_skips_check(tmp_path, capsys):
     """When adr_dir does not exist the check is silently skipped."""
     data = _minimal_spec(extra={"rationale": "Derived from ADR-0099."})
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     nonexistent = tmp_path / "nonexistent" / "adr"
     result = lint(tmp_path, adr_dir=nonexistent)
     captured = capsys.readouterr()
@@ -369,7 +365,7 @@ def test_lint_adr_ref_suppress(tmp_path, capsys):
             "lint_suppress": ["dangling_adr_ref"],
         }
     )
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     adr_dir = _make_adr_dir(tmp_path)  # no 0099 file
     result = lint(tmp_path, adr_dir=adr_dir)
     captured = capsys.readouterr()
@@ -381,7 +377,7 @@ def test_lint_adr_ref_no_rationale_no_warn(tmp_path, capsys):
     """A spec without a rationale field produces no ADR warning."""
     data = _minimal_spec()
     del data["groups"][0]["specs"][0]["rationale"]
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     adr_dir = _make_adr_dir(tmp_path)
     result = lint(tmp_path, adr_dir=adr_dir)
     captured = capsys.readouterr()
@@ -398,7 +394,7 @@ def test_lint_missing_item_kind_is_hard_error(tmp_path):
     """A spec item missing kind: is a hard error (exit 1)."""
     data = _minimal_spec()
     del data["groups"][0]["specs"][0]["kind"]
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     assert result == 1
 
@@ -466,7 +462,7 @@ def _scenario_start_group(with_behavioral_spec: bool):
 
 def test_scenario_start_with_behavioral_spec_passes(tmp_path, capsys):
     """scenario_start group with a BehavioralSpec+steps item must pass."""
-    _write_yaml(tmp_path, _scenario_start_group(with_behavioral_spec=True))
+    write_yaml(tmp_path, _scenario_start_group(with_behavioral_spec=True))
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -475,7 +471,7 @@ def test_scenario_start_with_behavioral_spec_passes(tmp_path, capsys):
 
 def test_scenario_start_without_behavioral_spec_fails(tmp_path, capsys):
     """scenario_start group with only StatementSpec items must be a hard error."""
-    _write_yaml(tmp_path, _scenario_start_group(with_behavioral_spec=False))
+    write_yaml(tmp_path, _scenario_start_group(with_behavioral_spec=False))
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 1
@@ -486,7 +482,7 @@ def test_scenario_start_without_behavioral_spec_fails(tmp_path, capsys):
 def test_non_scenario_start_group_not_checked(tmp_path, capsys):
     """Groups without a scenario_start trigger are not subject to MS-13-004."""
     data = _minimal_spec()  # no trigger on group TST-01
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -508,7 +504,7 @@ def _write_adr(adr_dir, num, status=None, body=""):
 
 def test_lint_adr_missing_status_is_hard_error(tmp_path, capsys):
     """An ADR with no status frontmatter is a hard error (MS-14-001)."""
-    _write_yaml(tmp_path, _minimal_spec())
+    write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path)
     _write_adr(adr_dir, "0099", status=None)
     result = lint(tmp_path, adr_dir=adr_dir)
@@ -520,7 +516,7 @@ def test_lint_adr_missing_status_is_hard_error(tmp_path, capsys):
 
 def test_lint_adr_invalid_status_is_hard_error(tmp_path, capsys):
     """An ADR with an unknown status value is a hard error (MS-14-001)."""
-    _write_yaml(tmp_path, _minimal_spec())
+    write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path)
     _write_adr(adr_dir, "0099", status="kinda-accepted")
     result = lint(tmp_path, adr_dir=adr_dir)
@@ -531,7 +527,7 @@ def test_lint_adr_invalid_status_is_hard_error(tmp_path, capsys):
 
 def test_lint_adr_superseded_status_ok(tmp_path):
     """A superseded ADR with a resolvable superseded_by target is valid."""
-    _write_yaml(tmp_path, _minimal_spec())
+    write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path, ["0100"])  # replacement exists
     (adr_dir / "0099-stub.md").write_text(
         "---\nstatus: superseded\nsuperseded_by: 0100-stub.md\n---\n# x\n"
@@ -542,7 +538,7 @@ def test_lint_adr_superseded_status_ok(tmp_path):
 
 def test_lint_adr_superseded_inline_form_ok(tmp_path):
     """The inline 'superseded by <link>' MADR form is accepted and resolved."""
-    _write_yaml(tmp_path, _minimal_spec())
+    write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path, ["0100"])
     (adr_dir / "0099-stub.md").write_text(
         "---\nstatus: superseded by 0100-stub.md\n---\n# x\n"
@@ -553,7 +549,7 @@ def test_lint_adr_superseded_inline_form_ok(tmp_path):
 
 def test_lint_adr_superseded_without_target_is_hard_error(tmp_path, capsys):
     """A retired ADR missing superseded_by is a hard error (MS-14-004)."""
-    _write_yaml(tmp_path, _minimal_spec())
+    write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path)
     (adr_dir / "0099-stub.md").write_text(
         "---\nstatus: superseded\n---\n# x\n"
@@ -566,7 +562,7 @@ def test_lint_adr_superseded_without_target_is_hard_error(tmp_path, capsys):
 
 def test_lint_adr_accepted_with_provisional_prose_warns(tmp_path, capsys):
     """status: accepted + provisional prose is an advisory warning (MS-14-002)."""
-    _write_yaml(tmp_path, _minimal_spec())
+    write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path)
     _write_adr(
         adr_dir,
@@ -583,7 +579,7 @@ def test_lint_adr_accepted_with_provisional_prose_warns(tmp_path, capsys):
 
 def test_lint_adr_accepted_provisional_status_no_warn(tmp_path, capsys):
     """accepted-provisional + provisional prose is consistent — no warning."""
-    _write_yaml(tmp_path, _minimal_spec())
+    write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path)
     _write_adr(
         adr_dir,
@@ -605,7 +601,7 @@ def test_lint_adr_accepted_provisional_status_no_warn(tmp_path, capsys):
 def test_lint_structured_adr_ref_missing_is_hard_error(tmp_path, capsys):
     """A structured adr: target with no ADR file is a hard error."""
     data = _minimal_spec(extra={"adr": ["ADR-0099"]})
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     adr_dir = _make_adr_dir(tmp_path)  # no 0099 file
     result = lint(tmp_path, adr_dir=adr_dir)
     captured = capsys.readouterr()
@@ -616,7 +612,7 @@ def test_lint_structured_adr_ref_missing_is_hard_error(tmp_path, capsys):
 def test_lint_structured_adr_ref_present_ok(tmp_path, capsys):
     """A structured adr: target that resolves to a file is clean."""
     data = _minimal_spec(extra={"adr": ["ADR-0099"]})
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     adr_dir = _make_adr_dir(tmp_path, ["0099"])
     result = lint(tmp_path, adr_dir=adr_dir)
     assert result == 0
@@ -625,7 +621,7 @@ def test_lint_structured_adr_ref_present_ok(tmp_path, capsys):
 def test_lint_structured_adr_ref_resolves_to_archived(tmp_path):
     """A structured adr: target in docs/adr/archived/ resolves (no error)."""
     data = _minimal_spec(extra={"adr": ["ADR-0099"]})
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     adr_dir = _make_adr_dir(tmp_path)
     archived = adr_dir / "archived"
     archived.mkdir()
@@ -639,7 +635,7 @@ def test_lint_structured_adr_ref_resolves_to_archived(tmp_path):
 
 def test_lint_adr_status_prose_suppress(tmp_path, capsys):
     """lint_suppress: [status_prose_contradiction] silences the MS-14-002 warn."""
-    _write_yaml(tmp_path, _minimal_spec())
+    write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path)
     (adr_dir / "0099-stub.md").write_text(
         "---\nstatus: accepted\n"
@@ -678,7 +674,7 @@ def test_lint_phantom_path_is_hard_error(tmp_path, capsys):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "The harness MUST be registered in `vultron/nope.py`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -694,7 +690,7 @@ def test_lint_phantom_path_existing_file_passes(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "The thing MUST live in `vultron/real.py`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -705,7 +701,7 @@ def test_lint_phantom_path_placeholder_exempt(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Each scenario MUST have a `test/ci/invariants/test_XXX_invariants.py`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -720,7 +716,7 @@ def test_lint_phantom_path_without_placeholder_token_fails(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Each scenario MUST have a `test/ci/invariants/test_fv_invariants.py`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 1
 
 
@@ -732,7 +728,7 @@ def test_lint_phantom_path_placeholder_basename_exempt(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "A new note MUST be created at `notes/new-topic.md`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -744,7 +740,7 @@ def test_lint_phantom_path_placeholder_basename_not_a_substring(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "The workflow MUST be documented in `notes/new-topic-workflow.md`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 1
 
 
@@ -755,7 +751,7 @@ def test_lint_phantom_path_dot_directory_is_checked(tmp_path, capsys):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Linting MUST run via `.claude/skills/format-markdown/SKILL.md`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -772,7 +768,7 @@ def test_lint_phantom_path_dot_directory_existing_passes(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Linting MUST run via `.claude/skills/format-markdown/SKILL.md`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -786,7 +782,7 @@ def test_lint_phantom_path_package_relative_resolves_as_suffix(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Patterns MUST be defined in `received/sync.py`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -797,7 +793,7 @@ def test_lint_phantom_path_package_relative_unresolvable_fails(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Patterns MUST be defined in `received/sync.py`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 1
 
 
@@ -815,7 +811,7 @@ def test_lint_phantom_path_mistyped_leading_segment_fails(tmp_path, capsys):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Checks MUST live in `tests/ci/common.py`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -832,7 +828,7 @@ def test_lint_phantom_path_suffix_ignores_build_artifacts(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Patterns MUST be defined in `received/sync.py`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 1
 
 
@@ -843,7 +839,7 @@ def test_lint_phantom_path_absolute_rejected(tmp_path, capsys):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Config MUST be read from `/etc/vultron/settings.yaml`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -858,7 +854,7 @@ def test_lint_phantom_path_parent_traversal_rejected(tmp_path, capsys):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "The thing MUST live in `test/../vultron/real.py`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -872,7 +868,7 @@ def test_lint_phantom_path_rationale_not_scanned(tmp_path):
     data["groups"][0]["specs"][0][
         "rationale"
     ] = "`vultron/old_config.py` has been converted to a package."
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -883,7 +879,7 @@ def test_lint_phantom_path_suppress(tmp_path, capsys):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "A new module MUST be created at `vultron/planned.py`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 0
@@ -897,7 +893,7 @@ def test_lint_phantom_path_in_verification_is_hard_error(tmp_path, capsys):
     data["groups"][0]["specs"][0][
         "verification"
     ] = "Assert via `vultron/nope.py` that the invariant holds."
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -913,7 +909,7 @@ def test_lint_phantom_path_in_verification_existing_passes(tmp_path):
     data["groups"][0]["specs"][0][
         "verification"
     ] = "Assert via `vultron/real.py` that the invariant holds."
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -924,7 +920,7 @@ def test_lint_phantom_path_verification_suppress(tmp_path, capsys):
     data["groups"][0]["specs"][0][
         "verification"
     ] = "A test at `vultron/future.py` will assert this."
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 0
@@ -943,7 +939,7 @@ def test_lint_phantom_dir_is_hard_error(tmp_path, capsys):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Helpers MUST live in `vultron/missing/`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -959,7 +955,7 @@ def test_lint_phantom_dir_existing_passes(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Helpers MUST live in `vultron/real/`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -970,7 +966,7 @@ def test_lint_phantom_dir_single_segment_not_checked(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Output MUST be written to the `devlogs/` directory"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -981,7 +977,7 @@ def test_lint_phantom_dir_placeholder_exempt(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Each run MUST write to `plan/history/YYMM/`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -998,7 +994,7 @@ def test_lint_phantom_dir_placeholder_negative(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Each run MUST write to `plan/history/2601/`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 1
 
 
@@ -1010,7 +1006,7 @@ def test_lint_phantom_dir_package_relative_resolves(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Handlers MUST live in `wire/received/`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -1021,7 +1017,7 @@ def test_lint_phantom_dir_package_relative_fails(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Handlers MUST live in `wire/received/`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 1
 
 
@@ -1032,7 +1028,7 @@ def test_lint_phantom_dir_suppress(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Helpers MUST live in `vultron/planned/`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -1043,7 +1039,7 @@ def test_lint_phantom_dir_in_verification_is_hard_error(tmp_path, capsys):
     data["groups"][0]["specs"][0][
         "verification"
     ] = "Assert via `test/ci/invariants/` that the invariant holds."
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -1089,7 +1085,7 @@ def test_lint_phantom_dir_in_behavioral_step_is_hard_error(tmp_path, capsys):
     data = _minimal_behavioral_spec_data(
         step_action="Write output to `vultron/output/`"
     )
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -1103,7 +1099,7 @@ def test_lint_phantom_path_in_behavioral_step_is_hard_error(tmp_path, capsys):
     data = _minimal_behavioral_spec_data(
         step_action="Register via `vultron/nope.py`"
     )
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -1118,7 +1114,7 @@ def test_lint_phantom_path_in_behavioral_step_existing_passes(tmp_path):
     data = _minimal_behavioral_spec_data(
         step_action="Register via `vultron/real.py`"
     )
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -1128,7 +1124,7 @@ def test_lint_phantom_path_in_precondition_is_hard_error(tmp_path, capsys):
     data = _minimal_behavioral_spec_data(
         precondition_desc="File `vultron/missing.py` is loaded"
     )
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -1142,7 +1138,7 @@ def test_lint_phantom_path_in_postcondition_is_hard_error(tmp_path, capsys):
     data = _minimal_behavioral_spec_data(
         postcondition_desc="Result written to `vultron/missing.py`"
     )
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -1179,7 +1175,7 @@ def test_lint_phantom_path_behavioral_step_suppress(tmp_path):
         "scope": ["production"],
         "groups": [{"id": "TST-01", "title": "G", "specs": [spec]}],
     }
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
 
 
@@ -1192,7 +1188,7 @@ def test_phantom_spec_id_unknown_in_vultron_is_hard_error(tmp_path, capsys):
     """A .py file under vultron/ citing an unknown spec ID is a hard error."""
     spec_dir = tmp_path / "specs"
     spec_dir.mkdir()
-    _write_yaml(spec_dir, _minimal_spec())
+    write_yaml(spec_dir, _minimal_spec())
     vultron_dir = tmp_path / "vultron"
     vultron_dir.mkdir()
     (vultron_dir / "module.py").write_text('"""Spec: XX-99-001."""\n')
@@ -1207,7 +1203,7 @@ def test_phantom_spec_id_known_id_no_error(tmp_path, capsys):
     """A .py file under vultron/ citing a known spec ID returns 0."""
     spec_dir = tmp_path / "specs"
     spec_dir.mkdir()
-    _write_yaml(spec_dir, _minimal_spec())
+    write_yaml(spec_dir, _minimal_spec())
     vultron_dir = tmp_path / "vultron"
     vultron_dir.mkdir()
     (vultron_dir / "module.py").write_text(
@@ -1224,7 +1220,7 @@ def test_phantom_spec_id_allowlisted_dir_no_error(tmp_path, capsys):
     """Files under test/metadata/specs/ citing synthetic IDs are not flagged."""
     spec_dir = tmp_path / "specs"
     spec_dir.mkdir()
-    _write_yaml(spec_dir, _minimal_spec())
+    write_yaml(spec_dir, _minimal_spec())
     allowlist_dir = tmp_path / "test" / "metadata" / "specs"
     allowlist_dir.mkdir(parents=True)
     (allowlist_dir / "test_fixture.py").write_text(
@@ -1241,7 +1237,7 @@ def test_phantom_spec_id_no_ids_in_file_no_error(tmp_path):
     """A .py file with no spec ID tokens returns 0."""
     spec_dir = tmp_path / "specs"
     spec_dir.mkdir()
-    _write_yaml(spec_dir, _minimal_spec())
+    write_yaml(spec_dir, _minimal_spec())
     vultron_dir = tmp_path / "vultron"
     vultron_dir.mkdir()
     (vultron_dir / "module.py").write_text("def hello():\n    return 42\n")
@@ -1253,7 +1249,7 @@ def test_phantom_spec_id_unknown_in_test_dir_is_hard_error(tmp_path, capsys):
     """A .py file under a non-allowlisted test/ subdir citing an unknown spec ID is a hard error."""
     spec_dir = tmp_path / "specs"
     spec_dir.mkdir()
-    _write_yaml(spec_dir, _minimal_spec())
+    write_yaml(spec_dir, _minimal_spec())
     test_core_dir = tmp_path / "test" / "core"
     test_core_dir.mkdir(parents=True)
     (test_core_dir / "test_something.py").write_text(
@@ -1278,7 +1274,7 @@ def test_lint_phantom_symbol_is_hard_error(tmp_path, capsys):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Every pattern MUST be registered in `RETIRED_PATTERN_TABLE`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
 
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -1297,7 +1293,7 @@ def test_lint_phantom_symbol_existing_symbol_passes(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Every pattern MUST be registered in `LIVE_PATTERN_TABLE`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
 
     assert lint(spec_dir) == 0
 
@@ -1310,7 +1306,7 @@ def test_lint_phantom_symbol_resolves_from_test_tree(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "The ratchet MUST enumerate exemptions in `KNOWN_VIOLATIONS`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
 
     assert lint(spec_dir) == 0
 
@@ -1322,7 +1318,7 @@ def test_lint_phantom_symbol_in_verification_is_hard_error(tmp_path, capsys):
     data["groups"][0]["specs"][0][
         "verification"
     ] = "A unit test asserts `GONE_REGISTRY` has one entry per semantic."
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
 
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -1337,7 +1333,7 @@ def test_lint_phantom_symbol_rationale_not_scanned(tmp_path):
     data["groups"][0]["specs"][0][
         "rationale"
     ] = "`GONE_REGISTRY` was replaced during the registry move."
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
 
     assert lint(spec_dir) == 0
 
@@ -1349,7 +1345,7 @@ def test_lint_phantom_symbol_suppress(tmp_path, capsys):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "The `REMOVED_SEMANTIC_TABLE` table has been removed; use the registry."
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
 
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -1376,7 +1372,7 @@ def test_lint_phantom_symbol_linter_own_source_excluded_from_corpus(
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Patterns MUST be registered in `RETIRED_TABLE`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
 
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -1402,7 +1398,7 @@ def test_lint_phantom_symbol_linter_sibling_still_in_corpus(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "The priority MUST NOT be `SHOULD_NOT`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
 
     assert lint(spec_dir) == 0
 
@@ -1421,7 +1417,7 @@ def test_lint_phantom_symbol_test_fixture_dir_excluded_from_corpus(
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Patterns MUST be registered in `INVENTED_TABLE`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
 
     result = lint(spec_dir)
     captured = capsys.readouterr()
@@ -1436,7 +1432,7 @@ def test_lint_phantom_symbol_single_word_token_not_checked(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "Shorthand `RS` MUST leave the participant `SIGNATORY`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
 
     assert lint(spec_dir) == 0
 
@@ -1448,7 +1444,7 @@ def test_lint_phantom_symbol_dotted_reference_not_checked(tmp_path):
     data["groups"][0]["specs"][0][
         "statement"
     ] = "The fallback MUST be `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`"
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
 
     assert lint(spec_dir) == 0
 
@@ -1479,7 +1475,7 @@ def _minimal_spec_no_stories(priority="MUST", kind="protocol"):
 
 def test_protocol_must_no_stories_is_hard_error(tmp_path, capsys):
     """kind=protocol + priority=MUST + no stories: is a hard error (SR-11-003)."""
-    _write_yaml(tmp_path, _minimal_spec_no_stories(priority="MUST"))
+    write_yaml(tmp_path, _minimal_spec_no_stories(priority="MUST"))
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 1
@@ -1491,7 +1487,7 @@ def test_protocol_must_with_stories_passes(tmp_path, capsys):
     """kind=protocol + priority=MUST with a stories: entry does not hard-error."""
     data = _minimal_spec_no_stories(priority="MUST")
     data["groups"][0]["specs"][0]["stories"] = ["story_2022_001"]
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -1504,7 +1500,7 @@ def test_protocol_must_suppress_missing_story_reference(tmp_path, capsys):
     data["groups"][0]["specs"][0]["lint_suppress"] = [
         "missing_story_reference"
     ]
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -1513,7 +1509,7 @@ def test_protocol_must_suppress_missing_story_reference(tmp_path, capsys):
 
 def test_non_protocol_must_no_stories_no_hard_error(tmp_path, capsys):
     """kind=architecture + priority=MUST with no stories does NOT hard-error."""
-    _write_yaml(
+    write_yaml(
         tmp_path,
         _minimal_spec_no_stories(priority="MUST", kind="architecture"),
     )
@@ -1525,7 +1521,7 @@ def test_non_protocol_must_no_stories_no_hard_error(tmp_path, capsys):
 
 def test_protocol_should_no_stories_is_advisory(tmp_path, capsys):
     """kind=protocol + priority=SHOULD + no stories emits advisory [WARN] (SR-11-004)."""
-    _write_yaml(tmp_path, _minimal_spec_no_stories(priority="SHOULD"))
+    write_yaml(tmp_path, _minimal_spec_no_stories(priority="SHOULD"))
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -1535,7 +1531,7 @@ def test_protocol_should_no_stories_is_advisory(tmp_path, capsys):
 
 def test_protocol_may_no_stories_is_advisory(tmp_path, capsys):
     """kind=protocol + priority=MAY + no stories emits advisory [WARN] (SR-11-004)."""
-    _write_yaml(tmp_path, _minimal_spec_no_stories(priority="MAY"))
+    write_yaml(tmp_path, _minimal_spec_no_stories(priority="MAY"))
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -1547,7 +1543,7 @@ def test_protocol_should_with_stories_no_story_warn(tmp_path, capsys):
     """kind=protocol + priority=SHOULD with stories: does not emit advisory."""
     data = _minimal_spec_no_stories(priority="SHOULD")
     data["groups"][0]["specs"][0]["stories"] = ["story_2022_042"]
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -1560,7 +1556,7 @@ def test_protocol_should_suppress_advisory_story_warn(tmp_path, capsys):
     data["groups"][0]["specs"][0]["lint_suppress"] = [
         "missing_story_reference"
     ]
-    _write_yaml(tmp_path, data)
+    write_yaml(tmp_path, data)
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
@@ -1602,7 +1598,7 @@ def test_protocol_no_stories_code_reference_is_hard_error(tmp_path, capsys):
     data["groups"][0]["specs"][0]["lint_suppress"] = [
         "missing_story_reference"
     ]
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -1627,7 +1623,7 @@ def test_protocol_code_reference_message_names_the_tree_not_a_kind(
     data["groups"][0]["specs"][0]["lint_suppress"] = [
         "missing_story_reference"
     ]
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     lint(spec_dir)
     (line,) = _ms12_lines(capsys.readouterr().err)
     assert "MS-12-001" in line and "MS-12-005" in line
@@ -1640,7 +1636,7 @@ def test_protocol_with_stories_and_code_reference_passes(tmp_path, capsys):
     """A story-bearing protocol spec is exempt by construction (MS-12-006)."""
     spec_dir, data = _protocol_spec_naming_code(tmp_path)
     data["groups"][0]["specs"][0]["stories"] = ["story_2022_001"]
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 0
@@ -1654,7 +1650,7 @@ def test_protocol_code_reference_suppressed(tmp_path, capsys):
         "missing_story_reference",
         "protocol_kind_with_code_reference",
     ]
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 0
@@ -1664,7 +1660,7 @@ def test_protocol_code_reference_suppressed(tmp_path, capsys):
 def test_non_protocol_kind_with_code_reference_not_flagged(tmp_path, capsys):
     """A kind=project spec naming code is the tree's correct outcome, not a fault."""
     spec_dir, data = _protocol_spec_naming_code(tmp_path, kind="project")
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 0
@@ -1679,7 +1675,7 @@ def test_protocol_code_reference_is_not_priority_scoped(
 ):
     """MS-12-006 fires on every tier; SR-11-003's MUST-only gate never reached these."""
     spec_dir, data = _protocol_spec_naming_code(tmp_path, priority=priority)
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     captured = capsys.readouterr()
     assert result == 1
@@ -1696,7 +1692,7 @@ def test_protocol_code_reference_in_statement_is_hard_error(tmp_path, capsys):
     data["groups"][0]["specs"][0]["lint_suppress"] = [
         "missing_story_reference"
     ]
-    _write_yaml(spec_dir, data)
+    write_yaml(spec_dir, data)
     result = lint(spec_dir)
     (line,) = _ms12_lines(capsys.readouterr().err)
     assert result == 1

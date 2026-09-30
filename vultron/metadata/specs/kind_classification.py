@@ -58,8 +58,10 @@ _CODE_REFERENCE_RE = re.compile(
 
 #: Characters that continue the path or dotted name a match sits in, so the
 #: error names ``test/demo/`` or ``conftest.py`` rather than ``test/`` or
-#: ``.py``.
-_TOKEN_HEAD_RE = re.compile(r"[\w./-]*$")
+#: ``.py``. ``\Z`` rather than ``$``: with ``endpos`` set to the match start,
+#: ``$`` would also match before a newline just ahead of it and drag the
+#: previous line into the reported token.
+_TOKEN_HEAD_RE = re.compile(r"[\w./-]*\Z")
 _TOKEN_TAIL_RE = re.compile(r"[\w./-]*")
 
 #: The two fields MS-12-006 scans. Behavioral ``steps``, preconditions and

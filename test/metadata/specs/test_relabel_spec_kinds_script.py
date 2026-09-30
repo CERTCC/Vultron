@@ -120,10 +120,12 @@ groups:
 """
 
 
-def _run(tmp_path: Path, mapping: dict, *flags: str) -> tuple[int, str]:
+def _run(
+    tmp_path: Path, mapping: dict, *flags: str, text: str = _FIXTURE
+) -> tuple[int, str]:
     specs_dir = tmp_path / "specs"
     specs_dir.mkdir()
-    (specs_dir / "tst.yaml").write_text(_FIXTURE, encoding="utf-8")
+    (specs_dir / "tst.yaml").write_text(text, encoding="utf-8")
     mapping_path = tmp_path / "mapping.json"
     mapping_path.write_text(json.dumps(mapping), encoding="utf-8")
     rc = relabel.main(
@@ -185,3 +187,100 @@ def test_iter_blocks_slices_items_at_their_indent():
     assert all(b.indent == "  " and b.field_indent == "    " for b in found)
     # the multi-line block scalar belongs to its item
     assert any("across two lines." in line for line in found[2].lines)
+
+
+# ---------------------------------------------------------------------------
+# Shapes the live corpus did not present, which the script must still handle
+# without editing anything it was not asked to.
+# ---------------------------------------------------------------------------
+
+_HEADER = """\
+id: TST
+title: Test
+description: Test spec file
+scope: [production]
+groups:
+- id: TST-01
+  title: Group
+  specs:
+"""
+
+
+def test_kind_with_trailing_comment_is_relabeled_and_keeps_the_comment(
+    tmp_path,
+):
+    text = _HEADER + (
+        "  - id: TST-01-001\n"
+        "    priority: MUST\n"
+        "    kind: protocol  # decided in #1234\n"
+        "    statement: TST-01-001 MUST do the thing\n"
+    )
+    rc, out = _run(tmp_path, {"TST-01-001": "project"}, text=text)
+    assert rc == 0
+    assert "    kind: project  # decided in #1234\n" in out
+
+
+def test_quoted_and_commented_list_entries_are_parsed(tmp_path):
+    text = _HEADER + (
+        "  - id: TST-01-001\n"
+        "    priority: MUST\n"
+        "    kind: protocol\n"
+        "    statement: TST-01-001 MUST do the thing\n"
+        "    lint_suppress:\n"
+        '    - "phantom_path_ref"  # the path is illustrative\n'
+        "    - missing_story_reference  # no story yet\n"
+    )
+    rc, out = _run(tmp_path, {"TST-01-001": "project"}, text=text)
+    assert rc == 0
+    assert out.endswith(
+        "    lint_suppress:\n"
+        '    - "phantom_path_ref"  # the path is illustrative\n'
+    )
+    assert "missing_story_reference" not in out
+
+
+def test_null_lint_suppress_header_is_left_alone(tmp_path):
+    text = _HEADER + (
+        "  - id: TST-01-001\n"
+        "    priority: MUST\n"
+        "    kind: protocol\n"
+        "    lint_suppress:\n"
+        "    statement: TST-01-001 MUST do the thing\n"
+    )
+    rc, out = _run(tmp_path, {"TST-01-001": "project"}, text=text)
+    assert rc == 0
+    assert out == text.replace("kind: protocol", "kind: project")
+
+
+def test_unparseable_list_entry_raises_instead_of_orphaning_it(tmp_path):
+    text = _HEADER + (
+        "  - id: TST-01-001\n"
+        "    priority: MUST\n"
+        "    kind: protocol\n"
+        "    statement: TST-01-001 MUST do the thing\n"
+        "    lint_suppress:\n"
+        "    - {code: missing_story_reference}\n"
+    )
+    with pytest.raises(ValueError, match="unparseable lint_suppress entry"):
+        _run(tmp_path, {"TST-01-001": "project"}, text=text)
+
+
+def test_missing_kind_line_is_reported_and_fails_the_run(tmp_path, capsys):
+    text = _HEADER + (
+        "  - id: TST-01-001\n"
+        "    priority: MUST\n"
+        "    statement: TST-01-001 MUST do the thing\n"
+        "    lint_suppress: [missing_story_reference]\n"
+    )
+    rc, out = _run(tmp_path, {"TST-01-001": "project"}, text=text)
+    assert rc == 1
+    assert "TST-01-001" in capsys.readouterr().err
+    assert "lint_suppress" not in out  # the suppression was still stripped
+
+
+def test_specs_dir_without_a_value_is_a_usage_error(tmp_path, capsys):
+    mapping_path = tmp_path / "mapping.json"
+    mapping_path.write_text("{}", encoding="utf-8")
+    rc = relabel.main([str(mapping_path), "--specs-dir"])
+    assert rc == 2
+    assert "--specs-dir" in capsys.readouterr().err
