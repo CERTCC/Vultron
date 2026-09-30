@@ -34,6 +34,8 @@ import vultron.demo.utils as demo_utils
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.utils import reset_demo_failures
 
+from test.demo._helpers import patched_report_submission
+
 
 class _Helpers:
     @staticmethod
@@ -864,116 +866,75 @@ class TestFcvcvPhase1DrainViaSharedHelper(_Helpers):
     where the drain used to return silently.
     """
 
-    def _run_report_submission(
-        self, clients: dict, stack: contextlib.ExitStack
-    ):
+    _CLIENTS = (
+        "finder_client",
+        "c1_client",
+        "v1_client",
+        "c2_client",
+        "v2_client",
+    )
+
+    def _run_report_submission(self, clients: dict, *, stub_coverage: bool):
         """Run ``_phase_report_submission`` with every other collaborator patched.
 
-        The ``demo_*`` context managers of the *scenario* module are replaced
-        with ``nullcontext`` so the only demo context that can record anything
-        is the one inside the shared helper, which the helper takes from
-        ``vultron.demo.utils`` directly.
+        With ``stub_coverage=False`` the real ``wait_for_replica_ledger_coverage``
+        runs, and the only demo context that can record anything is the one
+        inside it, which the helper takes from ``vultron.demo.utils`` directly.
         """
-        finder = self._actor("urn:test:finder")
-        c1 = self._actor("urn:test:c1")
-        v1 = self._actor("urn:test:v1")
-        c2 = self._actor("urn:test:c2")
         case = self._case("urn:test:case")
-        stack.enter_context(patch.object(demo, "reset_containers"))
-        stack.enter_context(
-            patch.object(
-                demo,
-                "seed_containers_fcvcv",
-                return_value=(finder, c1, v1, c2, MagicMock()),
+        demo_patches: dict[str, dict] = {
+            name: {}
+            for name in (
+                "wait_for_case_participants",
+                "verify_case_active",
+                "post_to_inbox_and_wait",
+                "verify_object_stored",
+                "wait_for_case_on_container",
+                "run_invite_path_rm_triage",
             )
-        )
-        stack.enter_context(
-            patch.object(
-                demo,
-                "get_actor_by_id",
-                side_effect=[
-                    self._actor("urn:test:c1"),
-                    self._actor("urn:test:v1"),
-                    self._actor("urn:test:c2"),
-                ],
+        }
+        demo_patches["find_case_invite_for_actor"] = {
+            "return_value": "urn:test:invite"
+        }
+        if stub_coverage:
+            demo_patches["wait_for_replica_ledger_coverage"] = {}
+        with patched_report_submission(
+            demo,
+            seed_fn="seed_containers_fcvcv",
+            seeded_actors=(
+                self._actor("urn:test:finder"),
+                self._actor("urn:test:c1"),
+                self._actor("urn:test:v1"),
+                self._actor("urn:test:c2"),
+                MagicMock(),
+            ),
+            actor_lookups=[
+                self._actor("urn:test:c1"),
+                self._actor("urn:test:v1"),
+                self._actor("urn:test:c2"),
+            ],
+            case=case,
+            demo_patches=demo_patches,
+            session_patches=("accept_case_invite",),
+        ) as mocks:
+            demo._phase_report_submission(
+                finder_id=None,
+                c1_id=None,
+                v1_id=None,
+                c2_id=None,
+                v2_id=None,
+                **clients,
             )
-        )
-        stack.enter_context(
-            patch.object(
-                demo,
-                "reporter_submits_report",
-                return_value=(MagicMock(), MagicMock(id_="urn:test:offer")),
-            )
-        )
-        stack.enter_context(
-            patch.object(demo, "run_direct_path_rm_triage", return_value=case)
-        )
-        for name in (
-            "wait_for_case_participants",
-            "verify_case_active",
-            "post_to_inbox_and_wait",
-            "verify_object_stored",
-            "wait_for_case_on_container",
-            "run_invite_path_rm_triage",
-        ):
-            stack.enter_context(patch.object(demo, name))
-        stack.enter_context(
-            patch.object(
-                ActorSession,
-                "invite_actor_to_case",
-                return_value=SimpleNamespace(
-                    activity=MagicMock(id_="urn:test:invite")
-                ),
-            )
-        )
-        stack.enter_context(patch.object(ActorSession, "accept_case_invite"))
-        stack.enter_context(
-            patch.object(
-                demo,
-                "find_case_invite_for_actor",
-                return_value="urn:test:invite",
-            )
-        )
-        mock_vc = stack.enter_context(
-            patch.object(demo, "as_VulnerabilityCase")
-        )
-        mock_vc.model_validate.return_value = case
-        for name in ("demo_gate", "demo_check", "demo_step"):
-            stack.enter_context(
-                patch.object(
-                    demo, name, side_effect=lambda _: contextlib.nullcontext()
-                )
-            )
-        demo._phase_report_submission(
-            finder_id=None,
-            c1_id=None,
-            v1_id=None,
-            c2_id=None,
-            v2_id=None,
-            **clients,
-        )
-        return case
+        return case, mocks
 
     def test_phase1_drain_calls_shared_helper_with_same_authority_and_replicas(
         self,
     ):
         """AC-1: same authority, same replica pairs, Phase 1 label, causal gate."""
-        clients = {
-            k: self._client()
-            for k in (
-                "finder_client",
-                "c1_client",
-                "v1_client",
-                "c2_client",
-                "v2_client",
-            )
-        }
-        with contextlib.ExitStack() as stack:
-            coverage = stack.enter_context(
-                patch.object(demo, "wait_for_replica_ledger_coverage")
-            )
-            case = self._run_report_submission(clients, stack)
+        clients = {k: self._client() for k in self._CLIENTS}
+        case, mocks = self._run_report_submission(clients, stub_coverage=True)
 
+        coverage = mocks["wait_for_replica_ledger_coverage"]
         coverage.assert_called_once()
         kwargs = coverage.call_args.kwargs
         assert kwargs["auth_client"] is clients["c1_client"]
@@ -1000,33 +961,19 @@ class TestFcvcvPhase1DrainViaSharedHelper(_Helpers):
         ``wait_for_replica_ledger_coverage`` and the real ``demo_gate`` run;
         only the authority-tail read and the per-replica primitive are stubbed.
         """
-        clients = {
-            k: self._client()
-            for k in (
-                "finder_client",
-                "c1_client",
-                "v1_client",
-                "c2_client",
-                "v2_client",
-            )
-        }
+        clients = {k: self._client() for k in self._CLIENTS}
         clients["c1_client"].base_url = "http://c1.test/api/v2"
         reset_demo_failures()
         try:
-            with contextlib.ExitStack() as stack:
-                stack.enter_context(
-                    patch.object(
-                        sync_module,
-                        "_get_log_entries_for_case",
-                        return_value=[],
-                    )
-                )
-                per_replica = stack.enter_context(
-                    patch.object(
-                        sync_module, "wait_for_contiguous_ledger_coverage"
-                    )
-                )
-                self._run_report_submission(clients, stack)
+            with (
+                patch.object(
+                    sync_module, "_get_log_entries_for_case", return_value=[]
+                ),
+                patch.object(
+                    sync_module, "wait_for_contiguous_ledger_coverage"
+                ) as per_replica,
+            ):
+                self._run_report_submission(clients, stub_coverage=False)
 
             per_replica.assert_not_called()
             (failure,) = demo_utils._demo_failures

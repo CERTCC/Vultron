@@ -70,8 +70,24 @@ def _callee_name(call: ast.Call) -> str:
     return getattr(func, "id", "")
 
 
+def _import_aliases(tree: ast.AST) -> dict[str, str]:
+    """``{local_name: forbidden_name}`` for every ``from … import X as Y``.
+
+    A name bound by an aliased import spells the forbidden primitive under
+    another label; resolving it lets a call or reference through the alias be
+    reported as the primitive it reaches.  An un-aliased import maps to itself.
+    """
+    return {
+        alias.asname or alias.name: alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+        if alias.name in _FORBIDDEN
+    }
+
+
 def _call_and_import_hits(
-    tree: ast.AST,
+    tree: ast.AST, aliases: dict[str, str]
 ) -> tuple[list[tuple[int, str, str]], set[int]]:
     """Forbidden names in call position or ``from … import``, plus callee ids."""
     hits: list[tuple[int, str, str]] = []
@@ -80,8 +96,9 @@ def _call_and_import_hits(
         if isinstance(node, ast.Call):
             callees.add(id(node.func))
             name = _callee_name(node)
-            if name in _FORBIDDEN:
-                hits.append((node.lineno, "call", name))
+            resolved = aliases.get(name, name)
+            if resolved in _FORBIDDEN:
+                hits.append((node.lineno, "call", resolved))
         elif isinstance(node, ast.ImportFrom):
             hits.extend(
                 (node.lineno, "import", alias.name)
@@ -102,15 +119,19 @@ def _forbidden_references(tree: ast.AST) -> list[tuple[int, str, str]]:
     ``kind`` is ``"call"`` for a name in call position, ``"import"`` for a
     ``from … import`` of the name (under any alias), and ``"reference"`` for
     any other ``Name`` or ``Attribute`` that spells it — the forms a call is
-    smuggled through when it is not made directly.
+    smuggled through when it is not made directly.  A call or reference made
+    through an import alias is reported under the primitive's own name, so
+    the ``__init__`` re-export exemption in :func:`_violations` cannot hide a
+    call made under the alias.
     """
-    hits, callees = _call_and_import_hits(tree)
+    aliases = _import_aliases(tree)
+    hits, callees = _call_and_import_hits(tree, aliases)
     hits.extend(
-        (node.lineno, "reference", _reference_name(node))
+        (node.lineno, "reference", aliases.get(name, name))
         for node in ast.walk(tree)
         if isinstance(node, (ast.Name, ast.Attribute))
         and id(node) not in callees
-        and _reference_name(node) in _FORBIDDEN
+        and aliases.get((name := _reference_name(node)), name) in _FORBIDDEN
     )
     return sorted(hits)
 
@@ -119,9 +140,12 @@ def _violations(path: Path, tree: ast.AST) -> list[tuple[int, str, str]]:
     """Forbidden references in *path*, minus the two exemptions DEMOMA-23-006 grants.
 
     A package ``__init__`` may ``from … import`` either name to re-export it;
-    a call or any other reference there is still a violation.  The primitive's
-    own ``def`` never appears here: a ``FunctionDef`` name is not a ``Name`` or
-    ``Attribute`` node, so :func:`_forbidden_references` does not see it.
+    a call or any other reference there is still a violation, including one
+    made through the alias the import bound (``… as tail; tail(...)``), which
+    :func:`_forbidden_references` resolves back to the primitive.  The
+    primitive's own ``def`` never appears here: a ``FunctionDef`` name is not a
+    ``Name`` or ``Attribute`` node, so :func:`_forbidden_references` does not
+    see it.
     """
     hits = _forbidden_references(tree)
     if path.name == "__init__.py":
@@ -216,7 +240,8 @@ def test_the_check_can_actually_fail():
 
 
 def test_the_check_flags_smuggled_references():
-    """Guard: an aliased import, a bound name and an attribute read are hits."""
+    """Guard: an aliased import, the call through its alias, a bound name and
+    an attribute read are all hits."""
     sample = _corpus.parse_inline(
         "import functools\n"
         "from vultron.demo.helpers import polling\n"
@@ -233,6 +258,7 @@ def test_the_check_flags_smuggled_references():
     )
     hits = _forbidden_references(sample)
     assert sorted(h[1:] for h in hits) == [
+        ("call", "_get_log_entries_for_case"),
         ("import", "_get_log_entries_for_case"),
         ("reference", "wait_for_contiguous_ledger_coverage"),
         ("reference", "wait_for_contiguous_ledger_coverage"),
@@ -304,6 +330,22 @@ def test_package_init_may_re_export_but_not_call():
     )
     assert [h[1:] for h in _violations(init, calling_init)] == [
         ("call", "_get_log_entries_for_case"),
+    ]
+    # The exemption drops the import hit only; a call made under the alias the
+    # import bound is still the primitive being called, and is reported as it.
+    aliased_call_init = _corpus.parse_inline(
+        "from vultron.demo.helpers.sync import (\n"
+        "    _get_log_entries_for_case as tail,\n"
+        ")\n"
+        "from vultron.demo.helpers.polling import (\n"
+        "    wait_for_contiguous_ledger_coverage as cover,\n"
+        ")\n"
+        "TAIL = tail(None, 'urn:case')\n"
+        "LATER = cover\n"
+    )
+    assert sorted(h[1:] for h in _violations(init, aliased_call_init)) == [
+        ("call", "_get_log_entries_for_case"),
+        ("reference", "wait_for_contiguous_ledger_coverage"),
     ]
 
 

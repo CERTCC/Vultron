@@ -21,7 +21,6 @@ True multi-container isolation is validated by the acceptance test runnable via:
     DEMO=fvcv-extension docker compose -f docker/docker-compose-multi-actor.yml up --abort-on-container-exit
 """
 
-import contextlib
 import importlib
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
@@ -33,7 +32,13 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fvcv_extension_demo as demo
-from test.demo._helpers import make_client, make_testclient_call
+from test.demo._helpers import (
+    make_client,
+    make_testclient_call,
+    mock_actor,
+    mock_case,
+    patched_report_submission,
+)
 from vultron.demo.cli import main
 
 # ---------------------------------------------------------------------------
@@ -1200,6 +1205,7 @@ class TestFvcvExtensionInviteTriggerFailureSkipsDependents:
             ),
             patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 ActorSession, "invite_actor_to_case", **invite_trigger
             ),
@@ -1282,97 +1288,6 @@ class TestFvcvExtensionPhase1DrainViaSharedHelper:
     with the same authority (Vendor1) and replica pairs the deleted
     ``drain_phase1_ledger`` received."""
 
-    @staticmethod
-    def _actor(id_: str):
-        a = MagicMock()
-        a.id_ = id_
-        return a
-
-    def _run_report_submission(
-        self, clients: dict, stack: contextlib.ExitStack
-    ):
-        """Run ``_phase_report_submission`` with every other collaborator patched.
-
-        The scenario module's ``demo_*`` context managers become ``nullcontext``
-        so only call shapes are observed, never gate control flow.
-        """
-        case = MagicMock()
-        case.id_ = "urn:test:case"
-        stack.enter_context(patch.object(demo, "reset_containers"))
-        stack.enter_context(
-            patch.object(
-                demo,
-                "seed_containers_fvcv",
-                return_value=(
-                    self._actor("urn:test:finder"),
-                    self._actor("urn:test:vendor"),
-                    self._actor("urn:test:coordinator"),
-                    self._actor("urn:test:vendor2"),
-                ),
-            )
-        )
-        stack.enter_context(
-            patch.object(
-                demo,
-                "get_actor_by_id",
-                side_effect=[
-                    self._actor("urn:test:vendor"),
-                    self._actor("urn:test:coordinator"),
-                ],
-            )
-        )
-        stack.enter_context(
-            patch.object(
-                demo,
-                "reporter_submits_report",
-                return_value=(MagicMock(), MagicMock(id_="urn:test:offer")),
-            )
-        )
-        stack.enter_context(
-            patch.object(demo, "run_direct_path_rm_triage", return_value=case)
-        )
-        for name in (
-            "wait_for_case_participants",
-            "find_case_invite_for_actor",
-            "wait_for_case_on_container",
-            "run_invite_path_rm_triage",
-            "verify_case_active",
-        ):
-            stack.enter_context(patch.object(demo, name))
-        stack.enter_context(
-            patch.object(
-                ActorSession,
-                "invite_actor_to_case",
-                return_value=SimpleNamespace(
-                    activity=MagicMock(id_="urn:test:invite")
-                ),
-            )
-        )
-        for name in (
-            "accept_case_invite",
-            "suggest_actor_to_case",
-            "accept_actor_recommendation",
-        ):
-            stack.enter_context(patch.object(ActorSession, name))
-        mock_vc = stack.enter_context(
-            patch.object(demo, "as_VulnerabilityCase")
-        )
-        mock_vc.model_validate.return_value = case
-        for name in ("demo_gate", "demo_check", "demo_step"):
-            stack.enter_context(
-                patch.object(
-                    demo, name, side_effect=lambda _: contextlib.nullcontext()
-                )
-            )
-        demo._phase_report_submission(
-            finder_id=None,
-            vendor_id=None,
-            coordinator_id=None,
-            vendor2_id=None,
-            **clients,
-        )
-        return case
-
     def test_phase1_drain_calls_shared_helper_with_same_authority_and_replicas(
         self,
     ):
@@ -1385,12 +1300,47 @@ class TestFvcvExtensionPhase1DrainViaSharedHelper:
                 "vendor2_client",
             )
         }
-        with contextlib.ExitStack() as stack:
-            coverage = stack.enter_context(
-                patch.object(demo, "wait_for_replica_ledger_coverage")
+        case = mock_case()
+        with patched_report_submission(
+            demo,
+            seed_fn="seed_containers_fvcv",
+            seeded_actors=(
+                mock_actor("urn:test:finder"),
+                mock_actor("urn:test:vendor"),
+                mock_actor("urn:test:coordinator"),
+                mock_actor("urn:test:vendor2"),
+            ),
+            actor_lookups=[
+                mock_actor("urn:test:vendor"),
+                mock_actor("urn:test:coordinator"),
+            ],
+            case=case,
+            demo_patches={
+                name: {}
+                for name in (
+                    "wait_for_case_participants",
+                    "wait_for_replica_ledger_coverage",
+                    "find_case_invite_for_actor",
+                    "wait_for_case_on_container",
+                    "run_invite_path_rm_triage",
+                    "verify_case_active",
+                )
+            },
+            session_patches=(
+                "accept_case_invite",
+                "suggest_actor_to_case",
+                "accept_actor_recommendation",
+            ),
+        ) as mocks:
+            demo._phase_report_submission(
+                finder_id=None,
+                vendor_id=None,
+                coordinator_id=None,
+                vendor2_id=None,
+                **clients,
             )
-            case = self._run_report_submission(clients, stack)
 
+        coverage = mocks["wait_for_replica_ledger_coverage"]
         coverage.assert_called_once()
         kwargs = coverage.call_args.kwargs
         assert kwargs["auth_client"] is clients["vendor_client"]
