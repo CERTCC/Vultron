@@ -317,6 +317,33 @@ def test_missing_render_port_is_a_wiring_fault(datalayer):
     mock_factory.assert_not_called()
 
 
+@pytest.mark.spec("ARCH-15-001")
+@pytest.mark.spec("ARCH-20-003")
+def test_event_without_activity_is_a_wiring_fault_not_a_refusal(bridge):
+    """An event carrying no activity has no AS2 snapshot to record.
+
+    The port would refuse the event itself, which a received handler reports
+    as the sender's fault; the node names the composition fault instead.
+    """
+    from pydantic import BaseModel
+
+    class _ActivitylessEvent(BaseModel):
+        activity_id: str = ACTIVITY_ID
+        semantic_type: MessageSemantics = MessageSemantics.CREATE_CASE
+        activity: None = None
+
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    with patch(_FACTORY_PATH) as mock_factory:
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=_ActivitylessEvent()
+        )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "carries no activity" in (result.feedback_message or "")
+    mock_factory.assert_not_called()
+
+
 def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
     embargo = as_EmbargoEvent(context=CASE_ID, end_time=days_from_now_utc(45))
     datalayer.save(embargo)

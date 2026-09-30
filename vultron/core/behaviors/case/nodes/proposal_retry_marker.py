@@ -159,7 +159,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
 
     def _build_case_object(
         self, raw_case: VulnerabilityCase
-    ) -> "dict[str, Any] | None":
+    ) -> dict[str, Any]:
         assert self.datalayer is not None
         # Materialise each participant ref so _store_embedded_participants
         # on the vendor side receives full objects, not bare ID strings (AC-5).
@@ -173,13 +173,10 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         case_copy = raw_case.model_copy(
             update={"case_participants": materialized}
         )
-        if self.wire_render_port is None:
-            logger.warning(
-                "%s: wire_render_port not available; cannot render case object",
-                self.name,
-            )
-            return None
-        case_dict = self.wire_render_port.render(case_copy)
+        # A missing port is a composition fault, not the sender's: raise
+        # VultronWiringError rather than failing the tree (ARCH-20-001).
+        port = self._require_wire_render_port()
+        case_dict = port.render(case_copy)
         case_dict.setdefault("type", "VulnerabilityCase")
         # Inline full VulnerabilityReport dicts after render so invited
         # actors' _store_embedded_reports stores them (CBT-01-007, ISSUE-2134).
@@ -190,7 +187,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             if isinstance(report_ref, str):
                 r_obj = self.datalayer.read(report_ref)
                 if isinstance(r_obj, VulnerabilityReport):
-                    r_dict = self.wire_render_port.render(r_obj)
+                    r_dict = port.render(r_obj)
                     r_dict.setdefault("type", "VulnerabilityReport")
                     inlined_reports.append(r_dict)
                 else:
@@ -232,13 +229,6 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         # AC-5 (ADR-0041): embed full inline case object with materialised
         # participants so _store_embedded_participants seeds the vendor replica.
         case_object = self._build_case_object(case)
-        if case_object is None:
-            self.feedback_message = (
-                "wire_render_port not available; cannot render"
-                f" VulnerabilityCase {case_id!r}"
-            )
-            logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
 
         # ADR-0041 AC-5: bootstrap all known participants directly.
         # Include REPORTER/FINDER URIs so their DataLayers receive the case

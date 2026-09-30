@@ -228,9 +228,8 @@ class CreateCaseProposalReceivedUseCase:
         # seed) would silently skip, so the reporter would never get a replica.
         proposal_dict: dict | None = None
         activity_obj = request.activity
-        if (
-            activity_obj is not None
-            and getattr(activity_obj, "object_", None) is not None
+        if activity_obj is not None and hasattr(
+            getattr(activity_obj, "object_", None), "model_dump"
         ):
             if self._wire_render_port is None:
                 raise VultronWiringError(WIRE_RENDER_PORT_UNAVAILABLE)

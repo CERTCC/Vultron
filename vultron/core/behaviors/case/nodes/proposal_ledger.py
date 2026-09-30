@@ -337,18 +337,15 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         # mean fanning the genesis entry out ahead of it, which is the
         # pre-genesis path CP-09-009 exists to avoid.  Pinned by
         # test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued.
-        if self.wire_render_port is None:
-            self.feedback_message = "wire_render_port not available"
-            logger.error("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        # A missing port is a composition fault, raised as VultronWiringError
+        # rather than reported as a failed genesis commit (ARCH-20-001).
+        port = self._require_wire_render_port()
 
         if not self._commit_one(
             case_id,
             case_id,
             "create_case",
-            build_create_case_snapshot(
-                case, self.actor_id, case_id, self.wire_render_port
-            ),
+            build_create_case_snapshot(case, self.actor_id, case_id, port),
         ):
             self.feedback_message = (
                 f"genesis create_case ledger commit failed for case"

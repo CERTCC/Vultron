@@ -158,6 +158,13 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
             # the whole point of the entry — so skip the entry rather than
             # commit an empty payload. Loudly: ISSUE-2505 was masked for months
             # by a silently absent wire_render_port on the genesis commit path.
+            #
+            # Deliberately *not* _require_wire_render_port(): elsewhere a
+            # missing port is a wiring fault that raises, but this entry sits
+            # inside CM-23-002's closure Sequence, and _best_effort() explains
+            # why losing the entry is the lesser loss.  In a composed tree the
+            # Leave's own guarded commit has already required the port, so
+            # this branch is reached only when this node alone is blind to it.
             return self._best_effort(
                 "no WireRenderPort — cannot render the CASE_MANAGER's"
                 " RM.CLOSED ParticipantStatus snapshot, so it is not recorded"

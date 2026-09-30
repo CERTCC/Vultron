@@ -43,7 +43,12 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
 )
 from vultron.core.use_cases._helpers import build_activity_payload_snapshot
-from vultron.errors import VultronCanonicalEntryError, VultronValidationError
+from vultron.core.models.base import CoreObject
+from vultron.errors import (
+    VultronCanonicalEntryError,
+    VultronValidationError,
+    VultronWiringError,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
@@ -90,6 +95,17 @@ def _extract_payload_snapshot(
             build_activity_payload_snapshot(
                 event_activity, dl, wire_render_port=wire_render_port
             ),
+        )
+    if hasattr(activity, "model_dump") and not isinstance(
+        activity, CoreObject
+    ):
+        # An event with no activity has nothing AS2-shaped to record: the port
+        # would refuse it (ARCH-20-003), and a received handler would then
+        # blame the sender.  The tree was composed without its input, so say
+        # so as the composition fault it is (ARCH-15-001, ADR-0095).
+        raise VultronWiringError(
+            f"{type(activity).__name__} carries no activity, so there is"
+            " nothing to record as the ledger payload snapshot (ARCH-15-001)"
         )
     snapshot = cast(
         dict[str, Any],
