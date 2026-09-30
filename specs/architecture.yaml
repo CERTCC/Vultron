@@ -818,8 +818,9 @@ groups:
       itself, whether by calling `model_dump(by_alias=True)` on a core-branch instance or by
       rewriting dumped keys into wire spellings. The `alias_generator` a core object inherits
       from `CoreObject` (ARCH-12-003) is the mechanism behind the port, not a licence for core to
-      dump directly. Dumping an already-wire-shaped object that core holds (e.g. a received
-      activity being captured verbatim per CLP-07-011) is unaffected by this requirement.
+      dump directly. Dumping an already-wire-shaped object that core holds (an `as_*` wire
+      vocabulary instance) is unaffected by this requirement; the activity a received handler
+      holds is not one, since the extractor rebuilds it as a core-branch `VultronActivity`.
     rationale: >-
       A single rendering seam keeps the decision of what goes on the wire (which object, with
       which `@context`, failing closed on anything without an AS2 shape) in one adapter instead
@@ -827,10 +828,11 @@ groups:
       core-branch objects because core legitimately handles wire objects on the verbatim-capture
       path; conflating the two would make this requirement unverifiable.
     verification: >-
-      Each `by_alias=True` call site under `vultron/core/` is reviewed to confirm its subject is a
-      wire object, and annotated as such. `test/architecture/test_core_by_alias_dumps.py` counts
-      those call sites per file against an exact baseline, so a new site fails and a removed one
-      must be ticked off.
+      `test/architecture/test_core_by_alias_dumps.py` counts the `by_alias=True` call sites under
+      `vultron/core/` per file against an exact baseline, so a new site fails and a removed one
+      must be ticked off. The baseline has been empty since #3930: every AS2 shape core needs,
+      including a wire object's, comes from the port or from the AS2 JSON the trigger-activity
+      port returns for an activity it built.
     relationships:
     - rel_type: refines
       spec_id: ARCH-01-004
@@ -842,18 +844,19 @@ groups:
     kind: project
     statement: >-
       The rendering port's adapter MUST produce its output as the core object's own
-      `model_dump(by_alias=True, exclude_none=True, mode="json")`. It MUST NOT resolve a wire
-      counterpart (through `WIRE_TYPE_MAP`, a pairing registry, or a `from_core()` projection) and
-      MUST NOT reimplement field-name translation.
+      `model_dump(by_alias=True, exclude_none=True, mode="json", serialize_as_any=True)`. It MUST
+      NOT resolve a wire counterpart (through `WIRE_TYPE_MAP`, a pairing registry, or a
+      `from_core()` projection) and MUST NOT reimplement field-name translation.
     rationale: >-
       Under one object model the core object is its own wire form (ADR-0099 detail 1), so a
       counterpart lookup has nothing to find and any second translation path could only drift
-      from the class's own spelling, which is the defect ADR-0063 removes. ADR-0063's decision
-      that rendering happens behind this port stands; only the mechanism collapses. The switch
-      was measured as behaviour-preserving by capturing the render of every `CORE_VOCABULARY`
-      entry before the change.
+      from the class's own spelling, the defect ADR-0063 removes. `serialize_as_any=True`
+      renders nested values by runtime type, as every other AS2 path does; without it an inline
+      wire object holding an undeclared value type (an IRI `inbox`) is a serializer warning, not
+      a rendering (#3930).
     verification: >-
-      `test_render_is_the_core_objects_own_alias_dump` and
+      `test_render_is_the_core_objects_own_alias_dump`,
+      `test_render_serialises_nested_values_by_their_runtime_type` and
       `test_render_adapter_does_not_resolve_a_wire_counterpart` in
       `test/adapters/driven/test_wire_render_adapter.py`, and the per-entry goldens in
       `test/adapters/driven/test_wire_render_goldens.py`.

@@ -50,7 +50,7 @@ class PendingCreateCaseActivity(CoreRecord):
             ``Create(VulnerabilityCase)`` must be delivered.
         create_activity_payload: Pre-constructed
             ``Create(VulnerabilityCase)`` payload as a plain dict
-            (``model_dump(by_alias=True)``).  The retry runner (#1139)
+            (the ``WireRenderPort`` rendering).  The retry runner (#1139)
             reconstructs the activity from this dict rather than rebuilding
             it from scratch.
 
@@ -76,7 +76,7 @@ class PendingCreateCaseActivity(CoreRecord):
         default_factory=dict,
         description=(
             "Pre-constructed Create(VulnerabilityCase) payload "
-            "(model_dump by_alias=True) for retry use"
+            "(its WireRenderPort AS2 rendering) for retry use"
         ),
     )
 

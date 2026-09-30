@@ -64,6 +64,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def _make_case_with_case_manager(dl, actor_id, em_state=EM.PROPOSED):
@@ -125,7 +126,9 @@ class TestInviteToEmbargoRecordsIndex:
             raw_event.model_copy(update={"receiving_actor_id": actor_id}),
         )
 
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
@@ -167,8 +170,12 @@ class TestInviteToEmbargoRecordsIndex:
             raw_event.model_copy(update={"receiving_actor_id": actor_id}),
         )
 
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
@@ -203,7 +210,10 @@ class TestProposeTriggerRecordsIndex:
             end_time=end_time,
         )
         result = SvcProposeEmbargoUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert "activity" in result
@@ -258,7 +268,10 @@ class TestAcceptRejectFromCoreState:
             proposal_id=proposal.id_,
         )
         result = SvcAcceptEmbargoUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert "activity" in result
@@ -306,7 +319,10 @@ class TestAcceptRejectFromCoreState:
             case_id=case.id_,
         )
         result = SvcAcceptEmbargoUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert "activity" in result
@@ -336,7 +352,10 @@ class TestAcceptRejectFromCoreState:
             proposal_id=proposal.id_,
         )
         result = SvcRejectEmbargoUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert "activity" in result
@@ -363,7 +382,10 @@ class TestAcceptRejectFromCoreState:
         )
         with pytest.raises(VultronNotFoundError):
             SvcAcceptEmbargoUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_reject_raises_notfound_when_index_empty(self):
@@ -384,7 +406,10 @@ class TestAcceptRejectFromCoreState:
         )
         with pytest.raises(VultronNotFoundError):
             SvcRejectEmbargoUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
 
@@ -446,7 +471,9 @@ class TestReceivedRejectPrunesOpenProposals:
         )
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl, received_reject_by(self._OWNER)
+            dl,
+            received_reject_by(self._OWNER),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -463,7 +490,9 @@ class TestReceivedRejectPrunesOpenProposals:
         dl.create(as_Service(id_=participant, name="Participant"))
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl, received_reject_by(participant)
+            dl,
+            received_reject_by(participant),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -555,7 +584,9 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
 
         with patch.object(dl, "read", side_effect=spy_read):
             result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-                dl, event
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 

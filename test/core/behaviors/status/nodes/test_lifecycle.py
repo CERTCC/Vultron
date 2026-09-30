@@ -50,6 +50,7 @@ from vultron.core.models.dimensions import (
     PxaDimension,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_MANAGER_ID = "https://example.org/actors/case-actor"
@@ -129,7 +130,9 @@ def populated_dl(dl, participant, status_obj):
 
 @pytest.fixture
 def populated_bridge(populated_dl):
-    return BTBridge(datalayer=populated_dl)
+    return BTBridge(
+        datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+    )
 
 
 def _make_dl_with_em_state(
@@ -191,7 +194,9 @@ class TestPublicDisclosureSkipConditionNode:
     def _make_bridge_and_node(
         self, dl: SqliteDataLayer, status_obj: as_ParticipantStatus
     ) -> tuple[BTBridge, _PublicDisclosureSkipConditionNode]:
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = _PublicDisclosureSkipConditionNode(
             status_obj=status_obj,
             sender_actor_id=ACTOR_ID,
@@ -338,7 +343,11 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         factory = MagicMock()
         factory.reject_embargo.return_value = (reject_activity_id, {})
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = PublicDisclosureBranchNode(
             status_obj=public_aware_status,
             sender_actor_id=ACTOR_ID,
@@ -482,7 +491,11 @@ class TestEmitCloseCaseNode:
         py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
             CASE_MANAGER_ID
         )
-        bridge = BTBridge(datalayer=populated_dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitCloseCaseNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
@@ -503,7 +516,11 @@ class TestEmitCloseCaseNode:
         py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
             CASE_MANAGER_ID
         )
-        bridge = BTBridge(datalayer=populated_dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitCloseCaseNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 

@@ -60,6 +60,7 @@ from vultron.core.use_cases.triggers.requests import (
     RejectCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
+from vultron.core.ports.wire_render import WireRenderPort
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -78,8 +79,9 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
         request: object,
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity)  # type: ignore[arg-type]
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port)  # type: ignore[arg-type]
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
@@ -271,8 +273,9 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         request: object,
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity)  # type: ignore[arg-type]
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port)  # type: ignore[arg-type]
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
@@ -412,8 +415,9 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         request: object,
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity)  # type: ignore[arg-type]
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port)  # type: ignore[arg-type]
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:

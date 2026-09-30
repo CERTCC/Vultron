@@ -52,6 +52,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.core.models.dimensions import (
     VfDimension,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 # ---------------------------------------------------------------------------
 # Shared constants
@@ -156,7 +157,9 @@ class TestBootstrapParticipantStorage:
         link = _build_link()
         dl.save(link)
 
-        CreateCaseReceivedUseCase(dl, create_event).execute()
+        CreateCaseReceivedUseCase(
+            dl, create_event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         stored = dl.read(_PARTICIPANT_ID)
         assert stored is not None, (
@@ -176,7 +179,9 @@ class TestBootstrapParticipantStorage:
         dl.save(link)
 
         with caplog.at_level(logging.DEBUG):
-            CreateCaseReceivedUseCase(dl, create_event).execute()
+            CreateCaseReceivedUseCase(
+                dl, create_event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         stored_records = [
             r
@@ -200,7 +205,9 @@ class TestBootstrapParticipantStorage:
         case, _, _ = case_with_two_participants
         dl.create(case)
 
-        CreateCaseReceivedUseCase(dl, create_event).execute()
+        CreateCaseReceivedUseCase(
+            dl, create_event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         stored = dl.read(_PARTICIPANT_ID)
         assert stored is not None, (
@@ -232,7 +239,9 @@ class TestBootstrapParticipantStorage:
 
         with mock.patch.object(dl, "save", side_effect=_patched_save):
             with pytest.raises(RuntimeError, match="storage failure"):
-                CreateCaseReceivedUseCase(dl, create_event).execute()
+                CreateCaseReceivedUseCase(
+                    dl, create_event, wire_render_port=As2WireRenderAdapter()
+                ).execute()
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +292,9 @@ class TestM4AddParticipantStatusAfterBootstrap:
 
         # Step 1: bootstrap — _store_embedded_participants saves vendor's
         # as_CaseParticipant as an independent DataLayer record (CBT-05-005).
-        CreateCaseReceivedUseCase(dl, bootstrap_event).execute()
+        CreateCaseReceivedUseCase(
+            dl, bootstrap_event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         # Step 2: confirm vendor participant is independently stored (core fix).
         stored_p = dl.read(_VENDOR_PARTICIPANT_ID)
@@ -310,7 +321,9 @@ class TestM4AddParticipantStatusAfterBootstrap:
         )
         event = make_payload(activity, receiving_actor_id=_CASE_ACTOR_ID)
 
-        AddParticipantStatusToParticipantReceivedUseCase(dl, event).execute()
+        AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         # Step 4: vendor participant now has the VFd status — M4 can observe it.
         updated_p = dl.read(_VENDOR_PARTICIPANT_ID)

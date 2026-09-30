@@ -58,6 +58,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 @pytest.fixture
@@ -234,7 +235,9 @@ def client_triggers(dl):
     app = FastAPI()
     app.include_router(trigger_embargo_router.router)
     app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
     app.dependency_overrides[get_canonical_actor_dl] = lambda: dl

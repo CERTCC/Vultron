@@ -39,9 +39,13 @@ logger = logging.getLogger(__name__)
 
 class AddReportToCaseReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: AddReportToCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: AddReportToCaseReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AddReportToCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:

@@ -612,7 +612,9 @@ class TestCloseCaseFanOut:
         )
 
         tree = create_announce_log_entry_tree()
-        BTBridge(datalayer=dl).execute_with_setup(
+        BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        ).execute_with_setup(
             tree=tree,
             actor_id=VENDOR_ID,
             activity=event,
@@ -636,7 +638,9 @@ class TestCloseCaseFanOut:
         )
 
         tree = create_announce_log_entry_tree()
-        BTBridge(datalayer=dl).execute_with_setup(
+        BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        ).execute_with_setup(
             tree=tree,
             actor_id=VENDOR_ID,
             activity=event,
@@ -718,7 +722,9 @@ class TestClosureRMBoundary:
         )
 
         tree = create_announce_log_entry_tree()
-        BTBridge(datalayer=dl).execute_with_setup(
+        BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        ).execute_with_setup(
             tree=tree,
             actor_id=VENDOR_ID,
             activity=event,
@@ -936,6 +942,7 @@ def test_close_without_case_id_is_refused():
     result = CloseCaseReceivedUseCase(
         dl=_make_full_dl(),
         request=cast(CloseCaseReceivedEvent, MagicMock(case_id=None)),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
@@ -958,15 +965,41 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
     that ran, and the only thing lost is the one entry.
     """
 
+    @pytest.fixture
+    def rm_closed_node_without_port(self, monkeypatch):
+        """Blind only the RM.CLOSED recording node to the render port.
+
+        The rest of the tree keeps the port: the Leave's own guarded commit
+        needs it and fails closed without it (ARCH-20-001).  This isolates the
+        one entry the node skips when it cannot render its snapshot.
+        """
+        from vultron.core.behaviors.case.nodes.leave.record import (
+            CommitCaseActorRMClosedEntryNode,
+        )
+
+        original = CommitCaseActorRMClosedEntryNode.initialise
+
+        def _initialise_without_port(node) -> None:
+            original(node)
+            node.wire_render_port = None
+
+        monkeypatch.setattr(
+            CommitCaseActorRMClosedEntryNode,
+            "initialise",
+            _initialise_without_port,
+        )
+
     @pytest.mark.spec("CM-23-002")
-    def test_missing_port_still_commits_case_fully_closed(self):
+    def test_missing_port_still_commits_case_fully_closed(
+        self, rm_closed_node_without_port
+    ):
         """No WireRenderPort: the entry is skipped, the case still fully closes."""
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
-            wire_render_port=None,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert _case_fully_closed_present(dl), (
@@ -976,7 +1009,9 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
         )
 
     @pytest.mark.spec("CM-23-002")
-    def test_missing_port_still_takes_the_owner_arm(self):
+    def test_missing_port_still_takes_the_owner_arm(
+        self, rm_closed_node_without_port
+    ):
         """No WireRenderPort: the owner arm ran, not the non-owner fallback.
 
         The distinguishing effect is the CaseActor's own advance to RM.CLOSED
@@ -989,7 +1024,7 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
-            wire_render_port=None,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert (
@@ -1002,7 +1037,9 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
         )
 
     @pytest.mark.spec("CM-23-005")
-    def test_missing_port_skips_only_the_case_actor_entry(self):
+    def test_missing_port_skips_only_the_case_actor_entry(
+        self, rm_closed_node_without_port
+    ):
         """No WireRenderPort: the ledger entry is the only casualty.
 
         The honest cost of best-effort recording. This is ISSUE-2505 in
@@ -1014,7 +1051,7 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
-            wire_render_port=None,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert not _case_actor_rm_closed_entries(dl), (
@@ -1055,7 +1092,9 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
         )
 
     @pytest.mark.spec("CM-23-005")
-    def test_failed_recording_is_logged_to_the_stdlib_logger(self, caplog):
+    def test_failed_recording_is_logged_to_the_stdlib_logger(
+        self, caplog, rm_closed_node_without_port
+    ):
         """A skipped entry is announced where deployment logs can see it.
 
         Best-effort is only defensible if the miss is observable.
@@ -1073,7 +1112,7 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
                 dl=dl,
                 request=_make_close_case_event(sender_actor_id=OWNER_ID),
                 sync_port=SyncActivityAdapter(dl),
-                wire_render_port=None,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert any(
