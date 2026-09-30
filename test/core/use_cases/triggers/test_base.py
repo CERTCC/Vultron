@@ -129,6 +129,26 @@ def test_execute_returns_captured_activity():
     )
 
 
+def test_invalid_result_is_an_internal_error_not_a_validation_error():
+    """A result the subtype refuses is a use-case bug, never a client 422.
+
+    The routers translate pydantic ``ValidationError`` to 422, so the template
+    re-raises a construction failure as ``RuntimeError``.
+    """
+
+    class _BrokenTrigger(_MinimalTrigger):
+        def _build_result(self) -> ActivityResult:
+            return ActivityResult.model_validate(
+                {"activity": None, "emitting_actor_id": ""}
+            )
+
+    uc = _BrokenTrigger(
+        dl=MagicMock(), request=object(), trigger_activity=MagicMock()
+    )
+    with pytest.raises(RuntimeError, match="built an invalid result"):
+        uc.execute()
+
+
 def test_execute_returns_the_subtype_a_generic_subclass_binds():
     """A verb whose body differs binds the generic base to its own subtype."""
 

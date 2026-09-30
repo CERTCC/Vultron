@@ -41,6 +41,7 @@ from typing import Any, Generic, TypeVar
 
 import py_trees.behaviour
 from py_trees.common import Status
+from pydantic import ValidationError
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.use_case_result import ActivityResult, TriggerResult
@@ -130,7 +131,16 @@ class SvcBTTriggerBase(ABC, Generic[TriggerResultT]):
 
         self._handle_result()
 
-        return self._build_result()
+        try:
+            return self._build_result()
+        except ValidationError as exc:
+            # A result the subtype refuses is a bug in the use case or a node
+            # (a non-string id, an unexpected key), not a client fault: the
+            # routers translate pydantic ``ValidationError`` to 422, so it is
+            # re-raised as the internal error it is.
+            raise RuntimeError(
+                f"{type(self).__name__} built an invalid result: {exc}"
+            ) from exc
 
     @abstractmethod
     def _prepare(self) -> None:
