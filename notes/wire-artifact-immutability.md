@@ -5,6 +5,7 @@ related_specs:
   - specs/architecture.yaml (ARCH-12-001, ARCH-21-002)
   - specs/vocabulary-model.yaml (VM-08-002, VM-08-003)
   - specs/outbox.yaml (OX-07-001, OX-07-002)
+  - specs/case-ledger-processing.yaml (CLP-07-011, CLP-02-003)
 related_notes:
   - notes/datalayer-design.md
   - notes/case-ledger-authority.md
@@ -79,10 +80,19 @@ parsed example tree, so a class added to the vocabulary is checked the first
 time an example carries it. A gate on a class flag checks the flag, not the
 guarantee the flag was meant to give.
 
-Nothing consumes the evidence yet. Recording it verbatim as the ledger's
-`payloadSnapshot`, in place of today's rebuilt snapshot, is ADR-0107.
+Nothing consumes the evidence yet, and it does not reach core. The evidence is
+sealed on the wire `as_Activity`; `prepare_for_dispatch` builds the
+`VultronEvent` from it through the extractor, the event has no evidence field,
+and the dispatcher sees only the event. What core holds is the extractor's
+rebuilt `VultronActivity`, which keeps a chosen subset of fields, so the
+receive-side ledger snapshot is a rendering of that subset — CLP-07-011's
+"deterministic canonical normalization" branch, not its "verbatim" one — while
+an emitted entry already records the factory's sealed blob (VM-08-003). The
+CASE_MANAGER's ledger therefore carries two snapshot provenances until ADR-0107
+step 5 (#3742) records the evidence verbatim, which first has to carry it onto
+the event at the parse edge (ISSUE-3947).
 
-Source: ISSUE-3584.
+Source: ISSUE-3584, ISSUE-3947.
 
 ---
 

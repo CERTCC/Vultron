@@ -84,7 +84,7 @@ Each step leaves a working system with the demos passing, so additive steps come
 | 2 | fetch-by-`id` endpoint on the case host; replica fetch-and-defer | #3739 |
 | 3 | senders inline what they introduce; fix demo and factory bare-`id` paths | #3740 |
 | 4 | whole accept or reject for participant status; retire RSH-05 | #3741 |
-| 5 | ledger records the evidence verbatim; persist it for deferred replay; rewrite CLP-07-006 | #3742 |
+| 5 | ledger records the evidence verbatim; carry the evidence from the parsed activity onto the dispatched event, since core sees only the event; persist it for deferred replay; rewrite CLP-07-006 and retire the normalization branch of CLP-07-011 and CLP-02-003 | #3742 |
 | 6 | Lapse and case-closed become emitted activities | #3743 |
 
 Tracked under Epic #3738.
@@ -132,5 +132,6 @@ A deferred activity replayed by `StoredActivityIngressAdapter` is rebuilt from s
 - [ADR-0074](0074-wire-activity-artifact-immutability.md) states the principle this ADR keeps: a received activity is evidence.
 - [ADR-0099](0099-one-object-model-as2-is-a-serialization.md) records why its `frozen` mechanism no longer holds for nested objects.
 - #3258 records the dereference gap that step 2 closes.
+- #3947 records the state before step 5: the receive-side snapshot is the extractor's rebuilt `VultronActivity` rendered through the port, so only the normalization branch of CLP-07-011 is reachable, and the sealed evidence stops at the wire activity because the dispatched event does not carry it.
 
 Source: ISSUE-3584.
