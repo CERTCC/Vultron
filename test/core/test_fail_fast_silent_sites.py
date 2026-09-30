@@ -24,6 +24,7 @@ Reference: specs/architecture.yaml ARCH-15-001 through ARCH-15-003,
            notes/domain-validation.md, GitHub issue #1377.
 """
 
+import logging
 from unittest.mock import MagicMock, patch
 
 import py_trees
@@ -217,6 +218,33 @@ class TestExtractCaseIdRaisesUnroutableActivityError:
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None
         assert "unroutable" in result.reason
+
+    @pytest.mark.spec("HP-06-003")
+    def test_unroutable_event_is_logged_at_error_with_context(self, caplog):
+        """The drop is one ERROR record carrying activity id, semantics, actor.
+
+        HP-06-003: an error a handler path reports is logged at ERROR with the
+        context needed to find the activity again.
+        """
+        use_case_class = MagicMock()
+        dispatcher = DirectActivityDispatcher(
+            use_case_map={MessageSemantics.ADD_NOTE_TO_CASE: use_case_class}
+        )
+        event = AddNoteToCaseReceivedEvent(
+            activity_id=ACTIVITY_ID,
+            actor_id=ACTOR_ID,
+            target=as_VulnerabilityCase.model_construct(id_=""),
+        )
+
+        with caplog.at_level(logging.ERROR, logger="vultron.core.dispatcher"):
+            dispatcher.dispatch(event, MagicMock())
+
+        errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert len(errors) == 1, caplog.text
+        message = errors[0].getMessage()
+        assert ACTIVITY_ID in message
+        assert ACTOR_ID in message
+        assert str(MessageSemantics.ADD_NOTE_TO_CASE) in message
 
     def test_extract_case_id_raises_unroutable_directly(self):
         """_extract_case_id raises UnroutableActivityError (not returns None).

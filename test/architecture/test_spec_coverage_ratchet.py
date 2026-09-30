@@ -38,12 +38,14 @@ from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 # kind=protocol requirements (ASK-01..ASK-08, CP-05-007, OX-14-002, RSH-07-004,
 # RSH-07-005) and covered all 28 in test_protocol_asks_specs.py, closing the
 # 9-ID slack that had accumulated between the count and the ceiling (#2880).
+# Re-pinned to the live count when #3827 marked the HP-09/HP-10 Offer
+# addressing tests, closing the slack that had accumulated above the count.
 # Lower this constant as more @pytest.mark.spec markers are added;
 # never raise it to hide regressions in your own PR. Keep it pinned to the
 # actual count — slack between the two is room for uncovered specs to grow
 # unnoticed, which is the regression this ratchet exists to prevent.
 # ---------------------------------------------------------------------------
-MAX_UNCOVERED_PROTOCOL_SPECS = 937
+MAX_UNCOVERED_PROTOCOL_SPECS = 906
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _SPEC_DIR = _corpus.REPO_ROOT / "specs"

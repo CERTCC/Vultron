@@ -18,7 +18,10 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerResult
-from vultron.errors import VultronValidationError
+from vultron.errors import (
+    VultronApiHandlerNotFoundError,
+    VultronValidationError,
+)
 from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
 )
@@ -428,3 +431,50 @@ def test_dispatch_rejects_a_use_case_that_returns_no_handler_result(
 
     with pytest.raises(TypeError, match="not HandlerResult"):
         dispatcher.dispatch(_create_report_event(), MagicMock())
+
+
+@pytest.mark.spec("HP-02-001")
+@pytest.mark.spec("HP-02-002")
+@pytest.mark.spec("HP-05-001")
+def test_dispatch_refuses_a_semantics_with_no_registered_use_case():
+    """The handler is resolved from ``event.semantic_type`` before any runs.
+
+    A semantics with no entry in the routing table is a contract breach the
+    dispatcher raises on (HP-05-001), not a silent no-op; no ``execute()`` is
+    reached.
+    """
+    dispatcher = DirectActivityDispatcher(use_case_map={})
+
+    with pytest.raises(VultronApiHandlerNotFoundError, match="create_report"):
+        dispatcher.dispatch(_create_report_event(), MagicMock())
+
+
+@pytest.mark.spec("HP-06-001")
+def test_dispatch_logs_handler_entry_at_debug_with_handler_name(caplog):
+    """Handler entry is one DEBUG record naming the handler class and activity."""
+    caplog.set_level(logging.DEBUG, logger="vultron.core.dispatcher")
+
+    class NamedStubUseCase:
+        """A real class, so the asserted name is the handler's, not a mock's."""
+
+        def __init__(self, dl, request) -> None:
+            pass
+
+        def execute(self) -> HandlerResult:
+            return HandlerResult.applied()
+
+    dispatcher = DirectActivityDispatcher(
+        use_case_map={MessageSemantics.CREATE_REPORT: NamedStubUseCase}
+    )
+
+    dispatcher.dispatch(_create_report_event(), MagicMock())
+
+    entries = [
+        r.getMessage()
+        for r in caplog.records
+        if r.levelno == logging.DEBUG and "Entering handler" in r.getMessage()
+    ]
+    assert len(entries) == 1, caplog.text
+    assert "NamedStubUseCase" in entries[0]
+    assert "act-verdict" in entries[0]
+    assert str(MessageSemantics.CREATE_REPORT) in entries[0]
