@@ -37,7 +37,6 @@ _CORE = _corpus.REPO_ROOT / "vultron" / "core"
 
 # The "seven remaining call sites" the ARCH-20-001 comments at each site name.
 _BASELINE: dict[str, int] = {
-    "vultron/core/behaviors/case/nodes/accept_invite.py": 1,
     "vultron/core/behaviors/case/nodes/proposal_retry_marker.py": 1,
     "vultron/core/behaviors/inbox/nodes/dead_letter.py": 1,
     "vultron/core/behaviors/status/nodes/case_status.py": 1,

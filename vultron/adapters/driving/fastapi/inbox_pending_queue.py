@@ -24,6 +24,7 @@ before the local case replica exists (CBT-03-003, CBT-03-004).
 import logging
 from datetime import timezone
 
+from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.config import get_config
 from vultron.core.models.events import VultronEvent, resolve_case_context_id
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
@@ -159,6 +160,9 @@ def _expire_pending_case_activities(
                 case_id=case_id,
             )
             dl.save(question)
+            # Sealed in the store whose outbox carries it: that is where the
+            # handler looks for the body it delivers (VM-08-003).
+            seal_outbound_body(queue_dl, question)
             queue_dl.outbox_append(question.id_)
             logger.info(
                 "Sent bootstrap replay Question '%s' to '%s' for case '%s'",

@@ -27,8 +27,8 @@ This module provides :func:`retry_pending_create_case_activities`, which:
 2. Reconstructs the pre-built ``Create(VulnerabilityCase)`` payload from
    the marker (never re-constructs the activity from scratch, to preserve
    the original ``id_``).
-3. Writes the activity to the DataLayer if not already present (idempotency
-   guard).
+3. Persists the activity, if not already present, and seals its body through
+   the trigger adapter (idempotency guard; VM-08-003).
 4. Re-enqueues the activity to the actor's outbox so the
    :class:`~vultron.adapters.driving.fastapi.outbox_monitor.OutboxMonitor`
    can deliver it.
@@ -64,12 +64,15 @@ from collections.abc import Callable
 
 from py_trees.common import Status
 
-from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
-from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+    CasePersistence,
+)
 from vultron.core.ports.datalayer import DataLayer
+from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
 
@@ -102,13 +105,16 @@ def _discover_actor_ids_from_stores() -> list[str]:
     return list(actor_ids)
 
 
-def _reconstruct_activity(
+def _persist_prepared_activity(
+    dl: DataLayer,
     marker: PendingCreateCaseActivity,
-) -> VultronCreateCaseActivity | None:
-    """Reconstruct Create(VulnerabilityCase) from a marker's stored payload.
+) -> str | None:
+    """Persist and seal the marker's Create(VulnerabilityCase); return its id.
 
-    Returns the reconstructed activity, or ``None`` if the payload is
-    missing or invalid (errors are logged at ERROR level).
+    Goes through the same adapter method the emitting node uses, so a
+    recovered activity is persisted under the marker's id and its delivered
+    body is the sealed one (CP-05-005, VM-08-003).  Returns ``None`` if the
+    payload is missing or invalid (errors are logged at ERROR level).
     """
     if not marker.create_activity_payload:
         logger.warning(
@@ -118,48 +124,29 @@ def _reconstruct_activity(
         )
         return None
 
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+
     try:
-        return VultronCreateCaseActivity.model_validate(
-            marker.create_activity_payload
-        )
-    except Exception as exc:
+        activity_id, _body = TriggerActivityAdapter(
+            cast(CaseOutboxPersistence, dl)
+        ).emit_prepared_create_case(marker.create_activity_payload)
+    except VultronError as exc:
         logger.error(
-            "retry_pending: could not reconstruct Create(VulnerabilityCase)"
+            "retry_pending: could not persist Create(VulnerabilityCase)"
             " from marker '%s': %s",
             marker.id_,
             exc,
         )
         return None
-
-
-def _ensure_activity_persisted(
-    dl: DataLayer,
-    activity: VultronCreateCaseActivity,
-) -> bool:
-    """Write *activity* to *dl* if not already present.
-
-    Returns ``True`` on success (including when the activity already exists),
-    ``False`` if the DataLayer create call raises.
-    """
-    if dl.read(activity.id_) is not None:
-        return True
-    try:
-        dl.create(activity)
-        return True
-    except ValueError as exc:
-        logger.error(
-            "retry_pending: could not persist Create(VulnerabilityCase)"
-            " '%s': %s",
-            activity.id_,
-            exc,
-        )
-        return False
+    return activity_id
 
 
 def _enqueue_and_clear(
     dl: DataLayer,
     marker: PendingCreateCaseActivity,
-    activity: VultronCreateCaseActivity,
+    activity_id: str,
 ) -> bool:
     """Re-queue *activity* and clear *marker*, via the BT.
 
@@ -180,7 +167,7 @@ def _enqueue_and_clear(
     )
 
     tree = RequeuePendingCreateCaseActivityNode(
-        marker=marker, activity_id=activity.id_
+        marker=marker, activity_id=activity_id
     )
     # `dl` is typed as the narrow `DataLayer` port; the BT needs case-aware
     # reads.  `SqliteDataLayer` satisfies both protocols structurally, but a bare
@@ -314,14 +301,11 @@ def _retry_actor_dl(actor_id: str, dl: DataLayer) -> int:
             )
             continue
 
-        activity = _reconstruct_activity(raw_marker)
-        if activity is None:
+        activity_id = _persist_prepared_activity(dl, raw_marker)
+        if activity_id is None:
             continue
 
-        if not _ensure_activity_persisted(dl, activity):
-            continue
-
-        if _enqueue_and_clear(dl, raw_marker, activity):
+        if _enqueue_and_clear(dl, raw_marker, activity_id):
             retried += 1
 
     return retried

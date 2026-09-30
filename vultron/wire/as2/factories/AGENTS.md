@@ -25,3 +25,20 @@ Catch `ValidationError`, raise `VultronActivityConstructionError` (chains
 | `vultron/core/` | MUST NOT import from `factories/` or `vocab/activities/` |
 | `vultron/adapters/`, demos, trigger services | MUST use `factories/` |
 | Test files | MUST use `factories/`; exceptions only when testing internal class behavior |
+
+## Completeness Is the Factory's (MUST)
+
+The blob a factory produces is delivered byte for byte and recorded as the
+ledger `payloadSnapshot` unchanged (VM-08-003); nothing downstream expands,
+collapses, or patches it. So:
+
+- A case-scoped factory MUST complete `context` with the case URI —
+  `**with_case_context(kwargs, target)` (`_context.py`) — never an emit node.
+- A case handed in as `target` MUST go out as its URI (the recipient holds the
+  case, AKM-02-002/003) or as the `Invite`'s selective-disclosure stub — never
+  the full object. Pass `target=case_target_ref(target)`.
+- An initiating activity's `object` MUST be the full inline object
+  (AKM-03-001); the outbox refuses a bare reference, it no longer repairs one.
+
+Ratchet: `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py`
+exercises every trigger-port method against these three rules.

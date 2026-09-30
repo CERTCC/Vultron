@@ -390,6 +390,12 @@ draft commit and use `git diff main...HEAD` normally.
    Commit message: docs: sync docs/ for issue #<N>
    ```
 
+   Then **record the outcome** (PD-03-008): edit the PR body to replace the
+   `Docs: pending check-docs-sync` placeholder `create-pr` wrote with the
+   `Docs:` line `check-docs-sync` reported, and push any docs commit. Do this
+   before `archive-history`. The session is not done while the placeholder
+   remains.
+
 4. Post `[ADVISORY]` findings as a PR comment (if any).
 
 5. Invoke `archive-history` — once per bundle member, each entry carrying the
@@ -422,3 +428,5 @@ draft commit and use `git diff main...HEAD` normally.
   tests, its own acceptance criteria. A bundle amortizes context, never rigor.
 - Do not skip validation or the pre-PR code review.
 - Do not commit directly to `main`. All work goes through a PR.
+- The run is not done while the PR body still reads
+  `Docs: pending check-docs-sync` (Phase 8 step 3, PD-03-008).

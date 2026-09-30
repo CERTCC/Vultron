@@ -4,11 +4,13 @@ status: active
 related_specs:
   - specs/architecture.yaml (ARCH-12-001, ARCH-21-002)
   - specs/vocabulary-model.yaml (VM-08-002, VM-08-003)
+  - specs/outbox.yaml (OX-07-001, OX-07-002)
 related_notes:
   - notes/datalayer-design.md
   - notes/case-ledger-authority.md
   - notes/core-wire-rendering-port.md
   - notes/activity-factories.md
+  - notes/outbox.md
 ---
 
 # Wire Artifact Immutability
@@ -163,20 +165,45 @@ The canonical outbound pipeline:
 The ledger entry is written only after successful delivery — see the causal
 ordering concern (CONCERN-2546).
 
-### Current gaps (as of CONCERN-2545)
+### How the blob reaches delivery: the sealed body
 
-The following gaps remain outstanding; the `TriggerActivityAdapter` dict-return
-gap was resolved by #2652/#2653.
+The outbox is a queue of activity ids, and the activity *record* the DataLayer
+holds is not the blob: persistence dehydrates reference fields to ids, and
+read-back rehydrates them from whatever the store holds now.  So the record is
+a reconstruction, and delivering it is how the ledger and the wire came to
+disagree — an Invite's enriched case stub (CM-17-002) was collapsed to a bare
+URI on its way out (#2624).
 
-- `EmitInviteActorToCaseNode._call_factory()` derives `payload_snapshot` via
-  `_drop_bare_inline_refs(activity_dict)` — the snapshot is not the exact
-  emitted form. (Method renamed from `_emit()` by #2881.)
-- Three mutation sites in `outbox_delivery.py` (lines 166, 236, 257) overwrite
-  `outbound_activity.object_` after the ledger entry has been written.
+The blob therefore has its own record.  `vultron/adapters/outbox_sealed_body.py`
+holds `SealedOutboundBody`: the factory object's `model_dump_json` text, stored
+under an id derived from the activity id.  Every adapter that persists an
+outbound activity seals it at the same moment — `TriggerActivityAdapter._seal`
+ends every method, and the sync adapter, the outbox route, the pending-case
+queue and the pending-create retry seal theirs — and the text sealed is the
+`activity_blob` returned to core.  The outbox handler reads the sealed body,
+applies only the last-resort guards (`to:` present, inline `object`), and hands
+the text to the emitter unchanged.  Nothing on the delivery path reads the
+activity record any more (OX-07-001).
 
-These gaps are tracked as implementation tasks under CONCERN-2545.
+Two consequences for core:
 
----
+- an emit node records `json.loads(activity_blob)` as its `payloadSnapshot`,
+  with no stripping or patching — the factory sets `context` to the case URI
+  and reduces a full case handed in as `target` to its URI
+  (`factories/_context.py`: `with_case_context`, `case_target_ref`; only the
+  Invite's selective-disclosure stub stays an object, MV-10-001), and the
+  commit boundary accepts a bare `target` that names the entry's own case,
+  because the factories address a case by its URI (AKM-02-003) and every
+  replica holds it;
+- an activity core used to build itself (the CaseProposal `Accept`, the
+  prepared `Create(VulnerabilityCase)`, the CM-06-001 update broadcast) goes
+  through the trigger port instead, because only the adapter can seal it.
+
+Sealing is write-once per activity id: a re-emission under an id the store
+already holds gets the body that was, or will be, delivered.
+
+The received side is not yet at parity: a receiver's ledger entry is still
+rebuilt from its object graph (ADR-0107 step 5, #3742).
 
 ## Why "Ports Are Dumb Relays"
 

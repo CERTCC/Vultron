@@ -41,6 +41,9 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.nodes import ProposeReportCaseToActorNode
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
@@ -228,7 +231,10 @@ def _run_received_bt(
     # use case's declared parameter type is what actually gets checked here.
     assert isinstance(event, CreateCaseProposalReceivedEvent)
     CreateCaseProposalReceivedUseCase(
-        dl, event, wire_render_port=As2WireRenderAdapter()
+        dl,
+        event,
+        wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(dl),
     ).execute()
 
 

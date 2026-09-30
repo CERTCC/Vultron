@@ -265,15 +265,17 @@ def test_dead_letter_ledger_entry_id_defaults_to_none(alice_dl):
 def test_resolve_ledger_entry_id_reads_inline_object_from_sqlite(alice_dl):
     """_resolve_ledger_entry_id extracts the entry ID from a stored Announce(CaseLedgerEntry).
 
-    AC-7 (seam): verifies that a real Announce(CaseLedgerEntry) activity saved
-    to and read back from SqliteDataLayer has an inline CaseLedgerEntry object_
-    with an accessible id_.  The CaseLedgerEntry is committed (saved) before the
-    Announce is queued — the emit-after-commit invariant (OX-14-002) means the
-    entry is always resolvable when _resolve_ledger_entry_id runs.
+    AC-7 (seam): verifies that a real Announce(CaseLedgerEntry) activity sealed
+    into SqliteDataLayer, as the sync adapter seals it, carries its inline
+    CaseLedgerEntry with an accessible id.  The CaseLedgerEntry is committed
+    (saved) before the Announce is queued — the emit-after-commit invariant
+    (OX-14-002) means the entry is always resolvable when
+    _resolve_ledger_entry_id runs.
     """
     from vultron.adapters.driving.fastapi.outbox_handler import (
         _resolve_ledger_entry_id,
     )
+    from vultron.adapters.outbox_sealed_body import seal_outbound_body
     from vultron.wire.as2.factories import announce_log_entry_activity
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
         as_CaseLedgerEntry,
@@ -292,6 +294,7 @@ def test_resolve_ledger_entry_id_reads_inline_object_from_sqlite(alice_dl):
         to=[_BOB],
     )
     alice_dl.save(announce)
+    seal_outbound_body(alice_dl, announce)
 
     result = _resolve_ledger_entry_id(announce.id_, alice_dl)
 

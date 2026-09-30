@@ -31,7 +31,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-from ._base import _DUMP_KWARGS, _to_wire
+from ._base import _seal, _to_wire
 from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,7 @@ class _ReportsMixin:
                     activity.id_,
                 )
             raise
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def _resolve_offer(self, offer_id: str) -> Any:
         """Read wire Offer from DL; reconstitute from VultronOfferRecord if absent."""
@@ -162,7 +162,7 @@ class _ReportsMixin:
                 "validate_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def close_report(
         self,
@@ -181,7 +181,7 @@ class _ReportsMixin:
                 "close_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def invalidate_report(
         self,
@@ -201,7 +201,7 @@ class _ReportsMixin:
                 "invalidate_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def ack_report(
         self,
@@ -219,4 +219,4 @@ class _ReportsMixin:
                 "ack_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)

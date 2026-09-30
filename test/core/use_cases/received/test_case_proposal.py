@@ -87,6 +87,7 @@ def _run_create_proposal(dl, proposal, make_payload, **use_case_kwargs):
     )
     event = make_payload(activity)
     event = event.model_copy(update={"receiving_actor_id": _CASE_ACTOR_URI})
+    use_case_kwargs.setdefault("trigger_activity", TriggerActivityAdapter(dl))
     return CreateCaseProposalReceivedUseCase(
         dl, event, wire_render_port=As2WireRenderAdapter(), **use_case_kwargs
     ).execute()
@@ -116,7 +117,10 @@ class TestCreateCaseProposalReceivedUseCase:
         )
 
         CreateCaseProposalReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         # AC-1: VulnerabilityCase was created
@@ -181,7 +185,10 @@ class TestCreateCaseProposalReceivedUseCase:
         )
 
         CreateCaseProposalReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         case_rows = dl.list_objects("VulnerabilityCase")
@@ -218,7 +225,10 @@ class TestCreateCaseProposalReceivedUseCase:
             event = event.model_copy(update={"receiving_actor_id": None})
 
             CreateCaseProposalReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
             ).execute()
 
             # The BT runs under the store owner's identity; case creation fires.
@@ -251,7 +261,10 @@ class TestCreateCaseProposalReceivedUseCase:
         )
 
         CreateCaseProposalReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         accept_rows = dl.list_objects("Accept")

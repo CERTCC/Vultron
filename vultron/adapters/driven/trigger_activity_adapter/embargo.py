@@ -28,7 +28,7 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-from ._base import _DUMP_KWARGS, _to_wire
+from ._base import _seal, _to_wire
 from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ class _EmbargoMixin:
                 "propose_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_embargo(
         self,
@@ -79,7 +79,7 @@ class _EmbargoMixin:
                 "accept_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def reject_embargo(
         self,
@@ -100,7 +100,7 @@ class _EmbargoMixin:
                 "reject_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def announce_embargo(
         self,
@@ -121,7 +121,7 @@ class _EmbargoMixin:
                 "announce_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def terminate_embargo(
         self,
@@ -142,4 +142,4 @@ class _EmbargoMixin:
                 "terminate_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)

@@ -424,10 +424,10 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
     """The informed-consent stub keeps its ``caseStatus`` (CM-17-002).
 
     An embargoed Invite's target stub carries ``activeEmbargo`` and
-    ``caseStatus``.  Resolving it to the full case judged ``caseStatus`` against
-    a class with no such field: refused under ``extra="forbid"`` before MV-11,
-    and set aside after it, so the invitee lost the embargo state it consents
-    on.  A key only the stub declares selects the stub (#3945).
+    ``caseStatus``.  Judged against the full case, which has no ``caseStatus``,
+    the key would be set aside and the invitee would lose the embargo state it
+    consents on; the stub is selected on its own key set (#2624) even when a
+    foreign key rides along, which the partition sets aside.
     """
     from vultron.core.models.dimensions import EmDimension
     from vultron.core.states.em import EM
@@ -464,7 +464,7 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
 @pytest.mark.spec("MV-11-002")
 @pytest.mark.parametrize("misspelled", ["CaseStatus", "case-status"])
 def test_near_miss_of_a_stub_only_key_is_refused(misspelled: str) -> None:
-    """A misspelled ``caseStatus`` refuses; it is not set aside (#3945).
+    """A misspelled ``caseStatus`` refuses; it is not set aside (MV-11-002).
 
     The resolver judges keys as the partition does, so a near miss of a key
     only the stub declares still selects the stub, and the stub's partition

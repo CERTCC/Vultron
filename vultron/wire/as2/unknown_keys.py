@@ -241,36 +241,51 @@ def _candidates_for(
 
 _CASE_TYPE = "VulnerabilityCase"
 
-#: The keys of a minimal case reference (MV-10-001).  An inline case carrying
-#: no other key is the stub, not a full case missing its fields.
-_CASE_STUB_KEYS = frozenset({CONTEXT_KEY, "id", "type", "summary"})
+
+def _own_wire_keys(model: type[BaseModel]) -> frozenset[str]:
+    """The wire spelling of the fields *model* itself declares, plus identity.
+
+    Reads the class's own annotations rather than ``model_fields``: the latter
+    includes every inherited AS2 field (``name``, ``content``, ...), which a
+    full object carries too, so it cannot tell a stub from a minimal full
+    object.  ``id`` and ``@context`` are identity every stub carries.
+    """
+    keys = {
+        info.serialization_alias or info.alias or name
+        for name, info in model.model_fields.items()
+        if name in model.__annotations__ and not info.exclude
+    }
+    return frozenset(keys | {"id", CONTEXT_KEY})
+
+
+#: Every key an inbound ``as_VulnerabilityCaseStub`` may carry, derived from the
+#: class rather than listed by hand: a hand-kept allowlist described the
+#: pre-CM-17-002 stub long after the class had grown ``activeEmbargo`` and
+#: ``caseStatus``, so an enriched stub was typed as a full case and refused for
+#: the very fields that made it a stub (#2624).
+CASE_STUB_KEYS = _own_wire_keys(as_VulnerabilityCaseStub)
 
 
 def _reads_as_case_stub(value: dict[str, Any]) -> bool:
     """Whether an inline ``VulnerabilityCase`` dict is the stub (MV-10-001).
 
-    The stub when it carries a key only the stub declares — the ``caseStatus``
-    an embargoed Invite's stub adds for informed consent (CM-17-002), or a near
-    miss of it, which the stub's partition then refuses (#3945) — or when every
-    key the full case would read is a minimal-reference key.
-
-    Keys are judged as the partition will judge them, so the raw dict and the
-    partitioned one resolve to the same class: a key foreign to both classes is
-    set aside and cannot decide the class, and a near miss counts as the
-    spelling it resembles.
+    The stub when every key it carries is one of :data:`CASE_STUB_KEYS`, judged
+    as the partition will judge it, so the raw dict and the partitioned one
+    resolve to the same class: a key neither class declares is set aside and
+    cannot decide the class, and a near miss counts as the spelling it
+    resembles (so ``CaseStatus`` still selects the stub, whose partition then
+    refuses it naming ``caseStatus``).
     """
-    stub = _class_spellings(as_VulnerabilityCaseStub)
-    case = _class_spellings(find_in_vocabulary(_CASE_TYPE))
-    stub_only = stub.by_normalised.keys() - case.by_normalised.keys()
-    if any(normalise(key) in stub_only for key in value):
-        return True
+    known = _merged_spellings(
+        (as_VulnerabilityCaseStub, find_in_vocabulary(_CASE_TYPE))
+    )
     for key in value:
         read_as = (
             key
-            if key in case.annotations
-            else case.by_normalised.get(normalise(key))
+            if key in known.annotations
+            else known.by_normalised.get(normalise(key))
         )
-        if read_as is not None and read_as not in _CASE_STUB_KEYS:
+        if read_as is not None and read_as not in CASE_STUB_KEYS:
             return False
     return True
 

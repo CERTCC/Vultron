@@ -17,8 +17,8 @@ Core ports are split by direction.
 - `DataLayer` (`core/ports/datalayer.py`) — persistence contract.
 - `CasePersistence` / `CaseOutboxPersistence` — narrower persistence
   ports.
-- `ActivityEmitter` (`core/ports/emitter.py`) — outbound activity
-  delivery.
+- `ActivityEmitter` (`core/ports/emitter.py`) — outbound delivery of an
+  activity's *sealed body* (JSON text), relayed unchanged (VM-08-003).
 
 Naming principle: choose domain intent, not transport implementation.
 

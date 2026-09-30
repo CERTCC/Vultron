@@ -36,7 +36,6 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.main import app as api_app
 from vultron.adapters.driving.fastapi.outbox_handler import get_default_emitter
-from vultron.core.models.activity import VultronActivity
 from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
 )
@@ -134,24 +133,20 @@ class _TestClientRouter:
         self._failing_hosts.add(base_url.rstrip("/"))
 
     async def emit(
-        self, activity: VultronActivity, recipients: list[str]
+        self, activity_id: str, json_body: str, recipients: list[str]
     ) -> None:
-        """Deliver *activity* to each recipient via the registered client."""
-        # serialize_as_any=True mirrors the production HttpDeliveryAdapter so
-        # inline nested-object subtype fields
-        # (e.g. a CaseLedgerEntry's case_id/event_type) survive the wire hop
-        # between isolated apps — otherwise this test double would silently
-        # drop them and mask SYNC-02-004 / SYNC-13-004 regressions.
-        json_body: str = activity.model_dump_json(
-            by_alias=True, exclude_none=True, serialize_as_any=True
-        )
+        """Deliver the sealed *json_body* to each recipient's registered client.
+
+        Posts the body exactly as the outbox handler hands it over, as the
+        production ``HttpDeliveryAdapter`` does (VM-08-003): a test double
+        that re-serialised would mask any divergence between what the ledger
+        recorded and what the wire carried.
+        """
         for recipient_id in recipients:
             parsed = urlparse(recipient_id.rstrip("/") + "/inbox/")
             base = f"{parsed.scheme}://{parsed.netloc}"
             if base in self._failing_hosts:
-                raise DeliveryError(
-                    [recipient_id], getattr(activity, "id_", None)
-                )
+                raise DeliveryError([recipient_id], activity_id)
             client = self._clients.get(base)
             if client is None:
                 host = parsed.hostname or ""
@@ -508,6 +503,25 @@ def restore_config_if_leaked(before: dict) -> bool:
             f"{_describe_drift(before, repaired)}"
         )
     return True
+
+
+@pytest.fixture(autouse=True)
+def _no_outbox_row_is_dropped(caplog):
+    """Fail any demo test during which the outbox dropped a row (VM-08-003).
+
+    A queued id with no sealed body is logged at ERROR and dropped; the demo
+    runner's own "ERROR SUMMARY" covers only exceptions, so without this guard
+    a silently undelivered activity would pass every scenario (#2655 AC-5).
+    """
+    yield
+    dropped = [
+        r.getMessage()
+        for r in caplog.get_records("call")
+        if r.levelno >= logging.ERROR and "No sealed body" in r.getMessage()
+    ]
+    assert (
+        not dropped
+    ), "the outbox dropped a row nobody sealed:\n" + "\n".join(dropped)
 
 
 @pytest.fixture(autouse=True)
