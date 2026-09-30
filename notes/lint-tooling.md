@@ -152,15 +152,43 @@ An acceptable reason is one of:
 project-wide. That is what baselining is for, below. Excluding a rule hides
 future violations too; baselining does not.
 
-### Two exclusions worth knowing about
+### Exclusions worth knowing about
 
-**`PLC0415` (`import-outside-top-level`) is excluded, and that exclusion is
-provisional.** Function-local imports are this codebase's cycle-break idiom, at
-a scale that makes CS-05-002's "last resort" framing describe an aspiration
-rather than the design. Whether the spec is stale or the codebase has drifted is
-an open question tracked as **#3350** — a premise question, not a lint question.
-Do not enable the rule to force the issue; the resolution has to decide the
-target state first.
+**`PLC0415` (`import-outside-top-level`) is excluded only until #3352 lands, and
+the exclusion is then deleted, not kept.** Its ADR-0094 row was provisional and
+pointed at #3350, which asked whether CS-05-002's "last resort" described the
+design or an aspiration. The planning measurement answered it: hoisting every
+function-local import in `vultron/` to module level and importing every module
+showed that the overwhelming majority hoist cleanly — habit, not cycle breaks —
+and only a handful of files actually break a cycle. (Counts and the measurement
+date belong in the implementation issues, not here — MS-16-001.) Most of the
+tree-wide total sits in `test/`, where a test-local import is an isolation idiom
+CS-05-002 was never about.
+
+So the rule is **enabled**, and the resolution has three parts (CS-05-002,
+CS-05-005, CS-05-006):
+
+- `per-file-ignores` carries `"test/**" = ["PLC0415"]`. Test-local imports stay.
+- Every habit site in `vultron/` is hoisted.
+- Every genuine cycle break in `vultron/` carries a `# noqa: PLC0415` marker
+  citing the issue that removes it structurally (the baseline form below). The
+  marker count is the cycle backlog, and `RUF100` drains it.
+
+The cycles the measurement found, grouped so the structural work has a map:
+
+| Cycle | Files carrying the deferred import |
+|---|---|
+| persistence ports | `vultron/core/ports/case_persistence.py` (PEP 562 `__getattr__` re-export of `case_outbox`) |
+| publication trees ↔ call-out bundles | `vultron/core/behaviors/report/publication_tree.py`, `publish_artifact_tree.py` |
+| hypercube ↔ its pattern modules | `vultron/core/case_states/patterns/info.py`, `potential_actions.py` |
+| BT node → use-case helper (BTND-04-003 `KNOWN_VIOLATIONS`) | `vultron/core/behaviors/case/nodes/announce.py` |
+| embargo trigger tree ↔ nodes | `vultron/core/behaviors/embargo/trigger_tree.py`, `nodes/teardown.py` |
+| inbox processing ↔ use cases | `vultron/core/behaviors/inbox/_process_payload.py`, `vultron/core/use_cases/received/unknown.py` |
+
+Each is a CS-05-003 finding: a shared symbol that belongs in a neutral module or
+on the side of the cycle that owns it. Do not add a file to this table to make a
+new finding go away — a new cycle is a new reorganization, and the marker it
+would carry needs its own tracking issue.
 
 **`G004` (`logging-f-string`) is excluded, and that exclusion is provisional
 too.** F-strings in log calls defeat lazy formatting, so this is a rule the

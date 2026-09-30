@@ -85,8 +85,47 @@ groups:
   - id: CS-05-002
     priority: SHOULD
     kind: project
-    statement: When circular dependencies cannot be resolved by reorganization, use lazy initialization patterns as a **last
-      resort**
+    statement: A circular dependency SHOULD be resolved by reorganization first (a neutral module per CS-05-003, or moving
+      the shared symbol to the side of the cycle that owns it). Deferring the import into a function body is a **last
+      resort** that hides the cycle rather than removing it, and every such deferral is tracked toward structural removal
+      (CS-05-005).
+    rationale: 'A measurement while planning #2199 (recorded in ADR-0094) found function-local imports throughout the
+      tree, but hoisting every one in `vultron/` and importing every module showed that only a handful actually break a
+      cycle; the rest were habit. "Last resort" therefore describes the design correctly, and the gap was enforcement, not
+      the requirement. The resolution is tracked from #3350.'
+    verification: With `PLC0415` (`import-outside-top-level`) selected in `[tool.ruff.lint]` of `pyproject.toml`, every
+      function-local import in production code is either absent or carries a marker per CS-05-005; the count of markers
+      is the size of the remaining cycle backlog.
+  - id: CS-05-005
+    priority: MUST
+    kind: project
+    statement: 'In production code under `vultron/`, a function-local import MUST exist only to break an import cycle
+      that reorganization has not yet removed, and MUST carry a `# noqa: PLC0415` marker whose trailing comment names the
+      issue that tracks its structural removal (the IMPLTS-07-020 baseline form). A function-local import with no cycle
+      to break MUST be hoisted to module level. A `TYPE_CHECKING`-guarded import is not a function-local import and
+      needs no marker.'
+    rationale: Enabling the rule makes the exception the visible, reviewable artifact. Because `RUF100` (`unused-noqa`)
+      stays selected, a marker whose cycle has been removed fails lint, so the backlog can only shrink and the last marker
+      cannot be left as decoration (ADR-0064 ratchet properties, ADR-0094 detail 2).
+    verification: '`ruff check` invoked with no path operands (IMPLTS-07-021) reports no `PLC0415` finding; each surviving
+      marker in `vultron/` cites an open issue.'
+    relationships:
+    - rel_type: refines
+      spec_id: CS-05-002
+    - rel_type: depends_on
+      spec_id: IMPLTS-07-020
+  - id: CS-05-006
+    priority: MAY
+    kind: project
+    statement: Test modules under `test/` MAY import inside test functions and fixtures. This idiom is exempted from
+      `PLC0415` through a `per-file-ignores` entry for `test/**` rather than through per-site markers.
+    rationale: A test-local import scopes a dependency to the one test that needs it and keeps a module-under-test out of
+      collection-time import order (`isolated_core_registries`, `monkeypatch` of module attributes). It is an isolation
+      idiom, not a cycle break, so CS-05-002 does not govern it and CS-05-005's marker discipline would add noise without
+      a backlog to drain.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-05-005
   - id: CS-05-003
     priority: MUST
     kind: architecture
