@@ -15,6 +15,7 @@
 
 import logging
 
+from ._base import _seal
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.wire.as2.factories.fault import create_processing_fault_activity
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
@@ -61,7 +62,8 @@ class _FaultMixin:
             to=to,
         )
         self._dl.create(activity)
-        self._dl.outbox_append(activity.id_)
+        activity_id, _body = _seal(self._dl, activity)
+        self._dl.outbox_append(activity_id)
         logger.debug(
             "Emitted Create(ProcessingFault) activity=%s"
             " actor=%s failed_activity=%s failure_class=%s to=%s",
@@ -71,4 +73,4 @@ class _FaultMixin:
             failure_class,
             to,
         )
-        return activity.id_
+        return activity_id

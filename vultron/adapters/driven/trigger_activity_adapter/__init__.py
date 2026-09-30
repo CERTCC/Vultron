@@ -46,6 +46,7 @@ from .cases import _CasesMixin
 from .embargo import _EmbargoMixin
 from .fault import _FaultMixin
 from .notes import _NotesMixin
+from .proposals import _ProposalsMixin
 from .reports import _ReportsMixin
 
 __all__ = ["TriggerActivityAdapter"]
@@ -55,6 +56,7 @@ class TriggerActivityAdapter(
     _NotesMixin,
     _ReportsMixin,
     _CasesMixin,
+    _ProposalsMixin,
     _ActorsMixin,
     _EmbargoMixin,
     _FaultMixin,

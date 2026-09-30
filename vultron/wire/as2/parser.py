@@ -30,9 +30,28 @@ from vultron.wire.as2.errors import (
 logger = logging.getLogger(__name__)
 
 
-_VULNERABILITY_CASE_STUB_KEYS = frozenset(
-    {"@context", "id", "type", "summary"}
-)
+def _own_wire_keys(model: type[BaseModel]) -> frozenset[str]:
+    """The wire spelling of the fields *model* itself declares, plus identity.
+
+    Reads the class's own annotations rather than ``model_fields``: the latter
+    includes every inherited AS2 field (``name``, ``content``, ...), which a
+    full object carries too, so it cannot tell a stub from a minimal full
+    object.  ``id`` and ``@context`` are identity every stub carries.
+    """
+    keys = {
+        info.serialization_alias or info.alias or name
+        for name, info in model.model_fields.items()
+        if name in model.__annotations__ and not info.exclude
+    }
+    return frozenset(keys | {"id", "@context"})
+
+
+#: Every key an inbound ``as_VulnerabilityCaseStub`` may carry, derived from the
+#: class rather than listed by hand: a hand-kept allowlist described the
+#: pre-CM-17-002 stub long after the class had grown ``activeEmbargo`` and
+#: ``caseStatus``, so an enriched stub was typed as a full case and refused for
+#: the very fields that made it a stub (#2624).
+_VULNERABILITY_CASE_STUB_KEYS = _own_wire_keys(as_VulnerabilityCaseStub)
 
 # Field names whose values are opaque data blobs (declared ``dict[str, Any]``),
 # NOT AS2 object references.  These must not be recursively coerced into typed

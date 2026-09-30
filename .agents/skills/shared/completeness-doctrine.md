@@ -22,7 +22,9 @@ A task is not done until:
 - All edge cases the implementation touches are handled, not deferred
 - Type annotations and docstrings are current with the new behavior
 - Linters pass clean (no `# type: ignore` or `# noqa` added without justification)
-- Specs, notes, and AGENTS.md are consistent with the new behavior
+- Specs, notes, AGENTS.md, and reader-facing `docs/` pages are consistent
+  with the new behavior — for `docs/`, the PR body's `Docs:` line records
+  which pages were checked and updated (PD-03-008)
 
 A happy-path-only implementation is not done. A behavior with no test is not
 done. A changed interface with a stale type annotation is not done.

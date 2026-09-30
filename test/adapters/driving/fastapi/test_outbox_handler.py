@@ -29,6 +29,7 @@ Spec coverage:
 """
 
 import asyncio
+import json
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import MagicMock
@@ -36,6 +37,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from vultron.adapters.driving.fastapi import outbox_handler as oh
+from vultron.adapters.outbox_sealed_body import (
+    SealedOutboundBody,
+    sealed_body_id,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -424,33 +429,38 @@ def test_processing_outbox_preamble_not_emitted_at_info(monkeypatch, caplog):
 # ---------------------------------------------------------------------------
 
 
-def _make_announce_ledger_activity(ledger_entry_id: str):
-    """Return a SimpleNamespace mimicking an Announce(CaseLedgerEntry) activity."""
-    from types import SimpleNamespace
-
-    ledger_entry = SimpleNamespace(
-        type_="CaseLedgerEntry", id_=ledger_entry_id
+def _make_announce_ledger_activity(
+    ledger_entry_id: str, activity_id: str = "urn:uuid:announce"
+) -> SealedOutboundBody:
+    """Return the sealed body of an Announce(CaseLedgerEntry) activity."""
+    return SealedOutboundBody(
+        id_=sealed_body_id(activity_id),
+        activity_id=activity_id,
+        body=json.dumps(
+            {
+                "id": activity_id,
+                "type": "Announce",
+                "object": {"type": "CaseLedgerEntry", "id": ledger_entry_id},
+            }
+        ),
     )
-    return SimpleNamespace(type_="Announce", object_=ledger_entry)
 
 
 def _mock_dl_for_ox14(
     queue: list[str],
     actor_id: str,
     activity_id: str,
-    activity_obj,
+    sealed: SealedOutboundBody,
 ) -> MagicMock:
-    """Mock DataLayer that returns *actor* for actor_id and *activity_obj* for activity_id."""
-    from types import SimpleNamespace
-
+    """Mock DataLayer: *actor* for actor_id, *sealed* for the activity's body."""
     actor_ns = SimpleNamespace()
     mock_dl = MagicMock()
 
     def _read(obj_id):
         if obj_id == actor_id:
             return actor_ns
-        if obj_id == activity_id:
-            return activity_obj
+        if obj_id == sealed_body_id(activity_id):
+            return sealed
         return None
 
     mock_dl.read.side_effect = _read
@@ -476,8 +486,8 @@ def test_dead_letter_includes_ledger_entry_id_for_announce_ledger_activity(
     ledger_entry_id = "urn:case:abc/log/0"
 
     queue = _make_queue(activity_id)
-    activity_obj = _make_announce_ledger_activity(ledger_entry_id)
-    mock_dl = _mock_dl_for_ox14(queue, actor_id, activity_id, activity_obj)
+    sealed = _make_announce_ledger_activity(ledger_entry_id, activity_id)
+    mock_dl = _mock_dl_for_ox14(queue, actor_id, activity_id, sealed)
 
     async def always_raise(a_id, act_id, dl, emitter):
         raise RuntimeError("network down")
@@ -501,18 +511,20 @@ def test_dead_letter_ledger_entry_id_absent_for_non_ledger_activity(
     AC-4: activities with no associated ledger entry dead-letter as before,
     with the correlation absent rather than fabricated.
     """
-    from types import SimpleNamespace
-
     actor_id = "actor-xyz"
     activity_id = "urn:uuid:create-report-0"
 
     queue = _make_queue(activity_id)
-    # A non-Announce activity has no CaseLedgerEntry object_
-    non_ledger_activity = SimpleNamespace(
-        type_="Create", object_=SimpleNamespace(type_="Report")
+    # A non-Announce activity has no CaseLedgerEntry object
+    non_ledger_sealed = SealedOutboundBody(
+        id_=sealed_body_id(activity_id),
+        activity_id=activity_id,
+        body=json.dumps(
+            {"id": activity_id, "type": "Create", "object": {"type": "Report"}}
+        ),
     )
     mock_dl = _mock_dl_for_ox14(
-        queue, actor_id, activity_id, non_ledger_activity
+        queue, actor_id, activity_id, non_ledger_sealed
     )
 
     async def always_raise(a_id, act_id, dl, emitter):
@@ -545,8 +557,8 @@ def test_dead_letter_includes_failed_recipients_and_ledger_entry_id(
     unreached = ["urn:actor:vendor-a", "urn:actor:vendor-b"]
 
     queue = _make_queue(activity_id)
-    activity_obj = _make_announce_ledger_activity(ledger_entry_id)
-    mock_dl = _mock_dl_for_ox14(queue, actor_id, activity_id, activity_obj)
+    sealed = _make_announce_ledger_activity(ledger_entry_id, activity_id)
+    mock_dl = _mock_dl_for_ox14(queue, actor_id, activity_id, sealed)
 
     async def raise_delivery_error(a_id, act_id, dl, emitter):
         raise DeliveryError(unreached, act_id)
@@ -573,15 +585,15 @@ def test_resolve_ledger_entry_id_full_path(monkeypatch):
     ledger_entry_id = "urn:case:full-path/log/0"
     activity_id = "urn:uuid:announce-full-path"
 
-    activity_obj = _make_announce_ledger_activity(ledger_entry_id)
+    sealed = _make_announce_ledger_activity(ledger_entry_id, activity_id)
 
     mock_dl = MagicMock()
-    mock_dl.read.return_value = activity_obj
+    mock_dl.read.return_value = sealed
 
     result = oh._resolve_ledger_entry_id(activity_id, mock_dl)
 
     assert result == ledger_entry_id
-    mock_dl.read.assert_called_once_with(activity_id)
+    mock_dl.read.assert_called_once_with(sealed_body_id(activity_id))
 
 
 def test_resolve_ledger_entry_id_returns_none_for_missing_activity():

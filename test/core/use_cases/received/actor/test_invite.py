@@ -40,6 +40,39 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.core.models._helpers import days_from_now_utc
 
 
+def _outbound_blob(activity) -> str:
+    """The sealed body the real adapter returns alongside the activity id."""
+    return str(
+        activity.model_dump_json(
+            by_alias=True, exclude_none=True, serialize_as_any=True
+        )
+    )
+
+
+def _add_participant_result(case, case_actor_id: str, invitee_id: str):
+    """``(id, blob)`` as ``TriggerActivityPort.add_participant_to_case`` returns.
+
+    The node records the blob verbatim as the ledger snapshot (VM-08-003), so
+    it has to be a real, complete ``Add(CaseParticipant, Case)``.
+    """
+    from vultron.wire.as2.factories import add_participant_to_case_activity
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+
+    activity = add_participant_to_case_activity(
+        participant=as_CaseParticipant(
+            id_=f"{invitee_id}#participant",
+            attributed_to=invitee_id,
+            context=case.id_,
+        ),
+        target=case.id_,
+        actor=case_actor_id,
+        id_=f"{case.id_}/activities/add-participant-1",
+    )
+    return activity.id_, _outbound_blob(activity)
+
+
 def _seed_ledger_entry(
     dl,
     case_id: str,
@@ -171,7 +204,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
             id_=add_activity_id,
         )
         dl.create(activity)
-        return add_activity_id
+        return add_activity_id, _outbound_blob(activity)
 
     trigger_activity = MagicMock()
     trigger_activity.announce_vulnerability_case.return_value = (
@@ -1039,7 +1072,7 @@ class TestInviteActorUseCases:
             f"{case.id_}/announce/1"
         )
         trigger_activity.add_participant_to_case.return_value = (
-            f"{case.id_}/activities/add-participant-1"
+            _add_participant_result(case, case_actor_id, invitee_id)
         )
         sync_port = MagicMock()
 
@@ -1168,7 +1201,7 @@ class TestInviteActorUseCases:
             f"{case.id_}/announce/1"
         )
         trigger_activity.add_participant_to_case.return_value = (
-            f"{case.id_}/activities/add-participant-1"
+            _add_participant_result(case, case_actor_id, invitee_id)
         )
         sync_port = MagicMock()
 
