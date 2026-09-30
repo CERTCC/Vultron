@@ -514,7 +514,7 @@ def test_a_longer_sender_duration_without_its_event_fails_loudly(
         "proposed_embargoes but never indexed in "
         "pending_embargo_proposal_index, so the owner's default selection "
         "cannot reach it. Tracked by the implementation issue of Concern "
-        "#3863 (ADR-0112)."
+        "#3863 (ADR-0113)."
     ),
 )
 @pytest.mark.spec("EP-04-011")

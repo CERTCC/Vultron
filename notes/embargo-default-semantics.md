@@ -11,7 +11,7 @@ description: >
   how EP-04-003's two-party shortest-wins relates to EP-08's general
   earliest-expiration ordering for N open proposals; why the creation-time
   revision's registration order no longer touches consent (ADR-0093); and how
-  the creation-time revision is relayed to the other party (EP-04-011, ADR-0112).
+  the creation-time revision is relayed to the other party (EP-04-011, ADR-0113).
 related_specs:
   - specs/case-management.yaml
   - specs/case-proposal.yaml
@@ -251,7 +251,7 @@ cascade would have lapsed both seeds had the revision been registered after
 them).
 
 The registration alone is not enough, and for two reasons that #3863 surfaced
-(decided by ADR-0112, EP-04-011). First, `propose_embargo` appends to
+(decided by ADR-0113, EP-04-011). First, `propose_embargo` appends to
 `proposed_embargoes` but never to `pending_embargo_proposal_index`, so the
 owner's default earliest-expiring selection (EP-08-002) could not even name the
 revision. Second, nobody but the CASE_MANAGER knew it existed. The creation-time

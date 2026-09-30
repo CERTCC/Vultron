@@ -143,7 +143,7 @@ and still receiving embargoed content, because the gate reads the list and not
 the scalar; the proposer lapsed too; and the owner's own EJ recorded the owner
 as `DECLINED`. The cascade also ran only in the proposer's store, because at the
 time no received path moved any other store's EM to `REVISE` (#3892; closed by
-the relay in EP-09 / ADR-0112, under which the CASE_MANAGER moves the canonical
+the relay in EP-09 / ADR-0113, under which the CASE_MANAGER moves the canonical
 case and replicas replay it). Treat any code that changes a participant's
 consent inside a *proposal* path as a defect.
 

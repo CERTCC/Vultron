@@ -6,7 +6,7 @@ description: >
   all participant messages route through the CASE_MANAGER exclusively, and all
   state updates propagate via CaseLedgerEntry broadcast. Captures the routing
   rule, its rationale, common antipatterns, BT implementation guidance, and the
-  embargo revision relay (EP-09, ADR-0112): ledger entries carry state to
+  embargo revision relay (EP-09, ADR-0113): ledger entries carry state to
   replicas but never set a parse-and-respond expectation.
 related_specs:
   - specs/architecture.yaml
@@ -296,7 +296,7 @@ not exist: the Activity is sent directly by the requesting participant, with
 
 ---
 
-## Embargo Revision Relay: the Ledger Carries State, It Never Asks (EP-09, ADR-0112)
+## Embargo Revision Relay: the Ledger Carries State, It Never Asks (EP-09, ADR-0113)
 
 The case Invite above is one instance of a general shape, and the embargo
 revision is the second. A participant addresses its revision proposal to the
@@ -389,7 +389,7 @@ and ownership-transfer triggers still run the delegated emit locally.
 |---|---|
 | `SvcInviteActorToCaseUseCase` | ✅ uses `_prepare_delegated_context()` |
 | `SvcOfferCaseOwnershipTransferUseCase` | ✅ fixed in #2173 |
-| CASE_MANAGER received revision-Invite tree (EP-09-002) | planned (ADR-0112) — a *received*-side delegated emit, as CM-24-004 allows: relays `Invite(EmbargoEvent)` to every participant except the proposer with `attributed_to=proposer`, committed in the emitting tree |
+| CASE_MANAGER received revision-Invite tree (EP-09-002) | planned (ADR-0113) — a *received*-side delegated emit, as CM-24-004 allows: relays `Invite(EmbargoEvent)` to every participant except the proposer with `attributed_to=proposer`, committed in the emitting tree |
 | Other trigger use cases | audit complete — no other delegated-emit callsites |
 
 ### Shared-Helper Requirement (CM-24-005)

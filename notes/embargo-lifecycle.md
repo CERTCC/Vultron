@@ -8,7 +8,7 @@ description: >
   order for multiple open proposals (EP-08); and the fragmentation concern that
   motivates the EmbargoLifecycle service (see #538); and the revision relay
   through the CASE_MANAGER, under which the ledger carries state but never asks
-  (EP-09, ADR-0112).
+  (EP-09, ADR-0113).
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -231,7 +231,7 @@ Two rules follow for any new proposal-selection code:
   when that actor is the case owner — without it the owner's Reject left the decided
   proposal in every participant's records, where a later default selection could still
   pick it. Termination decides *every* open proposal, not only the terminated
-  embargo's own entry (EP-08-004, ADR-0112): a case has one active embargo
+  embargo's own entry (EP-08-004, ADR-0113): a case has one active embargo
   (VP-04-002), so every proposal open while EM is `ACTIVE` or `REVISE` is a
   revision of it, and a revision of an embargo that no longer exists cannot be
   accepted. No field linking a revision to its embargo is needed. Because the
@@ -249,7 +249,7 @@ it.
 
 ---
 
-## Revision Negotiation Relays Through the CASE_MANAGER (EP-09, ADR-0112)
+## Revision Negotiation Relays Through the CASE_MANAGER (EP-09, ADR-0113)
 
 The behavioural specs EMB-03 through EMB-05 speak in the voice of the formal
 protocol, where every Participant is a peer and every Participant "receives EV".

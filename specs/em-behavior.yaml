@@ -325,7 +325,7 @@ groups:
     peer. In the CASE_MANAGER topology (PCR-08-001) a participant addresses its proposal to
     the CASE_MANAGER alone, so the Participant receiving EV is the CASE_MANAGER on receipt;
     every other participant reaches the same EM state through ledger replay, and is asked
-    for its answer by the Invite the CASE_MANAGER relays to it. See EP-09 and ADR-0112.
+    for its answer by the Invite the CASE_MANAGER relays to it. See EP-09 and ADR-0113.
   trigger:
     type: message_received
     value: EV

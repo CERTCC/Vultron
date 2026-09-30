@@ -509,7 +509,7 @@ groups:
       spec_id: EP-08-002
       note: Indexing the revision is what lets the default selection reach it.
     adr:
-    - ADR-0112
+    - ADR-0113
     stories:
     - story_2022_014
     - story_2022_079
@@ -937,7 +937,7 @@ groups:
       spec_id: VP-04-002
       note: One active embargo at a time is what makes every open proposal a revision of it.
     adr:
-    - ADR-0112
+    - ADR-0113
     stories:
     - story_2022_014
 - id: EP-09
@@ -953,7 +953,7 @@ groups:
     proposal to the participants as an Invite, they answer the CASE_MANAGER, and the owner's
     answer decides. Each step is recorded in the ledger. Ledger entries carry case state to
     replicas and set no parse-and-respond expectation; they augment the negotiation as the
-    record of the case, they do not replace it. Decided by ADR-0112 from Concerns #3892,
+    record of the case, they do not replace it. Decided by ADR-0113 from Concerns #3892,
     #3836 and #3863.
   specs:
   - id: EP-09-001
@@ -997,7 +997,7 @@ groups:
     - rel_type: depends_on
       spec_id: RSH-08-003
     adr:
-    - ADR-0112
+    - ADR-0113
     stories:
     - story_2022_014
   - id: EP-09-002
@@ -1037,7 +1037,7 @@ groups:
       spec_id: PCR-08-007
       note: The same relay shape as the case Invite.
     adr:
-    - ADR-0112
+    - ADR-0113
     stories:
     - story_2022_014
   - id: EP-09-003
@@ -1074,7 +1074,7 @@ groups:
       spec_id: PCR-08-003
       note: The fan-out is the only mechanism by which participants learn accepted state.
     adr:
-    - ADR-0112
+    - ADR-0113
     stories:
     - story_2022_014
   - id: EP-09-004
@@ -1101,7 +1101,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-18-003
     adr:
-    - ADR-0112
+    - ADR-0113
     - ADR-0093
   - id: EP-09-005
     priority: MAY
@@ -1129,7 +1129,7 @@ groups:
     - rel_type: refines
       spec_id: MSM-07-004
     adr:
-    - ADR-0112
+    - ADR-0113
     stories:
     - story_2022_014
   - id: EP-09-006
@@ -1161,7 +1161,7 @@ groups:
       spec_id: VP-08-012
       note: Quorum stays undefined at the protocol level.
     adr:
-    - ADR-0112
+    - ADR-0113
     stories:
     - story_2022_046
     - story_2022_078
@@ -1193,5 +1193,5 @@ groups:
     - rel_type: depends_on
       spec_id: EMB-18-001
     adr:
-    - ADR-0112
+    - ADR-0113
     - ADR-0108

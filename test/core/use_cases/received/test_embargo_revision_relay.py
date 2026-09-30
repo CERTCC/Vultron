@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Embargo revision negotiation relays through the CASE_MANAGER (EP-09, ADR-0112).
+"""Embargo revision negotiation relays through the CASE_MANAGER (EP-09, ADR-0113).
 
 A participant proposes a revision to the CASE_MANAGER only.  The CASE_MANAGER
 moves the canonical case to ``EM.REVISE``, commits, then relays an
@@ -45,7 +45,7 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import make_embargo_case_with_actor
 
-_TRACKING = "Tracked by the implementation issues of Concern #3892 (ADR-0112)."
+_TRACKING = "Tracked by the implementation issues of Concern #3892 (ADR-0113)."
 
 MANAGER = "https://example.org/users/coord"
 PROPOSER = "https://example.org/users/vendor"
