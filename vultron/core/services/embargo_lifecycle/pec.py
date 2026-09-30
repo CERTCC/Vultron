@@ -101,7 +101,7 @@ class _PecEffectsMixin(_LifecycleBase):
 
         if embargo_id not in participant.accepted_embargo_ids:
             participant.accepted_embargo_ids = list(
-                dict.fromkeys(participant.accepted_embargo_ids + [embargo_id])
+                dict.fromkeys([*participant.accepted_embargo_ids, embargo_id])
             )
             changed = True
 

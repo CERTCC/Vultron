@@ -36,7 +36,7 @@ from vultron.enums.roles import CVDRole
 
 def _effective_case_roles(actor_config: ActorConfig | None) -> list[CVDRole]:
     base_roles = actor_config.default_case_roles if actor_config else []
-    return list(dict.fromkeys(base_roles + [CVDRole.CASE_OWNER]))
+    return list(dict.fromkeys([*base_roles, CVDRole.CASE_OWNER]))
 
 
 class CreateOwnerParticipantNode(DataLayerActionWithPorts):

@@ -172,7 +172,7 @@ def test_check_detects_every_artifact_when_the_registry_changes(
     The registry is passed explicitly: the point is that a *registry* change,
     not a file edit, is what the gate exists to propagate.
     """
-    specs = discover_scenarios() + (_EXTRA_SPEC,)
+    specs = (*discover_scenarios(), _EXTRA_SPEC)
     assert stale_artifacts(artifact_root, specs) == [
         artifact.path for artifact in ARTIFACTS
     ]
@@ -180,7 +180,7 @@ def test_check_detects_every_artifact_when_the_registry_changes(
 
 def test_write_then_check_round_trips(artifact_root: Path) -> None:
     """``--write`` makes ``--check`` clean, and is idempotent afterwards."""
-    specs = discover_scenarios() + (_EXTRA_SPEC,)
+    specs = (*discover_scenarios(), _EXTRA_SPEC)
     written = write_artifacts(artifact_root, specs)
     assert written == [artifact.path for artifact in ARTIFACTS]
     assert stale_artifacts(artifact_root, specs) == []
@@ -200,7 +200,7 @@ def test_write_preserves_hand_written_prose(artifact_root: Path) -> None:
     sentinel = "## Adding a New Invariant"
     assert sentinel in before
 
-    write_artifacts(artifact_root, discover_scenarios() + (_EXTRA_SPEC,))
+    write_artifacts(artifact_root, (*discover_scenarios(), _EXTRA_SPEC))
     after = target.read_text(encoding="utf-8")
 
     assert sentinel in after
