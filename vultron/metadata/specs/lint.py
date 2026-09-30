@@ -9,9 +9,11 @@ Usage::
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -32,6 +34,11 @@ from vultron.metadata.specs.schema import (
     SpecKind,
     StatementSpec,
     TriggerType,
+)
+from vultron.metadata.specs.verification import (
+    VERIFICATION_CEILINGS,
+    VerificationCeiling,
+    check_verification_coverage,
 )
 
 _RATIONALE_WARN_CHARS = 500
@@ -607,6 +614,26 @@ def _check_scenario_start_groups(registry: SpecRegistry) -> list[str]:
     return errors
 
 
+def sr_11_003_gate_applies(kind: SpecKind, priority: RFC2119Priority) -> bool:
+    """Whether SR-11-003's story gate covers a requirement of this kind and priority.
+
+    SR-11-003 is the one recorded exception to MS-02-003: it is deliberately
+    ``MUST``-only, not MUST-tier, because the protocol ``MUST_NOT``s with no
+    ``stories:`` are still being adjudicated (#3601) and the gate extends to
+    them as #2717's closing step once their stories exist — see the spec's
+    ``note:``. This is the only place that decision is written down;
+    ``scripts/backfill_stories.py`` selects through it too, so the exception
+    cannot drift into a second hand-written copy. When it is retired, replace
+    the member comparison with ``priority.is_must_tier`` and drop the matching
+    allowlist entry in ``test/metadata/specs/test_priority_tier_gate.py``.
+    """
+    return (
+        kind == SpecKind.PROTOCOL
+        and priority
+        == RFC2119Priority.MUST  # SR-11-003: MUST-only, see docstring
+    )
+
+
 def _check_missing_story_references(registry: SpecRegistry) -> list[str]:
     """Hard error when a ``kind: protocol`` MUST spec has no ``stories:`` (SR-11-003).
 
@@ -614,13 +641,12 @@ def _check_missing_story_references(registry: SpecRegistry) -> list[str]:
     user-story back-reference breaks the bidirectional traceability graph and is
     treated as a hard gate (exit 1).  Suppressible via
     ``lint_suppress: [missing_story_reference]`` for specs that are genuinely
-    not traceable to any story.
+    not traceable to any story. The gate's scope is
+    :func:`sr_11_003_gate_applies`.
     """
     errors: list[str] = []
     for spec_id, spec in registry.all_specs.items():
-        if spec.kind != SpecKind.PROTOCOL:
-            continue
-        if spec.priority != RFC2119Priority.MUST:
+        if not sr_11_003_gate_applies(spec.kind, spec.priority):
             continue
         if spec.stories:
             continue
@@ -638,9 +664,12 @@ def _check_missing_story_references(registry: SpecRegistry) -> list[str]:
 def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
     """Collect per-spec advisory warnings (SR-04-002).
 
-    Covers: testable_without_steps, rationale_too_long, missing_tags,
-    must_without_verification, and missing_story_reference (SHOULD/MAY).
-    All are suppressible via ``lint_suppress``.
+    Covers: testable_without_steps, rationale_too_long, missing_tags, and
+    missing_story_reference for every ``kind: protocol`` requirement below the
+    MUST tier (SR-11-004 — SHOULD, SHOULD_NOT and MAY). All are suppressible
+    via ``lint_suppress``. Unverified MUST-tier requirements are counted per
+    kind by :func:`~vultron.metadata.specs.verification.check_verification_coverage`
+    instead of warned per item (MS-10-005).
     """
     warnings: list[str] = []
     for spec_id, spec in registry.all_specs.items():
@@ -673,20 +702,8 @@ def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
             warnings.append(f"[WARN] {spec_id}: no tags defined")
 
         if (
-            spec.priority == RFC2119Priority.MUST
-            and not spec.verification
-            and LintWarningCode.MUST_WITHOUT_VERIFICATION not in suppressed
-        ):
-            warnings.append(
-                f"[WARN] {spec_id}: priority is MUST but has no "
-                f"verification: field (MS-05-003); add a verification: "
-                f"criterion, or suppress with "
-                f"lint_suppress: [must_without_verification]"
-            )
-
-        if (
             spec.kind == SpecKind.PROTOCOL
-            and spec.priority in (RFC2119Priority.SHOULD, RFC2119Priority.MAY)
+            and not spec.priority.is_must_tier
             and not spec.stories
             and LintWarningCode.MISSING_STORY_REFERENCE not in suppressed
         ):
@@ -836,10 +853,14 @@ def lint(
     spec_dir: Path,
     adr_dir: Path | None = None,
     registry: SpecRegistry | None = None,
+    *,
+    list_unverified: bool = False,
+    ceilings: Mapping[SpecKind, VerificationCeiling] | None = None,
 ) -> int:
     """Validate the spec registry in ``spec_dir``.
 
-    Hard errors cause exit code 1.  Advisory warnings are printed but do not
+    Hard errors cause exit code 1.  Advisory warnings, and the per-kind
+    verification-coverage status lines (MS-10-005), are printed but do not
     affect the exit code (SR-04-001, SR-04-002).
 
     Args:
@@ -852,15 +873,24 @@ def lint(
         registry: Pre-loaded :class:`SpecRegistry` instance.  When provided,
             the ``load_registry(spec_dir)`` call is skipped, avoiding
             redundant I/O in callers that already hold a loaded registry.
+        list_unverified: Print the IDs of every unverified MUST-tier
+            requirement under its kind's summary line (MS-10-005 opt-in;
+            ``--list-unverified`` on the CLI).
+        ceilings: The MS-10-006 ceiling table.  Defaults to the live
+            :data:`~vultron.metadata.specs.verification.VERIFICATION_CEILINGS`;
+            tests pass a fixture table.
 
     Returns:
         ``0`` if no hard errors, ``1`` if any hard errors found.
     """
+    if ceilings is None:
+        ceilings = VERIFICATION_CEILINGS
     if adr_dir is None:
         adr_dir = spec_dir.parent / "docs" / "adr"
 
     hard_errors: list[str] = []
     warnings: list[str] = []
+    status_lines: list[str] = []
 
     if registry is None:
         try:
@@ -881,6 +911,11 @@ def lint(
     hard_errors.extend(check_protocol_kind_code_references(registry))
 
     warnings.extend(_check_per_spec_advisory_warnings(registry))
+    verification_errors, verification_lines = check_verification_coverage(
+        registry, ceilings, list_unverified
+    )
+    hard_errors.extend(verification_errors)
+    status_lines.extend(verification_lines)
 
     adr_ref_errors, adr_ref_warnings = _check_adr_references(registry, adr_dir)
     hard_errors.extend(adr_ref_errors)
@@ -892,6 +927,8 @@ def lint(
 
     for w in warnings:
         print(w)
+    for line in status_lines:
+        print(line)
     for e in hard_errors:
         print(f"[ERROR] {e}", file=sys.stderr)
 
@@ -904,16 +941,34 @@ def main() -> None:
 
     ``spec_dir`` defaults to ``specs/`` relative to the current working
     directory so that ``uv run spec-lint`` from the repository root
-    behaves identically to the pre-commit hook.
+    behaves identically to the pre-commit hook (SR-06-002, SR-04-010).
     """
-    spec_dir = Path(sys.argv[1]) if len(sys.argv) >= 2 else Path("specs")
+    parser = argparse.ArgumentParser(
+        prog="spec-lint", description="Validate the specs/*.yaml registry."
+    )
+    parser.add_argument(
+        "spec_dir",
+        nargs="?",
+        default="specs",
+        help="Directory containing spec YAML files (default: specs/)",
+    )
+    parser.add_argument(
+        "--list-unverified",
+        action="store_true",
+        help=(
+            "List the ID of every MUST or MUST_NOT requirement with no "
+            "verification: field under its kind's summary line (MS-10-005)"
+        ),
+    )
+    args = parser.parse_args()
+    spec_dir = Path(args.spec_dir)
     if not spec_dir.is_dir():
         print(
             f"[FATAL] spec_dir '{spec_dir}' not found or not a directory",
             file=sys.stderr,
         )
         sys.exit(2)
-    sys.exit(lint(spec_dir))
+    sys.exit(lint(spec_dir, list_unverified=args.list_unverified))
 
 
 if __name__ == "__main__":

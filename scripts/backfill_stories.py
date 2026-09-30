@@ -18,6 +18,9 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+from vultron.metadata.specs.lint import sr_11_003_gate_applies
+from vultron.metadata.specs.schema import RFC2119Priority, SpecKind
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _TRACEABILITY_PATH = _REPO_ROOT / "docs/reference/user_stories/traceability.md"
 _SPECS_DIR = _REPO_ROOT / "specs"
@@ -158,7 +161,6 @@ def insert_stories_in_yaml(
 # Suppression insertion for protocol MUST specs not in traceability
 # ---------------------------------------------------------------------------
 
-_MUST_RE = re.compile(r"^\s+priority:\s+MUST\s*$")
 _LINT_SUPPRESS_RE = re.compile(r"^(\s+)lint_suppress:\s*$")
 _SUPPRESS_ITEM_RE = re.compile(r"^\s+-\s+missing_story_reference\s*$")
 
@@ -166,7 +168,13 @@ _SUPPRESS_ITEM_RE = re.compile(r"^\s+-\s+missing_story_reference\s*$")
 def _collect_protocol_must_no_stories(
     yaml_path: Path, backfill_map: dict
 ) -> set[str]:
-    """Return spec IDs in yaml_path that are kind:protocol, MUST, no stories, not in backfill_map."""
+    """Return spec IDs in yaml_path that SR-11-003 would fire on and that
+    backfill_map does not cover: kind protocol, priority MUST, no stories.
+
+    The gate's scope (MUST-only, the recorded MS-02-003 exception) is read from
+    :func:`~vultron.metadata.specs.lint.sr_11_003_gate_applies`, so this script
+    and the linter cannot disagree about which specs need the suppression.
+    """
     import yaml as _yaml
 
     try:
@@ -181,8 +189,9 @@ def _collect_protocol_must_no_stories(
         for spec in group.get("specs", []):
             sid = spec.get("id", "")
             if (
-                spec.get("kind") == "protocol"
-                and spec.get("priority") == "MUST"
+                sr_11_003_gate_applies(
+                    SpecKind(spec["kind"]), RFC2119Priority(spec["priority"])
+                )
                 and not spec.get("stories")
                 and sid not in backfill_map
             ):

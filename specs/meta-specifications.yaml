@@ -93,7 +93,6 @@ groups:
       against individual `RFC2119Priority` members or priority strings instead of the
       shared definition. The SR-11-003 selector is allowlisted while the MS-02-003
       exception stands.
-    tracking_issue: '#3522'
     relationships:
     - rel_type: refines
       spec_id: MS-02-003
@@ -322,7 +321,6 @@ groups:
       corpus with unverified MUST and MUST_NOT items produces exactly one summary line per
       kind with the correct count and ceiling, no per-item lines by default, and the IDs
       when the opt-in flag is passed.
-    tracking_issue: '#3522'
     relationships:
     - rel_type: implements
       spec_id: MS-05-003
@@ -354,9 +352,6 @@ groups:
       kind''s live count, suppressed items included, differs from its ceiling in either
       direction, and when a non-zero ceiling entry carries no owning issue reference; a
       fixture-based test proves both failure modes fire.'
-    tracking_issue: '#3522'
-    lint_suppress:
-    - phantom_path_ref
     relationships:
     - rel_type: implements
       spec_id: MS-10-003

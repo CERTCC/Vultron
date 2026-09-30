@@ -307,7 +307,7 @@ deliberately not restated in `specs/` or `notes/` (MS-16-001).
 
 | Excluded | Findings suppressed | Reason |
 |---|---|---|
-| `PLC0415` import-outside-top-level | 2,426 | Function-local imports are this codebase's cycle-break idiom. CS-05-002 calls the pattern a "last resort"; at this scale it is the norm. That contradiction is real and is tracked as #3350 — it is a premise question, not a lint question, and enabling the rule before it is answered would either bury the tree in noise or force thousands of rewrites toward an unagreed target. |
+| `PLC0415` import-outside-top-level | 2,426 | Function-local imports are this codebase's cycle-break idiom. CS-05-002 calls the pattern a "last resort"; at this scale it is the norm. That contradiction is real and is tracked as #3350 — it is a premise question, not a lint question, and enabling the rule before it is answered would either bury the tree in noise or force thousands of rewrites toward an unagreed target. *Resolved 2026-09-30*: #3350 found the sites were habit, not cycle breaks (CS-05-002, CS-05-005, CS-05-006); #3949 deletes this entry and #3950 removes the remaining cycles. |
 | `TC006` runtime-cast-value | 654 | Would quote the type argument of every `cast()` call. Pure churn. |
 | `TRY003` raise-vanilla-args | 567 | Would require one exception class per distinct message string. |
 | `PLR2004` magic-value-comparison | 412 | Overwhelmingly test literals, where a named constant reduces clarity. |
@@ -472,7 +472,8 @@ the wrong class, `pytest.raises(Exception)` as a vacuous assertion, missing
   ADR-0064 § "Ratcheting across the steps".
 - Precedent for a lint-tooling decision recorded as an ADR: ADR-0092.
 - Follow-on questions deliberately left open, each cited as the reason for a
-  provisional exclusion: #3350 (`PLC0415` vs CS-05-002) and #3378 (`G004` vs the
+  provisional exclusion: #3350 (`PLC0415` vs CS-05-002; resolved 2026-09-30 by
+  CS-05-005/006, implemented by #3949 and #3950) and #3378 (`G004` vs the
   structured-logging requirements).
 - Exception-handling findings are owned by epic #3329, not by this decision:
   #3325 (closed via PR #3338), #3326.

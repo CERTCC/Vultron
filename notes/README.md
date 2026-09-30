@@ -760,14 +760,16 @@ root-owned venv, pushing to `origin` with `-u` rather than a token URL, and the
 about to edit a skill file.
 
 **`lint-tooling.md`**
-Lint and format gate policy (ADR-0095): ruff as the sole Python linter and
+Lint and format gate policy (ADR-0094): ruff as the sole Python linter and
 formatter, why `select` names families while `ignore` is curated by exception,
 what makes an acceptable exclusion reason (IMPLTS-07-019), and why `RUF100`
 rather than a bespoke test is the ratchet for baselined findings
-(IMPLTS-07-020). Records the two notable exclusions — provisional `PLC0415`
-(#3350) and provisional `G004` (#3378) — and the commit-loop habits that change when the
-flake8 hook is retired. **Decided but not yet built**: the configuration it
-describes lands with #3352; flake8, black and isort are still the live gate.
+(IMPLTS-07-020). Records the `PLC0415` policy (CS-05-005/006: enabled by #3949
+after #3352, with `test/**` exempted and each genuine cycle break marked until
+its removal in #3950), the one remaining provisional exclusion `G004` (#3378),
+and the commit-loop habits that change when the flake8 hook is retired.
+**Decided but not yet built**: the configuration it describes lands with #3352;
+flake8, black and isort are still the live gate.
 **Load when**: editing `[tool.ruff]`, adding or removing an `ignore` entry,
 baselining a new rule, tightening the ruleset, or wiring a lint step into CI or
 pre-commit.

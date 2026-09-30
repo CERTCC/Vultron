@@ -40,14 +40,55 @@ StoryIdStr = Annotated[
 ]
 
 
+class RFC2119Tier(StrEnum):
+    """The three strengths RFC 2119 defines, each pairing a keyword with its
+    negation (MS-02-003).
+
+    ``MUST NOT`` is as binding as ``MUST`` and ``SHOULD NOT`` as ``SHOULD``, so
+    a gate that selects requirements by strength names a tier, never a keyword.
+    """
+
+    MUST = "MUST"
+    SHOULD = "SHOULD"
+    MAY = "MAY"
+
+
 class RFC2119Priority(StrEnum):
-    """RFC 2119 priority levels for requirements (SR-02-003)."""
+    """RFC 2119 priority levels for requirements (SR-02-003).
+
+    :attr:`tier` is the single shared tiering (MS-02-004). Code that selects
+    requirements by priority asks it — ``spec.priority.is_must_tier``, or
+    ``spec.priority.tier is RFC2119Tier.SHOULD`` — and never compares against
+    individual members; a static check in ``test/metadata/specs/`` fails on
+    the literal comparison.
+    """
 
     MUST = "MUST"
     MUST_NOT = "MUST_NOT"
     SHOULD = "SHOULD"
     SHOULD_NOT = "SHOULD_NOT"
     MAY = "MAY"
+
+    @property
+    def tier(self) -> RFC2119Tier:
+        """The tier this keyword belongs to: a negation shares its positive's."""
+        return _PRIORITY_TIERS[self]
+
+    @property
+    def is_must_tier(self) -> bool:
+        """``MUST`` or ``MUST_NOT`` — the absolute tier."""
+        return self.tier is RFC2119Tier.MUST
+
+
+#: The one place a keyword is assigned its tier (MS-02-004). Every member has
+#: an entry; ``test_schema.py`` asserts the mapping is total.
+_PRIORITY_TIERS: dict[RFC2119Priority, RFC2119Tier] = {
+    RFC2119Priority.MUST: RFC2119Tier.MUST,
+    RFC2119Priority.MUST_NOT: RFC2119Tier.MUST,
+    RFC2119Priority.SHOULD: RFC2119Tier.SHOULD,
+    RFC2119Priority.SHOULD_NOT: RFC2119Tier.SHOULD,
+    RFC2119Priority.MAY: RFC2119Tier.MAY,
+}
 
 
 class AdrStatus(StrEnum):

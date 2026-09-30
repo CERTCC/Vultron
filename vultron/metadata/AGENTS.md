@@ -112,7 +112,7 @@ as a path-prefixed `ValueError` — the shape every hand-written copy took.
 | `load_frontmatter(path, root=)` | a markdown file's frontmatter block |
 | `loads_frontmatter(text)` | the no-path form, for content not yet on disk |
 | `validate(Model, data, path=, root=, prefix=, key_lines=)` | the Pydantic half; `key_lines` locates the failure at its key's line |
-| `FailureCollector` | report **every** failing file, not the first (SR-03-009) |
+| `FailureCollector` | report **every** failing file, not the first (SR-03-009): these loaders reject the corpus as a unit, so stopping early reports less than the tool knows (EH-07-001 is the general principle; `load_registry` and `history/incoming.py` show the shape) |
 
 All raise `MetadataLoadError`, a `ValueError` subclass carrying `path`, `line`,
 `column` and `detail` (MS-17-004); `FailureCollector.raise_if_any()` raises
@@ -144,11 +144,6 @@ What the helper absorbs, so you know not to re-solve it:
    reports a positional path into the parsed structure (`groups.0.specs.0.kind`)
    and the model's class name. Across a directory that locates nothing, so
    `validate()` attributes it to the file too.
-
-A loader that walks a set of files reports **every** failing file, not just the
-first (SR-03-009). These loaders reject the corpus as a unit, so stopping at the
-first fault makes the tool report less than it knows; see EH-07-001 for the
-general principle, and `load_registry` or `history/incoming.py` for the shape.
 
 ## Spec-First References Need a Lint Suppression
 
@@ -188,6 +183,11 @@ as live and stops flagging the defect it exists to catch. Assert the negative
 directly, and prefer file-scoped exclusions over package-scoped ones. Full
 write-up: [`notes/spec-authoring-rules.md`](../../notes/spec-authoring-rules.md)
 § "A Grep-Corpus Guard Can Resolve Its Own Documentation".
+
+A per-item advisory that is routinely true is not enforcement — collapse it to
+a per-kind count against an owned, live-count ceiling (`specs/verification.py`,
+MS-10-005..008). Select by tier, never by keyword: `priority.is_must_tier`, not
+`== RFC2119Priority.MUST` (MS-02-004; `test_priority_tier_gate.py` fails it).
 
 ## Related
 
