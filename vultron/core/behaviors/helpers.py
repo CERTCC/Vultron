@@ -55,7 +55,7 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.states.rm import RM
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronValidationError, VultronWiringError
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -68,6 +68,10 @@ logger = logging.getLogger(__name__)
 DATALAYER_UNAVAILABLE = "DataLayer not available"
 DATALAYER_OR_ACTOR_UNAVAILABLE = "DataLayer or actor_id not available"
 TRIGGER_FACTORY_UNAVAILABLE = "trigger_activity_factory not available"
+WIRE_RENDER_PORT_UNAVAILABLE = (
+    "wire_render_port not available; core cannot render the AS2 shape itself"
+    " (ARCH-20-001)"
+)
 # The received event was not placed on the blackboard (``activity=`` omitted
 # from ``execute_with_setup``): the intake node cannot record what arrived.
 ACTIVITY_UNAVAILABLE = "received activity not available"
@@ -76,6 +80,7 @@ WIRING_UNAVAILABLE_MESSAGES = frozenset(
         DATALAYER_UNAVAILABLE,
         DATALAYER_OR_ACTOR_UNAVAILABLE,
         TRIGGER_FACTORY_UNAVAILABLE,
+        WIRE_RENDER_PORT_UNAVAILABLE,
         ACTIVITY_UNAVAILABLE,
     }
 )
@@ -599,8 +604,8 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
     """Base class for typed-Ports BT action nodes with DataLayer access.
 
     Declares ``datalayer``, ``actor_id``, and optionally
-    ``trigger_activity_factory`` as input ports, remapped to BTBridge flat
-    keys.  Subclasses extend ``INPUT_PORTS`` / ``OUTPUT_PORTS`` (e.g.
+    ``trigger_activity_factory`` and ``wire_render_port`` as input ports,
+    remapped to BTBridge flat keys.  Subclasses extend ``INPUT_PORTS`` / ``OUTPUT_PORTS`` (e.g.
     ``{**DataLayerActionWithPorts.INPUT_PORTS, ...}``) and implement
     ``update()``.
 
@@ -617,6 +622,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
         self.trigger_activity_factory: "TriggerActivityPort | None" = None
+        self.wire_render_port: "WireRenderPort | None" = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         "datalayer": PortInformation(data_type=object, required=True),
@@ -624,6 +630,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         "trigger_activity_factory": PortInformation(
             data_type=object, required=False
         ),
+        "wire_render_port": PortInformation(data_type=object, required=False),
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {}
@@ -654,6 +661,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
                 "datalayer": _DL_KEY,
                 "actor_id": _ACTOR_KEY,
                 "trigger_activity_factory": "/trigger_activity_factory",
+                "wire_render_port": "/wire_render_port",
                 **self._domain_port_remappings(),
                 **self._instance_port_remappings(),
             }
@@ -674,6 +682,10 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
             )
         except (NoDataAvailable, NotImplementedError):
             self.trigger_activity_factory = None
+        try:
+            self.wire_render_port = self.get_input("wire_render_port")
+        except (NoDataAvailable, NotImplementedError):
+            self.wire_render_port = None
 
     def _require_datalayer(self) -> Status | None:
         if self.datalayer is None:
@@ -686,6 +698,20 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
             self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
             return Status.FAILURE
         return None
+
+    def _require_wire_render_port(self) -> "WireRenderPort":
+        """Return the rendering port, or raise if the tree was built without it.
+
+        Core never produces the AS2 shape of an object itself (ARCH-20-001), so
+        a node that needs it has no fallback: a missing port is a composition
+        fault, never the sender's doing.  Raises
+        :class:`~vultron.errors.VultronWiringError`, which ``BTBridge`` reports
+        as an internal error and a received handler re-raises rather than
+        refusing the sender (#2255, ADR-0095).
+        """
+        if self.wire_render_port is None:
+            raise VultronWiringError(WIRE_RENDER_PORT_UNAVAILABLE)
+        return self.wire_render_port
 
     def _require_case(
         self, case_id: "str | None"

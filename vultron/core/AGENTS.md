@@ -37,9 +37,14 @@ class CreateReportReceivedUseCase:
         ...
 ```
 
-- Accept `(dl, request)` in `__init__`. `execute()` returns a `UseCaseResult`
-  subtype — `HandlerResult` on the received side — never `None` (UCORG-05-001,
-  ADR-0095); ratchet `test/architecture/test_use_case_execute_returns_result.py`
+- Accept `(dl, request)` in `__init__`; `execute()` takes no arguments and returns
+  a `UseCaseResult` subtype (`HandlerResult` received-side), never `None`
+  (HP-01-001, UCORG-05-001, ADR-0095); ratchet
+  `test/architecture/test_use_case_execute_returns_result.py`
+- Report a `HandlerDisposition`, never `InboxOutcome` (HP-01-004); write with
+  `dl.save()`/`dl.create()`, never hand-built records (HP-08-001); both ratcheted
+  under `test/architecture/` (`test_use_cases_no_inbox_outcome.py`,
+  `test_no_record_level_persistence_in_core.py`)
 - Register in `SEMANTIC_REGISTRY` (`vultron/semantic_registry/`)
 - Dispatcher raises `VultronApiHandlerNotFoundError` for unrecognised
   semantic types; do **not** add per-handler type validation decorators
@@ -88,11 +93,10 @@ class CreateReportReceivedUseCase:
 
 ### Idempotency Responsibility Chain
 
-Layered: Inbox MAY detect duplicates (IE-10); Message Validation SHOULD
-detect duplicate submissions (MV-08); Handlers SHOULD implement idempotent
-logic — check for existing records before creating (HP-07-001). Data Layer
-provides unique ID constraints. Report handlers (`create_report`,
-`submit_report`) already follow this pattern.
+Layered: Inbox MAY detect duplicates (IE-10); Message Validation SHOULD detect
+duplicate submissions (MV-08); Handlers SHOULD implement idempotent logic — check
+for existing records before creating (HP-07-001). Data Layer provides unique ID
+constraints. Report handlers (`create_report`, `submit_report`) already do this.
 
 ### Multi-Object Mutations Touching `attributed_to` MUST Use `save_many()`
 
@@ -108,9 +112,8 @@ role not yet granted). A crash in that window leaves the case with zero
 wraps all writes in one SQLite transaction that either commits fully or rolls
 back entirely (CM-21-004). See `AcceptCaseOwnershipTransferNode` in
 `vultron/core/behaviors/case/nodes/ownership_transfer.py` for the canonical
-implementation pattern. An AST ratchet in
-`test/architecture/test_attributed_to_requires_save_many.py` enforces this
-(tracked in #1661).
+implementation pattern; the AST ratchet
+`test/architecture/test_attributed_to_requires_save_many.py` enforces it (#1661).
 
 <!-- Source: CONCERN-1653 -->
 
@@ -131,22 +134,20 @@ makes implicit subtype assumptions explicit and runtime-verified.
 mypy does not check the body of an untyped function, so hidden type errors
 surface only once logic is promoted to a named, typed function. Always
 extract closures (e.g. inside `extractor.py`) rather than leaving logic in
-lambdas or nested functions. Specifically: AS2 fields carrying an object or
-ID reference (`context`, `origin`, `in_reply_to`) MUST be converted with
-`_get_id(field)` before assignment to a `NonEmptyString | None` snapshot
-field — passing the raw AS2 object is an error mypy catches only after
-extraction.
+lambdas or nested functions. Specifically: AS2 fields carrying an object or ID
+reference (`context`, `origin`, `in_reply_to`) MUST be converted with `_get_id(field)`
+before assignment to a `NonEmptyString | None` snapshot field — passing the raw AS2
+object is an error mypy catches only after extraction.
 
 ### Domain Objects Belong in `core/models/`, Not `wire/as2/vocab/objects/`
 
 `VulnerabilityCase`, `VulnerabilityReport`, `CaseParticipant`,
 `EmbargoPolicy`, `CaseStatus`, `CaseLedgerEntry` and `VulnerabilityRecord` are
 **domain objects** that still live under `vultron/wire/as2/vocab/objects/`
-because the codebase was built wire-first. The wire layer imports and
-projects from core, never the reverse — which is why
-`VultronActivity.object_` is typed `Any | None`. Do **not** add new imports
-from `vultron/core/` into `vultron/wire/as2/`. Migration tracked in #539;
-full direction in
+because the codebase was built wire-first. The wire layer imports and projects
+from core, never the reverse — which is why `VultronActivity.object_` is typed
+`Any | None`. Do **not** add new imports from `vultron/core/` into
+`vultron/wire/as2/`. Migration tracked in #539; full direction in
 [notes/domain-model-separation.md](../../notes/domain-model-separation.md).
 
 ### Adding SemanticEntry: Use Domain Sub-Module, Not `__init__.py`
@@ -178,10 +179,9 @@ state machines, no use-case logic — only primitive types like `str`, `Any`,
 sits at the bottom of the hexagonal stack and is safely importable by **all**
 layers (`behaviors/`, `use_cases/`, `services/`, `adapters/`).
 
-Placing such a helper in `use_cases/_helpers.py` (or any higher-layer module)
-creates silent transitive layer violations everywhere the helper is used. The
-right fix is to move the helper down the stack, not to create a sidecar module
-at the same level.
+Placing such a helper in `use_cases/_helpers.py` (or any higher-layer module) creates
+silent transitive layer violations everywhere the helper is used. The right fix is to
+move the helper down the stack, not to create a sidecar module at the same level.
 
 **How to apply:** Before placing a new utility in `use_cases/_helpers.py`, ask:
 does this function depend on anything above `models/`? If not, put it in

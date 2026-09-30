@@ -312,19 +312,12 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
             pxa=PxaDimension(state=pxa_state),
         )
 
-        # ARCH-20-001, honestly: ``new_status`` is a *core-branch* ``CaseStatus``
-        # this node just built, so the sanctioned route is ``WireRenderPort``,
-        # which is not injected into this node today.  What makes the output
-        # correct meanwhile is that ``CaseStatus`` declares its own AS2 aliases
-        # (ADR-0099 details 2 and 5), so this dump produces the same ``emState`` /
-        # ``pxaState`` snapshot shape the port would — the shape CM-18-006's
-        # invariant harness and every replica read.  Route it through the port
-        # when the rendering collapse lands.
-        status_dict: dict[str, Any] = new_status.model_dump(
-            mode="json",
-            by_alias=True,
-            serialize_as_any=True,
-            exclude_none=True,
+        # ``new_status`` is a core-branch ``CaseStatus`` this node just built, so
+        # its AS2 form — the ``emState`` / ``pxaState`` snapshot shape
+        # CM-18-006's invariant harness and every replica read — comes from the
+        # port (ARCH-20-001, CLP-07-009).
+        status_dict: dict[str, Any] = self._require_wire_render_port().render(
+            new_status
         )
         payload: dict[str, Any] = {
             "type": "Add",

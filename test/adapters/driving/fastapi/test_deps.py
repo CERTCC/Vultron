@@ -355,3 +355,25 @@ def test_alias_deps_delegate_through_depends(alias) -> None:
         " dependency_overrides propagate; got default {default!r}"
     )
     assert default.dependency is get_actor_dl
+
+
+@pytest.mark.spec("ARCH-20-001")
+@pytest.mark.spec("ARCH-20-004")
+def test_trigger_service_is_given_a_wire_render_port():
+    """Trigger trees commit ledger entries too, so they need the port.
+
+    ``TriggerService`` hands it to every BT-backed trigger use case, whose
+    ``BTBridge`` publishes it for the snapshot builders (CLP-07-009).
+    """
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+    from vultron.adapters.driving.fastapi.deps import get_trigger_service
+
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    service = get_trigger_service(dl)
+
+    assert isinstance(
+        getattr(service, "_wire_render_port", None), As2WireRenderAdapter
+    )

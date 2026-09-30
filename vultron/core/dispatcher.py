@@ -131,7 +131,17 @@ class DispatcherBase:
         port_factory = self._port_factories.get(event.semantic_type)
         if port_factory is not None:
             extra_kwargs = port_factory(dl)
-        result = use_case_class(dl, event, **extra_kwargs).execute()
+        use_case = use_case_class(dl, event, **extra_kwargs)
+        # HP-06-001: handler entry is logged once, here, with the handler's
+        # class name, so no handler carries its own entry line.
+        logger.debug(
+            "Entering handler %s (activity_id=%s semantics=%s actor_id=%s)",
+            type(use_case).__name__,
+            event.activity_id,
+            event.semantic_type,
+            event.actor_id,
+        )
+        result = use_case.execute()
         if not isinstance(result, HandlerResult):
             raise TypeError(
                 f"use case {use_case_class!r} for {event.semantic_type} "

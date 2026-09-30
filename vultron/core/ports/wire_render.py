@@ -18,7 +18,8 @@
 Core code that needs wire-shaped (AS2 camelCase) JSON for a domain
 object calls this port.  Under one object model (ADR-0099) a core object is
 its own wire form, so the adapter returns the object's own
-``model_dump(by_alias=True, exclude_none=True, mode="json")`` (ARCH-20-002).
+``model_dump(by_alias=True, exclude_none=True, mode="json",
+serialize_as_any=True)`` (ARCH-20-002).
 
 Raises :exc:`~vultron.errors.VultronValidationError` when the object has no
 AS2 shape, i.e. is not a ``CoreObject`` (ARCH-20-003).

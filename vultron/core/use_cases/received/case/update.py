@@ -9,6 +9,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
@@ -24,8 +25,10 @@ class UpdateCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: UpdateCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: UpdateCaseReceivedEvent = request
         # The CM-06-001 broadcast is emitted through this port so the adapter
         # persists and seals it (VM-08-003); the inbox pipeline injects it.
@@ -61,7 +64,9 @@ class UpdateCaseReceivedUseCase:
             request=request,
         )
         bridge = BTBridge(
-            datalayer=self._dl, trigger_activity=self._trigger_activity
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,

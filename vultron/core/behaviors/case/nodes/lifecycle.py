@@ -37,11 +37,10 @@ from vultron.core.behaviors.ledger_patch import (
     PATCH_KEY_TWINS,
     drop_stale_twins,
 )
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.behaviors.case.nodes.ledger_payload import (
+    _extract_payload_snapshot,
 )
-from vultron.core.use_cases._helpers import build_activity_payload_snapshot
 from vultron.errors import VultronCanonicalEntryError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -68,29 +67,6 @@ logger = logging.getLogger(__name__)
 #: ``finally`` block on every outcome, so a stranded override never bleeds into
 #: the next execution on the process-global blackboard (#3101; ADR-0087).
 BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE = "ledger_payload_object_override"
-
-
-def _extract_payload_snapshot(
-    activity: Any, dl: CasePersistence | None = None
-) -> dict[str, Any]:
-    """Build a normalized payload snapshot for case-ledger commits."""
-    event_activity = getattr(activity, "activity", None)
-    if event_activity is not None:
-        return cast(
-            dict[str, Any],
-            build_activity_payload_snapshot(event_activity, dl=dl),
-        )
-    snapshot = cast(
-        dict[str, Any], build_activity_payload_snapshot(activity, dl=dl)
-    )
-    # Domain events serialize actor_id, not the wire-format actor URI.
-    # Patch it in so the ledger schema's non-empty-URI check passes.
-    if not snapshot.get("actor"):
-        actor_id = getattr(activity, "actor_id", None)
-        if actor_id:
-            snapshot = dict(snapshot)
-            snapshot["actor"] = actor_id
-    return snapshot
 
 
 #: Producer class names recognized by the override consumer.  An override with
@@ -319,7 +295,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             or "case_event"
         )
         payload_snapshot = _extract_payload_snapshot(
-            activity, dl=self.datalayer
+            activity, self.datalayer, self._require_wire_render_port()
         )
         return object_id, event_type, payload_snapshot
 

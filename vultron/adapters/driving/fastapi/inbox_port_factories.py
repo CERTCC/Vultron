@@ -24,6 +24,7 @@ to inject adapter ports into use cases at dispatch time.
 #  in the U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from collections.abc import Callable
 from typing import Any, cast
 
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -56,6 +57,29 @@ def _resolve_actor_config() -> ActorConfig | None:
             exc_info=True,
         )
         return None
+
+
+PortFactory = Callable[[DataLayer], dict[str, Any]]
+
+
+def _wire_render_port_factory(dl: DataLayer) -> dict[str, Any]:
+    """Create the ``WireRenderPort`` every received use case is given.
+
+    Every received tree ends in a guarded ledger commit, and the commit's
+    payload snapshot is the AS2 rendering of the received activity, so every
+    use case needs the port: core cannot produce that shape itself
+    (ARCH-20-001, CLP-07-009).  The adapter is stateless, so *dl* is unused.
+    """
+    return {"wire_render_port": As2WireRenderAdapter()}
+
+
+def with_wire_render_port(factory: PortFactory) -> PortFactory:
+    """Return *factory* extended with :func:`_wire_render_port_factory`."""
+
+    def _factory(dl: DataLayer) -> dict[str, Any]:
+        return {**factory(dl), **_wire_render_port_factory(dl)}
+
+    return _factory
 
 
 def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
@@ -128,7 +152,7 @@ def _close_case_port_factory(dl: DataLayer) -> dict[str, Any]:
     """
     return {
         **_sync_and_trigger_port_factory(dl),
-        "wire_render_port": As2WireRenderAdapter(),
+        **_wire_render_port_factory(dl),
     }
 
 
@@ -162,7 +186,7 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     ``STATUS_AUTHORIZATION_PERMISSIVE`` for the received-side status gates.
     """
     kwargs: dict[str, Any] = {
-        "wire_render_port": As2WireRenderAdapter(),
+        **_wire_render_port_factory(dl),
         "call_out": CASE_PROPOSAL_DETERMINISTIC,
         **_trigger_activity_port_factory(dl),
         # The accept path commits the genesis ledger entries natively and fans

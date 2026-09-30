@@ -38,6 +38,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def _outbound_blob(activity) -> str:
@@ -249,7 +250,9 @@ class TestInviteActorUseCases:
 
         event = make_payload(invite)
 
-        InviteActorToCaseReceivedUseCase(dl, event).execute()
+        InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         stored = dl.get(invite.type_.value, invite.id_)
         assert stored is not None
@@ -279,7 +282,9 @@ class TestInviteActorUseCases:
         event = make_payload(invite)
 
         with caplog.at_level(logging.INFO):
-            InviteActorToCaseReceivedUseCase(dl, event).execute()
+            InviteActorToCaseReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         narrative = [
             r
@@ -313,7 +318,9 @@ class TestInviteActorUseCases:
         event = make_payload(invite)
 
         with caplog.at_level(logging.DEBUG):
-            InviteActorToCaseReceivedUseCase(dl, event).execute()
+            InviteActorToCaseReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         awaiting = [
             r
@@ -352,7 +359,9 @@ class TestInviteActorUseCases:
             id_=f"{case_id}/invitations/trust-anchor-1",
         )
         event = make_payload(invite)
-        InviteActorToCaseReceivedUseCase(dl, event).execute()
+        InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         pending_id = VultronPendingCaseInbox.build_id(case_id)
         pending = dl.read(pending_id)
@@ -390,8 +399,12 @@ class TestInviteActorUseCases:
             id_=f"{case_id}/invitations/b",
         )
 
-        InviteActorToCaseReceivedUseCase(dl, make_payload(invite1)).execute()
-        InviteActorToCaseReceivedUseCase(dl, make_payload(invite2)).execute()
+        InviteActorToCaseReceivedUseCase(
+            dl, make_payload(invite1), wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        InviteActorToCaseReceivedUseCase(
+            dl, make_payload(invite2), wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         pending = dl.read(VultronPendingCaseInbox.build_id(case_id))
         assert isinstance(pending, VultronPendingCaseInbox)
@@ -417,9 +430,13 @@ class TestInviteActorUseCases:
 
         event = make_payload(invite)
 
-        InviteActorToCaseReceivedUseCase(dl, event).execute()
         InviteActorToCaseReceivedUseCase(
-            dl, event
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        InviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()  # second call is no-op
 
         stored = dl.get(invite.type_.value, invite.id_)
@@ -475,8 +492,12 @@ class TestInviteActorUseCases:
             update={"receiving_actor_id": case_actor_id}
         )
 
-        first = InviteActorToCaseReceivedUseCase(dl, event).execute()
-        second = InviteActorToCaseReceivedUseCase(dl, event).execute()
+        first = InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        second = InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert first.disposition is HandlerDisposition.APPLIED
         assert second.disposition is HandlerDisposition.SKIPPED
@@ -554,6 +575,7 @@ class TestInviteActorUseCases:
         RejectInviteActorToCaseReceivedUseCase(
             dl,
             event.model_copy(update={"receiving_actor_id": case_actor_id}),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
@@ -608,7 +630,10 @@ class TestInviteActorUseCases:
         event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         case = dl.read(case.id_)
@@ -667,7 +692,10 @@ class TestInviteActorUseCases:
         event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         case = dl.read(case.id_)
@@ -725,7 +753,10 @@ class TestInviteActorUseCases:
         event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         updated_case = cast(Any, dl.read(case.id_))
@@ -801,7 +832,10 @@ class TestInviteActorUseCases:
         event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # PCR-07-008: no RmEngageCaseActivity (Join) with actor=invitee_id
@@ -904,7 +938,10 @@ class TestInviteActorUseCases:
         event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
@@ -937,6 +974,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=sync_port,
             trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         announced_log_indices = [
@@ -1001,6 +1039,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=sync_port,
             trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         ordered = [
@@ -1142,6 +1181,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=sync_port,
             trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         announced_entries = [
@@ -1271,6 +1311,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=sync_port,
             trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         announced_entries = [
@@ -1366,6 +1407,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=sync_port,
             trigger_activity=None,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         announced_entries = [
@@ -1420,7 +1462,10 @@ class TestAcceptInviteRolesAC4:
         accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         reloaded_case = cast(Any, dl.read(case.id_))
@@ -1464,7 +1509,10 @@ class TestAcceptInviteRolesAC4:
         accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         reloaded_case = cast(Any, dl.read(case.id_))
@@ -1527,8 +1575,12 @@ class TestInviteDispositions:
         dl = self._dl()
         event = make_payload(self._invite("https://example.org/cases/d-inv1"))
 
-        first = InviteActorToCaseReceivedUseCase(dl, event).execute()
-        second = InviteActorToCaseReceivedUseCase(dl, event).execute()
+        first = InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        second = InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert first.disposition == HandlerDisposition.APPLIED
         assert second.disposition == HandlerDisposition.SKIPPED
@@ -1538,7 +1590,9 @@ class TestInviteDispositions:
         dl = self._dl()
         event = MagicMock(case_id=None, receiving_actor_id=None)
 
-        result = RejectInviteActorToCaseReceivedUseCase(dl, event).execute()
+        result = RejectInviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -1555,7 +1609,9 @@ class TestInviteDispositions:
             )
         )
 
-        result = RejectInviteActorToCaseReceivedUseCase(dl, event).execute()
+        result = RejectInviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "CASE_MANAGER" in result.reason
@@ -1579,7 +1635,10 @@ class TestInviteDispositions:
         )
 
         result = AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1598,7 +1657,9 @@ class TestInviteDispositions:
             )
         )
 
-        result = RejectInviteActorToCaseReceivedUseCase(dl, event).execute()
+        result = RejectInviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "unknown case" in result.reason
@@ -1615,7 +1676,9 @@ class TestInviteDispositions:
             receiving_actor_id=self._OWNER,
         )
 
-        result = RejectInviteActorToCaseReceivedUseCase(dl, event).execute()
+        result = RejectInviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.APPLIED
 
@@ -1629,7 +1692,10 @@ class TestInviteDispositions:
         )
 
         result = AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1645,7 +1711,10 @@ class TestInviteDispositions:
         )
 
         result = AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1665,10 +1734,16 @@ class TestInviteDispositions:
         )
 
         first = AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         second = AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert first.disposition == HandlerDisposition.APPLIED

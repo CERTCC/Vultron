@@ -31,6 +31,7 @@ from test.conftest import TEST_ACTOR_ID
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def _case_ref(case_id: str) -> as_VulnerabilityCase:
@@ -112,7 +113,10 @@ class TestOfferActorToCaseReceivedUseCase:
         ), f"Expected OfferActorToCaseReceivedEvent, got {type(event)}"
 
         result = OfferActorToCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -159,7 +163,10 @@ class TestOfferActorToCaseReceivedUseCase:
 
         with caplog.at_level(logging.WARNING):
             result = OfferActorToCaseReceivedUseCase(
-                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         # The store holds no such case, so the recommendation is refused.
@@ -191,7 +198,9 @@ class TestOfferActorToCaseReceivedUseCase:
         mock_event.activity = None
 
         with caplog.at_level(logging.WARNING):
-            result = OfferActorToCaseReceivedUseCase(dl, mock_event).execute()
+            result = OfferActorToCaseReceivedUseCase(
+                dl, mock_event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
@@ -225,7 +234,10 @@ class TestOfferActorToCaseReceivedUseCase:
         activity_id = activity.id_
 
         OfferActorToCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         case = cast(VulnerabilityCase, dl.read(case_id))
@@ -295,7 +307,10 @@ class TestOfferActorToCaseAtNonCaseManager:
         event = self._event(make_payload)
 
         result = OfferActorToCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
@@ -318,7 +333,10 @@ class TestOfferActorToCaseAtNonCaseManager:
         event = self._event(make_payload)
 
         OfferActorToCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         case = cast(VulnerabilityCase, dl.read(self._CASE_ID))

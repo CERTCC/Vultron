@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.core.models.case import VulnerabilityCase
 
 from vultron.core.models.case_participant import CaseParticipant
@@ -212,9 +213,13 @@ def _store_invite_deadline(
 
 class CreateEmbargoEventReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: CreateEmbargoEventReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: CreateEmbargoEventReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: CreateEmbargoEventReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -235,8 +240,10 @@ class AddEmbargoEventToCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: AddEmbargoEventToCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AddEmbargoEventToCaseReceivedEvent = request
         self._sync_port = sync_port
 
@@ -261,7 +268,9 @@ class AddEmbargoEventToCaseReceivedUseCase:
             case_id=case_id,
             embargo_id=embargo_id,
         )
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             # The *receiving* actor, not the sender (BT-17-005): an
@@ -291,8 +300,10 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: RemoveEmbargoEventFromCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: RemoveEmbargoEventFromCaseReceivedEvent = request
         self._sync_port = sync_port
 
@@ -324,7 +335,9 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         tree = remove_embargo_from_case_tree(
             case_id=case_id, embargo_id=embargo_id
         )
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
@@ -350,8 +363,10 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AnnounceEmbargoEventToCaseReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AnnounceEmbargoEventToCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -370,8 +385,10 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         request: InviteToEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: InviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
@@ -452,7 +469,9 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             invitee_id=invitee_id,
             invite_id=invite_id,
         )
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
@@ -500,8 +519,10 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         request: AcceptInviteToEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AcceptInviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
@@ -546,7 +567,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 },
             },
         )
-        result = BTBridge(datalayer=self._dl).execute_with_setup(
+        result = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             sync_port=self._sync_port,
@@ -774,7 +797,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             accepting_actor_id=accepting_actor_id,
             invite_id=invite_id,
         )
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
@@ -801,8 +826,10 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: RejectInviteToEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: RejectInviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
 
@@ -839,7 +866,9 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             invite_id=invite_id or "",
             embargo_id=embargo_id,
         )
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             # The *receiving* actor, not the sender (BT-17-005): an

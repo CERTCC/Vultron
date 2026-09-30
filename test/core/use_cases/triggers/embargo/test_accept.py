@@ -27,6 +27,7 @@ from .conftest import (
     _build_proposed_embargo_case_no_owner_attribution,
     _persist_actor,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def test_non_owner_accept_embargo_on_active_case_updates_participant_only(
@@ -46,7 +47,10 @@ def test_non_owner_accept_embargo_on_active_case_updates_participant_only(
     )
 
     result = SvcAcceptEmbargoUseCase(
-        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+        finder_dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(finder_dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
     assert "activity" in result
@@ -104,7 +108,10 @@ def test_accept_embargo_when_attributed_to_is_none_does_not_activate_em(
     )
 
     result = SvcAcceptEmbargoUseCase(
-        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+        finder_dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(finder_dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
     assert "activity" in result
