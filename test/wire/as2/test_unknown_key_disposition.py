@@ -1,4 +1,4 @@
-"""Inbound unknown-key disposition at the parse edge (MV-11, #3900).
+"""Inbound unknown-key disposition at the parse edge (MV-11, #3900; built under #3921).
 
 One rule, stated once at ``parse_activity`` and holding at every depth: an
 unrecognised key that is a *near miss* for a declared spelling (case or
@@ -28,7 +28,8 @@ SENDER = "https://example.org/actors/alice"
 FOREIGN_KEY = "fooBar"
 
 NOT_BUILT = (
-    "MV-11: unknown-key disposition at the parse edge is not built yet. #3900"
+    "MV-11: unknown-key disposition at the parse edge is not built yet. "
+    "Tracked by #3921."
 )
 
 
@@ -83,13 +84,16 @@ FOREIGN_KEY_POSITIONS: list[tuple[str, dict[str, Any], str]] = [
     ),
 ]
 
-# (label, body, arriving key, declared spelling it resembles)
+# (label, body, arriving key, declared spelling it resembles).  Note there is
+# no underscore row: both roots validate by field name as well as by alias
+# (CS-14-001, CS-14-002), so ``attributed_to`` *is* a declared spelling of
+# ``attributedTo`` — see ``test_snake_case_field_name_is_declared`` below.
 NEAR_MISS_POSITIONS: list[tuple[str, dict[str, Any], str, str]] = [
     ("envelope case variant", _envelope(Actor="dup"), "Actor", "actor"),
     (
-        "envelope underscore variant",
-        _envelope(attributed_to="z"),
-        "attributed_to",
+        "envelope separator variant",
+        _envelope(**{"attributed-to": "z"}),
+        "attributed-to",
         "attributedTo",
     ),
     (
@@ -99,17 +103,17 @@ NEAR_MISS_POSITIONS: list[tuple[str, dict[str, Any], str, str]] = [
         "content",
     ),
     (
-        "inline domain object underscore variant",
+        "inline domain object separator variant",
         _with_inline_object(
             {
                 "type": "VulnerabilityCase",
                 "id": "https://example.org/cases/1",
                 "name": "a case",
-                "case_status": None,
+                "case-statuses": [],
             }
         ),
-        "case_status",
-        "caseStatus",
+        "case-statuses",
+        "caseStatuses",
     ),
 ]
 
@@ -150,8 +154,12 @@ def test_foreign_key_is_set_aside_and_reported_once(
     message = records[0].getMessage()
     assert ACTIVITY_ID in message
     assert SENDER in message
+    # The path is named in the parser's quoted form (``at 'object'``), never
+    # matched as a bare word; the root has no path and is named as the envelope.
     if path:
-        assert path in message
+        assert f"'{path}'" in message
+    else:
+        assert "envelope" in message
 
 
 @pytest.mark.xfail(strict=True, reason=NOT_BUILT)
@@ -173,14 +181,34 @@ def test_near_miss_is_refused_naming_both_spellings(
     assert declared in message
 
 
+@pytest.mark.spec("MV-11-001")
+def test_snake_case_field_name_is_declared(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A field name is a declared spelling, not a near miss (MV-11-001).
+
+    Both roots validate by name (CS-14-001, CS-14-002): ``attributed_to`` fills
+    ``attributedTo`` and nothing is refused, set aside, or reported.  Pins the
+    definition so an implementation never treats the underscore form as
+    unknown.
+    """
+    caplog.set_level(logging.INFO)
+    activity = parse_activity(_envelope(attributed_to="https://example.org/z"))
+    assert activity.attributed_to == "https://example.org/z"
+    assert not _info_records_naming(caplog, "attributed_to")
+
+
 @pytest.mark.spec("MV-11-002")
 @pytest.mark.parametrize("retired", ["vfd_state", "vfdState"])
 def test_retired_name_on_inline_object_is_refused(retired: str) -> None:
     """A retired name is in the list by name, not by normalisation (ADR-0075).
 
     Holds today through ``ParticipantStatus._reject_retired_vfd_keys`` and must
-    keep holding when that core guard is retired (SDO-03-005, MV-11-004) and
-    the wire-side list takes over — so this row is not ``xfail``.
+    keep holding when that core guard is deleted (#3921 AC-4; SDO-03-005,
+    MV-11-004) and the wire-side list takes over — so this row is not
+    ``xfail``.  Only the naming of the retired key is pinned, not the guard's
+    wording: MV-11-002 requires the arriving key and the spelling it resembles,
+    and for a retired name those are the same string.
     """
     body = _with_inline_object(
         {
@@ -195,20 +223,33 @@ def test_retired_name_on_inline_object_is_refused(retired: str) -> None:
     with pytest.raises(VultronParseValidationError) as exc_info:
         parse_activity(body)
     assert retired in str(exc_info.value)
-    assert "retired" in str(exc_info.value)
 
 
 @pytest.mark.spec("MV-11-002")
 def test_no_similarity_helper_in_the_parse_edge() -> None:
-    """The near-miss test is normalisation plus a list; nothing fuzzier (MV-11-002)."""
-    import vultron.wire.as2.parser as parser_module
+    """The near-miss test is normalisation plus a list; nothing fuzzier (MV-11-002).
+
+    Scans the whole wire package, not just ``parser.py``: #3921 AC-7 lets the
+    partition helper move to a sibling module under ``vultron/wire/as2/``.
+    """
+    import vultron.wire.as2 as wire_package
     from pathlib import Path
 
-    source = Path(parser_module.__file__).read_text(encoding="utf-8")
-    for forbidden in (
+    forbidden = (
         "difflib",
+        "get_close_matches",
         "levenshtein",
         "Levenshtein",
         "SequenceMatcher",
-    ):
-        assert forbidden not in source, forbidden
+        "rapidfuzz",
+        "jellyfish",
+        "fuzz",
+    )
+    package_root = Path(wire_package.__file__).parent
+    offenders = [
+        f"{path.relative_to(package_root)}: {name}"
+        for path in sorted(package_root.rglob("*.py"))
+        for name in forbidden
+        if name in path.read_text(encoding="utf-8")
+    ]
+    assert offenders == [], offenders

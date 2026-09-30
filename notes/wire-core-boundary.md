@@ -500,7 +500,8 @@ Measured through `parse_activity` on 2026-09-30:
 | Where the unknown key sat | Before MV-11 |
 |---|---|
 | envelope, `Note`, `Link`, untyped inline dict | dropped silently |
-| envelope near miss (`Actor` beside `actor`, `attributed_to`) | dropped silently |
+| envelope near miss (`Actor` beside `actor`) | dropped silently |
+| envelope `attributed_to` (snake_case field name) | accepted — a declared spelling, both roots validate by name |
 | inline `VulnerabilityCase`, inline `Organization` actor | refused, 422 |
 
 The docs disagreed with each other about it too: ARCH-21-002 says inbound wire
@@ -522,7 +523,11 @@ is stated once there and holds everywhere:
    both spellings (MV-11-002). The sender meant a field we read; proceeding
    without it is the #2232 shape with a log line attached. Nothing fuzzier than
    that normalisation, ever: AS2 has too many short property names one
-   character apart, and pinning down a richer "near" is not worth the time.
+   character apart, and pinning down a richer "near" is not worth the time. A
+   snake_case field name is **not** a near miss: both roots validate by name as
+   well as by alias (CS-14-001, CS-14-002), so `attributed_to` is a declared
+   spelling of `attributedTo`. The near misses are case and separator variants
+   (`Actor`, `attributed-to`) and retired names.
 3. Any **other** unknown key is **set aside and reported** at INFO with
    `activity_id`, the sender's `actor_id`, field path and key; the activity
    proceeds on its declared fields (MV-11-003). Never carry the key on the
@@ -533,7 +538,7 @@ is stated once there and holds everywhere:
    The retired-name list lives on the wire side and is consulted only at the
    parse edge; `ParticipantStatus._reject_retired_vfd_keys` is the one core
    guard SDO-03-005 already forbids, and it goes when the wire list arrives.
-5. **Never re-validate from the raw body after parse** (MV-11-005).
+5. **Never re-validate from the raw body after parse** (MV-11-005, #3922).
    `inbox_storage._reparse_as_specific_type` re-parses an inline object from
    the raw request dict and falls back to a base class on failure with a DEBUG
    line. Once keys are set aside at parse, that path sees them again on a core
@@ -542,4 +547,4 @@ is stated once there and holds everywhere:
 
 Ratchet: `test/wire/as2/test_unknown_key_disposition.py` — one matrix over
 every position, `xfail(strict=True)` on the rows not yet built so the marks must
-come off with the implementation.
+come off with the implementation (#3921).
