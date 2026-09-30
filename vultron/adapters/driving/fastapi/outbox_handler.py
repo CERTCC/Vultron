@@ -45,7 +45,6 @@ namespace.
 import asyncio
 import logging
 import random
-import weakref
 from typing import cast
 
 from vultron.adapters.driven.http_delivery import (
@@ -53,6 +52,7 @@ from vultron.adapters.driven.http_delivery import (
     HttpDeliveryAdapter,
 )
 from vultron.adapters.driving.fastapi.outbox_lanes import (
+    BatchInterrupted,
     RowOutcome,
     StallOrder,
     deliver_batch,
@@ -293,18 +293,22 @@ async def outbox_handler(
         return
 
     logger.debug("Processing outbox for actor %s", actor_id)
-    slot = _drain_slot(actor_id)
-    if slot.lock.locked():
+    # Key the slot on the *store's* identity, not the id the caller typed: a
+    # trigger route forwards the URL segment (a short id) while the inbox path
+    # and `_emitting_outbox` pass the canonical URI, and both name one outbox.
+    slot_key = getattr(actor, "id_", None) or actor_id
+    slot = _drain_slot(slot_key)
+    if slot.busy:
         # Another drain of this outbox is running (OX-01-004).  It sees every
         # row already queued on its next look; asking it to look once more
         # after it believes it is done closes the window between its last
         # look and its release, so nothing is left for the safety-net poll.
-        # Waiting on the lock instead would deadlock a *nested* call: under
-        # Starlette's TestClient a recipient's BackgroundTask runs inside the
-        # sender's POST, so a loopback or round-trip delivery re-enters this
-        # function for the same actor while the outer drain is awaiting that
-        # very POST.  Production uvicorn answers 202 before the task runs and
-        # never nests, but a drain policy must not have a deadlock class at all.
+        # Waiting instead would deadlock a *nested* call: under Starlette's
+        # TestClient a recipient's BackgroundTask runs inside the sender's
+        # POST, so a loopback or round-trip delivery re-enters this function
+        # for the same actor while the outer drain is awaiting that very POST.
+        # Production uvicorn answers 202 before the task runs and never
+        # nests, but a drain policy must not have a deadlock class at all.
         slot.rerun = True
         logger.debug(
             "Outbox for actor %s is already being drained; the running drain"
@@ -312,38 +316,36 @@ async def outbox_handler(
             actor_id,
         )
         return
-    async with slot.lock:
+    slot.busy = True
+    try:
         await _drain_outbox(actor_id, dl, _emitter, slot)
+    finally:
+        slot.busy = False
 
 
 class _DrainSlot:
-    """One actor's drain state on one event loop (OX-01-004).
+    """One actor's drain state (OX-01-004).
 
-    ``lock`` is held for the whole drain; ``rerun`` is set by a caller that
-    found it held and means "look at the queue once more before you finish".
+    ``busy`` is set for the whole drain — it is a flag, not a lock, because
+    no caller ever waits on it; ``rerun`` is set by a caller that found the
+    drain running and means "look at the queue once more before you finish".
     """
 
-    __slots__ = ("lock", "rerun")
+    __slots__ = ("busy", "rerun")
 
     def __init__(self) -> None:
-        self.lock = asyncio.Lock()
+        self.busy = False
         self.rerun = False
 
 
-# Per-actor, per-event-loop drain slots.  Keyed by loop because an
-# ``asyncio.Lock`` binds to the loop it first waits on, and tests run one loop
-# per ``asyncio.run``; a lock left over from a closed loop would raise on the
-# next contended acquire.  Same shape as ``inbox_orchestration._actor_inbox_locks``.
-_drain_slots: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, dict[str, _DrainSlot]]" = (weakref.WeakKeyDictionary())
+_drain_slots: dict[str, _DrainSlot] = {}
 
 
 def _drain_slot(actor_id: str) -> _DrainSlot:
-    """Return the drain slot for *actor_id* on the running loop."""
-    loop = asyncio.get_running_loop()
-    per_loop = _drain_slots.setdefault(loop, {})
-    slot = per_loop.get(actor_id)
+    """Return the drain slot for *actor_id* (the store's canonical id)."""
+    slot = _drain_slots.get(actor_id)
     if slot is None:
-        slot = per_loop[actor_id] = _DrainSlot()
+        slot = _drain_slots[actor_id] = _DrainSlot()
     return slot
 
 
@@ -355,12 +357,21 @@ async def _drain_outbox(
 ) -> None:
     """One drain pass: pop the queue in batches and deliver each in lanes.
 
-    Runs under the actor's drain lock.  A batch is the queue as it stood when
-    the pass looked; rows appended while a batch is in flight form the next
-    one.  The pass ends when the queue is empty or holds only rows stalled in
-    this pass (OX-13-011) — and no other caller has asked for one more look
-    (``slot.rerun``) — leaving stalled rows in enqueue order for the next
-    drain (OX-13-012).
+    Runs while the actor's drain slot is busy.  A batch is the queue as it
+    stood when the pass looked; rows appended while a batch is in flight form
+    the next one.  The pass ends when the queue is empty or holds only rows
+    stalled in this pass (OX-13-011) — and no other caller has asked for one
+    more look (``slot.rerun``) — leaving stalled rows in enqueue order for the
+    next drain (OX-13-012).
+
+    A batch is held in memory while it is delivered — the rows in flight, and
+    the rows waiting behind them in a busy lane.  If the batch is interrupted
+    (an unexpected error, or the ``OutboxMonitor`` canceling this task at
+    shutdown) every row that was not delivered or dead-lettered is appended
+    back to the queue before the error propagates, so the failure costs the
+    pass, not the rows.  A hard process crash mid-batch loses what was popped
+    — the same class of loss ADR-0066 accepted for the one in-flight row,
+    widened to the batch (ADR-0112).
     """
     # dl satisfies OutboxRetryStore structurally (SqliteDataLayer implements
     # both); cast lets mypy/pyright see the delivery-infrastructure methods
@@ -389,8 +400,35 @@ async def _drain_outbox(
             if activity_id is None:
                 break
             rows.append((activity_id, lane_keys(activity_id, dl)))
-        for activity_id in await deliver_batch(rows, deliver, stalled):
+        try:
+            requeue = await deliver_batch(rows, deliver, stalled)
+        except BatchInterrupted as exc:
+            _requeue_after_interruption(actor_id, dl, exc)
+            raise
+        for activity_id in requeue:
             dl.outbox_append(activity_id)
+
+
+def _requeue_after_interruption(
+    actor_id: str, dl: DataLayer, exc: BatchInterrupted
+) -> None:
+    """Put an interrupted batch's undelivered rows back, then let it propagate.
+
+    A cancellation (or any other ``BaseException``) is re-raised as itself so
+    that the ``OutboxMonitor``'s task actually stops; an ordinary error
+    propagates as the :class:`BatchInterrupted` that carries it.
+    """
+    logger.error(
+        "Outbox drain for actor '%s' interrupted (%s); re-queueing"
+        " %d undelivered row(s)",
+        actor_id,
+        exc,
+        len(exc.undelivered),
+    )
+    for activity_id in exc.undelivered:
+        dl.outbox_append(activity_id)
+    if not isinstance(exc.cause, Exception):
+        raise exc.cause from None
 
 
 async def _deliver_row(
@@ -412,38 +450,65 @@ async def _deliver_row(
         try:
             await handle_outbox_item(actor_id, activity_id, dl, emitter)
             return RowOutcome.DELIVERED
-        except Exception as e:
-            failed_recipients: list[str] = (
-                list(e.failed_recipients)
-                if isinstance(e, DeliveryError)
-                else []
-            )
-            total = retry.get_outbox_attempt_count(activity_id) + 1
-            if total >= MAX_TOTAL_ATTEMPTS:
-                _dead_letter(
-                    actor_id, activity_id, dl, retry, total, failed_recipients
+        except Exception as e:  # noqa: BLE001 — every failure is bookkept
+            try:
+                return_now = _bookkeep_failure(
+                    actor_id, activity_id, dl, retry, err_counts, e
                 )
-                return RowOutcome.DEAD_LETTERED
-            retry.set_outbox_attempt_count(activity_id, total)
-            logger.error(
-                "Error processing outbox item '%s' (attempt %d): %s",
-                activity_id,
-                total,
-                e,
-            )
-            per_err = err_counts[activity_id] = (
-                err_counts.get(activity_id, 0) + 1
-            )
-            if per_err > 3:
+            except Exception as bookkeeping_error:  # noqa: BLE001
+                # The retry store itself failed.  The row is not lost — the
+                # caller re-queues a stalled row — but nothing more can be
+                # learned about it this pass (OX-13-011).
                 logger.error(
-                    "Too many errors for outbox item '%s',"
-                    " skipping for this pass (OX-13-006).",
+                    "Outbox retry bookkeeping failed for '%s' (actor '%s'):"
+                    " %s; stalling the row for this pass",
                     activity_id,
+                    actor_id,
+                    bookkeeping_error,
                 )
                 return RowOutcome.STALLED
+            if return_now is not None:
+                return return_now
+            per_err = err_counts[activity_id]
             # Back off before retrying to avoid hammering a busy recipient.
             backoff = (2 ** (per_err - 1)) + random.uniform(0, 0.5)
             await asyncio.sleep(backoff)
+
+
+def _bookkeep_failure(
+    actor_id: str,
+    activity_id: str,
+    dl: DataLayer,
+    retry: OutboxRetryStore,
+    err_counts: dict[str, int],
+    e: Exception,
+) -> RowOutcome | None:
+    """Record one failed attempt; return the row's outcome or ``None`` to retry."""
+    failed_recipients: list[str] = (
+        list(e.failed_recipients) if isinstance(e, DeliveryError) else []
+    )
+    total = retry.get_outbox_attempt_count(activity_id) + 1
+    if total >= MAX_TOTAL_ATTEMPTS:
+        _dead_letter(
+            actor_id, activity_id, dl, retry, total, failed_recipients
+        )
+        return RowOutcome.DEAD_LETTERED
+    retry.set_outbox_attempt_count(activity_id, total)
+    logger.error(
+        "Error processing outbox item '%s' (attempt %d): %s",
+        activity_id,
+        total,
+        e,
+    )
+    per_err = err_counts[activity_id] = err_counts.get(activity_id, 0) + 1
+    if per_err > 3:
+        logger.error(
+            "Too many errors for outbox item '%s',"
+            " skipping for this pass (OX-13-006).",
+            activity_id,
+        )
+        return RowOutcome.STALLED
+    return None
 
 
 def _dead_letter(

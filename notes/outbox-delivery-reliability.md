@@ -108,6 +108,19 @@ that order for the whole pass, so a row a producer appends mid-pass, popped in
 a later batch into a stalled lane, is placed behind the rows stalled before it.
 Rows in *other* lanes are untouched: this is not head-of-line blocking.
 
+**A batch lives outside the queue while it is delivered.** The drain pops the
+queue's snapshot before scheduling, so the rows waiting behind a busy lane are
+in memory, not in the persistent queue. `deliver_batch` therefore never lets an
+interruption drop them: an exception escaping a row task or a cancellation of
+the drain cancels the in-flight tasks and raises `BatchInterrupted(undelivered)`,
+and `_drain_outbox` appends every undelivered row back before re-raising (a
+cancellation as itself, so `OutboxMonitor.stop()` still stops). `_deliver_row`
+never raises on its own — a retry-store failure stalls the row instead. What is
+*not* covered is a hard process crash mid-batch: that loses the batch's
+undelivered rows, where ADR-0066 lost one row; say so, do not claim otherwise.
+The drain slot is keyed on the *store's* canonical id (`actor.id_`), because a
+trigger route passes the URL segment (a short id) and the inbox path the URI.
+
 **Replay dedup (SYNC-15-012)**: `SyncActivityAdapter.send_announce_log_entry`
 returns `False` and queues nothing when an `Announce` of that entry to that
 peer is already pending in the outbox; `SendMissingEntriesNode` counts only

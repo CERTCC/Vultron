@@ -45,7 +45,7 @@ Two questions are decided here:
 - **The ledger transport needs order per recipient, not order across recipients.** A replica's hash chain is its own; whether the Finder receives entry 3 before the Coordinator does is irrelevant.
 - **One slow recipient must not hold up the others.** A single serial drain restores order but reintroduces head-of-line blocking across peers, and a 30 s POST timeout (SYNC-05-004) to one unreachable peer would stall every other peer's rows.
 - **Recovery must not be the normal path.** `Reject`/replay (SYNC-14, SYNC-15) exists for entries that are *lost*; a sender that reorders its own fan-out makes every recipient recover from a loss that never happened, and the replays land in the same queue.
-- **No new persistence primitives.** The queue offers append, list, and pop (DL port); the fix must keep rows in the persistent queue whenever they are not actually being delivered (ADR-0066's crash-safety stance).
+- **No new persistence primitives.** The queue offers append, list, and pop (DL port); the fix must not need a new one, and whatever it holds outside the queue while delivering must go back to the queue on any interruption (ADR-0066's crash-safety stance, applied to a batch rather than a row).
 - **Gates observe, they do not fix.** A demo gate that waits longer hides the queueing; a gate that names the late hop makes it visible (EDF-06, ADR-0058).
 
 ## Considered Options
@@ -88,6 +88,7 @@ The slot registry is keyed by event loop, like the inbox's `_actor_inbox_locks`,
 
 A drain pops the queue in batches — the queue as it stood when the pass looked — and hands each batch to `deliver_batch` in `vultron/adapters/driving/fastapi/outbox_lanes.py`.
 A row's lanes are its recipients, resolved from the stored activity before delivery.
+The drain slot is keyed on the store's canonical actor id, not the id the caller spelled — a trigger route forwards the URL segment while the inbox path passes the canonical URI, and both name one outbox.
 A row whose activity cannot be read, or that names no recipient, gets a lane of its own: there is no recipient order to preserve, and `handle_outbox_item` reports it when it runs.
 The scheduler starts every row whose lanes are all free, in pop order; a row blocked by a busy or earlier-waiting lane also blocks its lanes for the rows behind it, so order is preserved transitively; a row addressed to several recipients occupies every one of those lanes, joining them.
 Rows appended while a batch is in flight form the next batch, after the current one completes, so a producer cannot slip a row ahead of one already in flight to the same recipient.
@@ -141,7 +142,8 @@ No timeout was widened.
 - Good — a ledger fan-out reaches every replica in chain order on the normal path; forward-gap `Reject`s and their replays become what they were designed to be, recovery from loss.
 - Good — a slow or unreachable recipient delays only its own rows (OX-01-006); the head-of-line hazard #3878 describes does not appear.
 - Good — a transient delivery failure no longer reorders the failed row behind its successors (OX-13-012).
-- Good — no schema change; the persistent queue API is unchanged and rows stay in the queue except while actually being delivered or retried in-pass.
+- Good — no schema change; the persistent queue API is unchanged.
+- Neutral — a drain holds one *batch* (the queue as it stood when the pass looked) outside the persistent queue while the batch is delivered: the rows in flight and the rows waiting behind them in a busy lane. An unexpected error or a cancellation puts every undelivered row back before it propagates (`BatchInterrupted`); a hard process crash mid-batch loses the batch's undelivered rows — the same class of loss ADR-0066 accepted for the single in-flight row, widened to the batch. Narrowing it needs a claim/ack primitive on the queue, which is out of scope here.
 - Neutral — order *across* recipients is not preserved and is not claimed; nothing in the protocol depends on it.
 - Neutral — a row whose recipients cannot be resolved before delivery has no order guarantee; it also has no recipient to be ordered for.
 - Neutral — `OutboxMonitor.drain_all` still visits actors sequentially, so a long drain of one actor under the lock delays the monitor's *safety-net* pass for the others; their own inbound-triggered drains are unaffected.

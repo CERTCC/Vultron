@@ -162,20 +162,34 @@ def test_concurrent_drains_deliver_each_recipient_in_enqueue_order(
 
 @pytest.mark.spec("OX-01-006")
 def test_slow_recipient_does_not_delay_another_recipient(monkeypatch):
-    """A slow POST to recipient A must not hold back the row queued behind it for B."""
+    """A slow POST to recipient A must not hold back the row queued behind it for B.
+
+    Sequenced with events rather than wall-clock: A's delivery does not
+    complete until B's has, so a serial drain (B behind A) would never finish
+    and the ``wait_for`` would fail — no timing luck either way.
+    """
     activities = {
         "urn:test:a1": _row(PEER_A),
         "urn:test:b1": _row(PEER_B),
     }
     queue = list(activities)
     dl = _mock_dl(queue, activities)
-    rec = _Recorder(activities, latency={"urn:test:a1": 0.2})
-    monkeypatch.setattr(oh, "handle_outbox_item", rec)
+    b1_done = asyncio.Event()
+    order: list[str] = []
 
-    asyncio.run(oh.outbox_handler(ACTOR, dl))
+    async def gated(actor_id, activity_id, dl_, emitter):
+        if activity_id == "urn:test:a1":
+            await asyncio.wait_for(b1_done.wait(), timeout=2.0)
+        order.append(activity_id)
+        if activity_id == "urn:test:b1":
+            b1_done.set()
 
-    assert rec.completed_at["urn:test:b1"] < rec.completed_at["urn:test:a1"]
-    assert set(rec.attempted) == set(activities)
+    monkeypatch.setattr(oh, "handle_outbox_item", gated)
+
+    asyncio.run(asyncio.wait_for(oh.outbox_handler(ACTOR, dl), timeout=5.0))
+
+    assert order == ["urn:test:b1", "urn:test:a1"]
+    assert queue == []
 
 
 @pytest.mark.spec("OX-01-005")
@@ -356,3 +370,98 @@ def test_nested_drain_request_returns_and_the_holder_looks_again(monkeypatch):
 
     assert rec.order_for(PEER_A) == ["urn:test:a1", "urn:test:a2"]
     assert queue == []
+
+
+@pytest.mark.spec("OX-01-004")
+def test_short_and_canonical_actor_ids_share_one_drain_slot(monkeypatch):
+    """The slot is the store's, not the spelling's.
+
+    A trigger route forwards the URL segment (a short id) while the inbox
+    path passes the canonical URI; both resolve to the same actor and must
+    not drain the same outbox concurrently.
+    """
+    activities = {
+        "urn:test:a1": _row(PEER_A),
+        "urn:test:a2": _row(PEER_A),
+    }
+    queue = list(activities)
+    dl = _mock_dl(queue, activities)
+    rec = _Recorder(activities, latency={"urn:test:a1": 0.05})
+    monkeypatch.setattr(oh, "handle_outbox_item", rec)
+
+    async def two_spellings() -> None:
+        await asyncio.gather(
+            oh.outbox_handler("case-manager", dl), oh.outbox_handler(ACTOR, dl)
+        )
+
+    asyncio.run(two_spellings())
+
+    assert rec.order_for(PEER_A) == list(activities)
+    assert rec.max_inflight[PEER_A] == 1
+
+
+@pytest.mark.spec("OX-01-003")
+def test_escaping_delivery_error_requeues_every_undelivered_row(monkeypatch):
+    """An error the retry ladder cannot bookkeep interrupts the batch, loses nothing.
+
+    ``_deliver_row`` never raises on a delivery failure, so the interruption
+    here is forced one level up: the row task itself blows up while another
+    lane's row is in flight and a third row waits behind it.  Every row that
+    was not delivered comes back to the queue, in pop order, and the slot is
+    free again.
+    """
+    activities = {
+        "urn:test:a1": _row(PEER_A),
+        "urn:test:b1": _row(PEER_B),
+        "urn:test:a2": _row(PEER_A),
+    }
+    queue = list(activities)
+    dl = _mock_dl(queue, activities)
+    started_a1 = asyncio.Event()
+
+    async def exploding_row(actor_id, activity_id, dl_, emitter, retry, errs):
+        if activity_id == "urn:test:a1":
+            started_a1.set()
+            await asyncio.sleep(10)  # in flight until cancelled
+        if activity_id == "urn:test:b1":
+            await started_a1.wait()
+            raise RuntimeError("bookkeeping blew up")
+        return oh.RowOutcome.DELIVERED
+
+    monkeypatch.setattr(oh, "_deliver_row", exploding_row)
+
+    with pytest.raises(oh.BatchInterrupted):
+        asyncio.run(oh.outbox_handler(ACTOR, dl))
+
+    assert queue == ["urn:test:a1", "urn:test:b1", "urn:test:a2"]
+    assert oh._drain_slot(ACTOR).busy is False
+
+
+@pytest.mark.spec("OX-01-003")
+def test_cancelling_the_drain_requeues_in_flight_and_waiting_rows(monkeypatch):
+    """``OutboxMonitor.stop()`` cancels a drain mid-batch; the rows go back."""
+    activities = {
+        "urn:test:a1": _row(PEER_A),
+        "urn:test:a2": _row(PEER_A),
+    }
+    queue = list(activities)
+    dl = _mock_dl(queue, activities)
+    started = asyncio.Event()
+
+    async def slow(actor_id, activity_id, dl_, emitter):
+        started.set()
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(oh, "handle_outbox_item", slow)
+
+    async def cancel_mid_flight() -> None:
+        task = asyncio.ensure_future(oh.outbox_handler(ACTOR, dl))
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(cancel_mid_flight())
+
+    assert queue == ["urn:test:a1", "urn:test:a2"]
+    assert oh._drain_slot(ACTOR).busy is False

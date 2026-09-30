@@ -83,9 +83,12 @@ def _poll_until(
             bare timeout sends the reader looking for a slow protocol instead of
             a broken read.
     """
+    # The condition is always tried at least once, even with no time left: a
+    # wait handed the tail of a shared budget (SharedBudget) must still succeed
+    # when its effect has already landed, and fail only when it has not.
     deadline = time.monotonic() + timeout_seconds
     last_exc: Exception | None = None
-    while time.monotonic() < deadline:
+    while True:
         try:
             if condition_fn():
                 return
@@ -94,6 +97,8 @@ def _poll_until(
             if not swallow_exceptions:
                 raise
             last_exc = exc
+        if time.monotonic() >= deadline:
+            break
         time.sleep(poll_interval)
 
     if last_exc is not None:
@@ -962,8 +967,11 @@ class SharedBudget:
     When several replicas are fed by one fan-out, waiting on each with its
     own full timeout multiplies the worst case by the number of replicas and
     hides which hop was slow.  A shared budget bounds the whole fan-out once:
-    each wait is given what is left, and a wait that starts with nothing left
-    fails at once, naming the budget as spent rather than the replica as late.
+    each wait is given what is left.  A wait that starts with nothing left
+    still checks its condition once (:func:`_poll_until`), so a replica that
+    has already caught up passes, and one that has not fails at once with
+    that wait's own message — the budget itself says only how much was left
+    (``repr(budget)``), which the scenario logs on exhaustion.
 
     Args:
         timeout_seconds: The total budget, started on construction.

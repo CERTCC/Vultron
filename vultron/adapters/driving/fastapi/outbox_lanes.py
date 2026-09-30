@@ -94,21 +94,21 @@ class StallOrder:
     """
 
     def __init__(self) -> None:
-        self._order: dict[str, None] = {}
+        self._seq: dict[str, int] = {}
 
     def add(self, activity_id: str) -> None:
-        self._order.setdefault(activity_id, None)
+        self._seq.setdefault(activity_id, len(self._seq))
 
     def __contains__(self, activity_id: object) -> bool:
-        return activity_id in self._order
+        return activity_id in self._seq
 
     def covers(self, activity_ids: list[str]) -> bool:
         """True when every id in *activity_ids* is a stalled row."""
-        return all(a in self._order for a in activity_ids)
+        return all(a in self._seq for a in activity_ids)
 
     def sort(self, activity_ids: list[str]) -> list[str]:
         """Return *activity_ids* in stall order (all must be stalled)."""
-        return sorted(activity_ids, key=list(self._order).index)
+        return sorted(activity_ids, key=self._seq.__getitem__)
 
 
 class _LaneSchedule:
@@ -132,6 +132,8 @@ class _LaneSchedule:
             lane for aid, lanes in rows if aid in stalled for lane in lanes
         }
         self._held: list[str] = []
+        self._finished: set[str] = set()
+        self._rows = list(rows)
 
     def _hold(self, activity_id: str, lanes: frozenset[str]) -> None:
         self._stalled_lanes.update(lanes)
@@ -162,8 +164,29 @@ class _LaneSchedule:
         for task in done:
             activity_id, lanes = self.active.pop(task)
             self._busy -= lanes
-            if task.result() is RowOutcome.STALLED:
+            outcome = task.result()  # re-raises a delivery task's exception
+            self._finished.add(activity_id)
+            if outcome is RowOutcome.STALLED:
                 self._hold(activity_id, lanes)
+
+    async def abandon(self) -> list[str]:
+        """Cancel every in-flight task; return every row not finished, in order.
+
+        A row whose task raised counts as unfinished — it was neither
+        delivered nor dead-lettered — so it goes back to the queue with the
+        rows that never started.
+        """
+        for task in list(self.active):
+            task.cancel()
+        if self.active:
+            await asyncio.gather(*self.active, return_exceptions=True)
+        finished_ok = {
+            aid
+            for task, (aid, _lanes) in self.active.items()
+            if not task.cancelled() and task.exception() is None
+        } | self._finished
+        self.active.clear()
+        return [aid for aid, _lanes in self._rows if aid not in finished_ok]
 
     def hold_remaining(self) -> list[str]:
         """Hold every row still waiting (only stalled lanes can be left) and
@@ -181,6 +204,22 @@ class _LaneSchedule:
         return self._stalled.sort(self._held)
 
 
+class BatchInterrupted(Exception):
+    """A batch did not run to completion; ``undelivered`` lists what to re-queue.
+
+    Raised in place of whatever interrupted the batch — an exception escaping
+    a delivery task, or a cancellation of the drain — after every in-flight
+    task has been canceled.  ``undelivered`` is every popped row that was
+    neither delivered nor dead-lettered, in pop order, so the caller can put
+    the rows back before the interruption propagates (OX-01-003).
+    """
+
+    def __init__(self, cause: BaseException, undelivered: list[str]) -> None:
+        super().__init__(f"{type(cause).__name__}: {cause}")
+        self.cause = cause
+        self.undelivered = undelivered
+
+
 async def deliver_batch(
     rows: list[tuple[str, frozenset[str]]],
     deliver: DeliverRow,
@@ -191,18 +230,30 @@ async def deliver_batch(
     Args:
         rows: ``(activity_id, lanes)`` in the order popped from the outbox.
         deliver: Delivers one row, including its in-pass retries, and reports
-            the outcome.  It must not raise.
+            the outcome.  It is expected not to raise; if it does, the batch
+            is interrupted rather than the row silently lost.
         stalled: The drain's record of rows already stalled in an earlier
             batch of this pass; extended with every row stalled or held back
             here.
 
     Returns:
         The ids to append back to the outbox, in lane enqueue order.
+
+    Raises:
+        BatchInterrupted: When a delivery task raised, or the batch was
+            canceled; every in-flight task has been canceled and
+            ``undelivered`` names the rows to put back.  A cancellation is
+            re-raised as ``asyncio.CancelledError`` *after* the caller has
+            had the chance to re-queue — see ``_drain_outbox``.
     """
     schedule = _LaneSchedule(rows, stalled)
-    while schedule.waiting or schedule.active:
-        schedule.start_ready(deliver)
-        if not schedule.active:
-            break
-        await schedule.wait_one()
+    try:
+        while schedule.waiting or schedule.active:
+            schedule.start_ready(deliver)
+            if not schedule.active:
+                break
+            await schedule.wait_one()
+    except BaseException as exc:
+        undelivered = await schedule.abandon()
+        raise BatchInterrupted(exc, undelivered) from exc
     return schedule.hold_remaining()

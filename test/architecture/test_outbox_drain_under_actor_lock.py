@@ -26,9 +26,9 @@ The ratchet therefore pins two structural facts:
 1. Nothing under ``vultron/`` other than ``outbox_handler.py`` calls the
    unlocked inner drain (``_drain_outbox``) or the per-row delivery
    (``handle_outbox_item``); a new caller must go through ``outbox_handler``.
-2. Inside ``outbox_handler.py`` the inner drain is called exactly once, and
-   that call sits inside an ``async with`` on the per-actor drain slot's
-   ``lock`` (``_drain_slot(actor_id).lock``).
+2. Inside ``outbox_handler.py`` the inner drain is called exactly once, from
+   ``outbox_handler``, after ``_drain_slot`` and inside a ``try`` whose
+   ``finally`` clears the slot's ``busy`` flag.
 
 Spec: OX-01-004 (``specs/outbox.yaml``).  ADR-0112.
 """
@@ -44,7 +44,6 @@ _HANDLER = _VULTRON / "adapters" / "driving" / "fastapi" / "outbox_handler.py"
 
 _INNER_NAMES = ("_drain_outbox", "handle_outbox_item")
 _SLOT_FACTORY = "_drain_slot"
-_LOCK_ATTR = "lock"
 
 
 def _callee(call: ast.Call) -> str:
@@ -81,28 +80,11 @@ def test_inner_drain_is_called_only_from_outbox_handler_module(
     )
 
 
-def _enclosing_async_with_contexts(
-    tree: ast.AST, target: ast.Call
-) -> list[str]:
-    """Source of the context expressions of the ``async with`` blocks
-    enclosing *target*, innermost last."""
-    found: list[str] = []
-
-    def visit(node: ast.AST, stack: list[ast.AsyncWith]) -> None:
-        if node is target:
-            found.extend(
-                ast.unparse(item.context_expr)
-                for aw in stack
-                for item in aw.items
-            )
-            return
-        if isinstance(node, ast.AsyncWith):
-            stack = [*stack, node]
-        for child in ast.iter_child_nodes(node):
-            visit(child, stack)
-
-    visit(tree, [])
-    return found
+def _function(tree: ast.AST, name: str) -> ast.AsyncFunctionDef:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == name:
+            return node
+    raise AssertionError(f"async def {name} not found in outbox_handler.py")
 
 
 def _handler_tree() -> ast.AST:
@@ -115,16 +97,28 @@ def _handler_tree() -> ast.AST:
     raise AssertionError(f"{_HANDLER} is not in the architecture corpus")
 
 
-def _function(tree: ast.AST, name: str) -> ast.AsyncFunctionDef:
-    for node in ast.walk(tree):
-        if isinstance(node, ast.AsyncFunctionDef) and node.name == name:
-            return node
-    raise AssertionError(f"async def {name} not found in outbox_handler.py")
+def _clears_busy(stmts: list[ast.stmt]) -> bool:
+    return any(
+        isinstance(st, ast.Assign)
+        and any(
+            isinstance(t, ast.Attribute) and t.attr == "busy"
+            for t in st.targets
+        )
+        and isinstance(st.value, ast.Constant)
+        and st.value.value is False
+        for st in stmts
+    )
 
 
 @pytest.mark.spec("OX-01-004")
-def test_outbox_handler_drains_inside_the_actor_lock() -> None:
-    """The one ``_drain_outbox`` call sits inside ``async with`` the slot's lock."""
+def test_outbox_handler_drains_inside_the_busy_slot() -> None:
+    """The one ``_drain_outbox`` call runs with the slot busy and always clears it.
+
+    The slot is a flag, not a lock — a caller that finds it set returns and
+    asks the running drain to look again — so the property to pin is that the
+    drain is entered only through ``outbox_handler``, after ``_drain_slot``,
+    inside a ``try`` whose ``finally`` sets ``slot.busy = False``.
+    """
     tree = _handler_tree()
     drains = _calls_named(tree, "_drain_outbox")
     assert len(drains) == 1, (
@@ -135,8 +129,17 @@ def test_outbox_handler_drains_inside_the_actor_lock() -> None:
     assert _calls_named(
         handler, _SLOT_FACTORY
     ), f"outbox_handler() must obtain its drain slot via {_SLOT_FACTORY}()"
-    contexts = _enclosing_async_with_contexts(tree, drains[0])
-    assert any(c.endswith(f".{_LOCK_ATTR}") for c in contexts), (
-        "_drain_outbox() must be called inside `async with <slot>.lock`"
-        f" (OX-01-004, ADR-0112); enclosing async-with contexts: {contexts}"
+    enclosing_try = [
+        node
+        for node in ast.walk(handler)
+        if isinstance(node, ast.Try)
+        and any(
+            n is drains[0]
+            for body_stmt in node.body
+            for n in ast.walk(body_stmt)
+        )
+    ]
+    assert enclosing_try and _clears_busy(enclosing_try[0].finalbody), (
+        "_drain_outbox() must be called inside a try whose finally clears"
+        " `slot.busy` (OX-01-004, ADR-0112)"
     )

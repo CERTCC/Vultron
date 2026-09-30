@@ -481,6 +481,7 @@ def _phase_ownership_handoff(
         # since #2789; sharing it caps the phase's worst case at 90 s instead
         # of 20 + 20 + 90 while no single replica is starved.
         fanout_budget = SharedBudget(LATE_JOINER_TIMEOUT)
+        logger.info("Ownership-transfer fan-out budget: %r", fanout_budget)
 
         # Verify Vendor1's (the transferor's) replica shows the new owner.
         with demo_check(
@@ -520,6 +521,9 @@ def _phase_ownership_handoff(
                 event_type="accept_case_ownership_transfer",
                 timeout_seconds=fanout_budget.remaining(),
             )
+        logger.info(
+            "Ownership-transfer fan-out budget left: %r", fanout_budget
+        )
 
     logger.info(
         "✓ Ownership transfer complete: Coordinator is now CASE_OWNER for %s",

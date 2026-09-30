@@ -18,11 +18,11 @@
 import json
 import logging
 import re
-from datetime import date, datetime
-from pathlib import Path
 import threading
 import weakref
 from contextlib import AbstractContextManager, nullcontext
+from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -310,7 +310,7 @@ _SESSION_LOCKS: "weakref.WeakKeyDictionary[Engine, threading.RLock]" = (
 _SESSION_LOCKS_GUARD = threading.Lock()
 
 
-def session_guard(engine: Engine) -> AbstractContextManager[Any]:
+def session_guard(engine: Engine) -> AbstractContextManager[bool | None]:
     """Return what a ``Session`` on *engine* must hold for its whole lifetime.
 
     An in-memory engine uses ``StaticPool``: every ``Session`` gets the *same*
