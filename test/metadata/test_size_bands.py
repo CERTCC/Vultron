@@ -32,6 +32,7 @@ from vultron.metadata.planning.size_bands import (
     markdown_table,
     weight_of,
 )
+import itertools
 
 
 class TestTableShape:
@@ -114,7 +115,7 @@ class TestDerivation:
         assert heaviest not in UNBUNDLABLE_LABELS
 
     def test_a_bands_floor_is_one_past_the_previous_ceiling(self):
-        for previous, band in zip(SIZE_BANDS, SIZE_BANDS[1:]):
+        for previous, band in itertools.pairwise(SIZE_BANDS):
             ceiling = previous.max_lines
             assert ceiling is not None, "only the last band is unbounded"
             assert band.lines_range.startswith(f"{ceiling + 1}")
