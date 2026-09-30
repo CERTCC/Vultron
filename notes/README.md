@@ -140,8 +140,9 @@ blast radii (25 vs 570 failures) with the `embargo_adherence` computed-field and
 `id_` round-trip findings. Also records which half of `as_ObjectRef` is
 AS2-faithful and which half is a kludge.
 **Load when**: touching core↔wire translation, the vocabulary registries,
-`_field_map`/`from_core`/`to_core`, the wire→core import allow-list, or adding a
-validator that raises on a core-branch type. Source: G02 / CONCERN-2830.
+`_field_map`/`from_core`/`to_core`, the wire→core import allow-list, adding a
+validator that raises on a core-branch type, or deciding what happens to an
+unknown key on inbound data (MV-11). Source: G02 / CONCERN-2830, IDEA-3900.
 
 **`vultron/wire/as2/factories/AGENTS.md`**
 Factory-function operating rules for outbound Vultron protocol activities.

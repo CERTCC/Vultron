@@ -14,6 +14,7 @@ related_specs:
   - specs/code-style.yaml (CS-23-001)
   - specs/behavior-tree-node-design.yaml (BTND-10-001 through BTND-10-006)
   - specs/received-status-handling.yaml (RSH-05-001, RSH-05-002, RSH-05-020, RSH-05-022)
+  - specs/message-validation.yaml (MV-11-001 through MV-11-005)
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/bt-integration.md
@@ -229,6 +230,13 @@ what `forbid` actually rejects: *unknown* keys. A flat `rm_state`/`rmState` on
 `ParticipantStatus` or `CaseStatus` is still accepted, because those spellings
 are declared `AliasChoices` and are interpreted rather than dropped — removing
 them is #2288/#2289. See [notes/wire-core-boundary.md](wire-core-boundary.md).
+
+`forbid` decides the in-process and stored side only. Since #3900 the *inbound*
+side is a separate rule: `parse_activity` partitions unknown keys off before any
+core class sees them — a near miss is refused, a foreign key is set aside and
+reported at INFO (MV-11) — so a core type never meets an inbound unknown key.
+See [notes/wire-core-boundary.md](wire-core-boundary.md) § "Inbound Unknown Keys
+Are Decided at the Parse Edge, Not by Class Ancestry".
 
 ---
 
