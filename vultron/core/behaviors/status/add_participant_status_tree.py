@@ -70,7 +70,7 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckIsCaseOwnerNode,
 )
-from vultron.core.behaviors.case.nodes.lifecycle import (
+from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.status.append_participant_status_tree import (

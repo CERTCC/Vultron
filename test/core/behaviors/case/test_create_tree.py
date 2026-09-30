@@ -32,6 +32,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.events.actor import (
+    AnnounceVulnerabilityCaseReceivedEvent,
+)
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.behaviors.bridge import BTBridge
@@ -105,11 +108,23 @@ def case_obj(report):
 
 @pytest.fixture
 def create_case_activity(case_obj, actor_id):
-    return VultronActivity(
+    """The received event the tree runs under, as a handler would pass it.
+
+    Every received tree begins with intake (CLP-10-017), which reads the
+    ``VultronEvent`` from the blackboard; a bare ``VultronActivity`` is not
+    what a handler places there.
+    """
+    activity = VultronActivity(
         type_="Announce",
         actor=actor_id,
         object_=case_obj,
         context=case_obj.id_,
+    )
+    return AnnounceVulnerabilityCaseReceivedEvent(
+        activity_id=activity.id_,
+        actor_id=actor_id,
+        object_=case_obj,
+        activity=activity,
     )
 
 
