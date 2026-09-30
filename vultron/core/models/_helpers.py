@@ -383,7 +383,7 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
     # not an alias the field itself declares, so reading first would take a
     # present ``receivedAt`` for an absent ``received_at``.
     projected: dict[str, Any] = {
-        remap[key] if key in remap else key: value
+        remap.get(key, key): value
         for key, value in data.items()
     }
     return absent_times_as_none(cls, projected)
