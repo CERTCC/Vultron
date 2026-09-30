@@ -95,7 +95,25 @@ class EmbargoLifecycle:
     def record_participant_consent(
         self, *, case_id, actor_id, pec_trigger, embargo_id=None
     ) -> EmbargoLifecycleResult: ...
+    def record_embargo_rejection(
+        self, *, case_id, actor_id, embargo_id
+    ) -> EmbargoLifecycleResult: ...
 ```
+
+`record_embargo_rejection` is the consent half of `reject_embargo_invite` for a
+receiver that records a participant's answer without deciding the proposal —
+the received `Reject(Invite(EmbargoEvent))` tree calls it through
+`RecordParticipantRejectionNode`, so both sides apply one MSM-07-004 rule.
+
+The received-side nodes name their own no-ops and gaps, and the handler keys on
+that rather than on the store: `RecordParticipantRejectionNode` prefixes a
+repeat of a recorded Reject with `ALREADY_DECLINED_PREFIX` (the handler reports
+`SKIPPED`; a `DECLINED` actor's Reject of an *unknown* embargo stays `REFUSED`,
+HP-01-003), and `RecordParticipantAcceptanceNode` prefixes a FAILURE caused by
+the *replaced* embargo being unreplicated here with
+`REPLACED_EMBARGO_UNREPLICATED_PREFIX` (the handler reports `DEFERRED` — parked
+for replay, not refused). A replica lacking the record the EP-05-001 comparison
+needs is a partial-replica gap; the catch-up path is tracked in #4004.
 
 **`TransitionMode`**: `STRICT` enforces valid transitions and precondition
 guards (used by trigger-side BT behaviors).  `OBSERVED` syncs local state
@@ -113,14 +131,17 @@ enforces EMB-01-002, EMB-02-002, and EMB-04-002 via
 - `reject_embargo_invite()` — raises when EM is REVISE and P/X/A is set (caller
   MUST use `terminate_active_embargo()` instead)
 
-The received-side path (`received/embargo.py`) does not use `EmbargoLifecycle`
-for EM state transitions (those still use inline BT execution), but EMB-01-002
-and EMB-02-002 are enforced as explicit pre-flight guards in
+The received-side path (`received/embargo.py`) reaches `EmbargoLifecycle`
+through nodes: the received Accept runs `accept_embargo_invite(OBSERVED)`
+(`RecordParticipantAcceptanceNode`), the received Reject records consent through
+`record_embargo_rejection` (`RecordParticipantRejectionNode`) and decides the
+proposal through `RemoveFromProposedEmbargoesNode`, and the teardown replay runs
+`terminate_active_embargo(OBSERVED)`. The received Invite tree still moves no EM
+state — that is the CASE_MANAGER adjudication of EP-09 (#3913). EMB-01-002 and
+EMB-02-002 are enforced as explicit pre-flight guards in
 `InviteToEmbargoOnCaseReceivedUseCase.execute()` and
 `AcceptInviteToEmbargoOnCaseReceivedUseCase.execute()` respectively (implemented
-in [#1484](https://github.com/CERTCC/Vultron/issues/1484)). Migrating the
-received-side EM transitions to `EmbargoLifecycle` (AC-3 of #1484) is still
-pending.
+in [#1484](https://github.com/CERTCC/Vultron/issues/1484)).
 
 **Auto-terminate on publication** (CS.P/X/A event): handled by
 `PublicDisclosureBranchNode` in `vultron/core/behaviors/status/nodes/lifecycle.py`.
@@ -254,9 +275,20 @@ Two rules follow for any new proposal-selection code:
   embargo's own entry (EP-08-004, ADR-0113): a case has one active embargo
   (VP-04-002), so every proposal open while EM is `ACTIVE` or `REVISE` is a
   revision of it, and a revision of an embargo that no longer exists cannot be
-  accepted. No field linking a revision to its embargo is needed. Because the
-  teardown replay node runs `terminate_active_embargo(OBSERVED)`, the rule holds
-  on every replica for free.
+  accepted. No field linking a revision to its embargo is needed.
+  `terminate_active_embargo` clears both records through
+  `VulnerabilityCase.discard_all_proposed_embargoes` (the whole-record sibling of
+  `discard_proposed_embargo`; never by assigning one field), and because the
+  teardown replay node (`ClearActiveEmbargoNode`) runs
+  `terminate_active_embargo(OBSERVED)`, the rule holds on every replica for free
+  (#3914).
+- **A Reject names the active embargo or an open proposal — nothing else.**
+  `reject_embargo_invite` and `record_embargo_rejection` classify the named
+  embargo before the owner's decision prunes it: the active one is consent
+  withdrawal, an open proposal is a refusal of those terms, and anything else
+  raises `VultronValidationError` (a protocol error, not a consent change;
+  ADR-0093). Test seeding that hands the service an embargo the case has never
+  seen is therefore a test bug, not a lenient path.
 
 There is **no multi-candidate poll activity** — ADR-0100 retired
 `ChoosePreferredEmbargo` (#3469). Offering alternatives means sending several

@@ -175,6 +175,30 @@ class CaseParticipant(CoreObject):
         self.embargo_consent_state = new_dim.state
         self._sync_latest_status_metadata()
 
+    def add_accepted_embargo(self, embargo_id: str) -> bool:
+        """Record *embargo_id* as accepted (CM-10-001); True if it was new.
+
+        The list is the per-embargo consent record; the scalar PEC state is
+        not touched here (consent to proposed terms changes no state,
+        MSM-07-003).  Idempotent; writes by validated assignment.
+        """
+        if embargo_id in self.accepted_embargo_ids:
+            return False
+        self.accepted_embargo_ids = [*self.accepted_embargo_ids, embargo_id]
+        return True
+
+    def remove_accepted_embargo(self, embargo_id: str) -> bool:
+        """Forget *embargo_id* as accepted; True if it was there.
+
+        Idempotent; writes by validated assignment.
+        """
+        if embargo_id not in self.accepted_embargo_ids:
+            return False
+        self.accepted_embargo_ids = [
+            e for e in self.accepted_embargo_ids if e != embargo_id
+        ]
+        return True
+
     @property
     def participant_status(self) -> ParticipantStatus | None:
         """Return the most recently appended :class:`ParticipantStatus`.

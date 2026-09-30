@@ -50,7 +50,7 @@ from vultron.core.behaviors.embargo.nodes.reject_proposed import (
 from vultron.core.behaviors.embargo.nodes.proposal import (
     CreateAndStoreInviteNode,
     RecordParticipantAcceptanceNode,
-    RemoveStaleAcceptanceNode,
+    RecordParticipantRejectionNode,
     UpdateParticipantEmbargoPecNode,
 )
 from vultron.core.behaviors.embargo.nodes.teardown import (
@@ -85,7 +85,7 @@ __all__ = [
     "UpdateParticipantEmbargoPecNode",
     "CreateAndStoreInviteNode",
     "RecordParticipantAcceptanceNode",
-    "RemoveStaleAcceptanceNode",
+    "RecordParticipantRejectionNode",
     # Lifecycle
     "PersistEmbargoEventNode",
     "ValidateEmbargoRevisionStateNode",
