@@ -14,8 +14,10 @@ of the build (SR-05-005); #3921 built the partition
 (``vultron.wire.as2.unknown_keys``) and took every mark off.
 """
 
+import ast
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Collection
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -123,6 +125,16 @@ NEAR_MISS_POSITIONS: list[tuple[str, dict[str, Any], str, str]] = [
         "caseStatuses",
     ),
 ]
+
+
+def _string_constants_under(root: Path, names: Collection[str]) -> list[str]:
+    """Every string constant under *root* equal to one of *names*, located."""
+    return [
+        f"{path.relative_to(root)}:{node.lineno}: {node.value!r}"
+        for path in sorted(root.rglob("*.py"))
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Constant) and node.value in names
+    ]
 
 
 def _info_records_naming(
@@ -409,19 +421,12 @@ def test_no_core_module_names_a_retired_key() -> None:
     for it, as ``ParticipantStatus._reject_retired_vfd_keys`` did; no string
     constant under ``vultron/core/`` may equal a name on the list.
     """
-    import ast
-    from pathlib import Path
-
     import vultron.core as core_package
     from vultron.wire.as2.unknown_keys import RETIRED_NAMES
 
-    core_root = Path(core_package.__file__).parent
-    offenders = [
-        f"{path.relative_to(core_root)}:{node.lineno}: {node.value!r}"
-        for path in sorted(core_root.rglob("*.py"))
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        if isinstance(node, ast.Constant) and node.value in RETIRED_NAMES
-    ]
+    offenders = _string_constants_under(
+        Path(core_package.__file__).parent, RETIRED_NAMES.keys()
+    )
     assert offenders == [], offenders
 
 
@@ -579,7 +584,8 @@ def test_case_stub_is_recognised_by_every_input_spelling(
 # make it asserted rather than incidental.
 
 JSONLD_KEYWORDS: list[tuple[str, str]] = [("@id", "id"), ("@type", "type")]
-_KEYWORD_VALUE = {"@id": "https://example.org/objects/2", "@type": "Note"}
+# Values that name no class, so neither can steer class resolution.
+_KEYWORD_VALUE = {"@id": "https://example.org/objects/2", "@type": "Unrelated"}
 _AS2_CONTEXT = "https://www.w3.org/ns/activitystreams"
 
 _NOTE: dict[str, Any] = {"type": "Note", "content": "hi"}
@@ -588,10 +594,6 @@ _CASE: dict[str, Any] = {
     "id": "https://example.org/cases/1",
     "name": "a case",
 }
-
-
-def _keyword_on_envelope(**keys: Any) -> dict[str, Any]:
-    return _envelope(**keys)
 
 
 def _keyword_on_note(**keys: Any) -> dict[str, Any]:
@@ -607,10 +609,15 @@ def _keyword_on_case(**keys: Any) -> dict[str, Any]:
 # from it, and these rows pin the partition's judgement of a keyword beside a
 # resolved class.  The wire-class and core-class rows are AC-2's two branches.
 _KEYWORD_POSITIONS: list[tuple[str, Callable[..., dict[str, Any]], str]] = [
-    ("envelope", _keyword_on_envelope, "the envelope"),
+    ("envelope", _envelope, "the envelope"),
     ("inline wire-class Note", _keyword_on_note, "'object'"),
     ("inline core-class VulnerabilityCase", _keyword_on_case, "'object'"),
 ]
+_KEYWORD_BUILDER_PARAMS = pytest.mark.parametrize(
+    "build",
+    [b for _, b, _ in _KEYWORD_POSITIONS],
+    ids=[label for label, _, _ in _KEYWORD_POSITIONS],
+)
 _KEYWORD_POSITION_PARAMS = pytest.mark.parametrize(
     "build,location",
     [(b, loc) for _, b, loc in _KEYWORD_POSITIONS],
@@ -686,10 +693,9 @@ def test_context_beside_jsonld_keywords_is_declared(
 
 
 @pytest.mark.spec("MV-11-001")
-@_KEYWORD_POSITION_PARAMS
+@_KEYWORD_BUILDER_PARAMS
 def test_context_alone_is_accepted(
     build: Callable[..., dict[str, Any]],
-    location: str,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """`@context` alone refuses nothing and is not set aside, at any position."""
@@ -704,7 +710,9 @@ def test_envelope_with_only_at_type_is_refused_as_missing_type() -> None:
 
     The missing-type refusal fires before the partition has a class to judge
     `@type` against, so the sender hears "missing type" rather than the
-    near-miss message.  Pinned so such an activity is never accepted.
+    near-miss message.  This is the missing-type refusal (HTTP 400), outside
+    MV-11-002, which judges keys against a *resolved* class; pinned only so
+    such an activity is never accepted.
     """
     body = _envelope(**{"@type": "Offer"})
     del body["type"]
@@ -732,6 +740,8 @@ def test_no_class_declares_a_jsonld_keyword_as_a_spelling() -> None:
     MV-11-002: a receiver MUST NOT declare them as an alias.  Checked on the
     spellings the partition itself derives, so an alias added through
     ``validation_alias``, ``AliasChoices`` or an ``alias_generator`` is caught.
+    The private ``_class_spellings`` is read on purpose: it is the partition's
+    own definition of "declared", and a public restatement could drift from it.
     """
     from vultron.wire.as2.unknown_keys import _class_spellings
 
@@ -752,11 +762,10 @@ def test_no_exemption_names_a_jsonld_keyword() -> None:
 
     The set checks cover the partition's own exemptions; the source scan
     (grep-style, over every string constant under ``vultron/``) catches a new
-    alias or exemption before it reaches a registry.
+    alias or exemption before it reaches a registry.  The scan is deliberately
+    package-wide: AS2 compacts both keywords away (MV-11-002), so no Vultron
+    module has a reason to spell them, and one that does needs a reviewer.
     """
-    import ast
-    from pathlib import Path
-
     import vultron
     from vultron.wire.as2 import unknown_keys
 
@@ -773,11 +782,10 @@ def test_no_exemption_names_a_jsonld_keyword() -> None:
         if keywords & keys
     } == {}
 
-    root = Path(vultron.__file__).parent
-    offenders = [
-        f"{path.relative_to(root)}:{node.lineno}: {node.value!r}"
-        for path in sorted(root.rglob("*.py"))
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        if isinstance(node, ast.Constant) and node.value in keywords
-    ]
-    assert offenders == [], offenders
+    offenders = _string_constants_under(
+        Path(vultron.__file__).parent, keywords
+    )
+    assert offenders == [], (
+        "MV-11-002: @id/@type are near misses of id/type by design and MUST "
+        f"NOT be declared or exempted; found {offenders}"
+    )
