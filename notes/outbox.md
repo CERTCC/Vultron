@@ -8,6 +8,7 @@ related_notes:
   - notes/outbox-delivery-reliability.md
   - notes/case-communication-model.md
   - notes/architecture-adapters.md
+  - notes/wire-artifact-immutability.md
 relevant_packages:
   - fastapi
   - vultron/adapters/driving/fastapi
@@ -115,12 +116,13 @@ When modifying `outbox_handler.py`, add or update tests for these scenarios:
    - Test: handle missing/None fields gracefully
    - Location: `test/adapters/driving/fastapi/test_outbox_helpers.py`
 
-2. **Object Dehydration** (`_dehydrate_references`)
-   - Test: collapse reference fields to URI strings
-   - Test: preserve inline objects in `object` field (OX-09-001)
-   - Test: preserve minimal stub dicts for selective disclosure (MV-10-001)
-   - Test: handle mixed dict and string values in lists
-   - Location: `test/adapters/driving/fastapi/test_outbox_helpers.py`
+2. **Sealed-body relay** (`_load_sealed_body`, `handle_outbox_item`)
+   - Test: the emitter receives the sealed text itself, byte for byte (VM-08-003)
+   - Test: a queued id with no sealed body is dropped with an ERROR, not delivered
+   - Test: an Invite's stub `target` and an Announce's inline `CaseLedgerEntry`
+     reach the emitter as sealed
+   - Location: `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py`,
+     `test_outbox_sealed_body_delivery.py`
 
 3. **Activity Validation** (`handle_outbox_item`)
    - Test: reject missing or empty `to:` field (OX-08-001, OX-08-002)
@@ -137,7 +139,7 @@ When modifying `outbox_handler.py`, add or update tests for these scenarios:
   the corresponding unit test(s) before commit. This prevents silent regressions
   in recipient targeting or activity structure.
 - **No test exemptions**: Even refactors or style changes that touch
-  `_extract_recipients`, `_dehydrate_references`, or `handle_outbox_item`
+  `_extract_recipients`, `_load_sealed_body`, or `handle_outbox_item`
   MUST verify that existing tests still pass. If tests are modified, document
   the reason in the commit message.
 
@@ -165,9 +167,9 @@ delivery validation.
 
 The `handle_outbox_item()` function in `outbox_handler.py` uses a
 helper-extraction pattern to keep the delivery orchestration readable:
-each nested protocol check (reference coercion, object preparation,
-inline-object recovery) is extracted into a named helper function rather
-than inlined in the main function body.
+each protocol check (sealed-body loading, `to:` enforcement, secondary
+addressing, inline-object integrity) is extracted into a named helper
+function rather than inlined in the main function body.
 
 **Why this matters**: `handle_outbox_item` is a high-churn, high-correctness
 area. Nesting multiple protocol checks inline makes the control flow hard to
@@ -176,11 +178,18 @@ during future changes. Named helpers make each protocol check independently
 reviewable and testable.
 
 **Naming convention**: Helper functions follow the form
-`_<action>_<subject>(...)` (e.g., `_coerce_reference_value`,
-`_prepare_activity_object_for_delivery`,
-`_recover_typed_inline_object_from_dict`). The main function is responsible
-only for sequence-level orchestration: call helpers in order, handle errors,
-return the result.
+`_<action>_<subject>(...)` (e.g., `_load_sealed_body`, `_validate_to_field`,
+`_validate_inline_object`). The main function is responsible only for
+sequence-level orchestration: call helpers in order, handle errors, return the
+result.
+
+**Rule**: a helper guards or refuses; it never repairs. The handler is a dumb
+relay (VM-08-003, OX-07-001): it delivers the body the emitting adapter sealed
+(`vultron/adapters/outbox_sealed_body.py`) and reads nothing else. The
+expansion, re-typing and hydration helpers that used to sit here compensated
+for factory gaps and made the wire disagree with the ledger; do not bring one
+back. See `notes/wire-artifact-immutability.md` § "How the blob reaches
+delivery".
 
 **Rule**: When adding a new outbox protocol requirement (new OX-*or MV-*
 spec), implement it as a new named helper and call it from the appropriate

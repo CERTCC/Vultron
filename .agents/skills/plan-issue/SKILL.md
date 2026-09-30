@@ -301,6 +301,8 @@ TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
 # #2646). Instructions stay in these comments, never inside --body, or
 # they are posted verbatim (#2770). Pass --parent unconditionally: a
 # conditional ${VAR:+--parent "${VAR}"} is one word under zsh (#2771).
+# Keep the "<docs/ page> describes" AC only when a docs/ page is known to be
+# affected (see "Known docs/ impact" below); delete it otherwise.
 IMPL_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "<Implementation title from grill-me>" \
   --body "## Summary
@@ -310,6 +312,7 @@ Governing specs: <spec/group IDs, e.g. CS-02-003, EM-04> ← or \"none — <reas
 
 ## Acceptance Criteria
 - [ ] AC-1: <from grill-me>
+- [ ] AC-N: <docs/ page> describes <changed behavior>
 
 ## Prior Art
 - <existing helper / use case / base class and its location>
@@ -334,6 +337,16 @@ as an explicit `none — <reason>`. `build` and `bugfix` pass this line to
 `deepen-context` as the spec floor, so a missing line means the implementer
 loads no task-specific specs by default. See
 `.agents/skills/shared/issue-creation-requirements.md` § "Governing specs".
+
+**Known `docs/` impact goes into the ACs.** When the interview or the
+docs you read in Phases 3–4 show that the implementation will change behavior
+a reader-facing `docs/` page describes, write an AC naming that page and what
+it must say — for example `AC-4: docs/reference/messages/em.md describes the
+revision Invite`. The implementer's `check-docs-sync` run still decides the
+final `Docs:` line (PD-03-008), but an AC puts a known page in front of it
+before any code is written, instead of leaving it to be rediscovered after the
+push. Omit the AC when no page is known to be affected; do not write a
+"update docs if needed" AC, which names nothing to check.
 
 For Epics, see the `epic.md` companion file — Tasks are wired as sub-issues
 of the Epic itself, not blocked-by it.
@@ -410,7 +423,10 @@ See the loaded companion file for the type-specific completion step:
 - [ ] `deepen-context` invoked with focus hints from the issue
 - [ ] Grill-me conversation complete — conclusions confirmed as proposals (scope, ACs, ADR, options)
 - [ ] `deepen-context` re-invoked if new focus areas emerged during grilling
-- [ ] Docs updated — optional for all types (or consciously skipped with a note)
+- [ ] Planning docs (specs, notes, ADRs, AGENTS.md) updated — optional for all
+      types (or consciously skipped with a note). This covers the plan's own
+      output, not the reader-facing `docs/` impact of the implementation
+- [ ] Known reader-facing `docs/` impact written into impl-issue ACs (Phase 8)
 - [ ] Markdown lint clean (if docs changed)
 - [ ] PR opened with `specs-notes` label — always
 - [ ] Implementation issue(s) created via `manage-github-issue` + `add-to-project.sh` (with type, parent epic, and milestone set)

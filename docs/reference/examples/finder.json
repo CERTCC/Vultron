@@ -1,18 +1,18 @@
 {
-  "id": "https://vultron.example/users/finndervul",
-  "type": "Person",
-  "name": "Finn der Vul",
   "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Person",
+  "id": "https://vultron.example/users/finndervul",
+  "name": "Finn der Vul",
   "inbox": {
-    "id": "https://vultron.example/users/finndervul/inbox",
-    "type": "OrderedCollection",
     "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "OrderedCollection",
+    "id": "https://vultron.example/users/finndervul/inbox",
     "items": []
   },
   "outbox": {
-    "id": "https://vultron.example/users/finndervul/outbox",
-    "type": "OrderedCollection",
     "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "OrderedCollection",
+    "id": "https://vultron.example/users/finndervul/outbox",
     "items": []
   }
 }

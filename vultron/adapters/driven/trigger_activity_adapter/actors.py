@@ -56,9 +56,42 @@ from vultron.wire.as2.factories.case import (
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 
-from ._base import _DUMP_KWARGS, _case_for_wire, _to_wire
+from ._base import _case_for_wire, _seal, _to_wire
 
 logger = logging.getLogger(__name__)
+
+
+def _active_embargo_of(
+    dl: CaseOutboxPersistence, case: VulnerabilityCase
+) -> Any:
+    """The case's active embargo as an object, whichever shape the field holds.
+
+    ``active_embargo`` is id-or-object: a case seeded from a sealed Announce
+    carries the ``EmbargoEvent`` inline (it is in the case's
+    ``inline_required_refs``), a locally built one holds the id.  Only the id
+    needs a store read.
+    """
+    active_embargo = case.active_embargo
+    if isinstance(active_embargo, str):
+        return dl.read(active_embargo)
+    return active_embargo
+
+
+def _stored_invite_by_case_uri(
+    dl: CaseOutboxPersistence, invite_id: str
+) -> Any:
+    """Read the stored Invite with its ``target`` reduced to the case URI.
+
+    Read-back rehydrates the Invite's ``target`` into whatever case this store
+    holds.  The Accept or Reject that embeds the Invite goes to the
+    CASE_MANAGER, which holds the case, so the embedded Invite addresses it by
+    URI (AKM-02-003) rather than carrying a reconstruction of it (VM-08-003).
+    """
+    invite = cast(Any, dl.read(invite_id))
+    target = getattr(invite, "target", None)
+    if target is not None and not isinstance(target, str):
+        invite = invite.model_copy(update={"target": _as_id(target)})
+    return invite
 
 
 class _ActorsMixin:
@@ -108,11 +141,11 @@ class _ActorsMixin:
             if not isinstance(resolved, VulnerabilityCase):
                 resolved = case_id
 
-        embargo_obj = None
-        if isinstance(resolved, VulnerabilityCase):
-            active_embargo_uri = getattr(resolved, "active_embargo", None)
-            if active_embargo_uri:
-                embargo_obj = self._dl.read(active_embargo_uri)
+        embargo_obj = (
+            _active_embargo_of(self._dl, resolved)
+            if isinstance(resolved, VulnerabilityCase)
+            else None
+        )
 
         activity = rm_invite_to_case_activity(
             invitee=invitee_id,
@@ -129,7 +162,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_case_invite(
         self,
@@ -145,7 +178,7 @@ class _ActorsMixin:
         hydrated AS2 object; a ``VultronValidationError`` is raised if the
         invite carries no routable actor reference.
         """
-        invite = cast(Any, self._dl.read(invite_id))
+        invite = _stored_invite_by_case_uri(self._dl, invite_id)
         invite_actor_id = _as_id(getattr(invite, "actor", None))
         if not invite_actor_id:
             raise VultronValidationError(
@@ -162,7 +195,7 @@ class _ActorsMixin:
                 "accept_case_invite: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def reject_case_invite(
         self,
@@ -176,7 +209,7 @@ class _ActorsMixin:
         outbox handler.  Mirrors ``accept_case_invite`` but uses
         ``rm_reject_invite_to_case_activity``.
         """
-        invite = cast(Any, self._dl.read(invite_id))
+        invite = _stored_invite_by_case_uri(self._dl, invite_id)
         invite_actor_id = _as_id(getattr(invite, "actor", None))
         if not invite_actor_id:
             raise VultronValidationError(
@@ -193,7 +226,7 @@ class _ActorsMixin:
                 "reject_case_invite: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_case_participant_offer(
         self,
@@ -216,7 +249,14 @@ class _ActorsMixin:
         if raw is None:
             raise VultronNotFoundError("Offer(CaseParticipant)", cp_offer_id)
         cp_offer = cast(as_Offer, raw)
-        target = getattr(cp_offer, "target", None)
+        # Read-back rehydrates the offer's ``target`` into the full stored
+        # case; the Accept addresses the case by URI, as the Offer did on the
+        # wire (AKM-02-002, VM-08-003).
+        target = _as_id(getattr(cp_offer, "target", None))
+        if target is not None:
+            # The embedded Offer carries the same reconstruction one level
+            # down; it addressed the case by URI on the wire too.
+            cp_offer = cp_offer.model_copy(update={"target": target})
         activity = accept_case_participant_offer_activity(
             offer=cp_offer, actor=actor, to=to, target=target
         )
@@ -228,7 +268,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def suggest_actor_to_case(
         self,
@@ -258,7 +298,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def offer_actor_to_case(
         self,
@@ -304,7 +344,7 @@ class _ActorsMixin:
                 "offer_actor_to_case: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def emit_accept_actor_recommendation(
         self,
@@ -341,7 +381,7 @@ class _ActorsMixin:
                 " exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def emit_reject_actor_recommendation(
         self,
@@ -378,7 +418,7 @@ class _ActorsMixin:
                 " exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_actor_recommendation(
         self,
@@ -416,7 +456,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def add_participant_to_case(
         self,
@@ -424,8 +464,12 @@ class _ActorsMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
-        """Create and persist an ``Add(as_CaseParticipant, Case)`` activity."""
+    ) -> tuple[str, str]:
+        """Create and persist an ``Add(as_CaseParticipant, Case)`` activity.
+
+        Returns ``(activity_id, activity_blob)``; the blob is what the emitting
+        node records as the ledger ``payloadSnapshot`` (VM-08-003).
+        """
         participant = _to_wire(
             self._dl.read(participant_id), as_CaseParticipant
         )
@@ -440,7 +484,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_
+        return _seal(self._dl, activity)
 
     def add_participant_status_to_participant(
         self,
@@ -477,7 +521,7 @@ class _ActorsMixin:
                 " exists — skipping",
                 activity.id_,
             )
-        return activity.id_
+        return _seal(self._dl, activity)[0]
 
     def offer_case_participant_role(
         self,
@@ -513,7 +557,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_case_participant_role(
         self,
@@ -542,7 +586,6 @@ class _ActorsMixin:
         activity = accept_case_participant_role_activity(
             offer=offer, actor=actor, to=to
         )
-        activity_json = activity.model_dump_json(**_DUMP_KWARGS)
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:
@@ -551,7 +594,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity_json
+        return _seal(self._dl, activity)
 
     def reject_case_participant_role(
         self,
@@ -588,7 +631,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def offer_case_ownership_transfer(
         self,
@@ -627,7 +670,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_case_ownership_transfer(
         self,
@@ -674,7 +717,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def _offer_from_core_record(
         self, record: "VultronOwnershipTransferOfferRecord"

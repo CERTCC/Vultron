@@ -273,17 +273,24 @@ and drives the target app through its own portal on a separate thread. Calling
 default thread-pool executor, off the sending portal's event loop:
 
 ```python
-async def emit(self, activity: dict) -> None:
+async def emit(
+    self, activity_id: str, json_body: str, recipients: list[str]
+) -> None:
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(
         None,
         lambda: self._target_client.post(
             "/inbox",
-            json=activity,
+            content=json_body,
             headers={"Content-Type": "application/json"},
         ),
     )
 ```
+
+The signature is the `ActivityEmitter` port's: the outbox handler hands over the
+activity's *sealed body* as JSON text and the router posts it as-is
+(`content=`, not `json=`), so the harness never re-serialises what the ledger
+recorded (VM-08-003, #2655).
 
 This satisfies ADR-0042 / OX-12-003 (inter-actor delivery via HTTP) while
 keeping the harness deadlock-free. The `run_in_executor` call releases the

@@ -35,6 +35,10 @@ captures the full rationale.>
 
 <Spec manifest returned by deepen-context, verbatim>
 
+## Docs
+
+Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's result replaces it -->
+
 ## Verification
 
 - All N unit tests pass (M new)
@@ -67,6 +71,28 @@ captures the full rationale.>
   is complete, so keep the `Considered, skipped` reasons honest.
   `pr-review` and `pr-triage` use it as their spec floor and flag a PR
   without one.
+- **Docs**: required on every implementation or bug-fix PR (PD-03-008) —
+  one that closes a `Task`, `Feature`, or `Bug` issue, or changes `.py`
+  files. This is the scope `create-pr`, `pr-triage`, `pr-execute`, and
+  `pr-verify` apply. A single line beginning `Docs:` records
+  whether the PR's change is described anywhere in reader-facing `docs/`.
+  `create-pr` writes the placeholder `Docs: pending check-docs-sync`, and the
+  caller replaces it with the line `check-docs-sync` reports, in one of three
+  final forms:
+  - `Docs: updated <page>, <page>` — the `docs/` pages this PR updated, as
+    repo-relative paths.
+  - `Docs: no docs impact — <reason>` — no `docs/` page describes the changed
+    behavior. The reason names why (for example "internal refactor, no
+    described interface changed" or "spec pages regenerate from YAML").
+  - `Docs: deferred to #N` — a multi-page rewrite deferred to a `type:Concern`
+    issue that lists the affected pages (PD-03-007). The issue may be open or
+    already closed as planned; it must exist. An updated-and-deferred PR
+    carries both: `Docs: updated <page>; deferred to #N`.
+
+  The session that opened the PR is not done while the placeholder remains,
+  and `pr-triage` treats a missing or placeholder `Docs:` line as a FAIL
+  (PD-03-009). `pr-execute` refreshes the line when its fixes change described
+  behavior.
 - **Verification**: required for any PR that modifies `.py` files. Include
   the actual total test count and the number of new tests added. Tick off
   acceptance criteria from the issue when they are listed.

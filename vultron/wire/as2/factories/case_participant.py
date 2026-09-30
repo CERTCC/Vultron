@@ -26,6 +26,10 @@ import logging
 
 from pydantic import ValidationError
 
+from vultron.wire.as2.factories._context import (
+    case_target_ref,
+    with_case_context,
+)
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case_participant import (
     _AddParticipantToCaseActivity,
@@ -76,7 +80,7 @@ def create_participant_activity(
     """
     try:
         return _CreateParticipantActivity(
-            object_=participant, target=target, **kwargs
+            object_=participant, target=case_target_ref(target), **kwargs
         )
     except ValidationError as exc:
         logger.warning(
@@ -109,7 +113,7 @@ def create_status_for_participant_activity(
     """
     try:
         return _CreateStatusForParticipantActivity(
-            object_=status, target=target, **kwargs
+            object_=status, target=case_target_ref(target), **kwargs
         )
     except ValidationError as exc:
         logger.warning(
@@ -143,7 +147,7 @@ def add_status_to_participant_activity(
     """
     try:
         return _AddStatusToParticipantActivity(
-            object_=status, target=target, **kwargs
+            object_=status, target=case_target_ref(target), **kwargs
         )
     except ValidationError as exc:
         logger.warning(
@@ -176,7 +180,9 @@ def add_participant_to_case_activity(
     """
     try:
         return _AddParticipantToCaseActivity(
-            object_=participant, target=target, **kwargs
+            object_=participant,
+            target=case_target_ref(target),
+            **with_case_context(kwargs, target),
         )
     except ValidationError as exc:
         logger.warning(
@@ -211,7 +217,9 @@ def remove_participant_from_case_activity(
     """
     try:
         return _RemoveParticipantFromCaseActivity(
-            object_=participant, target=target, **kwargs
+            object_=participant,
+            target=case_target_ref(target),
+            **with_case_context(kwargs, target),
         )
     except ValidationError as exc:
         logger.warning(

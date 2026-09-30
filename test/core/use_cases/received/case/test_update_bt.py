@@ -15,8 +15,12 @@
 from unittest.mock import MagicMock
 
 import py_trees
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -28,6 +32,7 @@ from vultron.core.behaviors.case.nodes.update import (
 )
 from vultron.core.behaviors.case.update_support import broadcast_case_update
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.enums.roles import CVDRole
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
@@ -145,10 +150,82 @@ class TestUpdateCaseBTStructure:
         # broadcast, behind a CASE_MANAGER role gate.  The assertion that made
         # the old monkeypatch guard meaningful is the one that matters: exactly
         # one Announce is queued, not two.
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         outbox_items = dl.outbox_list()
         assert len(outbox_items) == 1
+
+
+class TestBroadcastRefusalIsAReportedOutcome:
+    """BroadcastCaseUpdateNode reports an Announce the adapter refuses.
+
+    The CM-06-001 broadcast now goes through the trigger adapter, which will
+    not build an Announce that cannot embed every report the case names
+    (CBT-01-007).  That refusal is this node's FAILURE with a feedback
+    message — not an exception escaping ``update()`` and surfacing as an
+    internal error of the whole received tree (BT-HELPER-01).
+    """
+
+    @pytest.mark.spec("CBT-01-007")
+    @pytest.mark.spec("CM-06-001")
+    def test_missing_report_fails_the_node_without_an_internal_error(
+        self, make_payload
+    ):
+        owner_id = "https://example.org/users/owner"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
+        participant_id = "https://example.org/users/alice"
+        case_id = "https://example.org/cases/bt-missing-report"
+
+        dl.create(
+            CaseActor(
+                id_=f"{case_id}/actor",
+                name=f"CaseActor for {case_id}",
+                attributed_to=owner_id,
+                context=case_id,
+            )
+        )
+        manager_participant_id = "https://example.org/participants/p-mgr-mr"
+        dl.create(
+            CaseParticipant(
+                id_=manager_participant_id,
+                attributed_to=owner_id,
+                case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
+            )
+        )
+        case = as_VulnerabilityCase(
+            id_=case_id,
+            name="Original",
+            attributed_to=owner_id,
+            vulnerability_reports=[
+                "https://example.org/reports/not-in-this-store"
+            ],
+        )
+        case.actor_participant_index[participant_id] = (
+            "https://example.org/participants/p-mr"
+        )
+        case.actor_participant_index[owner_id] = manager_participant_id
+        dl.create(case)
+
+        updated_case = as_VulnerabilityCase(
+            id_=case_id, name="Updated", attributed_to=owner_id
+        )
+        event = make_payload(
+            update_case_activity(updated_case, actor=owner_id)
+        )
+        event.receiving_actor_id = owner_id
+
+        # A programming error propagates out of execute() as an exception
+        # (ADR-0095); a refused Announce must not.  The node reports it and
+        # the tree carries on, so the handler returns a verdict and queues
+        # nothing.
+        result = UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert isinstance(result, HandlerResult), result
+        assert dl.outbox_list() == [], "nothing was announced"
 
 
 class TestCollectionDefaultsCS21:
@@ -164,7 +241,11 @@ class TestCollectionDefaultsCS21:
         object.__setattr__(case, "actor_participant_index", {})
         # Call without excluded_actor_ids; should not raise.
         broadcast_case_update(
-            dl, "urn:uuid:case-1", case, "https://example.org/actors/manager"
+            dl,
+            "urn:uuid:case-1",
+            case,
+            "https://example.org/actors/manager",
+            MagicMock(),
         )
 
     def test_broadcast_case_update_excludes_no_actors_by_default(self):
@@ -179,5 +260,9 @@ class TestCollectionDefaultsCS21:
         # No exclusions — the function should reach the participant-list
         # check (short-circuits only on missing CaseActor, not on empty list).
         broadcast_case_update(
-            dl, "urn:uuid:case-1", case, "https://example.org/actors/manager"
+            dl,
+            "urn:uuid:case-1",
+            case,
+            "https://example.org/actors/manager",
+            MagicMock(),
         )

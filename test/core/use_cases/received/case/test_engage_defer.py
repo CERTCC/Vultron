@@ -17,6 +17,9 @@ import logging
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -112,7 +115,11 @@ class TestEngageDeferCaseBTFailureReason:
         event = self._engage_event(actor_id, case_id)
 
         with caplog.at_level(logging.WARNING):
-            result = EngageCaseReceivedUseCase(dl, event).execute()
+            result = EngageCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+            ).execute()
 
         # HP-01-003: an actor with no participant record is refused.
         assert result.disposition == HandlerDisposition.REFUSED
@@ -141,7 +148,11 @@ class TestEngageDeferCaseBTFailureReason:
         event = self._defer_event(actor_id, case_id)
 
         with caplog.at_level(logging.WARNING):
-            result = DeferCaseReceivedUseCase(dl, event).execute()
+            result = DeferCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+            ).execute()
 
         # HP-01-003: an actor with no participant record is refused.
         assert result.disposition == HandlerDisposition.REFUSED
@@ -214,7 +225,11 @@ class TestEngageCaseStoresEmbeddedParticipants:
         _store_embedded_participants must run first and persist the inline
         participant object (#573 regression).
         """
-        EngageCaseReceivedUseCase(dl, engage_event_with_inline_case).execute()
+        EngageCaseReceivedUseCase(
+            dl,
+            engage_event_with_inline_case,
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
 
         stored = dl.read(self._PARTICIPANT_ID)
         assert stored is not None, (
@@ -239,7 +254,11 @@ class TestEngageCaseStoresEmbeddedParticipants:
             object_=case_str_participants,
             semantic_type=MessageSemantics.ENGAGE_CASE,
         )
-        EngageCaseReceivedUseCase(dl, event).execute()
+        EngageCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
 
         stored = dl.read(self._PARTICIPANT_ID)
         assert stored is None, (
@@ -360,7 +379,11 @@ class TestEngageCaseLedgerCommit:
             CaseLedgerEntry,
         )
 
-        EngageCaseReceivedUseCase(seeded_dl, self._engage_event()).execute()
+        EngageCaseReceivedUseCase(
+            seeded_dl,
+            self._engage_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+        ).execute()
 
         entries = seeded_dl.list_objects("CaseLedgerEntry")
         engage_entries = [
@@ -380,7 +403,11 @@ class TestEngageCaseLedgerCommit:
 
     def test_engage_received_by_case_manager_broadcasts(self, seeded_dl):
         """Control: the CASE_MANAGER announces the updated case (CM-06-001)."""
-        EngageCaseReceivedUseCase(seeded_dl, self._engage_event()).execute()
+        EngageCaseReceivedUseCase(
+            seeded_dl,
+            self._engage_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+        ).execute()
 
         announces = self._queued_announces(seeded_dl)
         assert len(announces) == 1
@@ -401,7 +428,11 @@ class TestEngageCaseLedgerCommit:
             update={"receiving_actor_id": finder_id}
         )
 
-        EngageCaseReceivedUseCase(dl, event).execute()
+        EngageCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
 
         assert self._queued_announces(dl) == []
 
@@ -417,7 +448,11 @@ class TestEngageCaseLedgerCommit:
             update={"receiving_actor_id": None}
         )
 
-        EngageCaseReceivedUseCase(seeded_dl, event).execute()
+        EngageCaseReceivedUseCase(
+            seeded_dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+        ).execute()
 
         assert [
             e.event_type for e in seeded_dl.list_objects("CaseLedgerEntry")
@@ -430,7 +465,9 @@ class TestEngageCaseLedgerCommit:
         transition for the sending actor (the actor who engaged the case).
         """
         result = EngageCaseReceivedUseCase(
-            seeded_dl, self._engage_event()
+            seeded_dl,
+            self._engage_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
@@ -529,7 +566,11 @@ class TestDeferCaseLedgerCommit:
             update={"receiving_actor_id": None}
         )
 
-        DeferCaseReceivedUseCase(seeded_dl, event).execute()
+        DeferCaseReceivedUseCase(
+            seeded_dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+        ).execute()
 
         assert [
             e.event_type for e in seeded_dl.list_objects("CaseLedgerEntry")
@@ -547,7 +588,11 @@ class TestDeferCaseLedgerCommit:
             CaseLedgerEntry,
         )
 
-        DeferCaseReceivedUseCase(seeded_dl, self._defer_event()).execute()
+        DeferCaseReceivedUseCase(
+            seeded_dl,
+            self._defer_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+        ).execute()
 
         entries = seeded_dl.list_objects("CaseLedgerEntry")
         defer_entries = [
@@ -563,7 +608,9 @@ class TestDeferCaseLedgerCommit:
     def test_defer_case_transitions_vendor_rm_to_deferred(self, seeded_dl):
         """DeferCaseReceivedUseCase still transitions the deferring actor's RM to DEFERRED."""
         result = DeferCaseReceivedUseCase(
-            seeded_dl, self._defer_event()
+            seeded_dl,
+            self._defer_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 

@@ -279,8 +279,13 @@ Once the plan is confirmed:
 
    - Invoke `check-docs-sync` while CI runs in the cloud to identify any
      `docs/` updates required by the fix (PD-03-007). Apply small updates
-     inline and commit them; file a `type:Concern` issue for large updates.
-     Do not block the PR on large updates.
+     inline and commit them. A large multi-page rewrite that is not done
+     inline is deferred to a `type:Concern` issue listing the pages, and
+     recorded as `Docs: deferred to #N`.
+   - **Record the outcome** (PD-03-008): edit the PR body to replace the
+     `Docs: pending check-docs-sync` placeholder `create-pr` wrote with the
+     `Docs:` line `check-docs-sync` reported, and push any docs commit. Do
+     this before `archive-history`.
    - Invoke `archive-history` — once per bundle member, each entry carrying the
      same PR URL:
 
@@ -304,5 +309,7 @@ Once the plan is confirmed:
 - Follow test-first discipline; never fix before the failing test exists.
 - Several issue numbers is a bundle, not a menu: fix every member in one PR
   (`.agents/skills/shared/bundling.md`). Each member keeps its own failing test.
+- The session is not done while the PR body still reads
+  `Docs: pending check-docs-sync` (Phase 4 finalize, PD-03-008).
 - **If the session is interrupted**: invoke `bugfix-handoff` immediately.
   Do not attempt further resolution.

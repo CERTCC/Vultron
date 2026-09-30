@@ -23,6 +23,9 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -118,7 +121,9 @@ class TestCaseUseCases:
         )
 
         with caplog.at_level(logging.INFO):
-            result = UpdateCaseReceivedUseCase(dl, event).execute()
+            result = UpdateCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
         stored = dl.read(case.id_)
         assert stored is not None
@@ -153,7 +158,9 @@ class TestCaseUseCases:
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         with caplog.at_level(logging.WARNING):
-            result = UpdateCaseReceivedUseCase(dl, event).execute()
+            result = UpdateCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
         stored = dl.read(case.id_)
         assert stored is not None
@@ -172,7 +179,9 @@ class TestCaseUseCases:
         event = MagicMock()
         event.case_id = None
 
-        result = UpdateCaseReceivedUseCase(dl, event).execute()
+        result = UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -208,8 +217,12 @@ class TestCaseUseCases:
             _mock_rehydrate_idempotent,
         )
 
-        UpdateCaseReceivedUseCase(dl, event).execute()
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         stored = dl.read(case.id_)
         assert stored is not None
@@ -259,7 +272,9 @@ class TestCaseUseCases:
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         with caplog.at_level(logging.WARNING):
-            UpdateCaseReceivedUseCase(dl, event).execute()
+            UpdateCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
         assert any(
             "has not accepted" in r.message and "CM-10-004" in r.message
@@ -309,7 +324,9 @@ class TestCaseUseCases:
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         with caplog.at_level(logging.WARNING):
-            UpdateCaseReceivedUseCase(dl, event).execute()
+            UpdateCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
         assert not any("has not accepted" in r.message for r in caplog.records)
 
@@ -350,7 +367,9 @@ class TestCaseUseCases:
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         with caplog.at_level(logging.WARNING):
-            UpdateCaseReceivedUseCase(dl, event).execute()
+            UpdateCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
         assert not any("has not accepted" in r.message for r in caplog.records)
 
@@ -405,7 +424,9 @@ class TestCaseUseCases:
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         outbox_items = dl.outbox_list()
         assert len(outbox_items) == 1
@@ -467,7 +488,9 @@ class TestCaseUseCases:
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity, receiving_actor_id=receiving_actor_id)
 
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         # The announce is authored by the actor holding CASE_MANAGER — the
         # receiver — and queued in that same actor's store, so both halves of the
@@ -505,7 +528,9 @@ class TestCaseUseCases:
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         # Should not raise
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         stored = dl.read(case_id)
         assert stored is not None
@@ -540,7 +565,9 @@ class TestCaseUseCases:
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
         assert queued_ids == []
@@ -584,7 +611,9 @@ class TestCaseUseCases:
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         queued_ids = dl.outbox_list()
         broadcast_id = queued_ids[0]

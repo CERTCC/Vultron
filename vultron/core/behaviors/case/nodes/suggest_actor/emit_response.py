@@ -37,9 +37,6 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
-    _snapshot_with_context,
-)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
 
@@ -87,8 +84,8 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
                     actor=self.actor_id,
                 )
             )
-            activity_dict = json.loads(activity_blob)
-            snapshot = _snapshot_with_context(activity_dict, self.case_id)
+            # Exact blob as snapshot (VM-08-003): the factory sets context.
+            snapshot = json.loads(activity_blob)
             commit_tree = create_commit_log_entry_tree(
                 case_id=self.case_id,
                 object_id=activity_id,
@@ -165,8 +162,8 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
                     actor=self.actor_id,
                 )
             )
-            activity_dict = json.loads(activity_blob)
-            snapshot = _snapshot_with_context(activity_dict, self.case_id)
+            # Exact blob as snapshot (VM-08-003): the factory sets context.
+            snapshot = json.loads(activity_blob)
             commit_tree = create_commit_log_entry_tree(
                 case_id=self.case_id,
                 object_id=activity_id,

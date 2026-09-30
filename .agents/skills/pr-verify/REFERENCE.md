@@ -12,6 +12,7 @@
 **Merge state**: ✅ MERGEABLE (CLEAN) / 🔀 CONFLICTING (DIRTY) / ⚠️ BEHIND / 📝 DRAFT / ⏳ UNKNOWN — base `<base_ref>`
 **Base sync in execute**: ✅ merged @ `def5678` (<N> conflicts resolved) / ✅ already current / ❌ not performed
 **Integrity check**: ✅ all <N> findings accounted for / ❌ INCOMPLETE-EXECUTE (<M> of <N> results found)
+**Docs line**: ✅ current — `<Docs: line>` / ❌ STALE-DOCS-LINE — <which commit or page it misses>
 
 ---
 
@@ -70,6 +71,7 @@ this PR. Please decide whether to fold them in before merge:
 | ⚠️ BRANCH-BEHIND | `mergeStateStatus: BEHIND` — base advanced and the repo requires up-to-date branches |
 | ⚠️ UNSYNCED-EXECUTE | `execute.merge_state` missing or `synced: false` — execute never confirmed mergeability |
 | 📝 PR-IS-DRAFT | PR is still a draft (check for a lingering `needs-rebase` label) |
+| 📄 STALE-DOCS-LINE | PR body's `Docs:` line is missing, still the placeholder, does not cover a fix commit that changed described behavior, or names a page the diff does not change (Phase 3b) |
 | 🔒 BLOCKED-BY-POLICY | `mergeStateStatus: BLOCKED` — missing required review/check; reported, not verdict-blocking |
 
 ### Overall Verdict Rules
@@ -79,10 +81,10 @@ Evaluated top to bottom; first match wins.
 | # | Verdict | Condition |
 |---|---|---|
 | 1 | `CONFLICTS-FOUND` | MERGE-CONFLICT flagged |
-| 2 | `GAPS-FOUND` | Any FAIL finding UNRESOLVED or MISSING-COMMIT; or INCOMPLETE-EXECUTE; or any UNVERIFIED-CI-FAILING |
+| 2 | `GAPS-FOUND` | Any FAIL finding UNRESOLVED or MISSING-COMMIT; or INCOMPLETE-EXECUTE; or any UNVERIFIED-CI-FAILING; or STALE-DOCS-LINE |
 | 3 | `PENDING-MERGE-CHECK` | MERGE-STATE-UNKNOWN flagged |
 | 4 | `PENDING-CI` | All findings CONFIRMED but CI not yet complete (still running/pending) |
-| 5 | `READY-TO-MERGE` | All FAIL findings CONFIRMED; CI green; live `mergeable == MERGEABLE`; no INCOMPLETE-EXECUTE, UNVERIFIED-CI-FAILING, UNSYNCED-EXECUTE, BRANCH-BEHIND, or PR-IS-DRAFT |
+| 5 | `READY-TO-MERGE` | All FAIL findings CONFIRMED; CI green; live `mergeable == MERGEABLE`; no INCOMPLETE-EXECUTE, UNVERIFIED-CI-FAILING, STALE-DOCS-LINE, UNSYNCED-EXECUTE, BRANCH-BEHIND, or PR-IS-DRAFT |
 | 6 | `GAPS-FOUND` | Anything else — name the blocking flag in the comment |
 
 Conflicts outrank finding gaps (row 1 above row 2) because they are the coarser

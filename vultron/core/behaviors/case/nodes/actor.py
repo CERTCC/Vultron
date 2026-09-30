@@ -53,9 +53,6 @@ from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
     EmitAcceptCaseInviteNode,
     EmitRejectCaseInviteNode,
 )
-from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
-    _drop_bare_inline_refs,
-)
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
@@ -171,14 +168,10 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
                 target=case,
             )
         )
-        activity_dict: dict = (
-            json.loads(activity_blob) if activity_blob else {}
-        )
-        snapshot: dict = (
-            _drop_bare_inline_refs(activity_dict) if activity_dict else {}
-        )
-        if not snapshot.get("context"):
-            snapshot["context"] = self.case_id
+        # The recorded snapshot is the exact blob the port returned: the
+        # factory owns its completeness (``context``, inline objects), and
+        # this same text is what the outbox delivers (VM-08-003).
+        snapshot: dict = json.loads(activity_blob)
         commit_tree = create_commit_log_entry_tree(
             case_id=self.case_id,
             object_id=activity_id,
