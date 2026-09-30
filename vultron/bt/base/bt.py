@@ -15,7 +15,7 @@ This module defines a Behavior Tree object.
 """
 
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from vultron.bt.base.blackboard import Blackboard
 from vultron.bt.base.bt_node import BtNode
@@ -62,7 +62,7 @@ class BehaviorTree:
         self._setup: bool = False
 
     # runtime context
-    def __enter__(self) -> "BehaviorTree":
+    def __enter__(self) -> Self:
         """
         Runtime context for the BehaviorTree object.
 

@@ -27,7 +27,7 @@ submodules and tests call them by those names.
 import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
@@ -161,7 +161,7 @@ class SqliteDataLayer:
         """
         self._enqueue_callback = callback
 
-    def __enter__(self) -> "SqliteDataLayer":
+    def __enter__(self) -> Self:
         """Support ``with SqliteDataLayer(...) as dl:`` usage."""
         return self
 
