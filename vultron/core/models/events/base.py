@@ -142,7 +142,7 @@ class VultronEvent(ValidatedAssignmentMixin, BaseModel):
     # format) so that use cases can compare it against activity.to/cc without
     # inspecting AS2 types.  None when dispatched outside the inbox path (CLI,
     # triggers, tests that don't set it).
-    receiving_actor_id: str | None = None
+    receiving_actor_id: NonEmptyString | None = None
 
     @property
     def id_(self) -> str:

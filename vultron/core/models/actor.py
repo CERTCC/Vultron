@@ -21,7 +21,7 @@ from typing import Any, Literal, Self
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from vultron.core.models.base import CoreObject
+from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.enums import VultronActorType
 
 
@@ -100,7 +100,7 @@ class CoreActor(CoreObject):
                 self.model_fields_set.add(field_name)
         return self
 
-    preferred_username: str | None = None
+    preferred_username: NonEmptyString | None = None
     endpoints: Any | None = None
     embargo_policy: Any | None = Field(
         default=None,

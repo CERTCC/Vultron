@@ -19,7 +19,7 @@ import logging
 from typing import Any, cast
 
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import select
 
 from vultron.adapters.driven.db_record import Record
 from vultron.core.models.case import VulnerabilityCase
@@ -51,7 +51,7 @@ def count_all(
         Mapping of ``{type_name: count}``.  Includes a ``"_default"``
         key with value ``0`` (SQLite has no default table concept).
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = select(
             VultronObjectRecord.type_,
             func.count(),  # type: ignore[call-overload]
@@ -76,7 +76,7 @@ def by_type(
     Returns:
         Mapping of ``{id_: data_dict}`` for every record of that type.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_ == type_
         )
@@ -103,7 +103,7 @@ def all(
         List of ``StorableRecord`` (when *table* is given) or a dict of
         ``{id_: domain_object}``.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         if table is not None:
             stmt = select(VultronObjectRecord).where(
                 VultronObjectRecord.type_ == table
@@ -139,7 +139,7 @@ def exists(
     Returns:
         ``True`` if found; ``False`` otherwise.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_ == table,
             VultronObjectRecord.id_ == id_,
@@ -157,7 +157,7 @@ def ping(dl: "Any") -> bool:  # SqliteDataLayer
     Returns:
         ``True`` if storage is accessible.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         session.exec(select(VultronObjectRecord).limit(1)).all()
     return True
 
@@ -183,7 +183,7 @@ def list_objects(
     Returns:
         List of rehydrated domain objects of the requested type.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_ == type_key
         )
@@ -219,7 +219,7 @@ def find_actor_by_short_id(
     Returns:
         Reconstituted actor object, or ``None`` if not found.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_.in_(list(_ACTOR_TYPES))  # type: ignore[attr-defined]
         )
@@ -255,7 +255,7 @@ def find_case_by_short_id(
     Returns:
         Reconstituted case object, or ``None`` if not found.
     """
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_.in_(list(_CASE_TYPES))  # type: ignore[attr-defined]
         )
@@ -302,7 +302,7 @@ def find_case_by_report_id(
             if isinstance(linked_case, VulnerabilityCase):
                 return linked_case
 
-    with Session(dl._engine) as session:
+    with dl._session() as session:
         rows = session.exec(
             select(VultronObjectRecord).where(
                 VultronObjectRecord.type_.in_(list(_CASE_TYPES))  # type: ignore[attr-defined]

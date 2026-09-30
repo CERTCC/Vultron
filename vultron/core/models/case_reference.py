@@ -75,7 +75,7 @@ class CaseReference(CoreObject):
         default=None,
         description="Human-readable title for the reference",
     )
-    tags: list[str] | None = Field(
+    tags: list[NonEmptyString] | None = Field(
         default=None,
         description="Type descriptors from CVE JSON schema vocabulary",
     )
@@ -83,13 +83,13 @@ class CaseReference(CoreObject):
     @field_validator("tags")
     @classmethod
     def _validate_tags(cls, v: list[str] | None) -> list[str] | None:
+        # Each tag is already a ``NonEmptyString`` (CS-08-002), so only the
+        # collection-level and vocabulary checks remain here.
         if v is None:
             return None
         if not v:
             raise ValueError("tags must have at least one element")
         for tag in v:
-            if not isinstance(tag, str) or not tag.strip():
-                raise ValueError("All tags must be non-empty strings")
             if tag not in CASE_REFERENCE_TAG_VOCABULARY:
                 raise ValueError(
                     f"Invalid tag '{tag}'. Must be one of: "

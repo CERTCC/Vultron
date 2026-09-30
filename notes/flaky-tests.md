@@ -5,6 +5,8 @@ related_notes:
   - notes/testing-pitfalls.md
   - notes/sync-ledger-replication.md
   - notes/bt-integration.md
+  - notes/outbox-delivery-reliability.md
+  - notes/datalayer-design.md
 ---
 
 # Known Flaky Tests
@@ -31,9 +33,19 @@ and fall through to Level 2 (GitHub label search).
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
 | `test/demo/test_delivery_fallback_speed.py::test_demo_completes_under_5_seconds` | #2738 | 2026-08-26 |
-| `test/adapters/driving/fastapi/test_api.py::test_datalayer_get_existing_actor_by_id` | #3732 | 2026-09-25 |
-| `test/adapters/driving/fastapi/test_api.py::test_datalayer_get_existing_actor` | #3726 | 2026-09-28 |
 
+> Note: the two `test_datalayer_get_existing_actor*` entries (#3732, #3726)
+> were **a wire-format defect, not nondeterminism**, and were removed
+> 2026-09-29 with the fix. `as_Actor` derived an actor's `inbox`/`outbox`
+> collections stamped with `now_utc()`; the datalayer read path keeps only the
+> endpoint URI (ARCH-12-006) and rebuilt the collection — stamped again — on
+> read, so the round-trip equality held only when create and read shared a
+> wall-clock second. A derived endpoint is an address and now carries no
+> stamp. The two tests pin the clock an hour ahead between create and read
+> (`test/support/clock.py`), so they now fail deterministically if the
+> regression returns. See `notes/datalayer-design.md` § "A Default Minted
+> From the Clock Cannot Round-Trip Through a Field That Does Not Store It".
+>
 > Note: the two `test_integration_script_scenarios` entries were **hard-broken
 > on `main`, not flaky** — they failed deterministically. #2114 added a test that
 > scrapes `DEMO=` from `demo-integration.yml` while #2118/#2119 moved the
@@ -126,10 +138,13 @@ No open entries.
 | `fccv-extension` | #2898 | 2026-08-26 |
 | `fv Demo Integration` | #3033 | 2026-09-02 |
 | `fv Invariant Harness` | #3033 | 2026-09-02 |
-| `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
-| `fvcv-handoff Invariant Harness` | #2257 | 2026-08-18 |
+| `fvcv-handoff Demo Integration` — `AddCaseParticipantReceivedBT did not succeed … case not found` / `wait_for_case_participants` timeout | #2257 | 2026-08-18 |
+| `fvcv-handoff Invariant Harness` (downstream of the row above) | #2257 | 2026-08-18 |
+| `fvcv-handoff Demo Integration` — `Case attributed_to updated to Coordinator on Vendor1's DataLayer (AC-1)` timeout | #3602 | 2026-09-23 |
 | `fcv-reject Demo Integration` | #3033 | 2026-09-02 |
 | `fcv-reject Invariant Harness` | #3033 | 2026-09-02 |
+| `fccv-handoff Demo Integration` — `M6 receiver: pxa_state is not public-aware, found None` | #3903 | 2026-09-29 |
+| `fcv Demo Integration` — `M6 receiver: pxa_state is not public-aware, found None` | #3903 | 2026-09-29 |
 
 > **Root fix landed 2026-09-29 for the #2898 / #3033 rows** (one PR closing
 > both). Two faults compounded: the CaseActor queued its initialization ledger
@@ -142,6 +157,24 @@ No open entries.
 > delete them only after the post-merge `demo-integration.yml` runs on `main`
 > have stayed green for these jobs — the closed issue is the fix record, the
 > green runs are the evidence the flake is gone.
+>
+> **Root fix landed for the #3602 row (ADR-0112, one PR closing #3602 and
+> #3878).** The CaseActor's outbox was drained concurrently by every inbound
+> activity's background task and the `OutboxMonitor`, so a ledger fan-out
+> reached a replica scrambled; each forward gap drew a `Reject`, each `Reject`
+> a full-suffix replay, and the replays queued ahead of the next entry's
+> fan-out to every other peer — the `log/15` Announce to Vendor1 waited 14.4 s
+> *in the queue* behind 77 replay rows for the Coordinator (run 35917721682).
+> Fixed by one drain per actor with per-recipient lanes (OX-01-004/005/006),
+> lane-ordered re-queue (OX-13-012) and replay dedup (SYNC-15-012); the phase
+> now gates on the CaseActor's own commit before reading any replica. Same
+> deletion rule as the #2898 / #3033 rows: **keep until post-merge `main` runs
+> stay green for this signature.**
+>
+> `fccv-handoff Demo Integration` / `fcv Demo Integration` **M6 `pxa_state`
+> rows added 2026-09-29 → #3903**: the first `main` run after #3883
+> (36623680376) failed both at the publication milestone with a signature
+> closed #1839 once carried; distinct from every ownership/fan-out gate above.
 >
 > `fcv-reject Demo Integration` / `fcv-reject Invariant Harness` were
 > **repointed from closed #2390 to #3033 on 2026-09-29**: the 2026-09-02

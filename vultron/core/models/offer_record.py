@@ -37,7 +37,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import UriString, CoreRecord
+from vultron.core.models.base import CoreRecord, NonEmptyString, UriString
 from vultron.core.models.wire_keys import wire_key
 
 
@@ -61,7 +61,7 @@ class VultronOfferRecord(CoreRecord):
     offer_actor_id: UriString = Field(
         ..., description="URI of the actor that submitted the Offer"
     )
-    offer_to: list[str] = Field(
+    offer_to: list[NonEmptyString] = Field(
         default_factory=list,
         description="'to' recipients from the original Offer",
     )

@@ -280,3 +280,78 @@ def test_main_succeeds_when_nothing_withheld_is_published(tmp_path, capsys):
 def test_covers_matches_a_prefix_and_what_is_beneath_it(site_path, covered):
     """The continuity check (#3556) leans on this to skip withdrawn URLs."""
     assert _artifact().covers(site_path) is covered
+
+
+# ---------------------------------------------------------------------------
+# The JSON-LD unblock condition is stated in three places and must agree (#3888)
+# ---------------------------------------------------------------------------
+
+#: The issue whose landing lifts the JSON-LD withholding: the context document
+#: served at its versioned path (ADR-0106). When #3653 lands, the declaration,
+#: the ``draft_docs`` pattern and § 4a of the note all go together, and this
+#: test goes with them.
+JSON_LD_UNBLOCK_ISSUE = "#3653"
+
+
+def _json_ld_declaration() -> WithheldArtifact:
+    return next(
+        a for a in WITHHELD_ARTIFACTS if a.name == "JSON-LD vocabulary"
+    )
+
+
+def _mkdocs_draft_docs_block() -> str:
+    """The ``draft_docs`` block of ``mkdocs.yml``, comments included."""
+    text = (REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+    _, _, after = text.partition("\ndraft_docs:")
+    block, _, _ = after.partition("\ntheme:")
+    assert (
+        "ns/" in block
+    ), "ns/ is no longer a draft_docs pattern — retire this test"
+    return block
+
+
+def test_json_ld_gate_names_its_unblock_issue():
+    """The declaration's gate names the issue that lifts it, not a resolved one.
+
+    #3549 gated the artifact on ADR-0099 graduating, and that gate outlived the
+    graduation by a day; a gate that names a closed issue reads as a decision
+    nobody has taken. The live gate is the versioned context path.
+    """
+    gate = _json_ld_declaration().gate
+    assert JSON_LD_UNBLOCK_ISSUE in gate
+    assert "provisional" not in gate.lower()
+
+
+def test_mkdocs_and_note_state_the_same_unblock_condition():
+    """``mkdocs.yml``, the vocabulary note and ADR-0106 state one condition.
+
+    Copies of one condition drift independently unless something reads them
+    together (AC-4 of #3888). The issue number is the part that can be
+    checked mechanically; the prose around it is what a reviewer reads.
+    """
+    note = (REPO_ROOT / "notes" / "vocabulary-registry.md").read_text(
+        encoding="utf-8"
+    )
+    _, _, section = note.partition("### 4a.")
+    section, _, _ = section.partition("\n### ")
+    block = _mkdocs_draft_docs_block()
+
+    adr = (
+        REPO_ROOT
+        / "docs"
+        / "adr"
+        / "0106-versioning-machine-facing-interfaces.md"
+    ).read_text(encoding="utf-8")
+    _, _, validation = adr.partition("\n## Validation")
+    validation, _, _ = validation.partition("\n## ")
+
+    assert JSON_LD_UNBLOCK_ISSUE in block
+    assert JSON_LD_UNBLOCK_ISSUE in section
+    assert "draft_docs" in validation, (
+        "ADR-0106's Validation no longer records that ns/ leaves draft_docs "
+        "with #3653 — the decision moved; update this test to follow it"
+    )
+    for text, where in ((block, "mkdocs.yml"), (section, "note § 4a")):
+        assert (
+            "provisional" not in text.lower()
+        ), f"{where} still gates ns/ on ADR-0099 being provisional"

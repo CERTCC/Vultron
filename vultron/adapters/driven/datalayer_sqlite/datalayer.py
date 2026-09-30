@@ -25,12 +25,14 @@ submodules and tests call them by those names.
 """
 
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
 
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, Session
 
 from vultron.adapters.outbox_dead_letter import OutboxDeadLetterEntry
 from vultron.core.models.protocol_pair import ProtocolPair
@@ -38,7 +40,7 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 
 from .schema import VultronObjectRecord
-from .engine import dispose_actor_engines, get_actor_engine
+from .engine import dispose_actor_engines, get_actor_engine, session_guard
 from . import crud, hydration, queries, queues
 
 logger = logging.getLogger(__name__)
@@ -74,6 +76,19 @@ class SqliteDataLayer:
         self._engine = get_actor_engine(db_url, actor_id)
         self._enqueue_callback: Callable[[str], None] | None = enqueue_callback
         SQLModel.metadata.create_all(self._engine)
+
+    @contextmanager
+    def _session(self) -> Iterator[Session]:
+        """Open a ``Session`` on this store, serialised across threads.
+
+        Every session the adapter opens comes through here so that an
+        in-memory store's single shared connection is never used by two
+        threads at once — see :func:`~.engine.session_guard` for why that
+        lost writes (#3602).  File-backed stores pay nothing.
+        """
+        with session_guard(self._engine):
+            with Session(self._engine) as session:
+                yield session
 
     @property
     def actor_id(self) -> str:

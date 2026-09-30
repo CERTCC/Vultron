@@ -16,7 +16,6 @@ Vultron API Application
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from contextlib import asynccontextmanager
 from enum import Enum
 from typing import Any, cast
 
@@ -26,33 +25,24 @@ from fastapi.responses import RedirectResponse
 from fastapi.routing import APIRoute
 from starlette.routing import BaseRoute, Mount
 
-from vultron.adapters.driving.fastapi.app import app_v2
+from vultron.adapters.driving.fastapi.app import _make_lifespan, app_v2
 
 #
 # from api.v2.app import app_v2
 
 
-@asynccontextmanager
-async def lifespan(application: FastAPI):
-    """Root app lifespan — runs startup tasks not covered by sub-app lifespans.
-
-    Starlette does not automatically propagate lifespan events to mounted
-    sub-applications, so any initialisation that must run before the first
-    request (e.g. the inbox dispatcher and logging) is performed here as well
-    as in the ``app_v2`` lifespan (which fires when that sub-app is used
-    directly, e.g. in unit tests targeting ``app_v2`` directly).
-    """
-    from vultron.adapters.driving.fastapi.app import configure_logging
-    from vultron.adapters.driving.fastapi.inbox_handler import init_dispatcher
-    from vultron.adapters.driven.http_delivery import HttpDeliveryAdapter
-    from vultron.adapters.driving.fastapi.outbox_handler import (
-        configure_default_emitter,
-    )
-
-    configure_logging()
-    init_dispatcher()
-    configure_default_emitter(HttpDeliveryAdapter())
-    yield
+#: Root app lifespan.  Starlette does not propagate lifespan events to a
+#: mounted sub-application, so the process-level startup that ``app_v2``'s own
+#: lifespan performs when that sub-app is served directly — logging, the inbox
+#: dispatcher, the default ``HttpDeliveryAdapter``, the ``OutboxMonitor``
+#: safety-net drain (OX-09-002) and the pending ``Create(VulnerabilityCase)``
+#: retry (CP-05-005) — has to run here for the served process.  A hand-written
+#: copy of that list drifted: it omitted the monitor, so no container ever ran
+#: the safety-net poll, and an activity queued in an outbox no inline drain
+#: was looping over waited for the next inbound activity to that actor
+#: (111 s in CI run 36643399281; #3602, ADR-0112).  Sharing the factory keeps
+#: the two lifespans one list.
+lifespan = _make_lifespan(configure_globals=True)
 
 
 app = FastAPI(

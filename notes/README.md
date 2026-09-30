@@ -753,9 +753,9 @@ the current set of known-flaky tests.
 **`devcontainer-tooling.md`**
 Environment-level pitfalls in this devcontainer: why every tool runs under
 `uv run`, why `PYTHONPATH` must be cleared, the `UV_NO_SYNC=1` workaround for a
-root-owned venv, the broken `gh` credential-helper path, and the hard-linked
-`.agents/` and `.claude/` skill trees.
-**Load when**: a tool fails to start, `git push` cannot authenticate, or you are
+root-owned venv, pushing to `origin` with `-u` rather than a token URL, and the
+`.claude/skills` symlink to `.agents/skills`.
+**Load when**: a tool fails to start, `git push` fails (auth or no upstream), or you are
 about to edit a skill file.
 
 **`lint-tooling.md`**

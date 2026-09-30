@@ -132,9 +132,10 @@ WITHHELD_ARTIFACTS: tuple[WithheldArtifact, ...] = (
             "first time, and a namespace URI is a long-lived commitment."
         ),
         gate=(
-            "The declared term set settling. #2943 landed the drift check "
-            "(wire-context --check), but #3487 and #3488 delete the as_* classes "
-            "the terms name, under an ADR-0099 that is accepted-provisional."
+            "The context document served at its versioned path (#3653, "
+            "ADR-0106). The term set has settled (ADR-0099 is accepted; #2943 "
+            "checks drift), so ns/ leaves draft_docs in the change that lands "
+            "#3653, and this declaration goes with it."
         ),
     ),
     WithheldArtifact(

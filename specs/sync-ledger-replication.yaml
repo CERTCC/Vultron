@@ -1087,3 +1087,27 @@ groups:
     - story_2022_012
     - story_2022_045
     - story_2022_088
+  - id: SYNC-15-012
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT enqueue a replay `Announce(CaseLedgerEntry)` for an
+      (entry, peer) pair while an earlier `Announce` of that same entry to that same peer
+      is still pending in its outbox.
+    rationale: >-
+      A `Reject` that arrives after the peer's gap has already drained still reports an
+      advanced position, so SYNC-15-010 replays — and that suffix is usually still in the
+      outbox from the previous replay. Ten such Rejects queued 116 duplicate Announces ahead
+      of the next entry's fan-out to every other peer (#3602). SYNC-15-010 stands; this only
+      stops the same row being queued twice. See ADR-0112.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-003
+    adr:
+    - ADR-0112
+    verification: >-
+      `test/adapters/driven/test_sync_adapter_pending_dedup.py` confirms the sync adapter
+      queues an (entry, peer) Announce once while it is pending and again once it has been
+      popped; `test/core/behaviors/sync/nodes/test_replay.py` confirms a replay through the
+      adapter adds only the entries not already pending and records no position when it
+      adds none.

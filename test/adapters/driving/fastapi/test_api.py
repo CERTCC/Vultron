@@ -19,8 +19,30 @@
 Provides API v2 tests
 """
 
-from vultron.wire.as2.vocab.base.objects.actors import as_Person
+from datetime import timedelta
+
+from test.support.clock import SteppingClock
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.core.models import _helpers
+from vultron.core.models._helpers import now_utc
+from vultron.wire.as2.vocab.base.objects.actors import as_Person
+
+
+def _pin_clock_past_a_second_boundary(monkeypatch) -> None:
+    """Move ``now_utc()`` an hour ahead of the instant the actor was created.
+
+    A stored actor must read back equal to itself however much wall-clock
+    time separates the write from the read.  These tests used to fail only
+    when a second boundary happened to fall between ``datalayer.create`` and
+    the ``GET`` (#3732, #3726) — the read path rebuilt the actor's derived
+    ``inbox``/``outbox`` collections stamped with the read-time clock — so the
+    boundary is made certain here rather than left to scheduling luck.
+    """
+    monkeypatch.setattr(
+        _helpers,
+        "datetime",
+        SteppingClock(now_utc() + timedelta(hours=1), step=timedelta(0)),
+    )
 
 
 def test_version(client):
@@ -50,13 +72,19 @@ def test_datalayer_get_nonexistent_actor(client, dl_route_key):
 
 
 def test_datalayer_get_existing_actor(
-    client, datalayer, dl_route_key, hosted_actor
+    client, datalayer, dl_route_key, hosted_actor, monkeypatch
 ):
-    """Test retrieving an existing actor from the Actors endpoint"""
+    """Test retrieving an existing actor from the Actors endpoint.
+
+    The read lands in a later wall-clock second than the create, so the
+    round-trip equality below is a claim about what was stored, not about
+    timing (#3726).
+    """
     actor = as_Person(
         name="Test Person",
     )
     datalayer.create(object_to_record(actor))
+    _pin_clock_past_a_second_boundary(monkeypatch)
 
     response = client.get(
         f"/actors/{dl_route_key}/datalayer/Actors/{actor.id_}"
@@ -70,13 +98,18 @@ def test_datalayer_get_existing_actor(
 
 
 def test_datalayer_get_existing_actor_by_id(
-    client, datalayer, dl_route_key, hosted_actor
+    client, datalayer, dl_route_key, hosted_actor, monkeypatch
 ):
-    """Test retrieving an existing actor directly by ID"""
+    """Test retrieving an existing actor directly by ID.
+
+    Same clock pin as ``test_datalayer_get_existing_actor``: the read is in a
+    later second than the create, deterministically (#3732).
+    """
     actor = as_Person(
         name="Test Person",
     )
     datalayer.create(object_to_record(actor))
+    _pin_clock_past_a_second_boundary(monkeypatch)
 
     response = client.get(f"/actors/{dl_route_key}/datalayer/{actor.id_}")
     assert response.status_code == 200
