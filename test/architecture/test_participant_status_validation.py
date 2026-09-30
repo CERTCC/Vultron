@@ -480,9 +480,7 @@ def test_create_participant_status_node_has_no_case_id_constructor() -> None:
                 " CaseIdInputPortMixin port instead (BTND-10-005, ADR-0089)"
             )
             return
-    assert (
-        False
-    ), "CreateParticipantStatusNode class or __init__ not found in status.py"
+    raise AssertionError("CreateParticipantStatusNode class or __init__ not found in status.py")
 
 
 def test_report_phase_rm_transition_has_no_blackboard_actor_fallback() -> None:

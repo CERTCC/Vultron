@@ -844,10 +844,7 @@ class TestInviteActorUseCases:
         for item_id in outbox_items:
             candidate = cast(Any, dl.read(item_id))
             if candidate is not None and str(candidate.type_) == "Join":
-                assert False, (
-                    f"PCR-07-008 violation: RmEngageCaseActivity (Join) with "
-                    f"actor={invitee_id!r} found in outbox — identity spoofing"
-                )
+                raise AssertionError(f"PCR-07-008 violation: RmEngageCaseActivity (Join) with " f"actor={invitee_id!r} found in outbox — identity spoofing")
 
         # The participant should be at RM.RECEIVED only (CM-11-001).
         updated_case = cast(Any, dl.read(case.id_))
