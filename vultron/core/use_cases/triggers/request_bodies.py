@@ -41,9 +41,10 @@ a non-optional note field.
 import logging
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from vultron.core.models.base import NonEmptyString, UriString
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -369,6 +370,45 @@ class AcceptCaseOwnershipTransferRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     offer_id: NonEmptyString
+
+
+class AddOnBehalfStatusRequest(CaseTriggerRequest):
+    """Request body for the add-on-behalf-status trigger.
+
+    A Case Manager or Case Owner records a vendor's awareness (``v→V``,
+    ``vf_state="Vf"``) or a deployer's deployment (``d→D``, ``d_state="D"``)
+    on behalf of an actor that was notified or invited but has not joined the
+    case (ADR-0084; PRM-06-003, PRM-06-004).  ``target_actor_id`` names that
+    actor.  ``vf_state="VF"`` (``f→F``) is refused here: fix readiness is not
+    externally knowable and is only ever self-declared by the Vendor-role
+    holder (PRM-06-005).  At least one of ``vf_state`` / ``d_state`` is
+    required.
+
+    TRIG-03-002: Unknown fields are silently ignored.
+    """
+
+    target_actor_id: UriString
+    vf_state: CS_vf | None = None
+    d_state: CS_d | None = None
+
+    @field_validator("vf_state")
+    @classmethod
+    def vf_state_not_fix_ready(cls, v: CS_vf | None) -> CS_vf | None:
+        if v is not None and v == CS_vf.VF:
+            raise ValueError(
+                "f→F (CS_vf.VF) cannot be asserted on behalf of another actor"
+                " (ADR-0084, PRM-06-005)"
+            )
+        return v
+
+    @model_validator(mode="after")
+    def at_least_one_dimension(self) -> "AddOnBehalfStatusRequest":
+        if self.vf_state is None and self.d_state is None:
+            raise ValueError(
+                "at least one of vf_state or d_state must be provided"
+                " (PRM-06-003/004)"
+            )
+        return self
 
 
 class NotifyFixReadyRequest(CaseTriggerRequest):

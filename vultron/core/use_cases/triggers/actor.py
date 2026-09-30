@@ -43,6 +43,8 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
@@ -527,23 +529,21 @@ class SvcOfferCaseParticipantRoleUseCase:
 
     def __init__(
         self,
-        dl: object,
-        request: object,
-        trigger_activity: object = None,
+        dl: CaseOutboxPersistence,
+        request: OfferCaseParticipantRoleTriggerRequest,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request = request
         self._trigger_activity = trigger_activity
 
     def execute(self) -> RoleOfferResult:
-        from vultron.core.ports.trigger_activity import TriggerActivityPort
-
         if self._trigger_activity is None:
             raise RuntimeError(
                 "SvcOfferCaseParticipantRoleUseCase requires a TriggerActivityPort"
             )
-        req = cast(OfferCaseParticipantRoleTriggerRequest, self._request)
-        factory = cast(TriggerActivityPort, self._trigger_activity)
+        req = self._request
+        factory = self._trigger_activity
         activity_id, activity_dict = factory.offer_case_participant_role(
             case_id=req.case_id,
             role=req.role,

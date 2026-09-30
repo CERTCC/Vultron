@@ -127,6 +127,45 @@
         "title": "AddObjectToCaseRequest",
         "type": "object"
       },
+      "AddOnBehalfStatusRequest": {
+        "description": "Request body for the add-on-behalf-status trigger.\n\nA Case Manager or Case Owner records a vendor's awareness (``v\u2192V``,\n``vf_state=\"Vf\"``) or a deployer's deployment (``d\u2192D``, ``d_state=\"D\"``)\non behalf of an actor that was notified or invited but has not joined the\ncase (ADR-0084; PRM-06-003, PRM-06-004).  ``target_actor_id`` names that\nactor.  ``vf_state=\"VF\"`` (``f\u2192F``) is refused here: fix readiness is not\nexternally knowable and is only ever self-declared by the Vendor-role\nholder (PRM-06-005).  At least one of ``vf_state`` / ``d_state`` is\nrequired.\n\nTRIG-03-002: Unknown fields are silently ignored.",
+        "properties": {
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "d_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CS_d"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_actor_id": {
+            "title": "Target Actor Id",
+            "type": "string"
+          },
+          "vf_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CS_vf"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "case_id",
+          "target_actor_id"
+        ],
+        "title": "AddOnBehalfStatusRequest",
+        "type": "object"
+      },
       "AddReportToCaseRequest": {
         "description": "Request body for the add-report-to-case trigger endpoint.\n\nTRIG-03-001: Must include case_id and report_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
@@ -145,6 +184,25 @@
         ],
         "title": "AddReportToCaseRequest",
         "type": "object"
+      },
+      "CS_d": {
+        "description": "Deployer-path sub-machine: fix deployment (2 states).\n\nMonotone ladder: d \u2192 D.",
+        "enum": [
+          "d",
+          "D"
+        ],
+        "title": "CS_d",
+        "type": "string"
+      },
+      "CS_vf": {
+        "description": "Vendor-path sub-machine: vendor awareness + fix readiness (3 states).\n\nMonotone ladder: vf \u2192 Vf \u2192 VF.",
+        "enum": [
+          "vf",
+          "Vf",
+          "VF"
+        ],
+        "title": "CS_vf",
+        "type": "string"
       },
       "CVDRole": {
         "description": "Individual CVD role values (lowercase string enum).\n\nEach member represents a single, atomic CVD role. Participants may hold\nmultiple roles simultaneously; use ``list[CVDRole]`` at call sites rather\nthan bitmask arithmetic.\n\nValues are lowercase strings (e.g. ``CVDRole.FINDER == 'finder'``).\n\nRoles:\n    FINDER: Entity that discovers the vulnerability.\n    REPORTER: Entity that reports the vulnerability to others.\n    VENDOR: Supplier of the affected product or service.\n    DEPLOYER: Entity that deploys the fix.\n    COORDINATOR: Entity that coordinates the CVD process.\n    OBSERVER: Monitoring participant with no vendor-fix-deployment\n        obligations; the base (lowest non-null privilege) CVD role.\n        Admitted via standard Invite/Accept (CM-25). Formerly ``OTHER``;\n        renamed in ADR-0057.\n    CASE_OWNER: Actor who owns and manages a VulnerabilityCase (BTND-05-001).\n    CASE_MANAGER: The ActivityStreams Actor that performs ongoing case\n        replica synchronisation and manages the case on behalf of the case\n        owner.  A CaseManager participant SHOULD also hold the COORDINATOR\n        role (CBT-01-003); nothing requires it.  While the demo uses a\n        Service actor type, any Actor type (e.g. Person) may hold this\n        role.\n    CVE_NUMBERING_AUTHORITY: Participant that holds CVE Numbering Authority\n        (CNA) status, granting authority to assign CVE IDs.  A CNA is\n        orthogonal to other CVD roles \u2014 a VENDOR, COORDINATOR, or any other\n        participant may independently hold this role.  Used by\n        ``IsIDAssignmentAuthority`` (static capability check) and\n        ``IdAssignable`` (scope-match evaluation) BT nodes to route ID\n        assignment decisions to the correct participant(s).",
@@ -543,6 +601,36 @@
           "note"
         ],
         "title": "RejectReportRequest",
+        "type": "object"
+      },
+      "StatusResult": {
+        "additionalProperties": false,
+        "description": "``add-participant-status`` and the on-behalf variant.\n\nCarries the ids of the ``Add(ParticipantStatus)`` activity and of the\nstored status record; neither the activity body nor an emitting actor is\npart of this verb's response.",
+        "properties": {
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Id"
+          },
+          "status_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Id"
+          }
+        },
+        "title": "StatusResult",
         "type": "object"
       },
       "SubmitReportRequest": {
@@ -1438,6 +1526,59 @@
           }
         },
         "summary": "Add an existing AS2 object to a case.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
+    "/api/v2/actors/{actor_id}/trigger/add-on-behalf-status": {
+      "post": {
+        "description": "A Case Manager or Case Owner records, on behalf of an actor that was notified or invited but has not joined the case, the vendor's awareness (``vf_state=\"Vf\"``, v\u2192V; PRM-06-003) or the deployer's deployment (``d_state=\"D\"``, d\u2192D; PRM-06-004), creating a minimal CaseParticipant for the target when none exists (ADR-0084). Writes a ParticipantStatus for the target and queues an Add(ParticipantStatus, target=CaseParticipant) activity to the Case Manager. Fix readiness (``vf_state=\"VF\"``, f\u2192F) is refused: it is only ever self-declared by the Vendor (PRM-06-005). Returns the ids of the queued activity and the stored status.",
+        "operationId": "actors_trigger_add_on_behalf_status",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddOnBehalfStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record a vendor's awareness or a deployer's deployment on their behalf.",
         "tags": [
           "Triggers"
         ]

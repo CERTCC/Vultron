@@ -273,6 +273,113 @@ class TestDemoAddNoteToCaseNotAtTriggerPrefix:
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture
+def managed_case(dl, actor):
+    """A case the demo ``actor`` manages, so its store holds the canonical log.
+
+    ``attributed_to`` mints the per-case genesis hash the first commit anchors
+    on (CLP-08-005).
+    """
+    case = as_VulnerabilityCase(name="Sync Demo Case", attributed_to=actor.id_)
+    cm = as_CaseParticipant(
+        attributed_to=actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case.actor_participant_index[actor.id_] = cm.id_
+    case.case_participants.append(cm.id_)
+    dl.create(case)
+    dl.create(cm)
+    return case
+
+
+class TestDemoSyncLogEntry:
+    """The route runs ``SvcSyncLogEntryUseCase`` through the trigger
+    dispatcher; the response contract is unchanged (TRIG-12-003)."""
+
+    @pytest.mark.spec("TRIG-10-004")
+    @pytest.mark.spec("SYNC-02-002")
+    def test_returns_202_with_the_entry_identity(
+        self, client_demo: TestClient, dl, actor, managed_case
+    ):
+        resp = client_demo.post(
+            f"/actors/{actor.id_}/demo/sync-log-entry",
+            json={
+                "case_id": managed_case.id_,
+                "object_id": managed_case.id_,
+                "event_type": "demo_sync",
+            },
+        )
+        assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
+        body = resp.json()
+        assert set(body) == {
+            "log_entry_id",
+            "entry_hash",
+            "log_index",
+            "emitting_actor_id",
+        }
+        assert body["log_index"] == 0
+        assert body["emitting_actor_id"] == actor.id_
+        entry = dl.read(body["log_entry_id"])
+        assert entry is not None
+        assert entry.entry_hash == body["entry_hash"]
+        assert entry.event_type == "demo_sync"
+
+    @pytest.mark.spec("TRIG-01-003")
+    def test_unknown_actor_returns_404(
+        self, client_demo: TestClient, managed_case
+    ):
+        resp = client_demo.post(
+            "/actors/nonexistent-actor/demo/sync-log-entry",
+            json={
+                "case_id": managed_case.id_,
+                "object_id": managed_case.id_,
+                "event_type": "demo_sync",
+            },
+        )
+        assert resp.status_code == status.HTTP_404_NOT_FOUND
+        assert resp.json()["detail"]["error"] == "NotFound"
+
+    def test_missing_event_type_returns_422(
+        self, client_demo: TestClient, actor, managed_case
+    ):
+        resp = client_demo.post(
+            f"/actors/{actor.id_}/demo/sync-log-entry",
+            json={"case_id": managed_case.id_, "object_id": managed_case.id_},
+        )
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    def test_store_without_the_canonical_log_answers_500(
+        self, client_demo: TestClient, dl, actor
+    ):
+        """The case's CASE_MANAGER is elsewhere, so the ledger-authority guard
+        declines the mint and the route keeps its historical 500."""
+        foreign_cm = "https://elsewhere.example/actors/other-cm"
+        case = as_VulnerabilityCase(
+            name="Foreign Case", attributed_to=foreign_cm
+        )
+        cm = as_CaseParticipant(
+            attributed_to=foreign_cm,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case.actor_participant_index[foreign_cm] = cm.id_
+        case.case_participants.append(cm.id_)
+        dl.create(case)
+        dl.create(cm)
+
+        resp = client_demo.post(
+            f"/actors/{actor.id_}/demo/sync-log-entry",
+            json={
+                "case_id": case.id_,
+                "object_id": case.id_,
+                "event_type": "foreign",
+            },
+        )
+        assert resp.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert resp.json() == {"detail": "Log entry commit did not persist."}
+
+
 # ---------------------------------------------------------------------------
 # Fixtures and helpers for case ledger endpoint tests
 # ---------------------------------------------------------------------------

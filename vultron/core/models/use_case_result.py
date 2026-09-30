@@ -48,7 +48,7 @@ pipeline, not to this module or to any handler (HP-01-004).
 """
 
 from enum import StrEnum
-from typing import Any, Self
+from typing import Any, Protocol, Self, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -250,15 +250,46 @@ class RoleOfferResult(TriggerResult):
     activity: dict[NonEmptyString, Any]
 
 
+class SyncLogEntryResult(TriggerResult):
+    """``sync-log-entry``: the committed ledger entry's id, hash and index.
+
+    The demo-only verb that mints a canonical ``CaseLedgerEntry`` and fans it
+    out.  ``emitting_actor_id`` names the case's CASE_MANAGER, as whom the
+    commit tree ran and whose outbox holds the ``Announce(CaseLedgerEntry)``
+    fan-out (CLP-09, BT-05-005); the router drains that outbox, exactly as it
+    does for a delegated :class:`ActivityResult`.
+    """
+
+    log_entry_id: NonEmptyString
+    entry_hash: NonEmptyString
+    log_index: int
+    emitting_actor_id: NonEmptyString
+
+
+@runtime_checkable
+class EmittingResult(Protocol):
+    """A trigger result that names the actor whose outbox it wrote to.
+
+    :class:`ActivityResult` and :class:`SyncLogEntryResult` satisfy it.  The
+    router's shared body checks a result against this Protocol to pick the
+    outbox it drains — the emitting actor's, which on a delegated emit is the
+    CASE_MANAGER's rather than the requesting actor's (CM-24-001).
+    """
+
+    emitting_actor_id: str
+
+
 __all__ = [
     "ActivityResult",
     "CaseResult",
+    "EmittingResult",
     "HandlerDisposition",
     "HandlerResult",
     "NoteResult",
     "OfferResult",
     "RoleOfferResult",
     "StatusResult",
+    "SyncLogEntryResult",
     "TriggerResult",
     "UseCaseResult",
 ]

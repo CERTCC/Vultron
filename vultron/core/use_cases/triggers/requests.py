@@ -24,9 +24,9 @@ driving adapter from the URL path, never from the body (TRIG-06-001).
 
 from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict
 
-from vultron.core.models.base import NonEmptyString, UriString
+from vultron.core.models.base import NonEmptyString
 from vultron.core.models.use_case_result import (
     ActivityResult,
     CaseResult,
@@ -34,6 +34,7 @@ from vultron.core.models.use_case_result import (
     OfferResult,
     RoleOfferResult,
     StatusResult,
+    SyncLogEntryResult,
     TriggerResult,
 )
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
@@ -45,6 +46,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     AcceptEmbargoRequest,
     AddNoteToCaseRequest,
     AddObjectToCaseRequest,
+    AddOnBehalfStatusRequest,
     AddReportToCaseRequest,
     CaseTriggerRequest,
     CloseCaseRequest,
@@ -61,6 +63,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     ReportTriggerRequest,
     SubmitReportRequest,
     SuggestActorToCaseRequest,
+    SyncLogEntryRequest,
     TerminateEmbargoRequest,
     ValidateReportRequest,
 )
@@ -309,40 +312,28 @@ class AddParticipantStatusTriggerRequest(
 
 
 class AddOnBehalfStatusTriggerRequest(
-    TriggerRequest[StatusResult], CaseTriggerRequest
+    TriggerRequest[StatusResult], AddOnBehalfStatusRequest
 ):
     """On-behalf v→V / d→D assertion by Case Manager or Case Owner.
 
     ``actor_id`` is the asserting actor (must hold CASE_MANAGER or CASE_OWNER);
-    ``target_actor_id`` is the vendor/deployer whose awareness is being recorded.
-    ``vf_state`` may only be ``CS_vf.Vf`` (v→V); ``CS_vf.VF`` (f→F) is rejected
-    here because f→F is always self-declared by the Vendor role holder.
+    the body model carries ``target_actor_id`` (the vendor/deployer whose
+    awareness is being recorded) and refuses ``CS_vf.VF`` (f→F), which is
+    always self-declared by the Vendor role holder.
 
     Per ADR-0084, PRM-06-003/004/005.
     """
 
-    target_actor_id: UriString
-    vf_state: CS_vf | None = None
-    d_state: CS_d | None = None
 
-    @field_validator("vf_state")
-    @classmethod
-    def vf_state_not_fix_ready(cls, v: CS_vf | None) -> CS_vf | None:
-        if v is not None and v == CS_vf.VF:
-            raise ValueError(
-                "f→F (CS_vf.VF) cannot be asserted on behalf of another actor"
-                " (ADR-0084, PRM-06-005)"
-            )
-        return v
+class SyncLogEntryTriggerRequest(
+    TriggerRequest[SyncLogEntryResult], SyncLogEntryRequest
+):
+    """Trigger request for the demo-only ``sync-log-entry`` verb.
 
-    @model_validator(mode="after")
-    def at_least_one_dimension(self) -> "AddOnBehalfStatusTriggerRequest":
-        if self.vf_state is None and self.d_state is None:
-            raise ValueError(
-                "at least one of vf_state or d_state must be provided"
-                " (PRM-06-003/004)"
-            )
-        return self
+    Commits a canonical ``CaseLedgerEntry`` for ``case_id`` through the BT
+    commit path as the case's CASE_MANAGER and fans it out to every
+    participant (SYNC-02-002, SYNC-02-003; TRIG-10-004).
+    """
 
 
 class OfferCaseParticipantRoleTriggerRequest(
@@ -405,6 +396,7 @@ __all__ = [
     "ResultT_co",
     "SubmitReportTriggerRequest",
     "SuggestActorToCaseTriggerRequest",
+    "SyncLogEntryTriggerRequest",
     "TerminateEmbargoTriggerRequest",
     "TriggerRequest",
     "ValidateReportTriggerRequest",
