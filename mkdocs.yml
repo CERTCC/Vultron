@@ -6,6 +6,7 @@ nav:
   - Home: 'https://certcc.github.io/'
   - Vultron: 'index.md'
   - Start Here:
+    - 'start/index.md'
     - Coordinate cases with other organizations: 'start/coordinate-cases.md'
     - Connect your vulnerability tracker to your partners: 'start/connect-your-tracker.md'
     - Study how vulnerability disclosure works: 'start/study-the-process.md'
