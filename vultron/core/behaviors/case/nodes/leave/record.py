@@ -140,10 +140,13 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
         The closure ends at the most recent ``RM.CLOSED`` status, walking in
         reverse so it is the one :class:`AdvanceCaseActorToRMClosedNode` just
         appended.  Its earlier rungs are the longest run of statuses that,
-        read from the state before them, match :func:`~vultron.core.states.rm.rm_closure_path` — so
-        a ``V → D → C`` closure returns the DEFERRED and the CLOSED status, and
-        a one-step closure returns the CLOSED status alone.  Returns an empty
-        list when the participant has no ``RM.CLOSED`` status.
+        read from the state before them, match
+        :func:`~vultron.core.states.rm.rm_closure_path` — so a ``V → D → C``
+        closure returns the DEFERRED and the CLOSED status, and a one-step
+        closure returns the CLOSED status alone.  The first status is the
+        bootstrap write, never a closure rung, so it is never matched as one.
+        Returns an empty list when the participant has no ``RM.CLOSED``
+        status.
         """
         statuses = [
             status
@@ -160,9 +163,12 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
         # Longest path first: a closure from Valid leaves ``V, D, C``, whose
         # tail ``D, C`` also reads as a one-step closure from Deferred.  A
         # DEFERRED rung recorded earlier is skipped by the commit's idempotency.
+        # A window starts at index 1 or later: the status at index 0 is the
+        # bootstrap write (owner.py may seed RECEIVED), and reading it as the
+        # R rung of an S → R → C closure would ledger it after the fact.
         longest = max(len(rm_closure_path(source)) for source in RM)
-        for first in range(max(closed_at - longest + 1, 0), closed_at + 1):
-            source = rms[first - 1] if first > 0 else RM.START
+        for first in range(max(closed_at - longest + 1, 1), closed_at + 1):
+            source = rms[first - 1]
             if tuple(rms[first : closed_at + 1]) == rm_closure_path(source):
                 return statuses[first : closed_at + 1]
         return [statuses[closed_at]]

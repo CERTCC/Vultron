@@ -1480,3 +1480,68 @@ class TestCaseActorRMClosedRecordingIsRoleGated:
             "the CASE_MANAGER must still record its own RM.CLOSED (CM-23-005)"
             " — the role gate must not suppress the entry it exists to protect"
         )
+
+
+class TestCaseActorClosureStatusSelection:
+    """Which statuses ``CommitCaseActorRMClosedEntryNode`` reads as a closure."""
+
+    @staticmethod
+    def _closure_rms(rms: list[RM]) -> list[RM]:
+        from vultron.core.behaviors.case.nodes.leave.record import (
+            CommitCaseActorRMClosedEntryNode,
+        )
+        from vultron.core.models.participant_status import (
+            participant_status_rm_state,
+        )
+
+        participant = as_CaseParticipant(
+            attributed_to=CASE_ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+            participant_statuses=[],
+        )
+        for rm_state in rms:
+            participant.participant_statuses.append(
+                ParticipantStatus(
+                    attributed_to=CASE_ACTOR_ID,
+                    context=CASE_ID,
+                    rm=RmDimension(state=rm_state),
+                )
+            )
+        node = CommitCaseActorRMClosedEntryNode(
+            case_actor_id=CASE_ACTOR_ID, case_id=CASE_ID
+        )
+        return [
+            participant_status_rm_state(status)
+            for status in node._closure_statuses(participant)
+        ]
+
+    @pytest.mark.spec("CM-23-005")
+    def test_bootstrap_status_is_not_a_closure_rung(self):
+        """A bootstrap RECEIVED status is not read as the R of S → R → C.
+
+        The first status is the bootstrap write (``owner.py`` may seed
+        RECEIVED), so an R → C closure records only the CLOSED status.
+        """
+        assert self._closure_rms([RM.RECEIVED, RM.CLOSED]) == [RM.CLOSED]
+
+    @pytest.mark.spec("CM-23-005")
+    @pytest.mark.spec("RMB-14-005")
+    @pytest.mark.parametrize(
+        ("rms", "expected"),
+        [
+            ([RM.START, RM.RECEIVED, RM.CLOSED], [RM.RECEIVED, RM.CLOSED]),
+            (
+                [RM.RECEIVED, RM.VALID, RM.DEFERRED, RM.CLOSED],
+                [RM.DEFERRED, RM.CLOSED],
+            ),
+            ([RM.RECEIVED, RM.VALID, RM.ACCEPTED, RM.CLOSED], [RM.CLOSED]),
+            ([RM.CLOSED], [RM.CLOSED]),
+            ([RM.RECEIVED, RM.VALID], []),
+        ],
+    )
+    def test_closure_rungs_follow_the_closure_path(
+        self, rms: list[RM], expected: list[RM]
+    ):
+        """The closure is the rungs after the bootstrap that match the path."""
+        assert self._closure_rms(rms) == expected
