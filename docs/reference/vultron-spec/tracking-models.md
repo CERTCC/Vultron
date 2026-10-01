@@ -11,6 +11,8 @@ level: 400
 {% include-markdown "./_full-page-tip.md" %}
 
 This page holds sections 6 to 9 of the [Vultron Protocol Specification](index.md): the state machines each participant uses to track a shared case.
+They are Report Management (RM), Embargo Management (EM), the Case State (CS) dimensions Vendor aware, Fix ready, fix Deployed (VFD) and Public aware, eXploit public, Attacks observed (PXA), and Participant Embargo Consent (PEC).
+They are Report Management (RM), Embargo Management (EM), the Case State (CS) dimensions Vendor aware, Fix ready, fix Deployed (VFD) and Public aware, eXploit public, Attacks observed (PXA), and Participant Embargo Consent (PEC).
 
 {% include-markdown "./_rm-state-machine.md" %}
 

@@ -65,7 +65,7 @@ number of shapes, and a conformance claim does not state which
 
 Where a capability shape is implemented, it MUST satisfy the contract defined
 above. The technology used to fulfill the contract is not specified: a shape
-may be fulfilled by a human, an automated script, an LLM, or any other mechanism.
+may be fulfilled by a human, an automated script, a Large Language Model (LLM), or any other mechanism.
 
 #### G.3 Relationship to the Reference Implementation
 

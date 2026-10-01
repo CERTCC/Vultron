@@ -10,6 +10,7 @@ level: 400
 
 {% include-markdown "./_full-page-tip.md" %}
 
-This page holds informative Annex B of the [Vultron Protocol Specification](index.md): a case with a coordinator and a second vendor.
+This page holds informative Annex B of the [Vultron Protocol Specification](index.md): a Coordinated Vulnerability Disclosure (CVD) case with a coordinator and a second vendor.
+Its two-letter message codes, such as RS for Report Submission, are defined in [§4.1 Report Management Messages](layers.md#41-report-management-messages) through [§4.3 Case State Messages](layers.md#43-case-state-messages).
 
 {% include-markdown "./_annex-b.md" %}

@@ -85,7 +85,7 @@ normatively cite a specific edition of the CNA Operational Rules, nor does it
 treat eligibility checks as fully implementation-defined. Instead, the
 reference implementation follows CNA Operational Rules v4.1.0 as the
 conformance baseline. Adopting a newer edition requires updating the spec and
-the implementing call-out. This avoids coupling the RFC to an
+the implementing call-out. This avoids coupling the Request for Comments (RFC) to an
 independently-versioned external document's release cycle while remaining
 transparent about which edition the reference implementation follows.
 

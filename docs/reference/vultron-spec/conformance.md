@@ -11,6 +11,8 @@ level: 400
 {% include-markdown "./_full-page-tip.md" %}
 
 This page holds section 12 of the [Vultron Protocol Specification](index.md): what an implementation claims when it claims conformance, and how that claim is tested.
+A conforming participant maintains the Report Management (RM), Embargo Management (EM) and Participant Embargo Consent (PEC) state machines, and the Case State (CS) dimensions.
+A conforming participant maintains the Report Management (RM), Embargo Management (EM) and Participant Embargo Consent (PEC) state machines, and the Case State (CS) dimensions.
 
 {% include-markdown "./_conformance/_intro.md" %}
 

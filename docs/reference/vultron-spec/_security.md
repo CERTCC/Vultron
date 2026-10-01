@@ -9,7 +9,7 @@ MUST treat actor URI equality as identity equality: two messages with the same
 `actor` URI are from the same actor.
 
 **Verification.** The protocol does not currently mandate a specific identity
-verification mechanism. The reference implementation anticipates HTTP Signatures
+verification mechanism. The reference implementation anticipates Hypertext Transfer Protocol (HTTP) Signatures
 (as used in ActivityPub) as the authentication layer for inbound messages. A
 future version of this specification is expected to normatively require HTTP
 Signatures at the transport layer.
@@ -29,7 +29,7 @@ provides tamper detection.
 ### 14.2 Embargo Integrity
 
 **Protocol adherence.** An active embargo is an agreement, not a technical
-enforcement. The protocol provides the signaling infrastructure — PEC state
+enforcement. The protocol provides the signaling infrastructure — Participant Embargo Consent (PEC) state
 tracks which participants have consented, [§9.5 Embargo Traffic Reaches Non-Signatories](tracking-models.md#95-embargo-traffic-reaches-non-signatories) ensures all participants receive
 meta-protocol messages — but it cannot prevent a participant from disclosing
 outside the protocol.
@@ -59,7 +59,7 @@ and gap-fill replay provide recovery from missed entries.
 ### 14.4 Confidentiality
 
 **In-transit protection.** The protocol does not currently mandate a specific
-in-transit encryption mechanism. TLS is the expected transport protection for
+in-transit encryption mechanism. Transport Layer Security (TLS) is the expected transport protection for
 HTTP delivery. A future version of this specification is expected to require TLS.
 
 **At-rest and end-to-end confidentiality.** Content-level encryption — protecting

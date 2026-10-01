@@ -23,7 +23,7 @@ These four terms are ordered deliberately: each builds on the one before it.
 | **Vulnerability** | A set of conditions or behaviors that allows the violation of an explicit or implicit security policy. Vulnerabilities are the subject of every Vultron case. |
 | **Report** | A document describing a specific vulnerability, submitted to initiate coordination. |
 | **Case** | The coordination context around a specific vulnerability: the participants, the shared state, the messages exchanged, and any embargo agreement. The case is the unit of Vultron protocol activity. |
-| **Actor** | An identity in the protocol, named by a URI. An actor may be an organization, a person, or a service. Actors exist independently of any case. |
+| **Actor** | An identity in the protocol, named by a Uniform Resource Identifier (URI). An actor may be an organization, a person, or a service. Actors exist independently of any case. |
 | **Participant** | An actor that has joined a specific case. The case holds a `CaseParticipant` record for each participant, associating that actor with the roles it holds and the state it owns. An actor is a participant *in a case*; the same actor may participate in many. |
 
 !!! info "Source of the vulnerability definition"

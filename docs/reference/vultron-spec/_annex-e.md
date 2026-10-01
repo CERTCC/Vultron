@@ -6,9 +6,9 @@ does not require full ActivityPub server behavior; the roadmap is at
 
 Where Vultron follows ActivityPub conventions:
 
-- Actors are identified by URI and expose an inbox and an outbox.
+- Actors are identified by Uniform Resource Identifier (URI) and expose an inbox and an outbox.
 - Messages are Activities with `type`, `actor`, `object` and `id`.
-- Delivery is an HTTP POST to the recipient's inbox.
+- Delivery is a Hypertext Transfer Protocol (HTTP) POST to the recipient's inbox.
 
 Where Vultron adds constraints ActivityPub does not impose:
 
@@ -22,5 +22,5 @@ Where Vultron adds constraints ActivityPub does not impose:
   types of [§5.2 Object Types](layers.md#52-object-types).
 
 !!! info "See also"
-    - [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md) —
+    - [Vultron ActivityStreams (AS) Activity Guides](../../howto/activitypub/activities/index.md) —
       how to carry out each protocol flow

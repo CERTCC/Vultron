@@ -10,6 +10,7 @@ level: 400
 
 {% include-markdown "./_full-page-tip.md" %}
 
-This page holds informative Annex A of the [Vultron Protocol Specification](index.md): a two-party case traced from first contact to closure.
+This page holds informative Annex A of the [Vultron Protocol Specification](index.md): a two-party Coordinated Vulnerability Disclosure (CVD) case traced from first contact to closure.
+Its two-letter message codes, such as RS for Report Submission, are defined in [§4.1 Report Management Messages](layers.md#41-report-management-messages) through [§4.3 Case State Messages](layers.md#43-case-state-messages).
 
 {% include-markdown "./_annex-a.md" %}

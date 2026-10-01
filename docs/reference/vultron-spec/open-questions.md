@@ -11,5 +11,7 @@ level: 400
 {% include-markdown "./_full-page-tip.md" %}
 
 This page collects the questions the [Vultron Protocol Specification](index.md) leaves unresolved.
+Several concern the Case State (CS) dimension Vendor aware, Fix ready, fix Deployed (VFD) and the Participant Embargo Consent (PEC) machine.
+Several concern the Case State (CS) dimension Vendor aware, Fix ready, fix Deployed (VFD) and the Participant Embargo Consent (PEC) machine.
 
 {% include-markdown "./_open-questions.md" %}

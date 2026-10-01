@@ -10,7 +10,7 @@ level: 400
 
 {% include-markdown "./_full-page-tip.md" %}
 
-This page holds sections 13 to 15 of the [Vultron Protocol Specification](index.md): the namespaces the protocol uses, its security considerations, and the documents it cites.
+This page holds sections 13 to 15 of the [Vultron Protocol Specification](index.md): the namespaces the protocol uses and what it asks of the Internet Assigned Numbers Authority (IANA), its security considerations, and the documents it cites.
 
 {% include-markdown "./_iana.md" %}
 

@@ -77,7 +77,7 @@ the associated protocol responsibilities.
 
 !!! note "Open: cryptographic identity across a change of case manager"
     Authority over the canonical ledger follows the `CASE_MANAGER` role, not any
-    actor's name or URI. Transferring case ownership, or moving the
+    actor's name or Uniform Resource Identifier (URI). Transferring case ownership, or moving the
     `CASE_MANAGER` role to a different actor, therefore does not by itself
     re-key the ledger.
 

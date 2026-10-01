@@ -38,11 +38,12 @@ and agree to it. Establishing terms early is generally easier than negotiating
 them once many parties are already involved.
 
 The protocol tracks coordination state across four dimensions: the report
-lifecycle (RM), the embargo (EM), what is known about the vulnerability (CS), and
-each participant's agreement to the embargo (PEC). Because CS is a compound of two
+lifecycle (Report Management, RM), the embargo (Embargo Management, EM), what is
+known about the vulnerability (Case State, CS), and each participant's agreement to
+the embargo (Participant Embargo Consent, PEC). Because CS is a compound of two
 independent axes, an implementation runs five state machines
 ([§3.3 Tracking Dimensions](introduction.md#33-tracking-dimensions)). Messages are ActivityStreams 2.0
-Activities delivered over HTTP. Delivery is asynchronous: no exchange requires both
+Activities delivered over Hypertext Transfer Protocol (HTTP). Delivery is asynchronous: no exchange requires both
 parties to be available at the same moment.
 
 !!! info "Who this specification is for"
@@ -51,7 +52,7 @@ parties to be available at the same moment.
     conforms.
 
     It assumes familiarity with coordinated vulnerability disclosure as a
-    practice — reporters, vendors, coordinators, embargoes, CVE IDs. It does not
+    practice — reporters, vendors, coordinators, embargoes, Common Vulnerabilities and Exposures (CVE) IDs. It does not
     assume prior knowledge of Vultron. Where it relies on an external
     specification, it says so and cites it
     ([§1.3 Relationship to Existing Standards](introduction.md#13-relationship-to-existing-standards)).
@@ -123,7 +124,7 @@ may become a compatibility profile. An implementation built against this version
 should expect to be re-evaluated against that one. This paragraph is the
 specification's single statement of that roadmap; other sections cite it.
 
-**ISO/IEC 29147 and 30111.** ISO 29147 specifies vulnerability disclosure
+**ISO/IEC 29147 and 30111.** International Organization for Standardization (ISO) 29147 specifies vulnerability disclosure
 practices; ISO 30111 specifies vulnerability handling processes. Vultron
 implements the multi-party coordination layer those standards describe at a
 high level. The CERT Guide to Coordinated Vulnerability Disclosure provides

@@ -5,7 +5,7 @@ This section specifies how a Vultron message is encoded and delivered. Where
 this section says what it *looks like*.
 
 Vultron does not define its own message syntax. It uses ActivityStreams 2.0, a
-published W3C vocabulary for describing things that actors do, and extends it with
+published World Wide Web Consortium (W3C) vocabulary for describing things that actors do, and extends it with
 the object types a vulnerability case needs. Reusing an existing vocabulary means
 the outer envelope is already specified, already tooled, and already understood by
 readers who have met it elsewhere.
@@ -26,7 +26,7 @@ Four fields are required on every Activity:
 | Field | Contains |
 |---|---|
 | `type` | The Activity type — the verb, such as `Offer` or `Announce` |
-| `actor` | The URI of the actor that performed the action |
+| `actor` | The Uniform Resource Identifier (URI) of the actor that performed the action |
 | `object` | The thing acted on, included inline ([§5.5 Serialization](layers.md#55-serialization)) |
 | `id` | A URI uniquely identifying this Activity, used for deduplication ([§14.3 Replay and Idempotency](considerations.md#143-replay-and-idempotency)) |
 
@@ -37,7 +37,7 @@ An implementation MUST use the Vultron ActivityStreams vocabulary for message
 structure.
 
 This version does not require full ActivityPub server behavior. Inbox and outbox
-HTTP delivery, WebFinger discovery and HTTP Signatures are not conformance
+Hypertext Transfer Protocol (HTTP) delivery, WebFinger discovery and HTTP Signatures are not conformance
 requirements here.
 
 !!! note "Informative: ActivityPub conformance is not required by this version"
@@ -239,7 +239,8 @@ occurring before a CASE_MANAGER exists to route through
 
 ### 5.5 Serialization
 
-Vultron messages are serialized as JSON-LD. JSON-LD is JSON with a context that
+Vultron messages are serialized as JavaScript Object Notation for Linked Data
+(JSON-LD). JSON-LD is JavaScript Object Notation (JSON) with a context that
 maps short names to full URIs, so a message is readable as ordinary JSON while
 remaining unambiguous about which vocabulary each term comes from.
 
@@ -292,7 +293,8 @@ is anticipated.
 
 #### REST (HTTP) profile [N]
 
-This is the transport an implementation MUST provide.
+This is the Representational State Transfer (REST) transport, which an
+implementation MUST provide.
 
 - Each actor exposes an inbox endpoint that accepts inbound Activities.
 - An outbound Activity is delivered by HTTP POST to the recipient's inbox.
