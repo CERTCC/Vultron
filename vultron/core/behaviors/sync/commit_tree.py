@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Any
 
 import py_trees
 
+from vultron.core.behaviors.bridge import BTBridge
+
 if TYPE_CHECKING:
     from vultron.core.ports.case_persistence import CaseOutboxPersistence
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -90,8 +92,6 @@ def commit_emitted_activity(
     emit node that reads ``/sync_port`` passes it through so a relayed
     emission is announced like any received commit.
     """
-    from vultron.core.behaviors.bridge import BTBridge
-
     snapshot: dict[str, Any] = json.loads(activity_blob)
     # Passed only when given: an explicit ``sync_port=None`` would shadow the
     # outer execution's port on the blackboard and silence the fan-out that a

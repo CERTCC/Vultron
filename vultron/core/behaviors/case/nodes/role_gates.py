@@ -29,6 +29,10 @@ only when the executing actor is *not* the CASE_MANAGER (RSH-08-003).
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.conditions import (
+    CheckIsCaseManagerNode,
+)
+
 __all__ = [
     "create_case_manager_gated_tree",
     "create_participant_replica_gated_tree",
@@ -95,10 +99,6 @@ def create_case_manager_gated_tree(
     Returns:
         The gated root Selector.
     """
-    from vultron.core.behaviors.case.nodes.conditions import (
-        CheckIsCaseManagerNode,
-    )
-
     gated = _wrap_children(name, children, body_name)
 
     return py_trees.composites.Selector(
@@ -155,10 +155,6 @@ def create_participant_replica_gated_tree(
     Returns:
         The gated root Selector.
     """
-    from vultron.core.behaviors.case.nodes.conditions import (
-        CheckIsCaseManagerNode,
-    )
-
     gated = _wrap_children(name, children, body_name)
 
     return py_trees.composites.Selector(

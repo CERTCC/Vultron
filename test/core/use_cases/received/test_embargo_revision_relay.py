@@ -48,13 +48,14 @@ from vultron.errors import VultronBTInternalError
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.use_cases.received.embargo import (
     InviteToEmbargoOnCaseReceivedUseCase,
+    resolve_proposer_id,
 )
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import make_embargo_case_with_actor
 
-_TRACKING = "Tracked by #3913 (manager-side relay) and #3915 (participant side, replay); Concern #3892, ADR-0113."
+_TRACKING = "Tracked by #3915 (participant side, replay); the manager-side relay landed with #3913. Concern #3892, ADR-0113."
 _TRACKING_3918 = "Concern #3918, ADR-0113."
 
 MANAGER = "https://example.org/users/coord"
@@ -628,9 +629,15 @@ def test_an_exited_case_refuses_a_proposal_before_committing(make_payload):
 def test_a_revision_of_a_public_case_is_refused_with_er(make_payload):
     """P/X/A set: the manager rejects the revision and the case stays ACTIVE.
 
-    EMB-03-003's "emit ET" is the CS public-event cascade's job
-    (``PublicDisclosureBranchNode``); the received proposal itself is answered
-    with the retained ER refusal (AC-1).
+    The EMB-03-003 marker attests a *refusal*, not the ET its text names:
+    ADR-0113 step 2 maps EMB-03-003 (with EMB-01-002) onto the CASE_MANAGER
+    refusing a proposal on a public, exploited or attacked case — the embargo
+    termination the requirement calls "emit ET" is the CS public-event
+    cascade's job (``PublicDisclosureBranchNode``), which has already run or
+    will run regardless of this proposal.  The received proposal itself is
+    answered with the retained ER refusal (#3913 AC-1).  The tension between
+    the requirement's literal text and the ADR's reading is recorded as an
+    incoming learning for the spec.
     """
     case_id = "https://example.org/cases/relay-public"
     dl, revision = _active_case_with_revision(
@@ -915,3 +922,113 @@ def test_a_redelivered_proposal_is_skipped_and_relays_nothing_twice(
     assert "already applied" in (second.reason or "")
     assert len(_ledger_entries(dl, case_id)) == entries_after_first
     assert len(_relayed_invites(dl)) == invites_after_first == 1
+
+
+class _AdapterFailingOnSecondInvite(TriggerActivityAdapter):
+    """A trigger-activity port whose second ``propose_embargo`` call raises."""
+
+    def __init__(self, dl: SqliteDataLayer) -> None:
+        super().__init__(dl)
+        self.calls = 0
+
+    def propose_embargo(
+        self, *args: object, **kwargs: object
+    ) -> tuple[str, str]:
+        self.calls += 1
+        if self.calls == 2:
+            raise RuntimeError("factory down mid-relay")
+        return super().propose_embargo(*args, **kwargs)  # type: ignore[arg-type]
+
+
+@pytest.mark.spec("ID-04-005")
+@pytest.mark.spec("BT-14-001")
+def test_a_redelivery_after_a_mid_relay_fault_relays_to_everyone_again(
+    make_payload,
+):
+    """A fault mid-fan-out leaves the latch unwritten; the retry re-relays.
+
+    Pins what ``RelayEmbargoInviteToEachNode``'s docstring says happens: the
+    first delivery raises after one Invite went out, writes no
+    ``pending_embargo_proposal_index`` latch (ID-04-005), and the redelivery
+    therefore passes the idempotency guard and relays to *every* recipient
+    again — the received proposal's own entry is reused, the recipient already
+    invited receives a second Invite and stays INVITED, and the one the fault
+    skipped is invited now.
+    """
+    case_id = "https://example.org/cases/relay-partial"
+    dl, revision = _active_case_with_revision(
+        case_id,
+        store_actor=MANAGER,
+        participants=[PROPOSER, OTHER_A, OTHER_B],
+    )
+    proposal = _proposal(revision, case_id)
+    dl.create(proposal)
+    event = make_payload(proposal, receiving_actor_id=MANAGER)
+
+    with pytest.raises(VultronBTInternalError, match="mid-relay"):
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=_AdapterFailingOnSecondInvite(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+    first_round = _relayed_invites(dl)
+    assert len(first_round) == 1
+    (invited_first,) = first_round[0].to or []
+    (not_yet,) = {OTHER_A, OTHER_B} - {invited_first}
+    assert _pec_of(dl, case_id, invited_first) is PEC.INVITED
+    assert _pec_of(dl, case_id, not_yet) is PEC.UNBOUND
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    assert case.current_status.em.state == EM.REVISE
+    assert revision.id_ not in case.pending_embargo_proposal_index
+    assert [e.event_type for e in _ledger_entries(dl, case_id)] == [
+        "invite_to_embargo_on_case"
+    ] * 2
+
+    second = InviteToEmbargoOnCaseReceivedUseCase(
+        dl,
+        event,
+        sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert second.disposition is HandlerDisposition.APPLIED
+    recipients = sorted(r for a in _relayed_invites(dl) for r in (a.to or []))
+    assert recipients == sorted([invited_first, invited_first, not_yet])
+    assert _pec_of(dl, case_id, invited_first) is PEC.INVITED
+    assert _pec_of(dl, case_id, not_yet) is PEC.INVITED
+    # One entry for the proposal (reused, not duplicated) and one per Invite.
+    assert [e.event_type for e in _ledger_entries(dl, case_id)] == [
+        "invite_to_embargo_on_case"
+    ] * 4
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    assert case.pending_embargo_proposal_index[revision.id_] == proposal.id_
+
+
+@pytest.mark.spec("CM-24-002")
+def test_attribution_without_a_local_case_falls_back_to_the_sender(
+    make_payload, caplog
+):
+    """No case to resolve the CASE_MANAGER from: the sender is the proposer.
+
+    A store that does not hold the case cannot tell a relay from a spoof, and
+    cannot run the manager arm either, so the value is only ever logged.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OTHER_A)
+    case_id = "https://example.org/cases/relay-unknown-case"
+    revision = as_EmbargoEvent(
+        id_=f"{case_id}/embargo_events/revision",
+        context=case_id,
+        end_time=days_from_now_utc(90),
+    )
+    invite = _proposal(
+        revision, case_id, actor=MANAGER, attributed_to=PROPOSER
+    )
+    event = make_payload(invite, receiving_actor_id=OTHER_A)
+
+    caplog.set_level("WARNING")
+    assert resolve_proposer_id(event, dl) == MANAGER
+    assert any("holds no case" in r.message for r in caplog.records)

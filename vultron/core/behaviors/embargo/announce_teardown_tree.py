@@ -16,7 +16,14 @@
 """
 Embargo lifecycle behavior tree compositions.
 
-Provides factory functions for embargo-related BTs:
+Provides factory functions for the received-side embargo BTs:
+
+``invite_to_embargo_on_case_tree`` — handles receipt of an ``Invite(EmbargoEvent)``
+activity (protocol EP / EV message).  Two role-gated arms behind the shared
+intake and guarded commit (ADR-0113, EP-09): the CASE_MANAGER adjudicates the
+proposal (``ProposeEmbargoLifecycleNode``) and relays it to every participant
+except the proposer (``RelayEmbargoInviteToEachNode``, ``nodes/relay.py``); any
+other store records the Invite on its replica.  The tree's docstring draws it.
 
 ``remove_embargo_from_case_tree`` — handles receipt of a ``Remove(EmbargoEvent)``
 activity (protocol ET message).  Sequence:

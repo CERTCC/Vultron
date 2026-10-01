@@ -178,7 +178,11 @@ def case_manager_admits_proposal_guard(
     canonical case cannot take is refused before the guarded commit writes
     an entry for it.
     """
-    from vultron.core.behaviors.case.nodes.role_gates import (
+    # Deferred import: ``case.nodes`` (the package ``role_gates`` lives in)
+    # reaches ``sync`` through ``accept_invite``, and ``sync`` imports the
+    # embargo nodes for its teardown replay — the same embargo/nodes <-> sync
+    # cycle as ``_commit_emission`` (notes/lint-tooling.md).
+    from vultron.core.behaviors.case.nodes.role_gates import (  # noqa: PLC0415  # #3950
         create_case_manager_gated_tree,
     )
 
@@ -262,7 +266,18 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
     with ``internal_error`` set, and the handler raises rather than reporting
     REFUSED (BT-14-001 without the masking the pitfalls table warns of).
     Partial relays are visible in the ledger as the Invites that were
-    committed; the retry re-adjudicates under the idempotency guard.
+    committed.  The idempotency latch (``pending_embargo_proposal_index``)
+    is written by the handler only after the whole tree succeeded
+    (ID-04-005), so a redelivery after a mid-relay fault passes the
+    :class:`EmbargoProposalNotYetRecordedNode` guard and re-adjudicates: the
+    proposal's own commit is deduplicated by the ledger and the EM write is a
+    no-op counter-proposal, but this node relays to *every* recipient again —
+    a recipient already invited in the failed run receives a second Invite
+    (a new activity and a new ledger entry) and its consent state, already
+    ``INVITED``, is unchanged.  Per-recipient deduplication is deliberately
+    not done here: the same terms re-proposed under a new Invite id are a
+    counter-proposal that *is* relayed again, and telling that apart from a
+    fault retry is an EP-09 design question, not a node-local check.
     """
 
     def __init__(
@@ -342,9 +357,10 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
 
     def _commit_emission(self, activity_id: str, blob: str) -> None:
         """Commit the emitted Invite as a canonical entry (ADR-0109, VM-08-003)."""
-        # Lazy: ``sync`` imports the embargo nodes for its teardown replay,
-        # so a module-level import here would be a cycle.
-        from vultron.core.behaviors.sync.commit_tree import (
+        # Deferred import: ``sync`` imports the embargo nodes for its teardown
+        # replay (``announce_tree``), so a module-level import here is a cycle
+        # (embargo/nodes <-> sync, notes/lint-tooling.md).
+        from vultron.core.behaviors.sync.commit_tree import (  # noqa: PLC0415  # #3950
             commit_emitted_activity,
         )
 

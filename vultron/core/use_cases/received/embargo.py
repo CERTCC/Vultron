@@ -177,8 +177,18 @@ def resolve_proposer_id(
     if not attributed_to:
         return request.actor_id
     case = dl.read_case(request.context_id) if request.context_id else None
-    relayed_by = resolve_case_manager_id(case, dl) if case else None
-    if request.actor_id == relayed_by:
+    if case is None:
+        logger.warning(
+            "invite_to_embargo_on_case: invite '%s' from '%s' attributes its"
+            " proposal to '%s', but this store holds no case '%s' to resolve"
+            " the CASE_MANAGER from — treating the sender as the proposer",
+            request.activity_id,
+            request.actor_id,
+            attributed_to,
+            request.context_id,
+        )
+        return request.actor_id
+    if request.actor_id == resolve_case_manager_id(case, dl):
         return attributed_to
     logger.warning(
         "invite_to_embargo_on_case: invite '%s' from '%s' attributes its"
@@ -539,8 +549,15 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             and not pec_result.get("pec_changed")
         ):
             # The replica arm found the invitee already INVITED and moved
-            # nothing: a repeat, not a refusal (HP-01-003, #2255).  Keyed on
-            # the node's own verdict, never on a re-read of the store.
+            # nothing.  A redelivery of the *same* Invite never reaches here
+            # (the idempotency guard above catches it), so this is a
+            # *different* Invite — a re-proposal or counter — landing on a
+            # replica whose participant is still INVITED from an earlier one.
+            # The replica writes no consent for it (CM-18-003) and reports a
+            # no-op, not a refusal (HP-01-003, #2255); the manager's relay of
+            # the new proposal, not this receipt, is what the replica will
+            # learn it from once #3915 lands the replay node.  Keyed on the
+            # node's own verdict, never on a re-read of the store.
             verdict = HandlerResult.skipped(
                 f"'{invitee_id}' is already invited on case '{case_id}'"
             )

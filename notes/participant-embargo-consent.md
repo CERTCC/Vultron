@@ -20,6 +20,8 @@ related_notes:
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
+  - vultron/core/behaviors/embargo
+  - vultron/core/models/case_participant.py
   - vultron/core/use_cases
 ---
 
@@ -161,10 +163,17 @@ terms they are not yet bound by, and it changes **nothing** in the consent state
 changes no consent (EP-05-002). Their answer lands in `accepted_embargo_ids`
 only, exactly as the table above says. A receive tree that applies `INVITE`
 unconditionally therefore faults on precisely the participants a revision most
-concerns. Under EP-09-003 the participant's receive tree writes no consent at
-all; the `INVITE` write belongs to the CASE_MANAGER's commit of the Invite
-emission and to the replay node that reconstructs it, and *that* is where the
-state check lives.
+concerns. The `INVITE` write belongs to the CASE_MANAGER's commit of each Invite
+emission — built in #3913 as `RelayEmbargoInviteToEachNode._invite_where_legal()`
+(`vultron/core/behaviors/embargo/nodes/relay.py`) — and to the replay node that
+reconstructs it on replicas (#3915); *that* is where the state check lives. The
+check is `CaseParticipant.apply_pec_transition_if_legal()`: the one sanctioned
+"apply where legal" shape, which asks `accepts_pec_trigger()` first and then
+routes through `apply_pec_transition()`, so an illegal trigger is a recorded
+no-op rather than a fault and every other caller stays fail-closed.
+`UpdateParticipantEmbargoPecNode(where_legal=True)` — the participant replica's
+on-receipt write, retained until #3915 gates it off (RSH-08-004) — uses the same
+method.
 
 Two further rules from the same decision matter to consent:
 
@@ -282,6 +291,7 @@ Consent-write sites (every one routes through `apply_pec_transition()`):
 | `case/nodes/participant/participant_add.py` | yes | yes |
 | `case/nodes/invite_embargo_consent.py` | yes | yes |
 | `embargo/nodes/proposal.py` | yes | yes |
+| `embargo/nodes/relay.py` (via `apply_pec_transition_if_legal()`) | yes | yes |
 | `use_cases/_helpers.py` | yes | yes |
 | `services/embargo_lifecycle/` (`pec.py`, `consent.py`) | yes | yes |
 

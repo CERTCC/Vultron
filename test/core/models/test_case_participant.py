@@ -484,3 +484,17 @@ class TestAcceptsPecTrigger:
         p.accepts_pec_trigger(PEC_Trigger.INVITE)
         p.accepts_pec_trigger(PEC_Trigger.DECLINE)
         assert p.embargo_consent_state == PEC.SIGNATORY
+
+    def test_an_unset_consent_state_reads_as_unbound(self):
+        """The None prelude mirrors apply_pec_transition(): unset is UNBOUND.
+
+        Validation never admits ``None`` (the before-validator seeds UNBOUND),
+        so the branch is reachable only on a record built without validation.
+        """
+        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+
+        p = CaseParticipant.model_construct(
+            attributed_to=_ACTOR, context=_CONTEXT, embargo_consent_state=None
+        )
+        assert p.accepts_pec_trigger(PEC_Trigger.INVITE) is True
+        assert p.accepts_pec_trigger(PEC_Trigger.REVISE) is False
