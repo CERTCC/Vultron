@@ -835,20 +835,24 @@ groups:
     kind: protocol
     statement: >-
       While a case has an active embargo, the CASE_MANAGER MUST NOT send an `Announce(CaseLedgerEntry)`
-      to a participant that has not accepted that embargo (the CM-10-004 content gate); the participant's
-      replica stays at the last entry it was sent. Embargo meta-protocol activities addressed to the
+      to a participant that has not accepted that embargo (the CM-10-004 content gate), whether as
+      fan-out of a new entry or as a replay answering that participant's `Reject(CaseLedgerEntry)`
+      (SYNC-03-002); the participant's replica stays at the last entry it was sent. Embargo meta-protocol activities addressed to the
       participant directly (an embargo `Invite` and its responses) are not ledger fan-out and MUST still
       be delivered.
     rationale: >-
       The ledger fan-out is how participants learn every accepted case change, and each entry carries
       its payload verbatim — an added report or note reaches the recipient whole. Fan-out is therefore
       "sharing case updates" in CM-10-004's sense. An entry cannot be redacted per recipient without
-      breaking the hash chain, and skipping a single entry would leave the replica's gap buffer waiting
-      forever, so the gate pauses the participant's whole stream rather than filtering entries.
+      breaking the hash chain. Skipping a single entry does not work either: the replica buffers the
+      next one as a forward gap and Rejects to request the missing entry (SYNC-14-002), so the replay
+      would deliver the withheld content anyway. The gate therefore pauses the participant's whole
+      stream, replay included, rather than filtering entries.
     verification: >-
       Unit tests on the fan-out recipient collectors confirm that, under an active embargo, a participant
       whose `accepted_embargo_ids` lacks the active embargo is excluded from the recipients while a
-      signatory is included.
+      signatory is included, and that with no active embargo both are included. A unit test on the
+      replay sender confirms that a replay to such a participant sends no entry.
     relationships:
     - rel_type: refines
       spec_id: CM-10-004
@@ -861,9 +865,9 @@ groups:
     statement: >-
       When the CM-10-004 content gate admits a participant whose ledger stream it had paused (CM-10-005)
       — because the participant accepts the active embargo, or because the embargo ends — the
-      CASE_MANAGER MUST send that participant every canonical entry it was not sent, in log order from
-      the entry after its last acknowledged one (SYNC-04-001), before or together with the entry that
-      records the change admitting it.
+      CASE_MANAGER MUST send that participant every canonical entry it was not sent, in log order
+      starting with the first entry withheld from it, before or together with the entry that records
+      the change admitting it.
     rationale: >-
       A paused participant's replica is a contiguous prefix of the ledger; backfilling the withheld suffix
       in order restores it to the leader's tip without a gap the catch-up gate (SYNC-10-004) would block
@@ -872,7 +876,8 @@ groups:
     verification: >-
       A received-side test confirms that when a participant accepts the active embargo, the
       CASE_MANAGER's outbox holds an `Announce(CaseLedgerEntry)` addressed to it for each entry committed
-      while it was outside the gate.
+      while it was outside the gate, in log order and ahead of any later entry, and that none of those
+      entries is re-sent to a participant that already had it.
     relationships:
     - rel_type: depends_on
       spec_id: CM-10-005

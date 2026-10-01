@@ -551,15 +551,16 @@ participant **stream**, not per entry:
 
 - **No per-recipient redaction.** An entry's payload is hashed into the chain;
   stripping it for one recipient breaks verification.
-- **No per-entry skip.** A replica that misses entry N holds N+1 onward in
-  its gap buffer waiting for N (SYNC-14), so skipping one entry stalls the
-  replica just as surely as pausing it — but silently.
+- **No per-entry skip.** A replica that misses entry N buffers N+1 as a
+  forward gap and Rejects to ask for N (SYNC-14-002), so the CASE_MANAGER's
+  replay would send the withheld entry anyway. The replay path therefore needs
+  the gate as much as fan-out does.
 - **So: pause, then backfill in order.** While an embargo is active, a
-  participant whose `accepted_embargo_ids` lacks it is sent no ledger entries;
-  its replica is a contiguous prefix ending where the pause began. When the
-  gate admits it — it accepts, or the embargo ends — the CASE_MANAGER sends
-  the withheld suffix in log order from the participant's last acknowledged
-  entry (SYNC-04-001), so the catch-up gate (SYNC-10-004) never sees a gap.
+  participant whose `accepted_embargo_ids` lacks it is sent no ledger entries,
+  by fan-out or by replay; its replica is a contiguous prefix ending where the
+  pause began. When the gate admits it — it accepts, or the embargo ends — the
+  CASE_MANAGER sends the withheld suffix in log order, starting with the first
+  entry withheld, so the catch-up gate (SYNC-10-004) never sees a gap.
 
 The embargo meta-protocol above is unaffected: Invites and their responses
 are addressed to the participant directly, not fanned out from the ledger, so

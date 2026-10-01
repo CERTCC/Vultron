@@ -30,9 +30,11 @@ from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.dimensions import (
     RmDimension,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -41,6 +43,7 @@ from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
     as_ParticipantStatus,
 )
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -871,28 +874,77 @@ def test_trigger_add_object_to_case_unknown_case_returns_404(
     strict=True,
     reason=(
         "TRIG-10-001: add-object-to-case does not yet refuse an object type"
-        " the CASE_MANAGER cannot route as Add(object, case). Tracked in #4041."
+        " the CASE_MANAGER cannot route as Add(object, case), or one with its"
+        " own protocol flow. Tracked in #4041."
     ),
 )
 @pytest.mark.spec("TRIG-10-001")
-def test_trigger_add_object_to_case_unroutable_type_returns_422(
-    client_triggers, actor, case_with_participant, dl
+@pytest.mark.parametrize(
+    "make_object",
+    [
+        pytest.param(
+            lambda case_id: as_Article(
+                name="Unroutable", content="no pattern"
+            ),
+            id="no-add-pattern",
+        ),
+        pytest.param(
+            lambda case_id: as_EmbargoEvent(
+                context=case_id, end_time=days_from_now_utc(45)
+            ),
+            id="own-flow-embargo",
+        ),
+    ],
+)
+def test_trigger_add_object_to_case_refused_type_returns_422(
+    client_triggers, actor, case_with_participant, dl, make_object
 ):
-    """An object no Add-to-case pattern routes is refused, not queued."""
-    article = as_Article(name="Unroutable", content="no receive pattern")
-    dl.create(article)
+    """An object the general trigger must not add is refused, not queued."""
+    obj = make_object(case_with_participant.id_)
+    dl.create(obj)
     outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/add-object-to-case",
         json={
             "case_id": case_with_participant.id_,
-            "object_id": article.id_,
+            "object_id": obj.id_,
         },
     )
 
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert set(dl.outbox_list()) == outbox_before
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "TRIG-10-001: add-object-to-case queues its Add with no recipients,"
+        " so delivery refuses it (OX-08-001). Tracked in #4041; source #3917."
+    ),
+)
+@pytest.mark.spec("TRIG-10-001")
+def test_trigger_add_object_to_case_addresses_add_to_case_manager(
+    client_triggers, actor, case_with_participant, report, dl
+):
+    """The queued Add goes to the CASE_MANAGER and no one else (PCR-08-005)."""
+    case_manager_id = resolve_case_manager_id(case_with_participant, dl)
+    assert case_manager_id is not None
+    outbox_before = set(dl.outbox_list())
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": report.id_,
+        },
+    )
+
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    queued = [dl.read(i) for i in set(dl.outbox_list()) - outbox_before]
+    adds = [a for a in queued if getattr(a, "type_", None) == "Add"]
+    assert len(adds) == 1
+    assert adds[0].to == [case_manager_id]
 
 
 def test_trigger_add_object_to_case_extra_fields_ignored(
