@@ -36,7 +36,6 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     accept_actor_recommendation_trigger_bt,
     accept_case_invite_trigger_bt,
     accept_case_ownership_transfer_trigger_bt,
-    invite_actor_to_case_trigger_bt,
     offer_case_ownership_transfer_trigger_bt,
     reject_case_invite_trigger_bt,
     suggest_actor_to_case_trigger_bt,
@@ -48,7 +47,7 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.use_cases._helpers import _find_case_actor_id
+from vultron.core.use_cases._helpers import read_received_activity
 from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     _prepare_delegated_context,
@@ -65,16 +64,26 @@ from vultron.core.use_cases.triggers.requests import (
     RejectCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
 
-class SvcSuggestActorToCaseUseCase(SvcActivityTriggerBase):
-    """Recommend another actor for participation in an existing case.
+class _SvcRecommendActorBase(SvcActivityTriggerBase):
+    """Send this actor's own ``Offer(Actor, Case)`` to the case's CASE_MANAGER.
 
-    Emits a RecommendActorActivity routed through the Case Manager
-    (SenderSideBT / PCR-08-001).
+    The shared emit of the suggest-actor flow (CM-16-001) and of the Case
+    Owner's direct invite (CM-17-007): both name an actor the case does not
+    yet have, with the roles the requester intends for it, and both reach the
+    CASE_MANAGER the same way — the requester's own activity, from the
+    requester's own identity and outbox, routed by the SenderSideBT
+    (PCR-08-001). Neither executes a tree as the CASE_MANAGER (CM-24-004,
+    ADR-0109); what the CASE_MANAGER does with the Offer is decided on its
+    side, by the recommend-actor received tree.
+
+    Subclasses implement :meth:`_prepare` and call
+    :meth:`_prepare_recommendation` from it.
     """
 
     def __init__(
@@ -95,32 +104,45 @@ class SvcSuggestActorToCaseUseCase(SvcActivityTriggerBase):
         )
         self._actor_discovery_call_out = call_out
 
-    def _prepare(self) -> None:
-        request = cast(SuggestActorToCaseTriggerRequest, self._request)
-        actor = resolve_actor(request.actor_id, self._dl)
-        self._actor_id = actor.id_
-        self._case = resolve_case(request.case_id, self._dl)
+    def _prepare_recommendation(
+        self,
+        actor_id: str,
+        case_id: str,
+        recommended_id: str,
+        field: str,
+        roles: list[CVDRole] | None,
+    ) -> None:
+        """Resolve the requester and case, and record the named peer.
 
-        # The recommended actor is a peer by definition — the whole point of a
-        # recommendation is to name an actor the *case* does not yet have. Under
-        # ADR-0073 its record is in the store of whoever knows it, so demanding
-        # one here refused every genuinely remote candidate.
+        Args:
+            actor_id: The requesting actor, as the request names it.
+            case_id: The case, as the request names it.
+            recommended_id: The actor being recommended or invited.
+            field: Name of the request field *recommended_id* came from.
+            roles: The roles the requester intends for that actor, if any.
+        """
+        actor = resolve_actor(actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._case = resolve_case(case_id, self._dl)
+
+        # The named actor is a peer by definition — the whole point is to name
+        # an actor the *case* does not yet have. Under ADR-0073 its record is in
+        # the store of whoever knows it, so demanding one here refused every
+        # genuinely remote candidate.
         _record_named_peer(
             self._dl,
-            request.suggested_actor_id,
-            "suggested_actor_id",
+            recommended_id,
+            field,
             self._actor_discovery_call_out,
         )
 
-        self._suggested_actor_id = request.suggested_actor_id
-        self._suggested_roles = (
-            [r.value for r in request.roles] if request.roles else None
-        )
+        self._recommended_id = recommended_id
+        self._suggested_roles = [r.value for r in roles] if roles else None
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:
             activity_id, activity_dict = self._factory.suggest_actor_to_case(
-                recommended_id=self._suggested_actor_id,
+                recommended_id=self._recommended_id,
                 case_id=self._case.id_,
                 actor=self._actor_id,
                 to=[case_manager_id],
@@ -134,11 +156,64 @@ class SvcSuggestActorToCaseUseCase(SvcActivityTriggerBase):
             activity_builder=_build_activities,
         )
 
+
+class SvcSuggestActorToCaseUseCase(_SvcRecommendActorBase):
+    """Recommend another actor for participation in an existing case.
+
+    Emits a RecommendActorActivity routed through the Case Manager
+    (SenderSideBT / PCR-08-001).
+    """
+
+    def _prepare(self) -> None:
+        request = cast(SuggestActorToCaseTriggerRequest, self._request)
+        self._prepare_recommendation(
+            request.actor_id,
+            request.case_id,
+            request.suggested_actor_id,
+            "suggested_actor_id",
+            request.roles,
+        )
+
     def _handle_result(self) -> None:
         logger.info(
             "Actor '%s' suggested actor '%s' for case '%s'",
             self._actor_id,
-            self._suggested_actor_id,
+            self._recommended_id,
+            self._case.id_,
+        )
+
+
+class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
+    """Ask the CASE_MANAGER to invite an actor to a case (case-owner action).
+
+    The Case Owner sends its own ``Offer(Actor, Case)`` carrying the intended
+    roles to the CASE_MANAGER, from the owner's identity and outbox
+    (CM-17-007). It executes no tree as the CASE_MANAGER and never emits in
+    its name (CM-24-004, ADR-0109): the CASE_MANAGER's recommend-actor
+    received tree sees that the recommender holds ``CVDRole.CASE_OWNER`` and
+    emits the ``Invite`` itself, from its own store, committing it in that
+    emitting tree (CM-17-006).
+
+    The ``202`` this trigger earns therefore means the Offer was queued, not
+    that the Invite was sent; the result's ``activity`` is the Offer.
+    """
+
+    def _prepare(self) -> None:
+        request = cast(InviteActorToCaseTriggerRequest, self._request)
+        self._prepare_recommendation(
+            request.actor_id,
+            request.case_id,
+            request.invitee_id,
+            "invitee_id",
+            request.roles,
+        )
+
+    def _handle_result(self) -> None:
+        logger.info(
+            "Actor '%s' asked the CASE_MANAGER to invite actor '%s' to case"
+            " '%s'",
+            self._actor_id,
+            self._recommended_id,
             self._case.id_,
         )
 
@@ -270,90 +345,6 @@ def _record_named_peer(
     dl.create(CoreActor(id_=actor_id))
 
 
-class SvcInviteActorToCaseUseCase(SvcActivityTriggerBase):
-    """Directly invite an actor to a case (case-owner action).
-
-    Emits RmInviteToCaseActivity from the Case Actor's identity
-    (PCR-08-007).  ``self._actor_id`` is set to the Case Actor URI in
-    ``_prepare()`` so the BT queues the invite in the Case Actor's outbox.
-    """
-
-    def __init__(
-        self,
-        dl: object,
-        request: object,
-        trigger_activity: object = None,
-        call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
-        wire_render_port: "WireRenderPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
-    ) -> None:
-        super().__init__(
-            dl=dl,  # type: ignore[arg-type]
-            request=request,
-            trigger_activity=trigger_activity,  # type: ignore[arg-type]
-            wire_render_port=wire_render_port,
-            sync_port=sync_port,
-        )
-        self._actor_discovery_call_out = call_out
-
-    def _prepare(self) -> None:
-        request = cast(InviteActorToCaseTriggerRequest, self._request)
-        actor = resolve_actor(request.actor_id, self._dl)
-        owner_id = actor.id_
-        self._case = resolve_case(request.case_id, self._dl)
-
-        # An invitee is a peer named by URI; see ``_record_named_peer``.
-        #
-        # This record is *not* what keeps the outbound Invite deliverable. The
-        # Invite is queued in the **Case Actor's** outbox, whose store is not
-        # this one (ADR-0073), so a record written here was never readable at
-        # rehydration time and the Invite went out carrying a bare string —
-        # which delivery then refused for AKM-03-001, silently, after its
-        # retries. Carrying the invitee is now the model's own declared
-        # contract: ``_RmInviteToCaseActivity.inline_required_refs``
-        # (DL-08-003). What this write buys is knowledge, not deliverability.
-        _record_named_peer(
-            self._dl,
-            request.invitee_id,
-            "invitee_id",
-            self._actor_discovery_call_out,
-        )
-
-        self._invitee_id = request.invitee_id
-        self._suggested_roles = request.roles
-
-        # Delegated-message contract (CM-24-001..003)
-        self._actor_id, self._attributed_to = _prepare_delegated_context(
-            self._dl, self._case.id_, owner_id
-        )
-        # case_actor_id also needed for invite BT routing (ADR-0021: no
-        # CaseActor → no cc: → no self-delivery → no CaseLedgerEntry commit)
-        self._case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
-
-    def _build_tree(self) -> py_trees.behaviour.Behaviour:
-        return invite_actor_to_case_trigger_bt(
-            invitee_id=self._invitee_id,
-            case_id=self._case.id_,
-            case_actor_id=self._case_actor_id,
-            attributed_to=self._attributed_to,
-            captured=self._captured,
-        )
-
-    def _extra_execute_kwargs(self) -> dict[str, Any]:
-        kwargs = super()._extra_execute_kwargs()
-        if self._suggested_roles is not None:
-            kwargs["suggested_roles"] = self._suggested_roles
-        return kwargs
-
-    def _handle_result(self) -> None:
-        logger.info(
-            "Actor '%s' invited actor '%s' to case '%s'",
-            self._actor_id,
-            self._invitee_id,
-            self._case.id_,
-        )
-
-
 class SvcAcceptCaseInviteUseCase(SvcActivityTriggerBase):
     """Accept a case invitation by emitting RmAcceptInviteToCaseActivity.
 
@@ -366,10 +357,10 @@ class SvcAcceptCaseInviteUseCase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        if self._dl.read(request.invite_id) is None:
-            raise VultronNotFoundError(
-                "RmInviteToCaseActivity", request.invite_id
-            )
+        # The Invite was received, so intake archived it (CLP-10-017).
+        read_received_activity(
+            self._dl, request.invite_id, "RmInviteToCaseActivity"
+        )
 
         self._invite_id = request.invite_id
 
@@ -399,10 +390,10 @@ class SvcRejectCaseInviteUseCase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        if self._dl.read(request.invite_id) is None:
-            raise VultronNotFoundError(
-                "RmInviteToCaseActivity", request.invite_id
-            )
+        # The Invite was received, so intake archived it (CLP-10-017).
+        read_received_activity(
+            self._dl, request.invite_id, "RmInviteToCaseActivity"
+        )
 
         self._invite_id = request.invite_id
 

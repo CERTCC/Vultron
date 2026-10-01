@@ -229,11 +229,16 @@ class TestInviteActorUseCases:
     """Tests for invite_actor_to_case, accept_invite_actor_to_case,
     and reject_invite_actor_to_case."""
 
-    def test_invite_actor_to_case_stores_invite(
-        self, monkeypatch, make_payload
-    ):
-        """InviteActorToCaseReceivedUseCase persists the Invite activity to the DataLayer."""
+    @pytest.mark.spec("CLP-10-017")
+    def test_invite_actor_to_case_archives_invite(self, make_payload):
+        """The invitee holds the Invite only as intake archived it.
+
+        Intake is the only store of a received activity (CLP-10-019): the
+        Invite is readable through ``read_received_activity`` and is not
+        stored under the sender's id (CLP-10-017).
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.use_cases._helpers import read_received_activity
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -249,12 +254,14 @@ class TestInviteActorUseCases:
 
         event = make_payload(invite)
 
-        InviteActorToCaseReceivedUseCase(
+        result = InviteActorToCaseReceivedUseCase(
             dl, event, wire_render_port=As2WireRenderAdapter()
         ).execute()
 
-        stored = dl.get(invite.type_.value, invite.id_)
-        assert stored is not None
+        assert result.disposition is HandlerDisposition.APPLIED
+        archived = read_received_activity(dl, invite.id_)
+        assert archived.id_ == invite.id_
+        assert dl.get(invite.type_.value, invite.id_) is None
 
     def test_invite_receipt_logged_in_narrative_form(
         self, make_payload, caplog
@@ -411,45 +418,111 @@ class TestInviteActorUseCases:
             "First-invite-wins: trust anchor MUST NOT be overwritten by a second invite"
         )
 
-    def test_invite_actor_to_case_idempotent(self, monkeypatch, make_payload):
-        """InviteActorToCaseReceivedUseCase skips storing a duplicate Invite."""
+    @pytest.mark.spec("HP-01-003")
+    def test_invite_actor_to_case_redelivery_is_skipped_not_refused(
+        self, make_payload
+    ):
+        """A duplicate Invite reports SKIPPED and writes nothing new."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case_id = "https://example.org/cases/case1"
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_="https://example.org/users/coordinator"),
+            target=case_id,
+            actor="https://example.org/users/owner",
+            id_=f"{case_id}/invitations/2",
+        )
+        event = make_payload(invite)
+
+        first = InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        anchor = dl.read(VultronPendingCaseInbox.build_id(case_id))
+        second = InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+
+        assert first.disposition is HandlerDisposition.APPLIED
+        assert second.disposition is HandlerDisposition.SKIPPED
+        assert dl.read(VultronPendingCaseInbox.build_id(case_id)) == anchor
+
+    @pytest.mark.parametrize("missing", ["target", "object"])
+    def test_invite_missing_case_or_invitee_is_refused(
+        self, make_payload, missing
+    ):
+        """An Invite that names no case or no invitee is refused up front."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-
         invite = rm_invite_to_case_activity(
             as_Actor(id_="https://example.org/users/coordinator"),
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
-            id_="https://example.org/cases/case1/invitations/2",
+            id_="https://example.org/cases/case1/invitations/missing",
         )
+        field = "target" if missing == "target" else "object_"
+        event = make_payload(invite).model_copy(update={field: None})
 
-        event = make_payload(invite)
-
-        InviteActorToCaseReceivedUseCase(
+        result = InviteActorToCaseReceivedUseCase(
             dl, event, wire_render_port=As2WireRenderAdapter()
         ).execute()
-        InviteActorToCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()  # second call is no-op
 
-        stored = dl.get(invite.type_.value, invite.id_)
-        assert stored is not None
+        assert result.disposition is HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("CLP-10-005")
+    @pytest.mark.spec("CLP-10-013")
+    def test_invite_runs_one_tree_under_the_resolved_receiver(
+        self, make_payload, monkeypatch
+    ):
+        """``execute()`` runs one tree, once, as the resolved receiving actor."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.behaviors.bridge import BTBridge
+
+        owner_id = "https://test.example/api/v2/actors/test-actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_="https://example.org/users/coordinator"),
+            target="https://example.org/cases/case1",
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/case1/invitations/one-tree",
+        )
+        calls: list[dict[str, Any]] = []
+        real = BTBridge.execute_with_setup
+
+        def _spy(self, *args, **kwargs):
+            calls.append(kwargs)
+            return real(self, *args, **kwargs)
+
+        monkeypatch.setattr(BTBridge, "execute_with_setup", _spy)
+
+        InviteActorToCaseReceivedUseCase(
+            dl, make_payload(invite), wire_render_port=As2WireRenderAdapter()
+        ).execute()
+
+        assert len(calls) == 1
+        assert calls[0]["actor_id"] == owner_id
+        assert calls[0]["tree"].name == "InviteActorToCaseReceivedBT"
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("CLP-10-017")
     def test_case_actor_redelivered_invite_is_skipped(self, make_payload):
-        """On the CaseActor's own inbox a redelivered Invite reports SKIPPED.
+        """An Invite reaching the CASE_MANAGER's inbox reports SKIPPED on redelivery.
 
-        The self-delivery tree's only work is intake and the guarded commit,
-        so the first delivery is APPLIED and a redelivery, which intake finds
-        already archived, is the benign no-op of HP-01-003 — never a second
-        APPLIED and never REFUSED.
+        The CASE_MANAGER emits and commits its own Invite and is never mailed
+        a copy (CM-17-006, ADR-0109).  Should one arrive anyway, the
+        invitee-only effects stay behind the replica gate — no trust anchor
+        is written — so the first delivery is APPLIED by intake and a
+        redelivery is the benign no-op of HP-01-003, never REFUSED.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.received_activity_record import (
@@ -500,6 +573,11 @@ class TestInviteActorUseCases:
 
         assert first.disposition is HandlerDisposition.APPLIED
         assert second.disposition is HandlerDisposition.SKIPPED
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+
+        assert dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
         archived = dl.read(ReceivedActivityRecord.build_id(invite.id_))
         assert isinstance(archived, ReceivedActivityRecord)
         assert archived.activity_id == invite.id_

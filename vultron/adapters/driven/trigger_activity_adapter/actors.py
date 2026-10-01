@@ -22,12 +22,15 @@ Case Actor / CASE_MANAGER delegation activities.
 import logging
 from typing import Any, cast
 
+from pydantic import ValidationError
+
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.use_cases._helpers import read_received_activity
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronAlreadyExistsError,
@@ -53,6 +56,7 @@ from vultron.wire.as2.factories.case import (
     reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
 )
+from vultron.wire.as2.vocab.activities.case import _RmInviteToCaseActivity
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 
@@ -79,16 +83,36 @@ def _active_embargo_of(
 
 def _stored_invite_by_case_uri(
     dl: CaseOutboxPersistence, invite_id: str
-) -> Any:
-    """Read the stored Invite with its ``target`` reduced to the case URI.
+) -> _RmInviteToCaseActivity:
+    """Read the received Invite with its ``target`` reduced to the case URI.
 
-    Read-back rehydrates the Invite's ``target`` into whatever case this store
-    holds.  The Accept or Reject that embeds the Invite goes to the
-    CASE_MANAGER, which holds the case, so the embedded Invite addresses it by
-    URI (AKM-02-003) rather than carrying a reconstruction of it (VM-08-003).
+    The invitee holds the Invite only as intake archived it (CLP-10-017,
+    ADR-0111), so it is read through the archive.  The archive keeps the
+    activity as the event carried it — a generic ``VultronActivity`` — so it
+    is validated back into the Invite class the reply factories embed; an
+    archived activity that is not a case Invite is refused here rather than
+    inside the factory.  The Accept or Reject that embeds the Invite goes to
+    the CASE_MANAGER, which holds the case, so the embedded Invite addresses
+    it by URI (AKM-02-003) rather than carrying the stub or a reconstruction
+    of it (VM-08-003).
+
+    Raises:
+        VultronNotFoundError: when no Invite with *invite_id* was received.
+        VultronValidationError: when the archived activity is not a case
+            Invite.
     """
-    invite = cast(Any, dl.read(invite_id))
-    target = getattr(invite, "target", None)
+    archived = read_received_activity(
+        dl, invite_id, "RmInviteToCaseActivity"
+    )
+    try:
+        invite = _RmInviteToCaseActivity.model_validate(
+            archived.model_dump(by_alias=True, mode="json", exclude_none=True)
+        )
+    except ValidationError as exc:
+        raise VultronValidationError(
+            f"received activity '{invite_id}' is not a case Invite: {exc}"
+        ) from exc
+    target = invite.target
     if target is not None and not isinstance(target, str):
         invite = invite.model_copy(update={"target": _as_id(target)})
     return invite
@@ -107,7 +131,6 @@ class _ActorsMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-        cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
@@ -115,9 +138,9 @@ class _ActorsMixin:
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
-        ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
-        MAY carry the case owner's ID for attribution.  ``cc`` MAY carry the
-        Case Actor's own ID for self-archival (CLP-10-001).
+        ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
+        MAY carry the case owner's ID for attribution.  The Invite carries no
+        ``cc`` (CM-17-006, ADR-0109).
 
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``as_VulnerabilityCase`` (projected to an enriched
@@ -127,8 +150,6 @@ class _ActorsMixin:
         CM-17-002 enrichment.
         """
         extra: dict[str, Any] = {"actor": actor, "to": to}
-        if cc is not None:
-            extra["cc"] = cc
         if id_ is not None:
             extra["id_"] = id_
         if attributed_to is not None:

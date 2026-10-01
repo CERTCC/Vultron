@@ -470,6 +470,85 @@ class TestEmitInviteActorToCaseNodeReadSuggestedRoles:
         )
 
 
+class TestEmitInviteActorToCaseNodeCommitsBeforeQueuing:
+    """AC-3 (#3821): the emitting tree's commit is the Invite's only commit.
+
+    The CASE_MANAGER builds the Invite, commits it, then appends it to its
+    outbox, and the Invite carries no ``cc:`` copy back to the manager
+    (CM-17-006, ADR-0109).
+    """
+
+    @pytest.fixture
+    def dl(self, store_for):
+        return store_for(ACTOR_ID)
+
+    @pytest.fixture(autouse=True)
+    def clear_blackboard(self):
+        py_trees.blackboard.Blackboard.storage.clear()
+        yield
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    @pytest.mark.spec("CM-17-006")
+    def test_invite_has_no_cc_and_is_committed_before_the_outbox_append(
+        self, dl, monkeypatch
+    ):
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        case = as_VulnerabilityCase(
+            id_=AC3_CASE_ID, name="AC3 commit order", attributed_to=ACTOR_ID
+        )
+        dl.create(case)
+
+        def _invite_entries() -> list[CaseLedgerEntry]:
+            return [
+                e
+                for e in dl.list_objects("CaseLedgerEntry")
+                if isinstance(e, CaseLedgerEntry)
+                and e.event_type == "invite_actor_to_case"
+            ]
+
+        ledger_at_append: list[list[str]] = []
+        original_append = SqliteDataLayer.outbox_append
+
+        def _spy(self_dl, activity_id):
+            ledger_at_append.append(
+                [e.payload_snapshot.get("id") for e in _invite_entries()]
+            )
+            return original_append(self_dl, activity_id)
+
+        monkeypatch.setattr(SqliteDataLayer, "outbox_append", _spy)
+
+        node = EmitInviteActorToCaseNode(
+            invitee_id=INVITEE_ID,
+            case_id=AC3_CASE_ID,
+            attributed_to=NEW_OWNER_ID,
+            roles=["vendor"],
+        )
+        result = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        outbox = dl.outbox_list()
+        assert len(outbox) == 1
+        invite_id = outbox[0]
+        invite = dl.read(invite_id)
+        assert getattr(invite, "cc", None) in (None, [])
+        assert getattr(invite, "actor", None) == ACTOR_ID
+        assert getattr(invite, "attributed_to", None) == NEW_OWNER_ID
+
+        entries = _invite_entries()
+        assert [e.payload_snapshot.get("id") for e in entries] == [invite_id]
+        assert "cc" not in entries[0].payload_snapshot
+        # The one append saw the entry already committed.
+        assert ledger_at_append == [[invite_id]]
+
+
 class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
     """AC-2 (ISSUE-1406): factory.invite_actor_to_case() called with roles=None.
 

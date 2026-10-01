@@ -196,6 +196,13 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             "vultron/core/behaviors/sync/nodes/chain.py",
             "CreateLogEntryNode.update",
         ),
+        # R3 — role gate opted into ``case_may_be_absent``: an invitee holds
+        # no replica before the Announce (MV-10-004), so absence means "not
+        # the CASE_MANAGER" (FAILURE at debug), not an anomaly.
+        (
+            f"{_NODES}/conditions.py",
+            "CheckIsCaseManagerNode.update",
+        ),
         # R3 — condition testing "already a participant"; absent => FAILURE.
         (
             f"{_NODES}/suggest_actor/conditions.py",

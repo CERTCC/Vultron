@@ -35,6 +35,9 @@ from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
 )
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckIsCaseOwnerNode,
+)
 from vultron.core.behaviors.case.suggest_actor_tree import (
     ActorAlreadyParticipantNode,
     EmitAcceptActorRecommendationNode,
@@ -348,6 +351,7 @@ class TestEmitInviteActorToCaseNodeEmptyRoles:
 
     _CASE_ID_INVITE = "https://example.org/cases/case-invite-1"
     _INVITEE_ID = "https://example.org/actors/invitee"
+    _RECOMMENDATION_ID = "https://example.org/activities/offer-invite-1"
 
     def _node(self):
         dl = MagicMock()
@@ -355,6 +359,7 @@ class TestEmitInviteActorToCaseNodeEmptyRoles:
         node = EmitInviteActorToCaseNode(
             invitee_id=self._INVITEE_ID,
             case_id=self._CASE_ID_INVITE,
+            recommendation_id=self._RECOMMENDATION_ID,
         )
         writer = py_trees.blackboard.Client(
             name="test-invite-empty-roles-writer"
@@ -373,10 +378,12 @@ class TestEmitInviteActorToCaseNodeEmptyRoles:
         writer.actor_id = _ACTOR_ID
         writer.trigger_activity_factory = factory
         node.setup()
-        # Write empty roles list to simulate a caller passing roles=[] via
-        # InviteActorToCaseTriggerRequest.roles=[] → kwargs["suggested_roles"]=[]
-        # Must be written before initialise() so the ports cache sees the value.
-        py_trees.blackboard.Blackboard.storage["/suggested_roles"] = []
+        # An empty list where EvaluateDefaultRolesNode writes the roles for
+        # this recommendation. Must be written before initialise() so the
+        # ports cache sees the value.
+        py_trees.blackboard.Blackboard.storage[
+            "/suggested_roles_offer-invite-1"
+        ] = []
         node.initialise()
         return node, factory
 
@@ -771,8 +778,8 @@ class TestDuplicateDetectionTreeStructure:
             "DuplicateOrFreshSelector must exist in the tree"
         )
 
-    def test_selector_has_four_children(self):
-        assert len(self._duplicate_selector().children) == 4
+    def test_selector_has_five_children(self):
+        assert len(self._duplicate_selector().children) == 5
 
     def test_ac7b_sequence_structure(self):
         """AC-7b arm: Sequence(ActorAlreadyParticipantNode, EmitAcceptActorRecommendationNode)."""
@@ -798,11 +805,30 @@ class TestDuplicateDetectionTreeStructure:
         assert PendingOfferCaseParticipantNode in child_types
         assert EmitNoteDuplicateRecommendationToOwnerNode in child_types
 
+    @pytest.mark.spec("CM-17-007")
+    def test_owner_direct_invite_structure(self):
+        """CASE_OWNER arm: owner check, roles, then the Invite — after the duplicates."""
+        owner = self._duplicate_selector().children[3]
+        assert isinstance(owner, py_trees.composites.Sequence)
+        assert owner.name == "OwnerDirectInvite"
+        assert [type(c) for c in owner.children] == [
+            CheckIsCaseOwnerNode,
+            EvaluateDefaultRolesNode,
+            EmitInviteActorToCaseNode,
+        ]
+        check = owner.children[0]
+        assert check._sender_actor_id == _RECOMMENDER
+        emit = owner.children[2]
+        assert emit.invitee_id == _RECOMMENDED
+        assert emit.attributed_to == _RECOMMENDER
+
     def test_fresh_path_structure(self):
-        """Fresh path arm: Sequence(EvaluateDefaultRolesNode, EmitOfferCaseParticipantToOwnerNode)."""
-        fresh = self._duplicate_selector().children[3]
+        """Fresh path arm: not the owner, then roles, then the Offer to the owner."""
+        fresh = self._duplicate_selector().children[4]
         assert isinstance(fresh, py_trees.composites.Sequence)
         child_types = [type(c) for c in fresh.children]
+        assert child_types[0] is py_trees.decorators.Inverter
+        assert isinstance(fresh.children[0].decorated, CheckIsCaseOwnerNode)
         assert EvaluateDefaultRolesNode in child_types
         assert EmitOfferCaseParticipantToOwnerNode in child_types
 

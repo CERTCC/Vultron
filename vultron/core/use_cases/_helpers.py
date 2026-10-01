@@ -15,6 +15,9 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -253,6 +256,31 @@ def resolve_case(case_id: str, dl: CasePersistence):
     if case_raw is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
     return case_raw
+
+
+def read_received_activity(
+    dl: CasePersistence, activity_id: str, resource_type: str = "Activity"
+) -> VultronActivity:
+    """Return the activity *activity_id* as intake archived it (CLP-10-017).
+
+    A received activity is stored only by intake, as a
+    ``ReceivedActivityRecord`` under the receiver's own key, never under the
+    sender's id (ADR-0111).  A reader that answers a received activity later
+    (an invitee accepting the Invite it was sent, for instance) goes through
+    ``ReceivedActivityRecord.build_id`` — this helper.
+
+    Args:
+        dl: The receiver's DataLayer.
+        activity_id: The sender's id for the activity.
+        resource_type: Label for the error when nothing is archived.
+
+    Raises:
+        VultronNotFoundError: When this store archived no such activity.
+    """
+    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
+    if not isinstance(record, ReceivedActivityRecord):
+        raise VultronNotFoundError(resource_type, activity_id)
+    return record.activity
 
 
 def current_participant_rm_state(

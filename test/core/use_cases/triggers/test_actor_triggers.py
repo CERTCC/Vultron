@@ -22,9 +22,10 @@ Includes DR-09 regression tests verifying that short UUIDs in actor_id
 are normalised to full URIs before use.
 """
 
+import json
 import logging
 from datetime import UTC
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
@@ -33,6 +34,7 @@ from test.conftest import seed_case_actor_replica
 from test.core.use_cases.received.conftest import (
     seed_store_owner_as_case_manager,
 )
+from test.support.received import archive_received
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -42,6 +44,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.use_cases.triggers.actor import (
@@ -76,6 +79,7 @@ _BASE = "http://coordinator:7999/api/v2/actors"
 _UUID = "24d63c7d-6b1e-4f61-a5e1-180d27192d0b"
 _HTTP_ACTOR_ID = f"{_BASE}/{_UUID}"
 _CREATED_DLS: list[SqliteDataLayer] = []
+_CASE_MANAGER_ID = "https://example.org/actors/case-manager"
 
 
 def _make_actor_dl(actor_name: str):
@@ -135,41 +139,198 @@ def _make_case_with_case_manager(
     return case
 
 
-class TestSvcInviteActorToCaseUseCase:
-    """Tests for the invite-actor-to-case trigger use case."""
+def _shared_case_with_case_manager(
+    owner_actor_id: str, case_actor_id: str, *dls: SqliteDataLayer
+) -> as_VulnerabilityCase:
+    """One case, with the same CASE_OWNER/CASE_MANAGER roster, in every store.
 
-    def test_invite_creates_activity_and_populates_to(self):
-        actor, dl = _make_actor_dl("Coordinator")
-        invitee, _ = _make_actor_dl("Finder")
-
-        # Seed invitee and case in actor's DL
-        dl.create(invitee)
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_,
-            name="Test Case",
-            content="Test case content",
-        )
+    The owner and the CASE_MANAGER are distinct actors with their own stores
+    (ADR-0073); each holds its replica of the same case.
+    """
+    case = as_VulnerabilityCase(
+        attributed_to=owner_actor_id, name="Test Case", content="Content"
+    )
+    owner_participant = as_CaseParticipant(
+        attributed_to=owner_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case_manager_participant = as_CaseParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case.actor_participant_index[owner_actor_id] = owner_participant.id_
+    case.actor_participant_index[case_actor_id] = case_manager_participant.id_
+    case.case_participants.append(owner_participant.id_)
+    case.case_participants.append(case_manager_participant.id_)
+    for dl in dls:
         dl.create(case)
+        dl.create(owner_participant)
+        dl.create(case_manager_participant)
+    return case
 
+
+def _activate_embargo(dl: SqliteDataLayer, case_id: str) -> str:
+    """Give *case_id* an ACTIVE embargo in *dl*; return the embargo id."""
+    from datetime import datetime
+
+    from vultron.core.states.em import EM
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    embargo = as_EmbargoEvent(
+        id_=f"{case_id}/embargo/e1",
+        content="Active embargo",
+        end_time=datetime(2030, 1, 1, tzinfo=UTC),
+        context=case_id,
+    )
+    dl.create(embargo)
+    case = cast(Any, dl.read(case_id))
+    object.__setattr__(case, "active_embargo", embargo.id_)
+    case.append_case_status(em_state=EM.ACTIVE)
+    dl.save(case)
+    return embargo.id_
+
+
+class _OwnerDirectInvite:
+    """The owner's trigger, then the CASE_MANAGER's receipt of its Offer.
+
+    Under ADR-0109 the owner's container never emits as the CASE_MANAGER: the
+    owner sends its own ``Offer(Actor, Case)`` and the CASE_MANAGER's
+    recommend-actor received tree emits the ``Invite`` (CM-17-007).  This
+    harness runs both halves against two stores so a test can inspect either.
+    """
+
+    def __init__(self, with_active_embargo: bool = False) -> None:
+        self.owner, self.owner_dl = _make_actor_dl("CaseOwner")
+        self.manager, self.manager_dl = _make_actor_dl("CaseManager")
+        self.invitee, _ = _make_actor_dl("Invitee")
+        self.owner_dl.create(self.invitee)
+        self.owner_dl.create(self.manager)
+        self.manager_dl.create(self.owner)
+        self.case = _shared_case_with_case_manager(
+            self.owner.id_, self.manager.id_, self.owner_dl, self.manager_dl
+        )
+        if with_active_embargo:
+            _activate_embargo(self.manager_dl, self.case.id_)
+
+    def trigger(self, roles: list[CVDRole] | None = None) -> dict[str, Any]:
+        """Run the owner's trigger; return the activity it captured."""
         request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
+            actor_id=self.owner.id_,
+            case_id=self.case.id_,
+            invitee_id=self.invitee.id_,
+            roles=roles,
         )
         result = SvcInviteActorToCaseUseCase(
-            dl,
+            self.owner_dl,
             request,
-            trigger_activity=TriggerActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(self.owner_dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        return activity_of(result)
+
+    def deliver_to_manager(self, offer_id: str, make_payload) -> Any:
+        """Process the owner's Offer on the CASE_MANAGER's inbox."""
+        from vultron.core.use_cases.received.actor.suggest import (
+            OfferActorToCaseReceivedUseCase,
+        )
+
+        offer = self.owner_dl.read(offer_id)
+        assert offer is not None
+        event = make_payload(offer, receiving_actor_id=self.manager.id_)
+        return OfferActorToCaseReceivedUseCase(
+            self.manager_dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(self.manager_dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert result.activity is not None
-        activity_data = activity_of(result)
-        assert activity_data["type"] == "Invite"
-        assert activity_data["actor"] == actor.id_
-        assert invitee.id_ in activity_data.get("to", [])
+    def manager_invite(self) -> Any:
+        """The single Invite the CASE_MANAGER queued."""
+        queued = [
+            self.manager_dl.read(item)
+            for item in self.manager_dl.outbox_list()
+        ]
+        invites = [q for q in queued if isinstance(q, as_Invite)]
+        assert len(invites) == 1, f"expected one Invite, got {queued!r}"
+        return invites[0]
 
-    def test_invite_persisted_in_datalayer(self):
+    def invite(
+        self, make_payload, roles: list[CVDRole] | None = None
+    ) -> tuple[Any, dict[str, Any]]:
+        """Both halves; return the CASE_MANAGER's Invite and its wire form."""
+        offer = self.trigger(roles)
+        result = self.deliver_to_manager(offer["id"], make_payload)
+        assert result.disposition.value == "applied", result
+        invite = self.manager_invite()
+        # The body the outbox relays is the sealed one (OX-07-001), so that is
+        # the wire form a recipient sees.
+        sealed = read_sealed_body(self.manager_dl, invite.id_)
+        assert sealed is not None, "the CASE_MANAGER's Invite was not sealed"
+        return invite, json.loads(sealed.body)
+
+
+class TestSvcInviteActorToCaseUseCase:
+    """The owner-direct invite trigger (CM-17-007, CM-24-004, ADR-0109)."""
+
+    @pytest.mark.spec("CM-17-007")
+    def test_invite_sends_the_owners_own_offer_to_the_case_manager(self):
+        """The owner's activity is an Offer from the owner, to the CASE_MANAGER."""
+        harness = _OwnerDirectInvite()
+
+        activity = harness.trigger(roles=[CVDRole.VENDOR])
+
+        assert activity["type"] == "Offer"
+        assert activity["actor"] == harness.owner.id_
+        assert activity.get("to") == [harness.manager.id_]
+        assert activity.get("suggestedRoles") == ["vendor"]
+        obj = activity["object"]
+        assert (obj["id"] if isinstance(obj, dict) else obj) == (
+            harness.invitee.id_
+        )
+        assert "cc" not in activity
+
+    @pytest.mark.spec("CM-24-004")
+    def test_invite_is_queued_in_the_owners_outbox_only(self):
+        """The Offer leaves from the owner's outbox; nothing is queued as the
+        CASE_MANAGER and nothing is committed by the owner."""
+        harness = _OwnerDirectInvite()
+
+        activity = harness.trigger()
+
+        assert activity["id"] in harness.owner_dl.outbox_list()
+        stored = harness.owner_dl.read(activity["id"])
+        assert stored is not None and not isinstance(stored, as_Invite)
+        assert harness.manager_dl.outbox_list() == []
+        assert (
+            harness.owner_dl.clone_for_actor(harness.manager.id_).outbox_list()
+            == []
+        )
+        assert harness.owner_dl.list_objects("CaseLedgerEntry") == []
+
+    @pytest.mark.spec("CM-24-004")
+    def test_invite_uses_no_delegated_context(self, monkeypatch):
+        """The trigger never resolves a delegated CASE_MANAGER identity."""
+        import vultron.core.use_cases._helpers as use_case_helpers
+        import vultron.core.use_cases.triggers.actor as actor_triggers
+
+        def _forbidden(*_args, **_kwargs):
+            raise AssertionError("the owner must not emit as the CASE_MANAGER")
+
+        monkeypatch.setattr(
+            actor_triggers, "_prepare_delegated_context", _forbidden
+        )
+        monkeypatch.setattr(
+            use_case_helpers, "_find_case_actor_id", _forbidden
+        )
+        harness = _OwnerDirectInvite()
+
+        activity = harness.trigger()
+
+        assert activity["actor"] == harness.owner.id_
+
+    def test_invite_raises_when_no_case_manager(self):
         actor, dl = _make_actor_dl("Coordinator")
         invitee, _ = _make_actor_dl("Finder")
         dl.create(invitee)
@@ -177,46 +338,36 @@ class TestSvcInviteActorToCaseUseCase:
             attributed_to=actor.id_, name="Test Case", content="Content"
         )
         dl.create(case)
-
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
             case_id=case.id_,
             invitee_id=invitee.id_,
         )
-        result = SvcInviteActorToCaseUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
-
-        invite_id = activity_of(result)["id"]
-        stored = dl.read(invite_id)
-        assert stored is not None
-        assert isinstance(stored, as_Invite)
+        with pytest.raises(VultronValidationError):
+            SvcInviteActorToCaseUseCase(
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
+        assert dl.outbox_list() == []
 
     @pytest.mark.spec("AKM-05-001")
     def test_invite_proceeds_when_invitee_not_in_dl(self, caplog):
         """An invitee is named by URI; a local record is not required.
 
         This asserted a 404 before. Holding a local record was never a protocol
-        requirement — the record was read and discarded, delivery derives the
-        invitee's inbox from its URI alone, and under per-actor storage a peer's
-        record lives in *its* store, not the inviter's (ADR-0073#peer-records-in-knowers-store). So
-        the old behaviour refused invitations to actors that exist and are
-        reachable, which is every cross-node invitee in a real deployment.
+        requirement — delivery derives the invitee's inbox from its URI alone,
+        and under per-actor storage a peer's record lives in *its* store, not
+        the inviter's (ADR-0073#peer-records-in-knowers-store).
 
         With the injectable ActorDiscoveryCallOutBundle seam (ADR-0025), the
         default DETERMINISTIC backend (AlwaysSucceed) logs at DEBUG rather than
         WARNING — the seam is wired, no gap to report (AKM-05-002).
         """
         actor, dl = _make_actor_dl("Coordinator")
-        # invitee NOT seeded in actor's DL
         missing_id = "https://example.org/actors/nobody"
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_, name="Test Case", content="Content"
-        )
-        dl.create(case)
+        case = _make_case_with_case_manager(dl, actor.id_, _CASE_MANAGER_ID)
 
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -231,8 +382,7 @@ class TestSvcInviteActorToCaseUseCase:
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
-        assert result is not None
-        # No WARNING with the default DETERMINISTIC bundle (AlwaysSucceed)
+        assert activity_of(result)["type"] == "Offer"
         assert "actor discovery returned" not in caplog.text
 
     @pytest.mark.parametrize(
@@ -319,10 +469,9 @@ class TestSvcInviteActorToCaseUseCase:
         _actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
         invitee, _ = _make_actor_dl("Finder")
         dl.create(invitee)
-        case = as_VulnerabilityCase(
-            attributed_to=_HTTP_ACTOR_ID, name="Test Case", content="Content"
+        case = _make_case_with_case_manager(
+            dl, _HTTP_ACTOR_ID, _CASE_MANAGER_ID
         )
-        dl.create(case)
 
         # Pass the bare UUID (as the FastAPI router does from the URL path)
         request = InviteActorToCaseTriggerRequest(
@@ -340,70 +489,13 @@ class TestSvcInviteActorToCaseUseCase:
         # Activity actor field must be the full canonical URI, not the short UUID
         assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
 
-    def test_invite_uses_case_actor_when_present(self):
-        """PCR-08-007: when the authority is a separate actor the invite actor
-        must be that actor's ID, not the case-owner actor ID.  The case owner's
-        ID is carried in ``attributedTo`` instead.
-
-        The delegated-emit shape is unchanged by ADR-0088; only *how* the
-        authority is resolved changed.  A ``Service`` whose ``context`` was the
-        case id used to identify it; now the case's roster names it as
-        ``CVDRole.CASE_MANAGER`` (ARCH-24-004).
-        """
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-
-        actor, dl = _make_actor_dl("Vendor")
-        invitee, _ = _make_actor_dl("Coordinator")
-        dl.create(invitee)
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_, name="PCR Test Case", content="Content"
-        )
-
-        # A distinct actor enacting CASE_MANAGER — the delegated-emit case.
-        case_actor = as_Service(
-            id_=f"{actor.id_}/case-actor",
-            name="CaseActorService",
-        )
-        dl.create(case_actor)
-        manager = as_CaseParticipant(
-            id_=f"{case.id_}/participants/case-manager",
-            context=case.id_,
-            attributed_to=case_actor.id_,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        dl.create(manager)
-        case.case_participants.append(manager.id_)
-        case.actor_participant_index[case_actor.id_] = manager.id_
-        dl.create(case)
-        # The Invite is authored as the CaseActor and committed to its ledger, so
-        # the tree runs in the CaseActor's store and that store needs the case.
-        seed_case_actor_replica(dl, case_actor.id_, case, invitee, manager)
-
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
-        )
-        result = SvcInviteActorToCaseUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
-
-        activity_data = activity_of(result)
-        assert activity_data["type"] == "Invite"
-        # Invite actor MUST be the Case Actor Service ID (PCR-08-007)
-        assert activity_data["actor"] == case_actor.id_
-        # Case owner attribution is preserved
-        assert activity_data.get("attributedTo") == actor.id_
-        # The activity must be in the Case Actor's outbox, not the owner's
-        case_actor_outbox = dl.clone_for_actor(case_actor.id_).outbox_list()
-        assert activity_data["id"] in case_actor_outbox
-
 
 class TestInviteRolesAndEmbargoEnrichment:
-    """AC-1 through AC-6: roles + embargo enrichment on Invite (CM-17-002/003)."""
+    """Roles and embargo enrichment on the CASE_MANAGER's Invite (CM-17-002/003).
+
+    The owner's Offer carries the roles; the CASE_MANAGER's Invite carries them
+    on, and enriches its case stub from the CASE_MANAGER's own replica.
+    """
 
     def setup_method(self):
         import py_trees
@@ -416,175 +508,83 @@ class TestInviteRolesAndEmbargoEnrichment:
         py_trees.blackboard.Blackboard.clear()
         py_trees.blackboard.Blackboard.disable_activity_stream()
 
-    def _setup_invite(self, with_embargo=False, with_active_embargo=False):
-        """Create actor, invitee, case; optionally add active embargo."""
-        from vultron.core.states.em import EM
-        from vultron.wire.as2.vocab.objects.embargo_event import (
-            as_EmbargoEvent,
-        )
-
-        actor, dl = _make_actor_dl("CaseOwner")
-        invitee, _ = _make_actor_dl("Invitee")
-        dl.create(invitee)
-        from vultron.core.models.case import VulnerabilityCase
-
-        case = VulnerabilityCase(
-            attributed_to=actor.id_, name="Test Case", content="Content"
-        )
-        dl.create(case)
-        if with_active_embargo:
-            embargo = as_EmbargoEvent(
-                id_=f"{case.id_}/embargo/e1",
-                content="Active embargo",
-                context=case.id_,
-                end_time=days_from_now_utc(45),
-            )
-            dl.create(embargo)
-            case.active_embargo = embargo.id_
-            case.append_case_status(em_state=EM.ACTIVE)
-            dl.save(case)
-        elif with_embargo:
-            case.active_embargo = f"{case.id_}/embargo/e1"
-            dl.save(case)
-        return actor, invitee, dl, case
-
-    def test_ac6_roles_field_accepted_in_request(self):
-        """AC-6: InviteActorToCaseTriggerRequest accepts optional roles field."""
-        actor, invitee, _dl, case = self._setup_invite()
+    def test_roles_field_accepted_in_request(self):
+        """InviteActorToCaseTriggerRequest accepts an optional roles field."""
         request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
+            actor_id="https://example.org/actors/owner",
+            case_id="https://example.org/cases/c1",
+            invitee_id="https://example.org/actors/invitee",
             roles=[CVDRole.VENDOR],
         )
         assert request.roles == [CVDRole.VENDOR]
 
-    def test_ac3_roles_carried_in_invite_activity(self):
-        """AC-3: Invite wire object carries roles field with intended CVD roles."""
-        actor, invitee, dl, case = self._setup_invite()
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
-            roles=[CVDRole.VENDOR],
-        )
-        result = SvcInviteActorToCaseUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+    @pytest.mark.spec("CM-17-003")
+    def test_roles_carried_to_the_case_managers_invite(self, make_payload):
+        harness = _OwnerDirectInvite()
 
-        activity_data = activity_of(result)
-        assert "roles" in activity_data
-        assert activity_data["roles"] == ["vendor"]
+        invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
 
-        invite_id = activity_data["id"]
-        stored = dl.read(invite_id)
-        assert isinstance(stored, as_Invite)
-        assert stored.roles == ["vendor"]
+        assert invite.roles == ["vendor"]
+        assert wire["roles"] == ["vendor"]
 
-    def test_ac3_no_roles_when_not_specified(self):
-        """AC-3 negative: Invite carries no roles when none requested."""
-        actor, invitee, dl, case = self._setup_invite()
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
-        )
-        result = SvcInviteActorToCaseUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+    @pytest.mark.spec("CM-16-003")
+    def test_no_roles_requested_gives_the_default_vendor_role(
+        self, make_payload
+    ):
+        """With no roles named, the CASE_MANAGER assigns the default role."""
+        harness = _OwnerDirectInvite()
 
-        activity_data = activity_of(result)
-        assert activity_data.get("roles") is None
+        _invite, wire = harness.invite(make_payload)
 
-    def test_ac1_active_embargo_enriches_case_stub(self):
-        """AC-1: Invite.target stub carries activeEmbargo.endTime and emState=ACTIVE."""
-        from datetime import datetime
+        assert wire["roles"] == ["vendor"]
 
-        from vultron.wire.as2.vocab.objects.embargo_event import (
-            as_EmbargoEvent,
-        )
+    @pytest.mark.spec("CM-17-007")
+    def test_invite_is_the_case_managers_attributed_to_the_owner(
+        self, make_payload
+    ):
+        harness = _OwnerDirectInvite()
 
-        actor, invitee, dl, case = self._setup_invite()
-        end_time = datetime(2030, 1, 1, tzinfo=UTC)
-        embargo = as_EmbargoEvent(
-            id_=f"{case.id_}/embargo/e1",
-            content="Active embargo",
-            end_time=end_time,
-            context=case.id_,
-        )
-        dl.create(embargo)
-        from vultron.core.states.em import EM
+        _invite, wire = harness.invite(make_payload)
 
-        object.__setattr__(case, "active_embargo", embargo.id_)
-        case.append_case_status(em_state=EM.ACTIVE)
-        dl.save(case)
+        assert wire["actor"] == harness.manager.id_
+        assert wire.get("attributedTo") == harness.owner.id_
+        assert wire.get("to") == [harness.invitee.id_]
+        assert "cc" not in wire
 
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
-        )
-        result = SvcInviteActorToCaseUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+    @pytest.mark.spec("CM-17-002")
+    def test_active_embargo_enriches_case_stub(self, make_payload):
+        """The Invite stub carries activeEmbargo.endTime and emState=ACTIVE."""
+        harness = _OwnerDirectInvite(with_active_embargo=True)
 
-        activity_data = activity_of(result)
-        target = activity_data.get("target", {})
+        _invite, wire = harness.invite(make_payload)
+
+        target = wire.get("target", {})
         active_embargo = target.get("activeEmbargo")
-        assert active_embargo is not None, (
-            "activeEmbargo must be present when em_state==ACTIVE"
+        assert isinstance(active_embargo, dict), (
+            "activeEmbargo must be a full embargo object (CM-17-002)"
         )
-        assert (
-            isinstance(active_embargo, dict) and "endTime" in active_embargo
-        ), (
-            "activeEmbargo must be a full embargo object with endTime (CM-17-002)"
-        )
-        case_status = target.get("caseStatus", {})
-        assert case_status.get("emState") in (
+        assert "endTime" in active_embargo
+        assert target.get("caseStatus", {}).get("emState") in (
             "active",
             "ACTIVE",
-        ), "caseStatus.emState must be present when em_state==ACTIVE"
+        )
 
-    def test_ac2_no_embargo_fields_when_not_active(self):
-        """AC-2: Invite.target stub has no embargo fields when em_state != ACTIVE."""
-        actor, invitee, dl, case = self._setup_invite()
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
-        )
-        result = SvcInviteActorToCaseUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+    @pytest.mark.spec("CM-17-002")
+    def test_no_embargo_fields_when_not_active(self, make_payload):
+        harness = _OwnerDirectInvite()
 
-        activity_data = activity_of(result)
-        target = activity_data.get("target", {})
-        assert target.get("activeEmbargo") is None, (
-            "activeEmbargo must not be present when em_state != ACTIVE"
-        )
-        assert target.get("caseStatus") is None, (
-            "caseStatus must not be present when em_state != ACTIVE"
-        )
+        _invite, wire = harness.invite(make_payload)
+
+        target = wire.get("target", {})
+        assert target.get("activeEmbargo") is None
+        assert target.get("caseStatus") is None
 
 
 class TestRolesThreadingIntegration:
-    """AC-1 / AC-2: full roles-threading round-trip end-to-end (Issue-1405).
+    """The full roles-threading round trip (CM-17-003/004, Issue-1405).
 
-    InviteActorToCaseTriggerRequest.roles flows through the BT blackboard
-    (suggested_roles) → Invite wire object → Accept(Invite) BT →
-    CaseParticipant.case_roles.
+    The owner's request roles → the owner's Offer → the CASE_MANAGER's Invite →
+    Accept(Invite) on the CASE_MANAGER → CaseParticipant.case_roles.
     """
 
     def setup_method(self):
@@ -599,120 +599,55 @@ class TestRolesThreadingIntegration:
         py_trees.blackboard.Blackboard.disable_activity_stream()
 
     def _run_round_trip(self, roles, make_payload):
-        """Trigger Invite then Accept(Invite); return the new CaseParticipant."""
-        from typing import Any, cast
+        """Run the owner-direct invite, then Accept(Invite); return the
+        CaseParticipant the CASE_MANAGER created."""
         from unittest.mock import MagicMock
 
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.use_cases.received.actor.invite import (
             AcceptInviteActorToCaseReceivedUseCase,
         )
         from vultron.wire.as2.factories import (
             rm_accept_invite_to_case_activity,
         )
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Invite,
-        )
-        from vultron.wire.as2.vocab.base.objects.actors import (
-            as_Organization,
-            as_Service,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
-        # Shared DataLayer: both trigger and receive sides use it so the
-        # persisted Invite is visible when Accept is processed.
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        _CREATED_DLS.append(dl)
-
-        owner = as_Service(name="CaseOwner")
-        dl.create(owner)
-        invitee_id = "https://example.org/actors/invitee-roundtrip"
-        invitee = as_Organization(id_=invitee_id)
-        dl.create(invitee)
-        case = as_VulnerabilityCase(
-            attributed_to=owner.id_, name="Roles Round-Trip Test"
-        )
-        # The receiving store admits the invitee, so its owner must hold
-        # CASE_MANAGER for the case (BT-17-001, BT-17-005).
-        seed_store_owner_as_case_manager(dl, case)
-        dl.create(case)
-
-        from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
-
-        reset_datalayer(owner.id_)
-        owner_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner.id_)
-        _CREATED_DLS.append(owner_dl)
-        owner_dl.create(owner)
-        owner_dl.create(invitee)
-        owner_dl.create(case)
-
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=owner.id_,
-            case_id=case.id_,
-            invitee_id=invitee_id,
-            roles=roles,
-        )
-        result = SvcInviteActorToCaseUseCase(
-            owner_dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(owner_dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
-
-        invite_id = activity_of(result)["id"]
-        invite_obj = owner_dl.read(invite_id)
-        assert isinstance(invite_obj, as_Invite)
-        dl.create(invite_obj)
+        harness = _OwnerDirectInvite()
+        invite, _wire = harness.invite(make_payload, roles=roles)
 
         accept = rm_accept_invite_to_case_activity(
-            invite_obj, actor=invitee_id
+            invite, actor=harness.invitee.id_
         )
-        event = make_payload(accept)
-
+        event = make_payload(accept, receiving_actor_id=harness.manager.id_)
         AcceptInviteActorToCaseReceivedUseCase(
-            dl,
+            harness.manager_dl,
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        updated_case = cast(Any, dl.read(case.id_))
-        participant_id = updated_case.actor_participant_index.get(invitee_id)
+        updated_case = cast(Any, harness.manager_dl.read(harness.case.id_))
+        participant_id = updated_case.actor_participant_index.get(
+            harness.invitee.id_
+        )
         assert participant_id is not None, (
             "invitee must be registered after Accept"
         )
-        participant = cast(Any, dl.read(participant_id))
-        assert participant is not None, (
-            "participant object not found in DataLayer"
-        )
+        participant = cast(Any, harness.manager_dl.read(participant_id))
+        assert participant is not None
         return participant
 
-    def test_ac1_roles_vendor_reaches_participant_case_roles(
-        self, make_payload
-    ):
-        """AC-1 (CM-17-003/004): roles=[CVDRole.VENDOR] in request results in
-        CaseParticipant.case_roles=[CVDRole.VENDOR] after Accept(Invite)."""
+    @pytest.mark.spec("CM-17-004")
+    def test_roles_vendor_reaches_participant_case_roles(self, make_payload):
         participant = self._run_round_trip(
             roles=[CVDRole.VENDOR], make_payload=make_payload
         )
-        assert CVDRole.VENDOR in participant.case_roles, (
-            f"AC-1: expected CVDRole.VENDOR in case_roles, got {participant.case_roles!r}"
-        )
+        assert CVDRole.VENDOR in participant.case_roles
 
-    def test_ac2_none_roles_gives_empty_case_roles(self, make_payload):
-        """AC-2 (CM-17-003/004): roles=None in request results in
-        CaseParticipant.case_roles=[] after Accept(Invite)."""
+    @pytest.mark.spec("CM-16-003")
+    def test_no_roles_gives_the_default_vendor_role(self, make_payload):
         participant = self._run_round_trip(
             roles=None, make_payload=make_payload
         )
-        assert participant.case_roles == [], (
-            f"AC-2: expected empty case_roles, got {participant.case_roles!r}"
-        )
+        assert participant.case_roles == [CVDRole.VENDOR]
 
 
 class TestSvcSuggestActorToCaseUseCase:
@@ -897,7 +832,7 @@ class TestSvcAcceptCaseInviteUseCase:
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
-        dl_invitee.create(invite)
+        archive_received(dl_invitee, invite)
 
         request = AcceptCaseInviteTriggerRequest(
             actor_id=invitee.id_,
@@ -960,7 +895,7 @@ class TestSvcAcceptCaseInviteUseCase:
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
-        dl_invitee.create(invite)
+        archive_received(dl_invitee, invite)
 
         request = AcceptCaseInviteTriggerRequest(
             actor_id=invitee.id_,
@@ -995,7 +930,7 @@ class TestSvcAcceptCaseInviteUseCase:
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
-        dl_invitee.create(invite)
+        archive_received(dl_invitee, invite)
 
         # Pass the bare UUID (as the FastAPI router does from the URL path)
         request = AcceptCaseInviteTriggerRequest(
@@ -1032,7 +967,7 @@ class TestSvcRejectCaseInviteUseCase:
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
-        dl_invitee.create(invite)
+        archive_received(dl_invitee, invite)
 
         request = RejectCaseInviteTriggerRequest(
             actor_id=invitee.id_,
@@ -1086,7 +1021,7 @@ class TestSvcRejectCaseInviteUseCase:
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
-        dl_invitee.create(invite)
+        archive_received(dl_invitee, invite)
 
         request = RejectCaseInviteTriggerRequest(
             actor_id=_UUID,
@@ -1751,10 +1686,7 @@ class TestActorDiscoveryCallOut:
 
         actor, dl = _make_actor_dl("Coordinator")
         missing_id = "https://example.org/actors/discovery-test"
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_, name="Discovery Test", content="Content"
-        )
-        dl.create(case)
+        case = _make_case_with_case_manager(dl, actor.id_, _CASE_MANAGER_ID)
 
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -1789,12 +1721,7 @@ class TestActorDiscoveryCallOut:
 
         actor, dl = _make_actor_dl("Coordinator")
         missing_id = "https://example.org/actors/unreachable"
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_,
-            name="Discovery Fail Test",
-            content="Content",
-        )
-        dl.create(case)
+        case = _make_case_with_case_manager(dl, actor.id_, _CASE_MANAGER_ID)
 
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -1832,12 +1759,7 @@ class TestActorDiscoveryCallOut:
 
         actor, dl = _make_actor_dl("Coordinator")
         missing_id = "https://example.org/actors/unreachable2"
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_,
-            name="Minimal Record Test",
-            content="Content",
-        )
-        dl.create(case)
+        case = _make_case_with_case_manager(dl, actor.id_, _CASE_MANAGER_ID)
 
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -1883,12 +1805,7 @@ class TestActorDiscoveryCallOut:
 
         actor, dl = _make_actor_dl("Coordinator")
         missing_id = "https://example.org/actors/still-resolving"
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_,
-            name="Running Backend Test",
-            content="Content",
-        )
-        dl.create(case)
+        case = _make_case_with_case_manager(dl, actor.id_, _CASE_MANAGER_ID)
 
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,

@@ -39,6 +39,7 @@ from test.ci.invariants.common import (
     check_per_actor_replica_participant_status_schema_completeness,
     check_per_actor_replica_rm_closed_termination,
     check_rm_closed_termination,
+    check_unique_payload_snapshot_ids,
     for_each_replica,
 )
 from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
@@ -1594,3 +1595,69 @@ class TestCheckClp14TimestampInvariants:
             {"case-actor": []}
         )
         assert not violations
+
+
+# ---------------------------------------------------------------------------
+# CLP-07-002: one entry per activity on every replica
+# ---------------------------------------------------------------------------
+
+_INVITE_ID = "https://example.org/activities/invite-1"
+
+
+def _invite_chain(*payload_ids: str) -> list[dict]:
+    entries: list[dict] = []
+    prev = GENESIS_HASH
+    for i, pid in enumerate(payload_ids):
+        h = _SHA256(f"invite:{i}")
+        entries.append(
+            _entry(
+                i,
+                h,
+                prev,
+                event_type="invite_actor_to_case",
+                payload={"id": pid, "type": "Invite"},
+            )
+        )
+        prev = h
+    return entries
+
+
+@pytest.mark.spec("CLP-07-002")
+def test_unique_payload_ids_flags_the_double_committed_invite():
+    """The retired self-cc: path committed one Invite twice on the manager."""
+    replicas = {
+        "case-actor": _invite_chain(_INVITE_ID, _INVITE_ID),
+        "vendor": _invite_chain(_INVITE_ID),
+    }
+    violations = check_unique_payload_snapshot_ids(replicas)
+    assert len(violations) == 1
+    assert "'case-actor'" in violations[0]
+    assert _INVITE_ID in violations[0]
+    assert "[0, 1]" in violations[0]
+
+
+@pytest.mark.spec("CLP-07-002")
+def test_unique_payload_ids_flags_a_duplicate_on_a_participant_replica():
+    replicas = {
+        "case-actor": _invite_chain(_INVITE_ID),
+        "vendor": _invite_chain(_INVITE_ID, _INVITE_ID),
+    }
+    violations = check_unique_payload_snapshot_ids(replicas)
+    assert len(violations) == 1
+    assert "'vendor'" in violations[0]
+
+
+@pytest.mark.spec("CLP-07-002")
+def test_unique_payload_ids_passes_one_entry_per_activity_per_replica():
+    """The same activity on two replicas is replication, not a duplicate."""
+    other = "https://example.org/activities/accept-1"
+    replicas = {
+        "case-actor": _invite_chain(_INVITE_ID, other),
+        "vendor": _invite_chain(_INVITE_ID, other),
+    }
+    assert check_unique_payload_snapshot_ids(replicas) == []
+
+
+def test_unique_payload_ids_ignores_snapshots_without_an_id():
+    replicas = {"case-actor": [_entry(0, _SHA256("a"), GENESIS_HASH)] * 2}
+    assert check_unique_payload_snapshot_ids(replicas) == []

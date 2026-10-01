@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 def create_guarded_commit_case_ledger_entry_tree(
     case_id: str | None = None,
+    case_may_be_absent: bool = False,
 ) -> py_trees.composites.Selector:
     """Create a guarded commit subtree for canonical case-ledger entries.
 
@@ -56,6 +57,9 @@ def create_guarded_commit_case_ledger_entry_tree(
     Called internally by :func:`create_receive_activity_tree`.  Direct callers
     in tree-factory modules are a CLP-10-006 ordering violation; use
     ``create_receive_activity_tree`` instead.
+
+    ``case_may_be_absent`` is passed to the gate; see
+    :func:`create_receive_activity_tree`.
     """
     from vultron.core.behaviors.case.nodes.role_gates import (
         create_case_manager_gated_tree,
@@ -65,6 +69,7 @@ def create_guarded_commit_case_ledger_entry_tree(
         name="GuardedCommitCaseLedgerEntryBT",
         case_id=case_id,
         children=[CommitCaseLedgerEntryNode(case_id=case_id)],
+        case_may_be_absent=case_may_be_absent,
     )
 
 
@@ -73,6 +78,7 @@ def create_receive_activity_tree(
     case_id: str | None,
     precondition_guards: list[py_trees.behaviour.Behaviour],
     effect_nodes: list[py_trees.behaviour.Behaviour],
+    case_may_be_absent: bool = False,
 ) -> py_trees.composites.Sequence:
     """Compose a receive-side BT with the four CLP-10-010 stages in order.
 
@@ -97,6 +103,12 @@ def create_receive_activity_tree(
     preserving behaviour for trees that receive no explicit case context;
     intake still runs.
 
+    Set ``case_may_be_absent`` when the receiver legitimately holds no replica
+    of the case yet — an invitee holds only the Invite's case stub
+    (MV-10-004).  The commit gate then skips at ``debug`` level for a case
+    the receiver does not hold, instead of reporting it as an ADR-0087
+    Regime 1 anomaly.
+
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
     CLP-10-017.
     """
@@ -106,7 +118,9 @@ def create_receive_activity_tree(
     children.extend(precondition_guards)
     if case_id is not None:
         children.append(
-            create_guarded_commit_case_ledger_entry_tree(case_id=case_id)
+            create_guarded_commit_case_ledger_entry_tree(
+                case_id=case_id, case_may_be_absent=case_may_be_absent
+            )
         )
     else:
         logger.debug(

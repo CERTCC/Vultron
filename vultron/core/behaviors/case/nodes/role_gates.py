@@ -59,6 +59,7 @@ def create_case_manager_gated_tree(
     case_id: str | None,
     children: list[py_trees.behaviour.Behaviour],
     body_name: str | None = None,
+    case_may_be_absent: bool = False,
 ) -> py_trees.composites.Selector:
     """Run *children* only when the executing actor holds ``CVDRole.CASE_MANAGER``.
 
@@ -95,6 +96,9 @@ def create_case_manager_gated_tree(
         children: Nodes to run when the gate passes. More than one is wrapped in
             a Sequence so a mid-sequence failure still propagates.
         body_name: Name for that wrapping Sequence. Defaults to ``{name}Body``.
+        case_may_be_absent: Read a case the executing actor does not hold as
+            "not the CASE_MANAGER" instead of an anomaly; see
+            :class:`CheckIsCaseManagerNode`.
 
     Returns:
         The gated root Selector.
@@ -111,7 +115,10 @@ def create_case_manager_gated_tree(
                 children=[
                     py_trees.decorators.Inverter(
                         name="InvertIsNotCaseManager",
-                        child=CheckIsCaseManagerNode(case_id=case_id),
+                        child=CheckIsCaseManagerNode(
+                            case_id=case_id,
+                            case_may_be_absent=case_may_be_absent,
+                        ),
                     ),
                 ],
             ),
@@ -125,6 +132,7 @@ def create_participant_replica_gated_tree(
     case_id: str | None,
     children: list[py_trees.behaviour.Behaviour],
     body_name: str | None = None,
+    case_may_be_absent: bool = False,
 ) -> py_trees.composites.Selector:
     """Run *children* only when the executing actor is **not** the CASE_MANAGER.
 
@@ -151,6 +159,9 @@ def create_participant_replica_gated_tree(
             More than one is wrapped in a Sequence so a mid-sequence failure
             still propagates.
         body_name: Name for that wrapping Sequence. Defaults to ``{name}Body``.
+        case_may_be_absent: Read a case the executing actor does not hold as
+            "not the CASE_MANAGER" instead of an anomaly; see
+            :class:`CheckIsCaseManagerNode`.
 
     Returns:
         The gated root Selector.
@@ -161,7 +172,11 @@ def create_participant_replica_gated_tree(
         name=name,
         memory=False,
         children=[
-            CheckIsCaseManagerNode(case_id=case_id, name="SkipIfCaseManager"),
+            CheckIsCaseManagerNode(
+                case_id=case_id,
+                name="SkipIfCaseManager",
+                case_may_be_absent=case_may_be_absent,
+            ),
             gated,
         ],
     )
