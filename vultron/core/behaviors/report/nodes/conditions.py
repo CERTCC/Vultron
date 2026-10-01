@@ -69,23 +69,25 @@ class _CheckReportPhaseRMStateBase(DataLayerConditionWithPorts):
         if is_valid:
             if self._success_when_valid:
                 self.logger.debug(
-                    f"{self.name}: Report {self.report_id} already VALID"
+                    "%s: Report %s already VALID", self.name, self.report_id
                 )
                 return Status.SUCCESS
             self.logger.debug(
-                f"{self.name}: Report {self.report_id}"
-                " already VALID - precondition failed"
+                "%s: Report %s already VALID - precondition failed",
+                self.name,
+                self.report_id,
             )
             return Status.FAILURE
 
         if self._success_when_valid:
             self.logger.debug(
-                f"{self.name}: Report {self.report_id} not in VALID state"
+                "%s: Report %s not in VALID state", self.name, self.report_id
             )
             return Status.FAILURE
         self.logger.debug(
-            f"{self.name}: Report {self.report_id}"
-            " in acceptable state for validation"
+            "%s: Report %s in acceptable state for validation",
+            self.name,
+            self.report_id,
         )
         return Status.SUCCESS
 
@@ -297,7 +299,9 @@ class EvaluateReportCredibility(DataLayerConditionWithPorts):
             SUCCESS (always, for Phase 1)
         """
         self.logger.info(
-            f"{self.name}: Evaluating credibility for report {self.report_id} (stub: always accepts)"
+            "%s: Evaluating credibility for report %s (stub: always accepts)",
+            self.name,
+            self.report_id,
         )
         return Status.SUCCESS
 
@@ -331,7 +335,9 @@ class EvaluateReportValidity(DataLayerConditionWithPorts):
             SUCCESS (always, for Phase 1)
         """
         self.logger.info(
-            f"{self.name}: Evaluating validity for report {self.report_id} (stub: always accepts)"
+            "%s: Evaluating validity for report %s (stub: always accepts)",
+            self.name,
+            self.report_id,
         )
         return Status.SUCCESS
 
@@ -370,7 +376,9 @@ class EvaluateCasePriority(DataLayerConditionWithPorts):
             SUCCESS (always, for Phase 1)
         """
         self.logger.info(
-            f"{self.name}: Evaluating priority for case {self.case_id} (stub: always engage)"
+            "%s: Evaluating priority for case %s (stub: always engage)",
+            self.name,
+            self.case_id,
         )
         return Status.SUCCESS
 

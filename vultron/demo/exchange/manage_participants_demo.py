@@ -203,7 +203,7 @@ def demo_manage_participants_accept(
             to=[coordinator.id_],
             content=f"Inviting you to participate in {case.name}.",
         )
-        logger.info(f"Sending invite: {logfmt(invite)}")
+        logger.info("Sending invite: %s", logfmt(invite))
         post_to_inbox_and_wait(client, coordinator.id_, invite)
 
     with demo_step("Step 3: Coordinator accepts invitation"):
@@ -213,7 +213,7 @@ def demo_manage_participants_accept(
             to=[vendor.id_],
             content=f"Accepting invitation to participate in {case.name}.",
         )
-        logger.info(f"Sending accept: {logfmt(accept)}")
+        logger.info("Sending accept: %s", logfmt(accept))
         post_to_inbox_and_wait(client, vendor.id_, accept)
 
     coordinator_participant = None
@@ -359,7 +359,7 @@ def demo_manage_participants_reject(
             to=[coordinator.id_],
             content=f"Inviting you to participate in {case.name}.",
         )
-        logger.info(f"Sending invite: {logfmt(invite)}")
+        logger.info("Sending invite: %s", logfmt(invite))
         post_to_inbox_and_wait(client, coordinator.id_, invite)
 
     with demo_step("Step 3: Coordinator rejects invitation"):
@@ -369,7 +369,7 @@ def demo_manage_participants_reject(
             to=[vendor.id_],
             content=f"Declining invitation to participate in {case.name}.",
         )
-        logger.info(f"Sending reject: {logfmt(reject)}")
+        logger.info("Sending reject: %s", logfmt(reject))
         post_to_inbox_and_wait(client, vendor.id_, reject)
 
     with demo_step("Step 4: Verify coordinator not added as participant"):

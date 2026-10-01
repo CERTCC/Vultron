@@ -100,7 +100,7 @@ def make_submit_offer(finder, vendor, report) -> as_Offer:
     offer = rm_submit_report_activity(
         report, actor=finder.id_, target=vendor.id_, to=vendor.id_
     )
-    logger.info(f"Created SubmitReport activity: {logfmt(offer)}")
+    logger.info("Created SubmitReport activity: %s", logfmt(offer))
     return offer
 
 
@@ -111,7 +111,7 @@ def submit_to_inbox(
     vendor_id = parse_id(vendor_id)["object_id"]
 
     logger.info(
-        f"Submitting activity to {vendor_id}'s inbox: {logfmt(activity)}"
+        "Submitting activity to %s's inbox: %s", vendor_id, logfmt(activity)
     )
 
     return client.post(f"/actors/{vendor_id}/inbox/", json=postfmt(activity))
@@ -170,7 +170,7 @@ def demo_validate_report(
             content="This is a legitimate vulnerability in the authentication module.",
             name="Authentication Bypass Vulnerability",
         )
-        logger.info(f"Created report: {logfmt(report)}")
+        logger.info("Created report: %s", logfmt(report))
         report_offer = make_submit_offer(finder, vendor, report)
         # Provision the CaseActor this report's proposal will be addressed to.
         # Its id is derived from the report, and this node hosts it in
@@ -195,7 +195,7 @@ def demo_validate_report(
         with demo_check("ValidateReport activity stored"):
             response = client.get(client.dl_path(validate_activity.id_))
             logger.info(
-                f"ValidateReport stored: {json.dumps(response, indent=2)}"
+                "ValidateReport stored: %s", json.dumps(response, indent=2)
             )
 
     with demo_step("Step 3: Vendor creates case and notifies finder"):
@@ -257,7 +257,7 @@ def demo_invalidate_report(
             content="Possible vulnerability in payment processing, needs more investigation.",
             name="Potential Payment Processing Issue",
         )
-        logger.info(f"Created report: {logfmt(report)}")
+        logger.info("Created report: %s", logfmt(report))
         report_offer = make_submit_offer(finder, vendor, report)
         # Provision the CaseActor this report's proposal will be addressed to.
         # Its id is derived from the report, and this node hosts it in
@@ -286,7 +286,8 @@ def demo_invalidate_report(
                 client.dl_path(invalidate_activity.id_)
             )
             logger.info(
-                f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
+                "InvalidateReport stored: %s",
+                json.dumps(invalidate_response, indent=2),
             )
 
     with demo_step("Step 3: Vendor notifies finder of invalidation"):
@@ -345,7 +346,7 @@ def demo_invalidate_and_close_report(
             content="This is a false positive - not a real vulnerability.",
             name="False Positive Report",
         )
-        logger.info(f"Created report: {logfmt(report)}")
+        logger.info("Created report: %s", logfmt(report))
         report_offer = make_submit_offer(finder, vendor, report)
         # Provision the CaseActor this report's proposal will be addressed to.
         # Its id is derived from the report, and this node hosts it in
@@ -376,11 +377,12 @@ def demo_invalidate_and_close_report(
                 client.dl_path(invalidate_activity.id_)
             )
             logger.info(
-                f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
+                "InvalidateReport stored: %s",
+                json.dumps(invalidate_response, indent=2),
             )
             close_response = client.get(client.dl_path(close_activity.id_))
             logger.info(
-                f"CloseReport stored: {json.dumps(close_response, indent=2)}"
+                "CloseReport stored: %s", json.dumps(close_response, indent=2)
             )
 
     with demo_step(

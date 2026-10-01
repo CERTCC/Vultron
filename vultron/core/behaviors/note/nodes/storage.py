@@ -36,11 +36,11 @@ class SaveNoteNode(DataLayerActionWithPorts):
 
         try:
             self.datalayer.save(self.note_obj)
-            self.logger.info(f"{self.name}: Saved note {self.note_obj.id_}")
+            self.logger.info("%s: Saved note %s", self.name, self.note_obj.id_)
             return Status.SUCCESS
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                f"{self.name}: Error saving note {self.note_obj.id_}: {e}"
+                "%s: Error saving note %s: %s", self.name, self.note_obj.id_, e
             )
             return Status.FAILURE
 
@@ -61,7 +61,7 @@ class AttachNoteToCaseNode(DataLayerActionWithPorts):
     def update(self) -> Status:
         if self.case_id is None:
             self.logger.debug(
-                f"{self.name}: no case_id — skipping case attachment"
+                "%s: no case_id — skipping case attachment", self.name
             )
             return Status.SUCCESS
 
@@ -76,15 +76,19 @@ class AttachNoteToCaseNode(DataLayerActionWithPorts):
         existing_ids = [_as_id(n) for n in case.notes]
         if self.note_id in existing_ids:
             self.logger.info(
-                f"{self.name}: note '{self.note_id}' already in"
-                f" case '{self.case_id}' — skipping (idempotent)"
+                "%s: note '%s' already in case '%s' — skipping (idempotent)",
+                self.name,
+                self.note_id,
+                self.case_id,
             )
             return Status.SUCCESS
 
         case.notes.append(self.note_id)
         self.datalayer.save(case)
         self.logger.info(
-            f"{self.name}: Attached note '{self.note_id}'"
-            f" to case '{self.case_id}'"
+            "%s: Attached note '%s' to case '%s'",
+            self.name,
+            self.note_id,
+            self.case_id,
         )
         return Status.SUCCESS

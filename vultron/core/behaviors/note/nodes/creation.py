@@ -63,11 +63,11 @@ class CreateNoteNode(DataLayerActionWithPorts):
             self.result_out["note_id"] = note_id
             self.result_out["note_dict"] = json.loads(note_blob)
             self.feedback_message = f"Created note '{note_id}'"
-            self.logger.info(f"{self.name}: {self.feedback_message}")
+            self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"Error creating note: {e}"
-            self.logger.error(f"{self.name}: {self.feedback_message}")  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s: %s", self.name, self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -88,7 +88,7 @@ class AttachNoteFromResultNode(DataLayerActionWithPorts):
         note_id = self.result_out.get("note_id")
         if not note_id:
             self.feedback_message = "note_id not available in result_out"
-            self.logger.error(f"{self.name}: {self.feedback_message}")
+            self.logger.error("%s: %s", self.name, self.feedback_message)
         return note_id or None
 
     def update(self) -> Status:
@@ -97,26 +97,31 @@ class AttachNoteFromResultNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         if (f := self._require_datalayer()) is not None:
-            self.logger.error(f"{self.name}: {self.feedback_message}")
+            self.logger.error("%s: %s", self.name, self.feedback_message)
             return f
 
         case: Any = self.datalayer.read(self.case_id)  # type: ignore[union-attr]
         if case is None:
             self.feedback_message = f"case '{self.case_id}' not found"
-            self.logger.warning(f"{self.name}: {self.feedback_message}")
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
         existing_ids = [_as_id(n) for n in case.notes]
         if note_id in existing_ids:
             self.logger.info(
-                f"{self.name}: note '{note_id}' already in"
-                f" case '{self.case_id}' — skipping (idempotent)"
+                "%s: note '%s' already in case '%s' — skipping (idempotent)",
+                self.name,
+                note_id,
+                self.case_id,
             )
             return Status.SUCCESS
 
         case.notes.append(note_id)
         self.datalayer.save(case)  # type: ignore[union-attr]
         self.logger.info(
-            f"{self.name}: Attached note '{note_id}' to case '{self.case_id}'"
+            "%s: Attached note '%s' to case '%s'",
+            self.name,
+            note_id,
+            self.case_id,
         )
         return Status.SUCCESS

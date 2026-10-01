@@ -332,7 +332,7 @@ def demo_invalidate_path(
             "usernames.",
             name="Alleged Username Enumeration",
         )
-        logger.info(f"Created report: {logfmt(report)}")
+        logger.info("Created report: %s", logfmt(report))
         offer = rm_submit_report_activity(
             report, actor=finder.id_, to=vendor.id_
         )

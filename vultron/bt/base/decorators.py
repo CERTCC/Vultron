@@ -88,7 +88,7 @@ class ForceSuccess(BtDecorator):
     def _tick(self, depth=0):
         only_child = self.children[0]
         child_status = only_child.tick(depth + 1)
-        logger.debug(f"Child {only_child.name} returns {child_status}")
+        logger.debug("Child %s returns %s", only_child.name, child_status)
         return NodeStatus.SUCCESS
 
 
@@ -100,7 +100,7 @@ class ForceFailure(BtDecorator):
     def _tick(self, depth=0):
         only_child = self.children[0]
         child_status = only_child.tick(depth + 1)
-        logger.debug(f"Child {only_child.name} returns {child_status}")
+        logger.debug("Child %s returns %s", only_child.name, child_status)
         return NodeStatus.FAILURE
 
 
@@ -112,7 +112,7 @@ class ForceRunning(BtDecorator):
     def _tick(self, depth=0):
         only_child = self.children[0]
         child_status = only_child.tick(depth + 1)
-        logger.debug(f"Child {only_child.name} returns {child_status}")
+        logger.debug("Child %s returns %s", only_child.name, child_status)
         return NodeStatus.RUNNING
 
 

@@ -207,7 +207,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
         if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return f
         assert self.trigger_activity_factory is not None
 
@@ -218,7 +218,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                 f"suggested_roles for actor '{self.recommended_id}' is empty "
                 "— cannot emit Offer(CaseParticipant) without at least one role"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
         try:
             owner_id = _resolve_owner_recipient(
@@ -229,7 +229,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                     f"case '{self.case_id}' names no Case Owner other than "
                     f"'{self.actor_id}' — cannot address Offer(CaseParticipant)"
                 )
-                self.logger.error(self.feedback_message)
+                self.logger.error("%s", self.feedback_message)
                 return Status.FAILURE
             activity_id, activity_blob = factory.offer_actor_to_case(
                 recommender_id=self.recommender_id,
@@ -274,7 +274,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"EmitOfferCaseParticipantToOwner failed: {e}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -316,7 +316,7 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
         if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return f
         assert self.trigger_activity_factory is not None
 
@@ -331,7 +331,7 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
                     f"'{self.actor_id}' — cannot address the "
                     "duplicate-recommendation Note"
                 )
-                self.logger.error(self.feedback_message)
+                self.logger.error("%s", self.feedback_message)
                 return Status.FAILURE
 
             actor_segment = self.recommended_id.split("/")[-1]
@@ -373,7 +373,7 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"EmitNoteDuplicateRecommendationToOwner failed: {e}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 

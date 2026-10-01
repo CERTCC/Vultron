@@ -610,7 +610,7 @@ def post_actor_outbox(
         )
 
     logger.debug(
-        f"Posting activity to actor {canonical_actor_id} outbox: {activity}"
+        "Posting activity to actor %s outbox: %s", canonical_actor_id, activity
     )
 
     # No clone: the injected DataLayer already is this actor's store.
