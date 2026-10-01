@@ -13,11 +13,11 @@
 
 """Seed a store with an activity as if it had been received.
 
-A received activity is stored only by intake, as a ``ReceivedActivityRecord``
-under the receiver's key (CLP-10-017, ADR-0111).  A test that needs the
-receiver to *hold* a received activity — an invitee about to answer its
-Invite, for instance — seeds that record, not the activity under the sender's
-id, so the code under test reads it the way production does.
+A received activity that reaches its use case is stored by intake, as a
+``ReceivedActivityRecord`` under the receiver's key (CLP-10-017, ADR-0111).
+A test that needs the receiver to *hold* a dispatched activity — an invitee
+about to answer its Invite, for instance — seeds that record, so the code
+under test reads it the way production does.
 """
 
 from typing import Any

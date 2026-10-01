@@ -158,7 +158,7 @@ class TestAcceptCaseInvite:
             actor=_ACTOR,
             to=[_INVITEE],
         )
-        # The invitee holds a received Invite only as intake archived it
+        # A received Invite that reached its use case is archived by intake
         # (CLP-10-017, ADR-0111).
         archive_received(dl, invite)
         return invite.id_
@@ -248,11 +248,16 @@ class TestAcceptCaseInvite:
 
         assert json.loads(activity_dict)["object"]["target"] == _CASE_ID
 
-    @pytest.mark.spec("CLP-10-017")
-    def test_an_invite_stored_outside_the_archive_is_not_found(
+    @pytest.mark.spec("AKM-02-003")
+    def test_an_invite_the_inbox_holds_until_the_case_bootstrap_is_answered(
         self, adapter, dl
     ):
-        """Only intake stores a received activity; a bare row is not one."""
+        """A deferred Invite has not reached intake; the inbox holds it bare.
+
+        The invitee holds no case before its Accept brings the bootstrap, so
+        the inbox defers the Invite and keeps it under the sender's id.  That
+        copy is the one the invitee answers.
+        """
         invite = rm_invite_to_case_activity(
             _INVITEE,
             target=as_VulnerabilityCaseStub(id_=_CASE_ID),
@@ -261,8 +266,21 @@ class TestAcceptCaseInvite:
         )
         dl.create(invite)
 
+        _, activity_dict = adapter.accept_case_invite(
+            invite_id=invite.id_, actor=_INVITEE
+        )
+
+        accept = json.loads(activity_dict)
+        assert accept["object"]["id"] == invite.id_
+        assert accept["object"]["target"] == _CASE_ID
+
+    def test_an_invite_this_store_never_received_is_not_found(
+        self, adapter, dl
+    ):
         with pytest.raises(VultronNotFoundError):
-            adapter.accept_case_invite(invite_id=invite.id_, actor=_INVITEE)
+            adapter.accept_case_invite(
+                invite_id="urn:uuid:never-received", actor=_INVITEE
+            )
 
     def test_an_archived_activity_that_is_not_an_invite_is_refused(
         self, adapter, dl

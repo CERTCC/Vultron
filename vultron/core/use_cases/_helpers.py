@@ -15,6 +15,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
@@ -260,27 +261,34 @@ def resolve_case(case_id: str, dl: CasePersistence):
 
 def read_received_activity(
     dl: CasePersistence, activity_id: str, resource_type: str = "Activity"
-) -> VultronActivity:
-    """Return the activity *activity_id* as intake archived it (CLP-10-017).
+) -> PersistableModel:
+    """Return the activity *activity_id* as this receiver holds it.
 
-    A received activity is stored only by intake, as a
-    ``ReceivedActivityRecord`` under the receiver's own key, never under the
-    sender's id (ADR-0111).  A reader that answers a received activity later
-    (an invitee accepting the Invite it was sent, for instance) goes through
-    ``ReceivedActivityRecord.build_id`` — this helper.
+    A received activity that reached its use case is archived by intake as a
+    ``ReceivedActivityRecord`` under the receiver's own key (CLP-10-017,
+    ADR-0111), so that record is read first.
+
+    An activity the inbox deferred until its case is known has not reached
+    intake yet.  An Invite to a case is usually in that state: the invitee
+    holds no case until its Accept brings the bootstrap Announce (MV-10-003).
+    The inbox holds such an activity under the sender's id for replay, and
+    that copy is then the only one the receiver has, so it is read next.
 
     Args:
         dl: The receiver's DataLayer.
         activity_id: The sender's id for the activity.
-        resource_type: Label for the error when nothing is archived.
+        resource_type: Label for the error when nothing is held.
 
     Raises:
-        VultronNotFoundError: When this store archived no such activity.
+        VultronNotFoundError: When this store holds no such activity.
     """
     record = dl.read(ReceivedActivityRecord.build_id(activity_id))
-    if not isinstance(record, ReceivedActivityRecord):
+    if isinstance(record, ReceivedActivityRecord):
+        return record.activity
+    deferred = dl.read(activity_id)
+    if deferred is None:
         raise VultronNotFoundError(resource_type, activity_id)
-    return record.activity
+    return deferred
 
 
 def current_participant_rm_state(

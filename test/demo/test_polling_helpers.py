@@ -29,6 +29,7 @@ from vultron.demo.helpers.polling import (
     LATE_JOINER_REPLICA_TIMEOUT,
     LATE_JOINER_TIMEOUT,
     PARTICIPANT_JOIN_TIMEOUT,
+    assert_received_from,
     find_case_invite_for_actor,
     wait_for_case_attributed_to,
     wait_for_case_participants,
@@ -540,7 +541,8 @@ def test_shared_budget_hands_out_what_is_left_and_never_goes_negative(
 
 # ---------------------------------------------------------------------------
 # find_case_invite_for_actor (#3821): the invitee holds the CASE_MANAGER's
-# Invite only as intake's ReceivedActivityRecord (CLP-10-017, ADR-0111).
+# Invite as intake's ReceivedActivityRecord (CLP-10-017, ADR-0111), or bare
+# under the sender's id while the inbox defers it until the case bootstrap.
 # ---------------------------------------------------------------------------
 
 _MANAGER = "http://example.com/actors/case-actor"
@@ -584,18 +586,18 @@ class TestFindCaseInviteForActor:
         assert found == _INVITE_ID
         assert record_id != _INVITE_ID
 
-    def test_a_bare_invite_under_the_senders_id_is_not_a_receipt(self):
+    def test_finds_the_invite_the_inbox_holds_until_the_case_bootstrap(
+        self,
+    ):
+        """A deferred Invite has not reached intake; the inbox holds it bare."""
         _, record = _archived_invite_entry()
         client = _dl_client({_INVITE_ID: record["activity"]})
 
-        with pytest.raises(AssertionError):
-            find_case_invite_for_actor(
-                client,
-                CASE_ID,
-                ACTOR_B,
-                timeout_seconds=0.05,
-                poll_interval=0.01,
-            )
+        found = find_case_invite_for_actor(
+            client, CASE_ID, ACTOR_B, timeout_seconds=1.0, poll_interval=0.01
+        )
+
+        assert found == _INVITE_ID
 
     @pytest.mark.parametrize(
         ("case_id", "invitee_id"),
@@ -617,4 +619,36 @@ class TestFindCaseInviteForActor:
                 ACTOR_B,
                 timeout_seconds=0.05,
                 poll_interval=0.01,
+            )
+
+
+class TestAssertReceivedFrom:
+    @pytest.mark.parametrize("held", ["archived", "deferred"])
+    def test_passes_when_the_named_actor_sent_it(self, held):
+        record_id, record = _archived_invite_entry()
+        entries = (
+            {record_id: record}
+            if held == "archived"
+            else {_INVITE_ID: record["activity"]}
+        )
+
+        assert_received_from(
+            _dl_client(entries), _INVITE_ID, _MANAGER, "consequence"
+        )
+
+    def test_names_the_actual_sender_when_another_actor_sent_it(self):
+        record_id, record = _archived_invite_entry()
+
+        with pytest.raises(AssertionError, match=f"emitted as '{_MANAGER}'"):
+            assert_received_from(
+                _dl_client({record_id: record}),
+                _INVITE_ID,
+                ACTOR_A,
+                "consequence",
+            )
+
+    def test_fails_when_the_activity_is_not_held(self):
+        with pytest.raises(AssertionError, match="holds no received activity"):
+            assert_received_from(
+                _dl_client({}), _INVITE_ID, _MANAGER, "consequence"
             )

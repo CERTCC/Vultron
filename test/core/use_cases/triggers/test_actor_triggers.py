@@ -30,10 +30,6 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from test.conftest import seed_case_actor_replica
-from test.core.use_cases.received.conftest import (
-    seed_store_owner_as_case_manager,
-)
 from test.support.received import archive_received
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -45,7 +41,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
@@ -815,7 +810,17 @@ class TestSvcSuggestActorToCaseUseCase:
 class TestSvcAcceptCaseInviteUseCase:
     """Tests for the accept-case-invite trigger use case."""
 
-    def test_accept_creates_activity(self):
+    @pytest.mark.parametrize(
+        "hold",
+        [
+            pytest.param(archive_received, id="archived-by-intake"),
+            pytest.param(
+                lambda dl, invite: dl.create(invite),
+                id="held-by-the-inbox-until-the-case-bootstrap",
+            ),
+        ],
+    )
+    def test_accept_creates_activity(self, hold):
         inviter, dl_inviter = _make_actor_dl("Coordinator")
         invitee, dl_invitee = _make_actor_dl("Finder")
         dl_inviter.create(invitee)
@@ -832,7 +837,7 @@ class TestSvcAcceptCaseInviteUseCase:
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
-        archive_received(dl_invitee, invite)
+        hold(dl_invitee, invite)
 
         request = AcceptCaseInviteTriggerRequest(
             actor_id=invitee.id_,

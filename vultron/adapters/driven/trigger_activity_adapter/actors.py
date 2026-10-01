@@ -24,11 +24,11 @@ from collections.abc import Mapping
 from typing import Any, cast
 
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import read_received_activity
 from vultron.enums.roles import CVDRole
@@ -82,21 +82,21 @@ def _active_embargo_of(
 
 def _stored_invite_by_case_uri(
     dl: CaseOutboxPersistence, invite_id: str
-) -> VultronActivity:
+) -> PersistableModel:
     """Read the received Invite with its ``target`` reduced to the case URI.
 
-    The invitee holds the Invite only as intake archived it (CLP-10-017,
-    ADR-0111), so it is read through the archive; the reply factory checks
-    that it is a case Invite.  The Accept or Reject that embeds the Invite
-    goes to the CASE_MANAGER, which holds the case, so the embedded Invite
-    addresses it by URI (AKM-02-003) rather than carrying the stub or a
-    reconstruction of it (VM-08-003).
+    The Invite is read as this invitee holds it (``read_received_activity``):
+    archived by intake, or held by the inbox while it waits for the case
+    bootstrap.  The reply factory checks that it is a case Invite.  The Accept
+    or Reject that embeds the Invite goes to the CASE_MANAGER, which holds the
+    case, so the embedded Invite addresses it by URI (AKM-02-003) rather than
+    carrying the stub or a reconstruction of it (VM-08-003).
 
     Raises:
         VultronNotFoundError: when no activity with *invite_id* was received.
     """
     invite = read_received_activity(dl, invite_id, "RmInviteToCaseActivity")
-    target = invite.target
+    target = getattr(invite, "target", None)
     # Read back from the archive, an inline target may be a plain mapping
     # rather than a model, so its id is taken from either form.
     if isinstance(target, Mapping):

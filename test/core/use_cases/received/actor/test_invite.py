@@ -231,14 +231,16 @@ class TestInviteActorUseCases:
 
     @pytest.mark.spec("CLP-10-017")
     def test_invite_actor_to_case_archives_invite(self, make_payload):
-        """The invitee holds the Invite only as intake archived it.
+        """The invitee's use case stores the Invite only through intake.
 
-        Intake is the only store of a received activity (CLP-10-019): the
-        Invite is readable through ``read_received_activity`` and is not
-        stored under the sender's id (CLP-10-017).
+        Intake is the use case's only store of a received activity
+        (CLP-10-019): the Invite is archived as a ``ReceivedActivityRecord``
+        and the use case writes nothing under the sender's id (CLP-10-017).
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.use_cases._helpers import read_received_activity
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -259,8 +261,9 @@ class TestInviteActorUseCases:
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
-        archived = read_received_activity(dl, invite.id_)
-        assert archived.id_ == invite.id_
+        record = dl.read(ReceivedActivityRecord.build_id(invite.id_))
+        assert isinstance(record, ReceivedActivityRecord)
+        assert record.activity.id_ == invite.id_
         assert dl.get(invite.type_.value, invite.id_) is None
 
     def test_invite_receipt_logged_in_narrative_form(

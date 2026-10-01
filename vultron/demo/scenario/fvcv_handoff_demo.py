@@ -49,6 +49,7 @@ from vultron.demo.helpers.notes import (
 from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
     SharedBudget,
+    assert_received_from,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
     find_ownership_transfer_offer_for_actor,
@@ -342,7 +343,7 @@ def _phase_ownership_handoff(
     # needs, so a failed trigger or lookup skips its dependents instead of
     # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
     with demo_step("Vendor1 invites Coordinator with CVDRole.COORDINATOR"):
-        invite = (
+        offer = (
             ActorSession(client=vendor_client, actor=vendor_in_vendor)
             .with_case(case)
             .quiet()
@@ -350,7 +351,10 @@ def _phase_ownership_handoff(
                 invitee_id=coordinator.id_, roles=[CVDRole.COORDINATOR]
             )
         ).activity
-        logger.info("Coordinator invite created: %s", invite.id_)
+        logger.info(
+            "Vendor1 asked the CASE_MANAGER to invite Coordinator: %s",
+            offer.id_,
+        )
 
         # The delivered Invite is the causal precondition for the accept: a
         # demo_gate, with the accept using the ID it found.
@@ -568,19 +572,19 @@ def _phase_coordinator_invites_vendor2(
     # container does not host 404s — which is exactly what posting Coordinator's
     # trigger to vendor_client did.
     #
-    # Emitting as the CaseActor needs no cross-container hack:
-    # ``SvcInviteActorToCaseUseCase._prepare`` resolves the case's CaseActor and
-    # sets ``self._actor_id`` to it, so the Invite goes out attributed to the
-    # CaseActor and Vendor2's Accept routes back to the CaseActor rather than to
-    # the Coordinator, letting AcceptInviteActorToCaseBT run (PCR-08-007,
-    # PCR-08-008).  The assertion below is what holds that property honest.
+    # The Coordinator's trigger sends its own Offer to the CASE_MANAGER, and
+    # the CaseActor emits the Invite (CM-17-007, ADR-0109).  So the Invite goes
+    # out as the CaseActor and Vendor2's Accept routes back to the CaseActor
+    # rather than to the Coordinator, letting AcceptInviteActorToCaseBT run
+    # (PCR-08-007, PCR-08-008).  The check on the delivered Invite below is
+    # what holds that property honest.
     #
     # Every step that depends on the invite — the delivery gate, the accept
     # and the replica wait — is nested inside the block that produces what it
     # needs, so a failed trigger or lookup skips its dependents instead of
     # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
     with demo_step("Coordinator invites Vendor2 to the case"):
-        invite = (
+        offer = (
             ActorSession(
                 client=coordinator_client, actor=coordinator_in_coordinator
             )
@@ -590,18 +594,9 @@ def _phase_coordinator_invites_vendor2(
                 invitee_id=vendor2.id_, roles=[CVDRole.VENDOR]
             )
         ).activity
-        logger.info("Vendor2 invite created by Coordinator: %s", invite.id_)
-
-        with demo_check(
-            "Vendor2 invite was emitted as the CaseActor (PCR-08-008)"
-        ):
-            emitting_actor = ref_id(invite.actor)
-            assert emitting_actor == case_actor_id, (
-                f"Invite '{invite.id_}' was emitted as '{emitting_actor}',"
-                f" not as the CaseActor '{case_actor_id}' — Vendor2's Accept"
-                " would route to the Coordinator and AcceptInviteActorToCaseBT"
-                " would not run"
-            )
+        logger.info(
+            "Coordinator asked the CaseActor to invite Vendor2: %s", offer.id_
+        )
 
         # The delivered Invite is the causal precondition for the accept: a
         # demo_gate, with the accept using the ID it found.
@@ -612,6 +607,17 @@ def _phase_coordinator_invites_vendor2(
                 invitee_id=vendor2.id_,
                 timeout_seconds=90.0,
             )
+
+            with demo_check(
+                "Vendor2 invite was emitted as the CaseActor (PCR-08-008)"
+            ):
+                assert_received_from(
+                    vendor2_client,
+                    invite_id,
+                    case_actor_id,
+                    "Vendor2's Accept would route to the Coordinator and"
+                    " AcceptInviteActorToCaseBT would not run",
+                )
 
             # Vendor2 accepts the invite.
             with demo_step("Vendor2 accepts the case invitation"):

@@ -698,33 +698,30 @@ def _poll_datalayer_for(
 # ---------------------------------------------------------------------------
 
 
-def _received_activity(obj_data: dict) -> dict | None:
-    """The activity a received-activity archive record wraps, if it is one.
+def _received_activity(obj_data: dict) -> dict:
+    """The received activity *obj_data* holds, as the receiver keeps it.
 
-    A receiver holds a received activity only as intake's
-    ``ReceivedActivityRecord`` (CLP-10-017, ADR-0111), never under the
-    sender's id, so a poll for something an actor *received* reads the record.
+    Intake archives a dispatched activity as a ``ReceivedActivityRecord``
+    (CLP-10-017, ADR-0111), which wraps it.  An activity the inbox deferred
+    until its case is known — an invitee's Invite, usually — is held bare
+    under the sender's id instead.  Mirrors
+    :func:`vultron.core.use_cases._helpers.read_received_activity`.
     """
     if obj_data.get("type") != "ReceivedActivityRecord":
-        return None
+        return obj_data
     activity = obj_data.get("activity")
-    return activity if isinstance(activity, dict) else None
+    return activity if isinstance(activity, dict) else {}
 
 
-def _received_activity_id(_raw_id: str, obj_data: dict) -> str:
-    """The sender's id for the activity a received-activity record wraps."""
-    activity = _received_activity(obj_data) or {}
-    return str(
-        activity.get("id")
-        or obj_data.get("activityId")
-        or obj_data.get("activity_id")
-    )
+def _received_activity_id(raw_id: str, obj_data: dict) -> str:
+    """The sender's id for the received activity *obj_data* holds."""
+    return str(_received_activity(obj_data).get("id") or raw_id)
 
 
 def _is_case_invite_for(obj_data: dict, case_id: str, invitee_id: str) -> bool:
-    """Return True if *obj_data* archives an Invite(Actor, Case) for *invitee_id*/*case_id*."""
+    """Return True if *obj_data* holds an Invite(Actor, Case) for *invitee_id*/*case_id*."""
     invite = _received_activity(obj_data)
-    if invite is None or invite.get("type") != "Invite":
+    if invite.get("type") != "Invite":
         return False
     target_raw = invite.get("target")
     target_id = (
@@ -735,6 +732,55 @@ def _is_case_invite_for(obj_data: dict, case_id: str, invitee_id: str) -> bool:
     inner = invite.get("object")
     inner_id = inner.get("id") if isinstance(inner, dict) else inner
     return inner_id == invitee_id
+
+
+def read_received_activity_for(
+    client: DataLayerClient, activity_id: str
+) -> dict:
+    """The activity *activity_id* as the actor behind *client* holds it.
+
+    Reads intake's archive record or the inbox's deferred copy, as
+    :func:`_received_activity` describes.
+
+    Raises:
+        AssertionError: If the actor holds no activity *activity_id*.
+    """
+    all_objects = client.get(client.dl_path())
+    if isinstance(all_objects, dict):
+        for raw_id, obj_data in all_objects.items():
+            if (
+                isinstance(obj_data, dict)
+                and _received_activity_id(str(raw_id), obj_data) == activity_id
+            ):
+                return _received_activity(obj_data)
+    raise AssertionError(
+        f"{client.base_url} holds no received activity {activity_id!r}"
+    )
+
+
+def assert_received_from(
+    client: DataLayerClient,
+    activity_id: str,
+    sender_id: str,
+    consequence: str,
+) -> None:
+    """Assert the actor behind *client* received *activity_id* from *sender_id*.
+
+    Args:
+        client: DataLayerClient for the receiving actor's container.
+        activity_id: The sender's id for the received activity.
+        sender_id: The actor the activity must have been emitted as.
+        consequence: What goes wrong when it was not, for the failure message.
+
+    Raises:
+        AssertionError: If the activity is not held, or another actor sent it.
+    """
+    actor = read_received_activity_for(client, activity_id).get("actor")
+    emitted_as = actor.get("id") if isinstance(actor, dict) else actor
+    assert emitted_as == sender_id, (
+        f"'{activity_id}' was emitted as '{emitted_as}', not as"
+        f" '{sender_id}' — {consequence}"
+    )
 
 
 def find_case_invite_for_actor(
@@ -751,8 +797,8 @@ def find_case_invite_for_actor(
     (CM-17-007, ADR-0109); the invitee must then send Accept(Invite) to
     trigger the trust-bootstrap Announce(VulnerabilityCase) that seeds its case
     replica (MV-10-003/MV-10-004).  This helper polls the invitee's DataLayer
-    for that Invite — held as intake's received-activity record — so the demo
-    can drive the accept step.
+    for that Invite — archived by intake, or held by the inbox until the case
+    bootstrap — so the demo can drive the accept step.
 
     Args:
         client: DataLayerClient connected to the invitee container.

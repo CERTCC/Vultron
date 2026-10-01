@@ -580,7 +580,9 @@ def test_reply_refuses_an_archived_activity_that_is_not_an_invite(
     )
     archived = extract_event(offer).activity
 
-    with pytest.raises(VultronActivityConstructionError, match="not a case Invite"):
+    with pytest.raises(
+        VultronActivityConstructionError, match="not a case Invite"
+    ):
         factory(invite=archived, actor=_ACTOR_URI)
 
 

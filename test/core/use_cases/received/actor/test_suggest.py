@@ -449,7 +449,9 @@ class TestOwnerDirectInviteAtCaseManager:
         assert invite.get("roles") == ["vendor"]
 
     @pytest.mark.spec("CM-17-003")
-    def test_requested_roles_are_carried(self, make_payload, seed_case_manager):
+    def test_requested_roles_are_carried(
+        self, make_payload, seed_case_manager
+    ):
         dl = self._setup_dl(seed_case_manager)
 
         self._deliver(dl, make_payload, roles=["coordinator"])

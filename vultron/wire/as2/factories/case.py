@@ -34,12 +34,12 @@ from vultron.core.models.dimensions import (
 )
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories._context import (
     case_target_ref,
     case_uri_of,
     with_case_context,
 )
-from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case import (
     _AcceptCaseOwnershipTransferActivity,
@@ -753,7 +753,9 @@ def _as_case_invite(invite: BaseModel) -> _RmInviteToCaseActivity:
     """
     if isinstance(invite, _RmInviteToCaseActivity):
         return invite
-    data = json.loads(invite.model_dump_json(by_alias=True, serialize_as_any=True))
+    data = json.loads(
+        invite.model_dump_json(by_alias=True, serialize_as_any=True)
+    )
     if data.get("type") != as_TransitiveActivityType.INVITE.value:
         raise VultronActivityConstructionError(
             f"activity '{data.get('id')}' is not a case Invite:"

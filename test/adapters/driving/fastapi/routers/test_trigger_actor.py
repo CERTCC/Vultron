@@ -181,8 +181,9 @@ def invite(other_actor_and_dl, actor, case_obj):
     The invitee is the actor that accepts or rejects, and the accept/reject
     trigger runs against its own store — the one it received the invitation into.
     Seeding the inviter's store instead only worked while the two shared one
-    store (#2548, DL-07-009). A received activity is held only as intake's
-    archive record (CLP-10-017, ADR-0111), so that is what is seeded.
+    store (#2548, DL-07-009). A received activity that reached its use case is
+    held as intake's archive record (CLP-10-017, ADR-0111), so that is what is
+    seeded.
     """
     other, other_dl = other_actor_and_dl
     invite_activity = rm_invite_to_case_activity(
