@@ -69,7 +69,7 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
         if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return f
         assert self.trigger_activity_factory is not None
 
@@ -117,7 +117,7 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"EmitAcceptActorRecommendation failed: {e}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -147,7 +147,7 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
         if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return f
         assert self.trigger_activity_factory is not None
 
@@ -195,7 +195,7 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"EmitRejectActorRecommendation failed: {e}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 

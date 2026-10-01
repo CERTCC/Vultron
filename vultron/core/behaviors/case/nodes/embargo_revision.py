@@ -149,7 +149,7 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
                 f"{self.name}: case_id or initial_embargo_duration missing"
                 " from the blackboard"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
         try:
@@ -173,7 +173,7 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
                 f"{self.name}: could not register the longer proposal as a"
                 f" revision on case '{case_id}': {exc}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         self.logger.info(

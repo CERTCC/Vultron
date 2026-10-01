@@ -144,9 +144,10 @@ def read_rm_states(
             "Non-canonical ParticipantStatus shape for participant"
             f" '{participant_id}': {exc}"
         )
-        node_logger(node).error(
+        log = node_logger(node)
+        log.error(  # noqa: TRY400  # ruff-baseline #3353
             "%s: %s", node.name, node.feedback_message
-        )  # ruff-baseline #3353
+        )
         return None
 
 
@@ -213,19 +214,20 @@ def require_case(
     SYNC-02-002 / ADR-0073) and case-under-construction flows where absence
     legitimately precedes a create.
     """
+    log = node_logger(node)
     datalayer = getattr(node, "datalayer", None)
     if datalayer is None:
         node.feedback_message = DATALAYER_UNAVAILABLE
-        node_logger(node).error("%s: %s", node.name, node.feedback_message)
+        log.error("%s: %s", node.name, node.feedback_message)
         return None, Status.FAILURE  # type: ignore[return-value]
     if not case_id:
         node.feedback_message = "no case_id available to resolve case"
-        node_logger(node).error("%s: %s", node.name, node.feedback_message)
+        log.error("%s: %s", node.name, node.feedback_message)
         return None, Status.FAILURE  # type: ignore[return-value]
     case = datalayer.read_case(case_id)
     if not isinstance(case, VulnerabilityCase):
         node.feedback_message = f"case '{case_id}' not found in DataLayer"
-        node_logger(node).error("%s: %s", node.name, node.feedback_message)
+        log.error("%s: %s", node.name, node.feedback_message)
         return None, Status.FAILURE  # type: ignore[return-value]
     return case, None
 
@@ -254,7 +256,8 @@ def resolve_case_replica(
         return None
     case = datalayer.read_case(case_id)
     if not isinstance(case, VulnerabilityCase):
-        node_logger(node).debug(
+        log = node_logger(node)
+        log.debug(
             "%s: case '%s' not present in local replica;"
             " skipping apply (SYNC-02-002)",
             node.name,
@@ -806,14 +809,14 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return f
         try:
             activity_id, activity_blob = self._call_factory()
             self._emit_through_seam(activity_id, activity_blob)
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"{self.__class__.__name__} failed: {e}"
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
         self._on_success(activity_id, activity_blob)
         return Status.SUCCESS
@@ -1031,19 +1034,19 @@ class ReadObject(DataLayerConditionWithPorts):
                 self.feedback_message = (
                     f"Object not found: {self.table}/{self.object_id}"
                 )
-                self.logger.debug(self.feedback_message)
+                self.logger.debug("%s", self.feedback_message)
                 return Status.FAILURE
 
             self._set_output("object_data", record)
             self.feedback_message = f"Read {self.table}/{self.object_id}"
-            self.logger.debug(self.feedback_message)
+            self.logger.debug("%s", self.feedback_message)
             return Status.SUCCESS
 
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Error reading {self.table}/{self.object_id}: {e}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1117,7 +1120,7 @@ class UpdateObject(DataLayerActionWithPorts):
                 self.feedback_message = (
                     f"Object not in blackboard: {self.object_id}"
                 )
-                self.logger.error(self.feedback_message)
+                self.logger.error("%s", self.feedback_message)
                 return Status.FAILURE
 
             # Build an updated StorableRecord without importing the adapter-layer Record.
@@ -1157,12 +1160,12 @@ class UpdateObject(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"Updated {self.object_id} with {len(self.updates)} fields"
             )
-            self.logger.info(self.feedback_message)
+            self.logger.info("%s", self.feedback_message)
             return Status.SUCCESS
 
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"Error updating {self.object_id}: {e}"
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1210,7 +1213,7 @@ class CreateObject(DataLayerAction):
                 self.feedback_message = (
                     "Object data missing required 'id_' field"
                 )
-                self.logger.error(self.feedback_message)
+                self.logger.error("%s", self.feedback_message)
                 return Status.FAILURE
 
             # Get type from data, default to table name
@@ -1228,14 +1231,14 @@ class CreateObject(DataLayerAction):
             self.datalayer.create(storable)
 
             self.feedback_message = f"Created {self.table}/{object_id}"
-            self.logger.info(self.feedback_message)
+            self.logger.info("%s", self.feedback_message)
             return Status.SUCCESS
 
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Error creating object in {self.table}: {e}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 

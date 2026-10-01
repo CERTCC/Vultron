@@ -447,7 +447,7 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
                 f"{self.name}: _compute_roles() returned an empty list "
                 f"for actor '{self.suggested_actor_id}' — cannot assign roles"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
         self._set_output("suggested_roles", roles)
         self.logger.debug(

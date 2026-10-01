@@ -180,7 +180,7 @@ class CreateAndPersistCaseActivityNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"{self.name}: 'create_case_obj' not on blackboard"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
         addressees = self.create_case_addressees_bb

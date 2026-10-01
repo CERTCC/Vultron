@@ -226,6 +226,6 @@ class BroadcastCaseUpdateNode(DataLayerActionWithPorts):
                 f"{self.name}: could not broadcast case '{self.case_id}':"
                 f" {exc}"
             )
-            self.logger.warning(self.feedback_message)
+            self.logger.warning("%s", self.feedback_message)
             return Status.FAILURE
         return Status.SUCCESS

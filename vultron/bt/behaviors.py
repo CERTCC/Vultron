@@ -115,7 +115,7 @@ class CvdProtocolBt(bt.BehaviorTree):
         if changes:
             logger.debug("--------")
         for change in changes:
-            logger.debug(change)
+            logger.debug("%s", change)
 
     @property
     def closed(self):

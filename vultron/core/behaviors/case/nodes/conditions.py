@@ -428,7 +428,7 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
                 f"{self.name}: case_actor_service_url not configured"
                 " — cannot resolve trusted_case_creator_id"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
         link_id = VultronReportCaseLink.build_id(self.report_id)

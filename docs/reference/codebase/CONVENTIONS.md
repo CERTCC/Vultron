@@ -64,6 +64,8 @@ stakeholder_type: [project-contributor]
 - **Log-call shape (SL-01-005)**: the message argument is a literal template and its values are lazy positional arguments, as in `logger.info("Actor %s engaged case %s", actor_id, case_id)`.
   Never build the message before the call with an f-string, `str.format()`, `%`-formatting, or concatenation; `!r` in a former f-string becomes `%r`.
   Ruff's `G` family (`G001`–`G004`) enforces this with no `ignore` entry and no `# noqa` markers.
+  A message already built for another consumer, such as a node's `feedback_message`, is passed as one argument: `logger.warning("%s", self.feedback_message)`.
+  A plain `py_trees` node's `self.logger` accepts no arguments, so a helper logging on a node's behalf binds `log = node_logger(node)` from `vultron/core/behaviors/node_logger.py` and calls `log.warning(...)`.
   Lazy arguments defer only rendering, not evaluation, so a guard such as `isEnabledFor(logging.DEBUG)` stays only around a value produced by an expensive call, with a comment saying so.
   The reasoning is in `notes/structured-logging.md` § "Log-Call Shape: Template Plus Lazy Arguments (SL-01-005)".
 - **Sensitive data**: no specific redaction rules observed; [ASK USER] whether PII from vulnerability reports requires redaction at log points

@@ -248,7 +248,7 @@ class PublishCaseActorIdentityNode(DataLayerActionWithPorts):
 
         if not self._case_id:
             self.feedback_message = f"{self.name}: case_id is empty"
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
         case_actor_id = case_actor_identity()
@@ -257,7 +257,7 @@ class PublishCaseActorIdentityNode(DataLayerActionWithPorts):
                 f"{self.name}: case_actor_service_url is not configured"
                 " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
         self._set_output("case_id", self._case_id)
@@ -316,7 +316,7 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
                 f"{self.name}: case_actor_service_url is not configured"
                 " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
         case_actor = CaseActor(id_=case_actor_id, name="CaseActor")

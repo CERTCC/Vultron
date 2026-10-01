@@ -51,7 +51,7 @@ def _create_and_attach_participant(
     participant: CaseParticipant,
     case_id: str,
     actor_id_for_index: str,
-    node_logger: logging.Logger,
+    logger: logging.Logger,
 ) -> VulnerabilityCase | None:
     """
     Create participant if needed and attach it to the case (unsaved return).
@@ -61,13 +61,13 @@ def _create_and_attach_participant(
     """
     if dl.read(participant.id_) is None:
         dl.create(participant)
-        node_logger.info(
+        logger.info(
             "Created CaseParticipant '%s' for actor '%s'",
             participant.id_,
             participant.attributed_to,
         )
     else:
-        node_logger.debug(
+        logger.debug(
             "CaseParticipant %s already exists — skipping creation",
             participant.id_,
         )
@@ -77,7 +77,7 @@ def _create_and_attach_participant(
     # node fails loudly. Conformance allowlist: module-resolver category.
     stored_case = dl.read_case(case_id)
     if stored_case is None:
-        node_logger.error("Case %s not found in DataLayer", case_id)
+        logger.error("Case %s not found in DataLayer", case_id)
         return None
 
     existing_participant_id = stored_case.actor_participant_index.get(
@@ -87,7 +87,7 @@ def _create_and_attach_participant(
         existing_participant = dl.read(existing_participant_id)
         if isinstance(existing_participant, CaseParticipant):
             stored_case.add_participant(existing_participant)
-            node_logger.debug(
+            logger.debug(
                 "Participant already registered for actor '%s' in case '%s'",
                 actor_id_for_index,
                 case_id,
@@ -96,7 +96,7 @@ def _create_and_attach_participant(
 
     stored_case.add_participant(participant)
 
-    node_logger.info(
+    logger.info(
         "CaseParticipant '%s' attached to case '%s'",
         participant.id_,
         stored_case.id_,
@@ -236,7 +236,8 @@ def resolve_transition_context_or_report(
             f"Participant '{participant_id}' status is not core-shaped:"
             f" {exc} (ARCH-15-001)"
         )
-        node_logger(node).warning("%s: %s", node.name, node.feedback_message)
+        log = node_logger(node)
+        log.warning("%s: %s", node.name, node.feedback_message)
         return Status.FAILURE
 
 
@@ -298,7 +299,8 @@ def validate_participant_status_write(
         violations=violations,
     )
     node.feedback_message = str(error)
-    node_logger(node).warning("%s: %s", node.name, node.feedback_message)
+    log = node_logger(node)
+    log.warning("%s: %s", node.name, node.feedback_message)
     if result_out is not None:
         result_out["error"] = error
     return Status.FAILURE
@@ -307,7 +309,7 @@ def validate_participant_status_write(
 def _queue_participant_add_notification(
     dl: CasePersistence,
     node_name: str,
-    node_logger: logging.Logger,
+    logger: logging.Logger,
     sender_actor_id: str,
     participant_actor_id: str,
     participant_id: str,
@@ -319,7 +321,7 @@ def _queue_participant_add_notification(
         getattr(stored_participant, "type_", None)
         != VultronObjectType.CASE_PARTICIPANT
     ):
-        node_logger.error(
+        logger.error(
             "%s: Could not resolve stored CaseParticipant '%s'",
             node_name,
             participant_id,
@@ -327,7 +329,7 @@ def _queue_participant_add_notification(
         return False
 
     if trigger_activity is None:
-        node_logger.error(
+        logger.error(
             "%s: trigger_activity_factory not available for participant"
             " add notification",
             node_name,
@@ -341,7 +343,7 @@ def _queue_participant_add_notification(
         to=[participant_actor_id],
     )
     cast(CaseOutboxPersistence, dl).outbox_append(add_notification_id)
-    node_logger.info(
+    logger.info(
         "Queued Add(CaseParticipant '%s' for actor '%s' to case '%s') "
         "activity '%s' to actor '%s' outbox",
         participant_id,

@@ -475,10 +475,10 @@ class BTBridge:
             error_msg = (
                 f"{prefix} with internal error: {type(e).__name__}: {e}"
             )
-            self.logger.exception(error_msg)
+            self.logger.exception("%s", error_msg)
         else:
             error_msg = f"{prefix}: {type(e).__name__}: {e}"
-            self.logger.warning(error_msg)
+            self.logger.warning("%s", error_msg)
 
         return BTExecutionResult(
             status=Status.FAILURE,
@@ -576,7 +576,7 @@ class BTBridge:
                     # Not a protocol outcome — a tree in INVALID mid-execution
                     # is malformed, so retrying it cannot converge.
                     error_msg = f"BT entered INVALID state at tick {iteration}"
-                    self.logger.error(error_msg)
+                    self.logger.error("%s", error_msg)
                     errors.append(error_msg)
                     return BTExecutionResult(
                         status=Status.FAILURE,
@@ -591,7 +591,7 @@ class BTBridge:
             error_msg = (
                 f"BT execution exceeded max iterations ({max_iterations})"
             )
-            self.logger.error(error_msg)
+            self.logger.error("%s", error_msg)
             errors.append(error_msg)
             return BTExecutionResult(
                 status=Status.FAILURE,
@@ -730,7 +730,7 @@ class BTBridge:
                     "BT execution skipped: this node is not the replication"
                     " leader"
                 )
-                self.logger.warning(msg)
+                self.logger.warning("%s", msg)
                 return BTExecutionResult(
                     status=Status.FAILURE,
                     feedback_message=msg,
