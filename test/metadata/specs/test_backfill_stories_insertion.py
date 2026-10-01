@@ -118,3 +118,49 @@ def test_an_item_at_column_zero_is_edited_at_its_own_field_indent(
     assert path.read_text(encoding="utf-8") == (
         "- id: TST-01-001\n  kind: protocol\n  stories:\n  - story_2022_001\n"
     )
+
+
+def test_stories_after_an_unterminated_last_line_start_a_new_line(
+    tmp_path, backfill_stories
+):
+    """The last item of a file may lack a trailing newline (#4056)."""
+    path = _write(tmp_path, "  - id: TST-01-001\n    kind: protocol")
+    n = backfill_stories.insert_stories_in_yaml(
+        path, {"TST-01-001": ["story_2022_001"]}
+    )
+    assert n == 1
+    assert path.read_text(encoding="utf-8") == _HEAD + (
+        "  - id: TST-01-001\n"
+        "    kind: protocol\n"
+        "    stories:\n"
+        "    - story_2022_001\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (
+            "  - id: TST-01-001\n    kind: protocol",
+            "  - id: TST-01-001\n"
+            "    kind: protocol\n"
+            "    lint_suppress:\n"
+            "    - missing_story_reference\n",
+        ),
+        (
+            "  - id: TST-01-001\n    lint_suppress:\n    - phantom_path_ref",
+            "  - id: TST-01-001\n"
+            "    lint_suppress:\n"
+            "    - phantom_path_ref\n"
+            "    - missing_story_reference\n",
+        ),
+    ],
+    ids=["new-block", "existing-list"],
+)
+def test_suppression_after_an_unterminated_last_line_starts_a_new_line(
+    tmp_path, backfill_stories, body, expected
+):
+    """The last item of a file may lack a trailing newline (#4056)."""
+    path = _write(tmp_path, body)
+    assert backfill_stories.insert_suppress_in_yaml(path, {"TST-01-001"}) == 1
+    assert path.read_text(encoding="utf-8") == _HEAD + expected

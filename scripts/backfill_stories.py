@@ -94,6 +94,15 @@ def get_protocol_spec_ids(specs_dir: Path) -> set[str]:
 # ---------------------------------------------------------------------------
 
 
+def _terminate_last_line(item_lines: list[str]) -> None:
+    """End the item's last line with a newline so added lines start fresh.
+
+    The last item of a file may have no trailing newline (#4056).
+    """
+    if not item_lines[-1].endswith("\n"):
+        item_lines[-1] += "\n"
+
+
 def insert_stories_in_yaml(
     yaml_path: Path, spec_to_stories: dict[str, list[str]]
 ) -> int:
@@ -114,6 +123,7 @@ def insert_stories_in_yaml(
         if block.spec_id in spec_to_stories and not any(
             re.match(r"^\s+stories:", line) for line in block.lines
         ):
+            _terminate_last_line(block.lines)
             block.lines.append(f"{block.field_indent}stories:\n")
             block.lines.extend(
                 f"{block.field_indent}- {story}\n"
@@ -195,6 +205,7 @@ def _add_suppress_item(item_lines: list[str], field_indent: str) -> None:
     Appends to an existing lint_suppress: block, or adds a new block at the
     end of the item.
     """
+    _terminate_last_line(item_lines)
     suppress_idx = next(
         (j for j, il in enumerate(item_lines) if _LINT_SUPPRESS_RE.match(il)),
         None,

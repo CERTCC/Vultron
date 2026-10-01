@@ -10,9 +10,9 @@ For every listed item this script:
   in block or flow style;
 - drops the ``lint_suppress:`` block entirely when that leaves it empty.
 
-Text-manipulation approach: the same line-by-line state machine as
-``apply_story_mappings.py``. No YAML load/dump round-trip, so every other line
-of every file is preserved byte for byte.
+Text-manipulation approach: items are sliced by the shared
+``vultron.metadata.specs.yaml_items.iter_blocks``. No YAML load/dump
+round-trip, so every other line of every file is preserved byte for byte.
 
 Usage:
     uv run python scripts/relabel_spec_kinds.py mapping.json [--dry-run] [--specs-dir DIR]
