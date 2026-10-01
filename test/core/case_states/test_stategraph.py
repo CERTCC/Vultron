@@ -32,7 +32,7 @@ class TestStategraph(unittest.TestCase):
         G = sg._create_graph()
 
         # G should have all the states as nodes
-        for n in sg._create_states():
+        for n in val.valid_states():
             self.assertTrue(n in G)
 
         # the valid graph should have 58 edges
@@ -49,8 +49,8 @@ class TestStategraph(unittest.TestCase):
         n_paths = len(list(nx.all_simple_paths(G, "vfdpxa", "VFDPXA")))
         self.assertEqual(70, n_paths)
 
-    def test__create_states(self):
-        states = sg._create_states()
+    def test_valid_states(self):
+        states = val.valid_states()
         # enforce causality rules
         for x in states:
             self.assertNotIn("vF", x, x)
@@ -399,13 +399,6 @@ class TestStategraph(unittest.TestCase):
         self.assertEqual("VFDPXA", max_key)
 
         # self.assertFalse(True,m.compute_pagerank())
-
-    def test_proto_states(self):
-        ps = sg._proto_states()
-
-        for e in sg.EVENTS:
-            x = f"{e.lower()}{e.upper()}"
-            self.assertIn(x, ps)
 
 
 if __name__ == "__main__":
