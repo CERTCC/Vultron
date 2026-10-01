@@ -128,8 +128,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`configuration.yaml`** - Unified YAML + Pydantic configuration management:
   `AppConfig` structure, `get_config()` / `reload_config()` API, env var
   naming conventions, `SeedConfig` alignment, `ActorConfig` abstraction with
-  `default_case_roles`, testing patterns (note: CFG-06-003 requires direct
-  `_config_cache = None` in test teardown — NOT `reload_config()`)
+  `default_case_roles`, testing patterns (note: CFG-06-003 requires
+  `clear_config_cache()` in test teardown — NOT `reload_config()`)
   (CFG-01 through CFG-07)
 - **`event-driven-control-flow.yaml`** - Event-driven processing model: primary
   event and cascade definitions, cascade chain, external decision nodes,

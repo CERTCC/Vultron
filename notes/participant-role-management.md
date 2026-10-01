@@ -73,10 +73,13 @@ narrow on-behalf exceptions exist:
 The two on-behalf exceptions target an **existing** participant only. An
 on-behalf assertion for an actor that is not a participant is refused before
 any write and never creates one (PRM-06-006, ADR-0084): a status update is
-never a way into a case — joining is the Invite flow ([case-joining.md](case-joining.md), ADR-0114). The
-current code still mints a participant for an absent target
-(`EnsureOnBehalfParticipantExistsNode`); #4006's implementation issues remove
-that.
+never a way into a case — joining is the Invite flow
+([case-joining.md](case-joining.md), ADR-0114).
+`CheckOnBehalfTargetIsParticipantNode` enforces this as the second guard of the
+on-behalf tree, ahead of the only write: it refuses, naming the target, when
+the target is not in `actor_participant_index` or lacks the asserted
+dimension's role (`VENDOR` for `v→V`, `DEPLOYER` for `d→D`). The tree has no
+node that creates or attaches a participant (#4047).
 
 The **Vendor-implies-V invariant** (PRM-06-002): a participant holding
 `CVDRole.VENDOR` cannot assert `CS_vf.vf` (vendor-unaware) — a vendor that
