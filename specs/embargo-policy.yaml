@@ -520,8 +520,8 @@ groups:
     statement: >-
       Creation-time embargo initialization MUST run at most once per case. A
       `Create(as_CaseProposal)` that resolves to an existing `VulnerabilityCase` MUST NOT
-      run it again, whatever the case's current EM state — `ACTIVE`, `REVISE`, or `EXITED`
-      — and any embargo terms carried on such a proposal MUST NOT be reconciled against the
+      run it again in any EM state other than `NONE` — `PROPOSED`, `ACTIVE`, `REVISE`, or
+      `EXITED` — and any embargo terms carried on such a proposal MUST NOT be reconciled against the
       case: the embargo belongs to the case, not to the report, so terms that conflict with
       the case lose to the case. A case still at `EM.NONE` has never been initialized
       (EP-04-002 never persists `PROPOSED`), and initialization MUST proceed for it.
@@ -540,7 +540,11 @@ groups:
       vulnerability, which is a report-management matter (RMB-11-002). In
       `InitializeDefaultEmbargoNode` the guard arm reads the state through
       `ReadEmStateNode` (the behaviors-layer rule for EM reads) and, like every refusal arm
-      ahead of a write, raises rather than returns FAILURE when it cannot answer. Skipping
+      ahead of a write, raises rather than returns FAILURE when it cannot answer.
+      `ReadEmStateNode` itself reports an unreadable case as FAILURE with the cause in
+      `result_out["error"]`, so the arm converts a read that left `em_before` unset into a
+      raise; only `em_before == NONE` may return FAILURE, because falling through to the
+      creation arm is the right answer there. Skipping
       the whole creation arm is what leaves the proposal's terms unreconciled: the
       shortest-wins comparison and the pending-revision registration both live inside it.
     verification: >-

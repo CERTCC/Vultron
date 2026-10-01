@@ -546,7 +546,7 @@ def test_creation_time_revision_is_indexed_for_the_owners_default_selection(
         "EP-04-012: the once-per-case guard reads the active-embargo "
         "reference, which termination clears, so a redelivered proposal "
         "after EM.EXITED re-runs the creation arm — an orphan EmbargoEvent "
-        "and a failed tree. Tracked by Concern #3986."
+        "and a failed tree. Tracked by #4019 (Concern #3986)."
     ),
 )
 @pytest.mark.spec("EP-04-012")

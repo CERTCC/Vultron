@@ -488,7 +488,9 @@ retry.
 
 **What "duplicate" means here.** An exact redelivery of the same proposal —
 at-least-once delivery, or the vendor asking again because the `Accept` was lost
-(CP-05-006's rationale, ADR-0080). It does *not* mean a second report that
+(CP-05-006's rationale, ADR-0080; note that CP-05-006's *statement* still keys
+the duplicate on "a proposal for the same report", so amending that key is part
+of #3977, not something the spec already says). It does *not* mean a second report that
 describes the same vulnerability; that is a report-management question
 (RMB-11-002: duplicate reports are not invalid) and never reaches this tree as a
 "duplicate". Two consequences follow. The reuse branch must leave the existing

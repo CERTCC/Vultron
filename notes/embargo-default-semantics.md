@@ -11,7 +11,9 @@ description: >
   how EP-04-003's two-party shortest-wins relates to EP-08's general
   earliest-expiration ordering for N open proposals; why the creation-time
   revision's registration order no longer touches consent (ADR-0093); and how
-  the creation-time revision is relayed to the other party (EP-04-011, ADR-0113).
+  the creation-time revision is relayed to the other party (EP-04-011, ADR-0113);
+  and why creation-time initialization runs once per case with the EM state, not
+  the active-embargo reference, as the evidence (EP-04-012).
 related_specs:
   - specs/case-management.yaml
   - specs/case-proposal.yaml
@@ -306,7 +308,9 @@ lost-reply recovery: it answers an exact redelivery of the same proposal and let
 a redelivery *finish* a case whose first attempt died between creation and the
 `Accept`. "Duplicate" here means the same proposal arriving twice, never a second
 report that describes the same vulnerability — that is report management
-(RMB-11-002), not case creation.
+(RMB-11-002), not case creation. CP-05-006's *statement* still keys the duplicate
+on the report ("a proposal for the same report"); the rationale is the lost-reply
+recovery, and amending the statement's key is #3977's question.
 
 So the subtree needs a guard that answers "did creation-time initialization
 already run on this case?", and EP-04-012 fixes what the evidence is:
@@ -333,6 +337,15 @@ Consequences for the guard arm:
   ReadEmStateNode"), not from the case field.
 - It is a refusal arm ahead of a write, so an unreadable case or store *raises*
   (`bt-pitfalls.md` § "A Refusal Arm in a Selector Fails Toward 'Admit'").
+  The two rules do not compose for free: `ReadEmStateNode` never raises — it
+  returns FAILURE, with the cause in `result_out["error"]` (or nothing at all
+  when the datalayer is missing) — and a bare FAILURE as the arm's first child
+  falls through the Selector into the creation arm, which is admit. The arm must
+  therefore convert the read's FAILURE into a raise itself: after the read, a
+  missing `result_out["em_before"]` is an error to raise (carrying
+  `result_out["error"]` when present), never a status to return. Only the
+  `em_before == EM.NONE` outcome may return FAILURE, because that is the one
+  case where falling through to the creation arm is the correct answer.
 - Skipping the whole creation arm is what makes the proposal's embargo terms
   irrelevant on a reused case: shortest-wins and the pending-revision
   registration both live inside it. The embargo is the case's, not the
