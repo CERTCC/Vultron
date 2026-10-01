@@ -14,3 +14,5 @@ Resolution: move the helper to one shared place that both scripts import. Altern
 Governing specs: CS-22-001
 
 **Resolved**: 2026-10-01 — implementation tracked in #4016. The duplicate is introduced by the ruff migration PR (#3998, closing #3352), so #4016 is blocked by #3352 and lands after it. Neither script is deleted: both are still live (`backfill_stories.py` is tested and selects through `sr_11_003_gate_applies()`; `apply_story_mappings.py` is needed for #2717).
+
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4017>.
