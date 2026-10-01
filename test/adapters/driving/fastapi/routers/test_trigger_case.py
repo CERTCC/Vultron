@@ -36,6 +36,7 @@ from vultron.core.models.dimensions import (
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.base.objects.object_types import as_Article
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
     as_ParticipantStatus,
@@ -864,6 +865,34 @@ def test_trigger_add_object_to_case_unknown_case_returns_404(
         },
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "TRIG-10-001: add-object-to-case does not yet refuse an object type"
+        " the CASE_MANAGER cannot route as Add(object, case). Source: #3917."
+    ),
+)
+@pytest.mark.spec("TRIG-10-001")
+def test_trigger_add_object_to_case_unroutable_type_returns_422(
+    client_triggers, actor, case_with_participant, dl
+):
+    """An object no Add-to-case pattern routes is refused, not queued."""
+    article = as_Article(name="Unroutable", content="no receive pattern")
+    dl.create(article)
+    outbox_before = set(dl.outbox_list())
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": article.id_,
+        },
+    )
+
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert set(dl.outbox_list()) == outbox_before
 
 
 def test_trigger_add_object_to_case_extra_fields_ignored(

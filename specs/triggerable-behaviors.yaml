@@ -315,14 +315,21 @@ groups:
   - id: TRIG-10-001
     priority: MUST
     kind: protocol
-    statement: The system MUST expose an `add-object-to-case` general trigger at `POST /actors/{actor_id}/trigger/add-object-to-case`
-      that accepts any valid AS2 object type as the `object` in its request body
-    rationale: Adding content to a case is a legitimate operator action regardless of object type; a Note is the most common
-      use but not the only one
+    statement: >-
+      The system MUST expose an `add-object-to-case` general trigger at
+      `POST /actors/{actor_id}/trigger/add-object-to-case` that accepts any object type the protocol
+      routes as `Add(object, target=VulnerabilityCase)`, and MUST refuse with HTTP 422, queuing
+      nothing, an object whose `Add` no receive-side pattern matches.
+    rationale: >-
+      Adding content to a case is a legitimate operator action for more than one object type; a Note
+      is the most common use but not the only one. The `Add` is a participant's request to the
+      CASE_MANAGER (PCR-08-005), so an object type the CASE_MANAGER cannot route would be delivered and
+      dropped on arrival while the caller was told 202. Refusing it at the trigger keeps the response
+      truthful.
     verification: >-
-      Integration tests in `test/demo/` confirm that a POST to
-      `/actors/{actor_id}/trigger/add-object-to-case` with a non-Note AS2 object
-      type succeeds and produces an outgoing activity.
+      Router tests under `test/adapters/driving/fastapi/routers/` confirm that a POST with a routable
+      non-Note object returns 202 and queues an `Add` addressed to the CASE_MANAGER, and that a POST
+      with an object type no `Add`-to-case pattern matches returns 422 and leaves the outbox unchanged.
     stories:
     - story_2022_074
     - story_2022_102

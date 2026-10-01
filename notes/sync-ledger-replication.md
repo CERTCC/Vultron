@@ -14,6 +14,7 @@ related_notes:
   - notes/case-state-model.md
   - notes/message-type-reference.md
   - notes/testing-pitfalls.md
+  - notes/participant-embargo-consent.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/wire/as2
@@ -369,6 +370,20 @@ MUST raise if the port is missing.
 This means BT node tests and single-actor integration tests do **not** need a
 `sync_port` injected on the blackboard or as a use-case parameter — the absence
 is handled gracefully without patching.
+
+---
+
+## Fan-Out Recipients and the Embargo Gate (CM-10-005, CM-10-006)
+
+Both recipient collectors in `vultron/core/behaviors/sync/nodes/fanout.py`
+must apply the CM-10-004 embargo content gate (not yet implemented; tracked
+in #FANOUT_ISSUE, strict-`xfail` markers in place): under an active embargo, a
+participant that has not accepted it is paused — sent no entries — and on
+admission is backfilled in log order from its last acknowledged entry. The
+backfill reuses the replay path (`SendMissingEntriesNode`), not a new sender.
+Why the gate pauses a whole stream instead of filtering entries is in
+[participant-embargo-consent.md](participant-embargo-consent.md) § "Ledger
+Fan-Out Is Case Content".
 
 ---
 
