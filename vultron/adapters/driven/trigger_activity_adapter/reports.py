@@ -19,7 +19,7 @@ import logging
 from typing import Any, cast
 
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.factories import (
     rm_close_report_activity,

@@ -41,7 +41,7 @@ from vultron.core.models.participant_status import (
     ParticipantStatus,
     participant_status_rm_state,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.rm import RM, rm_closure_path
 from vultron.enums.roles import CVDRole
 

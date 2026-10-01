@@ -59,7 +59,7 @@ from vultron.core.models.case import case_addressees
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.em import EM, EM_Trigger
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.errors import VultronInvalidStateTransitionError
