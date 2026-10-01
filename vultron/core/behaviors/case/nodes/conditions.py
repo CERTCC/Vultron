@@ -390,7 +390,7 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
     """Write a pending ``VultronReportCaseLink`` for the given report (ADR-0041).
 
     Creates or updates the link with ``case_id=None`` and sets
-    ``trusted_case_creator_id`` to the deterministically derived CaseActor ID
+    ``case_creator_id`` to the deterministically derived CaseActor ID
     so that ``_find_report_case_link`` can match the incoming
     ``Create(VulnerabilityCase)`` sender when the CaseActor responds.
 
@@ -426,7 +426,7 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
         if case_actor_id is None:
             self.feedback_message = (
                 f"{self.name}: case_actor_service_url not configured"
-                " — cannot resolve trusted_case_creator_id"
+                " — cannot resolve case_creator_id"
             )
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
@@ -456,12 +456,12 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
 
         link = VultronReportCaseLink(
             report_id=self.report_id,
-            trusted_case_creator_id=case_actor_id,
+            case_creator_id=case_actor_id,
         )
         self.datalayer.create(link)
         self.logger.info(
             "%s: wrote pending ReportCaseLink for report '%s'"
-            " (trusted_case_creator_id='%s')",
+            " (case_creator_id='%s')",
             self.name,
             self.report_id,
             case_actor_id,

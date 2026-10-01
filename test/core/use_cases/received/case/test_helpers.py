@@ -79,7 +79,7 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
     dl.create(report)
     link = VultronReportCaseLink(
         report_id=_REPORT_ID,
-        trusted_case_creator_id=_VENDOR_ID,
+        case_creator_id=_VENDOR_ID,
     )
     dl.save(link)
     vendor_participant = CaseParticipant(
@@ -398,7 +398,7 @@ def test_bootstrap_bare_uri_participant_is_refused(make_payload):
     dl.create(report)
     link = VultronReportCaseLink(
         report_id=_REPORT_ID,
-        trusted_case_creator_id=_VENDOR_ID,
+        case_creator_id=_VENDOR_ID,
     )
     dl.save(link)
     case_actor_participant = CoreCaseParticipant(
