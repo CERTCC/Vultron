@@ -85,7 +85,7 @@ class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
                 f"{self.name}: case_actor_service_url is not configured"
                 " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
         return identity
 
     def update(self) -> Status:

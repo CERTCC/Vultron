@@ -11,15 +11,15 @@ level: 400
 
 {% include-markdown "../includes/not_normative.md" %}
 
-A Vultron conformance claim names capability sets and roles: `CapabilitySet [+ CapabilitySet ...] / Role [+ Role ...]` ([§12.1](vultron-spec/index.md#121-conformance-model-overview)).
+A Vultron conformance claim names capability sets and roles: `CapabilitySet [+ CapabilitySet ...] / Role [+ Role ...]` ([§12.1 Conformance Model Overview](vultron-spec/conformance.md#121-conformance-model-overview)).
 This page lays the two dimensions out as tables so that an implementer can read off what a given role claim requires.
-The tables are derived from [§12 Conformance](vultron-spec/index.md#12-conformance-n) of the Vultron Protocol Specification, and a test fails when the roles, capability sets, or named configurations here stop matching the specification's own tables.
+The tables are derived from [§12 Conformance](vultron-spec/conformance.md#12-conformance-n) of the Vultron Protocol Specification, and a test fails when the roles, capability sets, or named configurations here stop matching the specification's own tables.
 The specification is normative; this page is a view of it.
 
 ## Capability sets by role
 
-A capability set is a property of software; a role is a position in a case ([§12.3.3](vultron-spec/index.md#1233-roles-and-capability-sets-are-independent)).
-Every participant, whatever its roles, implements the Case Observer capability set ([§12.2](vultron-spec/index.md#122-capability-sets)).
+A capability set is a property of software; a role is a position in a case ([§12.3.3 Roles and Capability Sets Are Independent](vultron-spec/conformance.md#1233-roles-and-capability-sets-are-independent)).
+Every participant, whatever its roles, implements the Case Observer capability set ([§12.2 Capability Sets](vultron-spec/conformance.md#122-capability-sets)).
 The two further sets are required by the two protocol authority roles they serve, and are optional for every process role.
 
 | Role | Case Observer | Case Decision | Case Hosting |
@@ -35,13 +35,13 @@ The two further sets are required by the two protocol authority roles they serve
 
 *Required* means the role cannot be held without the capability set.
 *Optional* means the set adds obligations the role does not itself need.
-Case Decision defines the Case Owner's governance capabilities, and Case Hosting requires holding the CASE_MANAGER role for each case it hosts ([§12.2](vultron-spec/index.md#122-capability-sets)).
+Case Decision defines the Case Owner's governance capabilities, and Case Hosting requires holding the CASE_MANAGER role for each case it hosts ([§12.2 Capability Sets](vultron-spec/conformance.md#122-capability-sets)).
 Neither set substitutes for Case Observer.
 
 ## Transitions each role may drive
 
 Every participant tracks all five state machines: Report Management (RM), Embargo Management (EM), Participant Embargo Consent (PEC), and the two Case State (CS) dimensions, vendor aware, fix ready, fix deployed (VFD) and public aware, exploit public, attacks observed (PXA).
-Which transitions a participant may drive depends on its roles ([§12.3.1](vultron-spec/index.md#1231-process-roles), [§12.4](vultron-spec/index.md#124-role-specific-normative-requirements)).
+Which transitions a participant may drive depends on its roles ([§12.3.1 Process Roles](vultron-spec/conformance.md#1231-process-roles), [§12.4 Role-Specific Normative Requirements](vultron-spec/conformance.md#124-role-specific-normative-requirements)).
 
 | Role | Drives |
 |---|---|
@@ -54,11 +54,11 @@ Which transitions a participant may drive depends on its roles ([§12.3.1](vultr
 | Case Owner | Shared EM transitions; authorizes status adoption; offers case ownership transfer |
 | Case Manager | Canonical ledger writes; case replica synchronization; roster operations on the Case Owner's behalf |
 
-Any participant may report a PXA observation ([§12.4.2](vultron-spec/index.md#1242-participant-agnostic-cs-transitions-pxa)); reporting is not adoption, which the CASE_MANAGER decides ([§10.3](vultron-spec/index.md#103-status-adoption-the-two-seam-model)).
+Any participant may report a PXA observation ([§12.4.2 Participant-Agnostic CS Transitions (PXA)](vultron-spec/conformance.md#1242-participant-agnostic-cs-transitions-pxa)); reporting is not adoption, which the CASE_MANAGER decides ([§10.3 Status Adoption: The Two-Seam Model](vultron-spec/interactions.md#103-status-adoption-the-two-seam-model)).
 
 ## Named configurations
 
-Common combinations have names ([§12.2](vultron-spec/index.md#122-capability-sets)).
+Common combinations have names ([§12.2 Capability Sets](vultron-spec/conformance.md#122-capability-sets)).
 The names are informative; a conformance claim lists the full capability sets.
 
 | Configuration | Capability sets | Roles |
@@ -69,6 +69,6 @@ The names are informative; a conformance claim lists the full capability sets.
 
 ## What the matrix does not say
 
-Capability shapes ([Annex G](vultron-spec/index.md#annex-g-capability-shapes-i)) are not part of any capability set, and a conformance claim does not state which shapes an implementation provides ([§12.6](vultron-spec/index.md#126-capability-shapes)).
-Conformance test layers L1 through L4 ([§12.5](vultron-spec/index.md#125-conformance-testing-approach)) describe what a test verifies, not what an implementation provides, and are not a column here.
+Capability shapes ([Annex G Capability Shapes](vultron-spec/annex-g-capability-shapes.md#annex-g-capability-shapes-i)) are not part of any capability set, and a conformance claim does not state which shapes an implementation provides ([§12.6 Capability Shapes](vultron-spec/conformance.md#126-capability-shapes)).
+Conformance test layers L1 through L4 ([§12.5 Conformance Testing Approach](vultron-spec/conformance.md#125-conformance-testing-approach)) describe what a test verifies, not what an implementation provides, and are not a column here.
 The [Concept Taxonomy](vultron-taxonomy.md#view-3-conformance-view-custom) places this page among the other views of the protocol.

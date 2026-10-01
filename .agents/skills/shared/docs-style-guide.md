@@ -222,7 +222,10 @@ adverbs. Auto-fixable by deletion where the sentence survives it.
 **SG-25 — Cite instead of asserting.** A normative claim carries its identifier
 inline: `(AKM-02-001, AKM-02-002)`, `(ADR-0048, CM-18-003)`. Unattributed
 "must" in explanation prose is a finding — either it is normative and has an ID,
-or it is advice and should not say "must".
+or it is advice and should not say "must". A link to a Protocol Specification
+section carries the section's number and name, as in "§6 Report Management (RM)
+State Machine", never a bare "§6" or "section 6", and
+`test/metadata/docs/test_spec_citations.py` fails on a bare one.
 
 **SG-26 — Emphasis discipline.** Bold marks the term being defined, sparingly.
 A blockquote carries the one load-bearing invariant of the page, not general

@@ -67,6 +67,7 @@ from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
     ASSIGN_CVE_ID_DETERMINISTIC,
 )
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.predicates.roles import has_cna_role
 
 if TYPE_CHECKING:
@@ -98,9 +99,7 @@ class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.logger = logging.getLogger(  # type: ignore[assignment]
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)  # type: ignore[assignment]
 
     INPUT_PORTS: dict[str, PortInformation] = {
         _ACTOR_ROLES_KEY: PortInformation(data_type=list, required=False),
@@ -118,27 +117,30 @@ class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
             roles = self.get_input(_ACTOR_ROLES_KEY)
         except (KeyError, NoDataAvailable, NotImplementedError):
             self.logger.debug(
-                f"{self.name}: {_ACTOR_ROLES_KEY} not on blackboard"
-                " — treating as non-CNA"
+                "%s: %s not on blackboard — treating as non-CNA",
+                self.name,
+                _ACTOR_ROLES_KEY,
             )
             return Status.FAILURE
 
         if not isinstance(roles, list):
             self.logger.warning(
-                f"{self.name}: {_ACTOR_ROLES_KEY} is"
-                f" {type(roles).__name__}, not list — treating as non-CNA"
+                "%s: %s is %s, not list — treating as non-CNA",
+                self.name,
+                _ACTOR_ROLES_KEY,
+                type(roles).__name__,
             )
             return Status.FAILURE
 
         if has_cna_role(roles):
             self.logger.debug(
-                f"{self.name}: actor holds CNA role"
-                " — proceed to authority check"
+                "%s: actor holds CNA role — proceed to authority check",
+                self.name,
             )
             return Status.SUCCESS
 
         self.logger.debug(
-            f"{self.name}: actor lacks CNA role — skip direct-assignment path"
+            "%s: actor lacks CNA role — skip direct-assignment path", self.name
         )
         return Status.FAILURE
 
@@ -159,9 +161,7 @@ class _IsOrWillBePubliclyDisclosedNode(BehaviourWithPorts):
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.logger = logging.getLogger(  # type: ignore[assignment]
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)  # type: ignore[assignment]
 
     INPUT_PORTS: dict[str, PortInformation] = {
         _PUBLICATION_INTENT_SET_KEY: PortInformation(
@@ -183,17 +183,19 @@ class _IsOrWillBePubliclyDisclosedNode(BehaviourWithPorts):
             intent_set = self.get_input(_PUBLICATION_INTENT_SET_KEY)
         except (KeyError, NoDataAvailable, NotImplementedError):
             self.logger.debug(
-                f"{self.name}: no publication intent on blackboard — FAILURE"
+                "%s: no publication intent on blackboard — FAILURE", self.name
             )
             return Status.FAILURE
 
         if intent_set:
             self.logger.debug(
-                f"{self.name}: publication intent is set — SUCCESS"
+                "%s: publication intent is set — SUCCESS", self.name
             )
             return Status.SUCCESS
 
-        self.logger.debug(f"{self.name}: publication intent not set — FAILURE")
+        self.logger.debug(
+            "%s: publication intent not set — FAILURE", self.name
+        )
         return Status.FAILURE
 
 

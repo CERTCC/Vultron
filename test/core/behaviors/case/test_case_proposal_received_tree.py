@@ -209,6 +209,72 @@ class TestWriteCreateCaseMarkerNode:
         assert marker.case_actor_id == _CASE_ACTOR_URI
         assert marker.vendor_uri == _VENDOR_URI
 
+    @pytest.mark.spec("EMB-18-003")
+    def test_marker_payload_carries_the_active_embargo_inline(self):
+        """The Create a recipient seeds from carries the embargo record."""
+        from vultron.core.models._helpers import days_from_now_utc
+        from vultron.core.models.embargo_event import EmbargoEvent
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        case_id = "https://example.org/cases/c-embargo"
+        embargo = EmbargoEvent(
+            id_=f"{case_id}/embargo_events/e1",
+            context=case_id,
+            end_time=days_from_now_utc(45),
+        )
+        dl.save(embargo)
+        dl.save(
+            VulnerabilityCase(
+                id_=case_id,
+                attributed_to=_CASE_ACTOR_URI,
+                active_embargo=embargo.id_,
+            )
+        )
+
+        status = self._run_node(
+            dl,
+            actor_id=_CASE_ACTOR_URI,
+            case_id=case_id,
+            accept_id="https://example.org/activities/a-embargo",
+            seed=False,
+        )
+
+        assert status == py_trees.common.Status.SUCCESS
+        marker = dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI))
+        assert isinstance(marker, PendingCreateCaseActivity)
+        case_obj = marker.create_activity_payload["object"]
+        carried = case_obj.get("activeEmbargo", case_obj.get("active_embargo"))
+        assert isinstance(carried, dict), carried
+        assert carried["id"] == embargo.id_
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_unreadable_active_embargo_fails_without_a_marker(self, caplog):
+        """A case naming an embargo this store lacks is never sent."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        case_id = "https://example.org/cases/c-unheld"
+        dl.save(
+            VulnerabilityCase(
+                id_=case_id,
+                attributed_to=_CASE_ACTOR_URI,
+                active_embargo=f"{case_id}/embargo_events/unheld",
+            )
+        )
+
+        with caplog.at_level(logging.ERROR):
+            status = self._run_node(
+                dl,
+                actor_id=_CASE_ACTOR_URI,
+                case_id=case_id,
+                accept_id="https://example.org/activities/a-unheld",
+                seed=False,
+            )
+
+        assert status == py_trees.common.Status.FAILURE
+        assert (
+            dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI)) is None
+        )
+        assert any("EMB-18-003" in r.getMessage() for r in caplog.records)
+
     def test_marker_contains_create_payload(self):
         """Marker create_activity_payload is non-empty and contains actor (AC-1)."""
         dl = SqliteDataLayer(

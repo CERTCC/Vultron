@@ -30,9 +30,11 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
+from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronNotFoundError,
+    VultronValidationError,
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import declared_wire_type
@@ -144,13 +146,14 @@ def _case_for_wire(
     ``as_VulnerabilityCase`` admits the objects in every one of these slots, and
     ``to_core()`` reduces them back to ids, so a receiver's stored case is
     unchanged in shape; the recipient stores each carried object separately
-    (``_store_embedded_embargo``, ``_store_embedded_participants``).
+    (``store_carried_embargo``, ``_store_embedded_participants``).
 
-    A reference the sender's own store cannot resolve is left as the id with a
-    WARNING: this function's job is to carry what is there, and a sender-side
-    gap is the business of whoever wrote the dangling reference.
-    ``announce_vulnerability_case`` then refuses to send a case whose report is
-    missing (CBT-01-007).
+    A participant or report reference the sender's own store cannot resolve
+    is left as the id with a WARNING: this function's job is to carry what is
+    there, and a sender-side gap is the business of whoever wrote the
+    dangling reference. ``announce_vulnerability_case`` then refuses to send
+    a case whose report is missing (CBT-01-007). An unreadable active embargo
+    is the exception: it raises (EMB-18-003, :func:`_carried_embargo`).
     """
     case = _to_wire(dl.read(case_id), as_VulnerabilityCase)
     updates: dict[str, Any] = {}
@@ -174,32 +177,37 @@ _CARRIED_LIST_FIELDS: frozenset[str] = _AS_LIST_REF_FIELDS | {
 
 
 def _carried_embargo(dl: CasePersistence, case: Any, case_id: str) -> Any:
-    """The case's ``active_embargo`` as a wire object, or ``None`` to leave it."""
+    """The case's ``active_embargo`` as a wire object, or ``None`` to leave it.
+
+    Fails closed (EMB-18-003): a sender whose case names an active embargo
+    its own store cannot read has already broken the invariant, and sending
+    the bare id would hand every recipient a case it must refuse.
+
+    Raises:
+        VultronValidationError: If the sender does not hold the record, the
+            record is not an ``EmbargoEvent``, or it cannot be projected to
+            its wire shape -- one error carrying the context, logged once at
+            the caller's boundary.
+    """
     embargo_ref = getattr(case, "active_embargo", None)
     if not isinstance(embargo_ref, str) or not embargo_ref:
         return None  # already an object, or no embargo at all
-    stored = dl.read(embargo_ref)
-    if stored is None:
-        logger.warning(
-            "_case_for_wire: case '%s' references active_embargo '%s' which is"
-            " absent from the sending actor's own store, so it cannot be"
-            " carried inline (AKM-03-001); the recipient will receive an"
-            " unresolvable reference",
-            case_id,
-            embargo_ref,
-        )
-        return None
+    try:
+        stored = read_embargo_event(dl, embargo_ref)
+    except (VultronNotFoundError, VultronValidationError) as exc:
+        raise VultronValidationError(
+            f"_case_for_wire: case '{case_id}' names active embargo"
+            f" '{embargo_ref}', which the sending actor's own store cannot"
+            f" read (EMB-18-003); refusing to send an unresolvable"
+            f" reference: {exc}"
+        ) from exc
     try:
         return _to_wire(stored, as_EmbargoEvent)
-    except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
-        logger.warning(
-            "_case_for_wire: could not project active_embargo '%s' of case"
-            " '%s' to its wire shape (%s); sending the reference alone",
-            embargo_ref,
-            case_id,
-            exc,
-        )
-        return None
+    except Exception as exc:
+        raise VultronValidationError(
+            f"_case_for_wire: could not project active_embargo"
+            f" '{embargo_ref}' of case '{case_id}' to its wire shape: {exc}"
+        ) from exc
 
 
 def _carried_list(

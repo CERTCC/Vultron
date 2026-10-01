@@ -81,7 +81,9 @@ class CollectCaseAddresseesNode(DataLayerActionWithPorts):
         case_id = self.case_id_bb
         if not isinstance(case_id, str):
             self.logger.error(
-                f"{self.name}: case_id must be a string, got {type(case_id)}"
+                "%s: case_id must be a string, got %s",
+                self.name,
+                type(case_id),
             )
             return Status.FAILURE
 
@@ -101,7 +103,7 @@ class CollectCaseAddresseesNode(DataLayerActionWithPorts):
 
         if addressees:
             self.logger.info(
-                f"{self.name}: Notifying addressees: {addressees}"
+                "%s: Notifying addressees: %s", self.name, addressees
             )
 
         self._set_output("create_case_obj", case_obj)
@@ -166,7 +168,9 @@ class CreateAndPersistCaseActivityNode(DataLayerActionWithPorts):
         case_id = self.case_id_bb
         if not isinstance(case_id, str):
             self.logger.error(
-                f"{self.name}: case_id must be a string, got {type(case_id)}"
+                "%s: case_id must be a string, got %s",
+                self.name,
+                type(case_id),
             )
             return Status.FAILURE
 
@@ -175,13 +179,13 @@ class CreateAndPersistCaseActivityNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"{self.name}: 'create_case_obj' not on blackboard"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
         addressees = self.create_case_addressees_bb
         if not isinstance(addressees, list):
             self.logger.error(
-                f"{self.name}: create_case_addressees must be a list"
+                "%s: create_case_addressees must be a list", self.name
             )
             return Status.FAILURE
 
@@ -194,13 +198,16 @@ class CreateAndPersistCaseActivityNode(DataLayerActionWithPorts):
         try:
             self.datalayer.create(activity)
             self.logger.info(
-                f"{self.name}: Created CreateCaseActivity activity"
-                f" {activity.id_}"
+                "%s: Created CreateCaseActivity activity %s",
+                self.name,
+                activity.id_,
             )
         except VultronAlreadyExistsError as e:
             self.logger.warning(
-                f"{self.name}: CreateCaseActivity activity {activity.id_}"
-                f" already exists: {e}"
+                "%s: CreateCaseActivity activity %s already exists: %s",
+                self.name,
+                activity.id_,
+                e,
             )
 
         self._set_output("activity_id", activity.id_)

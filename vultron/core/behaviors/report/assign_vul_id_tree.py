@@ -71,5 +71,5 @@ def create_assign_vul_id_tree(
             bundle.id_assignable_factory("IdAssignable"),
         ],
     )
-    logger.info(f"Created AssignVulIDBT (Phase 1 stub) for case={case_id}")
+    logger.info("Created AssignVulIDBT (Phase 1 stub) for case=%s", case_id)
     return root

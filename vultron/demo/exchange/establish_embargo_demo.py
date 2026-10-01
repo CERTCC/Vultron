@@ -116,7 +116,7 @@ def demo_propose_embargo_accept(
             summary=f"Proposing a 90-day embargo for {case.name}.",
             to=[vendor.id_],
         )
-        logger.info(f"Sending embargo proposal: {logfmt(proposal)}")
+        logger.info("Sending embargo proposal: %s", logfmt(proposal))
         post_to_inbox_and_wait(client, vendor.id_, proposal)
 
     with demo_step("Step 3: Vendor accepts embargo and activates it"):
@@ -127,7 +127,7 @@ def demo_propose_embargo_accept(
             to=[coordinator.id_],
             summary=f"Accepting embargo proposal for {case.name}.",
         )
-        logger.info(f"Sending embargo acceptance: {logfmt(accept)}")
+        logger.info("Sending embargo acceptance: %s", logfmt(accept))
         post_to_inbox_and_wait(client, coordinator.id_, accept)
 
         activate = activate_embargo_activity(
@@ -137,7 +137,7 @@ def demo_propose_embargo_accept(
             in_reply_to=proposal.id_,
             to=f"{case.id_}/participants",
         )
-        logger.info(f"Activating embargo: {logfmt(activate)}")
+        logger.info("Activating embargo: %s", logfmt(activate))
         post_to_inbox_and_wait(client, vendor.id_, activate)
 
     with demo_step("Step 4: Vendor announces embargo to participants"):
@@ -148,7 +148,7 @@ def demo_propose_embargo_accept(
             to=f"{case.id_}/participants",
             summary=f"Embargo for {case.name} is now active.",
         )
-        logger.info(f"Announcing embargo: {logfmt(announce)}")
+        logger.info("Announcing embargo: %s", logfmt(announce))
         post_to_inbox_and_wait(client, vendor.id_, announce)
 
     with demo_step("Step 5: Verify case has active embargo"):
@@ -214,7 +214,7 @@ def demo_propose_embargo_reject(
             summary=f"Proposing a 45-day embargo for {case.name}.",
             to=[vendor.id_],
         )
-        logger.info(f"Sending embargo proposal: {logfmt(proposal)}")
+        logger.info("Sending embargo proposal: %s", logfmt(proposal))
         post_to_inbox_and_wait(client, vendor.id_, proposal)
 
     with demo_step("Step 3: Vendor rejects embargo proposal"):
@@ -225,7 +225,7 @@ def demo_propose_embargo_reject(
             to=[coordinator.id_],
             summary=f"Rejecting embargo proposal for {case.name}.",
         )
-        logger.info(f"Sending embargo rejection: {logfmt(reject)}")
+        logger.info("Sending embargo rejection: %s", logfmt(reject))
         post_to_inbox_and_wait(client, coordinator.id_, reject)
 
     with demo_step("Step 4: Verify case has no active embargo"):

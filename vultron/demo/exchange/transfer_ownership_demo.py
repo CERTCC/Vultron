@@ -171,7 +171,7 @@ def _vendor_offers_ownership(
         to=[case_actor_id],
         content=f"Offering to transfer ownership of {case.name} to you.",
     )
-    logger.info(f"Sending offer to the CaseActor: {logfmt(offer)}")
+    logger.info("Sending offer to the CaseActor: %s", logfmt(offer))
     post_to_inbox_and_wait(client, case_actor_id, offer)
     with demo_check("Ownership offer recorded by the CaseActor (CM-21-005)"):
         # The CaseActor's store, not the vendor's: the Offer is addressed to
@@ -215,7 +215,7 @@ def demo_transfer_ownership_accept(
     )
     if initial_case is None:
         raise ValueError("Could not retrieve initial case state")
-    logger.info(f"Initial owner: {initial_case.attributed_to}")
+    logger.info("Initial owner: %s", initial_case.attributed_to)
 
     with demo_step(
         "Step 2: Vendor offers case ownership to coordinator via the CaseActor"
@@ -245,7 +245,7 @@ def demo_transfer_ownership_accept(
                 to=[case_actor_id],
                 content=(f"Accepting ownership of {case.name}."),
             )
-            logger.info(f"Sending accept to the CaseActor: {logfmt(accept)}")
+            logger.info("Sending accept to the CaseActor: %s", logfmt(accept))
             post_to_inbox_and_wait(client, case_actor_id, accept)
 
         with demo_step(
@@ -305,7 +305,7 @@ def demo_transfer_ownership_reject(
     if initial_case is None:
         raise ValueError("Could not retrieve initial case state")
     original_owner = initial_case.attributed_to
-    logger.info(f"Initial owner: {original_owner}")
+    logger.info("Initial owner: %s", original_owner)
 
     with demo_step(
         "Step 2: Vendor offers case ownership to coordinator via the CaseActor"
@@ -332,7 +332,7 @@ def demo_transfer_ownership_reject(
                 to=[case_actor_id],
                 content=(f"Declining ownership of {case.name}."),
             )
-            logger.info(f"Sending reject to the CaseActor: {logfmt(reject)}")
+            logger.info("Sending reject to the CaseActor: %s", logfmt(reject))
             post_to_inbox_and_wait(client, case_actor_id, reject)
 
         with demo_step("Step 5: Verify case ownership unchanged"):

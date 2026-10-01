@@ -112,7 +112,7 @@ Most capabilities are not nested.
 ## The four shapes
 
 There are exactly four capability shapes (BT-18-013).
-The normative contracts are in [Annex G of the protocol specification](../../reference/vultron-spec/index.md#annex-g-capability-shapes-i); this section explains how each one behaves.
+The normative contracts are in [Annex G Capability Shapes in the protocol specification](../../reference/vultron-spec/annex-g-capability-shapes.md#annex-g-capability-shapes-i); this section explains how each one behaves.
 
 ### Evaluator
 

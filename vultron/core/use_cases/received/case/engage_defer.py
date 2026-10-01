@@ -21,7 +21,7 @@ from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
 from ._helpers import (
-    _store_embedded_embargo,
+    _hold_carried_embargo,
     _store_embedded_participants,
 )
 
@@ -72,8 +72,10 @@ class EngageCaseReceivedUseCase:
         # paths (CBT-05-005, fixes #573).
         case_obj = request.case
         if case_obj is not None:
+            refusal = _hold_carried_embargo(case_obj, self._dl, case_id)
+            if refusal is not None:
+                return refusal
             _store_embedded_participants(case_obj, self._dl, case_id)
-            _store_embedded_embargo(case_obj, self._dl, case_id)
 
         logger.info(
             "Actor '%s' engages case '%s' (RM → ACCEPTED)",

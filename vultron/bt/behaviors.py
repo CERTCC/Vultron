@@ -105,7 +105,7 @@ class CvdProtocolBt(bt.BehaviorTree):
 
         self.preconditions = {}
         for a in attributes:
-            logger.debug(f"State: {a}: {getattr(self.bb, a)}")
+            logger.debug("State: %s: %s", a, getattr(self.bb, a))
             self.preconditions[a] = deepcopy(getattr(self.bb, a))
         logger.debug("--------")
 
@@ -119,7 +119,7 @@ class CvdProtocolBt(bt.BehaviorTree):
         if changes:
             logger.debug("--------")
         for change in changes:
-            logger.debug(change)
+            logger.debug("%s", change)
 
     @property
     def closed(self):

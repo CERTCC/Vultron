@@ -11,8 +11,8 @@ This page defines the Report Management (RM) process as a deterministic finite a
 It is for readers who want the formal model behind the [RM process model](index.md), which describes each state and transition in practitioner terms.
 The [formal protocol](../../../reference/formal_protocol/index.md) builds on the definitions given here.
 
-The normative RM states and transitions are specified in [§6 of the Vultron Protocol Specification](../../../reference/vultron-spec/index.md#6-report-management-rm-state-machine-n).
-The [states table (§6.1)](../../../reference/vultron-spec/index.md#61-states) and the [transitions table (§6.2)](../../../reference/vultron-spec/index.md#62-transitions-and-guards) are the authority.
+The normative RM states and transitions are specified in [§6 Report Management (RM) State Machine in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#6-report-management-rm-state-machine-n).
+The states table in [§6.1 States](../../../reference/vultron-spec/tracking-models.md#61-states) and the transitions table in [§6.2 Transitions and Guards](../../../reference/vultron-spec/tracking-models.md#62-transitions-and-guards) are the authority.
 This page restates them in DFA notation and adds what the specification does not carry: the symbol set, a right-linear grammar, the shortest possible histories, and a set of named state subsets that other process-model pages use.
 
 ---

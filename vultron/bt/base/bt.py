@@ -95,13 +95,13 @@ class BehaviorTree:
             # where were we in the tree?
             frm = inspect.trace()[-1]
             obj = frm[0].f_locals["self"]
-            logger.debug(f"Exception in {obj.name}")
+            logger.debug("Exception in %s", obj.name)
             print(obj.name)
 
             while obj.parent is not None:
                 obj = obj.parent
                 print(obj.name)
-                logger.debug(f"parent: {obj.name}")
+                logger.debug("parent: %s", obj.name)
 
             # print(self.root.graph())
 

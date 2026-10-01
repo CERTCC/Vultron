@@ -22,5 +22,5 @@ logger = logging.getLogger(__name__)
 
 def incoming_message(state, msg):
     logger.debug("")
-    logger.debug(f"INCOMING MESSAGE: {msg}")
+    logger.debug("INCOMING MESSAGE: %s", msg)
     state.incoming_messages.append(msg)

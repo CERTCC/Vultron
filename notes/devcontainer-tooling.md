@@ -3,7 +3,8 @@ title: Devcontainer and Toolchain Pitfalls
 status: active
 description: >
   Environment-level pitfalls specific to this devcontainer: why every tool must
-  run under `uv run`, why `PYTHONPATH` must be cleared, the `UV_NO_SYNC=1`
+  run under `uv run`, why `PYTHONPATH` must be cleared (pre-commit hooks in a
+  worktree inherit it too), the `UV_NO_SYNC=1`
   workaround for root-owned venvs, why a commit no longer needs the 10-minute
   timeout the retired flake8 hook demanded, the hanging `actionlint` hook,
   pushing to `origin` with `-u` rather than a token URL, the HTTP/2 push that
@@ -31,7 +32,10 @@ The devcontainer sets `PYTHONPATH=/app`, which causes `uv run spec-dump` (and an
 other entry point) to resolve `vultron` imports from the stale baked image at
 `/app` instead of the editable install. Always prefix with `PYTHONPATH=` to clear
 it: `PYTHONPATH= uv run spec-dump`. The same applies to any `uv run <entrypoint>`
-that touches `vultron.*` modules.
+that touches `vultron.*` modules, and to `git commit` in a worktree outside
+`/app`: the pre-commit hooks inherit the variable, so a sync hook such as
+`docs-site` checks the worktree's files against `/app`'s generator and fails
+spuriously. Commit with `PYTHONPATH= git commit …`.
 
 ## `uv run` Pre-Commit Hooks Fail With "Permission Denied" — Use `UV_NO_SYNC=1`
 

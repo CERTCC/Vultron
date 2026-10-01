@@ -27,4 +27,4 @@ Each crosswalk opens with a link to the document it maps.
 
 <!-- END GENERATED SECTION CONTENTS -->
 
-The specification's own account of how it relates to these standards is [§1.3 Relationship to Existing Standards](../vultron-spec/index.md#13-relationship-to-existing-standards).
+The specification's own account of how it relates to these standards is [§1.3 Relationship to Existing Standards](../vultron-spec/introduction.md#13-relationship-to-existing-standards).

@@ -42,7 +42,7 @@ Once those combinations are removed, each participant must be in one of 352 poss
     \end{split}$$
 
 The role a participant plays narrows this further, as the following sections show.
-"Finder" is used below in its everyday sense of whoever discovered the vulnerability; the protocol's roles are listed in the [Vultron specification](../../reference/vultron-spec/index.md#22-roles), where a finder takes part as a Reporter.
+"Finder" is used below in its everyday sense of whoever discovered the vulnerability; the protocol's roles are listed in the [Vultron specification](../../reference/vultron-spec/introduction.md#22-roles), where a finder takes part as a Reporter.
 
 ## Vendors (Fix Suppliers)
 
