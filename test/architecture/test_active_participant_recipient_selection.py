@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Planned ratchet: case-content recipients come from one shared selection.
 
-CM-10-005 puts the active-participant check (CM-10-004, ADR-0114) in the
+CM-10-007 puts the active-participant check (CM-10-004, ADR-0114) in the
 shared recipient selection that every case-content send uses, so no send
 site can forget it.  A site that builds its recipient list by iterating the
 roster's actor IDs (``case.actor_participant_index``) itself bypasses that
@@ -70,15 +70,15 @@ def _roster_iteration_sites() -> list[str]:
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "CM-10-005: every case-content send selects recipients through the"
+        "CM-10-007: every case-content send selects recipients through the"
         " shared active-participant selection. Tracked by #4046."
     ),
 )
-@pytest.mark.spec("CM-10-005")
+@pytest.mark.spec("CM-10-007")
 def test_no_send_site_builds_recipients_from_the_raw_roster() -> None:
     """No code in ``vultron/core/`` lists roster actor IDs outside the shared selection."""
     sites = _roster_iteration_sites()
     assert sites == [], (
         "recipient list built from the raw roster, bypassing the shared"
-        " active-participant selection (CM-10-005): " + ", ".join(sites)
+        " active-participant selection (CM-10-007): " + ", ".join(sites)
     )

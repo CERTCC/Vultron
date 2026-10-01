@@ -1153,7 +1153,7 @@ groups:
       CASE_MANAGER and is committed in the emitting tree (CM-24-004, ADR-0109). Every
       participant on the case whose RM state is not `RM.CLOSED` is a recipient, whatever
       its consent state and whether or not it has joined: an embargo Invite is not case
-      content and reaches an inert participant (CM-10-005). A participant not yet bound
+      content and reaches an inert participant (CM-10-007). A participant not yet bound
       is invited into the revised terms, a signatory is asked whether it accepts them
       (EP-09-004).
     verification: >-

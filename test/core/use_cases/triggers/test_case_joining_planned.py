@@ -24,7 +24,7 @@ Strict-``xfail`` tests for the case-joining requirements planned under #4006
   refused.
 - CM-11-016 — an embargo change re-issues an outstanding stub Invite; a
   ``Reject`` of the superseded one is still honoured.
-- CM-10-005 — the stub Invite reaches the inert invitee (passing marker).
+- CM-10-007 — the stub Invite reaches the inert invitee (passing marker).
 - PRM-06-001 — the CASE_MANAGER writes only the invitee's birth status.
 
 Each test asserts observable behaviour and flips to passing once the
@@ -698,7 +698,7 @@ def test_reject_of_superseded_stub_invite_is_honoured(actor_store) -> None:
     )
 
 
-@pytest.mark.spec("CM-10-005")
+@pytest.mark.spec("CM-10-007")
 def test_stub_invite_is_addressed_to_the_inert_invitee(actor_store) -> None:
     """An Invite asking an actor to join is not case content.
 
