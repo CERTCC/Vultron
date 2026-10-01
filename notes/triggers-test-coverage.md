@@ -1,6 +1,9 @@
 ---
 title: "Trigger Use-Case Test Coverage and PR Scope"
 status: active
+related_specs:
+  - specs/triggerable-behaviors.yaml
+  - specs/use-case-organization.yaml
 description: >
   Coverage expectations and PR-scope discipline for trigger use cases in
   vultron/core/use_cases/triggers/, motivated by repeated high-churn in
@@ -53,6 +56,14 @@ Existing coverage anchors:
 | `SvcCreateCaseUseCase` | `test/core/use_cases/triggers/case/test_create.py` |
 | `SvcAddObjectToCaseUseCase` | `test/core/use_cases/triggers/case/test_add_object.py` |
 | `SvcAddReportToCaseUseCase` | `test/core/use_cases/triggers/case/test_add_report.py` |
+| `SvcAddOnBehalfStatusUseCase` | `test/core/use_cases/triggers/case/test_add_on_behalf_status.py` |
+| `SvcSyncLogEntryUseCase` | `test/core/use_cases/triggers/test_sync_log_entry.py` |
+
+The trigger registry (`vultron/trigger_registry/`, ADR-0110) makes the
+"every use case has a row" half of this mechanical:
+`test/architecture/test_trigger_registry_ratchets.py` fails when a
+`Svc*UseCase` under `triggers/` has no row, so a new use case must be
+registered in the same PR as its test file.
 
 When you add a new trigger use case, create the matching `test_<use_case>.py`
 file in the same PR. Do not rely on integration coverage in

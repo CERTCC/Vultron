@@ -41,6 +41,7 @@ from vultron.core.models.use_case_result import (
     OfferResult,
     RoleOfferResult,
     StatusResult,
+    SyncLogEntryResult,
     TriggerResult,
 )
 from vultron.core.use_cases.triggers import request_bodies, requests
@@ -59,6 +60,7 @@ from vultron.core.use_cases.triggers.requests import (
     ProposeEmbargoTriggerRequest,
     ResultT_co,
     SubmitReportTriggerRequest,
+    SyncLogEntryTriggerRequest,
     TriggerRequest,
     result_type_of,
 )
@@ -104,6 +106,12 @@ def _trigger(request: TriggerRequest[ResultT_co]) -> ResultT_co:
         "StatusResult": {},
         "OfferResult": {},
         "RoleOfferResult": {"activity_id": "urn:uuid:1", "activity": {}},
+        "SyncLogEntryResult": {
+            "log_entry_id": "urn:uuid:2",
+            "entry_hash": "ab" * 32,
+            "log_index": 0,
+            "emitting_actor_id": _ACTOR,
+        },
     }
     result = result_cls.model_validate(sample[result_cls.__name__])
     # ``result_type_of`` returns ``type[TriggerResult]``; the static binding
@@ -159,6 +167,14 @@ def test_static_binding_resolves_each_verbs_result_without_a_cast() -> None:
     )
     assert_type(role, RoleOfferResult)
     assert isinstance(role, RoleOfferResult)
+
+    synced = _trigger(
+        SyncLogEntryTriggerRequest(
+            actor_id=_ACTOR, case_id=_CASE, object_id=_CASE, event_type="e"
+        )
+    )
+    assert_type(synced, SyncLogEntryResult)
+    assert isinstance(synced, SyncLogEntryResult)
 
 
 @pytest.mark.parametrize(
@@ -231,9 +247,12 @@ def test_every_core_request_adds_actor_id_to_a_body_model(
     """Each core request derives from a body model and adds only ``actor_id``.
 
     The intermediate ``OfferTriggerRequest`` derives from
-    ``ReportTriggerRequest``; the two status requests and ``RejectReport``
-    derive from the ``CaseTriggerRequest`` / ``ReportTriggerRequest`` bases
-    and add the fields no HTTP body supplies.
+    ``ReportTriggerRequest``; the self-report status request and
+    ``RejectReport`` derive from the ``CaseTriggerRequest`` /
+    ``ReportTriggerRequest`` bases and add the fields no HTTP body supplies.
+    The on-behalf request adds nothing: its body model owns
+    ``target_actor_id`` and the state fields, so the HTTP boundary refuses
+    f→F itself (PRM-06-005).
     """
     bodies = [
         base
@@ -251,11 +270,6 @@ def test_every_core_request_adds_actor_id_to_a_body_model(
             "vf_state",
             "d_state",
             "pxa_state",
-        },
-        "AddOnBehalfStatusTriggerRequest": {
-            "target_actor_id",
-            "vf_state",
-            "d_state",
         },
     }
     assert own <= allowed_extras.get(request_cls.__name__, set()), (

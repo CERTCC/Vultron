@@ -220,6 +220,26 @@ class TestAddOnBehalfRequestValidation:
         assert req.vf_state is None
         assert req.d_state == CS_d.D
 
+    def test_vf_state_vf_lower_rung_raises(self):
+        """PRM-06-003 permits v→V only; recording unawareness is refused."""
+        with pytest.raises(ValueError, match="only v→V"):
+            AddOnBehalfStatusTriggerRequest(
+                actor_id="https://example.org/cm",
+                case_id="https://example.org/case",
+                target_actor_id="https://example.org/vendor",
+                vf_state=CS_vf.vf,
+            )
+
+    def test_d_state_d_lower_rung_raises(self):
+        """PRM-06-004 permits d→D only; recording non-deployment is refused."""
+        with pytest.raises(ValueError, match="only d→D"):
+            AddOnBehalfStatusTriggerRequest(
+                actor_id="https://example.org/cm",
+                case_id="https://example.org/case",
+                target_actor_id="https://example.org/deployer",
+                d_state=CS_d.d,
+            )
+
     def test_all_none_raises(self):
         with pytest.raises(ValueError, match="at least one"):
             AddOnBehalfStatusTriggerRequest(

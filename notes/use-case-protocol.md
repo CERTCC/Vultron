@@ -6,9 +6,11 @@ description: >
   vocabulary and its route to InboxOutcome, the two semantically distinct request
   paths (VultronEvent vs TriggerRequest), and why a shared UseCaseRequest base
   was not introduced. Received side and dispatcher chain migrated; trigger side
-  decided (ADR-0110: one dispatcher method over a verb registry); its first two
-  steps — the golden OpenAPI snapshot and the typed result hierarchy with one
-  request-model family (#3831) — are built, and TriggerService still delegates.
+  decided (ADR-0110: one dispatcher method over a verb registry); its first
+  three steps — the golden OpenAPI snapshot, the typed result hierarchy with
+  one request-model family (#3831), and the verb registry with the one-method
+  TriggerDispatcher port (#3832) — are built; TriggerService still delegates
+  until the cutover (#3833).
 related_specs:
   - specs/use-case-organization.yaml
   - specs/handler-protocol.yaml
@@ -38,8 +40,10 @@ See `specs/use-case-organization.yaml` UCORG-05 for the normative requirements.
 See `docs/adr/0040-use-case-result-envelope.md` for the original decision record
 and `docs/adr/0095-received-side-handler-result.md` for the received-side half.
 
-> **Status: both halves return typed results; the trigger port is still
-> per-verb.** `UseCaseResult`, `HandlerResult`, and `HandlerDisposition` exist
+> **Status: both halves return typed results and both have a one-method
+> driving port; the per-verb `TriggerService` still delegates beside the new
+> one until #3833 retires it.** `UseCaseResult`, `HandlerResult`, and
+> `HandlerDisposition` exist
 > in `vultron/core/models/use_case_result.py` (#3371), and so does the
 > trigger-side hierarchy rooted at `TriggerResult` (#3831). Every received-side
 > `execute()` declares `-> HandlerResult`, every trigger-side one its verb's
@@ -52,9 +56,14 @@ and `docs/adr/0095-received-side-handler-result.md` for the received-side half.
 > [Assigning a disposition](#assigning-a-disposition)). The demo layer keeps
 > its own wire-typed views of the trigger response bodies (`WireTriggerResult`,
 > `WireActivityResult`, `WireNoteResult`, `WireSyncLogEntryResult` in
-> `vultron/demo/actor_session.py`, UCORG-05-014). What remains of ADR-0110 is
-> the port: `TriggerService` and `TriggerServicePort` still expose one method
-> per verb and delegate to the use cases. Earlier revisions of this note
+> `vultron/demo/actor_session.py`, UCORG-05-014). The trigger-side port exists:
+> `TriggerDispatcher.trigger(request, dl) -> ResultT_co`
+> (`vultron/core/ports/trigger_dispatcher.py`), implemented by
+> `RegistryTriggerDispatcher` over `vultron/trigger_registry/` (#3832), with
+> `add-on-behalf-status` and the demo `sync-log-entry` routed through it via
+> `run_trigger(...)`. What remains of ADR-0110 is the cutover: `TriggerService`
+> and `TriggerServicePort` still expose one method per verb for the other 28
+> routes (#3833). Earlier revisions of this note
 > described the whole migration in the past tense while no part of it had been
 > written — that drift is what concern #1769 was filed to correct.
 
@@ -135,6 +144,8 @@ TriggerResult          (no fields)
   StatusResult         activity_id, status_id (add-participant-status, on-behalf)
   OfferResult          offer                 (submit-report)
   RoleOfferResult      activity_id, activity (offer-case-participant-role)
+  SyncLogEntryResult   log_entry_id, entry_hash, log_index, emitting_actor_id
+                       (demo sync-log-entry; the CASE_MANAGER it ran as)
 ```
 
 - `activity` — the emitted activity's JSON object as the BT captured it
@@ -237,15 +248,17 @@ See ADR-0040 for the full decision record.
 
 ## Trigger Side: One Dispatcher Method over a Verb Registry
 
-Decided in ADR-0110, planned from concern #3354. Two steps are built: the
+Decided in ADR-0110, planned from concern #3354. Three steps are built: the
 gating golden OpenAPI snapshot of the trigger and demo endpoints (#3828,
-`test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py`), and the
+`test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py`); the
 additive typed result hierarchy plus one request-model family (#3831), landed
-with the snapshot unchanged while `TriggerService` still delegates. The
-remaining steps land behind the snapshot and are not yet built. The trigger
-half does **not** get the mechanical "type the 27 methods" migration this note
-once described. The driving port collapses to one method and the two request
-families become one:
+with the snapshot unchanged; and the verb registry, the one-method port and
+the shared route body (#3832), landed with the snapshot moved for exactly one
+added path (`add-on-behalf-status`). `TriggerService` still delegates for the
+other routes; the cutover (#3833) is the only load-bearing step left. The
+trigger half does **not** get the mechanical "type the 27 methods" migration
+this note once described. The driving port collapses to one method and the two
+request families become one:
 
 - `TriggerResult` becomes a fieldless `UseCaseResult` subtype in
   `vultron/core/models/`; the required fields move down to `ActivityResult`
@@ -257,10 +270,30 @@ families become one:
   and pyright resolve the verb's result at the call site (UCORG-05-006).
 - A verb-keyed registry under `vultron/trigger_registry/` (mirroring
   `vultron/semantic_registry/`) maps verb → request model, use case, result
-  type, exposure. It is a data table with a lookup; the ratchets iterate it
-  (TRIG-12-004). It exists for enumeration, not routing.
-- Routes stay hand-written; each body becomes one call into a shared
-  `run_trigger(...)` helper and declares `response_model` (TRIG-12-001).
+  type, exposure, `bt_backed`, `spec_ids`. It is a data table with a lookup
+  (`lookup_entry(verb)`, `entries()`, `index_by_request_model(rows)`); the
+  ratchets iterate it (TRIG-12-004,
+  `test/architecture/test_trigger_registry_ratchets.py`,
+  `test/adapters/driving/fastapi/test_trigger_registry_routes.py`). It exists
+  for enumeration, not routing. `RegistryTriggerDispatcher`
+  (`vultron/core/trigger_dispatcher.py`) resolves a request's *type* to its
+  row and injects the driven ports by the row's `bt_backed` flag: the BT port
+  bundle (`trigger_activity`, `wire_render_port`, `sync_port`) for a BT-backed
+  use case, `trigger_activity` alone for the one non-BT-backed use case.
+- Routes stay hand-written; each body becomes one call into the shared
+  `run_trigger(...)` helper (`vultron/adapters/driving/fastapi/trigger_runner.py`)
+  and declares `response_model` (TRIG-12-001). The helper calls `trigger()`
+  under `domain_error_translation()` and queues the outbox flush only after it
+  returns (TRIG-07-001), draining the *emitting* actor's outbox when the
+  result names one (`EmittingResult`: `ActivityResult`, `SyncLogEntryResult`)
+  and the requester's otherwise — the delegated-emit rule `trigger_actor.py`
+  applied by hand (`emitting_outbox`, CM-24-001) now lives in the helper. The
+  route keeps its own `Depends(get_trigger_dl)` chain and passes the store in,
+  so `app.dependency_overrides` still reaches it (TRIG-06-002). Two routes are
+  on it today: `add-on-behalf-status` (new, making PRM-06-003/004/005
+  reachable over HTTP) and the demo `sync-log-entry`, whose inline `BTBridge`
+  commit became `SvcSyncLogEntryUseCase` so the use-case-to-row bijection
+  could hold.
 - `TriggerService`, `TriggerServicePort`, and the adapter-layer duplicate
   request models are deleted at the end, behind a golden OpenAPI snapshot and
   exact-key-set tests (TRIG-12-002, TRIG-12-003).

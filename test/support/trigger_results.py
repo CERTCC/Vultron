@@ -37,3 +37,17 @@ def note_of(result: NoteResult) -> dict[str, Any]:
     """Return the minted note of *result*, failing if none was captured."""
     assert result.note is not None, "NoteResult captured no note"
     return result.note
+
+
+def recipient_ids(activity: object) -> list[str]:
+    """The ``to`` addressees of a stored activity, as ids.
+
+    ``to`` may hold bare ids or rehydrated actor objects; either way the
+    assertion wants the ids (PCR-08-001 addressing checks).
+    """
+    to = getattr(activity, "to", None) or []
+    items = to if isinstance(to, list) else [to]
+    return [
+        item if isinstance(item, str) else str(getattr(item, "id_", ""))
+        for item in items
+    ]
