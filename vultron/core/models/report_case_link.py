@@ -88,8 +88,8 @@ class VultronReportCaseLink(CoreRecord):
         ),
         description=(
             "URI of the case's CASE_MANAGER, recorded after bootstrap "
-            "validation (ADR-0088).  Extracted from the CASE_MANAGER participant in the "
-            "bootstrap snapshot; used to validate subsequent "
+            "validation (ADR-0088).  Extracted from the CASE_MANAGER "
+            "participant in the bootstrap snapshot; used to validate subsequent "
             "Announce(VulnerabilityCase) senders (CBT-01-006)."
         ),
     )
