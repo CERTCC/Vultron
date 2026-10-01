@@ -55,8 +55,9 @@ def test_lazy_args_render_through_resolved_logger(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     node = _PlainNode(name="plain")
-    with caplog.at_level(logging.DEBUG, logger=node_logger(node).name):
-        node_logger(node).debug("%s: tick %s", node.name, 3)
+    log = node_logger(node)
+    with caplog.at_level(logging.DEBUG, logger=log.name):
+        log.debug("%s: tick %s", node.name, 3)
     record = caplog.records[-1]
     assert record.msg == "%s: tick %s"
     assert record.getMessage() == "plain: tick 3"
