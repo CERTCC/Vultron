@@ -575,7 +575,7 @@ class TestPostCloseBoundary:
     @pytest.mark.xfail(
         strict=True,
         reason="CM-23-013: a bystander Leave after owner close is still"
-        " committed as close_case. Tracked by the ISSUE-3400 impl task.",
+        " committed as close_case. Tracked by #4065.",
     )
     @pytest.mark.spec("CM-23-013")
     def test_bystander_leave_after_owner_close_is_refused(self):
@@ -604,7 +604,7 @@ class TestPostCloseBoundary:
     @pytest.mark.xfail(
         strict=True,
         reason="CM-23-014: owner close does not yet lapse pending Invites"
-        " before case_fully_closed. Tracked by the ISSUE-3400 impl task.",
+        " before case_fully_closed. Tracked by #4066.",
     )
     @pytest.mark.spec("CM-23-014")
     def test_owner_close_lapses_pending_invite_before_boundary(self):
