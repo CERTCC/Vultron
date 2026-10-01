@@ -44,6 +44,7 @@ from vultron.core.behaviors.case.nodes import (
     ClearCreateCaseMarkerNode,
     WriteCreateCaseMarkerNode,
 )
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
@@ -604,8 +605,17 @@ _REPORT_URI = "https://example.org/reports/r-001"
 _REPORTER_URI = "https://example.org/actors/reporter-01"
 
 
-def _make_full_event(make_payload, *, report_id: str | None = _REPORT_URI):
-    """Build a CreateCaseProposalReceivedEvent with an optional report URI."""
+def _make_full_event(
+    make_payload,
+    *,
+    report_id: str | None = _REPORT_URI,
+    actor: str | CoreActor = _VENDOR_URI,
+):
+    """Build a CreateCaseProposalReceivedEvent with an optional report URI.
+
+    ``actor`` is the Create's ``actor``: the proposing actor's URI by default,
+    or its full profile inline (CP-01-009, CP-01-010).
+    """
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
@@ -617,7 +627,7 @@ def _make_full_event(make_payload, *, report_id: str | None = _REPORT_URI):
         target=_CASE_ACTOR_URI,
     )
     activity = as_Create(
-        actor=_VENDOR_URI,
+        actor=actor,
         object_=proposal,
         to=[_CASE_ACTOR_URI],
     )
@@ -638,12 +648,18 @@ def _seed_report(dl: SqliteDataLayer) -> None:
     dl.save(report)
 
 
-def _run_full_bt(make_payload, dl: SqliteDataLayer, actor_config=None) -> None:
+def _run_full_bt(
+    make_payload,
+    dl: SqliteDataLayer,
+    actor_config=None,
+    *,
+    actor: str | CoreActor = _VENDOR_URI,
+) -> None:
     from vultron.core.use_cases.received.case_proposal import (
         CreateCaseProposalReceivedUseCase,
     )
 
-    event = _make_full_event(make_payload)
+    event = _make_full_event(make_payload, actor=actor)
     CreateCaseProposalReceivedUseCase(
         dl,
         event,
@@ -962,6 +978,71 @@ class TestADR0041EmbargoInit:
             <= embargo.end_time
             <= after + configured + slack
         )
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CP-01-009: the CASE_MANAGER reads the actor default from a "
+            "store-wide EmbargoPolicy scan, not from the profile the "
+            "proposal carries inline as its actor. Tracked by #4027 "
+            "(CP-01-010)."
+        ),
+    )
+    @pytest.mark.spec("CP-01-009")
+    def test_inline_actor_profile_policy_is_the_actor_default(
+        self, make_payload
+    ):
+        """The inline ``actor`` profile's policy is the actor default (CP-01-009).
+
+        The proposing actor's profile travels inline as the Create's ``actor``,
+        carrying its embargo policy. With no sender proposal, that policy is
+        the CASE_OWNER's actor default (EP-04-002), so the embargo the tree
+        activates ends ``preferred_duration`` from now rather than at the
+        protocol default.
+        """
+        from datetime import datetime
+
+        from vultron.config.actor import ActorConfig
+        from vultron.core.models.actor import VultronOrganization
+        from vultron.core.models.embargo_event import EmbargoEvent
+        from vultron.core.models.embargo_policy import EmbargoPolicy
+
+        policy_duration = timedelta(days=3)
+        protocol_default = timedelta(days=5)
+        profile = VultronOrganization(
+            id_=_VENDOR_URI,
+            embargo_policy=EmbargoPolicy(
+                actor_id=_VENDOR_URI,
+                inbox=f"{_VENDOR_URI}/inbox",
+                preferred_duration=policy_duration,
+            ),
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        before = datetime.now(tz=UTC)
+        _run_full_bt(
+            make_payload,
+            dl,
+            actor_config=ActorConfig(
+                protocol_default_embargo_duration=protocol_default
+            ),
+            actor=profile,
+        )
+        after = datetime.now(tz=UTC)
+
+        case = next(iter(dl.list_objects("VulnerabilityCase")))
+        assert isinstance(case, VulnerabilityCase)
+        assert case.active_embargo_id is not None
+        embargo = dl.read(case.active_embargo_id)
+        assert isinstance(embargo, EmbargoEvent)
+        assert embargo.end_time is not None
+        slack = timedelta(seconds=1)
+        assert (
+            before + policy_duration - slack
+            <= embargo.end_time
+            <= after + policy_duration + slack
+        ), "the actor default must come from the inline profile's policy"
 
     @pytest.mark.spec("EP-04-008")
     def test_ineligible_case_is_created_without_an_embargo(
