@@ -214,6 +214,9 @@ def trigger_close_report(
     description=(
         "Creates a VulnerabilityReport in the actor's DataLayer and queues an "
         "RmSubmitReportActivity (Offer) to the specified recipient. "
+        "An optional proposed_embargo_end_time states the Reporter's embargo "
+        "terms for the report; the Offer then carries them as "
+        "proposedEmbargo (EP-04-004). "
         "Returns the serialised offer so the caller can deliver it to the "
         "recipient's inbox."
     ),
@@ -240,6 +243,7 @@ def trigger_submit_report(
             report_name=body.report_name,
             report_content=body.report_content,
             recipient_id=body.recipient_id,
+            proposed_embargo_end_time=body.proposed_embargo_end_time,
         ),
         dispatcher=dispatcher,
         dl=actor_dl,

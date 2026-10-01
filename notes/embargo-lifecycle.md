@@ -8,7 +8,8 @@ description: >
   order for multiple open proposals (EP-08); and the fragmentation concern that
   motivates the EmbargoLifecycle service (see #538); and the revision relay
   through the CASE_MANAGER, under which the ledger carries state but never asks
-  (EP-09, ADR-0113).
+  (EP-09, ADR-0113); and the invariant that a case never names an embargo its
+  store cannot read (EMB-18-003).
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -110,11 +111,48 @@ The received-side nodes name their own no-ops and gaps, and the handler keys on
 that rather than on the store: `RecordParticipantRejectionNode` prefixes a
 repeat of a recorded Reject with `ALREADY_DECLINED_PREFIX` (the handler reports
 `SKIPPED`; a `DECLINED` actor's Reject of an *unknown* embargo stays `REFUSED`,
-HP-01-003), and `RecordParticipantAcceptanceNode` prefixes a FAILURE caused by
-the *replaced* embargo being unreplicated here with
-`REPLACED_EMBARGO_UNREPLICATED_PREFIX` (the handler reports `DEFERRED` — parked
-for replay, not refused). A replica lacking the record the EP-05-001 comparison
-needs is a partial-replica gap; the catch-up path is tracked in #4004.
+HP-01-003).
+
+### A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
+
+The EP-05-001 comparison reads both the revised embargo B and the embargo A it
+replaces, and fails closed on an unreadable one. That is safe only because no
+store holds a case whose `active_embargo` names a record it lacks. EMB-18-003
+makes that invariant hold by construction rather than repairing it after the
+fact. Three kinds of path write `active_embargo`, and each must hold the record
+first:
+
+- **Seeding** — every trigger-built outbound case goes through
+  `_case_for_wire`, which carries `active_embargo` inline when the sender holds
+  the record, and `_store_embedded_embargo` stores it as its own record on
+  receipt, so a replica seeded mid-embargo holds A. Seeding writes the sender's
+  `active_embargo` in a whole-case save (`SeedAnnouncedCaseNode`, the
+  create/engage replica stores, and the inbox pre-store of an inbound case), so
+  it is a writer too. Two gaps remain until #4032 lands: the case is saved
+  *before* its embargo record, and a sender that lacks its own record logs a
+  WARNING and sends a bare id, which `_store_embedded_embargo` skips — leaving
+  the replica pointing at a record it cannot read.
+- **Ledger replay** — entries are applied in chain order (SYNC-14-003), and the
+  CASE_MANAGER commits A's proposal before any activation that replaces it.
+  Each embargo apply node will store the `EmbargoEvent` its entry carries
+  before calling `EmbargoLifecycle` (#3915); today the only embargo apply node
+  is teardown.
+- **The activation writers** — `accept_embargo_invite()` and
+  `activate_embargo()`, the only paths that *activate* an embargo (EM state
+  plus `active_embargo`). On a revision they already read both records through
+  `_revision_ends_no_later`. On a first activation they do not yet read the
+  activated record, so a bare id from an inbox (which stores only the first
+  level of nesting: `Accept(Invite(A))` keeps the Invite, not A) can land;
+  #4032 makes them read it and fail closed before any write.
+
+So "a replica lacking the replaced embargo" is a broken invariant, not a
+replication lag, and no catch-up fetch, replay-on-store trigger, or
+`end_time`-in-snapshot mechanism is built for it (CONCERN-4004). Today
+`RecordParticipantAcceptanceNode` still prefixes that failure with
+`REPLACED_EMBARGO_UNREPLICATED_PREFIX` (logged at WARNING) and the handler
+reports `DEFERRED` — the arm PR #4002 added. #4032 retires it: nothing would
+re-drive the parked item, so once it lands the failure is refused and logged at
+ERROR instead.
 
 **`TransitionMode`**: `STRICT` enforces valid transitions and precondition
 guards (used by trigger-side BT behaviors).  `OBSERVED` syncs local state

@@ -44,6 +44,7 @@ from vultron.core.behaviors.case.nodes import (
     ClearCreateCaseMarkerNode,
     WriteCreateCaseMarkerNode,
 )
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
@@ -604,8 +605,17 @@ _REPORT_URI = "https://example.org/reports/r-001"
 _REPORTER_URI = "https://example.org/actors/reporter-01"
 
 
-def _make_full_event(make_payload, *, report_id: str | None = _REPORT_URI):
-    """Build a CreateCaseProposalReceivedEvent with an optional report URI."""
+def _make_full_event(
+    make_payload,
+    *,
+    report_id: str | None = _REPORT_URI,
+    actor: str | CoreActor = _VENDOR_URI,
+):
+    """Build a CreateCaseProposalReceivedEvent with an optional report URI.
+
+    ``actor`` is the Create's ``actor``: the proposing actor's URI by default,
+    or its full profile inline (CP-01-009, CP-01-010).
+    """
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
@@ -617,7 +627,7 @@ def _make_full_event(make_payload, *, report_id: str | None = _REPORT_URI):
         target=_CASE_ACTOR_URI,
     )
     activity = as_Create(
-        actor=_VENDOR_URI,
+        actor=actor,
         object_=proposal,
         to=[_CASE_ACTOR_URI],
     )
@@ -638,12 +648,18 @@ def _seed_report(dl: SqliteDataLayer) -> None:
     dl.save(report)
 
 
-def _run_full_bt(make_payload, dl: SqliteDataLayer, actor_config=None) -> None:
+def _run_full_bt(
+    make_payload,
+    dl: SqliteDataLayer,
+    actor_config=None,
+    *,
+    actor: str | CoreActor = _VENDOR_URI,
+) -> None:
     from vultron.core.use_cases.received.case_proposal import (
         CreateCaseProposalReceivedUseCase,
     )
 
-    event = _make_full_event(make_payload)
+    event = _make_full_event(make_payload, actor=actor)
     CreateCaseProposalReceivedUseCase(
         dl,
         event,
@@ -962,6 +978,73 @@ class TestADR0041EmbargoInit:
             <= embargo.end_time
             <= after + configured + slack
         )
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CP-01-009: the inline actor profile never reaches the tree. "
+            "extract_event reduces the Create's actor to its URI "
+            "(vultron/wire/as2/extractor/_extract.py), and the CASE_MANAGER "
+            "then reads the actor default from a store-wide EmbargoPolicy "
+            "scan rather than from that profile. Tracked by #4027 "
+            "(CP-01-010)."
+        ),
+    )
+    @pytest.mark.spec("CP-01-009")
+    def test_inline_actor_profile_policy_is_the_actor_default(
+        self, make_payload
+    ):
+        """The inline ``actor`` profile's policy is the actor default (CP-01-009).
+
+        The proposing actor's profile travels inline as the Create's ``actor``,
+        carrying its embargo policy. With no sender proposal, that policy is
+        the CASE_OWNER's actor default (EP-04-002), so the embargo the tree
+        activates ends ``preferred_duration`` from now rather than at the
+        protocol default.
+        """
+        from datetime import datetime
+
+        from vultron.config.actor import ActorConfig
+        from vultron.core.models.actor import VultronOrganization
+        from vultron.core.models.embargo_event import EmbargoEvent
+        from vultron.core.models.embargo_policy import EmbargoPolicy
+
+        policy_duration = timedelta(days=3)
+        protocol_default = timedelta(days=5)
+        profile = VultronOrganization(
+            id_=_VENDOR_URI,
+            embargo_policy=EmbargoPolicy(
+                actor_id=_VENDOR_URI,
+                inbox=f"{_VENDOR_URI}/inbox",
+                preferred_duration=policy_duration,
+            ),
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        before = datetime.now(tz=UTC)
+        _run_full_bt(
+            make_payload,
+            dl,
+            actor_config=ActorConfig(
+                protocol_default_embargo_duration=protocol_default
+            ),
+            actor=profile,
+        )
+        after = datetime.now(tz=UTC)
+
+        case = next(iter(dl.list_objects("VulnerabilityCase")))
+        assert isinstance(case, VulnerabilityCase)
+        assert case.active_embargo_id is not None
+        embargo = dl.read(case.active_embargo_id)
+        assert isinstance(embargo, EmbargoEvent)
+        assert embargo.end_time is not None
+        slack = timedelta(seconds=1)
+        assert (
+            before + policy_duration - slack
+            <= embargo.end_time
+            <= after + policy_duration + slack
+        ), "the actor default must come from the inline profile's policy"
 
     @pytest.mark.spec("EP-04-008")
     def test_ineligible_case_is_created_without_an_embargo(
@@ -2430,6 +2513,8 @@ class TestEP04SenderProposalAtCaseCreation:
         *,
         sender_days: int,
         terms_context: str = _REPORT_URI,
+        proposal_id: str = _PROPOSAL_URI,
+        terms: Any = None,
     ):
         from datetime import datetime
 
@@ -2445,11 +2530,12 @@ class TestEP04SenderProposalAtCaseCreation:
         report = as_VulnerabilityReport(
             id_=_REPORT_URI, attributed_to=_REPORTER_URI, content="x"
         )
-        terms = EmbargoEvent(
-            id_=f"{_REPORT_URI}/embargo_proposals/1",
-            context=terms_context,
-            end_time=datetime.now(tz=UTC) + timedelta(days=sender_days),
-        )
+        if terms is None:
+            terms = EmbargoEvent(
+                id_=f"{_REPORT_URI}/embargo_proposals/1",
+                context=terms_context,
+                end_time=datetime.now(tz=UTC) + timedelta(days=sender_days),
+            )
         if terms_context == _REPORT_URI:
             offer = rm_submit_report_activity(
                 report,
@@ -2464,7 +2550,7 @@ class TestEP04SenderProposalAtCaseCreation:
                 report, to=_VENDOR_URI, actor=_REPORTER_URI
             ).model_copy(update={"proposed_embargo": terms})
         proposal = as_CaseProposal(
-            id_=_PROPOSAL_URI,
+            id_=proposal_id,
             attributed_to=_VENDOR_URI,
             object_=report,
             target=_CASE_ACTOR_URI,
@@ -2592,6 +2678,44 @@ class TestEP04SenderProposalAtCaseCreation:
         assert isinstance(revision, EmbargoEvent)
         assert revision.context == case.id_
         assert revision.end_time == terms.end_time
+
+    @pytest.mark.spec("EP-04-003")
+    @pytest.mark.spec("CP-05-006")
+    def test_a_second_proposal_for_the_same_report_registers_no_second_revision(
+        self, make_payload
+    ):
+        """The same Offer re-delivered makes the vendor propose again under a
+        new proposal id; the CaseActor reuses the case and must leave its
+        creation-time embargo alone — one active, one pending, no orphan.
+        The report-with-embargo demo found two revisions here (#3393)."""
+        from vultron.core.models.embargo_event import EmbargoEvent
+
+        dl = self._store()
+        self._publish_owner_policy(dl)
+        case, terms = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS
+        )
+        events_after_first = {e.id_ for e in dl.list_objects("EmbargoEvent")}
+        assert case.current_status.em.state == EM.REVISE
+        assert len(case.proposed_embargoes) == 1
+
+        again, _ = self._run(
+            make_payload,
+            dl,
+            sender_days=self._SENDER_END_DAYS,
+            proposal_id="https://example.org/proposals/p-002",
+            terms=terms,
+        )
+
+        assert again.id_ == case.id_
+        assert again.current_status.em.state == EM.REVISE
+        assert again.active_embargo_id == terms.id_
+        assert again.proposed_embargoes == case.proposed_embargoes
+        assert {
+            e.id_ for e in dl.list_objects("EmbargoEvent")
+        } == events_after_first
+        revision = dl.read(again.proposed_embargoes[0])
+        assert isinstance(revision, EmbargoEvent)
 
     @pytest.mark.spec("EP-04-004")
     def test_an_expired_proposal_is_no_proposal(self, make_payload):
