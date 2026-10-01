@@ -153,8 +153,8 @@ The reference implementation provides the protocol machinery: the five state mac
 What an adopter supplies are the capabilities behind the call-out points — the judgment and the connections to outside systems that the protocol deliberately leaves open.
 
 This division also shows in how conformance is tested.
-The specification organizes conformance tests in four layers, L1 Syntax to L4 Process ([§12.5](../reference/vultron-spec/index.md#125-conformance-testing-approach)).
-A layer says what a test checks, and is a separate question from the capability sets an implementation claims, which say what it provides ([§12.2](../reference/vultron-spec/index.md#122-capability-sets)).
+The specification organizes conformance tests in four layers, L1 Syntax to L4 Process ([§12.5 Conformance Testing Approach](../reference/vultron-spec/conformance.md#125-conformance-testing-approach)).
+A layer says what a test checks, and is a separate question from the capability sets an implementation claims, which say what it provides ([§12.2 Capability Sets](../reference/vultron-spec/conformance.md#122-capability-sets)).
 Correct message syntax and correct state transitions (L1 and L2) come from using a conformant serializer and implementing the state machines.
 Correct observable behavior (L3) — the right messages emitted and the right states reached — is stated by the behavioral conformance specifications.
 Correct internal decision structure — precondition checks before state writes before effects — is L4, which is only enforceable against a reference implementation, and the `vultron/core/behaviors/` behavior-tree layer is that demonstration.

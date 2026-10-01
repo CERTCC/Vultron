@@ -34,4 +34,4 @@ The pages follow the order of the protocol definition, one element at a time:
 ## Relationship to the specification
 
 Where this section and the [Vultron Protocol Specification](../vultron-spec/index.md) disagree, the specification governs.
-The specification's state-machine sections give the normative states and transitions of each machine, starting with [Report Management](../vultron-spec/index.md#6-report-management-rm-state-machine-n).
+The specification's state-machine sections give the normative states and transitions of each machine, starting with [Report Management](../vultron-spec/tracking-models.md#6-report-management-rm-state-machine-n).

@@ -57,7 +57,7 @@ See [Message Types](../reference/formal_protocol/messages.md) for the formal set
 
 The specification is published and versioned, and the reference implementation tracks it.
 Both continue to change: [What's New](whats_new.md) lists the pages added recently, and the [decision records](../adr/index.md) record what changed and why.
-[§12 of the specification](../reference/vultron-spec/index.md#12-conformance-n) defines what a system claims when it says it conforms, so a claim can be checked against a stated version of the specification.
+[§12 Conformance in the specification](../reference/vultron-spec/conformance.md#12-conformance-n) defines what a system claims when it says it conforms, so a claim can be checked against a stated version of the specification.
 
 ## Can Vultron messages be end-to-end encrypted?
 
