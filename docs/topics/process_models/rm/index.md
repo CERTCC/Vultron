@@ -94,8 +94,9 @@ are not capable of coordinating vulnerability disclosures. Hence,
     Coordinators MUST have a clearly defined and publicly available
     mechanism for receiving reports.
 
-Exiting the *Received* state requires a Participant to assess the
-validity of a report. Note that validation is distinct from
+Exiting the *Received* state toward *Valid* or *Invalid* requires a Participant to assess the validity of a report.
+A Participant can instead close the report from *Received* without assessing it (see below).
+Note that validation is distinct from
 prioritization, as covered in our description of the [*Valid*](#the-valid-v-state) state.
 In other words, the *Received* state corresponds to the
 [Validation phase](https://certcc.github.io/CERT-Guide-to-CVD/topics/phases/validation){:target="_blank"}
@@ -403,7 +404,7 @@ stateDiagram-v2
 
 ##### Validate Report
 
-The Participant must validate the report to exit the *Received* state.
+The Participant must validate the report to move it from *Received* to *Valid* or *Invalid*; the only other exit from *Received* is *close*.
 Depending on the validation outcome, the report will be in either the
 *Valid* or *Invalid* state. *Invalid* reports are often waiting for
 additional information from the reporter, but they may also be reports
