@@ -37,6 +37,7 @@ from vultron.core.services.embargo_lifecycle.results import (
 )
 from vultron.core.services.embargo_ordering import (
     earliest_expiring_embargo_id,
+    read_embargo_event,
 )
 from vultron.core.states.participant_embargo_consent import (
     PEC,
@@ -380,6 +381,39 @@ class _PecEffectsMixin(_LifecycleBase):
                 self._persistence, [revised_embargo_id, previous_embargo_id]
             )
             == revised_embargo_id
+        )
+
+    def _activation_arm(
+        self, *, previous_embargo_id: str | None, activated_embargo_id: str
+    ) -> bool | None:
+        """Read what an activation needs and decide its EP-05-001 arm.
+
+        The one fail-closed read of an activation writer (EMB-18-003): the
+        record of the embargo being activated is read on every activation,
+        first or replacement, so a case never names an embargo its store
+        cannot read; on a replacement the embargo it replaces is read too, by
+        :meth:`_revision_ends_no_later`.  Call it *before* the case is
+        mutated, so a failure leaves EM, ``active_embargo``, the proposal
+        records and every participant's consent untouched.
+
+        Returns:
+            ``None`` when nothing is replaced (a first activation, or
+            *activated_embargo_id* is already the case's active embargo);
+            otherwise :meth:`_revision_ends_no_later`'s answer.
+
+        Raises:
+            VultronNotFoundError: If either embargo does not resolve.
+            VultronValidationError: If either record is not an ``EmbargoEvent``.
+        """
+        read_embargo_event(self._persistence, activated_embargo_id)
+        if (
+            previous_embargo_id is None
+            or previous_embargo_id == activated_embargo_id
+        ):
+            return None
+        return self._revision_ends_no_later(
+            previous_embargo_id=previous_embargo_id,
+            revised_embargo_id=activated_embargo_id,
         )
 
     def _reevaluate_consent_at_activation(

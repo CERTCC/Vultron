@@ -36,13 +36,6 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 #: the node's own verdict, not the store's state, names the repeat.
 ALREADY_DECLINED_PREFIX = "Already declined"
 
-#: Opens the feedback of a :class:`RecordParticipantAcceptanceNode` FAILURE
-#: caused by the embargo the accepted one *replaces* not being replicated
-#: here, so the EP-05-001 comparison could not run.  The received accept use
-#: case reads it to report ``DEFERRED`` — the item is parked for replay, not
-#: refused (HP-01-003).
-REPLACED_EMBARGO_UNREPLICATED_PREFIX = "Replaced embargo not replicated here"
-
 
 class UpdateParticipantEmbargoPecNode(DataLayerActionWithPorts):
     """Apply a PEC trigger to participant.embargo_consent_state.
@@ -273,17 +266,26 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
                 transition_mode=TransitionMode.OBSERVED,
             )
         except VultronNotFoundError as exc:
-            if exc.resource_id != self.embargo_id:
-                # A partial replica may lack the embargo the accepted one
-                # replaces; the EP-05-001 comparison fails closed on it, and
-                # the handler parks the Accept for replay rather than
-                # refusing it.  Replay once the record arrives: #4004.
+            if (
+                exc.resource_type == "EmbargoEvent"
+                and exc.resource_id != self.embargo_id
+            ):
+                # The case names an active embargo its own store cannot read:
+                # no path may write that state (EMB-18-003), so this is a
+                # broken invariant, refused — never parked for a replay that
+                # nothing would drive.
                 self.feedback_message = (
-                    f"{REPLACED_EMBARGO_UNREPLICATED_PREFIX}: {exc}"
+                    f"Invariant violation (EMB-18-003): case '{self.case_id}'"
+                    f" names active embargo '{exc.resource_id}', which this"
+                    " store cannot read; refusing the acceptance of embargo"
+                    f" '{self.embargo_id}'"
+                )
+                self.logger.exception(
+                    "%s: %s", self.name, self.feedback_message
                 )
             else:
                 self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
+                self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         except VultronValidationError as exc:
             self.feedback_message = str(exc)

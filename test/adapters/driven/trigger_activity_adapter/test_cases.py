@@ -19,15 +19,19 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
+from vultron.adapters.driven.trigger_activity_adapter import _base
 from vultron.adapters.driven.trigger_activity_adapter._base import (
     _to_wire_object,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronPerson
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.note import VultronNote
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronNotFoundError,
+    VultronValidationError,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -522,6 +526,75 @@ class TestCaseOnTheWireCarriesItsParticipants:
         assert any(
             "cannot be carried inline" in r.message for r in caplog.records
         )
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_the_active_embargo_is_carried_inline(self, adapter, dl):
+        case = as_VulnerabilityCase(name="CVE-2025-032", attributed_to=_ACTOR)
+        embargo = EmbargoEvent(
+            id_=f"{case.id_}/embargo_events/e1",
+            context=case.id_,
+            end_time=days_from_now_utc(45),
+        )
+        dl.create(embargo)
+        dl.create(case.model_copy(update={"active_embargo": embargo.id_}))
+
+        activity_id, _ = adapter.create_case(
+            case_id=case.id_, actor=_ACTOR, to=[_PEER]
+        )
+
+        carried = self._sealed_case(dl, activity_id)["activeEmbargo"]
+        assert isinstance(carried, dict) and carried["id"] == embargo.id_
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_an_active_embargo_the_store_lacks_is_not_sent(self, adapter, dl):
+        case = as_VulnerabilityCase(
+            name="CVE-2025-033",
+            attributed_to=_ACTOR,
+            active_embargo="https://example.org/embargo_events/absent",
+        )
+        dl.create(case)
+
+        with pytest.raises(VultronValidationError, match="EMB-18-003"):
+            adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_an_active_embargo_naming_a_non_embargo_record_is_not_sent(
+        self, adapter, dl
+    ):
+        note = VultronNote(content="not an embargo")
+        dl.create(note)
+        case = as_VulnerabilityCase(
+            name="CVE-2025-034", attributed_to=_ACTOR, active_embargo=note.id_
+        )
+        dl.create(case)
+
+        with pytest.raises(VultronValidationError, match="EMB-18-003"):
+            adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_an_active_embargo_that_cannot_be_projected_is_not_sent(
+        self, adapter, dl
+    ):
+        case = as_VulnerabilityCase(name="CVE-2025-035", attributed_to=_ACTOR)
+        embargo = EmbargoEvent(
+            id_=f"{case.id_}/embargo_events/e1",
+            context=case.id_,
+            end_time=days_from_now_utc(45),
+        )
+        dl.create(embargo)
+        dl.create(case.model_copy(update={"active_embargo": embargo.id_}))
+        real_to_wire = _base._to_wire
+
+        def _refuse_embargo(obj, cls):
+            if isinstance(obj, EmbargoEvent):
+                raise TypeError("cannot project")
+            return real_to_wire(obj, cls)
+
+        with (
+            patch.object(_base, "_to_wire", side_effect=_refuse_embargo),
+            pytest.raises(VultronValidationError, match="wire shape"),
+        ):
+            adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
 
 
 class TestAnnounceVulnerabilityCaseEmbedsEveryReport:

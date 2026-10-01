@@ -566,6 +566,7 @@ class TestSetEmbargoActiveNode:
         case, embargo = make_case_and_embargo("sea1", em_state=EM.PROPOSED)
         object.__setattr__(case, "active_embargo", None)
         dl.create(case)
+        dl.create(embargo)
 
         status = self._run(dl, case.id_, embargo.id_)
 
@@ -586,6 +587,7 @@ class TestSetEmbargoActiveNode:
         )
         object.__setattr__(case, "active_embargo", None)
         dl.create(case)
+        dl.create(embargo)
 
         with caplog.at_level(logging.INFO):
             status = self._run(dl, case.id_, embargo.id_)
@@ -617,6 +619,7 @@ class TestSetEmbargoActiveNode:
         )
         object.__setattr__(case, "active_embargo", None)
         dl.create(case)
+        dl.create(embargo)
 
         with caplog.at_level(logging.DEBUG):
             self._run(dl, case.id_, embargo.id_)
@@ -626,6 +629,54 @@ class TestSetEmbargoActiveNode:
         ]
         assert detail, "Expected the 'Activated embargo' detail line"
         assert all(r.levelno == logging.DEBUG for r in detail)
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_unreadable_activated_embargo_fails_without_writing(self):
+        """The embargo being activated is absent: FAILURE, the case unchanged."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
+        case, embargo = make_case_and_embargo(
+            "sea-missing", em_state=EM.PROPOSED
+        )
+        object.__setattr__(case, "active_embargo", None)
+        dl.create(case)
+
+        status = self._run(dl, case.id_, embargo.id_)
+
+        assert status == py_trees.common.Status.FAILURE
+        untouched = cast(VulnerabilityCase, dl.read(case.id_))
+        assert untouched.current_status.em.state == EM.PROPOSED
+        assert untouched.active_embargo_id is None
+
+    @pytest.mark.spec("EMB-18-003")
+    @pytest.mark.spec("EP-05-001")
+    def test_unreadable_replaced_embargo_fails_without_writing(self):
+        """The embargo being replaced is absent: FAILURE, the case unchanged."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
+        case, replaced = make_case_and_embargo(
+            "sea-replaced", em_state=EM.REVISE
+        )
+        revision = as_EmbargoEvent(
+            id_=f"{case.id_}/embargo_events/revision",
+            context=case.id_,
+            end_time=days_from_now_utc(90),
+        )
+        case.proposed_embargoes = [revision.id_]
+        dl.create(case)
+        dl.create(revision)
+
+        status = self._run(dl, case.id_, revision.id_)
+
+        assert status == py_trees.common.Status.FAILURE
+        untouched = cast(VulnerabilityCase, dl.read(case.id_))
+        assert untouched.current_status.em.state == EM.REVISE
+        assert untouched.active_embargo_id == replaced.id_
+        assert untouched.proposed_embargoes == [revision.id_]
 
     @pytest.mark.spec("EMB-02-001")
     def test_idempotent_when_embargo_already_active(self):
