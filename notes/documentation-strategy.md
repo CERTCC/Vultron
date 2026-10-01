@@ -593,15 +593,17 @@ Two things make this cheap rather than a tooling problem:
 ### The include graph is not a tree
 
 A fragment can have several hosts, and hosts can sit in different Diátaxis
-quadrants. `includes/_rm-states-table.md` has four host parents; most `_oq-*.md`
-files have two (inline at point of use, plus the open-questions appendix). Every
-Protocol Specification section fragment a body or annex page includes also
-renders on the all-in-one `full.md`, so it has two pages at least.
-`docs/tutorials/worked_example.md` (tutorial) and
-`docs/topics/measuring_cvd/possible_histories.md` (explanation) are both
-included into the reference specification's annexes. Quadrant selects the voice
-rules, so a fragment's quadrant comes from its hosts and never from its own path
-(DF-09-008).
+quadrants. `includes/_rm-states-table.md` has several host parents, one of them
+the Explanation page `docs/topics/case_lifecycle/a_case_under_vultron.md`. Most
+of the specification's `_oq-*.md` files are included inline at point of use, in
+the open-questions appendix, and on the Explanation page
+`docs/topics/future_work/open_questions.md`. Every Protocol Specification
+section fragment a body or annex page includes also renders on the all-in-one
+`full.md`, so it has two pages at least. `docs/tutorials/worked_example.md`
+(tutorial) and `docs/topics/measuring_cvd/possible_histories.md` (explanation)
+are both included into the reference specification's annexes. Quadrant selects
+the voice rules, so a fragment's quadrant comes from its hosts and never from
+its own path (DF-09-008).
 
 ### Content shape is not a usable exemption criterion
 

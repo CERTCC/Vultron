@@ -57,7 +57,8 @@ evaluated against a fragment at all*.
   and is edited as fragments, so a finding located in the assembly is a finding a
   maintainer cannot act on directly.
 - The include graph is not a tree.
-  `includes/_rm-states-table.md` has four host parents; most `_oq-*.md` files have two.
+  `includes/_rm-states-table.md` has several host parents, one of them the Explanation page `docs/topics/case_lifecycle/a_case_under_vultron.md`.
+  Most of the specification's `_oq-*.md` files are included at point of use, in the open-questions appendix, and on the Explanation page `docs/topics/future_work/open_questions.md`.
   Every section fragment a body or annex page includes is rendered by at least two pages: that page and the all-in-one page.
   Hosts cross Diátaxis quadrants: `docs/tutorials/worked_example.md` and `docs/topics/measuring_cvd/possible_histories.md` are both included into the reference specification's annexes.
   Quadrant selects the voice rules, so a fragment's quadrant cannot be read off its own path.

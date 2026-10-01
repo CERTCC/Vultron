@@ -38,13 +38,13 @@ Preconditions — flag any failure here before reading for content.
 
 - `[M]` Every page in `notes/rfc-spec-authoring.md` § "Page Map" exists and
   includes exactly the fragments the map lists, in the listed order. `full.md`
-  includes every fragment in document order, and each part page includes a
-  contiguous run of that order.
+  includes every section fragment in document order, and each body page
+  includes a contiguous run of that order after `_full-page-tip.md`.
 - `[M]` The landing page and every content page include `_full-page-tip.md`;
   `full.md` does not. `full.md` is in `not_in_nav` and sets
   `search: exclude: true`.
 - `[M]` The landing page `index.md` declares `contents: routing` and links every
-  part page, every annex page, `open-questions.md` and `full.md`
+  body page, every annex page, `open-questions.md` and `full.md`
   (`uv run docs-site --check`).
 - `[J]` Each page opens with an H1 and an orientation a reader arriving from a
   search result can follow without the previous page (SG-41, SG-44).
@@ -193,7 +193,7 @@ Keep protocol text free of implementation accidents and drafting artifacts.
   later one) either carry a one-sentence explanation of the relationship, or
   are eliminated by reordering.
 - `[J]` A concept a page uses but another page defines is linked to the defining
-  page at first use (SG-11). A part page is read on its own, so a definition
+  page at first use (SG-11). A body page is read on its own, so a definition
   that only an earlier page carries is not in scope for its reader.
 - `[J]` Every callout or sidebar that says "see worked example" or "see case
   history" contains actual content, not a placeholder.
@@ -415,4 +415,4 @@ again.
 | 2026-09-16 | Added §8 Readability and Concept Flow, §9 Content Modularity, §10 Concept Lifecycle Coverage; extended §2 (Observer dual-use, track/drive definition), §4 (OQ fragment consistency), §5 (nav-note accuracy) — 24 additional gap items from top-to-bottom sequential audit of assembled spec | PR #3265 review comment |
 | 2026-09-16 | Added §11 Round-2 Finding Classes (9 items) and two Mechanized entries; noted that `lint-docs` skips this document's fragments. Corrected §10: "Bug Bounty Operator" is not a role anywhere in the glossary, specs, notes or code — only the *Bug Bounty Platform* named configuration exists | Second review round of PR #3265 |
 | 2026-09-28 | Retired the "`lint-docs` does not cover this document" warning: fragments are linted as source, page-scoped rules go to the assembled `index.md`, and `codespell` is the SG-37 floor. Two Mechanized rows added; the `[M]`-treated-as-`[J]` instruction removed | #3318 |
-| 2026-10-01 | The specification is a section of pages: added page-map, tip and landing-page checks to Structural Completeness; Cross-Reference Integrity requires links to the owning page and citations with number and name; mechanized lint row evaluates page-scoped rules on every assembling page; corrected stale section numbers (the shorthand table is §5.7 Shorthand to Wire Form Mapping; the case histories are annexes) | #4060 |
+| 2026-10-01 | The specification is a section of pages: added page-map, tip and landing-page checks to Structural Completeness; Cross-Reference Integrity requires links to the owning page and citations with number and name; mechanized lint row evaluates page-scoped rules on every assembling page; corrected stale section numbers (the shorthand table is §5.7 Shorthand to Wire Form Mapping; the four-dimensions note is §3.3 Tracking Dimensions; the named-configurations preview belongs in §3.2 What a Deployment Looks Like; the case histories are annexes) | #4060 |

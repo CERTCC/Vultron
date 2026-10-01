@@ -52,9 +52,8 @@ on.
 
 `docs/reference/vultron-spec/` holds sixteen pages, built by issue #4061. The
 table lists each page, its nav title, and the fragments it includes, in include
-order. Fragments that
-other fragments pull in (the `_oq-*.md` open questions and the `includes/`
-tables) are not listed; they arrive with their host fragment.
+order. Fragments that other fragments pull in (the `_oq-*.md` open questions and
+the `includes/` tables) are not listed; they arrive with their host fragment.
 
 | Page | Nav title | Covers | Fragments included |
 |---|---|---|---|
@@ -63,7 +62,7 @@ tables) are not listed; they arrive with their host fragment.
 | `layers.md` | Protocol Layers | §4–§5 | `_full-page-tip.md`, `_semantic-layer.md`, `_syntactic-layer.md` |
 | `tracking-models.md` | Case Tracking Models | §6–§9 | `_full-page-tip.md`, `_rm-state-machine.md`, `_em-state-machine.md`, `_cs-dimensions.md`, `_pec-state-machine.md` |
 | `interactions.md` | Interactions and Lifecycle | §10–§11 | `_full-page-tip.md`, `_model-interactions.md`, `_participant-lifecycle.md` |
-| `conformance.md` | Conformance | §12 | `_full-page-tip.md`, `_conformance/_intro.md`, `_conformance/_capability-sets.md`, `_conformance/_role-taxonomy.md`, `_conformance/_role-requirements.md`, `_conformance/_conformance-testing.md` |
+| `conformance.md` | Conformance | §12 Conformance | `_full-page-tip.md`, `_conformance/_intro.md`, `_conformance/_capability-sets.md`, `_conformance/_role-taxonomy.md`, `_conformance/_role-requirements.md`, `_conformance/_conformance-testing.md` |
 | `considerations.md` | Considerations and References | §13–§15 | `_full-page-tip.md`, `_iana.md`, `_security.md`, `_references.md` |
 | `annex-a-single-vendor.md` | Annex A Worked Example: Single-Vendor CVD | Annex A | `_full-page-tip.md`, `_annex-a.md` |
 | `annex-b-multi-party.md` | Annex B Worked Example: Multi-Party CVD | Annex B | `_full-page-tip.md`, `_annex-b.md` |
@@ -93,22 +92,22 @@ The section ranges by name:
 ### The landing page
 
 `index.md` is a routing page (`contents: routing`, DF-11-005): its framing
-links every part page, every annex page, `open-questions.md` and `full.md`, and
+links every body page, every annex page, `open-questions.md` and `full.md`, and
 `docs-site --check` holds it to linking each member. It is recorded in the
 decided-set table of `notes/site-information-architecture.md` § "Sub-section
 index decisions".
 
 ### `full.md`, the all-in-one page
 
-`full.md` includes every section fragment in document order: the sequence the body
-pages, the annex pages and `open-questions.md` give when read in nav order, with
-the annexes nested under §16 Informative Annexes, which `_annexes-intro.md`
-supplies. It exists for readers who want
-the whole document on one page, to read through or print. It is listed in
-`not_in_nav` and sets `search: exclude: true` in its frontmatter, so search
-results always land on the page that owns a section. It is reached only through
-the shared tip. It is a published page, so it is still a `lint-docs` target and
-its page-scoped rules are evaluated (ADR-0092).
+`full.md` includes every section fragment in document order: the sequence the
+body pages, the annex pages and `open-questions.md` give when read in nav order,
+with the annexes nested under §16 Informative Annexes, which `_annexes-intro.md`
+supplies. It exists for readers who want the whole document on one page, to read
+through or print. It is listed in `not_in_nav` and sets `search: exclude: true`
+in its frontmatter, so search results always land on the page that owns a
+section. Readers reach it through the shared tip and the landing page. It is a
+published page, so it is still a `lint-docs` target and its page-scoped rules
+are evaluated (ADR-0092).
 
 ### The shared tip fragment
 
@@ -120,7 +119,7 @@ like any other, so its wording is changed in one place.
 
 In the Reference nav the Protocol Specification comes first after the Reference
 landing page, followed by Protocol Quick Reference, then Conformance Matrix. The
-section opens on `index.md`, then lists the six part pages by name, then an
+section opens on `index.md`, then lists the six body pages by name, then an
 **Annexes** nav group with one entry per annex page and no index page of its
 own, then **Open Questions** last. Nav titles carry no `[N]`/`[I]` tag; the
 headings inside the fragments keep theirs.
@@ -208,11 +207,14 @@ docs/reference/vultron-spec/
 section and its subsections are independently authorable.
 
 **Open-question fragments** (`_oq-*.md`) are each one admonition. Most are
-included in two places: inline at the point of use, in the section fragment that
-first needs the answer, and in `_open-questions.md`. Such a question renders on
-its point-of-use page, on `open-questions.md`, and twice on `full.md`. A
-question with no point of use yet (`_oq-pec-unbound-declined-collapse.md`) is
-included by `_open-questions.md` alone.
+included in two places in the specification: inline at the point of use, in the
+section fragment that first needs the answer, and in `_open-questions.md`. Such a
+question renders on its point-of-use page, on `open-questions.md`, and twice on
+`full.md`. A question with no point of use yet
+(`_oq-pec-unbound-declined-collapse.md`) is included by `_open-questions.md`
+alone. Every one of them is also included by
+`docs/topics/future_work/open_questions.md`, an Explanation page, so each must
+satisfy that host's quadrant as well (DF-09-008).
 
 **`includes/`** holds shared fragments reused across sections — the state
 tables and the four-dimensions note. It is covered by
@@ -229,9 +231,9 @@ tables and the four-dimensions note. It is covered by
 - Pages: an unprefixed semantic slug; annex pages `annex-<letter>-<slug>.md`.
 
 Numbers are absent from fragment filenames on purpose. Document order is the
-include order of `full.md`, and each part page includes a contiguous run of it.
-Moving a section means editing `full.md`, the part pages that lose and gain it,
-and the landing page if a part's coverage changes — never renaming a file.
+include order of `full.md`, and each body page includes a contiguous run of it.
+Moving a section means editing `full.md`, the body pages that lose and gain it,
+and the landing page if a body page's coverage changes — never renaming a file.
 
 ---
 
@@ -303,7 +305,7 @@ using the confirmed order and the per-section writing briefs from the DAG
 analysis.
 
 **Step 3 — Assembly and second DAG pass.** Read `full.md` to verify no concept
-appears before its introduction, then read each part page on its own to verify
+appears before its introduction, then read each body page on its own to verify
 it introduces or links every concept it uses. Section order is adjustable
 because only include directives need updating.
 

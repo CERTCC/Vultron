@@ -1060,7 +1060,7 @@ debugging a spec-lint / `spec-dump` failure. Pair with
 
 **`rfc-spec-authoring.md`**
 Structural and editorial conventions for the Protocol Specification under
-`docs/reference/vultron-spec/`: the page map (routing landing page, six part
+`docs/reference/vultron-spec/`: the page map (routing landing page, six body
 pages, seven annex pages, Open Questions, hidden `full.md`) and the fragments
 each page includes, fragment naming, the per-annex fragments and shared tip, the
 section citation convention (number plus name), annex sources, source treatment,
