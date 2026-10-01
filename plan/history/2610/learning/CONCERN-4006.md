@@ -32,8 +32,6 @@ Governing specs: PRM-06-003, PRM-06-004, CSB-15-004
 
 - #4044, #4045, #4046, #4047, #4048, #4049, #4050, #4051, #4052.
 
-# 4044–#4052 (#4044, #4045, #4046, #4047, #4048, #4049, #4050, #4051, #4052)
-
 Planning showed the concern sat on a misunderstanding of how an actor joins a
 case. The participant record was created on `Accept(Invite)`, so roster
 membership stood in for embargo consent. An invitee validated the reporter's
