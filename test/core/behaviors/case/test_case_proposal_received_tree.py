@@ -982,9 +982,11 @@ class TestADR0041EmbargoInit:
     @pytest.mark.xfail(
         strict=True,
         reason=(
-            "CP-01-009: the CASE_MANAGER reads the actor default from a "
-            "store-wide EmbargoPolicy scan, not from the profile the "
-            "proposal carries inline as its actor. Tracked by #4027 "
+            "CP-01-009: the inline actor profile never reaches the tree. "
+            "extract_event reduces the Create's actor to its URI "
+            "(vultron/wire/as2/extractor/_extract.py), and the CASE_MANAGER "
+            "then reads the actor default from a store-wide EmbargoPolicy "
+            "scan rather than from that profile. Tracked by #4027 "
             "(CP-01-010)."
         ),
     )
