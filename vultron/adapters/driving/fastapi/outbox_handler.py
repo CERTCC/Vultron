@@ -78,6 +78,7 @@ from vultron.adapters.driving.fastapi.outbox_lanes import (
     deliver_batch,
     lane_keys,
 )
+from vultron.adapters.driving.fastapi.startup_slot import StartupSlot
 from vultron.adapters.outbox_dead_letter import OutboxRetryStore
 from vultron.adapters.outbox_sealed_body import (
     parse_sealed_body,
@@ -100,7 +101,7 @@ MAX_TOTAL_ATTEMPTS: int = 12
 # Set via ``configure_default_emitter()`` during app startup so the
 # HttpDeliveryAdapter is the module-level default for all outbox drains.
 # Falls back to a fresh ``HttpDeliveryAdapter`` when not configured.
-_default_emitter: ActivityEmitter | None = None
+_DEFAULT_EMITTER_SLOT: StartupSlot[ActivityEmitter] = StartupSlot()
 
 
 def _resolve_ledger_entry_id(activity_id: str, dl: DataLayer) -> str | None:
@@ -133,13 +134,12 @@ def configure_default_emitter(emitter: ActivityEmitter) -> None:
     Called once during app lifespan to install the ``HttpDeliveryAdapter``
     (ADR-0042) so all inter-actor deliveries use the uniform HTTP path.
     """
-    global _default_emitter  # noqa: PLW0603  # ruff-baseline #3985
-    _default_emitter = emitter
+    _DEFAULT_EMITTER_SLOT.install(emitter)
 
 
 def get_default_emitter() -> ActivityEmitter:
     """Return the configured default emitter, or a fresh ``HttpDeliveryAdapter``."""
-    return _default_emitter or HttpDeliveryAdapter()
+    return _DEFAULT_EMITTER_SLOT.value or HttpDeliveryAdapter()
 
 
 async def handle_outbox_item(

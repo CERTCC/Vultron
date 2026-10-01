@@ -54,8 +54,8 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      `InboxPipeline` MUST NOT replace or modify the module-level `_DISPATCHER`
-      global or the `init_dispatcher()` / `dispatch()` functions in
+      `InboxPipeline` MUST NOT replace or modify the module-level
+      `_DISPATCHER_SLOT` or the `init_dispatcher()` / `dispatch()` functions in
       `inbox_handler.py`.
     rationale: >-
       The pipeline is a parallel path; the existing lifespan wiring remains
@@ -116,7 +116,7 @@ groups:
     kind: project
     statement: >-
       `inbox_pipeline.py` MUST NOT import from `inbox_handler.py`'s private
-      helpers (`_DISPATCHER`, `_process_inbox_item`, `_dispatch_or_defer_inbox_item`)
+      helpers (`_DISPATCHER_SLOT`, `_process_inbox_item`, `_dispatch_or_defer_inbox_item`)
       by name as module-level globals.
     rationale: >-
       The pipeline MUST call the helpers as functions, not bind to their
@@ -145,7 +145,7 @@ groups:
     kind: project
     statement: >-
       A routing-safety-net test MUST use `build_test_pipeline()` (real wiring)
-      and MUST NOT mock `_DISPATCHER`, `prepare_for_dispatch`, or
+      and MUST NOT mock `_DISPATCHER_SLOT`, `prepare_for_dispatch`, or
       `use_case_map()`.
     rationale: >-
       Mocking the exact symbols the test is supposed to exercise defeats the

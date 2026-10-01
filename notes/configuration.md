@@ -140,21 +140,22 @@ class AppConfig(BaseSettings):
         )
 
 
-_config_cache: AppConfig | None = None
-
-
+@functools.cache
 def get_config() -> AppConfig:
-    global _config_cache
-    if _config_cache is None:
-        _config_cache = AppConfig()
-    return _config_cache
+    return AppConfig()
+
+
+def clear_config_cache() -> None:
+    get_config.cache_clear()
 
 
 def reload_config() -> AppConfig:
-    global _config_cache
-    _config_cache = None
+    clear_config_cache()
     return get_config()
 ```
+
+The cache is owned by `functools.cache` rather than a module global that
+`get_config()` rebinds (ruff `PLW0603`, #3985).
 
 > **Note on nested env vars**: `pydantic-settings` with
 > `env_nested_delimiter="__"` maps `VULTRON_SERVER__BASE_URL` to
@@ -334,23 +335,23 @@ def test_env_override():
     # env and cache are restored here, regardless of exception
 ```
 
-For tests that only need to reset the cache (no env override), null
-`_config_cache` directly in teardown rather than calling `reload_config()`:
+For tests that only need to reset the cache (no env override), call
+`clear_config_cache()` in teardown rather than `reload_config()`:
 
 ```python
-import vultron.config.app as _cfg_module
+from vultron.config import clear_config_cache
 
 @pytest.fixture(autouse=True)
 def reset_config():
     yield
-    # Null the cache directly — calling reload_config() would re-read the env
+    # Clear without reloading — reload_config() would re-read the env
     # while monkeypatch patches are still active, baking stale values in.
-    _cfg_module._config_cache = None
+    clear_config_cache()
 ```
 
 ### The `reload_config()` ordering footgun (CFG-06-006, CFG-06-007)
 
-`_config_cache` is a module-level singleton.  `reload_config()` clears it and
+The config cache is process-wide.  `reload_config()` clears it and
 immediately calls `get_config()`, which re-reads `os.environ` at that instant.
 `pytest`'s `monkeypatch` undoes env changes in fixture **teardown**, *after* the
 teardown body runs.
@@ -397,19 +398,18 @@ is almost always a config bug.
 ```python
 # test/test_config.py
 import pytest
-import vultron.config.app as _cfg_module  # _config_cache lives in app.py, not __init__
-from vultron.config import get_config, reload_config
+from vultron.config import clear_config_cache, get_config, reload_config
 
 
 @pytest.fixture(autouse=True)
 def reset_config():
     yield
-    # Set the cache to None directly rather than calling reload_config().
+    # Clear the cache rather than calling reload_config().
     # reload_config() fires the cache reset BEFORE pytest's monkeypatch reverts
     # env-var changes, locking in the test's env state for the reload.
-    # Nulling the cache directly lets the NEXT test's get_config() call reload
+    # Clearing lets the NEXT test's get_config() call reload
     # with a clean env provided by the session-level conftest.py.
-    _cfg_module._config_cache = None
+    clear_config_cache()
 
 
 def test_defaults(tmp_path):

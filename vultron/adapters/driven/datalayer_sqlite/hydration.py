@@ -144,13 +144,23 @@ def core_class_for_row_type(type_: str) -> type[BaseModel]:
     return cls
 
 
-#: ``(registered classes, index)`` — rebuilt when a core class registers or
-#: replaces another after the first read, since registration happens at class
-#: definition. Keyed on the classes, not the count: re-registering a name
-#: swaps the class without changing the size.
-_TYPE_VALUE_INDEX: tuple[
-    tuple[type[BaseModel], ...], dict[str, type[BaseModel] | None]
-] = ((), {})
+class _TypeValueIndexCache:
+    """The ``type``-value → core class index, with the registry it was built from.
+
+    Rebuilt when a core class registers or replaces another after the first
+    read, since registration happens at class definition. Keyed on the
+    classes, not the count: re-registering a name swaps the class without
+    changing the size.
+    """
+
+    __slots__ = ("index", "registered")
+
+    def __init__(self) -> None:
+        self.registered: tuple[type[BaseModel], ...] = ()
+        self.index: dict[str, type[BaseModel] | None] = {}
+
+
+_TYPE_VALUE_INDEX = _TypeValueIndexCache()
 
 
 def _core_classes_by_type_value() -> dict[str, type[BaseModel] | None]:
@@ -159,20 +169,20 @@ def _core_classes_by_type_value() -> dict[str, type[BaseModel] | None]:
     Built once per registry state rather than per read: every activity row
     misses the class-name lookup and would otherwise rescan the registry.
     """
-    global _TYPE_VALUE_INDEX  # noqa: PLW0603  # ruff-baseline #3985
     registered = tuple(CORE_VOCABULARY.values())
-    cached, index = _TYPE_VALUE_INDEX
-    if cached == registered:
-        return index
-    index = {}
-    for cls in CORE_VOCABULARY.values():
+    if _TYPE_VALUE_INDEX.registered == registered:
+        return _TYPE_VALUE_INDEX.index
+    index: dict[str, type[BaseModel] | None] = {}
+    for cls in registered:
         if issubclass(cls, VultronActivity):
             continue
         value = declared_wire_type(cls)
         if value is None:
             continue
         index[value] = None if value in index else cls
-    _TYPE_VALUE_INDEX = (registered, index)
+    # Index before key: a reader that sees the new key also sees its index.
+    _TYPE_VALUE_INDEX.index = index
+    _TYPE_VALUE_INDEX.registered = registered
     return index
 
 

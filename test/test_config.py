@@ -23,6 +23,7 @@ import pytest
 from vultron.config import (
     RunMode,
     ServerConfig,
+    clear_config_cache,
     config_override,
     get_config,
     reload_config,
@@ -58,7 +59,7 @@ def reset_config(monkeypatch, tmp_path):
     # (monkeypatch reverts env vars only after this fixture's teardown).
     import vultron.config.app as _cfg_module
 
-    _cfg_module._config_cache = None
+    _cfg_module.clear_config_cache()
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +107,50 @@ def test_reload_config_returns_new_instance():
     cfg1 = get_config()
     cfg2 = reload_config()
     assert cfg1 is not cfg2
+    assert get_config() is cfg2
+
+
+# ---------------------------------------------------------------------------
+# CFG-06-003: clear_config_cache() drops the cache without reloading
+# ---------------------------------------------------------------------------
+
+
+def test_clear_config_cache_defers_the_reload(monkeypatch):
+    """Clearing reads nothing; the next ``get_config()`` sees the env then."""
+    cfg1 = get_config()
+    clear_config_cache()
+    # Set after the clear: a clear that reloaded would have missed it.
+    monkeypatch.setenv("VULTRON_SERVER__LOG_LEVEL", "DEBUG")
+    cfg2 = get_config()
+    assert cfg2 is not cfg1
+    assert cfg2.server.log_level == "DEBUG"
+    assert get_config() is cfg2
+
+
+# ---------------------------------------------------------------------------
+# CFG-01-005: get_config() is injectable via FastAPI Depends
+# ---------------------------------------------------------------------------
+
+
+def test_get_config_is_injectable_with_depends():
+    """The cached ``get_config`` still works as a FastAPI dependency."""
+    from fastapi import Depends, FastAPI
+    from fastapi.testclient import TestClient
+
+    from vultron.config import AppConfig
+
+    app = FastAPI()
+
+    @app.get("/level")
+    def _level(cfg: AppConfig = Depends(get_config)) -> dict[str, str]:
+        return {
+            "same": str(cfg is get_config()),
+            "level": cfg.server.log_level,
+        }
+
+    response = TestClient(app).get("/level")
+    assert response.status_code == 200
+    assert response.json() == {"same": "True", "level": "INFO"}
 
 
 # ---------------------------------------------------------------------------
