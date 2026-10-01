@@ -514,6 +514,54 @@ groups:
     stories:
     - story_2022_014
     - story_2022_079
+  - id: EP-04-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Creation-time embargo initialization MUST run at most once per case. A
+      `Create(as_CaseProposal)` that resolves to an existing `VulnerabilityCase` MUST NOT
+      run it again, whatever the case's current EM state — `ACTIVE`, `REVISE`, or `EXITED`
+      — and any embargo terms carried on such a proposal MUST NOT be reconciled against the
+      case: the embargo belongs to the case, not to the report, so terms that conflict with
+      the case lose to the case. A case still at `EM.NONE` has never been initialized
+      (EP-04-002 never persists `PROPOSED`), and initialization MUST proceed for it.
+    rationale: >-
+      "Initialized" cannot be read from the case's active-embargo reference, because
+      termination clears that reference while the EM state stays `EXITED`. A guard keyed on
+      the reference reads an exited case as uninitialized and runs the creation arm, which
+      stores a fresh `EmbargoEvent` before the EM machine refuses the `EXITED → PROPOSED`
+      step it has no transition for — an orphan write and an unanswerable proposal (#3986).
+      The EM state is the evidence: the machine never returns to `NONE` once it has left it,
+      so "has left `NONE`" is exactly "initialization has run", and `NONE` still admits the
+      half-built case a redelivery must be allowed to finish.
+    note: >-
+      The reuse path is a lost-reply recovery (CP-05-006): "duplicate" here means an exact
+      redelivery of the same proposal, not a second report describing the same
+      vulnerability, which is a report-management matter (RMB-11-002). In
+      `InitializeDefaultEmbargoNode` the guard arm reads the state through
+      `ReadEmStateNode` (the behaviors-layer rule for EM reads) and, like every refusal arm
+      ahead of a write, raises rather than returns FAILURE when it cannot answer. Skipping
+      the whole creation arm is what leaves the proposal's terms unreconciled: the
+      shortest-wins comparison and the pending-revision registration both live inside it.
+    verification: >-
+      A strict `xfail` marker test in `test/core/behaviors/case/nodes/test_embargo_resolution.py`
+      runs `InitializeDefaultEmbargoNode` once, terminates the embargo through
+      `EmbargoLifecycle`, runs the subtree again and asserts SUCCESS, EM still `EXITED`, no
+      `active_embargo`, and no additional `EmbargoEvent` stored; it names its tracking issue
+      until the guard reads EM state. The implementation's own tests add the half-built
+      case (`EM.NONE`, no embargo) still completing.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-04-002
+      note: The never-persisted PROPOSED state is what makes "has left NONE" a clean reading.
+    - rel_type: depends_on
+      spec_id: CP-05-006
+      note: The reuse path this rule guards is the duplicate-proposal recovery path.
+    - rel_type: depends_on
+      spec_id: EMB-18-001
+      note: The guard reads EM state; it never writes it.
+    lint_suppress:
+    - missing_story_reference
 - id: EP-05
   title: Revision Activation PEC Cascade Rule
   specs:

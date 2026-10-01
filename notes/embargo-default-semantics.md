@@ -296,6 +296,57 @@ the default was the demo's replica seeding, which now resolves its duration the 
 `InitializeDefaultEmbargoNode` does. Test builders state `days_from_now_utc(45)`
 explicitly — the same window, now visible at every site.
 
+## Initialization Runs Once Per Case — the EM State Is the Evidence
+
+`InitializeDefaultEmbargoNode` is reached from the case-proposal tree on *both*
+branches of `ResolveCaseIdSelector`: after `CreateCaseFromProposalNode` on a
+fresh case, and after `LoadExistingCaseNode` when a redelivered
+`Create(CaseProposal)` reuses a case (CP-05-006). The reuse branch is a
+lost-reply recovery: it answers an exact redelivery of the same proposal and lets
+a redelivery *finish* a case whose first attempt died between creation and the
+`Accept`. "Duplicate" here means the same proposal arriving twice, never a second
+report that describes the same vulnerability — that is report management
+(RMB-11-002), not case creation.
+
+So the subtree needs a guard that answers "did creation-time initialization
+already run on this case?", and EP-04-012 fixes what the evidence is:
+
+| Evidence | Reads an exited embargo as | Reads a half-built case as |
+|---|---|---|
+| `case.active_embargo` is set | **uninitialized** (termination clears it) | uninitialized ✓ |
+| EM state has left `NONE` | initialized ✓ | uninitialized ✓ |
+
+The reference is wrong in the first column. After `terminate_active_embargo`
+the reference is `None` and the state is `EXITED`; a guard keyed on the
+reference falls through to the creation arm, which stores a fresh `EmbargoEvent`
+*before* `AdvanceEMStateToActiveNode` asks the EM machine for a `PROPOSE` it has
+no transition for from `EXITED` — an orphan write, a failed tree, and a proposal
+that is never answered (#3986). The EM state is right in both columns because
+the machine never returns to `NONE` once it has left it and `PROPOSED` is never
+persisted at creation (EP-04-002), so "has left `NONE`" is exactly
+"initialization has run".
+
+Consequences for the guard arm:
+
+- It reads the state through `ReadEmStateNode`
+  (`vultron/core/behaviors/AGENTS.md` § "EM State Reads Must Use
+  ReadEmStateNode"), not from the case field.
+- It is a refusal arm ahead of a write, so an unreadable case or store *raises*
+  (`bt-pitfalls.md` § "A Refusal Arm in a Selector Fails Toward 'Admit'").
+- Skipping the whole creation arm is what makes the proposal's embargo terms
+  irrelevant on a reused case: shortest-wins and the pending-revision
+  registration both live inside it. The embargo is the case's, not the
+  report's; terms on a redelivered proposal that conflict with the case lose
+  to the case.
+- The per-node skips in `AdvanceEMStateToActiveNode` and
+  `AttachEmbargoToCaseNode` stay. They are each node validating its own
+  transition (CSB-16), not the idempotency guard.
+
+The report-keyed `LoadExistingCaseNode` itself is suspect for a different
+reason — CBT-06-002 expects a second recipient of the same report to get its own
+case, and the proposal id is the key both of the reuse branch's jobs actually
+need — but that is #3977's question, not this section's.
+
 ## Resolved: Reporter Embargo Proposal Mechanism (EP-04-004)
 
 **This gap is closed by ADR-0096.** A reporter states terms by embedding a

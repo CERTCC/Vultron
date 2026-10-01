@@ -8,6 +8,7 @@ description: >
 related_specs:
   - specs/case-proposal.yaml
   - specs/case-management.yaml
+  - specs/embargo-policy.yaml
   - specs/semantic-extraction.yaml
 related_notes:
   - notes/activitystreams-semantics.md
@@ -484,6 +485,19 @@ For first-time proposals, `EmitAcceptCaseProposalNode` also sets
 `result` of an Accept always names the `VulnerabilityCase` the proposal
 produced (or reused), regardless of whether the proposal is a first send or a
 retry.
+
+**What "duplicate" means here.** An exact redelivery of the same proposal —
+at-least-once delivery, or the vendor asking again because the `Accept` was lost
+(CP-05-006's rationale, ADR-0080). It does *not* mean a second report that
+describes the same vulnerability; that is a report-management question
+(RMB-11-002: duplicate reports are not invalid) and never reaches this tree as a
+"duplicate". Two consequences follow. The reuse branch must leave the existing
+case's state alone, including its embargo whatever EM state it is in (EP-04-012;
+`notes/embargo-default-semantics.md` § "Initialization Runs Once Per Case").
+And `LoadExistingCaseNode` keys on the *report*, which is the wrong key for both
+of the branch's real jobs (answer the same proposal again; finish the same
+proposal's half-built case) and collides with CBT-06-002, under which a second
+recipient proposing the same report gets its own case — see #3977.
 
 ### Implementation: `VultronAccept.result`
 
