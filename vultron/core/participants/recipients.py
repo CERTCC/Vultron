@@ -91,8 +91,8 @@ def _select(
     excluding: Collection[str],
     entitled: Callable[[CaseParticipant], bool],
     audience: str,
-) -> list[str]:
-    recipients: list[str] = []
+) -> list[tuple[str, CaseParticipant]]:
+    recipients: list[tuple[str, CaseParticipant]] = []
     for actor_id, record in _roster_records(case, dl):
         if actor_id in excluding:
             continue
@@ -106,7 +106,7 @@ def _select(
             )
             continue
         if entitled(record):
-            recipients.append(actor_id)
+            recipients.append((actor_id, record))
         else:
             logger.debug(
                 "case '%s': '%s' is not among the %s recipients (ADR-0114)",
@@ -115,6 +115,33 @@ def _select(
                 audience,
             )
     return recipients
+
+
+def case_content_participants(
+    case: VulnerabilityCase,
+    dl: CasePersistence,
+    *,
+    excluding: Collection[str] = (),
+    skip_closed: bool = False,
+) -> list[tuple[str, CaseParticipant]]:
+    """Return ``(actor_id, record)`` for *case*'s active participants.
+
+    The same selection as :func:`case_content_recipients`, with the record
+    each actor ID resolved to, for a caller that narrows the recipients
+    further by a record field (a role, say).  Reading the record again
+    would lose an inline-only record this selection already resolved.
+    """
+    if skip_closed:
+        return _select(
+            case,
+            dl,
+            excluding,
+            lambda p: case.is_active_participant(p) and not p.rm_closed,
+            "open case-content",
+        )
+    return _select(
+        case, dl, excluding, case.is_active_participant, "case-content"
+    )
 
 
 def case_content_recipients(
@@ -134,17 +161,12 @@ def case_content_recipients(
     left out as well (CM-23-004).  The default keeps it: a closed
     participant's replica still learns how the case ended (CM-23-002).
     """
-    if skip_closed:
-        return _select(
-            case,
-            dl,
-            excluding,
-            lambda p: case.is_active_participant(p) and not p.rm_closed,
-            "open case-content",
+    return [
+        actor_id
+        for actor_id, _record in case_content_participants(
+            case, dl, excluding=excluding, skip_closed=skip_closed
         )
-    return _select(
-        case, dl, excluding, case.is_active_participant, "case-content"
-    )
+    ]
 
 
 def inert_participants(
@@ -156,11 +178,7 @@ def inert_participants(
     caller that reports whom a send withheld content from.
     """
     active = set(case_content_recipients(case, dl))
-    return {
-        actor_id
-        for actor_id, _record in _roster_records(case, dl)
-        if actor_id not in active
-    }
+    return set(case.actor_participant_index) - active
 
 
 def invitation_recipients(
@@ -177,13 +195,12 @@ def invitation_recipients(
     the active check does not apply.  A participant that never joined is
     included: it is not ``CLOSED``.
     """
-    return _select(
-        case,
-        dl,
-        excluding,
-        lambda p: not p.rm_closed,
-        "invitation",
-    )
+    return [
+        actor_id
+        for actor_id, _record in _select(
+            case, dl, excluding, lambda p: not p.rm_closed, "invitation"
+        )
+    ]
 
 
 def is_case_content_recipient(

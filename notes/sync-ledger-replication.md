@@ -380,8 +380,8 @@ Both recipient collectors in `vultron/core/behaviors/sync/nodes/fanout.py`,
 and the replay sender `SendMissingEntriesNode`, must apply the CM-10-004
 embargo content gate. The collectors apply it through the shared
 active-participant selection
-(`vultron/core/participants/recipients.py`, #4046); the replay gate is not yet implemented (#4042, strict-`xfail` marker
-in place). Under an active embargo, a participant that is not `SIGNATORY` to
+(`vultron/core/participants/recipients.py`, #4046); the replay gate is not
+yet implemented (#4042, strict-`xfail` marker in place). Under an active embargo, a participant that is not `SIGNATORY` to
 it is paused: it is sent no entries, and a `Reject(CaseLedgerEntry)`
 from it replays nothing. Without the replay gate, the paused replica's
 forward-gap Reject (SYNC-14-002) would pull the withheld entries straight

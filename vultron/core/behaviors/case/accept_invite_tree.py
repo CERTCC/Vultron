@@ -85,10 +85,14 @@ class MaybeSignEmbargoConsentNode(py_trees.composites.Selector):
       continue when there is no active embargo.
 
     During ``REVISE`` the joiner signs the terms *in force*, never the open
-    revision: when the owner activates longer terms it lapses like every
-    other signatory that has not accepted them (EP-05-001).  Not signing
-    would leave it inert (CM-10-004) with nothing left to ask it — the
-    revision Invite was relayed before it joined (#4046).
+    revision.  Not signing would leave it inert (CM-10-004) under terms that
+    still hold.  One difference from the other signatories remains: the
+    revision Invite was relayed (EP-09-002) before this joiner was on the
+    roster, so it was never asked about the revision.  If the owner then
+    activates longer terms, it lapses (EP-05-001) without having had the
+    chance to accept them.  That gap closes when the stub Invite seats the
+    invitee on the roster before it joins (#4048), so that the relay reaches
+    it like any other non-closed participant (ADR-0114).
     """
 
     def __init__(

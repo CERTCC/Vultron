@@ -25,6 +25,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.participants.recipients import (
+    case_content_participants,
     case_content_recipients,
     inert_participants,
     invitation_recipients,
@@ -190,3 +191,24 @@ def test_inline_copy_is_the_fallback_when_nothing_is_stored(
     case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
     case.case_participants[0] = _seat(dl, case, _SIGNATORY, store=False)
     assert case_content_recipients(case, dl) == [_SIGNATORY]
+
+
+def test_case_content_participants_pairs_each_recipient_with_its_record(
+    dl: SqliteDataLayer,
+) -> None:
+    """The pairs carry the record the selection resolved, inline-only included.
+
+    A caller that narrows by a record field (the bootstrap reporter filter)
+    must not read the record again: an inline-only record would vanish.
+    """
+    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    stored = _seat(dl, case, _SIGNATORY)
+    inline = _seat(dl, case, _INVITED, store=False)
+    case.case_participants[1] = inline
+    _seat(dl, case, _UNJOINED, joined=False)
+    pairs = case_content_participants(case, dl)
+    assert [(a, p.id_) for a, p in pairs] == [
+        (_SIGNATORY, stored.id_),
+        (_INVITED, inline.id_),
+    ]
+    assert [a for a, _ in pairs] == case_content_recipients(case, dl)

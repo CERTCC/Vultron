@@ -17,8 +17,9 @@
 """Embargo-consent leaf nodes for the accept-invite tree.
 
 Check whether the case has an embargo in force (EM ``ACTIVE`` or
-``REVISE``) and, if so, sign the invitee's consent to it (CM-10-001). Composed by the ``MaybeSignEmbargoConsentNode``
-one-off composite retained in ``accept_invite_tree.py`` (BTND-07-003).
+``REVISE``) and, if so, sign the invitee's consent to it (CM-10-001).
+Composed by the ``MaybeSignEmbargoConsentNode`` one-off composite retained
+in ``accept_invite_tree.py`` (BTND-07-003).
 """
 
 import logging
@@ -44,8 +45,8 @@ class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
     ``REVISE`` while a revision is open and the prior terms still hold.  The
     same fact :meth:`VulnerabilityCase.is_active_participant` keys on, so a
     joiner that accepts during a revision signs the terms in force and is
-    active (CM-10-004); signing only at ``ACTIVE`` would leave it inert, and
-    the revision Invite relayed before it joined would never ask it.
+    active (CM-10-004); signing only at ``ACTIVE`` would leave it inert
+    under terms that still hold.
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
