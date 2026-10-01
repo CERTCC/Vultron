@@ -109,6 +109,7 @@ Actors invited later decide for themselves whether to accept the embargo, so add
 !!! note "A new case may already be embargoed"
 
     An embargo-eligible case begins with an active embargo even when no proposal exchange is visible, because a Protocol Default applies when no proposal and no actor default does.
+    A Reporter who wants other terms states them on the report Offer rather than by a proposal exchange; see [How to Report a Vulnerability](report_vulnerability.md#submit-a-report) and the `report-with-embargo` demo there.
     See [Default Embargoes](../../../topics/process_models/em/defaults.md).
 
 ---

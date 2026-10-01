@@ -263,11 +263,14 @@ def submit_report_trigger_bt(
     report_id: str,
     recipient_id: str,
     captured: dict | None = None,
+    proposed_embargo_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the submit-report trigger workflow.
 
     Emits ``Offer(VulnerabilityReport)`` addressed to *recipient_id* and
-    queues the offer ID in the actor's outbox.
+    queues the offer ID in the actor's outbox.  When *proposed_embargo_id*
+    names the Reporter's stored ``EmbargoEvent`` for the report, the Offer
+    carries it as ``proposedEmbargo`` (EP-04-004).
 
     Structure::
 
@@ -279,6 +282,8 @@ def submit_report_trigger_bt(
         recipient_id: Actor URI to send the offer to.
         captured: Optional dict; ``captured["offer"]`` is set to the
             serialised offer dict on success.
+        proposed_embargo_id: ID of the Reporter's stored ``EmbargoEvent``
+            proposing terms for the report, or ``None`` for no proposal.
 
     Returns:
         Root node of the ``SubmitReportTriggerBT`` Sequence.
@@ -291,6 +296,7 @@ def submit_report_trigger_bt(
                 report_id=report_id,
                 recipient_id=recipient_id,
                 captured=captured,
+                proposed_embargo_id=proposed_embargo_id,
             ),
         ],
     )

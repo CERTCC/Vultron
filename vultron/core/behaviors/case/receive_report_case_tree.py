@@ -34,7 +34,7 @@ Structure (ADR-0041):
     ReceiveReportCaseBT (Sequence)
     ├─ CheckAutoCaseCreationEnabledNode       # Gate on auto_create_case policy
     └─ ReceiveReportCaseSelector (Selector)
-       ├─ CheckPendingProposalExistsForReport # Early exit if proposal already sent
+       ├─ CheckProposalAlreadySentForReport # Early exit if proposal already sent
        └─ ReceiveReportProposalFlow (Sequence)
           ├─ EnsureCaseActorHostedNode        # CaseActor record in its own store
           ├─ WritePendingReportCaseLinkNode   # VultronReportCaseLink(case_id=None)
@@ -50,7 +50,7 @@ import py_trees
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
-    CheckPendingProposalExistsForReport,
+    CheckProposalAlreadySentForReport,
     EnsureCaseActorHostedNode,
     ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
@@ -118,7 +118,7 @@ def create_receive_report_case_tree(
         name="ReceiveReportCaseSelector",
         memory=False,
         children=[
-            CheckPendingProposalExistsForReport(report_id=report_id),
+            CheckProposalAlreadySentForReport(report_id=report_id),
             receive_report_proposal_flow,
         ],
     )
