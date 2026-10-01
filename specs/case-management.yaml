@@ -3098,14 +3098,20 @@ groups:
       it MUST execute the following sequence:
       (1) advance the Case Owner participant to RM.CLOSED,
       (2) advance the CASE_MANAGER's own CaseParticipant to RM.CLOSED,
-      (3) emit a final case_fully_closed CaseLedgerEntry as the last ledger entry
-          for the case,
-      (4) fan-out the final entry to every active participant (CM-10-004).
+      (3) emit a case_fully_closed CaseLedgerEntry marking the owner-close write
+          boundary (ADR-0085),
+      (4) fan-out that entry to every active participant (CM-10-004).
+      The case_fully_closed entry is NOT a log-complete marker: it records that
+      no later entry will record an external participant's act (CM-23-013), and
+      consumers MUST NOT treat it as the highest logIndex of the case or as proof
+      that a replica holds the complete ledger.
     rationale: >-
       The Case Owner's departure is the authoritative termination event for a
-      case.  Making the CASE_MANAGER's own RM.CLOSED the penultimate step and
-      case_fully_closed the final entry gives all replicas an unambiguous
-      terminal anchor in the ledger chain.  See ADR-0050, ADR-0051.
+      case.  An earlier wording called case_fully_closed "the last ledger entry",
+      but ADR-0085's boundary refuses only external participants' appends, not
+      the CASE_MANAGER's own housekeeping, so a consumer that stopped reading
+      there would be wrong (ISSUE-3400).  The guarantee is the boundary, not
+      chain finality.  See ADR-0050, ADR-0051, ADR-0085.
     verification: >-
       Integration tests in `test/demo/` confirm that a Case Owner's
       `Leave(VulnerabilityCase)` triggers the 4-step closure sequence: advance Case
@@ -3117,6 +3123,7 @@ groups:
     adr:
     - ADR-0050
     - ADR-0051
+    - ADR-0085
     - ADR-0114
     stories:
     - story_2022_066
@@ -3128,7 +3135,9 @@ groups:
       When the CASE_MANAGER receives Leave(VulnerabilityCase) from a non-owner
       participant, it MUST advance only that participant's RM state to RM.CLOSED
       and commit a CaseLedgerEntry recording the departure.  The case MUST remain
-      open for the remaining participants.
+      open for the remaining participants.  This applies only while the case is
+      open; a non-owner Leave that arrives after owner close is governed by
+      CM-23-013.
     rationale: >-
       Non-owner departure is a participant-scoped event, not a case termination
       event.  Treating a non-owner Leave identically to an owner Leave would
@@ -3378,8 +3387,8 @@ groups:
       simply remains at its last rung when the case ends around it (the library
       closes before every book is returned). The demos' "all participants
       RM.CLOSED" milestone (DEMOMA-07-003) is reached because every participant
-      closes its own handling through the protocol, not because closure pushes
-      them there.
+      closes its own handling through the protocol before the Case Owner closes
+      the case (CM-23-013), not because closure pushes them there.
     verification: >-
       A test confirms that an owner Leave(VulnerabilityCase) advances only the
       Case Owner and CASE_MANAGER to RM.CLOSED and leaves a bystander participant
@@ -3397,6 +3406,76 @@ groups:
     - ADR-0084
     - ADR-0085
     - ADR-0114
+    stories:
+    - story_2022_066
+  - id: CM-23-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER receives Leave(VulnerabilityCase) from a non-owner
+      participant after the case_fully_closed entry has been committed, it MUST
+      decline the Leave with an `as:Reject` response ("received and understood but
+      declined", MSM-05-001) and MUST NOT commit any CaseLedgerEntry for it, the
+      receipt `close_case` entry included.  The sender's RM state on the
+      canonical ledger stays at its last rung (CM-23-012).
+    rationale: >-
+      ADR-0085 makes owner-close a hard write boundary, and a bystander's Leave is
+      an external append: committing it put a `close_case` entry after
+      `case_fully_closed` in every demo (ISSUE-3400).  The receipt commit itself
+      is suppressed because, as in CM-23-011, its fan-out is what closes the
+      sender on the replicas (CLP-10-001).  A participant that wants its
+      departure recorded leaves before the Case Owner.
+    verification: >-
+      A test confirms that after an owner Leave(VulnerabilityCase) has committed
+      `case_fully_closed`, a bystander's Leave(VulnerabilityCase) is refused with
+      an `as:Reject`, commits no CaseLedgerEntry, and leaves the bystander's RM
+      state unchanged; and that the demo scenarios close every non-owner
+      participant before the Case Owner, so each ledger records no participant
+      act after `case_fully_closed`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-003
+    - rel_type: refines
+      spec_id: CM-23-002
+    - rel_type: depends_on
+      spec_id: MSM-05-001
+    adr:
+    - ADR-0085
+    - ADR-0050
+    stories:
+    - story_2022_066
+  - id: CM-23-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      As part of the CM-23-002 owner-close sequence, after the CASE_MANAGER
+      advances its own CaseParticipant to RM.CLOSED and before it commits
+      `case_fully_closed`, it MUST lapse every Invite still awaiting a reply on
+      the case, participant and embargo Invites alike, without waiting for their
+      RSVP deadlines.  It MUST commit a lapsed-invitation CaseLedgerEntry for
+      each (CM-28-009, CM-28-014).
+    rationale: >-
+      After close a pending Invite can only lapse.  Waiting for its RSVP deadline
+      would keep the CASE_MANAGER running for a closed case, possibly for years,
+      only to write one more entry after `case_fully_closed`.  Settling first
+      leaves no timer, so the CASE_MANAGER can stop once the closure has fanned
+      out.  This keeps the boundary clean in practice; it does not promise chain
+      finality (CM-23-002).
+    verification: >-
+      A test confirms that an owner Leave(VulnerabilityCase) on a case with an
+      unanswered Invite whose RSVP deadline is in the future lapses that
+      participant's consent, commits the lapsed-invitation entry, and orders that
+      entry after the CASE_MANAGER's RM.CLOSED entry and before
+      `case_fully_closed`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-002
+    - rel_type: depends_on
+      spec_id: CM-28-009
+    - rel_type: depends_on
+      spec_id: CM-28-014
+    adr:
+    - ADR-0085
     stories:
     - story_2022_066
 - id: CM-24

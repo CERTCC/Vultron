@@ -172,10 +172,11 @@ def _make_full_dl(
 def _make_close_case_event(
     sender_actor_id: str,
     receiving_actor_id: str = CASE_ACTOR_ID,
+    activity_id: str = "https://example.org/activities/leave-role-test",
 ) -> CloseCaseReceivedEvent:
     case_obj = as_VulnerabilityCase(id_=CASE_ID)
     activity = VultronActivity(
-        id_="https://example.org/activities/leave-role-test",
+        id_=activity_id,
         type_="Leave",
         actor=sender_actor_id,
         object_=case_obj,
@@ -541,6 +542,103 @@ class TestNonOwnerLeaveReceivePath:
         assert RM.CLOSED not in rm_states, (
             f"CaseActor must NOT be at RM.CLOSED after non-owner Leave;"
             f" rm_states={rm_states}"
+        )
+
+
+def _case_ledger(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
+    """The case's ledger entries in ``log_index`` order."""
+    return sorted(
+        (
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+            and getattr(e, "case_id", None) == CASE_ID
+        ),
+        key=lambda e: getattr(e, "log_index", -1),
+    )
+
+
+def _close(dl: SqliteDataLayer, sender_actor_id: str, activity_id: str):
+    return CloseCaseReceivedUseCase(
+        dl=dl,
+        request=_make_close_case_event(
+            sender_actor_id=sender_actor_id, activity_id=activity_id
+        ),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+
+class TestPostCloseBoundary:
+    """CM-23-013/014: nothing a participant does lands after case_fully_closed."""
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="CM-23-013: a bystander Leave after owner close is still"
+        " committed as close_case. Tracked by the ISSUE-3400 impl task.",
+    )
+    @pytest.mark.spec("CM-23-013")
+    def test_bystander_leave_after_owner_close_is_refused(self):
+        """A bystander Leave after owner close commits nothing and closes no one.
+
+        Regression for ISSUE-3400: every demo closed the owner first, so a
+        bystander's ``close_case`` landed after ``case_fully_closed``, an
+        external append past the ADR-0085 write boundary.
+        """
+        dl = _make_full_dl()
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+        entries_at_close = len(_case_ledger(dl))
+        rm_before = _participant_rm_states(dl, VENDOR_ID)
+
+        result = _close(
+            dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert len(_case_ledger(dl)) == entries_at_close, (
+            "a post-close bystander Leave must commit no ledger entry"
+            f" (CM-23-013); tail={[e.event_type for e in _case_ledger(dl)]}"
+        )
+        assert _participant_rm_states(dl, VENDOR_ID) == rm_before
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="CM-23-014: owner close does not yet lapse pending Invites"
+        " before case_fully_closed. Tracked by the ISSUE-3400 impl task.",
+    )
+    @pytest.mark.spec("CM-23-014")
+    def test_owner_close_lapses_pending_invite_before_boundary(self):
+        """An unanswered Invite is lapsed at close, not left waiting on its deadline."""
+        from datetime import UTC, datetime, timedelta
+
+        from vultron.core.states.participant_embargo_consent import PEC
+
+        dl = _make_full_dl()
+        case = dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        vendor = dl.read(case.actor_participant_index[VENDOR_ID])
+        assert isinstance(vendor, CaseParticipant)
+        vendor.embargo_consent_state = PEC.INVITED
+        vendor.invite_rsvp_deadline = datetime.now(tz=UTC) + timedelta(
+            days=365
+        )
+        dl.save(vendor)
+
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        vendor = dl.read(case.actor_participant_index[VENDOR_ID])
+        assert isinstance(vendor, CaseParticipant)
+        assert vendor.embargo_consent_state == PEC.DECLINED, (
+            "owner close must lapse a pending Invite immediately (CM-23-014)"
+        )
+        types = [e.event_type for e in _case_ledger(dl)]
+        assert types[-1] == "case_fully_closed", types
+        assert (
+            len(types) >= 2
+            and types[-2] != "add_participant_status_to_participant"
+        ), (
+            "the lapsed-invitation entry must sit between the CASE_MANAGER's"
+            f" RM.CLOSED entry and case_fully_closed (CM-23-014); got {types}"
         )
 
 

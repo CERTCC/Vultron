@@ -790,8 +790,11 @@ CASE_MANAGER's received-side tree commit it on arrival; an event the
 CASE_MANAGER itself originates is committed by its emitting tree (ADR-0109).
 Neither fits here, because delivery runs as an outbox background task and
 CM-23-002 requires a
-specific *order* — the CASE_MANAGER's own `RM.CLOSED` penultimate,
-`case_fully_closed` last. A background task cannot honour that. The entry is
+specific *order* — the CASE_MANAGER's own `RM.CLOSED` before
+`case_fully_closed`. A background task cannot honour that. (`case_fully_closed`
+marks the ADR-0085 write boundary, not the end of the chain: CM-23-013 refuses a
+bystander `Leave` after it, and CM-23-014 settles pending Invites before it, so
+nothing follows it in practice. ISSUE-3400.) The entry is
 therefore committed inline in the CaseActor's own receive tree, which keeps
 ADR-0021's identity contract intact: the commit runs where
 `receiving_actor_id == case_actor_id`, not by resolving a foreign actor ID, and
