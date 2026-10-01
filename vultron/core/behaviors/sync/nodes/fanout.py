@@ -18,7 +18,7 @@ Standard fan-out (all active participants):
   ``CollectLogEntryRecipientsNode`` + ``SendLogEntryToEachNode`` →
   composed as ``FanOutLogEntryNode``.
 
-Closed-filtered fan-out (skip already-closed participants):
+Closed-filtered fan-out (active participants not at RM.CLOSED, CM-23-004):
   ``CollectNonClosedLogEntryRecipientsNode`` + ``_SendLogEntryToEachNode`` →
   composed as ``FanOutLogEntryExcludingClosedNode`` (CM-23-004).
 """
@@ -36,98 +36,11 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import case_addressees
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.participant_status import (
-    ParticipantStatus,
-    participant_status_rm_state,
-)
+from vultron.core.participants.recipients import case_content_recipients
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)
-
-
-class CollectNonClosedLogEntryRecipientsNode(DataLayerActionWithPorts):
-    """Collect fan-out recipients, excluding actors already at RM.CLOSED.
-
-    Like ``CollectLogEntryRecipientsNode`` but filters out any participant
-    whose latest RM state is ``RM.CLOSED``.  Used for the ``case_fully_closed``
-    fan-out so that already-closed participants are not re-notified (CM-23-004).
-    """
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "log_entry": PortInformation(data_type=CaseLedgerEntry, required=True),
-    }
-
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "fanout_recipients": PortInformation(data_type=object, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "log_entry": "/log_entry",
-            "fanout_recipients": "/fanout_recipients",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.log_entry = self.get_input("log_entry")
-
-    def _is_rm_closed(self, participant_id: str) -> bool:
-        assert self.datalayer is not None
-        if not participant_id:
-            return False
-        participant = self.datalayer.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return False
-        for ps_ref in participant.participant_statuses:
-            if isinstance(ps_ref, str):
-                ref_id = _as_id(ps_ref)
-                ps = self.datalayer.read(ref_id) if ref_id else None
-            else:
-                ps = ps_ref
-            if not isinstance(ps, ParticipantStatus):
-                continue
-            if participant_status_rm_state(ps) == RM.CLOSED:
-                return True
-        return False
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
-        # Regime 1 (ADR-0087, #3101): fan-out runs after the local commit
-        # persisted this entry to the case (DeclineForeignLedgerCommitNode
-        # already handled the not-my-case branch upstream), so a missing case
-        # is an anomaly. Previously this warned, emitted zero recipients, and
-        # returned SUCCESS — silently dropping replication of a committed entry
-        # even though the commit tree treats non-SUCCESS as a real failure
-        # (ADR-0073, BT-05-006).
-        case_obj, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure
-
-        recipients = [
-            actor_id
-            for actor_id in case_obj.actor_participant_index
-            if actor_id != self.actor_id
-            and not self._is_rm_closed(
-                case_obj.actor_participant_index.get(actor_id, "")
-            )
-        ]
-        self._set_output("fanout_recipients", recipients)
-        return Status.SUCCESS
 
 
 class _SendLogEntryToEachNode(DataLayerActionWithPorts):
@@ -217,7 +130,7 @@ class FanOutLogEntryExcludingClosedNode(py_trees.composites.Sequence):
 # ---------------------------------------------------------------------------
 # Unfiltered fan-out — moved here from ``replay.py`` (BTND-07-004).
 #
-# These are the plain fan-out nodes; the filtered variants above skip
+# These are the plain fan-out nodes; the filtered variants above also skip
 # participants already at RM.CLOSED.  They lived in ``replay.py`` because
 # reject-driven replay was written first, but fan-out is a distinct concern:
 # replay is catch-up for one lagging peer, fan-out is distribution of one
@@ -227,6 +140,15 @@ class FanOutLogEntryExcludingClosedNode(py_trees.composites.Sequence):
 
 
 class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
+    """Collect a ledger entry's fan-out recipients: the active participants.
+
+    Every participant entitled to case content except the sender
+    (CM-10-004, SYNC-02-003), chosen by the shared selection (CM-10-007).
+    """
+
+    #: Also leave out participants at RM.CLOSED (CM-23-004).
+    SKIP_CLOSED: bool = False
+
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
@@ -257,18 +179,35 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        # Regime 1 (ADR-0087, #3101): see CollectNonClosedLogEntryRecipientsNode
-        # — fan-out follows a local commit, so a missing case is an anomaly, not
-        # a silent zero-recipient SUCCESS.
+        # Regime 1 (ADR-0087, #3101): fan-out runs after the local commit
+        # persisted this entry to the case (DeclineForeignLedgerCommitNode
+        # already handled the not-my-case branch upstream), so a missing case
+        # is an anomaly. Previously this warned, emitted zero recipients, and
+        # returned SUCCESS — silently dropping replication of a committed entry
+        # even though the commit tree treats non-SUCCESS as a real failure
+        # (ADR-0073, BT-05-006).
         case_obj, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure
 
-        recipients = case_addressees(
-            case_obj, excluding_actor_id=self.actor_id
+        recipients = case_content_recipients(
+            case_obj,
+            self.datalayer,
+            excluding={self.actor_id},
+            skip_closed=self.SKIP_CLOSED,
         )
         self._set_output("fanout_recipients", recipients)
         return Status.SUCCESS
+
+
+class CollectNonClosedLogEntryRecipientsNode(CollectLogEntryRecipientsNode):
+    """Collect fan-out recipients, excluding actors already at RM.CLOSED.
+
+    The active participants (CM-10-004) minus any whose latest RM state is
+    ``RM.CLOSED`` (CM-23-004), chosen by the shared selection (CM-10-007).
+    """
+
+    SKIP_CLOSED = True
 
 
 class SendLogEntryToEachNode(DataLayerActionWithPorts):

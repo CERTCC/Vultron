@@ -71,6 +71,7 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 
 #: Characters that cannot appear in a hostname label.
@@ -225,6 +226,9 @@ def _seed_case(
         id_=f"{case_id}/participants/owner",
         attributed_to=topo.owner_actor_id,
         case_roles=[CVDRole.VENDOR],
+        # Party to the active embargo, so the owner is an active participant
+        # and the CaseActor's ledger fan-out reaches it (CM-10-004).
+        embargo_consent_state=PEC.SIGNATORY,
     )
     embargo = EmbargoEvent(
         id_=f"{case_id}/embargoes/e0",

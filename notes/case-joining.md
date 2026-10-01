@@ -12,12 +12,15 @@ related_specs:
   - specs/vultron-as2-mapping.yaml
   - specs/participant-case-replica.yaml
   - specs/sync-ledger-replication.yaml
+  - specs/case-ledger-processing.yaml
+  - specs/embargo-policy.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/participant-embargo-consent.md
   - notes/participant-role-management.md
   - notes/sync-ledger-replication.md
 relevant_packages:
+  - vultron/core/participants/recipients.py
   - vultron/core/behaviors/case/nodes/invite_participant.py
   - vultron/core/behaviors/case/nodes/invite_ledger_backfill.py
   - vultron/core/behaviors/case/nodes/on_behalf_guards.py
@@ -55,8 +58,45 @@ stub, because accepting a stub is not a judgement of the case.
 
 **Active** means: seated by the case initialization sequence (the Case Owner,
 the CASE_MANAGER and the reporter, who are never sent a stub) or accepted the
-stub Invite, and — only when an embargo is active — `SIGNATORY` to it. "Inert until SIGNATORY" is wrong, because many cases
-have no active embargo: one not yet established, or one already exited.
+stub Invite, and — only when an embargo is active — `SIGNATORY` to it. "Inert until SIGNATORY" is wrong, because many cases have no
+active embargo: one not yet established, or one already exited.
+
+One predicate decides it: `VulnerabilityCase.is_active_participant()`, read
+from the replicated `CaseParticipant` record (`joined`, the latest RM status,
+`embargo_consent_state`) and the case's `active_embargo`, so a replica reaches
+the same answer as the CASE_MANAGER. Every case-content send picks recipients
+through `vultron/core/participants/recipients.py`: `case_content_recipients()`
+for case content, `invitation_recipients()` for the stub and embargo Invites
+(inert participants included, RM `CLOSED` excluded). A roster entry whose
+record cannot be read gets nothing (CM-10-007).
+
+RM `CLOSED` is not part of "active". ADR-0114 says a closed participant
+"receives nothing further", and CM-23-004 says ledger fan-out skips it, but the
+`case_fully_closed` fan-out deliberately reaches every replica whatever its RM
+state, and a departing participant learns its own `CLOSED` only from the
+ledger entry that records it (the sender side does not write it). Applying the
+exclusion to every case-content send would leave a closed replica unable to
+see how the case ended. Only `skip_closed=True` (CM-23-004's own fan-out
+variant) and the Invites leave a closed participant out. #4100 tracks
+reconciling the two rules.
+
+## Authority to act
+
+Authority to act on a case — suggest an actor, add a note, reject a ledger
+entry, change the roster — requires an *active* participant. An inert
+participant may only reply to the Invites addressed to it: accept or reject the
+stub, accept or reject an embargo Invite. A participant at RM `CLOSED` keeps
+none of it: it is sent no further Invites and may act on nothing further,
+because `CLOSED` is terminal (CM-11-015). It may still *receive* the entries
+that close out its replica (see above). The rule is that no actor acts on
+a case whose content it may not see; an actor that cannot read the ledger
+cannot know what it is acting on, and a CASE_MANAGER that admitted its acts
+would commit entries an inert participant could only have guessed at. This
+matches the plan for removal in #2257 (PR #4078): removal withdraws
+entitlement, not membership, so a removed participant — like an inert one —
+keeps its record and loses both its content and its authority. The
+CASE_MANAGER itself is held to the predicate as a recipient, with no exemption;
+its authority to *commit* comes from its role (CLP-09), not from being active.
 
 ## Edge cases
 
@@ -90,11 +130,12 @@ exactly what the CASE_MANAGER needs to track. The embargo-consent model's
 `INVITED` state already assumed a pre-reply record.
 
 **Roster membership was doing the job of the consent check.** `case_addressees`
-returns the whole roster, and nearly every case-content send uses it. CM-10-004
+returned the whole roster, and nearly every case-content send used it. CM-10-004
 and VP-08-006 (no case content before embargo acceptance) held only because a
 non-accepted actor was not in the roster. Putting invitees in the roster without
-the filter would have leaked every ledger entry to them. The filter must live in
-the shared recipient selection, not at each send site.
+the filter would have leaked every ledger entry to them. The filter now lives in
+the shared recipient selection, not at each send site, and `case_addressees` is
+gone (#4046).
 
 **An invitee validated a report it was never offered.** ADR-0070 originally had
 the invitee recover the reporter's `Offer(VulnerabilityReport)` from the ledger

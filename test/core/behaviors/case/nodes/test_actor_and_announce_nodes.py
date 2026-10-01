@@ -913,13 +913,21 @@ class TestEmitAddCaseParticipantNode:
         assert result.status == Status.FAILURE
         mock_factory.add_participant_to_case.assert_not_called()
 
-    def test_to_field_contains_http_actor_urls_not_bare_uuids(self, dl):
+    @pytest.mark.parametrize("embargoed", [False, True])
+    @pytest.mark.spec("CM-10-004")
+    def test_to_field_contains_http_actor_urls_not_bare_uuids(
+        self, dl, embargoed
+    ):
         """to= passed to add_participant_to_case must contain HTTP actor URLs.
 
         Production storage keeps case.case_participants as bare UUID strings
         (e.g. "urn:uuid:…").  _resolve_actor_recipients must use
         case.actor_participant_index keys (HTTP URIs) instead, or outbox
         delivery will fail with "Request URL is missing 'http://'".
+
+        The announce is case content, so it reaches active participants only
+        (#4046): a participant that never joined gets nothing, and under an
+        active embargo neither does one that is not SIGNATORY.
         """
         from unittest.mock import MagicMock
 
@@ -931,26 +939,48 @@ class TestEmitAddCaseParticipantNode:
         )
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.participant_embargo_consent import PEC
 
         # Two existing participants stored as bare UUID strings in case_participants
         # (matching production DataLayer storage format).
         existing_actor_1 = "https://example.org/actors/existing-actor-1"
         existing_actor_2 = "https://example.org/actors/existing-actor-2"
+        unjoined_actor = "https://example.org/actors/unjoined-actor"
         existing_p1_id = "urn:uuid:11111111-0000-0000-0000-000000000001"
         existing_p2_id = "urn:uuid:22222222-0000-0000-0000-000000000002"
+        unjoined_p_id = "urn:uuid:33333333-0000-0000-0000-000000000003"
 
         case = VulnerabilityCase(
             id_=EMIT_ADD_CASE_ID,
             name="to-field-http-url-test",
             attributed_to=EMIT_ADD_ACTOR_ID,
             # bare UUID strings, as stored in production
-            case_participants=[existing_p1_id, existing_p2_id],
+            case_participants=[existing_p1_id, existing_p2_id, unjoined_p_id],
             actor_participant_index={
                 existing_actor_1: existing_p1_id,
                 existing_actor_2: existing_p2_id,
+                unjoined_actor: unjoined_p_id,
             },
         )
+        if embargoed:
+            case.set_embargo(f"{EMIT_ADD_CASE_ID}/embargoes/e1")
         dl.create(case)
+        # The recipient selection reads each roster entry's record (CM-10-007).
+        # existing_actor_2 has been invited to the embargo but not accepted.
+        for actor_id, pid, consent, joined in (
+            (existing_actor_1, existing_p1_id, PEC.SIGNATORY, True),
+            (existing_actor_2, existing_p2_id, PEC.INVITED, True),
+            (unjoined_actor, unjoined_p_id, PEC.SIGNATORY, False),
+        ):
+            dl.create(
+                CaseParticipant(
+                    id_=pid,
+                    attributed_to=actor_id,
+                    context=EMIT_ADD_CASE_ID,
+                    embargo_consent_state=consent,
+                    joined=joined,
+                )
+            )
 
         participant = CaseParticipant(
             id_=EMIT_ADD_PARTICIPANT_ID,
@@ -1013,7 +1043,8 @@ class TestEmitAddCaseParticipantNode:
                 f"Full to= list: {to_arg}"
             )
         assert existing_actor_1 in to_arg
-        assert existing_actor_2 in to_arg
+        assert (existing_actor_2 in to_arg) is not embargoed
+        assert unjoined_actor not in to_arg
         # The new invitee must NOT be in the recipients (it's the one being added)
         assert EMIT_ADD_INVITEE_ID not in to_arg
 

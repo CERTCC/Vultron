@@ -290,13 +290,23 @@ class _PecEffectsMixin(_ActivationArmMixin):
         *,
         trigger: PEC_Trigger,
         select: Callable[[CaseParticipant], bool],
+        seated_only: bool = True,
     ) -> list[ParticipantPECChange]:
         """Apply *trigger* to every participant of *case* that *select* picks.
 
         Each moved participant is persisted and reported.
+
+        With *seated_only* (the default) a participant that does not hold a
+        seat — it has not joined, or its RM is ``CLOSED`` — is skipped
+        whatever *select* says.  An inert participant's consent moves only
+        through its own replies or an embargo termination (CM-10-007): an
+        owner's activation of terms is not something it took part in.  Only
+        the termination reset passes ``False``.
         """
         changes: list[ParticipantPECChange] = []
         for participant_id, participant in self._each_participant(case):
+            if seated_only and not case.participant_holds_seat(participant):
+                continue
             if not select(participant):
                 continue
             state = participant.embargo_consent_state
@@ -312,11 +322,14 @@ class _PecEffectsMixin(_ActivationArmMixin):
 
         Called when an embargo is terminated.  Returns a list of
         :class:`ParticipantPECChange` for every participant that was updated.
+        Inert participants are reset too: with no embargo there is nothing
+        left for any record to consent to (CM-18-001).
         """
         return self._cascade_pec(
             case,
             trigger=PEC_Trigger.RESET,
             select=lambda p: p.embargo_consent_state != PEC.UNBOUND.value,
+            seated_only=False,
         )
 
     def _cascade_pec_revise(
@@ -352,8 +365,11 @@ class _PecEffectsMixin(_ActivationArmMixin):
         embargo it replaces asks nothing new of an existing signatory
         (agreeing to N days is agreeing to every shorter period), so its
         consent carries over by containment (CM-10-001) with no state change.
+        A participant without a seat is left alone, as in :meth:`_cascade_pec`.
         """
         for _participant_id, participant in self._each_participant(case):
+            if not case.participant_holds_seat(participant):
+                continue
             if participant.embargo_consent_state != PEC.SIGNATORY.value:
                 continue
             if participant.add_accepted_embargo(revised_embargo_id):

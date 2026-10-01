@@ -932,9 +932,10 @@ groups:
       Invite) or consent (an embargo Invite, EP-09) are not case content and
       MUST reach an inert participant.
     rationale: >-
-      Nearly every case-content send selects its recipients from the roster
-      through one helper (`case_addressees`). A per-site check would be missed
-      by the next send site written; one shared check cannot be.
+      Nearly every case-content send selected its recipients from the roster
+      through one helper (`case_addressees`, retired by #4046). A per-site
+      check would be missed by the next send site written; one shared check
+      (`vultron/core/participants/recipients.py`) cannot be.
     verification: >-
       An architecture test asserts every case-content send selects recipients
       through the shared active-participant selection.

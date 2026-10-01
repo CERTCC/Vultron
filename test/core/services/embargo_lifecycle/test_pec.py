@@ -347,3 +347,127 @@ def test_record_actor_pec_rejection_withdrawal_drops_every_open_proposal(
     )
     assert [c.pec_after for c in withdrawn] == [PEC.DECLINED.value]
     assert _accepted_ids_of(dl, owner_p.id_) == []
+
+
+# ---------------------------------------------------------------------------
+# Inert participants are left out of the activation cascades (ADR-0114)
+# ---------------------------------------------------------------------------
+
+
+def _unseat(dl: SqliteDataLayer, participant_id: str, how: str) -> None:
+    """Unseat a participant by *how* — test setup only.
+
+    ``"unjoined"``: it has not accepted its stub Invite.  ``"closed"``: its RM
+    is ``CLOSED`` (CM-23-004).
+    """
+    from typing import cast
+
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.dimensions import RmDimension
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.states.rm import RM
+
+    participant = cast(CaseParticipant, dl.read(participant_id))
+    update: dict[str, object] = (
+        {"joined": False}
+        if how == "unjoined"
+        else {
+            "participant_statuses": [
+                ParticipantStatus(
+                    context=cast(str, participant.context),
+                    attributed_to=participant.attributed_to,
+                    rm=RmDimension(state=RM.CLOSED),
+                )
+            ]
+        }
+    )
+    participant = participant.model_copy(update=update)
+    dl.save(participant)
+
+
+@pytest.mark.spec("CM-10-007")
+@pytest.mark.parametrize("how", ["unjoined", "closed"])
+def test_advance_holders_of_leaves_an_unseated_holder_alone(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer], how: str
+) -> None:
+    """An activation does not promote a participant without a seat (#4046 AC-5).
+
+    Both participants hold the activated id; only the one holding a seat
+    advances to SIGNATORY.  The inert one's consent moves only through its
+    own replies.
+    """
+    owner, dl = owner_and_dl
+    seated = _make_actor(dl, "Seated")
+    inert = _make_actor(dl, "Inert")
+    case, participants = _make_case(
+        dl, owner.id_, extra_participant_ids=[seated.id_, inert.id_]
+    )
+    _, seated_p, inert_p = participants
+    embargo = _make_embargo(dl, case.id_)
+    _seed_consent(dl, seated_p.id_, PEC.INVITED, [embargo.id_])
+    _seed_consent(dl, inert_p.id_, PEC.INVITED, [embargo.id_])
+    _unseat(dl, inert_p.id_, how)
+
+    changes = EmbargoLifecycle(persistence=dl)._advance_holders_of(
+        case, embargo.id_
+    )
+
+    assert [c.participant_id for c in changes] == [seated_p.id_]
+    assert _pec_of(dl, seated_p.id_) == PEC.SIGNATORY.value
+    assert _pec_of(dl, inert_p.id_) == PEC.INVITED.value
+
+
+@pytest.mark.spec("CM-10-007")
+@pytest.mark.parametrize("how", ["unjoined", "closed"])
+def test_revision_cascades_leave_an_unseated_signatory_alone(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer], how: str
+) -> None:
+    """Neither revision arm moves an inert participant's record (#4046 AC-5).
+
+    The longer arm lapses only the seated signatory; the shorter arm carries
+    only the seated signatory over.
+    """
+    owner, dl = owner_and_dl
+    seated = _make_actor(dl, "Seated")
+    inert = _make_actor(dl, "Inert")
+    case, participants = _make_case(
+        dl, owner.id_, extra_participant_ids=[seated.id_, inert.id_]
+    )
+    _, seated_p, inert_p = participants
+    active = _make_embargo(dl, case.id_)
+    longer = _make_embargo(dl, case.id_, days=90)
+    shorter = _make_embargo(dl, case.id_, days=10)
+    _seed_consent(dl, seated_p.id_, PEC.SIGNATORY, [active.id_])
+    _seed_consent(dl, inert_p.id_, PEC.SIGNATORY, [active.id_])
+    _unseat(dl, inert_p.id_, how)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+
+    lifecycle._carry_signatories_over(case, revised_embargo_id=shorter.id_)
+    assert shorter.id_ in _accepted_ids_of(dl, seated_p.id_)
+    assert shorter.id_ not in _accepted_ids_of(dl, inert_p.id_)
+
+    changes = lifecycle._cascade_pec_revise(
+        case, revised_embargo_id=longer.id_
+    )
+    assert [c.participant_id for c in changes] == [seated_p.id_]
+    assert _pec_of(dl, inert_p.id_) == PEC.SIGNATORY.value
+
+
+@pytest.mark.spec("CM-10-007")
+def test_cascade_pec_reset_reaches_an_inert_participant(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Termination resets every record, an inert one included (#4046 AC-5)."""
+    owner, dl = owner_and_dl
+    inert = _make_actor(dl, "Inert")
+    case, participants = _make_case(
+        dl, owner.id_, extra_participant_ids=[inert.id_]
+    )
+    inert_p = participants[1]
+    _force_pec(dl, inert_p.id_, PEC.INVITED)
+    _unseat(dl, inert_p.id_, "unjoined")
+
+    changes = EmbargoLifecycle(persistence=dl)._cascade_pec_reset(case)
+
+    assert [c.participant_id for c in changes] == [inert_p.id_]
+    assert _pec_of(dl, inert_p.id_) == PEC.UNBOUND.value

@@ -37,6 +37,7 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.wire_keys import wire_key
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -535,28 +536,62 @@ class VulnerabilityCase(CoreObject):
         """Return the most recent :class:`CaseStatus` (alias for ``current_status``)."""
         return self.current_status
 
+    # ------------------------------------------------------------------
+    # Entitlement to case content (CM-10-004, ADR-0114)
+    # ------------------------------------------------------------------
 
-def case_addressees(
-    case: VulnerabilityCase, excluding_actor_id: str
-) -> list[str]:
-    """Return actor IDs for all case participants except *excluding_actor_id*.
+    def is_active_participant(self, participant: CaseParticipant) -> bool:
+        """True when *participant* is entitled to this case's content.
 
-    Uses ``case.actor_participant_index`` (a ``dict[actor_id, participant_id]``)
-    so the caller does not need to iterate over ``case_participants`` directly.
+        The one active-participant check (CM-10-004, ADR-0114 § "Inert and
+        active").  A participant is **active** when all hold:
 
-    Returns an empty list when there are no other participants.
+        1. it has joined the case — seated by the case initialization
+           sequence or accepted its stub Invite (``participant.joined``);
+        2. when this case has an active embargo (:attr:`embargo_in_force`),
+           its embargo consent is ``SIGNATORY``.
 
-    Lives here rather than in ``use_cases._helpers`` for the same reason as
-    :func:`has_case_statuses`: it is a pure derivation from a core model with no
-    use-case or storage dependency, and BT nodes need it too.  Importing it from
-    ``use_cases`` would make every such node an inbound-direction violation of
-    BTND-04-003 (see ``test/architecture/test_behaviors_no_use_case_imports.py``).
-    """
-    return [
-        actor_id
-        for actor_id in case.actor_participant_index
-        if actor_id != excluding_actor_id
-    ]
+        Every other participant is **inert**.  RM ``CLOSED`` is deliberately
+        not part of this check: a closed participant still receives the
+        ledger entries that let its replica learn how the case ended (the
+        ``case_fully_closed`` signal, CM-23-002), and only the sends that
+        name CM-23-004 or ask for consent leave it out
+        (:mod:`vultron.core.participants.recipients`).  The answer is computed from the
+        replicated participant record and this case's own status, never
+        stored, so every replica derives the same answer.  Recipients are
+        selected through :mod:`vultron.core.participants.recipients`, which
+        resolves each roster entry to its record and asks this method.
+        """
+        if not participant.joined:
+            return False
+        if not self.embargo_in_force:
+            return True
+        return participant.embargo_consent_state == PEC.SIGNATORY
+
+    def participant_holds_seat(self, participant: CaseParticipant) -> bool:
+        """True when *participant* has joined this case and has not closed.
+
+        Stricter than the joined half of :meth:`is_active_participant`: a
+        participant at RM ``CLOSED`` has left and holds no seat, even though
+        it still receives the entries that close out its replica.  The
+        embargo-consent cascades use it to
+        leave a participant that never joined, or has left, untouched
+        (ADR-0114): their consent changes only through their own replies or
+        an embargo termination.
+        """
+        return participant.joined and not participant.rm_closed
+
+    @property
+    def embargo_in_force(self) -> bool:
+        """True when this case has an active embargo.
+
+        Read from :attr:`active_embargo_id`, the same fact the consent
+        bookkeeping keys on (``embargo_lifecycle.pec``): an embargo is set
+        there when it is activated and cleared when it is torn down, and stays
+        set through a revision (EM ``REVISE``).  A proposal alone does not set
+        it.
+        """
+        return self.active_embargo_id is not None
 
 
 def has_case_statuses(case: VulnerabilityCase) -> bool:
