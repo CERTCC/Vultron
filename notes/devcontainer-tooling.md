@@ -31,7 +31,10 @@ The devcontainer sets `PYTHONPATH=/app`, which causes `uv run spec-dump` (and an
 other entry point) to resolve `vultron` imports from the stale baked image at
 `/app` instead of the editable install. Always prefix with `PYTHONPATH=` to clear
 it: `PYTHONPATH= uv run spec-dump`. The same applies to any `uv run <entrypoint>`
-that touches `vultron.*` modules.
+that touches `vultron.*` modules, and to `git commit` in a worktree outside
+`/app`: the pre-commit hooks inherit the variable, so a sync hook such as
+`docs-site` checks the worktree's files against `/app`'s generator and fails
+spuriously. Commit with `PYTHONPATH= git commit …`.
 
 ## `uv run` Pre-Commit Hooks Fail With "Permission Denied" — Use `UV_NO_SYNC=1`
 
