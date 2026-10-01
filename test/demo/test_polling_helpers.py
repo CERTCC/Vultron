@@ -29,6 +29,8 @@ from vultron.demo.helpers.polling import (
     LATE_JOINER_REPLICA_TIMEOUT,
     LATE_JOINER_TIMEOUT,
     PARTICIPANT_JOIN_TIMEOUT,
+    _received_activity,
+    _received_activity_id,
     assert_received_from,
     find_case_invite_for_actor,
     wait_for_case_attributed_to,
@@ -652,3 +654,28 @@ class TestAssertReceivedFrom:
             assert_received_from(
                 _dl_client({}), _INVITE_ID, _MANAGER, "consequence"
             )
+
+
+class TestMalformedReceivedRecord:
+    """A record the server returns malformed fails loudly, never matches."""
+
+    def test_a_record_wrapping_no_activity_fails(self):
+        with pytest.raises(AssertionError, match="wraps no activity"):
+            _received_activity(
+                {"type": "ReceivedActivityRecord", "id": "urn:uuid:r"}
+            )
+
+    def test_a_record_whose_activity_has_no_id_fails(self):
+        with pytest.raises(AssertionError, match="activity with no id"):
+            _received_activity_id(
+                "urn:uuid:r",
+                {
+                    "type": "ReceivedActivityRecord",
+                    "activity": {"type": "Invite"},
+                },
+            )
+
+    def test_a_bare_activity_is_known_by_its_storage_id(self):
+        assert _received_activity_id("urn:uuid:a", {"type": "Invite"}) == (
+            "urn:uuid:a"
+        )

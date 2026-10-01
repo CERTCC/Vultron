@@ -706,16 +706,38 @@ def _received_activity(obj_data: dict) -> dict:
     until its case is known — an invitee's Invite, usually — is held bare
     under the sender's id instead.  Mirrors
     :func:`vultron.core.use_cases._helpers.read_received_activity`.
+
+    Raises:
+        AssertionError: when a ``ReceivedActivityRecord`` wraps no activity.
     """
     if obj_data.get("type") != "ReceivedActivityRecord":
         return obj_data
     activity = obj_data.get("activity")
-    return activity if isinstance(activity, dict) else {}
+    if not isinstance(activity, dict):
+        raise AssertionError(  # noqa: TRY004 — demo_check assertion, not a type error
+            f"received-activity record {obj_data.get('id')!r} wraps no"
+            f" activity: {activity!r}"
+        )
+    return activity
 
 
 def _received_activity_id(raw_id: str, obj_data: dict) -> str:
-    """The sender's id for the received activity *obj_data* holds."""
-    return str(_received_activity(obj_data).get("id") or raw_id)
+    """The sender's id for the received activity *obj_data* holds.
+
+    A bare activity is stored under the sender's id (*raw_id*); a record is
+    stored under its own id and names the activity's id inside.
+
+    Raises:
+        AssertionError: when a record's activity carries no id.
+    """
+    if obj_data.get("type") != "ReceivedActivityRecord":
+        return raw_id
+    activity_id = _received_activity(obj_data).get("id")
+    if not activity_id:
+        raise AssertionError(
+            f"received-activity record {raw_id!r} holds an activity with no id"
+        )
+    return str(activity_id)
 
 
 def _is_case_invite_for(obj_data: dict, case_id: str, invitee_id: str) -> bool:

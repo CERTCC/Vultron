@@ -296,6 +296,26 @@ class TestAcceptCaseInvite:
                 invite_id="urn:uuid:held-oddly", actor=_INVITEE
             )
 
+    def test_a_held_invite_whose_inline_case_has_no_id_is_refused(
+        self, adapter, monkeypatch
+    ):
+        from pydantic import BaseModel
+
+        from vultron.adapters.driven.trigger_activity_adapter import actors
+
+        class _Held(BaseModel):
+            actor: str = _ACTOR
+            target: dict[str, str] = {"type": "VulnerabilityCase"}
+
+        monkeypatch.setattr(
+            actors, "read_received_activity", lambda *_args: _Held()
+        )
+
+        with pytest.raises(VultronValidationError, match="with no id"):
+            adapter.accept_case_invite(
+                invite_id="urn:uuid:held-without-case-id", actor=_INVITEE
+            )
+
     def test_an_archived_activity_that_is_not_an_invite_is_refused(
         self, adapter, dl
     ):

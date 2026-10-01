@@ -46,6 +46,9 @@ from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
     EmitAcceptCaseInviteNode,
     EmitRejectCaseInviteNode,
 )
+from vultron.core.behaviors.case.nodes.participant.roles import (
+    suggested_roles_key,
+)
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -104,7 +107,7 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         self.attributed_to = attributed_to
         self._injected_roles = roles
         self._roles_key = (
-            f"/suggested_roles_{recommendation_id.rsplit('/', maxsplit=1)[-1]}"
+            f"/{suggested_roles_key(recommendation_id)}"
             if recommendation_id is not None
             else None
         )
@@ -386,8 +389,7 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
         self._injected_roles = self._coerce_injected_roles(injected_roles)
-        _seg = recommendation_id.rsplit("/", maxsplit=1)[-1]
-        self._roles_key = f"suggested_roles_{_seg}"
+        self._roles_key = suggested_roles_key(recommendation_id)
 
     def _coerce_injected_roles(
         self, injected_roles: list[str] | None

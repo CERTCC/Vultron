@@ -423,8 +423,8 @@ self._actor_id, self._attributed_to = _prepare_delegated_context(
 ADR-0109).  A container emits only as actors it hosts, so a trigger on a
 container that does not host the CASE_MANAGER does not run the tree as the
 CASE_MANAGER.  It sends the requesting participant's *own* activity to the
-CASE_MANAGER — the owner's direct invite is the owner's `Offer(CaseParticipant)`
-(CM-17-007) — and the CASE_MANAGER's received tree performs the delegated emit
+CASE_MANAGER — the owner's direct invite is the owner's recommend-actor
+`Offer(Actor, Case)` (CM-17-007) — and the CASE_MANAGER's received tree performs the delegated emit
 and commits the entry in that tree.  The CASE_MANAGER never addresses a `cc:`
 copy of its own emission to itself; the former self-copy compensated for a
 foreign-container emit and committed the same Invite twice when the two were

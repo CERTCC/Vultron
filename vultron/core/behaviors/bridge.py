@@ -269,9 +269,12 @@ class BTBridge:
         "not found in DataLayer for actor …", skips delivery, and the invitee is
         never told it was invited (ISSUE-2548).
 
-        A delegated emit has this shape: a trigger addressed to the requesting
-        participant runs with ``actor_id`` set to the CaseActor, so the two
-        references disagree by construction rather than by mistake.
+        A trigger that still runs a delegated emit locally has this shape: the
+        trigger is addressed to the requesting participant but runs with
+        ``actor_id`` set to the CaseActor, so the two references disagree by
+        construction rather than by mistake.  CM-24-004 (ADR-0109) retires that
+        shape — #3821 for the invite, #3822 for the ownership-transfer offer — and the reconciliation
+        stays for the triggers that have not moved yet.
 
         A port this bridge was not given is *inherited* from the blackboard
         rather than left alone, because the blackboard is process-global

@@ -95,7 +95,8 @@ def _stored_invite_by_case_uri(
 
     Raises:
         VultronNotFoundError: when no activity with *invite_id* was received.
-        VultronValidationError: when the stored record is not a model.
+        VultronValidationError: when the stored record is not a model, or
+            its inline ``target`` carries no id.
     """
     held = read_received_activity(dl, invite_id, "RmInviteToCaseActivity")
     if not isinstance(held, BaseModel):
@@ -113,6 +114,11 @@ def _stored_invite_by_case_uri(
     else:
         target_id = _as_id(target)
     if target is not None and not isinstance(target, str):
+        if not target_id:
+            raise VultronValidationError(
+                f"invite '{invite_id}' names its case with no id;"
+                " cannot address the reply to the case"
+            )
         invite = invite.model_copy(update={"target": target_id})
     return invite
 
