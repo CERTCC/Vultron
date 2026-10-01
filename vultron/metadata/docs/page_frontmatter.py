@@ -79,6 +79,8 @@ _INCLUDE_RE = re.compile(
 # Only ``start=`` skips the top of the file. An include with just ``end=``
 # copies from line 1, frontmatter included, so it is still a whole include.
 _START_OPTION_RE = re.compile(r"\bstart\s*=")
+# Either marker can cut a link out of what renders.
+_CUT_OPTION_RE = re.compile(r"\b(?:start|end)\s*=")
 _TOP_LEVEL_KEY_RE = re.compile(r"^([A-Za-z_][\w-]*)\s*:")
 
 
@@ -113,7 +115,7 @@ class CheckResult:
 
 
 def include_directives(
-    host_path: Path, docs_dir: Path
+    host_path: Path, docs_dir: Path, *, uncut: bool = False
 ) -> Iterator[tuple[int, str, bool]]:
     """Yield ``(offset, target, whole)`` for each ``.md`` file *host_path* includes.
 
@@ -121,7 +123,9 @@ def include_directives(
     any other resolves against ``docs/``, matching the include-markdown
     plugin. Globs expand. Targets outside ``docs/`` and non-Markdown targets
     are not pages and are skipped. *offset* is where the directive starts in
-    the host's source, and *target* is ``docs/``-relative.
+    the host's source, and *target* is ``docs/``-relative. *whole* means no
+    ``start=``, so the target's frontmatter renders; with *uncut* it also
+    means no ``end=``, so every link in the target renders.
     """
     docs_resolved = docs_dir.resolve()
     text = host_path.read_text(encoding="utf-8", errors="replace")
@@ -135,7 +139,8 @@ def include_directives(
             if any(c in spec for c in "*?[")
             else [base / spec]
         )
-        whole = not _START_OPTION_RE.search(match.group("opts"))
+        cut_re = _CUT_OPTION_RE if uncut else _START_OPTION_RE
+        whole = not cut_re.search(match.group("opts"))
         for candidate in candidates:
             resolved = candidate.resolve()
             if (

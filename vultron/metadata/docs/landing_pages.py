@@ -492,13 +492,14 @@ def routing_faults(root: Path, page: RoutingPage) -> list[MetadataLoadError]:
     A link counts whether the page writes it or a fragment it includes whole
     carries it, so cards shared with another page route both (DF-10-002). A
     fragment's links resolve against the fragment, as include-markdown rewrites
-    them; a ``start=`` include may cut the link, so it is not counted. Every
+    them; a ``start=`` or ``end=`` include may cut the link, so it is not
+    counted. Every
     missing member is reported, not only the first (EH-07-001).
     """
     docs_dir = root / "docs"
     host = docs_dir / page.path
     linked = link_targets(page.path, host.read_text(encoding="utf-8"))
-    for _, fragment, whole in include_directives(host, docs_dir):
+    for _, fragment, whole in include_directives(host, docs_dir, uncut=True):
         if whole:
             text = (docs_dir / fragment).read_text(encoding="utf-8")
             linked |= link_targets(fragment, text)

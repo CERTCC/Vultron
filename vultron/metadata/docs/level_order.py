@@ -236,7 +236,9 @@ class _Pages:
         self._links[rel] = earliest
         for link in self.scan(rel).links:
             earliest.setdefault(link.target, link.start)
-        directives = include_directives(self._docs_dir / rel, self._docs_dir)
+        directives = include_directives(
+            self._docs_dir / rel, self._docs_dir, uncut=True
+        )
         for offset, target, whole in directives:
             if not whole or target not in self._tree.fragments:
                 continue
