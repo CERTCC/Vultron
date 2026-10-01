@@ -36,13 +36,33 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 
 
+def _describe_actor(actor: object) -> str:
+    """Name why ``actor`` is not an inline actor profile, for the refusal."""
+    if isinstance(actor, str):
+        return f"the actor is a reference ({actor!r})"
+    href = getattr(actor, "href", None)
+    if href is not None:
+        return f"the actor is a Link reference ({href!r})"
+    if type(actor) is CoreActor:
+        return (
+            f"the inline actor {actor.id_!r} has no actor type"
+            " (Person, Organization, Service, Application or Group)"
+        )
+    kind = getattr(actor, "type_", None) or type(actor).__name__
+    return (
+        f"the actor {getattr(actor, 'id_', None)!r} has type {kind!r},"
+        " not an actor profile"
+    )
+
+
 def refuse_malformed_case_proposal_envelope(activity: as_Activity) -> None:
     """Refuse a ``Create(CaseProposal)`` whose ``actor`` is not its proposer.
 
     Any other activity passes through untouched.
 
     Raises:
-        VultronParseValidationError: when the ``actor`` is a reference rather
+        VultronParseValidationError: when the ``actor`` is a reference, an
+            inline object that is not an actor, or an untyped actor rather
             than an inline actor profile, or when the inline profile's ``id``
             differs from the proposal's ``attributedTo`` (CP-01-010).
     """
@@ -52,15 +72,11 @@ def refuse_malformed_case_proposal_envelope(activity: as_Activity) -> None:
     if not isinstance(proposal, as_CaseProposal):
         return
     actor = activity.actor
-    if not isinstance(actor, CoreActor):
-        reference = getattr(actor, "href", None) or getattr(
-            actor, "id_", actor
-        )
+    if not isinstance(actor, CoreActor) or type(actor) is CoreActor:
         raise VultronParseValidationError(
-            f"Create(CaseProposal) {activity.id_!r} names its actor by"
-            f" reference ({reference!r}); the proposer's full actor profile"
-            " must be inline, because it carries the CASE_OWNER's embargo"
-            " policy (CP-01-010)"
+            f"Create(CaseProposal) {activity.id_!r}: {_describe_actor(actor)};"
+            " the proposer's full actor profile must be inline, because it"
+            " carries the CASE_OWNER's embargo policy (CP-01-010)"
         )
     if actor.id_ != proposal.attributed_to:
         raise VultronParseValidationError(

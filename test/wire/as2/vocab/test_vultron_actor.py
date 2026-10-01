@@ -83,13 +83,16 @@ class TestVultronPersonBasics(unittest.TestCase):
     def test_embargo_policy_reference_string_is_refused(self):
         """The policy is carried inline as part of the profile, never as a
         reference to fetch (EP-01-001, CP-01-010)."""
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(ValidationError) as ctx:
             as_VultronPerson.model_validate(
                 {
                     "id": "https://example.org/users/alice",
                     "embargoPolicy": "https://example.org/policies/alice-ep",
                 }
             )
+        # The refusal names the legacy shape and the operator remedy.
+        self.assertIn("must be carried inline", str(ctx.exception))
+        self.assertIn("must be reset", str(ctx.exception))
 
     def test_another_actors_policy_is_refused(self):
         """A profile carries only its own policy (EP-01-001, CP-01-010)."""

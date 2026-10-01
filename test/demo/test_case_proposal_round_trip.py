@@ -52,7 +52,8 @@ FastAPI instance backed by the same DataLayer).
 The case-actor's inbox handler runs ``CreateCaseProposalReceivedUseCase``
 which:
 
-1. Creates a ``VulnerabilityCase`` (attributed to the case-actor).
+1. Creates a ``VulnerabilityCase`` attributed to the proposing vendor,
+   the CASE_OWNER (CP-09-001).
 2. Emits ``Accept(as_CaseProposal)`` addressed to the vendor.
 3. Emits ``Create(VulnerabilityCase)`` addressed to the vendor.
 

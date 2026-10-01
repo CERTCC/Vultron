@@ -111,6 +111,26 @@ class CoreActor(CoreObject):
         ),
     )
 
+    @field_validator("embargo_policy", mode="before")
+    @classmethod
+    def _refuse_policy_reference(cls, v: Any) -> Any:
+        """Refuse a policy named by URL, the pre-#4027 stored shape (EP-01-001).
+
+        The old embargo-policy PUT stored the policy as a free-standing
+        record and put its URL on the actor.  The policy is now a field of
+        the profile, so a URL is refused with a message saying so, rather
+        than a bare type error; a store written before the change must be
+        reset, because no silent conversion is made.
+        """
+        if isinstance(v, str):
+            raise ValueError(  # noqa: TRY004 — Pydantic needs ValueError
+                f"embargoPolicy is a reference ({v!r}), but the policy must be"
+                " carried inline in the actor profile (EP-01-001); an actor"
+                " record stored by the pre-#4027 embargo-policy PUT holds this"
+                " shape, and its store must be reset"
+            )
+        return v
+
     @model_validator(mode="after")
     def _embargo_policy_names_this_actor(self) -> Self:
         """Refuse a profile carrying another actor's policy (EP-01-001).

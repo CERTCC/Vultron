@@ -262,6 +262,17 @@ profile seen on one proposal is never the default for another (CP-01-010). The
 store-wide scan the tree used to run (`owner_embargo_policies`) is gone, and the
 demo seeder reads the owner's own record from the owner's store instead.
 
+**Stored records from before #4027 are refused, not converted.** The old PUT
+kept the policy as a free-standing record and stored its URL in the actor's
+`embargo_policy`. `CoreActor` now refuses a string there with a message naming
+the pre-#4027 shape and the remedy, so such an actor row reads as absent and the
+datalayer's warning says why. There is no silent coercion, because the URL no
+longer names anything a reader may follow (EP-01-001). An operator with a
+file-backed store from before the change resets it (`docker compose down -v`);
+in-memory stores are unaffected. An inbound inline actor carrying a URL-string
+`embargoPolicy` is refused at the parse edge on every activity type, for the
+same reason.
+
 **Initialization runs once per case.** `InitializeDefaultEmbargoNode`'s first
 arm (`CaseEmbargoAlreadyInitializedNode`) succeeds when the case already
 carries an active embargo. Without it a second `Create(CaseProposal)` for the

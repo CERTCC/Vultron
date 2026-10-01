@@ -14,23 +14,20 @@ The normal-path Sequence performs CaseActor-native initialization per
 ADR-0041, emits the outbound activities, and commits the canonical ledger
 entries last (CP-09-009):
 
-  1. Resolve (or create) the VulnerabilityCase, attributed to the proposing
-     actor — the CASE_OWNER, not the CaseActor (CP-09-001)
-  2. Add the proposing actor (report receiver) as CASE_OWNER participant at
-     RM.RECEIVED, with any additional roles from
+  1. Resolve (or create) the case, attributed to the proposer (CP-09-001)
+  2. Add the proposer as CASE_OWNER at RM.RECEIVED, plus any
      ``ActorConfig.default_case_roles`` (AC-1)
   3. Add reporter as participant at RM.ACCEPTED (AC-2)
-  4. Initialize the default embargo (AC-3), which seeds the CASE_OWNER as
-     embargo SIGNATORY (CM-14-003)
+  4. Initialize the default embargo, seeding the CASE_OWNER as SIGNATORY
+     (AC-3, CM-14-003)
   5. Seed reporter as embargo SIGNATORY (CM-14-005)
   6. Emit ``Accept(as_CaseProposal)``
   7. Write durable retry marker (CP-05-005)
   8. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
   9. Clear retry marker on success
-  10. Commit canonical ledger entries natively (AC-4) — last, so their
-      fan-out queues behind the Create and every participant holds the case
-      before its first ``Announce(CaseLedgerEntry)`` arrives (CM-14-011,
-      CP-09-009)
+  10. Commit canonical ledger entries (AC-4) — last, so every participant
+      holds the case before its first ``Announce(CaseLedgerEntry)``
+      (CM-14-011, CP-09-009)
 
 Admission (CP-05-002) and idempotency (CP-05-006):
 

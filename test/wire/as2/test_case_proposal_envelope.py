@@ -94,8 +94,31 @@ def test_an_inline_profile_with_its_own_policy_parses():
     ids=["bare-uri", "link"],
 )
 def test_an_actor_named_by_reference_is_refused(actor: Any):
-    with pytest.raises(VultronParseValidationError, match="CP-01-010"):
+    with pytest.raises(
+        VultronParseValidationError, match=r"(?s)reference.*CP-01-010"
+    ):
         parse_activity(_body(actor))
+
+
+@pytest.mark.spec("CP-01-010")
+@pytest.mark.parametrize("actor_type", ["Object", "Actor"])
+def test_an_inline_non_profile_object_is_refused_as_not_a_profile(
+    actor_type: str,
+):
+    """An inline object that is not a Vultron actor is not a reference."""
+    with pytest.raises(
+        VultronParseValidationError, match="not an actor profile"
+    ) as excinfo:
+        parse_activity(_body({"type": actor_type, "id": _VENDOR}))
+
+    assert "reference" not in str(excinfo.value)
+
+
+@pytest.mark.spec("CP-01-010")
+def test_an_untyped_inline_actor_is_refused_as_not_a_profile():
+    """``{"id": ...}`` is not the proposer's full profile."""
+    with pytest.raises(VultronParseValidationError, match="no actor type"):
+        parse_activity(_body({"id": _VENDOR}))
 
 
 @pytest.mark.spec("CP-01-010")
