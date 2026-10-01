@@ -102,7 +102,7 @@ Participants usually fall into one of three categories:
 ## Adding Participants to an Existing Embargo
 
 Adding new Participants to a case with an existing embargo might require the new Participant to accept the embargo prior to receiving the report.
-[Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how each Participant's acceptance is tracked, and [§9 of the Vultron Protocol Specification](../../../reference/vultron-spec/index.md#9-participant-embargo-consent-pec-state-machine-n) specifies it.
+[Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how each Participant's acceptance is tracked, and [§9 Participant Embargo Consent (PEC) State Machine in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) specifies it.
 
 !!! note ""
 

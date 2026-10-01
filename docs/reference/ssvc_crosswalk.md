@@ -15,7 +15,7 @@ In the context of the Vultron Protocol, once a report has been validated
 determine what further effort, if any, is necessary.
 While any prioritization scheme might be used, here we demonstrate an application of the [SSVC](https://certcc.github.io/SSVC/){:target="_blank"} model.
 
-The protocol side of each mapping is normative in the [Vultron Protocol Specification](vultron-spec/index.md): the RM states and transitions in [§6](vultron-spec/index.md#6-report-management-rm-state-machine-n), and the case state dimensions in [§8](vultron-spec/index.md#8-case-state-cs-dimensions-n).
+The protocol side of each mapping is normative in the [Vultron Protocol Specification](vultron-spec/index.md): the RM states and transitions in [§6 Report Management (RM) State Machine](vultron-spec/tracking-models.md#6-report-management-rm-state-machine-n), and the case state dimensions in [§8 Case State (CS) Dimensions](vultron-spec/tracking-models.md#8-case-state-cs-dimensions-n).
 The SSVC side follows the [SSVC documentation](https://certcc.github.io/SSVC/){:target="_blank"}, whose decision models and decision points are linked from each section below.
 [Situation Awareness](../topics/other_uses/situation_awareness.md) discusses how the case state model can inform SSVC decisions from the other direction.
 

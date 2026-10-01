@@ -35,6 +35,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.rm import RM, RM_CLOSURE_RUNGS, rm_closure_path
 from vultron.errors import VultronValidationError
@@ -134,7 +135,8 @@ class RMClosureWriter:
                     f"RM {current_rm.name} -> {rung.name} refused for"
                     f" participant '{participant_id}': {writer.feedback_message}"
                 )
-                node.logger.warning(f"{node.name}: {node.feedback_message}")
+                log = node_logger(node)
+                log.warning("%s: %s", node.name, node.feedback_message)
                 return Status.FAILURE
             current_rm = rung
         return Status.SUCCESS

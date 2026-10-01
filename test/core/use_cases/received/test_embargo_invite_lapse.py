@@ -13,6 +13,7 @@
 """Tests for CaseActor lazy invite-expiry lapse (#2212) and late-Accept
 compatibility (#2213)."""
 
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
 
@@ -1159,18 +1160,21 @@ def _make_accept_event(proposal, case, accepting_actor_id: str, make_payload):
     return make_payload(accept, receiving_actor_id=_COORD)
 
 
-class TestAcceptWhenTheReplacedEmbargoIsUnreplicated:
-    """A replica missing embargo A cannot run the EP-05-001 comparison (#4004)."""
+class TestAcceptWhenTheReplacedEmbargoIsUnreadable:
+    """A store missing embargo A breaks EMB-18-003: the Accept is refused."""
 
     @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("EMB-18-003")
     @pytest.mark.spec("EP-05-001")
-    def test_owner_accept_of_a_revision_is_deferred_not_refused(
-        self, make_payload
+    def test_owner_accept_of_a_revision_is_refused_as_an_invariant_violation(
+        self, make_payload, caplog: pytest.LogCaptureFixture
     ):
-        """The Accept is well-formed; this store cannot evaluate it *yet*.
+        """No path may leave a case naming an unreadable embargo (EMB-18-003).
 
-        The handler parks it (DEFERRED) rather than refusing it, and the
-        replica's EM and active embargo are left as they were.
+        Nothing would re-drive a parked Accept, so the handler refuses it
+        (never DEFERRED), the node logs the broken invariant at ERROR naming
+        the case and the missing embargo, and EM and the active embargo are
+        left as they were.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea-gap"
@@ -1209,12 +1213,22 @@ class TestAcceptWhenTheReplacedEmbargoIsUnreplicated:
         dl.create(proposal)
         event = _make_accept_event(proposal, case, _COORD, make_payload)
 
-        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
-        ).execute()
+        with caplog.at_level(logging.ERROR):
+            result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
-        assert result.disposition is HandlerDisposition.DEFERRED
-        assert "not replicated" in (result.reason or "")
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "Invariant violation" in (result.reason or "")
+        errors = [
+            r.getMessage()
+            for r in caplog.records
+            if r.levelno == logging.ERROR
+            and "Invariant violation" in r.getMessage()
+        ]
+        assert len(errors) == 1
+        assert case_id in errors[0]
+        assert missing_id in errors[0]
         fresh = cast(CoreCase, dl.read(case_id))
         assert fresh.current_status.em.state == EM.REVISE
         assert fresh.active_embargo_id == missing_id

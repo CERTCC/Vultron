@@ -48,7 +48,11 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
-from vultron.errors import VultronError, VultronWiringError
+from vultron.errors import (
+    VultronError,
+    VultronValidationError,
+    VultronWiringError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -441,6 +445,16 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
                 " before entry replay (SYNC-15-002)",
                 self.name,
                 activity_id,
+                peer_id,
+            )
+        except VultronValidationError:
+            # The announce cannot be built from this actor's own records — for
+            # example its case names an embargo its store cannot read
+            # (EMB-18-003).  That is a broken invariant, not a transient
+            # failure, so it is not logged as recoverable.
+            self.logger.exception(
+                "%s: refusing to queue AnnounceVulnerabilityCase for peer '%s'",
+                self.name,
                 peer_id,
             )
         except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768

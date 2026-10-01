@@ -7,10 +7,10 @@ proposed, whether it is in force, whether it is being renegotiated, and whether 
 has ended.
 
 There is exactly one embargo state per case. It is shared case state, so only the
-CASE_MANAGER writes it ([§5.4.1](index.md#541-single-writer-authority)). Whether
+CASE_MANAGER writes it ([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)). Whether
 each individual participant has agreed to the current terms is a separate
 question, tracked per participant by embargo consent
-([§9](index.md#9-participant-embargo-consent-pec-state-machine-n)).
+([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)).
 
 ### 7.1 States
 
@@ -21,7 +21,7 @@ participant's.
 
 Note that *None* here means no embargo is in effect **for the case**. The embargo
 consent machine has a separate state, *Unbound*, meaning the participant is not bound
-by any embargo terms ([§9.1](index.md#91-states)). The two can legitimately disagree:
+by any embargo terms ([§9.1 States](tracking-models.md#91-states)). The two can legitimately disagree:
 a case at Active may hold a participant at Unbound, if that participant joined after
 the terms were agreed or declined them.
 
@@ -64,10 +64,10 @@ level. A participant does not put the case into Exited by deciding to stop
 observing the embargo. What a participant may do is report that it intends to
 exit, propose a shorter embargo, or propose an earlier end date; the CASE_MANAGER
 then terminates the embargo and records the termination
-([§10.2](index.md#102-embargo-revision-and-termination-cascades)). Terminating an
+([§10.2 Embargo Revision and Termination Cascades](interactions.md#102-embargo-revision-and-termination-cascades)). Terminating an
 embargo requires Case Owner authorization by default, on the same terms as any
 other change to canonical case state
-([§10.3](index.md#103-status-adoption-the-two-seam-model)).
+([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)).
 
 {% include-markdown "./_oq-embargo-termination-authority.md" %}
 
@@ -99,7 +99,7 @@ Outside these two default paths, embargo agreement and rejection SHOULD be expli
 
 The two machines answer different questions. Embargo Management says whether the
 *case* has an embargo. Embargo consent
-([§9](index.md#9-participant-embargo-consent-pec-state-machine-n)) says whether a
+([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)) says whether a
 given *participant* has agreed to it. Neither determines the other, which is why
 both are needed.
 
@@ -112,7 +112,7 @@ than to the idea of an embargo:
 - **Entering Exited** resets consent. Every participant returns to Unbound:
   with no embargo in scope, there is nothing to consent to.
 
-[§10.2](index.md#102-embargo-revision-and-termination-cascades) specifies both
+[§10.2 Embargo Revision and Termination Cascades](interactions.md#102-embargo-revision-and-termination-cascades) specifies both
 cascades.
 
 !!! info "See also"

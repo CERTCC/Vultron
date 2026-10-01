@@ -119,6 +119,7 @@ sense the docs actually use.
 *[HTTPS]: Hyper Text Transfer Protocol Secure
 *[HVAC]: Heating, Ventilation, and Air Conditioning
 
+*[IANA]: Internet Assigned Numbers Authority
 *[IDS]: Intrusion Detection System
 *[IEC]: International Electrotechnical Commission
 *[IEEE]: Institute of Electrical and Electronics Engineers

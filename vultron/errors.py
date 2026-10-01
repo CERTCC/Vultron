@@ -166,6 +166,24 @@ class VultronValidationError(CarriesViolations, VultronError, ValueError):
         super().__init__(message)
 
 
+class VultronNotAnEmbargoError(VultronValidationError):
+    """Raised when an embargo id resolves to a record that is not an ``EmbargoEvent``.
+
+    The type-mismatch half of the fail-closed embargo read (EMB-18-003); the
+    missing half is :exc:`VultronNotFoundError`.  It carries ``embargo_id`` so
+    a caller can tell *which* embargo was unreadable — for example the one a
+    revision replaces, as opposed to the one it activates — without parsing
+    the message.
+    """
+
+    def __init__(self, embargo_id: str, record_type: str):
+        self.embargo_id = embargo_id
+        self.record_type = record_type
+        super().__init__(
+            f"Embargo '{embargo_id}' is not an EmbargoEvent (got {record_type})."
+        )
+
+
 class VultronCanonicalEntryError(VultronError):
     """Raised when a case-ledger entry violates canonical entry criteria."""
 

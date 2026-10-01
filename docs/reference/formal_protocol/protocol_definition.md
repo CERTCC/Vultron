@@ -71,7 +71,7 @@ The elements of the quadruple are defined as follows:
 
 The processes in an MPCVD case are its Participants.
 Each Participant has one process, whatever roles it holds in the case.
-The protocol's roles — Reporter, Vendor, Coordinator, Deployer, CVE Numbering Authority (CNA), and Observer — are defined in the [specification's role terminology](../vultron-spec/index.md#22-roles).
+The protocol's roles — Reporter, Vendor, Coordinator, Deployer, CVE Numbering Authority (CNA), and Observer — are defined in the [specification's role terminology](../vultron-spec/introduction.md#22-roles).
 A Participant that holds several roles still counts once.
 
 !!! note "*Number of Processes*"
