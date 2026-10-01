@@ -343,7 +343,7 @@ groups:
       `test/core/behaviors/case/test_case_actor_identity.py` asserts the identity does not vary by
       case and that the slugged form is rejected;
       `test/core/behaviors/case/test_receive_report_case_tree.py` asserts
-      `trusted_case_creator_id` is the container identity and contains no slug.
+      `case_creator_id` is the container identity and contains no slug.
     adr:
     - ADR-0041
     stories:

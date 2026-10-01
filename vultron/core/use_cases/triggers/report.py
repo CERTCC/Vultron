@@ -283,7 +283,7 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
             self._dl.create(
                 VultronReportCaseLink(
                     report_id=report.id_,
-                    trusted_case_creator_id=request.recipient_id,
+                    case_creator_id=request.recipient_id,
                 )
             )
         except VultronAlreadyExistsError:

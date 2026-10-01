@@ -52,7 +52,7 @@ from vultron.core.use_cases._snapshot_helpers import (  # noqa: E402,F401
 def _established_link_actor_id(
     dl: CasePersistence, case_id: str
 ) -> str | None:
-    """Return the ``trusted_case_actor_id`` recorded for *case_id*, if any.
+    """Return the ``case_manager_id`` recorded for *case_id*, if any.
 
     A completed ``VultronReportCaseLink`` records the address the authority was
     reached at during bootstrap (CBT-01-006).  That recorded address answers
@@ -62,8 +62,8 @@ def _established_link_actor_id(
     for link in dl.list_objects("ReportCaseLink"):
         if not isinstance(link, VultronReportCaseLink):
             continue
-        if link.case_id == case_id and link.trusted_case_actor_id:
-            return str(link.trusted_case_actor_id)
+        if link.case_id == case_id and link.case_manager_id:
+            return str(link.case_manager_id)
     return None
 
 
@@ -80,7 +80,7 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
 
     Resolution order:
 
-    1. The ``trusted_case_actor_id`` recorded on a completed
+    1. The ``case_manager_id`` recorded on a completed
        ``VultronReportCaseLink`` (CBT-01-006).
     2. The actor enacting ``CVDRole.CASE_MANAGER`` on the case replica.
 

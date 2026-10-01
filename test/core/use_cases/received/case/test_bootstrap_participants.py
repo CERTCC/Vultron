@@ -74,15 +74,15 @@ _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor"
 
 def _build_link(
     *,
-    trusted_case_creator_id: str | None = _CREATOR_ID,
+    case_creator_id: str | None = _CREATOR_ID,
     case_id: str | None = None,
-    trusted_case_actor_id: str | None = None,
+    case_manager_id: str | None = None,
 ) -> VultronReportCaseLink:
     return VultronReportCaseLink(
         report_id=_REPORT_ID,
         case_id=case_id,
-        trusted_case_creator_id=trusted_case_creator_id,
-        trusted_case_actor_id=trusted_case_actor_id,
+        case_creator_id=case_creator_id,
+        case_manager_id=case_manager_id,
     )
 
 

@@ -473,7 +473,7 @@ class TestAcceptCaseProposalReceivedUseCase:
     """Tests for AcceptCaseProposalReceivedUseCase (CP-06-001, CP-06-003)."""
 
     def test_execute_records_case_actor_uri(self, make_payload):
-        """accept_case_proposal_received updates VultronReportCaseLink.trusted_case_actor_id."""
+        """accept_case_proposal_received updates VultronReportCaseLink.case_manager_id."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=_VENDOR_URI,
@@ -487,7 +487,7 @@ class TestAcceptCaseProposalReceivedUseCase:
         # Seed a VultronReportCaseLink so the use case can find it
         link = VultronReportCaseLink(
             report_id=report_id,
-            trusted_case_creator_id=_CASE_ACTOR_URI,
+            case_creator_id=_CASE_ACTOR_URI,
         )
         dl.create(link)
 
@@ -503,8 +503,8 @@ class TestAcceptCaseProposalReceivedUseCase:
 
         stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
         assert isinstance(stored_link, VultronReportCaseLink)
-        assert stored_link.trusted_case_actor_id == _CASE_ACTOR_URI, (
-            "trusted_case_actor_id should be set to the case-actor URI"
+        assert stored_link.case_manager_id == _CASE_ACTOR_URI, (
+            "case_manager_id should be set to the case-actor URI"
         )
 
     def test_execute_no_link_is_non_fatal(self, make_payload):
@@ -563,7 +563,7 @@ class TestAcceptCaseProposalReceivedUseCase:
 
         link = VultronReportCaseLink(
             report_id=report_id,
-            trusted_case_creator_id=_CASE_ACTOR_URI,
+            case_creator_id=_CASE_ACTOR_URI,
         )
         dl.create(link)
 
@@ -579,7 +579,7 @@ class TestAcceptCaseProposalReceivedUseCase:
 
         stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
         assert isinstance(stored_link, VultronReportCaseLink)
-        assert stored_link.trusted_case_actor_id == _CASE_ACTOR_URI, (
+        assert stored_link.case_manager_id == _CASE_ACTOR_URI, (
             "Store-owner fallback must route the BT to the vendor's store"
             " so the link update is not silently lost"
         )
@@ -603,7 +603,7 @@ class TestRejectCaseProposalReceivedUseCase:
         # Seed a VultronReportCaseLink so the use case can find it
         link = VultronReportCaseLink(
             report_id=report_id,
-            trusted_case_creator_id=_CASE_ACTOR_URI,
+            case_creator_id=_CASE_ACTOR_URI,
         )
         dl.create(link)
 
@@ -638,7 +638,7 @@ class TestRejectCaseProposalReceivedUseCase:
 
         link = VultronReportCaseLink(
             report_id=report_id,
-            trusted_case_creator_id=_CASE_ACTOR_URI,
+            case_creator_id=_CASE_ACTOR_URI,
         )
         dl.create(link)
 
@@ -720,7 +720,7 @@ class TestRejectCaseProposalReceivedUseCase:
 
         link = VultronReportCaseLink(
             report_id=report_id,
-            trusted_case_creator_id=_CASE_ACTOR_URI,
+            case_creator_id=_CASE_ACTOR_URI,
         )
         dl.create(link)
 
@@ -766,7 +766,7 @@ def _seed_vendor_link(dl, proposal: as_CaseProposal) -> None:
     dl.create(
         VultronReportCaseLink(
             report_id=report.id_,
-            trusted_case_creator_id=_CASE_ACTOR_URI,
+            case_creator_id=_CASE_ACTOR_URI,
         )
     )
 
