@@ -592,8 +592,9 @@ def test_reply_refuses_an_archived_activity_that_is_not_an_invite(
         factory(invite=held, actor=_ACTOR_URI)
 
 
-def _as_plain_invite(activity: BaseModel) -> as_Invite:
+def _as_plain_invite(activity: BaseModel | None) -> as_Invite:
     """Validate an archived activity into ``as_Invite``, as the adapter does."""
+    assert activity is not None, "intake archived no activity"
     return as_Invite.model_validate(
         json.loads(
             activity.model_dump_json(by_alias=True, serialize_as_any=True)
