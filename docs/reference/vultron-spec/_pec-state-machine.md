@@ -1,16 +1,16 @@
 ## 9. Participant Embargo Consent (PEC) State Machine [N]
 
 An embargo binds the participants who agreed to it. Embargo Management
-([§7](index.md#7-embargo-management-em-state-machine-n)) records whether the case
+([§7 Embargo Management (EM) State Machine](tracking-models.md#7-embargo-management-em-state-machine-n)) records whether the case
 has an embargo; it cannot record who has agreed, because that answer differs per
 participant. Participant Embargo Consent records it.
 
 The distinction has practical force. A participant invited to a case that already
 has an active embargo has not yet agreed to anything, and the CASE_MANAGER must
 not send it embargoed content until it has
-([§9.7](index.md#97-gating-full-case-delivery)). A participant that declines is
+([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)). A participant that declines is
 still in the case and still receives the negotiation traffic
-([§9.5](index.md#95-embargo-traffic-reaches-non-signatories)). Neither
+([§9.5 Embargo Traffic Reaches Non-Signatories](tracking-models.md#95-embargo-traffic-reaches-non-signatories)). Neither
 position is expressible in the case-level embargo state.
 
 Consent is per participant, but the CASE_MANAGER writes it: it is recorded on the
@@ -76,7 +76,7 @@ When the owner activates the revision, consent is re-evaluated against the new t
 A revision that ends **no later than** the terms it replaces asks nothing new of anyone who agreed to the old terms, since agreeing to N days is agreeing to every shorter period; every signatory is carried over as a signatory to the new terms.
 A revision that ends **later** asks for more than they promised; every signatory that has not accepted it moves to Lapsed by the revise trigger, and those that did accept it stay Signatory.
 In either case a participant in any other state that had already accepted the revision becomes Signatory to it, because it has accepted the embargo now in force.
-Only signatories to the old terms are carried over: a participant already Lapsed stays Lapsed until it is invited again or accepts, and an Invited participant whose invitation the activation has made stale is handled as in [§9.4](index.md#94-deadlines-and-the-pocket-veto).
+Only signatories to the old terms are carried over: a participant already Lapsed stays Lapsed until it is invited again or accepts, and an Invited participant whose invitation the activation has made stale is handled as in [§9.4 Deadlines and the Pocket Veto](tracking-models.md#94-deadlines-and-the-pocket-veto).
 If the owner rejects the revision instead, the old terms stand and nobody's consent changes.
 
 !!! warning "Lapsed is neither the proposal state nor the deadline state"
@@ -189,7 +189,7 @@ terms it was never told about, and one that declined the original terms may well
 accept the revision.
 
 Only case content — report details, fix status, sensitive notes — is gated on
-Signatory status ([§9.7](index.md#97-gating-full-case-delivery)).
+Signatory status ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
 
 ### 9.6 Embargo Adherence
 
@@ -204,7 +204,7 @@ a participant as bound while its consent state says otherwise has no correct
 reading.
 
 A change of consent MUST be made by applying a consent trigger through the
-transitions of [§9.2](index.md#92-transitions-and-guards), so that every change is
+transitions of [§9.2 Transitions and Guards](tracking-models.md#92-transitions-and-guards), so that every change is
 a valid one and is recorded as such.
 
 !!! note "Informative: how the reference implementation does this"
@@ -228,13 +228,13 @@ recipient:
 !!! note "Recall: report management states"
     {% include-markdown "./includes/_rm-states-table.md" %}
 
-    Full definitions are in [§6.1](index.md#61-states).
+    Full definitions are in [§6.1 States](tracking-models.md#61-states).
 
 !!! warning "The gate is admission plus consent — not completed triage"
     It is tempting to read condition 1 as `RM.ACCEPTED`. That reading is wrong
     and self-defeating: an invitee is recorded at `RM.RECEIVED` on
     `Accept(Invite)`, and reaches `ACCEPTED` only *after* receiving the full case
-    and running its triage cycle ([§6.3](index.md#63-per-participant-rm-tracking)). Requiring `ACCEPTED` before delivery
+    and running its triage cycle ([§6.3 Per-Participant RM Tracking](tracking-models.md#63-per-participant-rm-tracking)). Requiring `ACCEPTED` before delivery
     would mean a participant could never obtain the case it needs in order to
     reach the state that gates it.
 
@@ -242,7 +242,7 @@ recipient:
     content.** The ordering is: admit the participant at `RM.RECEIVED`, resolve
     embargo consent, then deliver the full case.
 
-This matters to [§10](index.md#10-model-interactions-and-cascade-rules-n)'s cascade ordering: `Accept(Invite)` implies consent
+This matters to [§10 Model Interactions and Cascade Rules](interactions.md#10-model-interactions-and-cascade-rules-n)'s cascade ordering: `Accept(Invite)` implies consent
 to any active embargo, which is what allows delivery to proceed immediately rather
 than waiting on a separate consent round-trip.
 

@@ -94,10 +94,10 @@ Every Participant Embargo Consent transition is a side effect of an EM activity,
 | Invitation deadline passes | none | `INVITED` moves to `DECLINED`, recorded in the case ledger (MSM-07-007) |
 
 One activity can therefore move both scopes at once: an Accept from the case owner activates the embargo *and* makes the owner a signatory.
-A `SIGNATORY` that rejects the *active* embargo is withdrawing its own consent: its record moves to `DECLINED` ([§9.2](../../../reference/vultron-spec/index.md#92-transitions-and-guards)).
+A `SIGNATORY` that rejects the *active* embargo is withdrawing its own consent: its record moves to `DECLINED` ([§9.2 Transitions and Guards](../../../reference/vultron-spec/tracking-models.md#92-transitions-and-guards)).
 A `SIGNATORY` that rejects a *proposed* revision is refusing those terms only: it stays a signatory to the embargo in force.
 In neither case does the case's embargo change, because only the case owner's reject moves EM (MSM-07-004).
-The full consent transition table is in [§9.2 of the specification](../../../reference/vultron-spec/index.md#92-transitions-and-guards).
+The full consent transition table is in [§9.2 of the specification](../../../reference/vultron-spec/tracking-models.md#92-transitions-and-guards).
 
 ---
 

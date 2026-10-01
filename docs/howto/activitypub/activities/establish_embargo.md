@@ -119,7 +119,7 @@ Actors invited later decide for themselves whether to accept the embargo, so add
 | What you sent | What to confirm |
 |---|---|
 | `Invite(Event)` | The case `em_state` is `PROPOSED`. |
-| `Accept(Invite(Event))` | Your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) state is `SIGNATORY`, as [§9 of the specification](../../../reference/vultron-spec/index.md#9-participant-embargo-consent-pec-state-machine-n) defines it. |
+| `Accept(Invite(Event))` | Your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) state is `SIGNATORY`, as [§9 of the specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) defines it. |
 | `Add(Event)`, with or without `inReplyTo` | The case `em_state` is `ACTIVE` and the case names one active embargo. |
 | `Announce(Event)` | Every participant's replica carries the same active embargo ID. |
 
@@ -148,6 +148,6 @@ Actors invited later decide for themselves whether to accept the embargo, so add
 - [Embargo Management (EM) Messages](../../../reference/messages/em.md) — the wire format and a rendered example for each activity above
 - [Embargo Management](../../../topics/process_models/em/index.md) — the state machine these activities drive
 - [Negotiating Embargoes](../../../topics/process_models/em/negotiating.md) — how to choose terms other parties will accept
-- [§9 of the specification](../../../reference/vultron-spec/index.md#9-participant-embargo-consent-pec-state-machine-n) — the Participant Embargo Consent (PEC) state machine that records each participant's own answer to a proposal
+- [§9 of the specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) — the Participant Embargo Consent (PEC) state machine that records each participant's own answer to a proposal
 - [How to Revise or Terminate an Embargo](manage_embargo.md) — what to do once the embargo is active
 - [Trigger API Reference](../../../reference/trigger-api.md#embargo-management) — request schema and endpoint details for `propose-embargo`, `accept-embargo`, and `reject-embargo`

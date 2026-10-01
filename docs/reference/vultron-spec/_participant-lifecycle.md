@@ -15,7 +15,7 @@ on authority the Case Owner never granted.
 
 1. A case begins with a **Case Owner** — the actor whose disclosure decision the
    case exists to serve. Case ownership is not delegated, though it may be
-   transferred ([§11.3](index.md#113-case-ownership-transfer-n)).
+   transferred ([§11.3 Case Ownership Transfer](interactions.md#113-case-ownership-transfer-n)).
 2. The Case Owner MAY delegate the **Case Manager** role. The delegation is an
    `Offer(CaseParticipantRole)` addressed to the receiving actor in the context of
    the case, answered with `Accept` or `Reject`. The same activity grants any
@@ -30,7 +30,7 @@ offer the case sent, not from the accepting actor's reply — otherwise an actor
 could widen its own grant on the way back.
 
 An implementation MAY verify that an actor has the capability prerequisites for a
-role ([§12.3.1](index.md#1231-process-roles)) before completing the assignment.
+role ([§12.3.1 Process Roles](conformance.md#1231-process-roles)) before completing the assignment.
 
 {% include-markdown "./_oq-role-acquisition.md" %}
 
@@ -39,7 +39,7 @@ role ([§12.3.1](index.md#1231-process-roles)) before completing the assignment.
 Bringing a new actor into a case has a problem to solve: the actor cannot decide
 whether to join until it knows something about the case, but it must not receive
 case content before it has been admitted and its embargo consent resolved
-([§9.7](index.md#97-gating-full-case-delivery)).
+([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
 
 The protocol solves this with a **case stub** — a minimal description of the case
 carrying enough for the invitee to decide, and no vulnerability detail. The stub
@@ -66,7 +66,7 @@ invitation.
 !!! note "Recall: report management states"
     {% include-markdown "./includes/_rm-states-table.md" %}
 
-    Full definitions are in [§6.1](index.md#61-states).
+    Full definitions are in [§6.1 States](tracking-models.md#61-states).
 
 ### 11.3 Case Ownership Transfer [N]
 

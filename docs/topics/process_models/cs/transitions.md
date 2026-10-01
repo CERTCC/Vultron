@@ -11,7 +11,7 @@ description: >
 
 This page defines the transitions of the Coordinated Vulnerability Disclosure (CVD) Case State (CS) model: the events that move a case from one state to another, the rules that restrict them, and the transition grammar.
 It builds on [CS States](cs_model.md), which defines the six substates and the 32 case states.
-The normative definition is in the [Vultron Protocol Specification §8](../../../reference/vultron-spec/index.md#8-case-state-cs-dimensions-n).
+The normative definition is in the [Vultron Protocol Specification §8](../../../reference/vultron-spec/tracking-models.md#8-case-state-cs-dimensions-n).
 
 ---
 

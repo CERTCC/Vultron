@@ -14,7 +14,7 @@ Vultron ActivityStreams (Vultron AS) is an extension of the
 [ActivityStreams vocabulary](https://www.w3.org/TR/activitystreams-vocabulary/){:target="_blank"}
 to describe the mapping of Vultron to ActivityStreams.
 This page shows each Vultron object as it appears on the wire.
-The normative definition of the object types is [§5.2 Object Types](../vultron-spec/index.md#52-object-types) of the Vultron Protocol Specification; the activities that carry them are cataloged in [Message Types](../messages/index.md).
+The normative definition of the object types is [§5.2 Object Types](../vultron-spec/layers.md#52-object-types) of the Vultron Protocol Specification; the activities that carry them are cataloged in [Message Types](../messages/index.md).
 For why the extension is as small as it is, and when a new object type is minted
 rather than reusing a native one, see
 [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md).
@@ -153,7 +153,7 @@ print(json2md(populated_case()))
 ### CaseStatus
 
 A `CaseStatus` object is used to represent the participant-agnostic status of a `VulnerabilityCase` object.
-It is canonical: it carries what the case asserts, and only the [CASE_MANAGER](../../topics/case_lifecycle/case_manager_and_ledger.md) writes it ([§5.4.1](../vultron-spec/index.md#541-single-writer-authority)).
+It is canonical: it carries what the case asserts, and only the [CASE_MANAGER](../../topics/case_lifecycle/case_manager_and_ledger.md) writes it ([§5.4.1 Single-Writer Authority](../vultron-spec/layers.md#541-single-writer-authority)).
 The semantics of the `CaseStatus` object are described in the [Case Model](../../topics/case_lifecycle/case_model.md) section.
 The distinction between *participant-agnostic* and *participant-specific* status is described in the
 [Global vs Local](../../topics/process_models/model_interactions/index.md) section.
@@ -199,8 +199,8 @@ print(json2md(participant_status()))
     The `CaseStatus` inside a `ParticipantStatus` lets a participant state what it believes the case as a whole has reached, without that belief becoming the case's state.
     For example, a vendor might observe that an exploit has been released while the case still records the vulnerability as unexploited.
     The vendor includes a `CaseStatus` in its `ParticipantStatus` showing _Exploit Public_.
-    The [CASE_MANAGER](../../topics/case_lifecycle/case_manager_and_ledger.md) then decides whether to adopt the claim, by default with the Case Owner's authorization, and if it does it writes the canonical `CaseStatus` on the `VulnerabilityCase` with `pxaState` including _X_ ([§10.3 Status Adoption](../vultron-spec/index.md#103-status-adoption-the-two-seam-model), [§12.4.4](../vultron-spec/index.md#1244-case-owner-authority)).
-    No other participant writes the canonical `CaseStatus` ([§5.4.1](../vultron-spec/index.md#541-single-writer-authority)).
+    The [CASE_MANAGER](../../topics/case_lifecycle/case_manager_and_ledger.md) then decides whether to adopt the claim, by default with the Case Owner's authorization, and if it does it writes the canonical `CaseStatus` on the `VulnerabilityCase` with `pxaState` including _X_ ([§10.3 Status Adoption](../vultron-spec/interactions.md#103-status-adoption-the-two-seam-model), [§12.4.4 Case Owner Authority](../vultron-spec/conformance.md#1244-case-owner-authority)).
+    No other participant writes the canonical `CaseStatus` ([§5.4.1 Single-Writer Authority](../vultron-spec/layers.md#541-single-writer-authority)).
 
 ### EmbargoEvent
 

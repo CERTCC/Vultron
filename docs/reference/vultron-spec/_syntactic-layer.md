@@ -1,7 +1,7 @@
 ## 5. Syntactic Layer — Wire Format [N]
 
 This section specifies how a Vultron message is encoded and delivered. Where
-[§4](index.md#4-semantic-layer-message-meanings-n) says what a message *means*,
+[§4 Semantic Layer — Message Meanings](layers.md#4-semantic-layer-message-meanings-n) says what a message *means*,
 this section says what it *looks like*.
 
 Vultron does not define its own message syntax. It uses ActivityStreams 2.0, a
@@ -13,7 +13,7 @@ readers who have met it elsewhere.
 The consequence for a reader is that Vultron messages look generic. There is no
 `ProposeEmbargo` verb; there is an `Invite` whose object happens to be an embargo
 event. Meaning comes from the combination of verb and object, not from the verb
-alone, which is why [§5.7](index.md#57-shorthand-to-wire-form-mapping) is needed to
+alone, which is why [§5.7 Shorthand to Wire Form Mapping](layers.md#57-shorthand-to-wire-form-mapping) is needed to
 connect the two layers.
 
 ### 5.1 Base Vocabulary
@@ -27,8 +27,8 @@ Four fields are required on every Activity:
 |---|---|
 | `type` | The Activity type — the verb, such as `Offer` or `Announce` |
 | `actor` | The URI of the actor that performed the action |
-| `object` | The thing acted on, included inline ([§5.5](index.md#55-serialization)) |
-| `id` | A URI uniquely identifying this Activity, used for deduplication ([§14.3](index.md#143-replay-and-idempotency)) |
+| `object` | The thing acted on, included inline ([§5.5 Serialization](layers.md#55-serialization)) |
+| `id` | A URI uniquely identifying this Activity, used for deduplication ([§14.3 Replay and Idempotency](considerations.md#143-replay-and-idempotency)) |
 
 Vultron's own types are declared in the vocabulary namespace
 `https://certcc.github.io/Vultron/ns`.
@@ -42,7 +42,7 @@ requirements here.
 
 !!! note "Informative: ActivityPub conformance is not required by this version"
     A future version is expected to raise the floor to ActivityPub;
-    [§1.3](index.md#13-relationship-to-existing-standards) states the roadmap.
+    [§1.3 Relationship to Existing Standards](introduction.md#13-relationship-to-existing-standards) states the roadmap.
 
 ### 5.2 Object Types
 
@@ -73,7 +73,7 @@ classDiagram
 | `CaseParticipant` | An actor's membership in a case, carrying the roles it holds and the state it owns |
 | `CaseParticipantRole` | A role being offered to an actor in the context of a case. A distinct type so that offering a role is structurally different from offering ownership of the case |
 | `EmbargoEvent` | An embargo's terms — proposed, accepted, revised or terminated. A subtype of the ActivityStreams `Event` type, which is why embargo messages appear on the wire as invitations to an event rather than under an embargo-specific verb |
-| `CaseLedgerEntry` | One entry in the canonical case ledger ([§2.3](index.md#23-protocol-objects-and-messages)) |
+| `CaseLedgerEntry` | One entry in the canonical case ledger ([§2.3 Protocol Objects and Messages](introduction.md#23-protocol-objects-and-messages)) |
 | `CaseProposal` | A request that some actor create and manage a case. Used when the requesting actor does not intend to manage the case itself; the actor that accepts becomes the case's creator |
 | `CaseStatus` / `ParticipantStatus` | Status records — see below |
 
@@ -85,18 +85,18 @@ types in the protocol, and the difference is one of authority rather than conten
   and writing one does not change what the case asserts.
 - A `CaseStatus` is **canonical**. It carries what the case asserts: its embargo
   state and what is publicly known. Only the CASE_MANAGER writes it
-  ([§5.4.1](index.md#541-single-writer-authority)).
+  ([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
 
 A claim becomes canonical only when the CASE_MANAGER adopts it, and adoption is an
 authorization decision with a named default rather than an automatic consequence of
-receipt ([§10.3](index.md#103-status-adoption-the-two-seam-model)). An
+receipt ([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)). An
 implementation MUST NOT substitute one type for the other: a participant that
 emits `CaseStatus` is asserting authority it does not hold, and a CASE_MANAGER that
 treats an inbound `ParticipantStatus` as canonical has skipped the decision.
 
 !!! note "Informative: which types have core models"
     `CaseProposal` and the fault object of
-    [§5.3](index.md#53-activity-types-and-canonical-message-forms) exist in the
+    [§5.3 Activity Types and Canonical Message Forms](layers.md#53-activity-types-and-canonical-message-forms) exist in the
     reference implementation only as wire types, with no separate internal model.
     Every other type above has both.
 
@@ -144,10 +144,10 @@ loses a round-trip in which the Case Owner decides:
   actor.
 
 Both paths end in an `Accept` of an `Invite`
-([§11.2](index.md#112-invitation-and-acceptance-n)).
+([§11.2 Invitation and Acceptance](interactions.md#112-invitation-and-acceptance-n)).
 
 **Fault reporting.** The three failure modes of
-[§4.6](index.md#46-error-and-acknowledgment-messages) have these wire forms:
+[§4.6 Error and Acknowledgment Messages](layers.md#46-error-and-acknowledgment-messages) have these wire forms:
 
 | Failure mode | Wire form |
 |---|---|
@@ -161,7 +161,7 @@ An actor is identified by a URI, and that URI is also where it receives messages
 Each actor exposes an **inbox** to receive Activities and an **outbox** from which
 it sends them. An actor's URI is its identity for every purpose in the protocol:
 there is no separate registry, and no name or hosting location carries authority
-([§2.2](index.md#22-roles)).
+([§2.2 Roles](introduction.md#22-roles)).
 
 Delivery is therefore inbox to inbox. Which inbox a message may go to, however, is
 constrained — and that constraint is the subject of the next two subsections.
@@ -181,7 +181,7 @@ VFD state.
 This rule exists to make concurrent claims resolvable. Two participants may report
 contradictory observations about the world at the same moment; with one writer,
 the case has one answer, and the decision about which claim becomes that answer is
-explicit ([§10.3](index.md#103-status-adoption-the-two-seam-model)) rather than a
+explicit ([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)) rather than a
 race. The routing rule below follows from it.
 
 #### 5.4.2 Routing Topology
@@ -200,7 +200,7 @@ Participant → CASE_MANAGER → CaseLedgerEntry → Announce(CaseLedgerEntry) �
 
 There are exactly **two** exceptions, both confined to case bootstrap, both
 occurring before a CASE_MANAGER exists to route through
-([§4.5](index.md#45-trust-and-bootstrap-semantics)):
+([§4.5 Trust and Bootstrap Semantics](layers.md#45-trust-and-bootstrap-semantics)):
 
 1. **Pre-case report submission** — the reporter sends the report directly to the
    vendor. No case exists, and therefore no case actor service has provisioned an
@@ -228,7 +228,7 @@ occurring before a CASE_MANAGER exists to route through
 
     This is scoped per case. The role is held for one case at a time, different
     cases may be managed by different actors, and the role is transferable
-    ([§11.3](index.md#113-case-ownership-transfer-n)). The current reference
+    ([§11.3 Case Ownership Transfer](interactions.md#113-case-ownership-transfer-n)). The current reference
     implementation goes further than the protocol requires and provisions a
     dedicated service actor per case.
 
@@ -270,7 +270,7 @@ it emits. An Activity MUST NOT reference an object belonging to another actor by
 alone.
 
 This is what makes actor isolation work
-([§4.7](index.md#47-knowledge-model-and-actor-isolation)). A message carrying only
+([§4.7 Knowledge Model and Actor Isolation](layers.md#47-knowledge-model-and-actor-isolation)). A message carrying only
 an identifier would require its recipient to fetch the referenced object from
 whoever holds it, which makes the recipient's knowledge depend on another actor
 being reachable, and makes a message unprocessable if it is not.
@@ -278,12 +278,12 @@ being reachable, and makes a message unprocessable if it is not.
 !!! note "Provisional namespace URI"
     The namespace is currently hosted on GitHub Pages. A permanent URI may be
     registered in a future version
-    ([§13](index.md#13-iana-and-namespace-considerations-i)).
+    ([§13 IANA and Namespace Considerations](considerations.md#13-iana-and-namespace-considerations-i)).
 
 ### 5.6 Transport Layer [N/I]
 
 The transport layer moves a serialized message from one actor to another. The
-message schema of [§5.1](index.md#51-base-vocabulary)–[§5.5](index.md#55-serialization)
+message schema of [§5.1 Base Vocabulary](layers.md#51-base-vocabulary) through [§5.5 Serialization](layers.md#55-serialization)
 is transport-agnostic: the same JSON payload is deliverable over any conformant
 transport.
 
@@ -297,13 +297,13 @@ This is the transport an implementation MUST provide.
 - Each actor exposes an inbox endpoint that accepts inbound Activities.
 - An outbound Activity is delivered by HTTP POST to the recipient's inbox.
 - Authentication and authorization requirements are at
-  [§14](index.md#14-security-considerations-ni).
+  [§14 Security Considerations](considerations.md#14-security-considerations-ni).
 
 #### ActivityPub federation profile [I]
 
 Full ActivityPub conformance is not required by this version. The roadmap is at
-[§1.3](index.md#13-relationship-to-existing-standards);
-[Annex E](index.md#annex-e-relationship-to-activitypub-i) describes where Vultron
+[§1.3 Relationship to Existing Standards](introduction.md#13-relationship-to-existing-standards);
+[Annex E Relationship to ActivityPub](annex-e-activitypub.md#annex-e-relationship-to-activitypub-i) describes where Vultron
 follows ActivityPub conventions and where it diverges.
 
 #### Participant discovery [I]
@@ -313,7 +313,7 @@ the anticipated mechanism, consistent with its use alongside ActivityPub in
 federated systems. This version does not specify participant discovery.
 
 !!! note "Transport is not routing"
-    The routing rule of [§5.4.2](index.md#542-routing-topology) is a protocol rule
+    The routing rule of [§5.4.2 Routing Topology](layers.md#542-routing-topology) is a protocol rule
     and applies regardless of which transport carries the messages. The transport
     is responsible for getting a message to an inbox. The protocol is responsible
     for which inbox it may go to.
@@ -321,9 +321,9 @@ federated systems. This version does not specify participant discovery.
 ### 5.7 Shorthand to Wire Form Mapping
 
 This is the normative mapping from the protocol shorthands of
-[§4](index.md#4-semantic-layer-message-meanings-n) to their wire forms. It appears
+[§4 Semantic Layer — Message Meanings](layers.md#4-semantic-layer-message-meanings-n) to their wire forms. It appears
 here rather than in §4 because it depends on both the shorthands and the object
-types of [§5.2](index.md#52-object-types).
+types of [§5.2 Object Types](layers.md#52-object-types).
 
 | Shorthand | Wire form |
 |---|---|
@@ -339,7 +339,7 @@ types of [§5.2](index.md#52-object-types).
 | `ER`, `EJ` | `Reject` of that `Invite` |
 | `ET` | `Remove` of the `EmbargoEvent` |
 | `CV`–`CA` | `Add` of a status record to the case — see below |
-| `RE`, `EE`, `CE`, `EK`, `CK` | *none* ([§4.6](index.md#46-error-and-acknowledgment-messages)) |
+| `RE`, `EE`, `CE`, `EK`, `CK` | *none* ([§4.6 Error and Acknowledgment Messages](layers.md#46-error-and-acknowledgment-messages)) |
 
 **The status messages depend on who is sending.** The six case state shorthands do
 not have one wire form; they have two, and which applies is determined by the
@@ -351,7 +351,7 @@ sender's authority:
   targeting the case. This is the canonical write.
 
 A participant MUST NOT send `Add` of a `CaseStatus`
-([§5.4.1](index.md#541-single-writer-authority)). An implementation that maps all
+([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)). An implementation that maps all
 six shorthands to `CaseStatus` regardless of sender will have participants
 asserting authority they do not hold.
 
@@ -360,7 +360,7 @@ implementation MUST use additional information to disambiguate:
 
 | Collision | Disambiguate by |
 |---|---|
-| The revision shorthands share wire forms with their initial-proposal counterparts | The local embargo state ([§4.2](index.md#42-embargo-management-messages)) |
-| All six case state shorthands share one verb | The status record's payload ([§4.3](index.md#43-case-state-messages)) |
+| The revision shorthands share wire forms with their initial-proposal counterparts | The local embargo state ([§4.2 Embargo Management Messages](layers.md#42-embargo-management-messages)) |
+| All six case state shorthands share one verb | The status record's payload ([§4.3 Case State Messages](layers.md#43-case-state-messages)) |
 
 ---

@@ -8,7 +8,7 @@ transition is scoped to the participant that did it.
 !!! note "Recall: vendor/fix/deploy states"
     {% include-markdown "../includes/_vfd-states-table.md" %}
 
-    Full definitions are in [§8.1](../index.md#81-vfd-vendor-aware-fix-ready-fix-deployed).
+    Full definitions are in [§8.1 VFD — Vendor Aware, Fix Ready, Fix Deployed](../tracking-models.md#81-vfd-vendor-aware-fix-ready-fix-deployed).
 
 For **self-reported** VFD transitions (a participant advancing its own state via
 the local trigger path):
@@ -42,7 +42,7 @@ has become public.
 !!! note "Recall: public/exploit/attacks axes"
     {% include-markdown "../includes/_pxa-states-table.md" %}
 
-    Full definitions are in [§8.2](../index.md#82-pxa-public-aware-exploit-public-attacks-observed).
+    Full definitions are in [§8.2 PXA — Public Aware, Exploit Public, Attacks Observed](../tracking-models.md#82-pxa-public-aware-exploit-public-attacks-observed).
 
 PXA records the state of the world rather than of any participant, so **any**
 participant MAY report a PXA observation. These transitions are role-ungated:
@@ -56,7 +56,7 @@ independently of anything a case participant does or causes.
 Reporting is not adoption. A reported observation is a claim. Whether it becomes
 canonical case state, and whether it triggers embargo teardown, is decided by the
 **CASE_MANAGER**, following the two-seam model of
-[§10.3](../index.md#103-status-adoption-the-two-seam-model) and subject to Case
+[§10.3 Status Adoption: The Two-Seam Model](../interactions.md#103-status-adoption-the-two-seam-model) and subject to Case
 Owner authorization by default. The role rule here — *who may report* — is
 deliberately separate from the authorization rules there — *what the CASE_MANAGER
 does with a report*.
@@ -67,7 +67,7 @@ does with a report*.
     into a case. Such a service is not a distinct protocol role: it reports PXA
     observations on the same terms as any other participant, and its reports are
     adopted through the same authorization as theirs
-    ([§10.3](../index.md#103-status-adoption-the-two-seam-model)).
+    ([§10.3 Status Adoption: The Two-Seam Model](../interactions.md#103-status-adoption-the-two-seam-model)).
 
 #### 12.4.3 CVE ID Assignment
 
@@ -100,7 +100,7 @@ Adopting a reported status as canonical case state requires the **Case Owner's**
 authorization. The Case Owner is the party whose disclosure decision the case
 exists to serve, so it is the party entitled to decide what the case asserts.
 The CASE_MANAGER MUST obtain that authorization by default before adopting a
-participant's reported status ([§10.3](../index.md#103-status-adoption-the-two-seam-model)).
+participant's reported status ([§10.3 Status Adoption: The Two-Seam Model](../interactions.md#103-status-adoption-the-two-seam-model)).
 
 One case is exempt. Where the Case Owner is itself the sender, the CASE_MANAGER
 MUST adopt the status without seeking approval: asking the Case Owner to approve

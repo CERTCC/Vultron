@@ -81,11 +81,11 @@ stateDiagram-v2
 ---
 
 The EM process begins when the case is created, not when a Vendor is notified ([ADR-0096: A Protocol Default Embargo Replaces the Pre-Case Phase](../../../adr/0096-protocol-default-embargo.md)).
-An embargo-eligible case begins with an *Active* embargo at case creation, from the recipient's published default, the sender's proposed terms, or the protocol default ([Vultron Protocol Specification §7.2](../../../reference/vultron-spec/index.md#72-transitions-and-guards)).
+An embargo-eligible case begins with an *Active* embargo at case creation, from the recipient's published default, the sender's proposed terms, or the protocol default ([Vultron Protocol Specification §7.2](../../../reference/vultron-spec/tracking-models.md#72-transitions-and-guards)).
 When a Vendor is notified, the embargo's state therefore depends on who created the case:
 
 - If the Vendor is the first recipient of the report, the case and its embargo begin with this notification.
-- If a Coordinator or other Vendors created the case earlier, the embargo is already *Active* or being revised, and the newly notified Vendor is invited to consent to its terms through [Participant Embargo Consent](../../behavior_logic/use-cases/embargo-lifecycle.md) ([Vultron Protocol Specification §9](../../../reference/vultron-spec/index.md#9-participant-embargo-consent-pec-state-machine-n)).
+- If a Coordinator or other Vendors created the case earlier, the embargo is already *Active* or being revised, and the newly notified Vendor is invited to consent to its terms through [Participant Embargo Consent](../../behavior_logic/use-cases/embargo-lifecycle.md) ([Vultron Protocol Specification §9](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)).
 
 For example, a Reporter and Coordinator might have already agreed to a disclosure timeline.
 Or, in a multi-party CVD case, other Vendors may have already been coordinating the case under an embargo and only recently realized the need to engage with a new Vendor.

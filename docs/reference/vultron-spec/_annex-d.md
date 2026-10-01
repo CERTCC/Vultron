@@ -7,7 +7,7 @@ case-state events reduces 720 naive orderings to 70 possible case histories.
 
 This annex derives that result. It is informative: this specification does not yet
 state the ordering constraints normatively
-([§8.3](index.md#83-case-state-as-a-compound-tuple)).
+([§8.3 Case State as a Compound Tuple](tracking-models.md#83-case-state-as-a-compound-tuple)).
 
 {% include-markdown "../../topics/measuring_cvd/possible_histories.md" start="<!-- possible-histories-start -->" end="<!-- possible-histories-end -->" heading-offset=1 %}
 
