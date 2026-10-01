@@ -56,6 +56,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -74,6 +75,9 @@ from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.actor.suggest import (
+    OfferActorToCaseReceivedUseCase,
+)
 from vultron.core.use_cases.triggers.actor import SvcInviteActorToCaseUseCase
 from vultron.core.use_cases.triggers.case import (
     AddOnBehalfStatusTriggerRequest,
@@ -88,6 +92,7 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError
+from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -138,22 +143,70 @@ def _participant_of(
     return participant
 
 
+def _hold_case_owner(dl: SqliteDataLayer, case_id: str, actor_id: str) -> None:
+    """Give *actor_id*'s participant record ``CVDRole.CASE_OWNER``.
+
+    The invite trigger is the Case Owner's action, and the CASE_MANAGER emits
+    the Invite directly only for an Offer whose sender holds CASE_OWNER on the
+    roster (CM-17-007).  The store-owner seeds here name the CASE_MANAGER;
+    this adds the ownership the trigger presumes.
+    """
+    case = dl.read_case(case_id)
+    assert case is not None
+    participant_id = case.actor_participant_index.get(actor_id)
+    assert participant_id is not None, f"{actor_id} is not on the roster"
+    participant = dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    if CVDRole.CASE_OWNER not in participant.case_roles:
+        participant.add_role(CVDRole.CASE_OWNER)
+        dl.save(participant)
+
+
 def _send_stub_invite(
     dl: SqliteDataLayer, actor_id: str, case_id: str, invitee_id: str
 ) -> dict[str, Any]:
-    """Run the invite trigger as *actor_id*; return the emitted Invite."""
-    result = SvcInviteActorToCaseUseCase(
+    """Invite *invitee_id* as the owner *actor_id*; return the Invite emitted.
+
+    The owner's trigger sends its own ``Offer(Actor, Case)`` to the
+    CASE_MANAGER; the CASE_MANAGER emits the Invite (CM-17-007, ADR-0109).
+    *actor_id* is both here — the store's owner holds CASE_MANAGER — so the
+    Offer is delivered to the same store, as ADR-0109 lets an owner that is
+    also the CASE_MANAGER address it to itself.
+    """
+    _hold_case_owner(dl, case_id, actor_id)
+    offer = activity_of(
+        SvcInviteActorToCaseUseCase(
+            dl,
+            InviteActorToCaseTriggerRequest(
+                actor_id=actor_id,
+                case_id=case_id,
+                invitee_id=invitee_id,
+                roles=[CVDRole.VENDOR],
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+    )
+    already_queued = set(dl.outbox_list())
+    stored_offer = dl.read(offer["id"])
+    assert stored_offer is not None
+    event = extract_event(stored_offer).model_copy(
+        update={"receiving_actor_id": actor_id}
+    )
+    result = OfferActorToCaseReceivedUseCase(
         dl,
-        InviteActorToCaseTriggerRequest(
-            actor_id=actor_id,
-            case_id=case_id,
-            invitee_id=invitee_id,
-            roles=[CVDRole.VENDOR],
-        ),
+        event,
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
-    return activity_of(result)
+    assert result.disposition is HandlerDisposition.APPLIED, result
+    for item in dl.outbox_list():
+        if item in already_queued:
+            continue
+        sealed = read_sealed_body(dl, item)
+        if sealed is not None and json.loads(sealed.body)["type"] == "Invite":
+            return json.loads(sealed.body)
+    raise AssertionError("the CASE_MANAGER emitted no Invite")
 
 
 def _vendor_participant(

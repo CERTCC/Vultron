@@ -21,9 +21,15 @@ import json
 
 import pytest
 
-from vultron.errors import VultronValidationError
+from test.support.received import archive_received
+from vultron.errors import (
+    VultronActivityConstructionError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 from vultron.wire.as2.factories import (
     offer_case_participant_activity,
+    recommend_actor_activity,
     rm_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -152,7 +158,9 @@ class TestAcceptCaseInvite:
             actor=_ACTOR,
             to=[_INVITEE],
         )
-        dl.create(invite)
+        # The invitee holds a received Invite only as intake archived it
+        # (CLP-10-017, ADR-0111).
+        archive_received(dl, invite)
         return invite.id_
 
     def test_returns_id_and_dict(self, adapter, dl):
@@ -229,6 +237,48 @@ class TestAcceptCaseInvite:
             "object_ must be an inline dict, not a URI"
         )
         assert obj.get("id") == invite_id
+
+    @pytest.mark.spec("AKM-02-003")
+    def test_embedded_invite_names_the_case_by_uri(self, adapter, dl):
+        invite_id = self._make_invite(dl)
+
+        _, activity_dict = adapter.accept_case_invite(
+            invite_id=invite_id, actor=_INVITEE
+        )
+
+        assert json.loads(activity_dict)["object"]["target"] == _CASE_ID
+
+    @pytest.mark.spec("CLP-10-017")
+    def test_an_invite_stored_outside_the_archive_is_not_found(
+        self, adapter, dl
+    ):
+        """Only intake stores a received activity; a bare row is not one."""
+        invite = rm_invite_to_case_activity(
+            _INVITEE,
+            target=as_VulnerabilityCaseStub(id_=_CASE_ID),
+            actor=_ACTOR,
+            to=[_INVITEE],
+        )
+        dl.create(invite)
+
+        with pytest.raises(VultronNotFoundError):
+            adapter.accept_case_invite(invite_id=invite.id_, actor=_INVITEE)
+
+    def test_an_archived_activity_that_is_not_an_invite_is_refused(
+        self, adapter, dl
+    ):
+        offer = recommend_actor_activity(
+            _INVITEE,
+            target=as_VulnerabilityCase(id_=_CASE_ID, name="Not an Invite"),
+            actor=_ACTOR,
+            to=[_INVITEE],
+        )
+        archive_received(dl, offer)
+
+        with pytest.raises(
+            VultronActivityConstructionError, match="not a case Invite"
+        ):
+            adapter.accept_case_invite(invite_id=offer.id_, actor=_INVITEE)
 
 
 class TestSuggestActorToCase:

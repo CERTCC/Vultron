@@ -20,11 +20,11 @@ Case Actor / CASE_MANAGER delegation activities.
 """
 
 import logging
+from collections.abc import Mapping
 from typing import Any, cast
 
-from pydantic import ValidationError
-
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
@@ -56,7 +56,6 @@ from vultron.wire.as2.factories.case import (
     reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
 )
-from vultron.wire.as2.vocab.activities.case import _RmInviteToCaseActivity
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 
@@ -83,38 +82,29 @@ def _active_embargo_of(
 
 def _stored_invite_by_case_uri(
     dl: CaseOutboxPersistence, invite_id: str
-) -> _RmInviteToCaseActivity:
+) -> VultronActivity:
     """Read the received Invite with its ``target`` reduced to the case URI.
 
     The invitee holds the Invite only as intake archived it (CLP-10-017,
-    ADR-0111), so it is read through the archive.  The archive keeps the
-    activity as the event carried it — a generic ``VultronActivity`` — so it
-    is validated back into the Invite class the reply factories embed; an
-    archived activity that is not a case Invite is refused here rather than
-    inside the factory.  The Accept or Reject that embeds the Invite goes to
-    the CASE_MANAGER, which holds the case, so the embedded Invite addresses
-    it by URI (AKM-02-003) rather than carrying the stub or a reconstruction
-    of it (VM-08-003).
+    ADR-0111), so it is read through the archive; the reply factory checks
+    that it is a case Invite.  The Accept or Reject that embeds the Invite
+    goes to the CASE_MANAGER, which holds the case, so the embedded Invite
+    addresses it by URI (AKM-02-003) rather than carrying the stub or a
+    reconstruction of it (VM-08-003).
 
     Raises:
-        VultronNotFoundError: when no Invite with *invite_id* was received.
-        VultronValidationError: when the archived activity is not a case
-            Invite.
+        VultronNotFoundError: when no activity with *invite_id* was received.
     """
-    archived = read_received_activity(
-        dl, invite_id, "RmInviteToCaseActivity"
-    )
-    try:
-        invite = _RmInviteToCaseActivity.model_validate(
-            archived.model_dump(by_alias=True, mode="json", exclude_none=True)
-        )
-    except ValidationError as exc:
-        raise VultronValidationError(
-            f"received activity '{invite_id}' is not a case Invite: {exc}"
-        ) from exc
+    invite = read_received_activity(dl, invite_id, "RmInviteToCaseActivity")
     target = invite.target
+    # Read back from the archive, an inline target may be a plain mapping
+    # rather than a model, so its id is taken from either form.
+    if isinstance(target, Mapping):
+        target_id = target.get("id")
+    else:
+        target_id = _as_id(target)
     if target is not None and not isinstance(target, str):
-        invite = invite.model_copy(update={"target": _as_id(target)})
+        invite = invite.model_copy(update={"target": target_id})
     return invite
 
 
