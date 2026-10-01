@@ -49,15 +49,35 @@ from vultron.core.behaviors.case.nodes.embargo_revision import (
 from vultron.core.behaviors.case.nodes.participant import (
     CreateCaseOwnerParticipant,
 )
+from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 
 # ---------------------------------------------------------------------------
 # Fixtures
+
+
+def _profile(
+    actor_id: str, policy_duration: timedelta | None = None
+) -> VultronOrganization:
+    """The CASE_OWNER's inline profile, as the Create carried it (CP-01-010)."""
+    if policy_duration is None:
+        return VultronOrganization(id_=actor_id)
+    return VultronOrganization(
+        id_=actor_id,
+        embargo_policy=EmbargoPolicy(
+            actor_id=actor_id,
+            inbox=f"{actor_id}/inbox",
+            preferred_duration=policy_duration,
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -117,6 +137,7 @@ class TestInitializeDefaultEmbargoNode:
         result = bt_scenario.run(
             InitializeDefaultEmbargoNode(),
             actor_id=actor_id,
+            owner_profile=_profile(actor_id),
             case_id=case_obj.id_,
         )
         assert result.status == Status.SUCCESS
@@ -135,6 +156,7 @@ class TestInitializeDefaultEmbargoNode:
         bt_scenario.run(
             InitializeDefaultEmbargoNode(),
             actor_id=actor_id,
+            owner_profile=_profile(actor_id),
             case_id=case_obj.id_,
         )
 
@@ -150,6 +172,7 @@ class TestInitializeDefaultEmbargoNode:
         result = bt_scenario.run(
             InitializeDefaultEmbargoNode(),
             actor_id=actor_id,
+            owner_profile=_profile(actor_id),
             # No case_id
         )
         assert result.status == Status.FAILURE
@@ -165,6 +188,7 @@ class TestInitializeDefaultEmbargoNode:
         bt_scenario.run(
             InitializeDefaultEmbargoNode(),
             actor_id=actor_id,
+            owner_profile=_profile(actor_id),
             case_id=case_obj.id_,
         )
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
@@ -177,6 +201,7 @@ class TestInitializeDefaultEmbargoNode:
         bt_scenario.run(
             InitializeDefaultEmbargoNode(),
             actor_id=actor_id,
+            owner_profile=_profile(actor_id),
             case_id=case_obj.id_,
         )
         stored_case2 = cast(Any, bt_scenario.dl.read(case_obj.id_))
@@ -205,6 +230,7 @@ class TestInitializeDefaultEmbargoNode:
         bt_scenario.run(
             InitializeDefaultEmbargoNode(),
             actor_id=actor_id,
+            owner_profile=_profile(actor_id),
             case_id=case_obj.id_,
         )
 
@@ -233,6 +259,7 @@ class TestInitializeDefaultEmbargoNode:
             result = bt_scenario.run(
                 InitializeDefaultEmbargoNode(),
                 actor_id=actor_id,
+                owner_profile=_profile(actor_id),
                 case_id=case_obj.id_,
             )
             assert result.status == Status.SUCCESS
@@ -258,15 +285,7 @@ class TestInitializeDefaultEmbargoNode:
         from datetime import timedelta
 
         from vultron.core.models._helpers import days_from_now_utc
-        from vultron.core.models.embargo_policy import EmbargoPolicy
 
-        bt_scenario.dl.create(
-            EmbargoPolicy(
-                actor_id=actor_id,
-                inbox=f"{actor_id}/inbox",
-                preferred_duration=timedelta(days=30),
-            )
-        )
         proposal = EmbargoEvent(
             context="https://example.org/reports/r-1",
             end_time=days_from_now_utc(10),
@@ -278,6 +297,7 @@ class TestInitializeDefaultEmbargoNode:
                 case_id=case_obj.id_,
                 sender_proposed_embargo_duration=timedelta(days=10),
                 sender_proposed_embargo=proposal,
+                owner_profile=_profile(actor_id, timedelta(days=30)),
             )
             assert result.status == Status.SUCCESS
 
@@ -469,6 +489,7 @@ class TestSeedOwnerAsSignatoryNode:
         bt_scenario.run(
             InitializeDefaultEmbargoNode(),
             actor_id=actor_id,
+            owner_profile=_profile(actor_id),
             case_id=case_obj.id_,
         )
 
@@ -534,7 +555,11 @@ class TestCaseManagerInitializesTheOwnersEmbargo:
         scenario = BTTestScenario(actor_id=_CASE_MANAGER_ID)
         case = _seed_manager_run_case(scenario)
 
-        result = scenario.run(InitializeDefaultEmbargoNode(), case_id=case.id_)
+        result = scenario.run(
+            InitializeDefaultEmbargoNode(),
+            case_id=case.id_,
+            owner_profile=_profile(_OWNER_ID),
+        )
         assert result.status == Status.SUCCESS, result.feedback_message
 
         stored_case = cast(Any, scenario.dl.read(case.id_))
@@ -581,7 +606,9 @@ class TestCaseManagerInitializesTheOwnersEmbargo:
 
         with caplog.at_level(logging.ERROR):
             result = scenario.run(
-                InitializeDefaultEmbargoNode(), case_id=case.id_
+                InitializeDefaultEmbargoNode(),
+                case_id=case.id_,
+                owner_profile=_profile(_OWNER_ID),
             )
 
         assert result.status == Status.FAILURE

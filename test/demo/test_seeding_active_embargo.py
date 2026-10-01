@@ -17,8 +17,10 @@
 trip and seeds the embargo ``InitializeDefaultEmbargoNode`` would have
 created.  With ``EmbargoEvent.end_time`` required (#3404) the seeder has to
 state a duration, and the one it states is resolved the same way the tree
-resolves it: the owner's shortest published ``EmbargoPolicy`` if there is
-one, otherwise the protocol default (EP-04-005, EP-04-006).
+resolves it: the ``embargo_policy`` on the owner's profile if it has one,
+otherwise the protocol default (EP-04-005, EP-04-006).  The tree reads that
+profile from the received Create (CP-01-010); the seeder, which has no
+Create, reads the owner's own record from the store it seeds.
 """
 
 from collections.abc import Generator
@@ -32,21 +34,22 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
 from vultron.config.app import get_config
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.states.em import EM
 from vultron.demo.helpers.seeding import seed_case_participants_for_demo
-from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.errors import VultronNotFoundError
 
 _TOLERANCE = timedelta(seconds=2)
 
 
 @pytest.fixture()
 def owner_and_dl() -> Generator[
-    tuple[as_Service, SqliteDataLayer], None, None
+    tuple[VultronService, SqliteDataLayer], None, None
 ]:
-    owner = as_Service(name="Seeded Vendor")
+    owner = VultronService(name="Seeded Vendor")
     reset_datalayer(owner.id_)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner.id_)
     dl.clear_all()
@@ -58,7 +61,7 @@ def owner_and_dl() -> Generator[
         reset_datalayer(owner.id_)
 
 
-def _seed(owner: as_Service, dl: SqliteDataLayer) -> EmbargoEvent:
+def _seed(owner: VultronService, dl: SqliteDataLayer) -> EmbargoEvent:
     case = VulnerabilityCase(name="Seeded case", attributed_to=owner.id_)
     dl.create(case)
     seed_case_participants_for_demo(
@@ -85,7 +88,7 @@ def _duration(embargo: EmbargoEvent) -> timedelta:
 @pytest.mark.spec("EP-04-005")
 @pytest.mark.spec("EP-04-010")
 def test_seeded_embargo_without_policies_uses_the_protocol_default(
-    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    owner_and_dl: tuple[VultronService, SqliteDataLayer],
 ) -> None:
     """No published policy and no proposal: the protocol default applies."""
     owner, dl = owner_and_dl
@@ -95,11 +98,40 @@ def test_seeded_embargo_without_policies_uses_the_protocol_default(
     assert abs(_duration(embargo) - expected) <= _TOLERANCE
 
 
+def _with_policy(owner: VultronService, days: int) -> VultronService:
+    return owner.model_copy(
+        update={
+            "embargo_policy": EmbargoPolicy(
+                actor_id=owner.id_,
+                inbox=f"{owner.id_}/inbox",
+                preferred_duration=timedelta(days=days),
+            )
+        }
+    )
+
+
 @pytest.mark.spec("EP-04-006")
-def test_seeded_embargo_uses_the_owners_published_policy(
-    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+@pytest.mark.spec("EP-01-004")
+def test_seeded_embargo_uses_the_owners_profile_policy(
+    owner_and_dl: tuple[VultronService, SqliteDataLayer],
 ) -> None:
     """A published actor default is the candidate; the protocol default is not."""
+    owner, dl = owner_and_dl
+    dl.save(_with_policy(owner, 30))
+    embargo = _seed(owner, dl)
+
+    assert abs(_duration(embargo) - timedelta(days=30)) <= _TOLERANCE
+
+
+@pytest.mark.spec("EP-04-006")
+def test_a_policy_record_beside_the_profile_is_not_the_actor_default(
+    owner_and_dl: tuple[VultronService, SqliteDataLayer],
+) -> None:
+    """A free-standing ``EmbargoPolicy`` is not read: only the profile field.
+
+    The store-wide policy scan is retired (#4027), so a record naming the
+    owner that the profile does not carry leaves the protocol default.
+    """
     owner, dl = owner_and_dl
     dl.create(
         EmbargoPolicy(
@@ -110,38 +142,39 @@ def test_seeded_embargo_uses_the_owners_published_policy(
     )
     embargo = _seed(owner, dl)
 
-    assert abs(_duration(embargo) - timedelta(days=30)) <= _TOLERANCE
+    expected = get_config().actor.protocol_default_embargo_duration
+    assert abs(_duration(embargo) - expected) <= _TOLERANCE
 
 
 @pytest.mark.spec("EP-04-006")
 @pytest.mark.spec("CP-09-001")
-def test_seeded_embargo_in_the_case_actors_store_uses_the_owners_policy() -> (
-    None
-):
-    """On the case-actor path the owner is the vendor, not the store's actor.
+def test_seeded_embargo_uses_the_owners_policy_not_the_store_actors() -> None:
+    """The owner is the case's ``attributed_to``, not the store's actor.
 
-    The CASE_MANAGER holds the case attributed to the vendor (CP-09-001), so
-    the vendor's policy is the actor default and the CaseActor's own is not.
+    The case is attributed to the vendor (CP-09-001), so the vendor's profile
+    policy is the actor default and the store actor's own is not.
     """
-    case_actor = as_Service(name="Case Actor")
-    vendor = as_Service(name="Seeded Vendor")
-    reset_datalayer(case_actor.id_)
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor.id_)
+    store_actor = VultronService(name="Case Actor")
+    vendor = VultronService(name="Seeded Vendor")
+    reset_datalayer(store_actor.id_)
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=store_actor.id_)
     dl.clear_all()
     try:
-        dl.create(case_actor)
-        dl.create(vendor)
-        for actor_id, days in ((vendor.id_, 30), (case_actor.id_, 5)):
-            dl.create(
-                EmbargoPolicy(
-                    actor_id=actor_id,
-                    inbox=f"{actor_id}/inbox",
-                    preferred_duration=timedelta(days=days),
-                )
-            )
+        dl.create(_with_policy(store_actor, 5))
+        dl.create(_with_policy(vendor, 30))
         embargo = _seed(vendor, dl)
     finally:
         dl.close()
-        reset_datalayer(case_actor.id_)
+        reset_datalayer(store_actor.id_)
 
     assert abs(_duration(embargo) - timedelta(days=30)) <= _TOLERANCE
+
+
+def test_seeding_without_the_owners_profile_raises(
+    owner_and_dl: tuple[VultronService, SqliteDataLayer],
+) -> None:
+    """No owner record means no profile to read the default from: raise."""
+    _, dl = owner_and_dl
+    stranger = VultronService(name="Not stored")
+    with pytest.raises(VultronNotFoundError):
+        _seed(stranger, dl)

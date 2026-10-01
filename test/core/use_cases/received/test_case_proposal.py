@@ -35,6 +35,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CaseProposalCallOutBundle,
 )
+from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
@@ -81,7 +82,7 @@ def _run_create_proposal(dl, proposal, make_payload, **use_case_kwargs):
     while nothing happened at all.
     """
     activity = as_Create(
-        actor=_VENDOR_URI,
+        actor=VultronOrganization(id_=_VENDOR_URI),
         object_=proposal,
         to=[_CASE_ACTOR_URI],
     )
@@ -107,7 +108,7 @@ class TestCreateCaseProposalReceivedUseCase:
         )
         proposal = _make_proposal()
         activity = as_Create(
-            actor=_VENDOR_URI,
+            actor=VultronOrganization(id_=_VENDOR_URI),
             object_=proposal,
             to=[_CASE_ACTOR_URI],
         )
@@ -175,7 +176,7 @@ class TestCreateCaseProposalReceivedUseCase:
         )
         proposal = _make_proposal()
         activity = as_Create(
-            actor=_VENDOR_URI,
+            actor=VultronOrganization(id_=_VENDOR_URI),
             object_=proposal,
             to=[_CASE_ACTOR_URI],
         )
@@ -217,7 +218,7 @@ class TestCreateCaseProposalReceivedUseCase:
             )
             proposal = _make_proposal()
             activity = as_Create(
-                actor=_VENDOR_URI,
+                actor=VultronOrganization(id_=_VENDOR_URI),
                 object_=proposal,
                 to=[_CASE_ACTOR_URI],
             )
@@ -251,7 +252,7 @@ class TestCreateCaseProposalReceivedUseCase:
         )
         proposal = _make_proposal()
         activity = as_Create(
-            actor=_VENDOR_URI,
+            actor=VultronOrganization(id_=_VENDOR_URI),
             object_=proposal,
             to=[_CASE_ACTOR_URI],
         )
@@ -846,7 +847,9 @@ class TestCaseProposalDisposition:
     @pytest.mark.spec("HP-01-003")
     def test_create_without_proposal_id_is_refused(self, make_payload):
         activity = as_Create(
-            actor=_VENDOR_URI, object_=_make_proposal(), to=[_CASE_ACTOR_URI]
+            actor=VultronOrganization(id_=_VENDOR_URI),
+            object_=_make_proposal(),
+            to=[_CASE_ACTOR_URI],
         )
         event = make_payload(activity).model_copy(
             update={"receiving_actor_id": _CASE_ACTOR_URI, "object_": None}
@@ -873,7 +876,9 @@ class TestCaseProposalDisposition:
 
         dl = self._case_actor_dl()
         activity = as_Create(
-            actor=_VENDOR_URI, object_=_make_proposal(), to=[_CASE_ACTOR_URI]
+            actor=VultronOrganization(id_=_VENDOR_URI),
+            object_=_make_proposal(),
+            to=[_CASE_ACTOR_URI],
         )
         event = make_payload(activity).model_copy(
             update={"receiving_actor_id": _CASE_ACTOR_URI}
@@ -959,7 +964,9 @@ class TestCoreInlineReport:
     def test_inline_report_is_returned_as_the_core_object(self):
         proposal = _make_proposal()
         activity = as_Create(
-            actor=_VENDOR_URI, object_=proposal, to=[_CASE_ACTOR_URI]
+            actor=VultronOrganization(id_=_VENDOR_URI),
+            object_=proposal,
+            to=[_CASE_ACTOR_URI],
         )
 
         report = CreateCaseProposalReceivedUseCase._core_inline_report(

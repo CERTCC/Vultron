@@ -198,6 +198,24 @@ class CreateCaseProposalReceivedUseCase:
                 "Create(CaseProposal) carries no proposal id"
             )
 
+        # The proposer's inline profile is the only source of the CASE_OWNER's
+        # actor default (CP-01-010).  The parse edge refuses a proposal
+        # without one, so an event lacking it did not come through that edge;
+        # it is refused here too rather than created under a default nobody
+        # stated.
+        profile = request.proposer_profile
+        if profile is None:
+            logger.warning(
+                "create_case_proposal_received: proposal '%s' from '%s'"
+                " carries no inline actor profile — refusing (CP-01-010)",
+                proposal_id,
+                request.actor_id,
+            )
+            return HandlerResult.refused(
+                "Create(CaseProposal) carries no inline actor profile"
+                " (CP-01-010)"
+            )
+
         # The vendor who sent Create(as_CaseProposal) is the activity actor.
         vendor_uri = request.actor_id
 
@@ -258,6 +276,7 @@ class CreateCaseProposalReceivedUseCase:
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
+            owner_profile=profile,
             **sender_embargo_proposal_inputs(request),
         )
         verdict = verdict_from_bt(

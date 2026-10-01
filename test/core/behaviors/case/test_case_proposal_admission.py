@@ -52,6 +52,7 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
 from vultron.core.behaviors.case.case_proposal_received_tree import (
     create_case_proposal_received_tree,
 )
+from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_proposal_decline import (
     CaseProposalDeclineRecord,
@@ -164,7 +165,9 @@ def _run_tree(
     """
     proposal = _proposal()
     activity = as_Create(
-        actor=_VENDOR_URI, object_=proposal, to=[_CASE_ACTOR_URI]
+        actor=VultronOrganization(id_=_VENDOR_URI),
+        object_=proposal,
+        to=[_CASE_ACTOR_URI],
     )
     event = extract_event(activity).model_copy(
         update={"receiving_actor_id": _CASE_ACTOR_URI}
@@ -189,7 +192,12 @@ def _run_tree(
         trigger_activity=(
             TriggerActivityAdapter(dl) if with_trigger_port else None
         ),
-    ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_URI, activity=event)
+    ).execute_with_setup(
+        tree=tree,
+        actor_id=_CASE_ACTOR_URI,
+        activity=event,
+        owner_profile=activity.actor,
+    )
     return result.status
 
 
@@ -814,7 +822,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                 target=_CASE_ACTOR_URI,
             )
             activity = as_Create(
-                actor=second_vendor_uri,
+                actor=VultronOrganization(id_=second_vendor_uri),
                 object_=proposal,
                 to=[_CASE_ACTOR_URI],
             )
@@ -841,7 +849,10 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                     trigger_activity=TriggerActivityAdapter(_dl),
                 )
                 .execute_with_setup(
-                    tree=tree, actor_id=_CASE_ACTOR_URI, activity=event
+                    tree=tree,
+                    actor_id=_CASE_ACTOR_URI,
+                    activity=event,
+                    owner_profile=activity.actor,
                 )
                 .status
             )

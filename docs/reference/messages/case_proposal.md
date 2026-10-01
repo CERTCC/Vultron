@@ -39,7 +39,9 @@ That is how a Reporter's proposed embargo terms reach the case-actor (EP-04-004)
   service requesting that a case be opened for the attached report (CP-04-001).
 - **Triggering transition:** none — initiates the proposal sub-protocol.
 - **Wire activity:** `Create(CaseProposal)` sent to the service's inbox.
-- **Spec:** CP-03-001, CP-04-001.
+  Its `actor` is the proposing actor's full profile inline, not a URI, and its `id` is the proposal's `attributedTo`.
+  The profile carries the proposer's `embargoPolicy` when it has published one, which is the Case Owner's actor default (EP-04-003); the case-actor reads the default from that profile alone, and refuses a bare-URI `actor` or a profile naming another actor at the parse edge (CP-01-010).
+- **Spec:** CP-01-010, CP-03-001, CP-04-001.
 - **Example artifact:** [create_case_proposal.json](../examples/create_case_proposal.json).
 
 ```python exec="true" idprefix=""

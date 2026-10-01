@@ -13,6 +13,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.events import (
     AnyReceivedEvent,
     MessageSemantics,
@@ -108,6 +109,14 @@ def extract_intent(
         extra_kwargs["proposed_embargo"] = proposed_embargo_from(
             carrier, activity_id=activity.id_
         )
+
+    if "proposer_profile" in event_class.model_fields:
+        # Create(CaseProposal)'s actor is the proposer's inline profile
+        # (CP-01-010); the parse edge refused any other shape, so anything
+        # that is not a profile here came in some other way and is left off.
+        actor = getattr(activity, "actor", None)
+        if isinstance(actor, CoreActor):
+            extra_kwargs["proposer_profile"] = actor
 
     return cast(
         AnyReceivedEvent,

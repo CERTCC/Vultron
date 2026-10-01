@@ -21,6 +21,7 @@ Covers the three CaseProposal message flows:
 
 from typing import Literal
 
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
@@ -40,6 +41,12 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
     # inline (CP-01-008, EP-04-004); ``context`` is still the report until the
     # CASE_MANAGER rewrites it at case creation (EP-04-009).
     proposed_embargo: EmbargoEvent | None = None
+    # The proposer's actor profile, sent inline as the Create's ``actor``
+    # (CP-01-010).  Its ``embargo_policy`` is the CASE_OWNER's actor default
+    # for this case and no other (EP-04-003).  ``None`` only when the event
+    # did not come through the parse edge, which refuses a bare-URI actor;
+    # the use case refuses that too.
+    proposer_profile: CoreActor | None = None
 
     @property
     def proposal_id(self) -> str | None:

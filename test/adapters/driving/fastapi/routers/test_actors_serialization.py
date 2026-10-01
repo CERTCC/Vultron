@@ -113,13 +113,16 @@ def client_datalayer(datalayer):
     app.dependency_overrides = {}
 
 
-@pytest.fixture
-def embargo_policy():
+def _embargo_policy(actor_id: str) -> as_EmbargoPolicy:
+    """The policy *actor_id*'s own profile carries (EP-01-001).
+
+    A profile carries only its own policy, so each actor gets one naming it.
+    """
     from datetime import timedelta
 
     return as_EmbargoPolicy(
-        actor_id="https://example.org/actors/alice",
-        inbox="https://example.org/actors/alice/inbox",
+        actor_id=actor_id,
+        inbox=f"{actor_id}/inbox",
         preferred_duration=timedelta(days=90),
     )
 
@@ -130,47 +133,47 @@ def embargo_policy():
 # store for an id ending in that segment, so an id under some other authority
 # can never be addressed on this node — it is not an actor this node hosts.
 @pytest.fixture
-def vultron_person(embargo_policy):
+def vultron_person():
     return as_VultronPerson(
         name="Alice",
         id_=canonical_actor_uri("alice"),
-        embargo_policy=embargo_policy,
+        embargo_policy=_embargo_policy(canonical_actor_uri("alice")),
     )
 
 
 @pytest.fixture
-def vultron_organization(embargo_policy):
+def vultron_organization():
     return as_VultronOrganization(
         name="ACME Corp",
         id_=canonical_actor_uri("acme"),
-        embargo_policy=embargo_policy,
+        embargo_policy=_embargo_policy(canonical_actor_uri("acme")),
     )
 
 
 @pytest.fixture
-def vultron_service(embargo_policy):
+def vultron_service():
     return as_VultronService(
         name="VulnBot",
         id_=canonical_actor_uri("vulnbot"),
-        embargo_policy=embargo_policy,
+        embargo_policy=_embargo_policy(canonical_actor_uri("vulnbot")),
     )
 
 
 @pytest.fixture
-def vultron_application(embargo_policy):
+def vultron_application():
     return as_VultronApplication(
         name="VulnApp",
         id_=canonical_actor_uri("vulnapp"),
-        embargo_policy=embargo_policy,
+        embargo_policy=_embargo_policy(canonical_actor_uri("vulnapp")),
     )
 
 
 @pytest.fixture
-def vultron_group(embargo_policy):
+def vultron_group():
     return as_VultronGroup(
         name="VulnGroup",
         id_=canonical_actor_uri("vulngroup"),
-        embargo_policy=embargo_policy,
+        embargo_policy=_embargo_policy(canonical_actor_uri("vulngroup")),
     )
 
 

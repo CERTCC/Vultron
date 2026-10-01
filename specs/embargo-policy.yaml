@@ -134,8 +134,8 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
       (`TestGetEmbargoPolicy`) confirms the route returns the published record as
-      AS2 JSON, answers 404 when none is published, and shows the same record
-      `select_actor_default_policy` chooses (EP-04-010).
+      AS2 JSON, answers 404 when none is published, and shows the record the actor's
+      profile carries inline, not a free-standing policy record in the store (EP-01-001).
     scope:
     - production
     stories:
@@ -163,26 +163,27 @@ groups:
       A hosted Actor SHOULD be able to publish or replace its embargo policy at
       `PUT /actors/{actor_id}/embargo-policy`, carrying only the terms (EP-01-002,
       EP-01-003). The record's `actor_id` and `inbox` MUST be derived from the addressed
-      actor's own record, never taken from the body, and the record MUST be persisted in
-      that actor's own store so that it is the actor default shortest-wins reads at case
-      creation (EP-04-003, EP-04-010). A replace MUST leave exactly one policy for the actor.
+      actor's own record, never taken from the body, and the record MUST be persisted as
+      the `embargo_policy` field of that actor's profile in its own store (EP-01-004), so
+      that the profile carries it inline as the actor default shortest-wins reads at case
+      creation (CP-01-010, EP-04-003). A replace MUST leave exactly one policy for the actor.
     rationale: >-
       Nothing in the API wrote an `EmbargoPolicy` before #3972; the only writers were tests
       and the demo seeder, so a Receiver could not be given an actor default without reaching
       into its store. Deriving `actor_id` from the path actor keeps a body from publishing
-      terms in another actor's name (EP-01-005); deleting superseded records keeps
-      `owner_embargo_policies` from handing the comparison a default the actor withdrew.
+      terms in another actor's name (EP-01-005). Writing the terms into the one profile field
+      makes a replace an overwrite, so there is never a withdrawn default left beside the
+      current one for anything to read (#4027).
     verification: >-
       `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
       (`TestPutEmbargoPolicy`) confirms 201 on first publish and 200 on replace with one
       record remaining, `actor_id`/`inbox` derived from the actor record, 404 for an actor
       this node does not host, 422 for a malformed or calendar-unit duration or a body that
-      names an actor, and that `owner_embargo_policies` returns the published record. The
-      published record's id is the endpoint URL (`EmbargoPolicy.build_id`), so a replace is an
-      overwrite of one record: `test_two_publishes_that_both_see_no_prior_policy_leave_one_record`
-      confirms two publishes that each read "nothing published" still leave exactly one, and
-      `test_a_publish_sweeps_policies_seeded_under_other_ids` that a record under any other id
-      is removed.
+      names an actor, and that the stored profile's `embargo_policy` is the published record
+      with no free-standing policy record beside it. The published record's id is the
+      endpoint URL (`EmbargoPolicy.build_id`), so a replace keeps the id;
+      `test_a_publish_leaves_a_seeded_policy_record_unread` confirms a record in the store that
+      the profile does not carry is neither read nor counted as a prior publish.
     scope:
     - production
     relationships:

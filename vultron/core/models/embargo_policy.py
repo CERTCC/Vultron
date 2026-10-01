@@ -128,14 +128,12 @@ class EmbargoPolicy(CoreObject):
         """Return the id of the policy *actor_id* publishes: its endpoint URL.
 
         An actor publishes one policy, at ``GET /actors/{actor_id}/embargo-policy``
-        (EP-02-001), so the record carries that URL as its id.  A publish is
-        then an overwrite of one well-known record rather than a new record
-        beside the old: two publishes — sequential or concurrent — leave
-        exactly one policy for the actor (EP-02-003) without a delete step
-        that could fail half-way.  A policy constructed without an explicit
-        id (a seeded store, a test fixture) still takes a fresh URN, so
-        several records for one actor remain representable and
-        ``select_actor_default_policy`` still chooses among them.
+        (EP-02-001), so the record carries that URL as its id.  The policy
+        lives inline on the actor's profile (EP-01-001), so a publish
+        overwrites that one field; the stable id lets the record in the
+        profile and the record at the endpoint be recognisably the same
+        (EP-02-002).  A policy constructed without an explicit id (a test
+        fixture) takes a fresh URN.
         """
         return f"{actor_id}/{EMBARGO_POLICY_PATH_SUFFIX}"
 

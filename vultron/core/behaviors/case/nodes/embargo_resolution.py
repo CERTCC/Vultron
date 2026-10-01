@@ -36,11 +36,11 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.actor import CoreActor
 from vultron.core.services.embargo_duration import (
     InitialEmbargoDuration,
-    owner_embargo_policies,
+    actor_default_duration,
     resolve_initial_embargo_duration,
-    select_actor_default,
 )
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.errors import (
@@ -190,11 +190,16 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
     (EP-04-010), and the resolved ``InitialEmbargoDuration`` — duration plus
     source — for ``CreateEmbargoEventNode``.
 
-    The actor default comes only from policies the case owner
-    (``attributed_to``) published: at creation the owner and the reporter are
-    the case's only actors, and the reporter's terms arrive as the sender
-    proposal, so a policy some other actor published is never a candidate
-    (EP-04-010).
+    The actor default comes only from ``owner_profile``: the case owner's
+    actor profile, which the proposer sent inline on ``Create(CaseProposal)``
+    (CP-01-010).  The CASE_MANAGER cannot read the owner's own store
+    (PCR-01-003), and an owner record or policy that happens to sit in this
+    store is never read: it may be left over from another proposal, and the
+    profile on *this* proposal is the only statement of the owner's terms for
+    this case.  A profile with no policy means the owner has no actor default.
+    A missing profile, or one naming an actor other than the case owner
+    (``attributed_to``), fails the node: the use case seeds the profile the
+    parse edge checked, so either is a wiring fault, not a peer's.
 
     ``sender_proposed_embargo_duration`` is EP-04-004's sender proposal: the
     case-proposal use case derives it from the ``EmbargoEvent`` the Reporter
@@ -216,6 +221,7 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
         "sender_proposed_embargo_duration": PortInformation(
             data_type=object, required=False
         ),
+        "owner_profile": PortInformation(data_type=object, required=False),
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
@@ -237,6 +243,7 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
             for key in (
                 "case_id",
                 "sender_proposed_embargo_duration",
+                "owner_profile",
                 "actor_default_embargo_duration",
                 "protocol_default_embargo_duration",
                 "initial_embargo_duration",
@@ -277,8 +284,15 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        policies = owner_embargo_policies(self.datalayer, owner_id)
-        actor_default = select_actor_default(policies)
+        profile = self._try_get_input("owner_profile")
+        if not isinstance(profile, CoreActor) or profile.id_ != owner_id:
+            self.feedback_message = (
+                f"no inline actor profile for case owner {owner_id!r} to read"
+                f" the actor default from (got {profile!r}; CP-01-010)"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        actor_default = actor_default_duration(profile)
         protocol_default = self._actor_config.protocol_default_embargo_duration
         resolved = resolve_initial_embargo_duration(
             sender_proposal=sender_proposal,
