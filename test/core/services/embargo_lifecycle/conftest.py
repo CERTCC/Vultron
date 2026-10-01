@@ -153,6 +153,59 @@ def _seed_consent(
     dl.save(participant)
 
 
+#: An embargo id no store in these tests ever holds (EMB-18-003).
+UNHELD_EMBARGO_ID = "https://example.org/embargoes/never-stored"
+
+
+def _case_awaiting_activation(
+    dl: SqliteDataLayer,
+    owner_id: str,
+    *,
+    replaces: bool,
+    activated_id: str,
+) -> tuple[VulnerabilityCase, CaseParticipant, str | None]:
+    """A case about to activate *activated_id*, which the store may not hold.
+
+    With *replaces* the case is in ``REVISE`` with a readable active embargo
+    the owner has signed (a revision); otherwise it is ``PROPOSED`` with no
+    active embargo (a first activation).  *activated_id* is recorded as the
+    open proposal either way.  Returns the case, the owner's participant and
+    the active embargo id (``None`` on a first activation).
+    """
+    case, participants = _make_case(
+        dl, owner_id, em_state=EM.REVISE if replaces else EM.PROPOSED
+    )
+    owner_p = participants[0]
+    active_id = _make_embargo(dl, case.id_).id_ if replaces else None
+    case.active_embargo = active_id
+    case.proposed_embargoes = [activated_id]
+    dl.save(case)
+    if active_id is not None:
+        _seed_consent(dl, owner_p.id_, PEC.SIGNATORY, [active_id])
+    return case, owner_p, active_id
+
+
+def _assert_activation_wrote_nothing(
+    dl: SqliteDataLayer,
+    case: VulnerabilityCase,
+    owner_p: CaseParticipant,
+    *,
+    active_id: str | None,
+    activated_id: str,
+) -> None:
+    """EM, ``active_embargo``, the proposals and the owner's consent unchanged."""
+    untouched = cast(VulnerabilityCase, dl.read(case.id_))
+    assert untouched.current_status.em.state == case.current_status.em.state
+    assert untouched.active_embargo_id == active_id
+    assert untouched.proposed_embargoes == [activated_id]
+    owner = cast(CaseParticipant, dl.read(owner_p.id_))
+    expected_pec = PEC.UNBOUND if active_id is None else PEC.SIGNATORY
+    assert owner.embargo_consent_state == expected_pec.value
+    assert owner.accepted_embargo_ids == (
+        [] if active_id is None else [active_id]
+    )
+
+
 # ---------------------------------------------------------------------------
 # Fixture
 # ---------------------------------------------------------------------------

@@ -24,10 +24,12 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     RmDimension,
 )
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
@@ -101,9 +103,15 @@ def _build_case(
     # EnsureEmbargoExists ran, and the latch made CheckRMStateValid pass on the
     # fallback arm (ISSUE-2548).  The check is now upstream of every write, so
     # the case replica has to actually carry the embargo.
-    object.__setattr__(
-        case, "active_embargo", f"{case.id_}/embargoes/chain-embargo"
+    # The record itself is held too: a case never names an embargo its own
+    # store cannot read (EMB-18-003).
+    embargo = EmbargoEvent(
+        id_=f"{case.id_}/embargoes/chain-embargo",
+        context=case.id_,
+        end_time=days_from_now_utc(45),
     )
+    dl.create(embargo)
+    object.__setattr__(case, "active_embargo", embargo.id_)
 
     vendor_p = as_CaseParticipant(
         attributed_to=vendor_id,
