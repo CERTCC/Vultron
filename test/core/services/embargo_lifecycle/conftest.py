@@ -19,6 +19,7 @@ One test module per submodule of ``vultron/core/services/embargo_lifecycle/``
 """
 
 from collections.abc import Generator
+from datetime import datetime
 from typing import cast
 
 import pytest
@@ -102,11 +103,21 @@ def _make_case(
 
 
 def _make_embargo(
-    dl: SqliteDataLayer, case_id: str, *, days: int = 45
+    dl: SqliteDataLayer,
+    case_id: str,
+    *,
+    days: int = 45,
+    end_time: datetime | None = None,
 ) -> as_EmbargoEvent:
-    """Persist an ``EmbargoEvent`` ending *days* from now (the A-vs-B knob)."""
+    """Persist an ``EmbargoEvent`` ending *days* from now (the A-vs-B knob).
+
+    Pass *end_time* to pin the terms exactly — two calls with the same *days*
+    are minted at two instants and so end a second apart whenever a second
+    boundary falls between them, which is not the "equal terms" a tie test
+    means.
+    """
     embargo = as_EmbargoEvent(
-        context=case_id, end_time=days_from_now_utc(days)
+        context=case_id, end_time=end_time or days_from_now_utc(days)
     )
     dl.create(embargo)
     return embargo
