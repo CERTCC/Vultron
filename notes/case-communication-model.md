@@ -112,8 +112,8 @@ wrong with using any such roster-wide list as `to:`:
 1. On the **participant sender** side it bypasses the CASE_MANAGER
    (PCR-08-001/002).
 2. On the **CASE_MANAGER broadcast** side it reaches inert participants —
-   those that have not accepted the stub Invite, are at RM.CLOSED, or are
-   not SIGNATORY to an active embargo (CM-10-004, ADR-0114).
+   those that have not accepted the stub Invite, or are not SIGNATORY to an
+   active embargo (CM-10-004, ADR-0114).
 
 ```python
 # ❌ WRONG — sends to all participants directly, bypassing the CASE_MANAGER

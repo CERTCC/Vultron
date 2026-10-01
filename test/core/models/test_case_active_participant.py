@@ -94,24 +94,19 @@ def test_unjoined_participant_is_inert(embargo: bool) -> None:
     """A participant that has not accepted its stub Invite is never active."""
     case = _case(embargo=embargo)
     participant = _participant(joined=False, consent=PEC.SIGNATORY)
-    assert not case.participant_holds_seat(participant)
     assert not case.is_active_participant(participant)
 
 
 @pytest.mark.parametrize("embargo", [False, True])
-def test_closed_participant_holds_no_seat_but_stays_active(
-    embargo: bool,
-) -> None:
-    """RM.CLOSED is not part of the active check (CM-23-002).
+def test_closed_participant_stays_active(embargo: bool) -> None:
+    """RM.CLOSED is not part of the active check (CM-23-002, #4100).
 
-    A closed participant has left, so it holds no seat and the consent
-    cascades leave it alone; but its replica still learns how the case ended,
-    so the shared selection drops it only where CM-23-004 is named.
+    A closed participant's replica still learns how the case ended, so the
+    shared selection drops it only where CM-23-004 is named.
     """
     case = _case(embargo=embargo)
     participant = _participant(rm_state=RM.CLOSED, consent=PEC.SIGNATORY)
     assert participant.rm_closed
-    assert not case.participant_holds_seat(participant)
     assert case.is_active_participant(participant)
 
 

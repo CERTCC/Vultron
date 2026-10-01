@@ -62,13 +62,17 @@ def find_excluded_actor_ids(
     applies the active check itself whatever this returns.
     """
     excluded = inert_participants(case, dl)
-    for actor_id in sorted(excluded):
+    if excluded:
+        # One line per broadcast, not per participant: an inert participant
+        # is routine under ADR-0114, but whom an update skipped is worth
+        # one operator-visible line.
         logger.info(
-            "update_case: participant '%s' is not active on case '%s' (not"
-            " joined, or not SIGNATORY to the active embargo) —"
-            " case update will not be broadcast to it (CM-10-004)",
-            actor_id,
+            "update_case: %d participant(s) not active on case '%s' (not"
+            " joined, or not SIGNATORY to the active embargo) — case update"
+            " will not be broadcast to them (CM-10-004): %s",
+            len(excluded),
             case.id_,
+            ", ".join(sorted(excluded)),
         )
     return excluded
 

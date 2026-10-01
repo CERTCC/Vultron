@@ -16,8 +16,8 @@
 
 """Embargo-consent leaf nodes for the accept-invite tree.
 
-Check whether the case embargo is EM.ACTIVE and, if so, sign the invitee's
-consent (CM-10-001). Composed by the ``MaybeSignEmbargoConsentNode``
+Check whether the case has an embargo in force (EM ``ACTIVE`` or
+``REVISE``) and, if so, sign the invitee's consent to it (CM-10-001). Composed by the ``MaybeSignEmbargoConsentNode``
 one-off composite retained in ``accept_invite_tree.py`` (BTND-07-003).
 """
 
@@ -32,14 +32,21 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 
 logger = logging.getLogger(__name__)
 
 
 class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
-    """Return SUCCESS iff the case has an active embargo in EM.ACTIVE state."""
+    """Return SUCCESS iff the case has an embargo in force.
+
+    In force means the case carries an active embargo — EM ``ACTIVE``, or
+    ``REVISE`` while a revision is open and the prior terms still hold.  The
+    same fact :meth:`VulnerabilityCase.is_active_participant` keys on, so a
+    joiner that accepts during a revision signs the terms in force and is
+    active (CM-10-004); signing only at ``ACTIVE`` would leave it inert, and
+    the revision Invite relayed before it joined would never ask it.
+    """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -77,8 +84,7 @@ class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         active_embargo_id = _as_id(case.active_embargo)
-        em_state = case.current_status.em.state
-        if active_embargo_id and em_state == EM.ACTIVE:
+        if active_embargo_id:
             self._set_output("active_embargo_id", active_embargo_id)
             return Status.SUCCESS
         # Always write the key so PersistInviteeParticipantNode can read it
@@ -133,7 +139,7 @@ class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts):
         ):
             participant.apply_pec_transition(PEC_Trigger.ACCEPT)
         self.logger.info(
-            "%s: signed embargo consent for invitee '%s' (EM.ACTIVE,"
+            "%s: signed embargo consent for invitee '%s' (embargo in force,"
             " CM-10-001)",
             self.name,
             self.invitee_id,

@@ -568,19 +568,6 @@ class VulnerabilityCase(CoreObject):
             return True
         return participant.embargo_consent_state == PEC.SIGNATORY
 
-    def participant_holds_seat(self, participant: CaseParticipant) -> bool:
-        """True when *participant* has joined this case and has not closed.
-
-        Stricter than the joined half of :meth:`is_active_participant`: a
-        participant at RM ``CLOSED`` has left and holds no seat, even though
-        it still receives the entries that close out its replica.  The
-        embargo-consent cascades use it to
-        leave a participant that never joined, or has left, untouched
-        (ADR-0114): their consent changes only through their own replies or
-        an embargo termination.
-        """
-        return participant.joined and not participant.rm_closed
-
     @property
     def embargo_in_force(self) -> bool:
         """True when this case has an active embargo.

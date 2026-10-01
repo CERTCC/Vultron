@@ -290,23 +290,25 @@ class _PecEffectsMixin(_ActivationArmMixin):
         *,
         trigger: PEC_Trigger,
         select: Callable[[CaseParticipant], bool],
-        seated_only: bool = True,
     ) -> list[ParticipantPECChange]:
         """Apply *trigger* to every participant of *case* that *select* picks.
 
         Each moved participant is persisted and reported.
 
-        With *seated_only* (the default) a participant that does not hold a
-        seat — it has not joined, or its RM is ``CLOSED`` — is skipped
-        whatever *select* says.  An inert participant's consent moves only
-        through its own replies or an embargo termination (CM-10-007): an
-        owner's activation of terms is not something it took part in.  Only
-        the termination reset passes ``False``.
+        Every *select* keys on the participant's own record, so an inert
+        participant's consent moves only as its own replies or an embargo
+        termination cause (CM-10-007, #4046 AC-5): the one promotion
+        (:meth:`_advance_holders_of`) needs the activated id on the
+        participant's own ``accepted_embargo_ids``, which only its own
+        acceptance puts there; the lapse demotes a ``SIGNATORY`` that never
+        accepted the longer terms; and the reset is the termination.  Whether
+        the participant has joined, or has recorded RM ``CLOSED``, does not
+        enter into it — a closed signatory that never accepted longer terms
+        lapses like any other, so it is not left ``SIGNATORY`` to terms it
+        never agreed to.
         """
         changes: list[ParticipantPECChange] = []
         for participant_id, participant in self._each_participant(case):
-            if seated_only and not case.participant_holds_seat(participant):
-                continue
             if not select(participant):
                 continue
             state = participant.embargo_consent_state
@@ -329,7 +331,6 @@ class _PecEffectsMixin(_ActivationArmMixin):
             case,
             trigger=PEC_Trigger.RESET,
             select=lambda p: p.embargo_consent_state != PEC.UNBOUND.value,
-            seated_only=False,
         )
 
     def _cascade_pec_revise(
@@ -365,11 +366,10 @@ class _PecEffectsMixin(_ActivationArmMixin):
         embargo it replaces asks nothing new of an existing signatory
         (agreeing to N days is agreeing to every shorter period), so its
         consent carries over by containment (CM-10-001) with no state change.
-        A participant without a seat is left alone, as in :meth:`_cascade_pec`.
+        Only a ``SIGNATORY`` is carried over, so the containment argument is
+        always about consent the participant itself gave.
         """
         for _participant_id, participant in self._each_participant(case):
-            if not case.participant_holds_seat(participant):
-                continue
             if participant.embargo_consent_state != PEC.SIGNATORY.value:
                 continue
             if participant.add_accepted_embargo(revised_embargo_id):

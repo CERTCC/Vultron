@@ -203,7 +203,7 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
 class CollectNonClosedLogEntryRecipientsNode(CollectLogEntryRecipientsNode):
     """Collect fan-out recipients, excluding actors already at RM.CLOSED.
 
-    The active participants (CM-10-004) minus any whose latest RM state is
+    The active participants (CM-10-004) minus any that has recorded RM
     ``RM.CLOSED`` (CM-23-004), chosen by the shared selection (CM-10-007).
     """
 

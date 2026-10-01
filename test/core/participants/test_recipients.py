@@ -169,10 +169,24 @@ def test_unresolvable_record_is_withheld_with_a_warning(
     assert any(_INVITED in r.getMessage() for r in warnings)
 
 
-def test_inline_record_wins_over_the_stored_copy(dl: SqliteDataLayer) -> None:
-    """The copy that travelled with the case is the one consulted."""
+def test_stored_record_wins_over_a_stale_inline_copy(
+    dl: SqliteDataLayer,
+) -> None:
+    """The stored record is consulted first, as ``iter_case_participants`` does.
+
+    Participant writes save the stored record, so an inline copy the case
+    carries can be stale.
+    """
     case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
     stored = _seat(dl, case, _SIGNATORY, joined=False)
-    inline = stored.model_copy(update={"joined": True})
-    case.case_participants[0] = inline
+    case.case_participants[0] = stored.model_copy(update={"joined": True})
+    assert case_content_recipients(case, dl) == []
+
+
+def test_inline_copy_is_the_fallback_when_nothing_is_stored(
+    dl: SqliteDataLayer,
+) -> None:
+    """During bootstrap the inline copy is all there is, and it is used."""
+    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    case.case_participants[0] = _seat(dl, case, _SIGNATORY, store=False)
     assert case_content_recipients(case, dl) == [_SIGNATORY]

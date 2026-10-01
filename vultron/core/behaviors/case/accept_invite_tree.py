@@ -29,7 +29,7 @@ Tree structure::
         ├── SkipIfNotCaseManager               — Inverter(CheckIsCaseManagerNode)
         └── AcceptInviteEffects (Sequence, memory=False)
             ├── CreateInviteeParticipantNode         — construct participant at RM.START
-            ├── MaybeSignEmbargoConsentNode          — sign when embargo is EM.ACTIVE
+            ├── MaybeSignEmbargoConsentNode          — sign when an embargo is in force
             ├── PersistInviteeParticipantNode        — dl.create, attach, save case
             ├── AdvanceInviteeToReceivedNode         — advance to RM.RECEIVED via writer
             ├── EmitAnnounceCaseToInviteeNode        — queue Announce(VulnerabilityCase)
@@ -76,15 +76,19 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 
 
 class MaybeSignEmbargoConsentNode(py_trees.composites.Selector):
-    """Auto-sign embargo consent when the case embargo is fully EM.ACTIVE.
+    """Auto-sign embargo consent to the embargo in force.
 
     Selector logic:
-    - ``_TrySignEmbargoConsent`` (Sequence): sign if embargo is EM.ACTIVE.
+    - ``_TrySignEmbargoConsent`` (Sequence): sign if the case has an active
+      embargo — EM ``ACTIVE``, or ``REVISE`` while the prior terms still hold.
     - ``_AlwaysSucceed`` (leaf): fall-through so the parent Sequence can
-      continue when there is no active embargo or it is in REVISE state.
+      continue when there is no active embargo.
 
-    Only auto-signs when ``em_state == EM.ACTIVE`` — REVISE means terms
-    are being renegotiated and the new participant should not be committed.
+    During ``REVISE`` the joiner signs the terms *in force*, never the open
+    revision: when the owner activates longer terms it lapses like every
+    other signatory that has not accepted them (EP-05-001).  Not signing
+    would leave it inert (CM-10-004) with nothing left to ask it — the
+    revision Invite was relayed before it joined (#4046).
     """
 
     def __init__(
@@ -135,7 +139,7 @@ def create_accept_invite_actor_to_case_tree(
         └── AcceptInviteIfCaseManager              — BT-17-001 gate (#3752)
             └── AcceptInviteEffects (memory=False)
                 ├── CreateInviteeParticipantNode         — construct participant at RM.START
-                ├── MaybeSignEmbargoConsentNode          — sign when EM.ACTIVE
+                ├── MaybeSignEmbargoConsentNode          — sign when an embargo is in force
                 ├── PersistInviteeParticipantNode        — persist, attach, save case
                 ├── AdvanceInviteeToReceivedNode         — advance to RM.RECEIVED via writer
                 ├── EmitAnnounceCaseToInviteeNode        — queue Announce to invitee

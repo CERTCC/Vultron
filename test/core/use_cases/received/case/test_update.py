@@ -304,7 +304,7 @@ class TestCaseUseCases:
             for r in caplog.records
         )
 
-    def test_update_case_no_warning_when_all_participants_accepted_embargo(
+    def test_update_case_logs_no_withholding_when_all_participants_accepted_embargo(
         self, monkeypatch, caplog, make_payload
     ):
         """update_case reports nobody inert when every participant is SIGNATORY (CM-10-004)."""
@@ -354,7 +354,7 @@ class TestCaseUseCases:
 
         assert not any("not active" in r.message for r in caplog.records)
 
-    def test_update_case_no_warning_when_no_active_embargo(
+    def test_update_case_logs_no_withholding_when_no_active_embargo(
         self, monkeypatch, caplog, make_payload
     ):
         """update_case reports nobody inert when there is no active embargo (CM-10-004)."""

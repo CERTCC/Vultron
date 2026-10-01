@@ -32,6 +32,7 @@ from vultron.core.behaviors.case.nodes import (
     CreateInviteeParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
+    _CheckEmbargoActiveStateNode,
     _SignEmbargoConsentLeafNode,
 )
 from vultron.core.models.activity import VultronActivity
@@ -219,6 +220,46 @@ _CM17_INVITE_ID = "https://example.org/activities/invite-cm17"
 
 
 @pytest.mark.spec("CM-17-003")
+@pytest.mark.spec("CM-10-004")
+@pytest.mark.parametrize(
+    ("em_state", "embargo", "signs"),
+    [
+        ("ACTIVE", True, True),
+        ("REVISE", True, True),
+        ("NONE", False, False),
+    ],
+)
+def test_joiner_signs_the_embargo_in_force(
+    bt_scenario: BTTestScenario, em_state: str, embargo: bool, signs: bool
+) -> None:
+    """A joiner signs the terms in force at ACTIVE *and* during REVISE.
+
+    Signing only at ACTIVE left a joiner that accepted during a revision
+    UNBOUND under an active embargo — inert (CM-10-004), and never asked:
+    the revision Invite was relayed before it joined (#4046).
+    """
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.core.models.dimensions import EmDimension
+    from vultron.core.states.em import EM
+
+    case_id = "https://example.org/cases/joiner"
+    case = VulnerabilityCase(
+        id_=case_id,
+        case_statuses=[
+            CaseStatus(context=case_id, em=EmDimension(state=EM[em_state]))
+        ],
+        active_embargo=_EMBARGO_ID if embargo else None,
+    )
+    node = _CheckEmbargoActiveStateNode(case_id=case_id)
+
+    result = bt_scenario.run(node, actor_id=_ACTOR_ID, invitee_case=case)
+
+    expected = Status.SUCCESS if signs else Status.FAILURE
+    assert result.status == expected
+    stored = py_trees.blackboard.Blackboard.storage.get("/active_embargo_id")
+    assert stored == (_EMBARGO_ID if signs else None)
+
+
 def test_create_invitee_participant_reads_roles_from_accept_activity_when_invite_absent_from_datalayer(
     bt_scenario: BTTestScenario,
 ) -> None:

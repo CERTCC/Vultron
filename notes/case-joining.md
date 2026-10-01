@@ -58,11 +58,12 @@ stub, because accepting a stub is not a judgement of the case.
 
 **Active** means: seated by the case initialization sequence (the Case Owner,
 the CASE_MANAGER and the reporter, who are never sent a stub) or accepted the
-stub Invite, and — only when an embargo is active — `SIGNATORY` to it. "Inert until SIGNATORY" is wrong, because many cases have no
-active embargo: one not yet established, or one already exited.
+stub Invite, and — only when an embargo is active — `SIGNATORY` to it.
+"Inert until SIGNATORY" is wrong, because many cases have no active embargo:
+one not yet established, or one already exited.
 
 One predicate decides it: `VulnerabilityCase.is_active_participant()`, read
-from the replicated `CaseParticipant` record (`joined`, the latest RM status,
+from the replicated `CaseParticipant` record (`joined`,
 `embargo_consent_state`) and the case's `active_embargo`, so a replica reaches
 the same answer as the CASE_MANAGER. Every case-content send picks recipients
 through `vultron/core/participants/recipients.py`: `case_content_recipients()`

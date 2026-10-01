@@ -34,6 +34,13 @@ exists to prevent.
 Roster order is kept, and an unresolvable entry is named, which is why this
 walks the index itself rather than :func:`iter_case_participants` (that yields
 records only, in no fixed order, and skips what it cannot read silently).
+Record precedence matches it: the stored record first, an inline copy only as
+the fallback.
+
+The report-flow ``Create(Case)`` does not come here:
+``case_creation._collect_create_case_addressees`` builds its addressees from
+the actor, the report and the offer rather than the roster, and every one of
+them is seated at case initialization.
 
 This module is the one place in ``vultron/core/`` that lists roster actor
 IDs for addressing; ``test/architecture/test_active_participant_recipient_selection.py``
@@ -55,14 +62,19 @@ def _resolve_record(
 ) -> CaseParticipant | None:
     """Return the record *participant_id* names, or ``None`` if none resolves.
 
-    The inline :class:`CaseParticipant` the case carries wins over the stored
-    one: it is the copy that travelled with this case.
+    The stored record wins over an inline copy the case carries, the same
+    precedence as :func:`iter_case_participants`: the consent cascades and
+    every other participant write save the stored record, so an inline copy
+    can be stale.  The inline copy is the fallback for a case whose records
+    are not stored yet (bootstrap).
     """
+    stored = dl.read(participant_id)
+    if isinstance(stored, CaseParticipant):
+        return stored
     for entry in case.case_participants:
         if isinstance(entry, CaseParticipant) and entry.id_ == participant_id:
             return entry
-    stored = dl.read(participant_id)
-    return stored if isinstance(stored, CaseParticipant) else None
+    return None
 
 
 def _roster_records(
@@ -118,7 +130,7 @@ def case_content_recipients(
     announcements, case-update broadcasts and embargo announcements — minus
     *excluding* (typically the sender).  Roster order is kept.
 
-    With *skip_closed*, a participant whose latest RM state is ``CLOSED`` is
+    With *skip_closed*, a participant that has recorded RM ``CLOSED`` is
     left out as well (CM-23-004).  The default keeps it: a closed
     participant's replica still learns how the case ended (CM-23-002).
     """
@@ -179,9 +191,11 @@ def is_case_content_recipient(
 ) -> bool:
     """True when *actor_id* is an active participant of *case* (CM-10-004).
 
-    For a send addressed to one actor named by the triggering message — the
-    ledger replay a ``Reject(CaseLedgerEntry)`` asks for, or the case copy a
-    joiner receives — rather than chosen from the roster.
+    For a send addressed to one actor named by the triggering message rather
+    than chosen from the roster.  No send calls it yet: its consumers are the
+    ledger replay a ``Reject(CaseLedgerEntry)`` asks for (#4042) and the
+    joiner's case copy and ledger backfill (#4048), which gate on the same
+    predicate once those land.
     """
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id is None:

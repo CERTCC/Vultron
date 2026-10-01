@@ -886,7 +886,7 @@ groups:
       stream, replay included, rather than filtering entries.
     verification: >-
       Unit tests on the fan-out recipient collectors confirm that, under an active embargo, a participant
-      whose `accepted_embargo_ids` lacks the active embargo is excluded from the recipients while a
+      that is not `SIGNATORY` to the active embargo is excluded from the recipients while a
       signatory is included, and that with no active embargo both are included. A unit test on the
       replay sender confirms that a replay to such a participant sends no entry.
     relationships:
