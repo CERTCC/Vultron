@@ -24,14 +24,16 @@ the page, although the section it names is further up or down the same page
 
 This ``on_page_markdown`` hook rewrites those links on ``full.md`` only. A
 Markdown link whose target is another page of the section, *with* a fragment,
-becomes a bare ``#fragment`` link, whether it is an inline link or a reference
-definition. Left unchanged:
+becomes a bare ``#fragment`` link, whether it is an inline link, an image or
+a reference definition, at any indent (an admonition body is indented). Left
+unchanged:
 
 - a link to a section page without a fragment: it names a page, not a
   section, and the page has no in-page counterpart;
 - a link to ``index.md``, the routing page, which ``full.md`` does not include;
 - a link to any page outside the section (its target holds a ``/``);
-- a link shown inside a fenced code block or an inline code span;
+- a link shown inside a fenced code block or an inline code span (an
+  escaped backtick, ``\\` ``, opens no code span);
 - a raw-HTML ``<a href>``, which is not a Markdown link;
 - every page other than ``full.md``, so no part page renders differently.
 
@@ -89,16 +91,20 @@ def _target(form: str) -> str:
 _TITLE = r"""(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?"""
 
 # One pass over the page. Code is matched first and kept verbatim, so a link
-# shown inside a fenced block or an inline code span is never rewritten. A link
+# shown inside a fenced block or an inline code span is never rewritten. An
+# escaped backtick is kept verbatim too, so it cannot open a code span. A code
+# span opens on a whole run of backticks (no backtick before or after it), so
+# an unclosed run is tried once and cannot backtrack tick by tick. A link
 # is either inline, ``](target "title")`` with the target optionally in angle
 # brackets, or a reference definition, ``[label]: target "title"``.
 _TOKEN = re.compile(
     r"(?P<code>"
     r"^[ \t]*(?P<fence>`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*(?P=fence)[ \t]*$"
-    r"|(?P<ticks>`+)(?:(?!(?P=ticks)).)+?(?P=ticks)"
+    r"|\\`"
+    r"|(?<!`)(?P<ticks>`+)(?!`)(?:(?!(?P=ticks)).)+?(?P=ticks)"
     r")"
     rf"|\]\(<?{_target('inline')}(?P<inline_rest>>?{_TITLE}\))"
-    rf"|(?P<definition_head>^[ \t]{{0,3}}\[[^\]\n]+\]:[ \t]*)<?"
+    rf"|(?P<definition_head>^[ \t]*\[[^\]\n]+\]:[ \t]*)<?"
     rf"{_target('definition')}(?P<definition_rest>>?{_TITLE}[ \t]*$)",
     re.MULTILINE,
 )
@@ -122,7 +128,7 @@ def rewrite_section_links(markdown: str) -> str:
     """Return *markdown* with each same-section ``page.md#fragment`` link
     rewritten to ``#fragment``.
 
-    Inline links and reference definitions are rewritten. Links to
+    Inline links, images and reference definitions are rewritten. Links to
     ``index.md``, links without a fragment, links into another directory and
     anything inside a fenced code block or an inline code span are returned
     unchanged. A raw-HTML ``<a href>`` is not a Markdown link and is not

@@ -89,6 +89,22 @@ class TestRewriteSectionLinks:
             pytest.param(
                 "  [x]: <./layers.md#a>", "  [x]: #a", id="definition-angle"
             ),
+            pytest.param(
+                "!!! note\n\n    [x]: layers.md#a",
+                "!!! note\n\n    [x]: #a",
+                id="definition-in-admonition",
+            ),
+            pytest.param("![d](layers.md#a)", "![d](#a)", id="image"),
+            pytest.param(
+                "Use \\` then [y](layers.md#b) and `c`",
+                "Use \\` then [y](#b) and `c`",
+                id="after-escaped-backtick",
+            ),
+            pytest.param(
+                "`a` [y](layers.md#b) `c`",
+                "`a` [y](#b) `c`",
+                id="between-code-spans",
+            ),
         ],
     )
     def test_other_link_forms_are_rewritten(self, md: str, expected: str):
@@ -130,6 +146,12 @@ class TestRewriteSectionLinks:
     def test_other_links_are_untouched(self, md: str):
         assert rewrite_section_links(md) == md
 
+    def test_an_unclosed_backtick_run_does_not_backtrack(self):
+        """A long run of backticks with no closing run is tried once, not
+        once per tick (the match would otherwise take minutes)."""
+        md = "`" * 20_000 + " [y](layers.md#b)"
+        assert rewrite_section_links(md) == "`" * 20_000 + " [y](#b)"
+
     def test_a_link_after_a_code_block_is_still_rewritten(self):
         md = "```\n[x](layers.md#a)\n```\n\n[y](layers.md#b) `code`"
         assert rewrite_section_links(md) == (
@@ -138,11 +160,15 @@ class TestRewriteSectionLinks:
 
 
 class TestOnPageMarkdown:
-    _MD = "[§6](tracking-models.md#6-rm) and [Layers](layers.md)"
+    _MD = (
+        "[§6 Report Management (RM) State Machine](tracking-models.md#6-rm)"
+        " and [Layers](layers.md)"
+    )
 
     def test_full_page_is_rewritten(self):
         assert _run(self._MD, FULL_PAGE_SRC_URI) == (
-            "[§6](#6-rm) and [Layers](layers.md)"
+            "[§6 Report Management (RM) State Machine](#6-rm)"
+            " and [Layers](layers.md)"
         )
 
     @pytest.mark.parametrize(
