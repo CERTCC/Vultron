@@ -34,9 +34,13 @@ logger = logging.getLogger(__name__)
 STATELOG: list[dict[str, Any]] = []
 
 
-def reset_statelog():
-    global STATELOG  # noqa: PLW0603  # ruff-baseline #3985
-    STATELOG = []
+def reset_statelog() -> None:
+    """Empty the shared state log in place.
+
+    Clearing rather than rebinding keeps every importer of ``STATELOG``
+    (e.g. ``vultron.bt.base.demo.cvd``) looking at the same list.
+    """
+    STATELOG.clear()
 
 
 class Snapshot(ActionNode):

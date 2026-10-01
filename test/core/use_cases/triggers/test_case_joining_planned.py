@@ -17,7 +17,8 @@ Strict-``xfail`` tests for the case-joining requirements planned under #4006
 
 - CM-11-006 — the stub Invite creates the invitee's inert participant.
 - CM-11-005 — a joined participant never answers the original report Offer.
-- PRM-06-006 — an on-behalf status assertion never creates a participant.
+- PRM-06-006 — an on-behalf status assertion never creates a participant
+  (passing since #4047).
 - CM-11-014 — a stub Invite carries a deadline; an unanswered invitee does
   not hold up case closure, but a joined one still at RECEIVED does.
 - CM-11-015 — a re-invite reuses the record; a re-invite to ``CLOSED`` is
@@ -342,13 +343,6 @@ def test_joined_participant_never_answers_the_original_report_offer(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "PRM-06-006: an on-behalf assertion for a non-participant is"
-        " refused and creates no participant. Tracked by #4047."
-    ),
-)
 @pytest.mark.spec("PRM-06-006")
 @pytest.mark.parametrize(
     "dimension",
@@ -362,9 +356,9 @@ def test_on_behalf_assertion_for_absent_target_is_refused(
 
     The Case Manager asserts ``v→V`` or ``d→D`` on behalf of an actor that is
     not a participant.  The trigger must refuse before any write and leave
-    the roster exactly as it was.  Today it mints a participant for the
-    absent target (and, for ``d→D``, leaves it behind when the RM↔D
-    entailment then refuses the status write).
+    the roster exactly as it was.  It used to mint a participant for the
+    absent target (and, for ``d→D``, leave it behind when the RM↔D
+    entailment then refused the status write).
     """
     manager, dl = actor_store("CaseManager")
     outsider, _ = actor_store("Outsider")

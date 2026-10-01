@@ -31,13 +31,12 @@ from vultron.core.use_cases.triggers._helpers import (
 from vultron.core.use_cases.triggers.requests import (
     AddOnBehalfStatusTriggerRequest,
 )
-from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
 
 class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase[StatusResult]):
-    """Assert v→V or d→D on behalf of a notified-but-not-joined vendor/deployer.
+    """Assert v→V or d→D on behalf of an existing vendor/deployer participant.
 
     The ``actor_id`` in the request is the *asserting* actor (Case Manager or
     Case Owner); ``target_actor_id`` identifies the vendor or deployer whose
@@ -45,6 +44,11 @@ class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase[StatusResult]):
 
     Only ``CS_vf.Vf`` (v→V) and ``CS_d.D`` (d→D) may be asserted on behalf;
     ``CS_vf.VF`` (f→F) is rejected at the request layer (ADR-0084, PRM-06-005).
+
+    The target MUST already be a participant holding the asserted dimension's
+    role; otherwise the trigger is refused before any write and no participant
+    is created (PRM-06-006, ADR-0114) — the refusal surfaces as a
+    :exc:`~vultron.errors.VultronValidationError` naming the target.
 
     BT-15-001: the ``ParticipantStatus`` write happens inside the BT via
     ``CreateParticipantStatusNode``, not directly in ``execute()``.
@@ -59,12 +63,6 @@ class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase[StatusResult]):
         self._case_id = resolve_case(request.case_id, self._dl).id_
         self._vf_state: CS_vf | None = request.vf_state
         self._d_state: CS_d | None = request.d_state
-        roles: list[CVDRole] = []
-        if request.vf_state is not None:
-            roles.append(CVDRole.VENDOR)
-        if request.d_state is not None:
-            roles.append(CVDRole.DEPLOYER)
-        self._required_roles = roles
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:
@@ -90,7 +88,6 @@ class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase[StatusResult]):
             case_id=self._case_id,
             asserting_actor_id=self._asserting_actor_id,
             target_actor_id=self._target_actor_id,
-            required_roles=self._required_roles,
             vf_state=self._vf_state,
             d_state=self._d_state,
             result_out=self._result_out,

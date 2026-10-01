@@ -248,11 +248,14 @@ def trigger_add_report_to_case(
     status_code=status.HTTP_202_ACCEPTED,
     summary="Record a vendor's awareness or a deployer's deployment on their behalf.",
     description=(
-        "A Case Manager or Case Owner records, on behalf of an actor that was "
-        "notified or invited but has not joined the case, the vendor's "
-        'awareness (``vf_state="Vf"``, v→V; PRM-06-003) or the deployer\'s '
-        'deployment (``d_state="D"``, d→D; PRM-06-004), creating a minimal '
-        "CaseParticipant for the target when none exists (ADR-0084). Writes a "
+        "A Case Manager or Case Owner records, on behalf of an existing "
+        'participant, the vendor\'s awareness (``vf_state="Vf"``, v→V; '
+        "PRM-06-003; typically for an invitee that has not yet replied) or "
+        'the deployer\'s deployment (``d_state="D"``, d→D; PRM-06-004; only '
+        "for a deployer at RM Accepted, Deferred or Closed). The "
+        "target must already be a participant holding the asserted role: a "
+        "non-participant target is refused and no participant is created "
+        "(PRM-06-006, ADR-0084). Writes a "
         "ParticipantStatus for the target and queues an "
         "Add(ParticipantStatus, target=CaseParticipant) activity to the Case "
         'Manager. Fix readiness (``vf_state="VF"``, f→F) is refused: it is '
@@ -269,12 +272,12 @@ def trigger_add_on_behalf_status(
     dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
     actor_dl: DataLayer = Depends(get_trigger_dl),
 ) -> StatusResult:
-    """Assert v→V or d→D on behalf of a notified-but-not-joined actor.
+    """Assert v→V or d→D on behalf of an existing vendor/deployer participant.
 
     Implements:
         TRIG-01-001, TRIG-01-002, TRIG-01-003, HTTP-03-005, TRIG-03-001,
         TRIG-03-002, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001,
-        PRM-06-003, PRM-06-004, PRM-06-005
+        PRM-06-003, PRM-06-004, PRM-06-005, PRM-06-006
     """
     # Field by field, not ``**body.model_dump()``: the parsed body is the
     # authority for what arrived (MV-11-005); the core request adds only the
