@@ -28,10 +28,13 @@ from vultron.core.behaviors.embargo.nodes.conditions import (
     IsCloseBlockedByActiveEmbargoNode,
     IsProposedEmbargoNode,
     LookupParticipantNode,
-    OptionalLookupParticipantNode,
     ValidateCaseExistsNode,
 )
 from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
+from vultron.core.behaviors.embargo.nodes.invite_answer import (
+    CanAnswerEmbargoInviteNode,
+    SendEmbargoInviteAnswerNode,
+)
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     AcceptEmbargoLifecycleNode,
     ProposeEmbargoLifecycleNode,
@@ -46,9 +49,9 @@ from vultron.core.behaviors.embargo.nodes.proposal import (
     CreateAndStoreInviteNode,
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
-    UpdateParticipantEmbargoPecNode,
 )
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (
+    DecideRejectedEmbargoProposalNode,
     ReadProposedEmbargoIdNode,
     RejectProposedEmbargoLifecycleNode,
     SendRejectEmbargoActivityNode,
@@ -71,6 +74,9 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
 )
 
 __all__ = [
+    # Invite answer (EP-09-003)
+    "CanAnswerEmbargoInviteNode",
+    "SendEmbargoInviteAnswerNode",
     # Conditions
     "ValidateCaseExistsNode",
     "IsActiveEmbargoNode",
@@ -79,7 +85,6 @@ __all__ = [
     "HasActiveEmbargoNode",
     "HasCaseStatusesNode",
     "LookupParticipantNode",
-    "OptionalLookupParticipantNode",
     # EM state read
     "ReadEmStateNode",
     # Teardown
@@ -97,7 +102,6 @@ __all__ = [
     "RelayEmbargoInviteToEachNode",
     "case_manager_admits_proposal_guard",
     # Proposal
-    "UpdateParticipantEmbargoPecNode",
     "CreateAndStoreInviteNode",
     "RecordParticipantAcceptanceNode",
     "RecordParticipantRejectionNode",
@@ -109,6 +113,7 @@ __all__ = [
     "RejectEmbargoLifecycleNode",
     "TerminateEmbargoLifecycleNode",
     "ReadEmbargoIdNode",
+    "DecideRejectedEmbargoProposalNode",
     "ReadProposedEmbargoIdNode",
     "RejectProposedEmbargoLifecycleNode",
     "SendTerminateEmbargoActivityNode",

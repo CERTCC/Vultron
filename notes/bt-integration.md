@@ -221,11 +221,11 @@ to the wrong record (ISSUE-2762):
 
 - **Reusing the resolved receiving actor as a subject.** Satisfies every
   written requirement and inverts the semantics.
-- **A tree factory that accepts a subject argument and only logs it.**
-  `OptionalLookupParticipantNode` falls back to the BT execution actor when
-  `target_actor_id` is falsy, so a dropped subject argument is
-  indistinguishable from one never supplied. The node now logs at WARNING when
-  a subject *was* named and did not resolve, which separates the two.
+- **A tree factory that accepts a subject argument and only logs it.** A
+  lenient lookup that falls back to the BT execution actor when the subject is
+  falsy makes a dropped subject argument indistinguishable from one never
+  supplied. Log at WARNING when a subject *was* named and did not resolve, as
+  `CanAnswerEmbargoInviteNode` does, which separates the two.
 
 Read a subject **from the message**, never from the receiving actor. For an
 `Invite(EmbargoEvent)` the invitee is the Invite's *sole* `to:` recipient

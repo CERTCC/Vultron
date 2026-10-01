@@ -31,6 +31,8 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.models._helpers import _as_id
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -114,6 +116,103 @@ class RejectProposedEmbargoLifecycleNode(DataLayerActionWithPorts):
         self._result_out["lifecycle_result"] = result
         self._result_out["em_after"] = result.em_after
 
+        return Status.SUCCESS
+
+
+class DecideRejectedEmbargoProposalNode(DataLayerActionWithPorts):
+    """Apply the case owner's Reject of an open proposal (ER / EJ, EP-08-003).
+
+    Only the owner's answer decides a proposal; a participant's Reject is
+    consent, which :class:`RecordParticipantRejectionNode` records.  When
+    ``rejecting_actor_id`` is the owner and ``embargo_id`` is still an open
+    proposal of the case, this node calls
+    ``EmbargoLifecycle.reject_embargo_invite`` for the owner, which drives
+    ``PROPOSED → NONE`` or ``REVISE → ACTIVE`` and forgets the proposal
+    together (EMB-18-001).  The received path runs it ``STRICT`` in the
+    CASE_MANAGER's store; the ledger replay runs it ``OBSERVED`` (EP-09-007).
+
+    Returns SUCCESS and changes nothing when the rejecting actor is not the
+    owner, or when the embargo is no longer an open proposal (already
+    decided, or the active embargo — a withdrawal, which moves no EM state),
+    so a repeated Reject is idempotent.  Returns FAILURE when the case cannot
+    be read or the lifecycle refuses the transition (for example ``STRICT``
+    EJ with P/X/A set, EMB-04-002).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        rejecting_actor_id: str,
+        name: str | None = None,
+        *,
+        transition_mode: TransitionMode = TransitionMode.STRICT,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.embargo_id = embargo_id
+        self.rejecting_actor_id = rejecting_actor_id
+        self.transition_mode = transition_mode
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        if _as_id(case.attributed_to) != self.rejecting_actor_id:
+            self.feedback_message = (
+                f"'{self.rejecting_actor_id}' is not the owner of case"
+                f" '{self.case_id}': its Reject is consent and decides nothing"
+            )
+            return Status.SUCCESS
+        if self.embargo_id not in case.proposed_embargo_ids:
+            self.feedback_message = (
+                f"Embargo '{self.embargo_id}' is not an open proposal of case"
+                f" '{self.case_id}' — nothing to decide"
+            )
+            return Status.SUCCESS
+
+        result_out: dict[str, object] = {}
+        read_node = ReadEmStateNode(
+            case_id=self.case_id, result_out=result_out
+        )
+        read_node.datalayer = self.datalayer
+        if read_node.update() != Status.SUCCESS:
+            self.feedback_message = read_node.feedback_message
+            return Status.FAILURE
+        em_before = result_out["em_before"]
+        assert isinstance(em_before, EM)
+
+        try:
+            result = EmbargoLifecycle(
+                persistence=self.datalayer
+            ).reject_embargo_invite(
+                case_id=self.case_id,
+                embargo_id=self.embargo_id,
+                actor_id=self.rejecting_actor_id,
+                transition_mode=self.transition_mode,
+                em_before=em_before,
+            )
+        except VultronError as exc:
+            self.feedback_message = str(exc)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        log_em_transition(
+            self.logger,
+            self.rejecting_actor_id,
+            self.case_id,
+            result.em_before,
+            result.em_after,
+        )
+        self.feedback_message = (
+            f"Owner rejected embargo '{self.embargo_id}' on case"
+            f" '{self.case_id}' (EM {result.em_before} → {result.em_after})"
+        )
         return Status.SUCCESS
 
 

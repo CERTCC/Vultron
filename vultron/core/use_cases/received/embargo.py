@@ -11,6 +11,9 @@ if TYPE_CHECKING:
 from vultron.core.behaviors.embargo.nodes import (
     EmbargoProposalNotYetRecordedNode,
 )
+from vultron.core.behaviors.embargo.proposal_index import (
+    record_embargo_proposal_index,
+)
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -46,7 +49,7 @@ from vultron.core.states.cs import (
     is_pxa_public_aware,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     add_activity_to_outbox,
@@ -57,6 +60,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     node_failed,
     verdict_from_bt,
 )
+from vultron.errors import VultronNotFoundError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -199,26 +203,6 @@ def resolve_proposer_id(
         attributed_to,
     )
     return request.actor_id
-
-
-def _record_embargo_proposal_index(
-    dl: CasePersistence,
-    case_id: str,
-    embargo_id: str,
-    proposal_id: str,
-) -> None:
-    """Record embargo_id → proposal_id in case core state (ADR-0035 DL-06)."""
-    case = dl.read_case(case_id)
-    if case is None:
-        return
-    if case.pending_embargo_proposal_index.get(embargo_id) == proposal_id:
-        return
-    # Validated assignment, like the pruner ``discard_proposed_embargo``.
-    case.pending_embargo_proposal_index = {
-        **case.pending_embargo_proposal_index,
-        embargo_id: proposal_id,
-    }
-    dl.save(case)
 
 
 def _store_invite_deadline(
@@ -502,12 +486,12 @@ class InviteToEmbargoOnCaseReceivedUseCase:
 
         # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
         # invitee_id is threaded into the tree as a node constructor arg so
-        # OptionalLookupParticipantNode looks up the correct participant even
-        # when receiving_actor_id != invitee_id.  The tree's two arms are
+        # only the addressee's store answers the Invite, even when
+        # receiving_actor_id != invitee_id.  The tree's two arms are
         # role-gated in-tree (BT-17-001): the CASE_MANAGER adjudicates and
-        # relays the proposal of ``proposer_id`` (EP-09-001, EP-09-002); any
-        # other receiver records the Invite on its replica.
-        pec_result: dict[str, object] = {}
+        # relays the proposal of ``proposer_id`` (EP-09-001, EP-09-002); the
+        # addressee's replica answers the Invite to the CASE_MANAGER and
+        # writes no EM or consent state (EP-09-003).
         tree = invite_to_embargo_on_case_tree(
             case_id=case_id,
             invitee_id=invitee_id,
@@ -519,7 +503,6 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 if isinstance(request.object_, EmbargoEvent)
                 else None
             ),
-            pec_result_out=pec_result,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -543,35 +526,27 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             verdict = HandlerResult.skipped(
                 f"invite '{invite_id}' was already applied on case '{case_id}'"
             )
-        if (
-            verdict.disposition is HandlerDisposition.APPLIED
-            and pec_result.get("pec_before") is PEC.INVITED
-            and not pec_result.get("pec_changed")
-        ):
-            # The replica arm found the invitee already INVITED and moved
-            # nothing.  A redelivery of the *same* Invite never reaches here
-            # (the idempotency guard above catches it), so this is a
-            # *different* Invite — a re-proposal or counter — landing on a
-            # replica whose participant is still INVITED from an earlier one.
-            # The replica writes no consent for it (CM-18-003) and reports a
-            # no-op, not a refusal (HP-01-003, #2255); the manager's relay of
-            # the new proposal, not this receipt, is what the replica will
-            # learn it from once #3915 lands the replay node.  Keyed on the
-            # node's own verdict, never on a re-read of the store.
-            verdict = HandlerResult.skipped(
-                f"'{invitee_id}' is already invited on case '{case_id}'"
-            )
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning("%s (invite '%s')", verdict.reason, invite_id)
             return verdict
 
         # Record embargo_id → invite_id in core state so accept/reject
         # trigger use cases can correlate without re-reading the Invite wire
-        # activity (ADR-0035 DL-06).
+        # activity (ADR-0035 DL-06).  A partial replica that holds no copy
+        # of the case keeps the Invite and indexes nothing (Regime 2,
+        # ADR-0087); CanAnswerEmbargoInviteNode has already warned.
         if case_id and embargo_id and invite_id:
-            _record_embargo_proposal_index(
-                self._dl, case_id, embargo_id, invite_id
-            )
+            try:
+                record_embargo_proposal_index(
+                    self._dl, case_id, embargo_id, invite_id
+                )
+            except VultronNotFoundError:
+                logger.info(
+                    "invite '%s': case '%s' not held here — proposal not"
+                    " indexed",
+                    invite_id,
+                    case_id,
+                )
 
         # Store RSVP deadline on the invitee's participant record so
         # detect_and_apply_lapse() can check it without reading the stored
@@ -971,6 +946,9 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
                 self._dl, request.receiving_actor_id
             ),
             activity=request,
+            # The commit fans the entry out to every participant replica
+            # (EP-09-007, RSH-08-004); without the port nothing replays it.
+            sync_port=self._sync_port,
         )
 
         verdict = verdict_from_bt(

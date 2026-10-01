@@ -56,13 +56,15 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.models.case import case_addressees
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM, EM_Trigger
-from vultron.core.states.participant_embargo_consent import PEC_Trigger
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -379,26 +381,25 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
     ) -> None:
         """Apply PEC INVITE to *recipient_id* if CM-18-003 allows it (EP-09-004)."""
         # Regime 1 (ADR-0087): the relay follows the manager's own EM write on
-        # this case, so a missing case is an anomaly, not a lenient skip.
-        case, failure = self._require_case(self._case_id)
-        if failure is not None:
-            raise RuntimeError(self.feedback_message)
-        participant_id = case.actor_participant_index.get(recipient_id)
-        participant = dl.read(participant_id) if participant_id else None
-        if not isinstance(participant, CaseParticipant):
-            raise RuntimeError(  # noqa: TRY004  # ruff-baseline #3353
-                f"no participant record for invitee '{recipient_id}' on case"
-                f" '{self._case_id}'"
+        # this case, so a missing case or invitee is an anomaly, not a lenient
+        # skip.  ``record_embargo_invite`` raises a ``VultronNotFoundError``,
+        # which would read as the sender's fault (REFUSED, ADR-0095), so it is
+        # re-raised as the internal error it is in the manager's own store.
+        try:
+            result = EmbargoLifecycle(persistence=dl).record_embargo_invite(
+                case_id=self._case_id, invitee_id=recipient_id
             )
-        if not participant.apply_pec_transition_if_legal(PEC_Trigger.INVITE):
+        except VultronNotFoundError as exc:
+            raise RuntimeError(
+                f"{self.name}: the CASE_MANAGER's roster names '{recipient_id}'"
+                f" but its store has no record for it: {exc}"
+            ) from exc
+        if not result.participant_changes:
             self.logger.info(
-                "%s: '%s' is %s — INVITE does not apply (EP-09-004)",
+                "%s: INVITE does not apply to '%s' (EP-09-004)",
                 self.name,
                 recipient_id,
-                participant.embargo_consent_state.name,
             )
-            return
-        dl.save(participant)
 
 
 __all__ = [

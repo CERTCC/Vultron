@@ -22,6 +22,7 @@ from vultron.adapters.driven.db_record import StorableRecord
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -170,7 +171,9 @@ class TestEmbargoProposalLifecycle:
             proposal, receiving_actor_id="https://example.org/users/vendor"
         )
 
-        result = InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
         stored = dl.get(proposal.type_.value, proposal.id_)
@@ -693,6 +696,20 @@ class TestInviteToEmbargoReceivedPxaGuard:
             id_=case_id, name="PXA clear", attributed_to=coordinator_id
         )
         dl.create(case)
+        # The CASE_MANAGER role is never unfilled (CM-24-006).
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant as CP,
+        )
+
+        cm_p = CP(
+            attributed_to=coordinator_id,
+            context=case_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(cm_p)
+        case.actor_participant_index[coordinator_id] = cm_p.id_
+        dl.save(case)
         embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
             content="clear embargo",
@@ -709,7 +726,12 @@ class TestInviteToEmbargoReceivedPxaGuard:
         dl.create(proposal)
 
         event = make_payload(proposal, receiving_actor_id=coordinator_id)
-        result = InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
         # Proposal must be stored (BT ran CreateAndStoreInviteNode)

@@ -37,14 +37,12 @@ from vultron.core.behaviors.embargo.nodes.proposal import (
     REPLACED_EMBARGO_UNREPLICATED_PREFIX,
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
-    UpdateParticipantEmbargoPecNode,
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -229,81 +227,3 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
         assert not node.feedback_message.startswith(
             REPLACED_EMBARGO_UNREPLICATED_PREFIX
         )
-
-
-def _participant_on_blackboard(
-    dl: SqliteDataLayer, pec: PEC
-) -> CaseParticipant:
-    """Seed a participant and place it on the ``participant`` key."""
-    participant = CaseParticipant(
-        attributed_to=REJECTER,
-        context="https://example.org/cases/pec-node",
-        embargo_consent_state=pec,
-    )
-    dl.create(participant)
-    setup_blackboard(dl)
-    bb = py_trees.blackboard.Client(name="participant-seed")
-    bb.register_key(key="participant", access=py_trees.common.Access.WRITE)
-    bb.participant = participant
-    return participant
-
-
-class TestUpdateParticipantEmbargoPecNodeWhereLegal:
-    """``where_legal=True`` turns an illegal trigger into a recorded no-op."""
-
-    @pytest.mark.spec("EP-09-004")
-    @pytest.mark.spec("CM-18-003")
-    def test_a_signatory_keeps_its_state_and_the_node_succeeds(
-        self, dl: SqliteDataLayer
-    ):
-        participant = _participant_on_blackboard(dl, PEC.SIGNATORY)
-        out: dict[str, object] = {}
-        node = UpdateParticipantEmbargoPecNode(
-            PEC_Trigger.INVITE, where_legal=True, result_out=out
-        )
-        assert _tick(node) is py_trees.common.Status.SUCCESS
-        stored = cast(CaseParticipant, dl.read(participant.id_))
-        assert stored.embargo_consent_state == PEC.SIGNATORY
-        assert out == {
-            "pec_before": PEC.SIGNATORY,
-            "pec_after": PEC.SIGNATORY,
-            "pec_changed": False,
-        }
-
-    def test_a_legal_trigger_applies_and_reports_the_change(
-        self, dl: SqliteDataLayer
-    ):
-        participant = _participant_on_blackboard(dl, PEC.UNBOUND)
-        out: dict[str, object] = {}
-        node = UpdateParticipantEmbargoPecNode(
-            PEC_Trigger.INVITE, where_legal=True, result_out=out
-        )
-        assert _tick(node) is py_trees.common.Status.SUCCESS
-        stored = cast(CaseParticipant, dl.read(participant.id_))
-        assert stored.embargo_consent_state == PEC.INVITED
-        assert out["pec_changed"] is True
-        assert (out["pec_before"], out["pec_after"]) == (
-            PEC.UNBOUND,
-            PEC.INVITED,
-        )
-
-    def test_without_where_legal_an_illegal_trigger_still_raises(
-        self, dl: SqliteDataLayer
-    ):
-        """The default stays fail-closed for every caller that did not opt in."""
-        _participant_on_blackboard(dl, PEC.SIGNATORY)
-        node = UpdateParticipantEmbargoPecNode(PEC_Trigger.INVITE)
-        with pytest.raises(VultronInvalidStateTransitionError):
-            _tick(node)
-
-    def test_no_participant_records_nothing(self, dl: SqliteDataLayer):
-        setup_blackboard(dl)
-        bb = py_trees.blackboard.Client(name="participant-seed")
-        bb.register_key(key="participant", access=py_trees.common.Access.WRITE)
-        bb.participant = None
-        out: dict[str, object] = {}
-        node = UpdateParticipantEmbargoPecNode(
-            PEC_Trigger.INVITE, where_legal=True, result_out=out
-        )
-        assert _tick(node) is py_trees.common.Status.SUCCESS
-        assert out == {}

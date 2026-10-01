@@ -27,7 +27,7 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 #: Opens the feedback of a :class:`RecordParticipantRejectionNode` FAILURE
@@ -42,111 +42,6 @@ ALREADY_DECLINED_PREFIX = "Already declined"
 #: case reads it to report ``DEFERRED`` — the item is parked for replay, not
 #: refused (HP-01-003).
 REPLACED_EMBARGO_UNREPLICATED_PREFIX = "Replaced embargo not replicated here"
-
-
-class UpdateParticipantEmbargoPecNode(DataLayerActionWithPorts):
-    """Apply a PEC trigger to participant.embargo_consent_state.
-
-    Reads participant from blackboard 'participant' key. If participant not found,
-    returns SUCCESS without updating (idempotent). This supports the lenient
-    OptionalLookupParticipantNode pattern: when participant doesn't exist on this
-    peer, skip the PEC update but continue to cascade log entry to all peers.
-
-    Returns SUCCESS when the participant is absent or the DataLayer is
-    unavailable. Raises ``VultronInvalidStateTransitionError`` (via
-    ``apply_pec_transition``) if the trigger is illegal for the current
-    PEC state — callers should ensure the trigger is valid for the
-    participant's current consent state before invoking this node, or pass
-    ``where_legal=True`` to make an illegal trigger a recorded no-op instead:
-    an embargo Invite moves a participant to ``INVITED`` only from ``UNBOUND``,
-    ``LAPSED`` or ``DECLINED`` (CM-18-003), and a ``SIGNATORY`` asked about a
-    revision keeps its state (EP-09-004).
-
-    ``result_out``, when given, receives ``pec_before``, ``pec_after`` and
-    ``pec_changed`` so the handler can tell a repeat (nothing moved) from a
-    fresh application without re-reading the store (HP-01-003, #2255).
-    """
-
-    def __init__(
-        self,
-        pec_trigger: PEC_Trigger,
-        name: str | None = None,
-        *,
-        where_legal: bool = False,
-        result_out: dict[str, object] | None = None,
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.pec_trigger = pec_trigger
-        self._where_legal = where_legal
-        self._result_out = result_out
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "participant": PortInformation(data_type=object, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"participant": "/participant"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._participant = None
-        try:
-            self._participant = self.get_input("participant")
-        except (NoDataAvailable, NotImplementedError):
-            self._participant = None
-
-    def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.SUCCESS
-
-        participant = self._participant
-        if participant is None:
-            self.logger.warning(
-                "%s: participant not found in blackboard", self.name
-            )
-            return Status.SUCCESS
-
-        if not isinstance(participant, CaseParticipant):
-            self.logger.warning(
-                "%s: invalid participant on blackboard", self.name
-            )
-            return Status.SUCCESS
-
-        pec_before = participant.embargo_consent_state
-        if self._where_legal:
-            applied = participant.apply_pec_transition_if_legal(
-                self.pec_trigger
-            )
-        else:
-            participant.apply_pec_transition(self.pec_trigger)
-            applied = True
-        self._record(pec_before, participant.embargo_consent_state)
-        if not applied:
-            self.feedback_message = (
-                f"Participant '{participant.id_}' is {pec_before.name};"
-                f" {self.pec_trigger.name} does not apply from there"
-                " (CM-18-003) — consent state unchanged"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-        self.datalayer.save(participant)
-
-        self.feedback_message = (
-            f"Updated participant '{participant.id_}' embargo consent"
-            f" state via {self.pec_trigger.name} trigger"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
-
-    def _record(self, pec_before: PEC, pec_after: PEC) -> None:
-        if self._result_out is None:
-            return
-        self._result_out["pec_before"] = pec_before
-        self._result_out["pec_after"] = pec_after
-        self._result_out["pec_changed"] = pec_before != pec_after
 
 
 class CreateAndStoreInviteNode(DataLayerActionWithPorts):

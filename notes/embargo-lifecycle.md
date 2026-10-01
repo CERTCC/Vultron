@@ -18,6 +18,7 @@ related_specs:
   - specs/participant-case-replica.yaml
   - specs/received-status-handling.yaml
   - specs/protocol-asks.yaml
+  - specs/sync-ledger-replication.yaml
 related_notes:
   - notes/embargo-default-semantics.md
   - notes/bt-integration.md
@@ -31,6 +32,7 @@ relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/services/embargo_lifecycle/
   - vultron/core/behaviors/embargo/
+  - vultron/core/behaviors/sync/nodes/embargo_relay_effect.py
   - vultron/core/use_cases/triggers/embargo.py
   - vultron/core/use_cases/received/embargo.py
   - vultron/bt/embargo_management
@@ -134,9 +136,10 @@ first:
   the replica pointing at a record it cannot read.
 - **Ledger replay** — entries are applied in chain order (SYNC-14-003), and the
   CASE_MANAGER commits A's proposal before any activation that replaces it.
-  Each embargo apply node will store the `EmbargoEvent` its entry carries
-  before calling `EmbargoLifecycle` (#3915); today the only embargo apply node
-  is teardown.
+  Each embargo apply node — proposal, relayed Invite, Accept, Reject and
+  teardown — stores the `EmbargoEvent` its entry carries before calling
+  `EmbargoLifecycle` (#3915), and fails, blocking the persist (SYNC-12-001),
+  when the entry names the embargo by id only and the replica lacks it.
 - **The activation writers** — `accept_embargo_invite()` and
   `activate_embargo()`, the only paths that *activate* an embargo (EM state
   plus `active_embargo`). On a revision they already read both records through
@@ -183,9 +186,15 @@ a counter-proposal — recording the *proposer's* consent, after a read-only
 `EmStateAdmitsProposalNode` guard ahead of the commit has refused an `EXITED`
 case; then `RelayEmbargoInviteToEachNode` relays the Invite to every participant
 except the proposer, commits each emission and applies PEC `INVITE` where
-CM-18-003 allows it. In any other store the tree records the Invite on the
-replica (`UpdateParticipantEmbargoPecNode(where_legal=True)`) until #3915 lands
-the replay node and gates that write off (RSH-08-004). EMB-01-002 and
+CM-18-003 allows it. In any other store the tree stores the Invite and its
+`EmbargoEvent` and answers it to the CASE_MANAGER through the response decision
+(EMB-15), writing no EM or consent state (EP-09-003); the replica takes that
+state from the ledger through the relay replay nodes in
+`vultron/core/behaviors/sync/nodes/embargo_relay_effect.py` (#3915, RSH-08-004).
+The owner's Reject of an open proposal is decided by
+`DecideRejectedEmbargoProposalNode` in both stores, `STRICT` on the CASE_MANAGER
+and `OBSERVED` on replay: `reject_embargo_invite` returns EM `REVISE → ACTIVE`
+(or `PROPOSED → NONE`) and forgets the proposal. EMB-01-002 and
 EMB-02-002 are enforced as explicit pre-flight guards in
 `InviteToEmbargoOnCaseReceivedUseCase.execute()` and
 `AcceptInviteToEmbargoOnCaseReceivedUseCase.execute()` respectively (implemented
@@ -315,11 +324,11 @@ Two rules follow for any new proposal-selection code:
   accept, owner reject, activation, termination) and `RemoveFromProposedEmbargoesNode`
   call it. A participant's accept or reject is consent, not a decision, and prunes
   nothing. Replicas prune too: the received Accept goes through
-  `accept_embargo_invite`, and the received `Reject(Invite)` tree appends
-  `RemoveFromProposedEmbargoesNode(decided_by=<rejecting actor>)`, which prunes only
-  when that actor is the case owner — without it the owner's Reject left the decided
-  proposal in every participant's records, where a later default selection could still
-  pick it. Termination decides *every* open proposal, not only the terminated
+  `accept_embargo_invite`, and the received `Reject(Invite)` tree and its ledger
+  replay both run `DecideRejectedEmbargoProposalNode`, which acts only when the
+  rejecting actor is the case owner and goes through `reject_embargo_invite` — so
+  the decided proposal is forgotten and EM leaves `REVISE`/`PROPOSED` in every
+  store, where a later default selection could otherwise still pick it. Termination decides *every* open proposal, not only the terminated
   embargo's own entry (EP-08-004, ADR-0113): a case has one active embargo
   (VP-04-002), so every proposal open while EM is `ACTIVE` or `REVISE` is a
   revision of it, and a revision of an embargo that no longer exists cannot be
@@ -390,10 +399,12 @@ do about it? The answer, in order:
    consensus (EP-09-006); no quorum or vote is defined — that is actor policy,
    a call-out point.
 6. Only the CASE_MANAGER evaluates lapse; the lapse entry is role-gated and
-   replayed (CM-28-014). Replay nodes reconstruct every step (proposal, each
-   Invite, each answer, each lapse, the decision) via `EmbargoLifecycle(OBSERVED)`
-   (EP-09-007, RSH-08-004), which is what makes the participant-side embargo
-   trees gateable.
+   replayed (CM-28-014). Replay nodes reconstruct the proposal, each relayed
+   Invite, each answer and the owner's decision via `EmbargoLifecycle(OBSERVED)`
+   (EP-09-007, RSH-08-004, built in #3915), which is what made the
+   participant-side Invite tree gateable; the lapse replay is #3961's. The
+   slot table is in `notes/case-communication-model.md` § "What the
+   participant and its replica do".
 
 **Why invite at all if the owner decides by fiat.** The Invites are not a vote.
 They gather the consent records the activation cascade reads: when the owner

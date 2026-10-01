@@ -21,6 +21,9 @@ from typing import cast
 
 import py_trees.behaviour
 
+from vultron.core.behaviors.embargo.proposal_index import (
+    record_embargo_proposal_index,
+)
 from vultron.core.behaviors.embargo.trigger_tree import (
     propose_embargo_trigger_bt,
 )
@@ -71,11 +74,7 @@ class SvcProposeEmbargoUseCase(SvcEmbargoTriggerBase):
         super()._handle_result()
         proposal_id = self._captured.get("proposal_id")
         if isinstance(proposal_id, str) and proposal_id:
-            from vultron.core.use_cases.received.embargo import (
-                _record_embargo_proposal_index,
-            )
-
-            _record_embargo_proposal_index(
+            record_embargo_proposal_index(
                 self._dl, self._case.id_, self._embargo.id_, proposal_id
             )
 
