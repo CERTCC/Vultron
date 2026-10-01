@@ -577,10 +577,12 @@ extracted fragment are still verified at the moment of the move — see
 
 Two things make this cheap rather than a tooling problem:
 
-- **The assembly unit is already a lint target.** `index.md` is not
-  `_`-prefixed and is in nav, so it is already in scope. Evaluating page-scoped
-  rules against it means reading its include directives in order — not building
-  an include-graph resolver.
+- **Every assembly unit is already a lint target.** No page is `_`-prefixed, so
+  each is in scope — for the Protocol Specification that is every page in
+  `notes/rfc-spec-authoring.md` § "Page Map", including `full.md`, which is
+  out of the nav but still published. Evaluating page-scoped rules against a page
+  means reading its include directives in order — not building an include-graph
+  resolver. A fragment rendered by several pages is assessed on each of them.
 - **There is precedent for suppressing rather than resolving.**
   `.markdownlint-cli2.yaml` disables MD041 ("First line in file should be a top
   level header") with the comment *"Disabled because we use `include-markdown`
@@ -591,8 +593,10 @@ Two things make this cheap rather than a tooling problem:
 ### The include graph is not a tree
 
 A fragment can have several hosts, and hosts can sit in different Diátaxis
-quadrants. `includes/_rm-states-table.md` has four host parents; each `_oq-*.md`
-has two (inline at point of use, plus the open-questions appendix).
+quadrants. `includes/_rm-states-table.md` has four host parents; most `_oq-*.md`
+files have two (inline at point of use, plus the open-questions appendix). Every
+Protocol Specification section fragment a body or annex page includes also
+renders on the all-in-one `full.md`, so it has two pages at least.
 `docs/tutorials/worked_example.md` (tutorial) and
 `docs/topics/measuring_cvd/possible_histories.md` (explanation) are both
 included into the reference specification's annexes. Quadrant selects the voice

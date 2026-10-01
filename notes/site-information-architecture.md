@@ -12,6 +12,7 @@ related_notes:
   - notes/documentation-sweeps.md
   - notes/agents-md-structure.md
   - notes/reader-facing-docs-audit.md
+  - notes/rfc-spec-authoring.md
 related_specs:
   - specs/diataxis-requirements.yaml
   - specs/meta-specifications.yaml
@@ -494,18 +495,19 @@ new group index is decided here before it lands.
 | `reference/formal_protocol/index.md` | generated | Bullets became the listing; the set-notation in the blurbs became prose in `description:`. |
 | `reference/messages/index.md` | generated | The shorthand codes each page covers folded into its `description:`. |
 | `reference/specs/index.md` | routing | Routes all four tiers, two of which (`project.md`, `process.md`) are working record the nav omits (DF-11-003); a nav-derived listing would drop them. |
+| `reference/vultron-spec/index.md` | routing | The Protocol Specification's landing page (#4059): its framing routes the six part pages, the seven annex pages, Open Questions and the hidden all-in-one `full.md`, which the nav omits (`notes/rfc-spec-authoring.md` § "Page Map"); a nav-derived listing would drop `full.md`. |
 | `start/index.md` | routing | Opens *Start Here*; its four situation cards come from `includes/start_here_cards.md`, the same fragment the home page's "Where to start" uses, and `routing_faults` counts a whole-included fragment's links (DF-10-002). |
 | `topics/measuring_cvd/index.md` | generated | The table became the listing; the reading-order sentence stays as framing. |
 | `topics/other_uses/index.md` | generated | As above. |
 
-Four `index.md` files the nav carries are not section indexes and declare
+Three `index.md` files the nav carries are not section indexes and declare
 nothing: `topics/capability_model/index.md` is a content page whose directory
 holds no other page; `reference/user_stories/index.md` routes the stories through
 an included table, and the stories themselves are working record reached from
-`traceability.md`; `reference/vultron-spec/index.md` is an assembly unit of
-fragments; `docs/index.md` is the front door (#3524). A leaf `index.md` becomes a
-section index the moment its directory gains a reader page the nav omits — the
-generator then requires it to declare `routing` and link the page.
+`traceability.md`; `docs/index.md` is the front door (#3524). A leaf
+`index.md` becomes a section index the moment its directory gains a reader page
+the nav omits — the generator then requires it to declare `routing` and link the
+page.
 
 ### Entry pages are titled by situation, never by type
 

@@ -23,6 +23,10 @@ the tree — 35 fragments, roughly 2,800 lines of normative prose — was outsid
 target set of the tool whose job is checking it. So were 38 other fragments
 elsewhere under `docs/`.
 
+The specification is published as a Reference section of pages, each a thin shell of `include-markdown` directives over the same fragments.
+A routing landing page links six body pages, one page per annex, an Open Questions page, and an all-in-one page that renders every section fragment in document order.
+Each section fragment is authored once, and each one a body or annex page includes appears on at least two pages: that page and the all-in-one page.
+
 Two facts make this more than a missed pattern.
 
 **The exemption was written for a category the specification does not belong
@@ -44,23 +48,19 @@ evaluated against a fragment at all*.
 
 ## Decision Drivers
 
-- Some style rules are page-scoped by construction. SG-07 and DF-09-003 require
-  acronym expansion "at first use on each page". Applied to the fragments
-  standalone, the rule demands a fresh expansion in every fragment that uses the
-  acronym, all of which render as one page: 12 expansions of "VFD", 10 of "RM",
-  9 of "EM", 8 each of "CS" and "PEC", 5 of "CVD". SG-10 concept order is a
-  property of the assembled document. SG-21, SG-39 and SG-41 refer to the H1 and
-  the nav label, which a fragment does not have — and `heading-offset` demotes
-  the headings it does have.
+- Some style rules are page-scoped by construction.
+  SG-07 and DF-09-003 require acronym expansion "at first use on each page".
+  Applied to the fragments standalone, the rule demands a fresh expansion in every fragment that uses the acronym, though several fragments render together on one body page and all of them render on the all-in-one page: across the document that is 12 expansions of "VFD", 10 of "RM", 9 of "EM", 8 each of "CS" and "PEC", 5 of "CVD".
+  SG-10 concept order is a property of the assembled page.
+  SG-21, SG-39 and SG-41 refer to the H1 and the nav label, which a fragment does not have — and `heading-offset` demotes the headings it does have.
 - Findings must carry usable line numbers. The document is roughly 2,800 lines
   and is edited as fragments, so a finding located in the assembly is a finding a
   maintainer cannot act on directly.
-- The include graph is not a tree. `includes/_rm-states-table.md` has four host
-  parents; each `_oq-*.md` has two. Hosts cross Diátaxis quadrants:
-  `docs/tutorials/worked_example.md` and
-  `docs/topics/measuring_cvd/possible_histories.md` are both included into the
-  reference specification's annexes. Quadrant selects the voice rules, so a
-  fragment's quadrant cannot be read off its own path.
+- The include graph is not a tree.
+  `includes/_rm-states-table.md` has four host parents; most `_oq-*.md` files have two.
+  Every section fragment a body or annex page includes is rendered by at least two pages: that page and the all-in-one page.
+  Hosts cross Diátaxis quadrants: `docs/tutorials/worked_example.md` and `docs/topics/measuring_cvd/possible_histories.md` are both included into the reference specification's annexes.
+  Quadrant selects the voice rules, so a fragment's quadrant cannot be read off its own path.
 - Prefer existing tooling over new project-specific machinery. Anything built
   here has to be maintained alongside `markdownlint-cli2` and MkDocs, which
   already own mechanical markdown and link validity respectively.
@@ -87,13 +87,28 @@ evaluated against a fragment at all*.
 Chosen option: **suppress the page-scoped rules on fragments; evaluate them on
 the rendered page.**
 
-A fragment is linted as source, with its own line numbers, for every rule whose
-scope is a sentence or a block. The rules whose scope is a page — SG-07, SG-09,
-SG-10, SG-11, SG-12, SG-21, SG-32, SG-33, SG-39, SG-41 — are not evaluated
-against a fragment. They are evaluated against the assembling page, which
-requires no new machinery because that page is already in the target set:
-`docs/reference/vultron-spec/index.md` is not `_`-prefixed and is in the nav.
-The only instruction needed is to read its include directives in order.
+A fragment is linted as source, with its own line numbers, for every rule whose scope is a sentence or a block.
+The rules whose scope is a page — SG-07, SG-09, SG-10, SG-11, SG-12, SG-21, SG-32, SG-33, SG-39, SG-41, SG-44 — are not evaluated against a fragment.
+They are evaluated against every assembling page: each page that includes fragments, assessed as it is published (DF-09-003).
+
+For the Protocol Specification, under `docs/reference/vultron-spec/`, the assembling pages are:
+
+- the six body pages `introduction.md`, `layers.md`, `tracking-models.md`, `interactions.md`, `conformance.md` and `considerations.md`;
+- the seven annex pages, `annex-a-single-vendor.md` through `annex-g-capability-shapes.md`;
+- `open-questions.md`;
+- `full.md`, the all-in-one page, which includes every section fragment in document order;
+- the landing page `index.md`, a routing page (DF-11-005) whose only fragment is the shared tip `_full-page-tip.md` that every content page also carries.
+
+`notes/rfc-spec-authoring.md` § "Page Map" lists the fragments each page includes.
+
+No new machinery is needed, because every assembling page is already in the target set: none is `_`-prefixed.
+`full.md` is outside the nav and excluded from search, and it is a target all the same, because nav visibility is not a lint-scope class (below).
+The only instruction needed is to read each page's include directives in order.
+
+A fragment rendered by several pages is assessed on each of them.
+An acronym is expanded at its first use on every page that uses it, so the fragment that opens a body page may carry an expansion that an earlier page already made, and `full.md` then renders both.
+That repetition is SG-44 and DF-11-007 working: each page is self-sufficient for a reader who lands on it directly.
+It is not a defect on `full.md`, whose first use is still expanded.
 
 Quadrant is a property of the host page, not the fragment path. A fragment with
 several hosts must satisfy each of them.
@@ -113,26 +128,19 @@ nav-visibility mechanism, and its list also holds `developer/**` and
 Pointing lint scope at a nav mechanism is the general form of the defect this
 ADR corrects; `_*.md` was one instance of it.
 
-**The auto-fix guard gates on edit kind, not file count.** The prior guard
-switched to report-only above 20 target files. File count is a proxy for the
-property that matters: whether a fix is a deterministic substitution or a model
-rewriting prose. SG-08, SG-35 and SG-37 are substitutions and are safe at any
-scale, which is why `markdownlint --fix` and `black` run tree-wide with no
-threshold. SG-02, SG-24 and SG-17 through SG-19 are model rewrites whose
-per-edit risk does not shrink with volume. The count conflated them, blocking
-the safe fixes above 20 files while permitting the risky ones below it. It was
-also partly redundant: SG-17 through SG-19 already self-cap on "*isolated*"
-occurrences, with SG-20 routing pervasive drift to a Phase 4 finding.
+**The auto-fix guard gates on edit kind, not file count.**
+A guard that switches to report-only above a number of target files gates on a proxy for the property that matters: whether a fix is a deterministic substitution or a model rewriting prose.
+SG-08, SG-35 and SG-37 are substitutions and are safe at any scale, which is why `markdownlint --fix` and `black` run tree-wide with no threshold.
+SG-02, SG-24 and SG-17 through SG-19 are model rewrites whose per-edit risk does not shrink with volume.
+A count conflates them, blocking the safe fixes above the threshold while permitting the risky ones below it.
+It is also partly redundant: SG-17 through SG-19 already self-cap on "*isolated*" occurrences, with SG-20 routing pervasive drift to a Phase 4 finding.
 
-**`codespell` becomes the mechanical floor for SG-37.** Of the eight rules
-violated in PR #3265, spelling is the only one with off-the-shelf tooling.
-`codespell` is to be configured in `pyproject.toml` and run as a stock pre-commit
-hook, so British spelling stops depending on an agent noticing it.
+**`codespell` becomes the mechanical floor for SG-37.**
+Of the eight rules violated in PR #3265, spelling is the only one with off-the-shelf tooling.
+`codespell` is configured in `pyproject.toml` and runs as a stock pre-commit hook, so British spelling does not depend on an agent noticing it.
 
-Everything in this section is the decided target state. None of it is built yet:
-this ADR is the decision record, and the implementation — the `lint-docs` target
-set, the rule-scope split, the empty-target-set failure, and the `codespell`
-configuration — is tracked in #3318.
+The `lint-docs` target set, the rule-scope split, the empty-target-set failure and the `codespell` configuration are implemented by #3318.
+The page set listed above is built by #4061.
 
 ### Consequences
 
@@ -148,24 +156,24 @@ configuration — is tracked in #3318.
   `lint-docs` must preserve. Collapsing it in either direction reintroduces one
   of the two failure modes: false positives on every fragment, or no coverage
   at all.
-- Bad, because SG-37 enforcement is now split across two mechanisms — a
-  dictionary for the mechanical class and agent reading for the rest.
-- Neutral, because all 73 fragments remain excluded from nav. Nav visibility and
-  lint scope are now independent, which is the point.
+- Bad, because a fragment's page-scoped findings depend on which pages render it.
+  Moving a fragment to another page, or reordering a page's includes, can create a page-scoped finding without any edit to the fragment.
+- Bad, because SG-37 enforcement is split across two mechanisms — a dictionary for the mechanical class and agent reading for the rest.
+- Neutral, because every fragment remains excluded from nav.
+  Nav visibility and lint scope are independent, which is the point.
 
 ## Validation
 
-To be validated when #3318 lands, by all three of:
+Validated by all three of:
 
-- `lint-docs` invoked on `docs/reference/vultron-spec/` resolves a non-empty
-  target set including all 35 fragments.
+- `lint-docs` invoked on `docs/reference/vultron-spec/` resolves a non-empty target set including every fragment under that directory.
 - `codespell` over `docs/` with the configured dictionary and exclusions exits 0.
 - `check-docs-sync` fails rather than passes when its `lint-docs` invocation
   resolves to zero targets.
 
-*Validated 2026-09-28 (#3318):* all three hold. The `lint-docs` target-set rule
-is skill prose, so the first and third are checked by reading the skill; the
-second is the `codespell` pre-commit hook and `codespell docs/` exiting 0.
+*Validated 2026-09-28 (#3318):* all three hold.
+The `lint-docs` target-set rule is skill prose, so the first and third are checked by reading the skill; the second is the `codespell` pre-commit hook and `codespell docs/` exiting 0.
+The first is to be re-checked when #4061 lands: the resolved target set then also holds every assembling page the decision lists, `full.md` included.
 
 ## Pros and Cons of the Options
 
@@ -202,9 +210,7 @@ Add `docs/reference/vultron-spec/**` as an explicit include.
 
 - Good, because it matches how the document is read, and page-scoped rules are
   correct by construction.
-- Bad, because findings land in the assembly rather than the source, so every
-  fix requires mapping a line number back through 23 includes across roughly
-  2,800 lines.
+- Bad, because findings land in the assembly rather than the source, so every fix requires mapping a line number back through every include of `full.md`, roughly 2,800 lines.
 - Bad, because the assembled artifact cannot be edited. Every finding needs
   that mapping before it can be acted on.
 
@@ -272,12 +278,10 @@ The general lesson for the implementation: what makes `--write-changes` safe is
 not the dictionary but an audit that no finding sits inside a code fence, an
 inline code span, an external citation title, or a link target.
 
-The `notes/rfc-review-rubric.md` warning that recorded this gap now points at the
-covering mechanism and at #3318, per that rubric's own instruction not to delete
-retired items. It is retired outright — not merely repointed — when #3318 lands.
+`notes/rfc-review-rubric.md` keeps the retired warning that recorded this gap, per that rubric's own rule not to delete retired items, and names `lint-docs` and `codespell` as its covering mechanisms.
 
-Design rationale and the fragment inventory: `notes/documentation-strategy.md`
-§ "Nav Visibility Is Not a Content Class: Fragments vs. Assembly Units".
+Design rationale and the fragment inventory: `notes/documentation-strategy.md` § "Nav Visibility Is Not a Content Class: Fragments vs. Assembly Units".
+The Protocol Specification's pages and the fragments each one includes: `notes/rfc-spec-authoring.md` § "Page Map".
 
-Generated spec requirements: `diataxis-requirements.yaml` DF-09-003 (amended),
+Generated spec requirements: `diataxis-requirements.yaml` DF-09-003,
 DF-09-007, DF-09-008, DF-09-009.
