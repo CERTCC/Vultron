@@ -353,7 +353,10 @@ rather than carry it and let VM-07-001 drop it silently outbound. Inside a union
 Pydantic keeps the `Annotated` wrapper, so code that classifies a branch with
 `is str` or by set equality — `db_record._is_generic_object_ref`,
 `rehydration._annotation_branches` — goes through `strip_annotated()`
-(`vultron/core/models/_helpers.py`) first. Two ratchets derive the field set
+(`vultron/core/models/_helpers.py`) first. A classifier that skips it sees no
+string branch and misreads the slot as object-only: the dehydration field set
+comes out empty, and VM-06-007 refuses the reference instead of deferring it.
+Two ratchets derive the field set
 from the annotations (ARCH-23-004) and assert the refusal:
 `test/architecture/test_wire_reference_fields_reject_blank.py` and, for core
 string fields with a pinned sentinel set,

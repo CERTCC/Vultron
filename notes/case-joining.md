@@ -183,7 +183,15 @@ message is designed: we accept offers and invitations, never bare objects.
 ## Pitfalls
 
 - **Roster membership is not "accepted" and not "entitled to content."** Ask
-  whether the participant is active.
+  whether the participant is active: it accepted the stub Invite, and — only
+  while an embargo is active — is `SIGNATORY` to it. The check lives in the
+  shared recipient selection, never at a send site (CM-10-004, CM-10-005).
+- **A joined participant never answers the original `Offer(VulnerabilityReport)`**
+  and never runs `validate-report`/`invalidate-report`/`reject-report` for the
+  case's report; it judges the case by answering the full-case Invite
+  (CM-11-005, ADR-0070).
+- **A status update never creates a participant.** An on-behalf assertion whose
+  target is not a participant is refused before any write (PRM-06-006).
 - **Do not hold the ledger replay until the full-case Invite is accepted.** A
   participant is active once it accepts the stub; the history is part of what
   it judges, and a participant that finds the case `INVALID` keeps receiving
