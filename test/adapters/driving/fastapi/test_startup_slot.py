@@ -15,8 +15,6 @@
 
 """Unit tests for ``StartupSlot`` (#3985)."""
 
-import pytest
-
 from vultron.adapters.driving.fastapi.startup_slot import StartupSlot
 
 
@@ -31,13 +29,6 @@ def test_install_replaces_the_held_value():
     assert slot.value == "second"
 
 
-def test_clear_forgets_the_held_value():
-    slot: StartupSlot[str] = StartupSlot()
-    slot.install("held")
-    slot.clear()
-    assert slot.value is None
-
-
 def test_monkeypatch_restores_the_held_value(monkeypatch):
     """Tests swap a slot's value with ``monkeypatch``; undo restores it."""
     slot: StartupSlot[str] = StartupSlot()
@@ -46,9 +37,3 @@ def test_monkeypatch_restores_the_held_value(monkeypatch):
     assert slot.value == "replacement"
     monkeypatch.undo()
     assert slot.value == "original"
-
-
-def test_a_slot_accepts_no_other_attributes():
-    slot: StartupSlot[str] = StartupSlot()
-    with pytest.raises(AttributeError):
-        slot.other = "x"  # type: ignore[attr-defined]

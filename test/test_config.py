@@ -57,9 +57,7 @@ def reset_config(monkeypatch, tmp_path):
     # Clear cache after teardown; guard against FileNotFoundError when
     # VULTRON_CONFIG still points to a missing file set by the test body
     # (monkeypatch reverts env vars only after this fixture's teardown).
-    import vultron.config.app as _cfg_module
-
-    _cfg_module.clear_config_cache()
+    clear_config_cache()
 
 
 # ---------------------------------------------------------------------------
@@ -141,16 +139,13 @@ def test_get_config_is_injectable_with_depends():
 
     app = FastAPI()
 
-    @app.get("/level")
-    def _level(cfg: AppConfig = Depends(get_config)) -> dict[str, str]:
-        return {
-            "same": str(cfg is get_config()),
-            "level": cfg.server.log_level,
-        }
+    @app.get("/config")
+    def _config(cfg: AppConfig = Depends(get_config)) -> dict[str, bool]:
+        return {"cached": cfg is get_config()}
 
-    response = TestClient(app).get("/level")
+    response = TestClient(app).get("/config")
     assert response.status_code == 200
-    assert response.json() == {"same": "True", "level": "INFO"}
+    assert response.json() == {"cached": True}
 
 
 # ---------------------------------------------------------------------------

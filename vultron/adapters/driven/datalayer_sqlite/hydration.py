@@ -180,7 +180,8 @@ def _core_classes_by_type_value() -> dict[str, type[BaseModel] | None]:
         if value is None:
             continue
         index[value] = None if value in index else cls
-    # Index before key: a reader that sees the new key also sees its index.
+    # Index before key, so a reader that matches the new key never gets the
+    # stale index.
     _TYPE_VALUE_INDEX.index = index
     _TYPE_VALUE_INDEX.registered = registered
     return index

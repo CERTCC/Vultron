@@ -40,7 +40,3 @@ class StartupSlot[T]:
     def install(self, value: T) -> None:
         """Replace the held value with *value*."""
         self.value = value
-
-    def clear(self) -> None:
-        """Forget the held value, as before anything was installed."""
-        self.value = None
