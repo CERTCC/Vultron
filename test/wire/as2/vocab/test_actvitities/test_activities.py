@@ -14,7 +14,6 @@
 import unittest
 
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab import activities  # noqa: F401
 from vultron.wire.as2.vocab.activities.case_participant import (
     _CreateParticipantActivity,
 )

@@ -284,7 +284,7 @@ File: `.claude/pr-{number}-triage.json`
 - Format: `phase{N}-{kebab-description}-{index}`
 - Index is a zero-based integer suffix that guarantees uniqueness within the run
 - Description is a kebab-case slug of the finding (≤ 5 words)
-- Examples: `phase7-bt-node-imports-usecase-0`, `phase11-ci-black-fail-0`
+- Examples: `phase7-bt-node-imports-usecase-0`, `phase11-ci-ruff-fail-0`
 - Execute and verify use `finding_id` as the stable cross-artifact key
 
 ### Decision Outcome Values

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from _pytest.outcomes import Failed, Skipped
@@ -1467,8 +1468,6 @@ class TestCheckPerActorReplicaCsStateTransitionsObserved:
 # ---------------------------------------------------------------------------
 # CLP-14 timestamp invariants (check_clp14_timestamp_invariants)
 # ---------------------------------------------------------------------------
-
-from datetime import UTC, datetime, timedelta  # noqa: E402
 
 
 def _ts_chain_entry(

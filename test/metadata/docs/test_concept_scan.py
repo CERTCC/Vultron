@@ -126,6 +126,14 @@ def test_reference_labels_fold_case_and_whitespace():
     assert [link.target for link in page.links] == ["b.md"]
 
 
+def test_a_label_inside_a_definition_title_is_not_a_link_use():
+    # The definition line is blanked before reference uses are matched, so
+    # its quoted title cannot be read back as a second use of the label.
+    page = scan_page('See [x] here.\n\n[x]: ../b.md "t [x]"\n', "topics/a.md")
+
+    assert [link.target for link in page.links] == ["b.md"]
+
+
 def test_a_root_relative_link_is_not_a_docs_page():
     assert scan_page("[a](/topics/b.md)\n", "topics/a.md").links == ()
 
