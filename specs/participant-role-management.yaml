@@ -343,7 +343,9 @@ groups:
     verification: >-
       ``SvcAddOnBehalfStatusUseCase`` implements this path; the asserting
       actor's CASE_MANAGER or CASE_OWNER role is verified by
-      ``CheckOnBehalfAuthorizedNode`` before any write occurs.
+      ``CheckOnBehalfAuthorizedNode``, and the target's existing Vendor-role
+      participant by ``CheckOnBehalfTargetIsParticipantNode``, before any
+      write occurs.
     adr:
     - ADR-0084
     tags:
@@ -389,6 +391,8 @@ groups:
     verification: >-
       A test asserts an on-behalf assertion for an actor that is not a
       participant is refused and leaves the case's roster unchanged.
+      ``CheckOnBehalfTargetIsParticipantNode`` enforces it as a read-only
+      guard ahead of the only write in the on-behalf tree.
     adr:
     - ADR-0084
     tags:
