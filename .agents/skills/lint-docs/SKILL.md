@@ -96,13 +96,16 @@ against them (DF-09-007, ADR-0092):
   "VFD" on one rendered specification page, or a missing H1 that
   `heading-offset` demotes on purpose. `.markdownlint-cli2.yaml` set the
   precedent by disabling MD041 for the same reason.
-- **Page-scoped rules are evaluated against the assembly unit.** That page is
-  already in the target set: every page under `docs/reference/vultron-spec/`,
-  one per part and annex plus the single-page `full.md`, is not `_`-prefixed.
-  Read its `{% include-markdown %}` directives in
-  order and assess the page as the reader sees it: one first use per acronym,
-  one concept order, one H1. No include-graph resolver, script, or other
-  tooling is used for this — the directives are the order.
+- **Page-scoped rules are evaluated against every assembly unit.** Each is
+  already in the target set, because no page is `_`-prefixed. The Protocol
+  Specification has several — its part, annex and Open Questions pages and the
+  all-in-one `full.md`, which is out of nav but published; the list and each
+  page's fragments are in `notes/rfc-spec-authoring.md` § "Page Map". Read each
+  page's `{% include-markdown %}` directives in order and assess the page as
+  the reader sees it: one first use per acronym, one concept order, one H1. A
+  fragment rendered by several pages is assessed on each. No include-graph
+  resolver, script, or other tooling is used for this — the directives are the
+  order.
 - **A fragment's Diátaxis quadrant comes from its host pages, never from its
   own path** (DF-09-008). Find the hosts with
   `grep -rl 'include-markdown.*<fragment name>' docs/`. A fragment with more
@@ -141,7 +144,7 @@ rewrites are proposed with their replacement text:
 | British spelling in prose | SG-37 | substitution | Replace. Skip filenames, include and link targets, cited titles, and ADR titles. |
 | Acronym missing from `_acronyms/index.md` | SG-08 | substitution | Add it in strict alphabetical order, case-insensitive. |
 | Legacy `graph` mermaid syntax | SG-35 | substitution | Rewrite as `flowchart`. |
-| Acronym unexpanded at first use on the page | SG-07 | substitution, **pages only** | Insert the expansion. Never on a fragment — first use belongs to the assembly unit. |
+| Acronym unexpanded at first use on the page | SG-07 | substitution, **pages only** | Insert the expansion. Never on a fragment — first use belongs to each assembly unit. |
 | Banned glossary alias | SG-02 | prose rewrite | Propose the canonical term where unambiguous. |
 | Filler and hedging | SG-24 | prose rewrite | Propose the sentence with the filler deleted, where it survives. |
 | Isolated out-of-quadrant pronoun | SG-17–SG-19 | prose rewrite | Propose that sentence in the quadrant's voice. |
@@ -164,9 +167,9 @@ and first-use checks below still need judgment for every other term.
 
 The cross-page checks are read against `notes/site-information-architecture.md`
 (ADR-0102), not re-derived per page. They are all page-scoped, so a fragment is
-assessed only through its assembly unit (Phase 1 § "Fragments and assembly
-units"), and they are all judgment findings — reported with a recommendation,
-never applied:
+assessed only through each assembly unit that renders it (Phase 1 § "Fragments
+and assembly units"), and they are all judgment findings — reported with a
+recommendation, never applied:
 
 - **Level dependency** (DF-11-002; SG-10, SG-11, SG-40) — the page uses a concept
   introduced by a page whose `level` is higher than its own, without introducing,
@@ -175,7 +178,7 @@ never applied:
   link, or the re-level, and say which and why. A page whose every dependency
   is linked is compliant at any level: the rule is about unlinked use, not about
   citing higher pages.
-- **Self-sufficiency on arrival** (SG-44, DF-11-007) — read the assembly unit as
+- **Self-sufficiency on arrival** (SG-44, DF-11-007) — read each assembly unit as
   a reader who arrived by deep link and has read none of its nav neighbors. It
   fails if the orientation paragraph does not say what the page covers (SG-41),
   if a prerequisite is assumed rather than stated and linked (SG-12), or if an
@@ -261,8 +264,8 @@ Skip both when nothing was fixed.
 
 Output, in this order:
 
-1. Target count, naming any fragments and the assembly unit each was assessed
-   under. **If the count is zero, the output is the Phase 1 failure line and
+1. Target count, naming any fragments and every assembly unit each was
+   assessed under. **If the count is zero, the output is the Phase 1 failure line and
    nothing else** — never "no findings" (DF-09-009).
 2. Fixes applied, grouped by rule ID, with file and line.
 3. Prose rewrites proposed, each with the sentence and its replacement.
