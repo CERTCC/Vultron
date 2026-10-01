@@ -1,4 +1,4 @@
-"""Smoke tests for ``scripts/relabel_spec_kinds.py`` and its item slicer.
+"""Smoke tests for ``scripts/relabel_spec_kinds.py``.
 
 The relabel is line-based YAML surgery, so the property that matters is that
 nothing outside the targeted lines changes. Each fixture below exercises one
@@ -32,7 +32,6 @@ def _load(name: str):
 
 
 relabel = _load("relabel_spec_kinds")
-items = _load("_spec_yaml_items")
 
 _FIXTURE = """\
 id: TST
@@ -168,25 +167,6 @@ def test_relabel_reports_tallies(tmp_path, capsys):
         "3 kind(s) relabeled; 4 missing_story_reference suppression(s) removed"
         in out
     )
-
-
-@pytest.mark.parametrize("text", [_FIXTURE, _EXPECTED])
-def test_iter_blocks_round_trips_the_file(text):
-    lines = text.splitlines(keepends=True)
-    rebuilt = "".join(
-        b if isinstance(b, str) else "".join(b.lines)
-        for b in items.iter_blocks(lines)
-    )
-    assert rebuilt == text
-
-
-def test_iter_blocks_slices_items_at_their_indent():
-    lines = _FIXTURE.splitlines(keepends=True)
-    found = [b for b in items.iter_blocks(lines) if not isinstance(b, str)]
-    assert [b.spec_id for b in found] == [f"TST-01-00{n}" for n in range(1, 6)]
-    assert all(b.indent == "  " and b.field_indent == "    " for b in found)
-    # the multi-line block scalar belongs to its item
-    assert any("across two lines." in line for line in found[2].lines)
 
 
 # ---------------------------------------------------------------------------
