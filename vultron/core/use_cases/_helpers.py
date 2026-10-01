@@ -15,6 +15,10 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
+from vultron.core.models.protocols import PersistableModel
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -253,6 +257,38 @@ def resolve_case(case_id: str, dl: CasePersistence):
     if case_raw is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
     return case_raw
+
+
+def read_received_activity(
+    dl: CasePersistence, activity_id: str, resource_type: str = "Activity"
+) -> PersistableModel:
+    """Return the activity *activity_id* as this receiver holds it.
+
+    A received activity that reached its use case is archived by intake as a
+    ``ReceivedActivityRecord`` under the receiver's own key (CLP-10-017,
+    ADR-0111), so that record is read first.
+
+    An activity the inbox deferred until its case is known has not reached
+    intake yet.  An Invite to a case is usually in that state: the invitee
+    holds no case until its Accept brings the bootstrap Announce (MV-10-003).
+    The inbox holds such an activity under the sender's id for replay, and
+    that copy is then the only one the receiver has, so it is read next.
+
+    Args:
+        dl: The receiver's DataLayer.
+        activity_id: The sender's id for the activity.
+        resource_type: Label for the error when nothing is held.
+
+    Raises:
+        VultronNotFoundError: When this store holds no such activity.
+    """
+    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
+    if isinstance(record, ReceivedActivityRecord):
+        return record.activity
+    deferred = dl.read(activity_id)
+    if deferred is None:
+        raise VultronNotFoundError(resource_type, activity_id)
+    return deferred
 
 
 def current_participant_rm_state(

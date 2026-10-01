@@ -17,7 +17,8 @@
 
 Three containers, as ``test_remote_case_actor_invite`` arranges them, with the
 in-process router instrumented to keep every body it POSTs.  The owner
-triggers ``invite-actor-to-case``; the CaseActor emits the Invite.  Then:
+triggers ``invite-actor-to-case``, which sends the owner's Offer to the
+CaseActor; the CaseActor emits the Invite (ADR-0109).  Then:
 
 - the body the router delivered to the invitee is the body the adapter
   sealed, byte for byte — the ledger snapshot on the emitting side is that
@@ -109,7 +110,7 @@ class TestTheWireCarriesTheSealedBody:
     ):
         topo, router = recorded_topology
         case_id = "urn:uuid:sealed-body-wire"
-        owner_dl, _, _ = _bootstrap(topo, case_id)
+        _, ca_dl, _ = _bootstrap(topo, case_id)
 
         _invite(topo, case_id)
 
@@ -122,7 +123,8 @@ class TestTheWireCarriesTheSealedBody:
         assert len(invites) == 1, "the invitee must receive exactly one Invite"
         invite_id, delivered_body, _ = invites[0]
 
-        sealed = read_sealed_body(owner_dl, invite_id)
+        # The CaseActor emits the Invite (ADR-0109), so its store holds the seal.
+        sealed = read_sealed_body(ca_dl, invite_id)
         assert sealed is not None, "the emitting store must hold the seal"
         assert delivered_body == sealed.body, (
             "the emitter must be handed the sealed body itself, byte for byte"

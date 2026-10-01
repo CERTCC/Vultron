@@ -55,6 +55,7 @@ from test.ci.invariants.common import (
     check_per_actor_replica_participant_status_schema_completeness,
     check_per_actor_replica_rm_closed_termination,
     check_rm_closed_termination,
+    check_unique_payload_snapshot_ids,
     load_narrative_edges,
 )
 
@@ -282,6 +283,19 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
         )
 
     @pytest.mark.case_ledger_invariants
+    @pytest.mark.spec("CLP-07-002")
+    def test_invariant_clp07_unique_payload_snapshot_ids(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """No replica records one activity twice (CLP-07-002, ADR-0109)."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_unique_payload_snapshot_ids(replicas)
+        assert not violations, (
+            f"{len(violations)} activity id(s) recorded more than once on a"
+            f" replica (CLP-07-002 violation):\n" + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
     @pytest.mark.spec("CLP-14-002")
     @pytest.mark.spec("CLP-14-003")
     @pytest.mark.spec("CLP-14-005")
@@ -384,6 +398,7 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
         "test_invariant_14_no_gaps_in_log_indices": test_invariant_14_no_gaps_in_log_indices,
         "test_invariant_15_cs_state_transitions_observed": test_invariant_15_cs_state_transitions_observed,
         "test_invariant_clp13_no_rejected_invite_entries": test_invariant_clp13_no_rejected_invite_entries,
+        "test_invariant_clp07_unique_payload_snapshot_ids": test_invariant_clp07_unique_payload_snapshot_ids,
         "test_invariant_clp14_timestamp_invariants": test_invariant_clp14_timestamp_invariants,
         "test_invariant_per_actor_replica_no_rm_state_oscillation": test_invariant_per_actor_replica_no_rm_state_oscillation,
         "test_invariant_per_actor_replica_rm_closed_termination": test_invariant_per_actor_replica_rm_closed_termination,

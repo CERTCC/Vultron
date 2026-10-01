@@ -329,7 +329,6 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-        cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
@@ -337,9 +336,10 @@ class TriggerActivityPort(Protocol):
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
-        ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
-        MAY carry the case owner's ID for attribution.
-        ``cc`` MAY carry the Case Actor's own ID for self-archival (CLP-10-001).
+        ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
+        MAY carry the case owner's ID for attribution.  There is no ``cc``:
+        the CASE_MANAGER commits the Invite in the tree that emits it and
+        never addresses a copy to itself (CM-17-006, ADR-0109).
         ``id_`` allows callers to supply a deterministic ID for idempotency.
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``VulnerabilityCase`` (the adapter projects it

@@ -344,3 +344,159 @@ class TestOfferActorToCaseAtNonCaseManager:
             "the recommender index is the CASE_MANAGER's; a copy-holder"
             " must not write it"
         )
+
+
+class TestOwnerDirectInviteAtCaseManager:
+    """The Case Owner's Offer(Actor, Case) at the CASE_MANAGER (CM-17-007).
+
+    When the recommender holds ``CVDRole.CASE_OWNER``, the recommendation is
+    already the owner's decision, so the CASE_MANAGER emits the ``Invite``
+    itself — from its own identity and outbox, committed to its ledger, and
+    with no ``cc`` (ADR-0109) — instead of asking the owner to decide.
+    """
+
+    _OWNER_ID = "https://example.org/actors/case-owner"
+    _INVITEE_ID = "https://example.org/actors/invitee"
+    _CASE_ID = "https://example.org/cases/owner-direct-invite-case"
+
+    @pytest.fixture(autouse=True)
+    def clear_blackboard(self):
+        py_trees.blackboard.Blackboard.storage.clear()
+        yield
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def _setup_dl(self, seed_case_manager, with_active_embargo=False):
+        from datetime import UTC, datetime
+
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.em import EM
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=TEST_ACTOR_ID)
+        case = as_VulnerabilityCase(
+            id_=self._CASE_ID, name="OwnerDirect", attributed_to=self._OWNER_ID
+        )
+        seed_case_manager(dl, case, TEST_ACTOR_ID)
+        owner = CaseParticipant(
+            id_=f"{case.id_}/participants/owner",
+            attributed_to=self._OWNER_ID,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        dl.create(owner)
+        case.case_participants.append(owner.id_)
+        case.actor_participant_index[self._OWNER_ID] = owner.id_
+        if with_active_embargo:
+            embargo = as_EmbargoEvent(
+                id_=f"{case.id_}/embargo/e1",
+                content="Active embargo",
+                end_time=datetime(2030, 1, 1, tzinfo=UTC),
+                context=case.id_,
+            )
+            dl.create(embargo)
+            case.active_embargo = embargo.id_
+            case.append_case_status(em_state=EM.ACTIVE)
+        dl.create(case)
+        return dl
+
+    def _deliver(self, dl, make_payload, roles=None):
+        activity = recommend_actor_activity(
+            as_Actor(id_=self._INVITEE_ID),
+            target=_case_ref(self._CASE_ID),
+            actor=self._OWNER_ID,
+            to=[TEST_ACTOR_ID],
+            suggested_roles=roles,
+        )
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
+        return OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+    def _sealed_invite(self, dl) -> dict:
+        import json
+
+        from vultron.adapters.outbox_sealed_body import read_sealed_body
+
+        outbox = dl.outbox_list()
+        assert len(outbox) == 1, f"expected one Invite, got {outbox!r}"
+        sealed = read_sealed_body(dl, outbox[0])
+        assert sealed is not None
+        body: dict = json.loads(sealed.body)
+        return body
+
+    @pytest.mark.spec("CM-17-007")
+    def test_case_manager_emits_the_invite_itself(
+        self, make_payload, seed_case_manager
+    ):
+        dl = self._setup_dl(seed_case_manager)
+
+        result = self._deliver(dl, make_payload)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        invite = self._sealed_invite(dl)
+        assert invite["type"] == "Invite"
+        assert invite["actor"] == TEST_ACTOR_ID
+        assert invite.get("attributedTo") == self._OWNER_ID
+        assert invite.get("to") == [self._INVITEE_ID]
+        assert "cc" not in invite
+        # No roles named: the CASE_MANAGER assigns the default (CM-16-003).
+        assert invite.get("roles") == ["vendor"]
+
+    @pytest.mark.spec("CM-17-003")
+    def test_requested_roles_are_carried(
+        self, make_payload, seed_case_manager
+    ):
+        dl = self._setup_dl(seed_case_manager)
+
+        self._deliver(dl, make_payload, roles=["coordinator"])
+
+        assert self._sealed_invite(dl).get("roles") == ["coordinator"]
+
+    @pytest.mark.spec("CM-17-006")
+    def test_invite_is_committed_to_the_case_managers_ledger(
+        self, make_payload, seed_case_manager
+    ):
+        dl = self._setup_dl(seed_case_manager)
+
+        self._deliver(dl, make_payload)
+
+        invite_id = self._sealed_invite(dl)["id"]
+        snapshot_ids = [
+            getattr(entry, "payload_snapshot", {}).get("id")
+            for entry in dl.list_objects("CaseLedgerEntry")
+        ]
+        assert invite_id in snapshot_ids
+
+    @pytest.mark.spec("CM-17-002")
+    def test_active_embargo_enriches_the_case_stub(
+        self, make_payload, seed_case_manager
+    ):
+        dl = self._setup_dl(seed_case_manager, with_active_embargo=True)
+
+        self._deliver(dl, make_payload)
+
+        target = self._sealed_invite(dl)["target"]
+        assert isinstance(target.get("activeEmbargo"), dict)
+        assert "endTime" in target["activeEmbargo"]
+        assert target.get("caseStatus", {}).get("emState") in (
+            "active",
+            "ACTIVE",
+        )
+
+    def test_owner_is_not_asked_to_decide(
+        self, make_payload, seed_case_manager
+    ):
+        """The fresh path's Offer(CaseParticipant) to the owner is not sent."""
+        dl = self._setup_dl(seed_case_manager)
+
+        self._deliver(dl, make_payload)
+
+        queued = [dl.read(item) for item in dl.outbox_list()]
+        assert all(getattr(q, "type_", None) == "Invite" for q in queued)

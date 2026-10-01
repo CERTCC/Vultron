@@ -15,13 +15,20 @@
 
 """Received-side BT factories for the InviteActorToCase workflow.
 
-See CLP-10-001, CLP-10-006; Issue #1293.
+See CLP-10-001, CLP-10-005, CLP-10-006; Issue #1293, #3821.
 """
 
 import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.invite_received import (
+    LogInviteReceivedNode,
+    RecordInviteTrustAnchorNode,
+)
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_participant_replica_gated_tree,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -55,24 +62,56 @@ def create_reject_invite_actor_to_case_received_tree(
 
 def create_invite_actor_to_case_received_tree(
     case_id: str,
+    invitee_id: str,
+    inviter_id: str,
 ) -> py_trees.composites.Sequence:
-    """Received-side BT for ``Invite(Actor, Case)`` on the CaseActor inbox.
+    """Received-side BT for ``Invite(Actor, Case)`` — one tree for every receiver.
 
-    Intake stores the Invite activity as received (CLP-10-017), then the
-    canonical ``CaseLedgerEntry`` for the invite is committed when the
-    receiving actor holds ``CVDRole.CASE_MANAGER`` (CLP-10-006).  The tree
-    has no effect nodes of its own: the per-tree ``StoreActivityNode`` it once
-    carried duplicated intake and was removed (CLP-10-019).
+    The CASE_MANAGER emits the Invite from its own store and commits it in
+    the emitting tree; it never receives its own Invite (CM-17-006,
+    ADR-0109).  The receiver is therefore the invitee, which holds only the
+    Invite's case stub (MV-10-004)::
+
+        InviteActorToCaseReceivedBT (Sequence)
+        ├── Intake                       # stores the Invite idempotently
+        ├── GuardedCommitCaseLedgerEntryBT   # CASE_MANAGER only — skips here
+        └── InviteeRecordsInvite         # not the CASE_MANAGER
+            ├── LogInviteReceivedNode        # SL-04-006
+            └── RecordInviteTrustAnchorNode  # PCR-03-004
+
+    Both gates read a case the receiver does not hold as "not the
+    CASE_MANAGER" (``case_may_be_absent``), because an invitee has no replica
+    until the case is announced.
 
     Args:
-        case_id: ID of the VulnerabilityCase referenced by the invite.
+        case_id: ID of the case the Invite's stub names (its ``target``).
+        invitee_id: The invited actor (the Invite's ``object``).
+        inviter_id: The Invite's sender, recorded as the case's expected
+            CASE_MANAGER.
 
     Returns:
         Root ``InviteActorToCaseReceivedBT`` Sequence node.
     """
     return create_receive_activity_tree(
         name="InviteActorToCaseReceivedBT",
-        case_id=case_id if case_id else None,
+        case_id=case_id,
         precondition_guards=[],
-        effect_nodes=[],
+        effect_nodes=[
+            create_participant_replica_gated_tree(
+                name="InviteeRecordsInvite",
+                case_id=case_id,
+                children=[
+                    LogInviteReceivedNode(
+                        invitee_id=invitee_id,
+                        case_id=case_id,
+                        sender_id=inviter_id,
+                    ),
+                    RecordInviteTrustAnchorNode(
+                        case_id=case_id, case_actor_id=inviter_id
+                    ),
+                ],
+                case_may_be_absent=True,
+            ),
+        ],
+        case_may_be_absent=True,
     )
