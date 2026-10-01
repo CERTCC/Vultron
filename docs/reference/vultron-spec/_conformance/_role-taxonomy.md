@@ -11,7 +11,7 @@ transitions it is authorized to drive. An actor may hold multiple process roles.
 | Vendor | Drives its own VFD transition `f→F` (fix ready, `CF`) |
 | Deployer | Drives its own VFD transition `d→D` (fix deployed, `CD`) |
 | Coordinator | Drives case participant management; coordinates multi-party disclosure |
-| Common Vulnerabilities and Exposures (CVE) Numbering Authority (CNA) | May assign CVE IDs directly; a participant without the role delegates assignment. Orthogonal to the other roles, and typically co-held with Coordinator or Vendor |
+| CVE Numbering Authority (CNA) | May assign CVE IDs directly; a participant without the role delegates assignment. Orthogonal to the other roles, and typically co-held with Coordinator or Vendor |
 | Observer | Holds no drive obligations for VFD; may report PXA observations ([§12.4.2 Participant-Agnostic CS Transitions (PXA)](../conformance.md#1242-participant-agnostic-cs-transitions-pxa)) |
 
 **Capability prerequisites.** Every case Participant — whatever its roles — MUST

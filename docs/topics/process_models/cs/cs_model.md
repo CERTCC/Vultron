@@ -11,7 +11,7 @@ description: >
 
 This page defines the states of the Coordinated Vulnerability Disclosure (CVD) Case State (CS) model.
 It is for developers implementing the model and for researchers reasoning with it.
-The [CS model introduction](index.md) says what the model is for; the [Vultron Protocol Specification §8](../../../reference/vultron-spec/tracking-models.md#8-case-state-cs-dimensions-n) is its normative definition.
+The [CS model introduction](index.md) says what the model is for; the [Vultron Protocol Specification §8 Case State (CS) Dimensions](../../../reference/vultron-spec/tracking-models.md#8-case-state-cs-dimensions-n) is its normative definition.
 The model is derived from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"}.
 
 ---

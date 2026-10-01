@@ -9,7 +9,7 @@ MUST treat actor URI equality as identity equality: two messages with the same
 `actor` URI are from the same actor.
 
 **Verification.** The protocol does not currently mandate a specific identity
-verification mechanism. The reference implementation anticipates Hypertext Transfer Protocol (HTTP) Signatures
+verification mechanism. The reference implementation anticipates HTTP Signatures
 (as used in ActivityPub) as the authentication layer for inbound messages. A
 future version of this specification is expected to normatively require HTTP
 Signatures at the transport layer.

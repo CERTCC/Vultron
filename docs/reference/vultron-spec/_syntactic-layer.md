@@ -293,8 +293,7 @@ is anticipated.
 
 #### REST (HTTP) profile [N]
 
-This is the Representational State Transfer (REST) transport, which an
-implementation MUST provide.
+This is the transport an implementation MUST provide.
 
 - Each actor exposes an inbox endpoint that accepts inbound Activities.
 - An outbound Activity is delivered by HTTP POST to the recipient's inbox.

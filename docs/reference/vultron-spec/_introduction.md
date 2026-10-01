@@ -38,9 +38,9 @@ and agree to it. Establishing terms early is generally easier than negotiating
 them once many parties are already involved.
 
 The protocol tracks coordination state across four dimensions: the report
-lifecycle (Report Management, RM), the embargo (Embargo Management, EM), what is
-known about the vulnerability (Case State, CS), and each participant's agreement to
-the embargo (Participant Embargo Consent, PEC). Because CS is a compound of two
+lifecycle, Report Management (RM); the embargo, Embargo Management (EM); what is
+known about the vulnerability, Case State (CS); and each participant's agreement to
+the embargo, Participant Embargo Consent (PEC). Because CS is a compound of two
 independent axes, an implementation runs five state machines
 ([§3.3 Tracking Dimensions](introduction.md#33-tracking-dimensions)). Messages are ActivityStreams 2.0
 Activities delivered over Hypertext Transfer Protocol (HTTP). Delivery is asynchronous: no exchange requires both

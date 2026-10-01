@@ -11,5 +11,6 @@ level: 400
 {% include-markdown "./_full-page-tip.md" %}
 
 This page holds informative Annex C of the [Vultron Protocol Specification](index.md): the mathematical and diagram notation of the formal treatment.
+It includes the symbols of each Deterministic Finite Automaton (DFA) the formal treatment defines.
 
 {% include-markdown "./_annex-c.md" %}

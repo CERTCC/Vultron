@@ -10,8 +10,7 @@ level: 400
 
 {% include-markdown "./_full-page-tip.md" %}
 
-This page holds sections 4 and 5 of the [Vultron Protocol Specification](index.md): what each protocol message means, and how it is encoded on the wire.
-The case-state messages report the Vendor aware, Fix ready, fix Deployed (VFD) and Public aware, eXploit public, Attacks observed (PXA) dimensions of the Case State (CS).
+This page holds sections 4 and 5 of the [Vultron Protocol Specification](index.md): what each protocol message means, and how it is encoded on the wire, including the required Representational State Transfer (REST) transport profile.
 The case-state messages report the Vendor aware, Fix ready, fix Deployed (VFD) and Public aware, eXploit public, Attacks observed (PXA) dimensions of the Case State (CS).
 
 {% include-markdown "./_semantic-layer.md" %}

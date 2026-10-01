@@ -68,7 +68,7 @@ it, so no external lookup is needed.
 ### The one approved exception
 
 The `target` field of an `Invite` activity in selective-disclosure scenarios is permitted to carry a case stub rather than the full case object.
-The [protocol specification §11.2](../reference/vultron-spec/interactions.md#112-invitation-and-acceptance-n) defines what a case stub carries.
+The [protocol specification §11.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#112-invitation-and-acceptance-n) defines what a case stub carries.
 This is the only approved exception to the full-inline-object rule (AKM-02-003).
 
 All other outbound initiating activities — `Create`, `Offer`, `Invite`,

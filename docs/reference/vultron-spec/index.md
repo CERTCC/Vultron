@@ -17,7 +17,7 @@ contents: routing
 ## Parts
 
 The specification is published one part per page.
-The parts are numbered in reading order, and each page holds the sections listed beside it, from the introduction to the Internet Assigned Numbers Authority (IANA) and security considerations.
+The parts are listed in reading order, and each page holds the sections listed beside it, from the introduction to the Internet Assigned Numbers Authority (IANA) and security considerations.
 
 - [Introduction and Overview](introduction.md): §1 Introduction, §2 Terminology, and §3 Protocol Overview.
 - [Protocol Layers](layers.md): §4 Semantic Layer — Message Meanings and §5 Syntactic Layer — Wire Format.
@@ -27,8 +27,6 @@ The parts are numbered in reading order, and each page holds the sections listed
 - [Considerations and References](considerations.md): §13 IANA and Namespace Considerations, §14 Security Considerations, and §15 References.
 
 {% include-markdown "./_annexes.md" %}
-
-Annexes A and B trace Coordinated Vulnerability Disclosure (CVD) cases from first contact to closure.
 
 Annexes A and B trace Coordinated Vulnerability Disclosure (CVD) cases from first contact to closure.
 

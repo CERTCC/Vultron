@@ -4,8 +4,7 @@
     third-party assertion ("I notified this Vendor"), not a self-report.
 
     Open questions: who may assert it, whether the subject Vendor may dispute
-    it, and whether transport-level delivery success, a Hypertext Transfer Protocol
-    (HTTP) 200 response, suffices to
-    constitute the assertion.
+    it, and whether transport-level delivery success, a Hypertext Transfer
+    Protocol (HTTP) 200 response, suffices to constitute the assertion.
 
     Do not infer a rule from this document's silence.
