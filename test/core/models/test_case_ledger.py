@@ -34,7 +34,7 @@ Covers:
 import hashlib
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import py_trees
@@ -59,7 +59,7 @@ OBJECT_ID = "urn:uuid:report-5678"
 CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 
 # A fixed genesis hash for consistent tests — computed from known inputs
-_FIXED_CREATED_AT = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+_FIXED_CREATED_AT = datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC)
 CASE_GENESIS_HASH = compute_genesis_hash(
     CASE_ID, _FIXED_CREATED_AT, CASE_ACTOR_ID
 )
@@ -167,7 +167,7 @@ class TestComputeGenesisHash:
         h1 = compute_genesis_hash(CASE_ID, _FIXED_CREATED_AT, CASE_ACTOR_ID)
         h2 = compute_genesis_hash(
             CASE_ID,
-            datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC),
             CASE_ACTOR_ID,
         )
         assert h1 != h2
@@ -645,6 +645,7 @@ class TestBTBridgeLeadershipGuard:
         """
         import py_trees
         from py_trees.common import Status
+
         from vultron.core.behaviors.bridge import BTBridge
 
         # Manually write is_leader=False to the blackboard, simulating
@@ -676,6 +677,7 @@ class TestBTBridgeLeadershipGuard:
         """
         import py_trees
         from py_trees.common import Status
+
         from vultron.core.behaviors.bridge import BTBridge
 
         bb = py_trees.blackboard.Client(name="test-outer-setup-true")
@@ -703,6 +705,7 @@ class TestBTBridgeLeadershipGuard:
         """
         import py_trees
         from py_trees.common import Status
+
         from vultron.core.behaviors.bridge import BTBridge
 
         # Blackboard says False — but the bridge was given explicit True.

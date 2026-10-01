@@ -35,8 +35,8 @@ Regenerate (only when a render change is intended and reviewed)::
 
 import json
 import re
+from datetime import UTC, datetime
 from functools import cache
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -47,7 +47,7 @@ from vultron.adapters.driven.wire_render import As2WireRenderAdapter
 
 GOLDEN_PATH = Path(__file__).parent / "golden" / "wire_render_core_vocab.json"
 
-_PINNED = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+_PINNED = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 _PINNED_PREFIX = "2026-01-02T03:04:05"
 _UUID_URN = re.compile(r"urn:uuid:[0-9a-f-]{36}")
 _TIMESTAMP = re.compile(

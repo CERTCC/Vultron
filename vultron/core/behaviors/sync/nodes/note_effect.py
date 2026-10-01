@@ -26,14 +26,14 @@ from py_trees.common import Status
 from pydantic import ValidationError
 
 from vultron.core.behaviors.sync.nodes._helpers import (
-    _LedgerEffectNode,
     _extract_id_from_field,
+    _LedgerEffectNode,
 )
-from vultron.core.models.note import VultronNote
 from vultron.core.models._helpers import (
     _as_id,
     project_wire_snapshot_to_core,
 )
+from vultron.core.models.note import VultronNote
 
 logger = logging.getLogger(__name__)
 

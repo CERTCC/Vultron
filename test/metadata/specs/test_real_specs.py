@@ -42,10 +42,9 @@ def test_real_specs_load(real_registry):
 def test_real_specs_cross_references(real_registry):
     """Every relationship spec_id target exists in the registry."""
     errors = real_registry.validate_cross_references()
-    assert (
-        errors == []
-    ), f"{len(errors)} broken relationship target(s) found:\n" + "\n".join(
-        f"  {e}" for e in errors
+    assert errors == [], (
+        f"{len(errors)} broken relationship target(s) found:\n"
+        + "\n".join(f"  {e}" for e in errors)
     )
 
 
@@ -53,9 +52,9 @@ def test_real_specs_cross_references(real_registry):
 def test_real_specs_lint_no_hard_errors(real_registry):
     """Full lint() returns exit code 0 (no hard errors) for specs/."""
     exit_code = lint(_SPECS_DIR, registry=real_registry)
-    assert (
-        exit_code == 0
-    ), "spec-lint reported hard errors — run 'uv run spec-lint' to see details"
+    assert exit_code == 0, (
+        "spec-lint reported hard errors — run 'uv run spec-lint' to see details"
+    )
 
 
 @pytest.mark.spec_corpus
@@ -75,9 +74,9 @@ def test_spec_dump_entrypoint_produces_valid_json(monkeypatch):
 
     output = buf.getvalue()
     data = json.loads(output)
-    assert data.get(
-        "topics"
-    ), "spec-dump output must include at least one topic"
-    assert data.get(
-        "requirements"
-    ), "spec-dump output must include requirements"
+    assert data.get("topics"), (
+        "spec-dump output must include at least one topic"
+    )
+    assert data.get("requirements"), (
+        "spec-dump output must include requirements"
+    )

@@ -21,14 +21,14 @@ from typing import TYPE_CHECKING, NamedTuple, cast
 import py_trees.behaviour
 from py_trees.common import Status
 
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.participant_status import (
     participant_status_d_state,
     participant_status_rm_state,
     participant_status_vf_state,
 )
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -120,17 +120,14 @@ def resolve_participant_state_from_dl(
         VultronValidationError: when the latest status is not core-shaped.
     """
     participant_obj = dl.read(participant_id)
-    if participant_obj is not None and hasattr(
-        participant_obj, "participant_statuses"
-    ):
-        statuses = getattr(participant_obj, "participant_statuses")
-        if statuses:
-            latest = statuses[-1]
-            return (
-                participant_status_rm_state(latest),
-                participant_status_vf_state(latest),
-                participant_status_d_state(latest),
-            )
+    statuses = getattr(participant_obj, "participant_statuses", None)
+    if statuses:
+        latest = statuses[-1]
+        return (
+            participant_status_rm_state(latest),
+            participant_status_vf_state(latest),
+            participant_status_d_state(latest),
+        )
     return RM.START, None, None
 
 

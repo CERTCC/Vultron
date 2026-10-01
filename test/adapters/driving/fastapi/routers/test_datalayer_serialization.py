@@ -124,9 +124,9 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(
     data = response.json()
 
     # Verify response includes vulnerabilityReports field (camelCase)
-    assert (
-        "vulnerabilityReports" in data
-    ), f"Response missing 'vulnerabilityReports' field. Keys: {list(data.keys())}"
+    assert "vulnerabilityReports" in data, (
+        f"Response missing 'vulnerabilityReports' field. Keys: {list(data.keys())}"
+    )
 
     # Verify the field contains the report
     assert isinstance(data["vulnerabilityReports"], list)
@@ -172,9 +172,9 @@ def test_get_vulnerability_case_includes_all_fields(client, datalayer):
     ]
 
     for field in expected_fields:
-        assert (
-            field in data
-        ), f"Response missing '{field}' field. Keys: {list(data.keys())}"
+        assert field in data, (
+            f"Response missing '{field}' field. Keys: {list(data.keys())}"
+        )
 
 
 def test_get_vulnerability_report_includes_all_fields(client, datalayer):
@@ -199,9 +199,9 @@ def test_get_vulnerability_report_includes_all_fields(client, datalayer):
     data = response.json()
 
     # Verify as_VulnerabilityReport has content field (not in as_Base)
-    assert (
-        "content" in data
-    ), f"Response missing 'content' field. Keys: {list(data.keys())}"
+    assert "content" in data, (
+        f"Response missing 'content' field. Keys: {list(data.keys())}"
+    )
     assert data["content"] == "Test vulnerability content"
 
 

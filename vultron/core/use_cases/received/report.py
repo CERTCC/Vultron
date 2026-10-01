@@ -17,12 +17,8 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.predicates.addressing import is_addressed_to
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import (
-    VultronAlreadyExistsError,
-    VultronBTInternalError,
-)
+from vultron.core.predicates.addressing import is_addressed_to
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
@@ -32,14 +28,18 @@ from vultron.core.use_cases.received._bt_verdict import (
     node_succeeded,
     verdict_from_bt,
 )
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronBTInternalError,
+)
 
 if TYPE_CHECKING:
-    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.config.actor import ActorConfig
     from vultron.core.models.protocols import PersistableModel
     from vultron.core.ports.datalayer import StorableRecord
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 

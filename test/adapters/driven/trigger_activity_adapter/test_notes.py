@@ -14,6 +14,7 @@
 """Unit tests for TriggerActivityAdapter note-domain methods."""
 
 import json
+
 import pytest
 
 from vultron.core.models.note import VultronNote

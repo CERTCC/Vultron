@@ -32,6 +32,10 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+    VfDimension,
+)
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.use_cases.triggers.case import (
     AddOnBehalfStatusTriggerRequest,
@@ -45,10 +49,6 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
-    VfDimension,
 )
 
 
@@ -154,9 +154,9 @@ class TestAddOnBehalfStatusVtoV:
         activity = self.dl.read(activity_id)
         assert activity is not None
         to_ids = _to_ids(activity)
-        assert (
-            self.cm_actor.id_ in to_ids
-        ), f"PCR-08-001: activity must address the Case Manager; to={to_ids!r}"
+        assert self.cm_actor.id_ in to_ids, (
+            f"PCR-08-001: activity must address the Case Manager; to={to_ids!r}"
+        )
 
     def test_blocked_when_asserting_actor_not_cm_or_co(self):
         """Non-CM/CO actor cannot make an on-behalf assertion (PRM-06-003)."""

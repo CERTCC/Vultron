@@ -46,6 +46,7 @@ import pytest
 from fastapi import Request
 from fastapi.params import Depends as params_Depends
 
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
@@ -53,7 +54,6 @@ from vultron.adapters.driving.fastapi.deps import (
     node_base_url,
 )
 from vultron.core.ports.datalayer import DataLayer
-from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 # Canonical *for this node*: an actor id is the URL that reaches it here, so a
@@ -134,8 +134,7 @@ def test_get_actor_dl_expands_a_bare_segment_to_the_canonical_uri(
 
     assert isinstance(result, SqliteDataLayer)
     assert result._actor_id == CANONICAL_URI, (
-        f"Expected canonical URI '{CANONICAL_URI}', "
-        f"got '{result._actor_id}'"
+        f"Expected canonical URI '{CANONICAL_URI}', got '{result._actor_id}'"
     )
 
 

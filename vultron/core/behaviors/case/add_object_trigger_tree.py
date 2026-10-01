@@ -53,11 +53,11 @@ class _BuildAddObjectActivityNode(DataLayerActionWithPorts):
     def update(self) -> Status:
         try:
             activity_id, activity_dict = self._activity_builder()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"AddObject activity construction failed: {exc}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         self._set_output("activity_id", activity_id)

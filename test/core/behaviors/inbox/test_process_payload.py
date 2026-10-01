@@ -19,7 +19,7 @@ BT node helpers (IO-04-002).
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any, cast
 
@@ -406,7 +406,7 @@ class TestProcessPayloadThreadSafety:
                 dispatch = _StubDispatchAdapter()
                 outcome = process_payload({}, ingress, dispatch)
                 results.append(outcome)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
                 errors.append(exc)
 
         threads = [threading.Thread(target=_run) for _ in range(4)]
@@ -656,7 +656,7 @@ class TestInboundRsvpWindows:
 
     @pytest.mark.spec("EP-07-001")
     def test_configured_default_window_applies(self) -> None:
-        published = datetime.now(tz=timezone.utc)
+        published = datetime.now(tz=UTC)
         config = ActorConfig(default_rsvp_window=timedelta(days=14))
         assert self._deadline(self._invite(published), config) == (
             published + timedelta(days=14)
@@ -664,14 +664,14 @@ class TestInboundRsvpWindows:
 
     @pytest.mark.spec("EP-07-001")
     def test_no_config_applies_the_protocol_default(self) -> None:
-        published = datetime.now(tz=timezone.utc)
+        published = datetime.now(tz=UTC)
         assert self._deadline(self._invite(published), None) == (
             published + timedelta(days=7)
         )
 
     @pytest.mark.spec("EP-07-002")
     def test_configured_minimum_window_applies(self) -> None:
-        published = datetime.now(tz=timezone.utc)
+        published = datetime.now(tz=UTC)
         config = ActorConfig(min_rsvp_window=timedelta(days=4))
         invite = self._invite(
             published, end_time=published + timedelta(days=1)

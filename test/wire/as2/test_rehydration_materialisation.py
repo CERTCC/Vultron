@@ -35,8 +35,8 @@ from pydantic import ValidationError
 
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.ports.datalayer import DataLayer
-from vultron.errors import VultronReferenceResolutionError
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronReferenceResolutionError
 from vultron.wire.as2.rehydration import (
     materialise,
     materialise_object_slots,
@@ -259,9 +259,9 @@ def test_materialised_activity_carries_its_own_actor(
     activity_ref = case.case_activity[0]
     assert isinstance(activity_ref, str), "activity must stay as a string URI"
     assert activity_ref == recorded_activity.id_
-    assert (
-        activity_ref != CASE_OWNER
-    ), "synthesized the case owner as the actor"
+    assert activity_ref != CASE_OWNER, (
+        "synthesized the case owner as the actor"
+    )
     assert activity_ref != CASE_ID, "synthesized the case's own URI"
 
 
@@ -602,11 +602,11 @@ def test_uri_admitting_slot_is_still_seen_through_non_empty_string() -> None:
     ``ActivityStreamRef`` slot would have been misread as object-only and its
     unresolvable references refused instead of deferred (VM-06-004).
     """
+    from vultron.primitives import NonEmptyString
     from vultron.wire.as2.rehydration import (
         _annotation_branches,
         _slot_requires_object,
     )
-    from vultron.primitives import NonEmptyString
     from vultron.wire.as2.vocab.base.links import as_Link
     from vultron.wire.as2.vocab.base.objects.base import as_ObjectRef
 

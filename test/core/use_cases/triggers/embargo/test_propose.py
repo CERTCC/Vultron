@@ -1,6 +1,6 @@
 """Tests for SvcProposeEmbargoUseCase."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -8,6 +8,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.states.em import EM
 from vultron.core.use_cases.triggers.embargo import SvcProposeEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
@@ -20,7 +21,6 @@ from .conftest import (
     _build_exited_case,
     _build_unbound_case_with_case_manager,
 )
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def test_propose_embargo_invalid_state_does_not_persist_embargo(
@@ -34,7 +34,7 @@ def test_propose_embargo_invalid_state_does_not_persist_embargo(
     request = ProposeEmbargoTriggerRequest(
         actor_id=finder.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=1),
+        end_time=datetime.now(tz=UTC) + timedelta(days=1),
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -63,7 +63,7 @@ def test_propose_embargo_updates_case_state_via_bt_path(
     request = ProposeEmbargoTriggerRequest(
         actor_id=finder.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=7),
+        end_time=datetime.now(tz=UTC) + timedelta(days=7),
     )
 
     result = SvcProposeEmbargoUseCase(

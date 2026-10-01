@@ -1,5 +1,5 @@
-import pytest
 import py_trees
+import pytest
 
 # Re-export harness fixtures so they are available to all sub-directories.
 from test.core.behaviors.bt_harness import (  # noqa: F401

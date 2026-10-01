@@ -25,7 +25,6 @@ itself (DEMOMA-23-006).
 
 import logging
 from collections.abc import Collection, Sequence
-from typing import Optional
 
 import httpx2 as httpx
 
@@ -52,7 +51,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _extract_ref_id(ref: object) -> Optional[str]:
+def _extract_ref_id(ref: object) -> str | None:
     """Extract the string ID from an object, ``as_Link``, or string reference."""
     if ref is None:
         return None
@@ -91,7 +90,7 @@ def _get_log_entries_for_case(
 # ---------------------------------------------------------------------------
 
 
-def _case_or_none(client: DataLayerClient, case_id: str) -> Optional[dict]:
+def _case_or_none(client: DataLayerClient, case_id: str) -> dict | None:
     """Read a case from *client*'s own store, or ``None`` if it holds no copy.
 
     A store that has no copy of the case answers 404, and both the real client and
@@ -167,9 +166,9 @@ def verify_replica_state(
     replica_case = as_VulnerabilityCase.model_validate(replica_case_data)
 
     # 1. Same case ID
-    assert (
-        replica_case.id_ == case_id
-    ), f"Replica case ID mismatch: {replica_case.id_!r} != {case_id!r}"
+    assert replica_case.id_ == case_id, (
+        f"Replica case ID mismatch: {replica_case.id_!r} != {case_id!r}"
+    )
     logger.info("✓ Replica case ID matches: %s", case_id)
 
     # 2. actor_participant_index keys match

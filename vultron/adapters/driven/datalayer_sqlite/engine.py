@@ -162,8 +162,7 @@ def actor_db_url(db_url: str, actor_id: str) -> str:
     if _is_memory_url(db_url):
         base = _memory_base_name(db_url)
         return (
-            f"sqlite:///file:{base}-{slug}"
-            "?mode=memory&cache=shared&uri=true"
+            f"sqlite:///file:{base}-{slug}?mode=memory&cache=shared&uri=true"
         )
 
     scheme, _, location = db_url.partition("///")

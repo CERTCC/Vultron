@@ -43,11 +43,9 @@ inboxes.
 """
 
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
 from vultron.core.states.em import is_em_embargo_active
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.demo.helpers.embargo import make_embargo_event
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import setup_two_participant_case
@@ -69,6 +67,8 @@ from vultron.wire.as2.factories import (
     em_reject_embargo_activity,
     remove_embargo_from_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
 
@@ -261,8 +261,7 @@ def demo_reject_then_repropose(
             context=case.id_,
             to=[coordinator.id_],
             summary=(
-                f"Rejecting 45-day embargo for {case.name}; "
-                f"need more time."
+                f"Rejecting 45-day embargo for {case.name}; need more time."
             ),
         )
         logger.info(f"Sending embargo rejection: {logfmt(reject)}")
@@ -350,7 +349,7 @@ def demo_reject_then_repropose(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     (
         "Demo: Manage Embargo — Activate/Terminate Path",
         demo_activate_then_terminate,
@@ -364,7 +363,7 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ) -> None:
     """Main entry point for the manage_embargo demo script."""
     run_exchange_demos(

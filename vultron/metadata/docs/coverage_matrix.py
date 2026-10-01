@@ -24,11 +24,11 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from vultron.metadata.docs.landing_pages import WRITE_COMMAND
 from vultron.metadata.docs.page_frontmatter import (
     DECLARATION_KEYS,
     classify_docs_tree,
 )
-from vultron.metadata.docs.landing_pages import WRITE_COMMAND
 from vultron.metadata.docs.page_schema import (
     AUDIENCE_KEYS,
     LEVELS,

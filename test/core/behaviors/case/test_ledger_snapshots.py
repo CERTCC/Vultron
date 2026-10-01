@@ -39,10 +39,10 @@ from vultron.core.behaviors.sync.nodes.canonical_entry import (
 )
 from vultron.core.models._helpers import parse_published
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.case_actor import CaseActor
 
 VENDOR_ID = "https://example.org/actors/vendor"
 CASE_ACTOR_ID = "https://example.org/actors/case-actor"
@@ -389,9 +389,9 @@ class TestSnapshotsCarryPublished:
             for name, s in built.items()
             if parse_published(s["published"]) is None
         )
-        assert (
-            not unparseable
-        ), f"builders whose `published` does not parse: {unparseable}"
+        assert not unparseable, (
+            f"builders whose `published` does not parse: {unparseable}"
+        )
 
     def test_published_is_timezone_aware_utc(self, built):
         """A naive stamp would compare against an aware one and raise."""

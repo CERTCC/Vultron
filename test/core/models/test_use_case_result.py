@@ -248,7 +248,7 @@ def test_trigger_result_is_a_fieldless_use_case_result() -> None:
 
 def test_trigger_result_root_rejects_any_key() -> None:
     """A fieldless root with ``extra="forbid"`` refuses every key."""
-    with pytest.raises(ValidationError, match="extra_forbidden|Extra inputs"):
+    with pytest.raises(ValidationError, match=r"extra_forbidden|Extra inputs"):
         TriggerResult(activity=_ACTIVITY)  # type: ignore[call-arg]
 
 
@@ -281,7 +281,7 @@ def test_trigger_result_subtype_rejects_an_unknown_key(
     expected_keys: set[str],
 ) -> None:
     """UCORG-05-005: a use case that grows a return key fails loudly."""
-    with pytest.raises(ValidationError, match="extra_forbidden|Extra inputs"):
+    with pytest.raises(ValidationError, match=r"extra_forbidden|Extra inputs"):
         result_cls.model_validate({**payload, "surprise": 1})
 
 

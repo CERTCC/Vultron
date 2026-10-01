@@ -10,7 +10,7 @@ registry lookup automatically, use ``vultron.semantic_registry.extract_event``.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 from vultron.core.models.events import (
@@ -185,7 +185,7 @@ def _effective_rsvp_deadline(
             source,
             deadline.effective.isoformat(),
         )
-    if deadline.effective <= datetime.now(tz=timezone.utc):
+    if deadline.effective <= datetime.now(tz=UTC):
         logger.warning(
             "extract_intent: activity '%s' from actor '%s' rsvp_deadline %s"
             " is already past (published %s); the invitation lapses on the"

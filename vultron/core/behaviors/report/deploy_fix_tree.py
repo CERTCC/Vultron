@@ -65,6 +65,12 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckDeployerRoleNode,
+)
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckRMStateAccepted,
+)
 from vultron.core.behaviors.report.nodes.deploy_fix import (
     CheckCSFixNotYetDeployed,
     CheckNoNewDeploymentInfoNode,
@@ -72,12 +78,6 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     EmitCDActivity,
     RMinStateDeferred,
     TransitionCStoFixDeployed,
-)
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckDeployerRoleNode,
-)
-from vultron.core.behaviors.report.nodes.conditions import (
-    CheckRMStateAccepted,
 )
 
 if TYPE_CHECKING:

@@ -18,11 +18,11 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.specs.registry import (
     SpecRegistry,
     load_registry,
 )
-from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.specs.schema import (
     SPEC_ID_CITATION_RE,
     AdrStatus,

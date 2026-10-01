@@ -22,18 +22,19 @@ Covers:
 - AC-4 (issue #1808): isolated-node port tests + early-error-detection tests.
 """
 
-import pytest
 import py_trees
+import pytest
 from py_trees.ports import NoDataAvailable
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.helpers import (
-    DataLayerConditionWithPorts,
     DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.report.nodes.conditions import (
-    CheckRMStateValid,
     CheckRMStateReceivedOrInvalid,
+    CheckRMStateValid,
     EnsureEmbargoExists,
     EvaluateReportCredibility,
 )
@@ -45,7 +46,6 @@ from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from test.core.behaviors.bt_harness import BTTestScenario
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -342,10 +342,10 @@ class TestTransitionRMtoValid:
     def test_creates_rm_valid_status_record(
         self, bt_scenario: BTTestScenario
     ) -> None:
+        from test.support.participant_status import advance_participant_rm
         from vultron.core.models.activity import VultronOffer
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.enums.roles import CVDRole
-        from test.support.participant_status import advance_participant_rm
 
         actor = CaseActor(id_=ACTOR_ID, name="Vendor")
         report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")

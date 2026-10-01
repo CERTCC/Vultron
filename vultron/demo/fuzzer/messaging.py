@@ -32,6 +32,8 @@ References
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from vultron.demo.fuzzer.base import UniformSucceedFail
 from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
@@ -60,4 +62,4 @@ class FollowUpOnErrorMessage(ComposerCallOutPoint, UniformSucceedFail):
     automated once the follow-up policy is defined.
     """
 
-    output_keys = {"followup_message_artifact": str}
+    output_keys: ClassVar[dict[str, type]] = {"followup_message_artifact": str}

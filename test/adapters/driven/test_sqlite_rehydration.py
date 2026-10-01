@@ -49,9 +49,9 @@ def test_activity_with_nested_object_stores_id_reference_not_inline_copy(dl):
     raw = dl.get(offer.type_, offer.id_)
     assert raw is not None
     stored_object_field = raw["data_"]["object_"]
-    assert isinstance(
-        stored_object_field, str
-    ), f"Expected object_ to be stored as ID string, got {type(stored_object_field)}"
+    assert isinstance(stored_object_field, str), (
+        f"Expected object_ to be stored as ID string, got {type(stored_object_field)}"
+    )
     assert stored_object_field == report.id_
 
 

@@ -102,9 +102,9 @@ class TestDocstring:
     )
     def test_docstring_has_required_section(self, section: str) -> None:
         doc = (CreateFix.__doc__ or "").lower()
-        assert (
-            section in doc
-        ), f"CreateFix docstring missing '{section}' section"
+        assert section in doc, (
+            f"CreateFix docstring missing '{section}' section"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +131,6 @@ class TestSuccessRate:
     def test_empirical_distribution(self) -> None:
         rate = _run_trials(CreateFix)
         expected = 9.0 / 10.0
-        assert (
-            abs(rate - expected) < _TOLERANCE
-        ), f"CreateFix: empirical={rate:.4f} expected={expected:.4f}"
+        assert abs(rate - expected) < _TOLERANCE, (
+            f"CreateFix: empirical={rate:.4f} expected={expected:.4f}"
+        )

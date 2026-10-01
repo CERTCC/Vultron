@@ -43,7 +43,7 @@ class ValidateCaseExistsNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case, failure = self._require_case(self.case_id)
+        _case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 

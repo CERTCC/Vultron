@@ -59,7 +59,7 @@ from test.ci.invariants.common import (
 )
 
 
-def make_universal_invariant_tests(  # noqa: C901
+def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested test closure; each is simple
     replicas_fixture: str,
     chain_actors: list,
     expected_event_types: list,
@@ -127,10 +127,9 @@ def make_universal_invariant_tests(  # noqa: C901
         """All actors agree on payloadSnapshot.actor for every shared logIndex."""
         replicas = request.getfixturevalue(replicas_fixture)
         violations = check_cross_actor_payload_actor_agreement(replicas)
-        assert (
-            not violations
-        ), "Cross-actor payloadSnapshot.actor mismatches:\n" + "\n".join(
-            violations[:20]
+        assert not violations, (
+            "Cross-actor payloadSnapshot.actor mismatches:\n"
+            + "\n".join(violations[:20])
         )
 
     @pytest.mark.case_ledger_invariants
@@ -163,9 +162,9 @@ def make_universal_invariant_tests(  # noqa: C901
         """No participant changes RM state after first reaching CLOSED."""
         replicas = request.getfixturevalue(replicas_fixture)
         violations = check_no_rm_state_oscillation(replicas)
-        assert (
-            not violations
-        ), "RM state oscillation after CLOSED:\n" + "\n".join(violations)
+        assert not violations, (
+            "RM state oscillation after CLOSED:\n" + "\n".join(violations)
+        )
 
     @pytest.mark.case_ledger_invariants
     def test_invariant_7_log_terminates_all_rm_closed(
@@ -174,9 +173,9 @@ def make_universal_invariant_tests(  # noqa: C901
         """The log terminates with every participant in RM=CLOSED."""
         replicas = request.getfixturevalue(replicas_fixture)
         violations = check_rm_closed_termination(replicas)
-        assert (
-            not violations
-        ), f"Participants not in RM=CLOSED at log end: {violations}"
+        assert not violations, (
+            f"Participants not in RM=CLOSED at log end: {violations}"
+        )
 
     @pytest.mark.case_ledger_invariants
     def test_invariant_9_participant_status_schema_completeness(
@@ -265,9 +264,9 @@ def make_universal_invariant_tests(  # noqa: C901
         violations = check_cs_state_transitions_observed(
             replicas, check_fix_ready=check_fix_ready
         )
-        assert (
-            not violations
-        ), "Missing CS-transition observations:\n" + "\n".join(violations)
+        assert not violations, (
+            "Missing CS-transition observations:\n" + "\n".join(violations)
+        )
 
     @pytest.mark.case_ledger_invariants
     def test_invariant_clp13_no_rejected_invite_entries(

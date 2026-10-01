@@ -32,7 +32,7 @@ import py_trees
 
 # Core-owned bundle dataclass + DETERMINISTIC default (re-exported for
 # backward-compatible import paths).
-from vultron.core.behaviors.call_out.bundles.case_proposal import (  # noqa: F401
+from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CASE_PROPOSAL_DETERMINISTIC,
     CaseProposalCallOutBundle,
 )

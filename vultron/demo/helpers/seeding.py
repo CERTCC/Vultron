@@ -22,9 +22,10 @@ a clean baseline before a demo run.
 
 import logging
 from collections.abc import Callable, Sequence
-from typing import Tuple
 from urllib.parse import quote
 
+from vultron.core.behaviors.store_scope import store_for_actor
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
@@ -32,8 +33,6 @@ from vultron.demo.utils import (
     seed_actor,
     seed_peer,
 )
-from vultron.core.behaviors.store_scope import store_for_actor
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
@@ -102,7 +101,7 @@ def seed_containers(
     vendor_client: DataLayerClient,
     reporter_actor_id: str | None = None,
     vendor_actor_id: str | None = None,
-) -> Tuple[as_Actor, as_Actor]:
+) -> tuple[as_Actor, as_Actor]:
     """Seed both containers: create actor records and register cross-container peers.
 
     The seeding is done in two phases to avoid ordering issues:

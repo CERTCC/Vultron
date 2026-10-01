@@ -45,7 +45,7 @@ reason.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -92,7 +92,7 @@ from vultron.trigger_registry import TriggerEntry, entries
 _ACTOR = "urn:uuid:3833a9b0-0000-4000-8000-000000000001"
 _CASE = "https://example.org/cases/c1"
 _OTHER = "https://example.org/actors/other"
-_FUTURE = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+_FUTURE = (datetime.now(UTC) + timedelta(days=30)).isoformat()
 
 #: The route runs through ``run_trigger``, so the flush it schedules is the
 #: helper's ``outbox_handler`` reference.
@@ -192,9 +192,9 @@ class _CannedDispatcher:
     """A ``TriggerDispatcher`` that records each call and answers canned."""
 
     def __init__(self) -> None:
-        self.calls: list[tuple[TriggerRequest[Any], CaseOutboxPersistence]] = (
-            []
-        )
+        self.calls: list[
+            tuple[TriggerRequest[Any], CaseOutboxPersistence]
+        ] = []
 
     def trigger(
         self,
@@ -387,7 +387,7 @@ def test_nothing_is_flushed_when_the_dispatcher_raises(
             raise VultronNotFoundError("Actor", request.actor_id)
 
     app.dependency_overrides[get_trigger_dl] = lambda: store
-    app.dependency_overrides[get_trigger_dispatcher] = lambda: _Raising()
+    app.dependency_overrides[get_trigger_dispatcher] = _Raising
     try:
         resp = _post(TestClient(app), route_paths, row)
     finally:

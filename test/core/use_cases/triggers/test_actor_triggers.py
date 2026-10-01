@@ -23,17 +23,17 @@ are normalised to full URIs before use.
 """
 
 import logging
-from test.conftest import seed_case_actor_replica
-from test.core.use_cases.received.conftest import (
-    seed_store_owner_as_case_manager,
-)
+from datetime import UTC
 from typing import cast
 
 import pytest
 from pydantic import ValidationError
 
+from test.conftest import seed_case_actor_replica
+from test.core.use_cases.received.conftest import (
+    seed_store_owner_as_case_manager,
+)
 from test.support.trigger_results import activity_of
-from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -41,6 +41,9 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
@@ -65,11 +68,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
     as_VulnerabilityCase,
+    as_VulnerabilityCaseStub,
 )
-from vultron.core.models._helpers import days_from_now_utc
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 _BASE = "http://coordinator:7999/api/v2/actors"
 _UUID = "24d63c7d-6b1e-4f61-a5e1-180d27192d0b"
@@ -289,9 +290,9 @@ class TestSvcInviteActorToCaseUseCase:
                     wire_render_port=As2WireRenderAdapter(),
                 ).execute()
 
-        assert (
-            dl.read(bad_id) is None
-        ), "a rejected invitee must not be recorded as a known actor"
+        assert dl.read(bad_id) is None, (
+            "a rejected invitee must not be recorded as a known actor"
+        )
 
     def test_invite_raises_when_case_not_in_dl(self):
         actor, dl = _make_actor_dl("Coordinator")
@@ -305,7 +306,7 @@ class TestSvcInviteActorToCaseUseCase:
             case_id=missing_case_id,
             invitee_id=invitee.id_,
         )
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             SvcInviteActorToCaseUseCase(
                 dl,
                 request,
@@ -315,7 +316,7 @@ class TestSvcInviteActorToCaseUseCase:
 
     def test_invite_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
-        actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
+        _actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
         invitee, _ = _make_actor_dl("Finder")
         dl.create(invitee)
         case = as_VulnerabilityCase(
@@ -449,7 +450,7 @@ class TestInviteRolesAndEmbargoEnrichment:
 
     def test_ac6_roles_field_accepted_in_request(self):
         """AC-6: InviteActorToCaseTriggerRequest accepts optional roles field."""
-        actor, invitee, dl, case = self._setup_invite()
+        actor, invitee, _dl, case = self._setup_invite()
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
             case_id=case.id_,
@@ -503,14 +504,14 @@ class TestInviteRolesAndEmbargoEnrichment:
 
     def test_ac1_active_embargo_enriches_case_stub(self):
         """AC-1: Invite.target stub carries activeEmbargo.endTime and emState=ACTIVE."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
 
         actor, invitee, dl, case = self._setup_invite()
-        end_time = datetime(2030, 1, 1, tzinfo=timezone.utc)
+        end_time = datetime(2030, 1, 1, tzinfo=UTC)
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo/e1",
             content="Active embargo",
@@ -539,12 +540,14 @@ class TestInviteRolesAndEmbargoEnrichment:
         activity_data = activity_of(result)
         target = activity_data.get("target", {})
         active_embargo = target.get("activeEmbargo")
-        assert (
-            active_embargo is not None
-        ), "activeEmbargo must be present when em_state==ACTIVE"
+        assert active_embargo is not None, (
+            "activeEmbargo must be present when em_state==ACTIVE"
+        )
         assert (
             isinstance(active_embargo, dict) and "endTime" in active_embargo
-        ), "activeEmbargo must be a full embargo object with endTime (CM-17-002)"
+        ), (
+            "activeEmbargo must be a full embargo object with endTime (CM-17-002)"
+        )
         case_status = target.get("caseStatus", {})
         assert case_status.get("emState") in (
             "active",
@@ -568,12 +571,12 @@ class TestInviteRolesAndEmbargoEnrichment:
 
         activity_data = activity_of(result)
         target = activity_data.get("target", {})
-        assert (
-            target.get("activeEmbargo") is None
-        ), "activeEmbargo must not be present when em_state != ACTIVE"
-        assert (
-            target.get("caseStatus") is None
-        ), "caseStatus must not be present when em_state != ACTIVE"
+        assert target.get("activeEmbargo") is None, (
+            "activeEmbargo must not be present when em_state != ACTIVE"
+        )
+        assert target.get("caseStatus") is None, (
+            "caseStatus must not be present when em_state != ACTIVE"
+        )
 
 
 class TestRolesThreadingIntegration:
@@ -680,13 +683,13 @@ class TestRolesThreadingIntegration:
 
         updated_case = cast(Any, dl.read(case.id_))
         participant_id = updated_case.actor_participant_index.get(invitee_id)
-        assert (
-            participant_id is not None
-        ), "invitee must be registered after Accept"
+        assert participant_id is not None, (
+            "invitee must be registered after Accept"
+        )
         participant = cast(Any, dl.read(participant_id))
-        assert (
-            participant is not None
-        ), "participant object not found in DataLayer"
+        assert participant is not None, (
+            "participant object not found in DataLayer"
+        )
         return participant
 
     def test_ac1_roles_vendor_reaches_participant_case_roles(
@@ -697,9 +700,9 @@ class TestRolesThreadingIntegration:
         participant = self._run_round_trip(
             roles=[CVDRole.VENDOR], make_payload=make_payload
         )
-        assert (
-            CVDRole.VENDOR in participant.case_roles
-        ), f"AC-1: expected CVDRole.VENDOR in case_roles, got {participant.case_roles!r}"
+        assert CVDRole.VENDOR in participant.case_roles, (
+            f"AC-1: expected CVDRole.VENDOR in case_roles, got {participant.case_roles!r}"
+        )
 
     def test_ac2_none_roles_gives_empty_case_roles(self, make_payload):
         """AC-2 (CM-17-003/004): roles=None in request results in
@@ -707,9 +710,9 @@ class TestRolesThreadingIntegration:
         participant = self._run_round_trip(
             roles=None, make_payload=make_payload
         )
-        assert (
-            participant.case_roles == []
-        ), f"AC-2: expected empty case_roles, got {participant.case_roles!r}"
+        assert participant.case_roles == [], (
+            f"AC-2: expected empty case_roles, got {participant.case_roles!r}"
+        )
 
 
 class TestSvcSuggestActorToCaseUseCase:
@@ -822,13 +825,13 @@ class TestSvcSuggestActorToCaseUseCase:
                     wire_render_port=As2WireRenderAdapter(),
                 ).execute()
 
-        assert (
-            dl.read(bad_id) is None
-        ), "a rejected candidate must not be recorded as a known actor"
+        assert dl.read(bad_id) is None, (
+            "a rejected candidate must not be recorded as a known actor"
+        )
 
     def test_suggest_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
-        actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
+        _actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
         case_actor, _ = _make_actor_dl("Case Actor")
         suggested, _ = _make_actor_dl("Vendor")
         dl.create(case_actor)
@@ -1150,7 +1153,7 @@ class TestSvcAcceptActorRecommendationUseCase:
             cp_offer_id="https://example.org/activities/no-such-offer",
             case_actor_id=case_actor.id_,
         )
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             SvcAcceptActorRecommendationUseCase(
                 dl,
                 request,
@@ -1306,7 +1309,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             case_id="https://example.org/cases/nope",
             transferee_id=transferee.id_,
         )
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             SvcOfferCaseOwnershipTransferUseCase(
                 dl,
                 request,
@@ -1524,7 +1527,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         assert stored is not None
 
     def test_accept_raises_when_offer_not_in_dl(self):
-        owner, dl = _make_actor_dl("Vendor")
+        _owner, dl = _make_actor_dl("Vendor")
         transferee, _ = _make_actor_dl("Coordinator")
         dl.create(transferee)
 
@@ -1875,7 +1878,7 @@ class TestActorDiscoveryCallOut:
                 return Status.RUNNING
 
         running_bundle = ActorDiscoveryCallOutBundle(
-            resolve_actor_factory=lambda name: _Running(name)  # type: ignore[arg-type]
+            resolve_actor_factory=_Running  # type: ignore[arg-type]
         )
 
         actor, dl = _make_actor_dl("Coordinator")

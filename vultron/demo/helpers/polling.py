@@ -20,7 +20,7 @@ boilerplate and ensures a single place to tune timeout/interval defaults.
 
 import logging
 import time
-from typing import Callable, Sequence
+from collections.abc import Callable, Sequence
 
 from vultron.adapters.utils import parse_id, strip_id_prefix
 from vultron.demo.utils import (
@@ -112,7 +112,7 @@ def _poll_until(
             if condition_fn():
                 return
             last_exc = None
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             if not swallow_exceptions:
                 raise
             last_exc = exc
@@ -679,7 +679,7 @@ def _poll_datalayer_for(
                         obj_id = str(raw_id)
                         logger.info(log_msg, obj_id)
                         return obj_id
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
         time.sleep(poll_interval)
     raise AssertionError(error_msg)
@@ -933,7 +933,7 @@ def find_case_actor_participant_id(
         return case_actor_participant_id_in(
             as_VulnerabilityCase.model_validate(case_data)
         )
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
         pass
     return None
 
@@ -1096,7 +1096,7 @@ def wait_for_object_stored(
                     client.base_url,
                 )
                 return True
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
         return False
 
@@ -1146,7 +1146,7 @@ def _wait_for_participant_status_field(
         AssertionError: If the state is not reached within *timeout_seconds*.
     """
     # Import here to avoid a circular dependency with verification.py.
-    from vultron.demo.helpers.verification import (  # noqa: PLC0415
+    from vultron.demo.helpers.verification import (
         _fetch_participant,
     )
 
@@ -1311,7 +1311,7 @@ def wait_for_case_em_terminated(
     Raises:
         AssertionError: If EM.EXITED is not observed within *timeout_seconds*.
     """
-    from vultron.core.states.em import is_em_exited  # noqa: PLC0415
+    from vultron.core.states.em import is_em_exited
 
     def _check() -> bool:
         case_data = client.get(client.dl_path(case_id))
@@ -1384,7 +1384,7 @@ def wait_for_all_participants_rm_closed(
         AssertionError: If any participant is not RM.CLOSED within
             *timeout_seconds*.
     """
-    from vultron.demo.helpers.verification import (  # noqa: PLC0415
+    from vultron.demo.helpers.verification import (
         _all_fetchable_participants_rm_closed,
     )
 
@@ -1434,8 +1434,8 @@ def wait_for_participant_pxa_state(
 
     Spec: DEMOMA-06-002.
     """
-    from vultron.core.states.cs import CS_pxa  # noqa: PLC0415
-    from vultron.demo.helpers.verification import (  # noqa: PLC0415
+    from vultron.core.states.cs import CS_pxa
+    from vultron.demo.helpers.verification import (
         _fetch_participant,
     )
 
@@ -1572,7 +1572,7 @@ def wait_for_initialized_case(
 
     Spec: ISSUE-2359 / ADR-0041.
     """
-    from vultron.demo.utils import case_actor_id_for_report  # noqa: PLC0415
+    from vultron.demo.utils import case_actor_id_for_report
 
     case_actor_id = case_actor_id_for_report(report_id)
     found: list[as_VulnerabilityCase] = []
@@ -1602,9 +1602,9 @@ def wait_for_initialized_case(
         f" store {case_actor_id!r} at {client.base_url}",
         swallow_exceptions=True,
     )
-    assert (
-        found
-    ), "invariant: _poll_until returns only when _check returned True"
+    assert found, (
+        "invariant: _poll_until returns only when _check returned True"
+    )
     return found[0]
 
 
@@ -1637,7 +1637,7 @@ def wait_for_pending_inbox_quiescent(
 
     Spec: EDF-06-001.
     """
-    from vultron.core.models.pending_case_inbox import (  # noqa: PLC0415
+    from vultron.core.models.pending_case_inbox import (
         VultronPendingCaseInbox,
     )
 
@@ -1650,7 +1650,7 @@ def wait_for_pending_inbox_quiescent(
                 return True
             activity_ids = data.get("activity_ids", [])
             return len(activity_ids) == 0
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001  # ruff-baseline #3326
             return True
 
     _poll_until(

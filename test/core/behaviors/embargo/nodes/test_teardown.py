@@ -22,6 +22,12 @@ from unittest.mock import MagicMock, patch
 import py_trees
 import pytest
 
+from test.core.behaviors.embargo.nodes.conftest import (
+    CASE_MANAGER_ACTOR,
+    make_case_and_embargo,
+    make_case_with_manager,
+    setup_blackboard,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
@@ -31,19 +37,12 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
     ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-
-from test.core.behaviors.embargo.nodes.conftest import (
-    CASE_MANAGER_ACTOR,
-    make_case_and_embargo,
-    make_case_with_manager,
-    setup_blackboard,
 )
 
 ACTOR_ID = "https://example.org/actors/vendor"
@@ -176,7 +175,7 @@ class TestClearActiveEmbargoNode:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        case, embargo = make_case_and_embargo("caen1r", em_state=EM.REVISE)
+        case, _embargo = make_case_and_embargo("caen1r", em_state=EM.REVISE)
         revision_id = f"{case.id_}/embargo_events/revision"
         case.proposed_embargoes = [revision_id]
         case.pending_embargo_proposal_index = {
@@ -357,9 +356,9 @@ class TestClearActiveEmbargoNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        assert (
-            len(save_calls) == 1
-        ), f"Expected exactly 1 datalayer.save() call, got {len(save_calls)}"
+        assert len(save_calls) == 1, (
+            f"Expected exactly 1 datalayer.save() call, got {len(save_calls)}"
+        )
 
     @pytest.mark.spec("EMB-18-001")
     def test_delegates_em_transition_to_embargo_lifecycle(self):

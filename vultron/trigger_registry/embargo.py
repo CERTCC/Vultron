@@ -34,7 +34,8 @@ from vultron.trigger_registry._entry import (
     TriggerExposure,
 )
 
-_COMMON = GENERAL_TRIGGER_SPECS + (
+_COMMON = (
+    *GENERAL_TRIGGER_SPECS,
     "TRIG-02-002",
     "TRIG-06-001",
     "TRIG-06-002",
@@ -49,7 +50,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_COMMON + ("TRIG-03-003",),
+        spec_ids=(*_COMMON, "TRIG-03-003"),
     ),
     TriggerEntry(
         verb="accept-embargo",
@@ -76,7 +77,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_COMMON + ("TRIG-03-003",),
+        spec_ids=(*_COMMON, "TRIG-03-003"),
     ),
     TriggerEntry(
         verb="terminate-embargo",

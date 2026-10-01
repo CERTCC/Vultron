@@ -36,7 +36,7 @@ from vultron.trigger_registry._entry import (
     TriggerExposure,
 )
 
-_COMMON = GENERAL_TRIGGER_SPECS + ("TRIG-02-004",)
+_COMMON = (*GENERAL_TRIGGER_SPECS, "TRIG-02-004")
 _ACTOR_SCOPED = ("TRIG-06-001", "TRIG-06-002")
 
 ENTRIES: list[TriggerEntry] = [
@@ -83,7 +83,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_COMMON + ("TRIG-10-002",),
+        spec_ids=(*_COMMON, "TRIG-10-002"),
     ),
     # The demo ``close-case`` verb sends ``Leave(VulnerabilityCase)`` — the
     # canonical RM closure path (ADR-0050) — so its use case is the leave one.

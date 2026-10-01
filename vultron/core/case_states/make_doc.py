@@ -14,7 +14,6 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import os
 import re
 
@@ -102,7 +101,7 @@ def _write_path_links(fp, paths, sg) -> None:
         transitions = sg.transitions_in_path(path)
         links = [
             f"[**{t}**]({_fname(end)})"
-            for t, (_start, end) in zip(transitions, path)
+            for t, (_start, end) in zip(transitions, path, strict=False)
         ]
         fp.write(_bullet(" &rarr; ".join(links)))
 
@@ -134,7 +133,7 @@ def print_readme(model_dir="../../docs/case_states"):
         fp.write("| --- | --- | --- | --- | --- | --- | --- |\n")
 
         for state in sg.states:
-            explanation = "| ".join((_enum2title(x) for x in explain(state)))
+            explanation = "| ".join(_enum2title(x) for x in explain(state))
             fp.write(f"| [{state}]({_fname(state)}) | {explanation} |\n")
         fp.write("\n")
 
@@ -205,7 +204,9 @@ def main():
     # check if parent dir exists
     parent_dir = os.path.abspath(os.path.dirname(outdir))
     if not os.path.exists(parent_dir):
-        raise Exception(f"Parent directory {parent_dir} does not exist")
+        raise FileNotFoundError(
+            f"Parent directory {parent_dir} does not exist"
+        )
 
     os.makedirs(outdir, exist_ok=True)
 

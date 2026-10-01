@@ -20,9 +20,10 @@ Tests for the accept-embargo trigger endpoint
 Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi import status
-from unittest.mock import AsyncMock, patch
 
 from vultron.core.states.em import EM
 
@@ -182,7 +183,7 @@ def test_trigger_accept_embargo_activates_embargo(
     client_triggers, dl, actor, case_with_proposal
 ):
     """accept-embargo activates the embargo and sets EM state to ACTIVE."""
-    case_obj, proposal, embargo = case_with_proposal
+    case_obj, proposal, _embargo = case_with_proposal
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/accept-embargo",

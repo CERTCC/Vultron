@@ -27,10 +27,10 @@ import pytest
 from pydantic import ValidationError
 
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
     as_Question,
 )
-from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
 _ACTOR = "https://example.org/actors/coordinator"
@@ -70,7 +70,8 @@ def test_question_with_a_single_option_is_still_accepted() -> None:
     body = json.loads(question.model_dump_json(by_alias=True))
     parsed = parse_activity(body)
     assert isinstance(parsed, as_Question)
-    assert getattr(parsed, "oneOf").id_ == option.id_
+    assert isinstance(parsed.oneOf, type(option))
+    assert parsed.oneOf.id_ == option.id_
 
 
 def test_question_options_accept_uri_references() -> None:

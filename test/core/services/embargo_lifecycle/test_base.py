@@ -24,6 +24,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -33,7 +34,6 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.core.models.case_participant import CaseParticipant
 
 from .conftest import (
     _PXA_INELIGIBLE_STATES,

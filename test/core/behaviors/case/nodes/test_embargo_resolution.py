@@ -20,12 +20,13 @@ the embargo the case is actually created with, not a blackboard value.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
@@ -34,15 +35,14 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseNotEmbargoEligibleNode,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.errors import BtNodePreconditionError
-from test.core.behaviors.bt_harness import BTTestScenario
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-resolution"
@@ -93,7 +93,7 @@ def _run(
     extra: dict[str, Any] = dict(context)
     if sender_proposal is not None:
         extra["sender_proposed_embargo_duration"] = sender_proposal
-    before = datetime.now(tz=timezone.utc)
+    before = datetime.now(tz=UTC)
     result = bt_scenario.run(
         InitializeDefaultEmbargoNode(
             actor_config=actor_config
@@ -103,7 +103,7 @@ def _run(
         case_id=CASE_ID,
         **extra,
     )
-    return result.status, before, datetime.now(tz=timezone.utc)
+    return result.status, before, datetime.now(tz=UTC)
 
 
 def _active_embargo(bt_scenario: BTTestScenario) -> EmbargoEvent | None:
@@ -444,10 +444,10 @@ def test_a_sender_id_already_held_by_another_embargo_is_refused(
         EmbargoEvent(
             id_=foreign_id,
             context="https://example.org/cases/some-other-case",
-            end_time=datetime(2099, 1, 1, tzinfo=timezone.utc),
+            end_time=datetime(2099, 1, 1, tzinfo=UTC),
         )
     )
-    stated_end = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    stated_end = datetime.now(tz=UTC) + timedelta(days=5)
 
     status, _, _ = _run(
         bt_scenario,
@@ -469,9 +469,9 @@ def test_a_replay_of_the_same_sender_embargo_is_idempotent(
     """A stored twin that *is* this embargo — same case, same end — is the
     replay the ``VultronAlreadyExistsError`` swallow always meant."""
     event_id = "https://example.org/embargoes/replayed"
-    stated_end = datetime.now(tz=timezone.utc).replace(
-        microsecond=0
-    ) + timedelta(days=5)
+    stated_end = datetime.now(tz=UTC).replace(microsecond=0) + timedelta(
+        days=5
+    )
     bt_scenario.dl.create(
         EmbargoEvent(id_=event_id, context=CASE_ID, end_time=stated_end)
     )

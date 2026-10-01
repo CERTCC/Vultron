@@ -11,6 +11,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.models.dimensions import (
+    RmDimension,
+    VfDimension,
+)
+from vultron.core.states.cs import CS_vf
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories import (
+    add_participant_to_case_activity,
+    remove_participant_from_case_activity,
+    rm_accept_invite_to_case_activity,
+    rm_invite_to_case_activity,
+    rm_reject_invite_to_case_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -28,22 +42,8 @@ from vultron.wire.as2.vocab.examples._base import (
 from vultron.wire.as2.vocab.examples.status import (
     participant_status,
 )
-from vultron.core.states.cs import CS_vf
-from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-from vultron.wire.as2.factories import (
-    add_participant_to_case_activity,
-    remove_participant_from_case_activity,
-    rm_accept_invite_to_case_activity,
-    rm_invite_to_case_activity,
-    rm_reject_invite_to_case_activity,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
-    VfDimension,
-)
 
 
 def _participant_for(

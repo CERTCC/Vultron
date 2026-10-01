@@ -162,7 +162,7 @@ def test_success_backend_is_not_internal_error(bridge: BTBridge) -> None:
 
 
 def test_guard_factory_wraps_produced_node() -> None:
-    guarded_factory = guard_call_out_factory(lambda name: AlwaysSucceed(name))
+    guarded_factory = guard_call_out_factory(AlwaysSucceed)
     node = guarded_factory("Node")
     assert isinstance(node, SynchronousCallOut)
     assert isinstance(unwrap_call_out(node), AlwaysSucceed)
@@ -170,7 +170,7 @@ def test_guard_factory_wraps_produced_node() -> None:
 
 def test_guard_factory_is_idempotent_on_factory() -> None:
     """Wrapping an already-guarded factory returns it unchanged."""
-    once = guard_call_out_factory(lambda name: AlwaysFail(name))
+    once = guard_call_out_factory(AlwaysFail)
     twice = guard_call_out_factory(once)
     assert twice is once
 

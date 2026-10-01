@@ -51,8 +51,8 @@ from vultron.adapters.driving.fastapi.deps import (
     get_trigger_dl,
 )
 from vultron.adapters.driving.fastapi.trigger_runner import run_trigger
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import (
     ActivityResult,
     NoteResult,
@@ -377,7 +377,7 @@ def demo_sync_log_entry(
     operation_id="actors_demo_get_case_ledger",
 )
 def demo_get_case_ledger(
-    actor_id: str,  # noqa: ARG001
+    actor_id: str,
     case_id: str,
     request: Request,
     fmt: str | None = Query(
@@ -428,7 +428,7 @@ def demo_get_case_ledger(
     operation_id="actors_demo_get_case_ledger_entry",
 )
 def demo_get_case_ledger_entry(
-    actor_id: str,  # noqa: ARG001
+    actor_id: str,
     case_id: str,
     index: int = Path(ge=0, description="Zero-based log entry index."),
     dl: DataLayer = Depends(get_trigger_dl),

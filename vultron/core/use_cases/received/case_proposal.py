@@ -33,7 +33,6 @@ Three use cases covering the full CP message flow (ADR-0023):
 import logging
 from typing import TYPE_CHECKING, Any
 
-
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import WIRE_RENDER_PORT_UNAVAILABLE
@@ -72,13 +71,13 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
 )
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._sender_embargo_proposal import (
-    sender_embargo_proposal_inputs,
-)
 from vultron.core.use_cases.received._bt_verdict import (
     find_node,
     node_succeeded,
     verdict_from_bt,
+)
+from vultron.core.use_cases.received._sender_embargo_proposal import (
+    sender_embargo_proposal_inputs,
 )
 
 logger = logging.getLogger(__name__)

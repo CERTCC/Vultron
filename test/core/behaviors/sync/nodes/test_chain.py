@@ -2,19 +2,16 @@
 """Unit tests for sync chain nodes."""
 
 import logging
-
 from typing import cast
 
 import py_trees
 import pytest
-
-from vultron.core.models._helpers import now_utc
 from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import (
+    CASE_ID,
     OWNER_ACTOR_ID,
     PARTICIPANT_ACTOR_ID,
-    CASE_ID,
     _make_entry,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -25,6 +22,7 @@ from vultron.core.behaviors.sync.nodes import (
     ReconstructChainTailNode,
     UpdateReplicationStateNode,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState

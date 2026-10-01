@@ -10,6 +10,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.receive_close_case_tree import (
     create_close_case_received_tree,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
     CloseCaseReceivedEvent,
@@ -22,7 +23,6 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     find_named,

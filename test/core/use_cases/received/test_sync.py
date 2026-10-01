@@ -13,8 +13,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for LedgerFanout/LedgerReconciliation received use cases."""
 
-import pytest
+from typing import cast
 from unittest.mock import MagicMock
+
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -24,20 +26,18 @@ from vultron.core.models.case_ledger import (
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
-    drain_gap_buffer,
     _reconstruct_tail_hash,
+    drain_gap_buffer,
 )
-from typing import cast
-
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.semantic_registry import extract_event
-from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
@@ -132,6 +132,7 @@ class TestReconstructTailHash:
         genesis anchor (CLP-08-005).
         """
         import pytest
+
         from vultron.errors import VultronValidationError
 
         with pytest.raises(VultronValidationError, match="genesis hash"):

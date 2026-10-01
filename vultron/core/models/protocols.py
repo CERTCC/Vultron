@@ -22,7 +22,8 @@ removed in favour of direct ``isinstance`` checks against core domain classes
 (ADR-0034, DL-05-003).
 """
 
-from typing import TYPE_CHECKING, Any, Mapping, Protocol
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from vultron.core.models.dimensions import EmDimension, PxaDimension

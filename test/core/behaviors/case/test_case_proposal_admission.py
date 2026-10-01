@@ -280,9 +280,9 @@ class TestDeclineEmitsReject:
 
         (reject,) = _outbox_activities(dl)
         proposal = reject.object_
-        assert not isinstance(
-            proposal, str
-        ), f"object_ must not be a bare URI, got {proposal!r}"
+        assert not isinstance(proposal, str), (
+            f"object_ must not be a bare URI, got {proposal!r}"
+        )
         assert getattr(proposal, "id_", None) == _PROPOSAL_URI
         # The report the proposal was about travels with it, so the vendor can
         # correlate the refusal without reading anything from our store.
@@ -744,9 +744,9 @@ class TestAHalfBuiltCaseIsNotRejected:
             assert _run_tree(dl, call_out=_admitting_bundle([])) == (
                 Status.FAILURE
             )
-            assert (
-                len(_cases(dl)) == 1
-            ), "the case was created before the fault"
+            assert len(_cases(dl)) == 1, (
+                "the case was created before the fault"
+            )
             assert _types_in_outbox(dl) == []
 
             dl.fail = False
@@ -862,9 +862,9 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                 )
                 is not None
             )
-            assert (
-                len(_cases(_dl)) == 1
-            ), "no second case, and the first is untouched"
+            assert len(_cases(_dl)) == 1, (
+                "no second case, and the first is untouched"
+            )
             participants = [
                 p
                 for p in _dl.list_objects("CaseParticipant")

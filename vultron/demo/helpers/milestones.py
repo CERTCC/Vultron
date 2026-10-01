@@ -78,9 +78,9 @@ def verify_case_active(
     """
     # Coordinator side
     case_data = receiver_client.get(receiver_client.dl_path(case_id))
-    assert (
-        case_data
-    ), f"verify_case_active: receiver case {case_id!r} not found"
+    assert case_data, (
+        f"verify_case_active: receiver case {case_id!r} not found"
+    )
     case = as_VulnerabilityCase.model_validate(case_data)
 
     required = {receiver_actor_id, reporter_actor_id}
@@ -419,9 +419,9 @@ def verify_case_closed(
         ("reporter", reporter_client),
     ]:
         case_data = client.get(client.dl_path(case_id))
-        assert (
-            case_data
-        ), f"verify_case_closed {label}: case {case_id!r} not found"
+        assert case_data, (
+            f"verify_case_closed {label}: case {case_id!r} not found"
+        )
         case = as_VulnerabilityCase.model_validate(case_data)
         for a_id, p_id in case.actor_participant_index.items():
             p_data = _fetch_participant_data(client, p_id)

@@ -147,7 +147,7 @@ def _check_stakeholder_type(value: object) -> object:
     if value == ALL_STAKEHOLDERS:
         return value
     if isinstance(value, str):
-        raise ValueError(
+        raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
             f"must be a list of stakeholder types or the bare scalar "
             f"{ALL_STAKEHOLDERS}; write [{value}] for a single type"
         )

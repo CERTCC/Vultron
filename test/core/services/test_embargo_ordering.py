@@ -14,7 +14,7 @@
 """The shared shortest-wins comparator (EP-08-001, EP-04-003, ADR-0100, #3470)."""
 
 from collections.abc import Generator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -32,7 +32,7 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 
 _ACTOR = "https://example.org/actors/owner"
 _CASE = "https://example.org/cases/1"
-_START = datetime(2030, 1, 1, tzinfo=timezone.utc)
+_START = datetime(2030, 1, 1, tzinfo=UTC)
 
 
 @pytest.fixture()

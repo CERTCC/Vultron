@@ -29,11 +29,25 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.models.protocols import PersistableModel
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import CS_pxa
 
 logger = logging.getLogger(__name__)
+
+
+def read_pxa_state(case_status: object) -> object | None:
+    """Return the raw PXA state carried by *case_status*, or None.
+
+    Reads ``case_status.pxa.state`` when the object has a ``pxa``
+    attribute (a ``None`` ``pxa`` yields None), else ``pxa_state``.
+    """
+    if case_status is None:
+        return None
+    if hasattr(case_status, "pxa"):
+        pxa = getattr(case_status, "pxa", None)
+        return None if pxa is None else pxa.state
+    return getattr(case_status, "pxa_state", None)
 
 
 def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:
@@ -48,17 +62,7 @@ def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:
     - ``case_status`` has no PXA attribute
     - The resolved state is ``CS_pxa.pxa``
     """
-    if case_status is None:
-        return None
-    if hasattr(case_status, "pxa"):
-        _pxa = getattr(case_status, "pxa")
-        if _pxa is None:
-            return None
-        pxa_state = _pxa.state
-    elif hasattr(case_status, "pxa_state"):
-        pxa_state = getattr(case_status, "pxa_state")
-    else:
-        return None
+    pxa_state = read_pxa_state(case_status)
     if pxa_state is None:
         return None
     if pxa_state == CS_pxa.pxa:

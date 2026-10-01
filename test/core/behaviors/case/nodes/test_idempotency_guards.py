@@ -23,18 +23,18 @@ AC-3: CLP-13-001 and CLP-13-002 satisfied.
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes import (
     CheckInviteeNotAlreadyParticipantNode,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.behaviors.status.nodes.case_status import (
-    CheckCaseStatusIdempotencyNode,
     CASE_STATUS_ALREADY_PRESENT,
+    CheckCaseStatusIdempotencyNode,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.case_participant import CaseParticipant
-from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.models.case_status import CaseStatus
 
 _CASE_ID = "https://example.org/cases/case-001"
 _INVITEE_ID = "https://example.org/actors/invitee"
@@ -137,9 +137,9 @@ class TestCheckInviteeNotAlreadyParticipantNode:
             for obj in bt_scenario.dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry) and obj.case_id == _CASE_ID
         ]
-        assert (
-            entries == []
-        ), f"Guard wrote {len(entries)} ledger entry/entries — CLP-13-001 violated"
+        assert entries == [], (
+            f"Guard wrote {len(entries)} ledger entry/entries — CLP-13-001 violated"
+        )
 
     def test_returns_success_for_backfill_incomplete_resume_no_state(
         self, bt_scenario: BTTestScenario
@@ -278,9 +278,9 @@ class TestCheckCaseStatusIdempotencyNode:
             for obj in bt_scenario.dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry) and obj.case_id == _CASE_ID
         ]
-        assert (
-            entries == []
-        ), f"Guard wrote {len(entries)} ledger entry/entries — CLP-13-001 violated"
+        assert entries == [], (
+            f"Guard wrote {len(entries)} ledger entry/entries — CLP-13-001 violated"
+        )
 
     def test_sets_feedback_message_on_duplicate(
         self, bt_scenario: BTTestScenario

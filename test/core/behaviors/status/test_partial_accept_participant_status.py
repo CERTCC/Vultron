@@ -62,14 +62,14 @@ from vultron.core.behaviors.status.nodes.dimension_filter import (
     FilterParticipantStatusDimensionsNode,
     resolve_dimension_filter,
 )
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
@@ -78,6 +78,7 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
+from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
@@ -99,7 +100,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -436,16 +436,16 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
 
         assert ASSERTED_STATUS_ID in _status_ids(dl, PARTICIPANT_ID)
         latest = _latest_status(dl, PARTICIPANT_ID)
-        assert (
-            _rm_of(latest) == RM.ACCEPTED.name
-        ), "refused rm must carry forward"
+        assert _rm_of(latest) == RM.ACCEPTED.name, (
+            "refused rm must carry forward"
+        )
         assert _vf_of(latest) == CS_vf.VF.name, "accepted vfd must be recorded"
-        assert (
-            _pxa_of(latest) == CS_pxa.Pxa.name
-        ), "accepted pxa must be recorded"
-        assert (
-            _em_of(latest) == EM.NONE.name
-        ), "em is EmbargoTeardownAuthorizationGate's business (#2256)"
+        assert _pxa_of(latest) == CS_pxa.Pxa.name, (
+            "accepted pxa must be recorded"
+        )
+        assert _em_of(latest) == EM.NONE.name, (
+            "em is EmbargoTeardownAuthorizationGate's business (#2256)"
+        )
 
     @pytest.mark.spec("RSH-01-003")
     @pytest.mark.spec("RSH-04-004")
@@ -572,16 +572,16 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
             "the ledger must record the carried-forward vf, not the refused"
             f" vf=VF assertion — got {_vf_of(snapshot_object)!r}"
         )
-        assert (
-            _rm_of(snapshot_object) == RM.VALID.name
-        ), "rm was acceptable and must be recorded as asserted"
+        assert _rm_of(snapshot_object) == RM.VALID.name, (
+            "rm was acceptable and must be recorded as asserted"
+        )
         assert _pxa_of(snapshot_object) == CS_pxa.Pxa.name, (
             "refusing vf must not discard the accepted pxa advance"
             " (RSH-05-001)"
         )
-        assert (
-            _vf_of(_latest_status(dl, PARTICIPANT_ID)) == CS_vf.Vf.name
-        ), "the participant's own recorded status must agree with the ledger"
+        assert _vf_of(_latest_status(dl, PARTICIPANT_ID)) == CS_vf.Vf.name, (
+            "the participant's own recorded status must agree with the ledger"
+        )
 
     @pytest.mark.spec("RSH-05-009")
     def test_ledger_snapshot_keeps_the_wire_shape_of_an_unfiltered_snapshot(
@@ -621,20 +621,20 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         assert snap["vfState"] == CS_vf.VF.name
 
         # Fields the guard never adjudicated survive the patch untouched.
-        assert (
-            snap.get("emConsentState") == PEC.SIGNATORY.name
-        ), "emConsentState must survive adjudication (fcvcv invariant harness)"
+        assert snap.get("emConsentState") == PEC.SIGNATORY.name, (
+            "emConsentState must survive adjudication (fcvcv invariant harness)"
+        )
         assert "cvdRole" in snap, "cvdRole must survive adjudication"
         assert "@context" in snap, "@context must survive adjudication"
         assert snap.get("type") == "ParticipantStatus"
 
         # No core-model shapes, and no stale snake_case twin of a patched field.
-        assert not isinstance(
-            snap.get("rm"), dict
-        ), f"core 'rm' dimension object leaked into the snapshot: {snap!r}"
-        assert not isinstance(
-            snap.get("vf"), dict
-        ), f"core 'vf' dimension object leaked into the snapshot: {snap!r}"
+        assert not isinstance(snap.get("rm"), dict), (
+            f"core 'rm' dimension object leaked into the snapshot: {snap!r}"
+        )
+        assert not isinstance(snap.get("vf"), dict), (
+            f"core 'vf' dimension object leaked into the snapshot: {snap!r}"
+        )
         assert "rm_state" not in snap
         assert "vf_state" not in snap
 
@@ -681,12 +681,12 @@ class TestOmittedCaseStatusIsNotAnAssertion:
 
         latest = _latest_status(dl, PARTICIPANT_ID)
         assert _vf_of(latest) == CS_vf.VF.name, "the vfd advance is accepted"
-        assert (
-            _pxa_of(latest) == CS_pxa.pXa.name
-        ), "an unasserted pxa must be carried forward, not blanked"
-        assert (
-            _em_of(latest) == EM.NONE.name
-        ), "an unasserted em must be carried forward, not blanked"
+        assert _pxa_of(latest) == CS_pxa.pXa.name, (
+            "an unasserted pxa must be carried forward, not blanked"
+        )
+        assert _em_of(latest) == EM.NONE.name, (
+            "an unasserted em must be carried forward, not blanked"
+        )
 
     @pytest.mark.spec("RSH-05-005")
     def test_omitted_case_status_alone_carries_no_new_state(
@@ -842,12 +842,12 @@ class TestLedgerApplyRmRatchet:
         assert result.status == Status.SUCCESS
 
         latest = _latest_status(dl, PARTICIPANT_ID)
-        assert (
-            _rm_of(latest) == RM.ACCEPTED.name
-        ), "a replicated entry must not regress the replica's rm state"
-        assert (
-            _vf_of(latest) == CS_vf.VF.name
-        ), "the accepted vfd advance must still be applied"
+        assert _rm_of(latest) == RM.ACCEPTED.name, (
+            "a replicated entry must not regress the replica's rm state"
+        )
+        assert _vf_of(latest) == CS_vf.VF.name, (
+            "the accepted vfd advance must still be applied"
+        )
 
     def test_ratchet_holds_when_the_status_object_is_already_stored_locally(
         self, store_for
@@ -942,9 +942,9 @@ class TestLedgerApplyRmRatchet:
             actor_id=ACTOR_ID,
             activity=event,
         )
-        assert (
-            result.status == Status.FAILURE
-        ), "an unreadable RM floor must fail, not silently skip the ratchet"
+        assert result.status == Status.FAILURE, (
+            "an unreadable RM floor must fail, not silently skip the ratchet"
+        )
 
         assert real_read(ASSERTED_STATUS_ID) is None, (
             "the regressing status must not be persisted when the ratchet"
@@ -1041,9 +1041,9 @@ class TestLedgerOverrideDoesNotLeakBetweenExecutions:
         assert len(entries) == 2
         second_snap = entries[1].payload_snapshot["object"]
         assert second_snap["id"] == SECOND_STATUS_ID
-        assert (
-            second_snap["rmState"] == RM.ACCEPTED.name
-        ), "the second status must be snapshotted as asserted"
+        assert second_snap["rmState"] == RM.ACCEPTED.name, (
+            "the second status must be snapshotted as asserted"
+        )
 
     def test_filter_clears_a_stale_override_when_no_datalayer_is_available(
         self,
@@ -1195,9 +1195,9 @@ class TestRMGapAnomalyFlag:
 
         assert result.status == Status.SUCCESS
         anomaly = self._read_anomaly()
-        assert (
-            anomaly is not None
-        ), "BB_RM_ANOMALY not set for non-adjacent RM gap"
+        assert anomaly is not None, (
+            "BB_RM_ANOMALY not set for non-adjacent RM gap"
+        )
         assert anomaly["anomaly_type"] == "gap"
         assert anomaly["from_rm"] == RM.RECEIVED
         assert anomaly["to_rm"] == RM.ACCEPTED
@@ -1214,9 +1214,9 @@ class TestRMGapAnomalyFlag:
         _run_tree(dl, asserted, ACTOR_ID, make_payload)
 
         anomaly = self._read_anomaly()
-        assert (
-            anomaly is None
-        ), f"Expected no anomaly for adjacent transition, got {anomaly}"
+        assert anomaly is None, (
+            f"Expected no anomaly for adjacent transition, got {anomaly}"
+        )
 
     @pytest.mark.spec("RSH-06-002")
     def test_backward_regression_refused_sets_regression_anomaly(
@@ -1231,9 +1231,9 @@ class TestRMGapAnomalyFlag:
         _run_tree(dl, asserted, ACTOR_ID, make_payload)
 
         anomaly = self._read_anomaly()
-        assert (
-            anomaly is not None
-        ), "BB_RM_ANOMALY not set for backward regression"
+        assert anomaly is not None, (
+            "BB_RM_ANOMALY not set for backward regression"
+        )
         assert anomaly["anomaly_type"] == "regression"
         assert anomaly["from_rm"] == RM.ACCEPTED
         assert anomaly["to_rm"] == RM.RECEIVED
@@ -1268,9 +1268,9 @@ class TestOverrideIncludesProducerType:
         assert result.status == Status.SUCCESS
 
         override = captured.get("override")
-        assert isinstance(
-            override, dict
-        ), "override must be a dict after partial accept"
+        assert isinstance(override, dict), (
+            "override must be a dict after partial accept"
+        )
         assert (
             override.get("producer_type")
             == "FilterParticipantStatusDimensionsNode"
@@ -1345,9 +1345,9 @@ class TestAdjudicateDimensionsRoleGuards:
             current, asserted, roles=[CVDRole.VENDOR]
         )
 
-        assert (
-            "vf" not in refused
-        ), "VF write must be accepted with VENDOR role"
+        assert "vf" not in refused, (
+            "VF write must be accepted with VENDOR role"
+        )
 
     def test_vf_not_ready_d_deployed_refused_on_receive(self):
         """#2893 received path: peer with vf=Vf asserting d=D must have D refused.
@@ -1375,9 +1375,9 @@ class TestAdjudicateDimensionsRoleGuards:
             roles=[CVDRole.VENDOR, CVDRole.DEPLOYER],
         )
 
-        assert (
-            "d" in refused
-        ), "D write must be refused when vf≠VF + d=D (CSB-17-001 received path)"
+        assert "d" in refused, (
+            "D write must be refused when vf≠VF + d=D (CSB-17-001 received path)"
+        )
 
     def test_vf_refused_no_history_does_not_spuriously_refuse_d(self):
         """Fix: when VF is refused (no VENDOR) and current_vf=None, effective_vf
@@ -1489,9 +1489,9 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
             current, asserted, roles=[CVDRole.VENDOR]
         )
 
-        assert (
-            "vf" not in refused
-        ), "a first VF observation must be accepted when rm=ACCEPTED allows it"
+        assert "vf" not in refused, (
+            "a first VF observation must be accepted when rm=ACCEPTED allows it"
+        )
 
     @pytest.mark.spec("RSH-05-020")
     def test_vf_refused_when_both_asserted_and_carried_rm_are_pre_acceptance(
@@ -1570,12 +1570,12 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
             current, asserted, roles=[CVDRole.DEPLOYER]
         )
 
-        assert (
-            "d" in refused
-        ), "d=D asserted with rm=VALID must be refused (CSB-18-001)"
-        assert (
-            update_fields["d"].state is CS_d.d
-        ), "the refused dimension carries the participant's current d forward"
+        assert "d" in refused, (
+            "d=D asserted with rm=VALID must be refused (CSB-18-001)"
+        )
+        assert update_fields["d"].state is CS_d.d, (
+            "the refused dimension carries the participant's current d forward"
+        )
 
     @pytest.mark.spec("RSH-05-020")
     def test_d_deployed_accepted_when_rm_has_reached_acceptance(self):
@@ -1592,9 +1592,9 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
             current, asserted, roles=[CVDRole.VENDOR, CVDRole.DEPLOYER]
         )
 
-        assert (
-            "d" not in refused
-        ), "d→D must be accepted when rm=ACCEPTED and vf=VF allow it"
+        assert "d" not in refused, (
+            "d→D must be accepted when rm=ACCEPTED and vf=VF allow it"
+        )
 
     @pytest.mark.spec("RSH-05-020")
     def test_entailment_refusal_is_per_dimension(self):
@@ -1612,9 +1612,9 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
 
         assert "vf" in refused
         assert "pxa" not in refused, "the pxa advance is independent of vf"
-        assert (
-            "case_status" not in update_fields
-        ), "an accepted pxa advance is recorded as asserted, not rewritten"
+        assert "case_status" not in update_fields, (
+            "an accepted pxa advance is recorded as asserted, not rewritten"
+        )
 
     @pytest.mark.spec("RSH-05-020")
     def test_dimension_is_not_refused_twice(self):

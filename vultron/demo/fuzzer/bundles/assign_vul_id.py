@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import py_trees
 
-from vultron.core.behaviors.call_out.bundles.assign_vul_id import (  # noqa: F401
+from vultron.core.behaviors.call_out.bundles.assign_vul_id import (
     ASSIGN_VUL_ID_DETERMINISTIC,
     AssignVulIdCallOutBundle,
 )

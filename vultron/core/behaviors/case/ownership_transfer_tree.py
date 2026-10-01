@@ -29,15 +29,15 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.receive_activity_tree import (
-    create_receive_activity_tree,
-)
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptCaseOwnershipTransferNode,
     ForwardOfferToTransfereeNode,
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
+)
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
 )
 
 logger = logging.getLogger(__name__)

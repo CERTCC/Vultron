@@ -6,6 +6,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
@@ -17,7 +18,6 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 from .conftest import _build_active_embargo_case, _persist_actor
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def test_non_owner_reject_embargo_on_active_case_updates_participant_only(

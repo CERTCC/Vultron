@@ -146,8 +146,7 @@ class TestNavPlacementFaults:
         adr_dir = _scaffold(tmp_path)
         _write_adr(adr_dir, "0001", "accepted", "First")
         (tmp_path / "mkdocs.yml").write_text(
-            "nav:\n  - Home: 'index.md'\n"
-            "not_in_nav: |\n  adr/archived/*.md\n"
+            "nav:\n  - Home: 'index.md'\nnot_in_nav: |\n  adr/archived/*.md\n"
         )
         faults = nav_placement_faults(tmp_path)
         assert len(faults) == 1

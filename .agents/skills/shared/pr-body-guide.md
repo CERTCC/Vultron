@@ -42,7 +42,7 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
 ## Verification
 
 - All N unit tests pass (M new)
-- Black, flake8, mypy, pyright clean
+- ruff, mypy, pyright clean
 - [x] AC-1: ...   <!-- include when the closed issue listed acceptance criteria -->
 ```
 

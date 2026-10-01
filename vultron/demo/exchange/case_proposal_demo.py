@@ -51,13 +51,9 @@ CP-05-004, CP-06-001 through CP-06-003.
 
 import logging
 import sys
-from typing import Callable, Optional, Sequence
+from collections.abc import Callable, Sequence
 
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
-from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
+from vultron.demo.utils import (  # BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
     check_server_availability,
@@ -70,6 +66,10 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     verify_object_stored,
 )
 from vultron.wire.as2.factories import rm_submit_report_activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +143,7 @@ def demo_case_proposal_round_trip(
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence[Callable]] = None,
+    demos: Sequence[Callable] | None = None,
 ) -> None:
     """Run the CaseProposal round-trip demo.
 

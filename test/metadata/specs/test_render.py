@@ -7,8 +7,8 @@ fidelity.
 
 import json
 
-import yaml
 import pytest
+import yaml
 
 from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.render import (
@@ -228,6 +228,7 @@ def test_export_yaml_group_trigger_preserved(behavioral_registry):
 def test_export_yaml_round_trips_through_schema(behavioral_registry):
     """YAML produced by export_yaml must reload without validation errors."""
     from pathlib import Path
+
     from vultron.metadata.specs.registry import load_registry
 
     yaml_str = export_yaml(behavioral_registry.files[0])

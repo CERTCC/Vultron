@@ -5,8 +5,6 @@ from unittest.mock import MagicMock
 
 import py_trees
 import pytest
-
-from vultron.core.models._helpers import now_utc
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -19,10 +17,11 @@ from vultron.core.behaviors.sync.nodes import (
     CreateLogEntryNode,
     DeclineForeignLedgerCommitNode,
 )
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 

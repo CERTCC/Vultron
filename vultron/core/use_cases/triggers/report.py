@@ -41,8 +41,8 @@ from vultron.core.behaviors.report.validate_tree import (
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.models.use_case_result import OfferResult
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers._base import (
     SvcActivityTriggerBase,
     SvcBTTriggerBase,

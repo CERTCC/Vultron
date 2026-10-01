@@ -38,30 +38,29 @@ the response body and that the vendor's outbox is updated accordingly.
 """
 
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.workflow import find_case_for_offer
 from vultron.demo.utils import (
-    seed_case_actor_for_report,
     DataLayerClient,
     demo_check,
     demo_step,
     get_offer_from_datalayer,
     post_to_inbox_and_wait,
-    verify_object_stored,
+    seed_case_actor_for_report,
     setup_demo_logging,
+    verify_object_stored,
 )
 from vultron.wire.as2.factories import (
     rm_submit_report_activity,
 )
-
-from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.workflow import find_case_for_offer
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +76,7 @@ def _submit_report(
     vendor: as_Actor,
     name: str,
     content: str,
-) -> Tuple[as_VulnerabilityReport, as_Offer]:
+) -> tuple[as_VulnerabilityReport, as_Offer]:
     """Finder submits a vulnerability report to the vendor's inbox.
 
     Returns the ``(report, offer)`` pair after verifying both are stored.
@@ -108,7 +107,7 @@ def demo_validate_and_engage(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ) -> None:
     """Demonstrate proactive validation and case engagement via trigger endpoints.
 
@@ -145,9 +144,9 @@ def demo_validate_and_engage(
         )
         with demo_check("Response contains activity"):
             activity = response.activity
-            assert (
-                activity is not None
-            ), "Expected 'activity' key in trigger response"
+            assert activity is not None, (
+                "Expected 'activity' key in trigger response"
+            )
             logger.info("Resulting activity type: %s", activity.get("type"))
 
     with demo_step("Step 3: Vendor triggers engage-case"):
@@ -163,9 +162,9 @@ def demo_validate_and_engage(
         )
         with demo_check("Response contains activity"):
             activity = response.activity
-            assert (
-                activity is not None
-            ), "Expected 'activity' key in engage-case trigger response"
+            assert activity is not None, (
+                "Expected 'activity' key in engage-case trigger response"
+            )
             logger.info("Resulting activity type: %s", activity.get("type"))
 
     logger.info(
@@ -183,7 +182,7 @@ def demo_invalidate_and_close(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ) -> None:
     """Demonstrate proactive invalidation and report closure via trigger endpoints.
 
@@ -196,9 +195,9 @@ def demo_invalidate_and_close(
     logger.info("TRIGGER DEMO 2: Invalidate Report → Close Report")
     logger.info("=" * 80)
 
-    report = offer = None
+    offer = None
     with demo_step("Step 1: Finder submits a low-quality report to vendor"):
-        report, offer = _submit_report(
+        _report, offer = _submit_report(
             client=client,
             finder=finder,
             vendor=vendor,
@@ -223,9 +222,9 @@ def demo_invalidate_and_close(
         )
         with demo_check("Response contains activity"):
             activity = response.activity
-            assert (
-                activity is not None
-            ), "Expected 'activity' key in invalidate-report response"
+            assert activity is not None, (
+                "Expected 'activity' key in invalidate-report response"
+            )
             logger.info("Resulting activity type: %s", activity.get("type"))
 
     with demo_step("Step 3: Vendor triggers close-report"):
@@ -239,9 +238,9 @@ def demo_invalidate_and_close(
         )
         with demo_check("Response contains activity"):
             activity = response.activity
-            assert (
-                activity is not None
-            ), "Expected 'activity' key in close-report trigger response"
+            assert activity is not None, (
+                "Expected 'activity' key in close-report trigger response"
+            )
             logger.info("Resulting activity type: %s", activity.get("type"))
 
     logger.info(
@@ -254,7 +253,7 @@ def demo_invalidate_and_close(
 # Entry point
 # ---------------------------------------------------------------------------
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     ("Demo 1: Validate and Engage", demo_validate_and_engage),
     ("Demo 2: Invalidate and Close", demo_invalidate_and_close),
 ]
@@ -262,7 +261,7 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ) -> None:
     """Main entry point for the trigger demo demo script."""
     run_exchange_demos(

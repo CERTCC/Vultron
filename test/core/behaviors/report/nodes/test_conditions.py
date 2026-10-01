@@ -17,8 +17,8 @@
 
 import pytest
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.report.nodes.conditions import (
-    _CheckReportPhaseRMStateBase,
     CheckParticipantExists,
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
@@ -26,6 +26,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
     EvaluateCasePriority,
     EvaluateReportCredibility,
     EvaluateReportValidity,
+    _CheckReportPhaseRMStateBase,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
@@ -33,7 +34,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from test.core.behaviors.bt_harness import BTTestScenario
 
 # ---------------------------------------------------------------------------
 # AC-4: _CheckReportPhaseRMStateBase base-class contract

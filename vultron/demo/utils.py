@@ -26,9 +26,10 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from http import HTTPMethod
-from typing import Any, Generator, Optional, Sequence, Tuple, cast
+from typing import Any, cast
 
 # Third-party imports
 import httpx2 as httpx
@@ -131,7 +132,7 @@ def _demo_accumulate(
         yield
         logger.info(f"{on_pass} {description}")
     except Exception as exc:
-        logger.error(f"{on_fail} {description}: {exc}", exc_info=True)
+        logger.exception(f"{on_fail} {description}")
         _demo_failures.append(f"{prefix}: {description} — {exc}")
 
 
@@ -310,8 +311,8 @@ class DataLayerClient(BaseModel):
             data = response.json()
             logger.debug(f"Response JSON: {json.dumps(data, indent=2)}")
         except ValueError as e:
-            logger.error(f"Exception: {e}")
-            logger.error(f"Response text: {response.text}")
+            logger.error(f"Exception: {e}")  # noqa: TRY400  # ruff-baseline #3353
+            logger.error(f"Response text: {response.text}")  # noqa: TRY400  # ruff-baseline #3353
 
         if response.status_code == 404:
             logger.error(
@@ -344,7 +345,7 @@ class DataLayerClient(BaseModel):
         """
         data = self.call(HTTPMethod.GET, path, **kwargs)
         if not isinstance(data, list):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
                 f"Expected JSON array from GET {path}, "
                 f"got {type(data).__name__}"
             )
@@ -393,7 +394,7 @@ def _log_discovered_actor(role: str, actor: as_Actor) -> None:
 
 def discover_actors(
     client: DataLayerClient,
-) -> Tuple[as_Actor, as_Actor, as_Actor]:
+) -> tuple[as_Actor, as_Actor, as_Actor]:
     """Retrieve the Finder, Vendor, and Coordinator actors from the DataLayer.
 
     Returns:
@@ -580,7 +581,7 @@ def log_case_state(
     case_id: str,
     label: str,
     actor_id: str | None = None,
-) -> Optional[as_VulnerabilityCase]:
+) -> as_VulnerabilityCase | None:
     """Fetch and log the current state of a case.
 
     Args:
@@ -600,7 +601,7 @@ def log_case_state(
         )
         logger.debug(f"Case detail [{label}]: {logfmt(case)}")
         return case
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
         logger.warning(f"Could not fetch case state [{label}]: {e}")
         return None
 
@@ -616,7 +617,7 @@ def log_case_state(
 #:
 #: The names retain the prefixes :func:`discover_actors` matches on, so a node
 #: seeded this way is still introspectable by role.
-_EXCHANGE_ACTORS: Tuple[Tuple[str, str, str], ...] = (
+_EXCHANGE_ACTORS: tuple[tuple[str, str, str], ...] = (
     ("finndervul", "Finn der Vul", "Person"),
     ("vendorco", "VendorCo", "Organization"),
     ("coordinator", "Coordinator LLC", "Organization"),
@@ -625,7 +626,7 @@ _EXCHANGE_ACTORS: Tuple[Tuple[str, str, str], ...] = (
 
 def seed_exchange_actors(
     client: DataLayerClient,
-) -> Tuple[as_Actor, as_Actor, as_Actor]:
+) -> tuple[as_Actor, as_Actor, as_Actor]:
     """Create the Finder, Vendor and Coordinator actors on *client*'s node.
 
     Each gets its own store, holding its own record, which is the whole of what
@@ -663,7 +664,7 @@ def seed_exchange_actors(
 
 def setup_clean_environment(
     client: DataLayerClient,
-) -> Tuple[as_Actor, as_Actor, as_Actor]:
+) -> tuple[as_Actor, as_Actor, as_Actor]:
     """Reset the node and provision the three default demo actors.
 
     Clears every store on the node, then creates the Finder, Vendor and
@@ -685,7 +686,7 @@ def setup_clean_environment(
 @contextmanager
 def demo_environment(
     client: DataLayerClient,
-) -> Generator[Tuple[as_Actor, as_Actor, as_Actor], None, None]:
+) -> Generator[tuple[as_Actor, as_Actor, as_Actor], None, None]:
     """Context manager providing an isolated, clean DataLayer environment.
 
     Sets up a clean environment on entry and tears it down on exit, even
@@ -920,7 +921,7 @@ def check_server_availability(
             pass
         except httpx.TimeoutException:
             pass
-        except Exception:
+        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
         if attempt < max_retries - 1:
             time.sleep(retry_delay)

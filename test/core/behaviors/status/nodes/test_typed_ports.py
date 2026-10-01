@@ -22,6 +22,7 @@ execution via BTTestScenario for one representative node per status sub-module.
 import pytest
 from py_trees.ports import NoDataAvailable
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.status.nodes.case_status import (
     CheckCaseStatusIdempotencyNode,
 )
@@ -37,7 +38,6 @@ from vultron.core.behaviors.status.nodes.threat_termination import (
     _ThreatTerminationSkipConditionNode,
 )
 from vultron.core.models.case import VulnerabilityCase
-from test.core.behaviors.bt_harness import BTTestScenario
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-001"

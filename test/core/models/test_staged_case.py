@@ -18,6 +18,7 @@ LST-02-001 through LST-05-003.
 """
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
@@ -30,7 +31,6 @@ from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.models.staged_case import Case, EmbargoedCase, IncomingReport
 from vultron.core.states.em import EM
-from pydantic import ValidationError
 
 _ACTOR = "https://example.org/actor"
 _REPORT_ID = "urn:uuid:report-1"
@@ -414,12 +414,12 @@ class TestNoRMStagedTypes:
         from vultron.core.models.staged_case import __all__ as exports
 
         for name in exports:
-            assert (
-                "Valid" not in name
-            ), f"Found unexpected RM-typed class {name!r} in staged_case.__all__"
-            assert (
-                "Triage" not in name
-            ), f"Found unexpected RM-typed class {name!r} in staged_case.__all__"
+            assert "Valid" not in name, (
+                f"Found unexpected RM-typed class {name!r} in staged_case.__all__"
+            )
+            assert "Triage" not in name, (
+                f"Found unexpected RM-typed class {name!r} in staged_case.__all__"
+            )
 
     def test_staged_case_exports(self):
         from vultron.core.models.staged_case import __all__

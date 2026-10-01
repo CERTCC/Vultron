@@ -26,12 +26,18 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_report as trigger_report_router,
 )
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -41,12 +47,6 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
-from vultron.core.models.dimensions import (
-    RmDimension,
-)
-from vultron.core.models._helpers import days_from_now_utc
 
 # ---------------------------------------------------------------------------
 # Module-level outbox suppression
@@ -349,7 +349,9 @@ def test_trigger_validate_report_transitions_rm_to_valid(
     link = dl.read(link_id)
     assert (
         isinstance(link, VultronReportCaseLink) and link.rm_state == RM.VALID
-    ), "Expected VultronReportCaseLink.rm_state == RM.VALID after validate-report trigger"
+    ), (
+        "Expected VultronReportCaseLink.rm_state == RM.VALID after validate-report trigger"
+    )
 
 
 def test_trigger_validate_report_non_report_offer_returns_404(

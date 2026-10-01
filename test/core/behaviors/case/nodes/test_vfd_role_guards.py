@@ -33,10 +33,10 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckSomeVendorAtVFNode,
     CheckVendorRoleNode,
 )
-from vultron.core.models.dimensions import VfDimension
-from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import VfDimension
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_vf
 from vultron.enums.roles import CVDRole
 

@@ -91,7 +91,7 @@ def validate_roles(value: object) -> list[CVDRole]:
     if value is None:
         return []
     if not isinstance(value, list):
-        raise ValueError(
+        raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
             f"default_case_roles must be a list of CVDRole strings, got {type(value).__name__!r}: {value!r}"
         )
     result: list[CVDRole] = []

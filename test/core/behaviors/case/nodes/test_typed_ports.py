@@ -19,11 +19,11 @@ Covers BTND-03-011 (NoDataAvailable on missing required port) and happy-path
 execution via BTTestScenario for one representative node per case sub-module.
 """
 
+import py_trees
 import pytest
 from py_trees.ports import NoDataAvailable
 
-import py_trees
-
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.communication import (
     CollectCaseAddresseesNode,
     CreateAndPersistCaseActivityNode,
@@ -43,7 +43,6 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckVendorRoleNode,
 )
 from vultron.core.models.case import VulnerabilityCase
-from test.core.behaviors.bt_harness import BTTestScenario
 
 SENDER_ID = "https://example.org/actors/update-sender"
 ACTOR_ID = "https://example.org/actors/vendor"

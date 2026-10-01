@@ -26,11 +26,11 @@ Public API for the ``vultron.metadata.msm`` package:
 
 from vultron.metadata.msm._mapping import (
     EXEMPTED_SEMANTICS,
-    MappingStatus,
     PAGE_ROWS,
     PAGE_SLUGS,
     ROW_SPECS,
     SEMANTICS_TO_ROW,
+    MappingStatus,
     RowSpec,
 )
 from vultron.metadata.msm.render import render_page

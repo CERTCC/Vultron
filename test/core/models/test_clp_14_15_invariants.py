@@ -45,7 +45,7 @@ from which an emission-order obligation is observable at all.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -71,7 +71,7 @@ OBJ_ID = "https://example.org/activities/a1"
 ACTOR_ID = "https://example.org/actors/participant"
 CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 
-T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+T0 = datetime(2026, 1, 1, tzinfo=UTC)
 T1 = T0 + timedelta(seconds=1)
 T2 = T0 + timedelta(seconds=2)
 
@@ -215,7 +215,7 @@ def test_clp_14_006_entry_not_before_case_creation():
     five-minute clock-skew tolerance; that tolerance itself is covered in
     ``test_chain_timestamp_guard.py``.
     """
-    case_created = datetime.now(tz=timezone.utc)
+    case_created = datetime.now(tz=UTC)
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-006"):
         _validate_canonical_entry(
             case_id=CASE_ID,
@@ -247,7 +247,7 @@ def test_clp_14_006_harness_flags_entry_predating_case_creation():
 @pytest.mark.spec("CLP-14-007")
 def test_clp_14_007_future_timestamp_payload_rejected():
     """CaseActor SHOULD reject payload assertions timestamped far in the future."""
-    far_future = datetime(2099, 1, 1, tzinfo=timezone.utc).isoformat()
+    far_future = datetime(2099, 1, 1, tzinfo=UTC).isoformat()
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-007"):
         _validate_canonical_entry(
             case_id=CASE_ID,
@@ -260,8 +260,8 @@ def test_clp_14_007_future_timestamp_payload_rejected():
 @pytest.mark.spec("CLP-14-008")
 def test_clp_14_008_stale_timestamp_payload_rejected():
     """CaseActor SHOULD reject payload assertions timestamped far in the past."""
-    far_past = datetime(2000, 1, 1, tzinfo=timezone.utc)
-    case_created = datetime(1999, 1, 1, tzinfo=timezone.utc)
+    far_past = datetime(2000, 1, 1, tzinfo=UTC)
+    case_created = datetime(1999, 1, 1, tzinfo=UTC)
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-008"):
         _validate_canonical_entry(
             case_id=CASE_ID,
@@ -390,7 +390,7 @@ def test_clp_15_004_participant_timestamp_reflects_event_time():
     clock.  This is the same guard as CLP-14-007, cited from the participant
     obligation it enforces.
     """
-    far_future = datetime(2099, 1, 1, tzinfo=timezone.utc).isoformat()
+    far_future = datetime(2099, 1, 1, tzinfo=UTC).isoformat()
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-007"):
         _validate_canonical_entry(
             case_id=CASE_ID,

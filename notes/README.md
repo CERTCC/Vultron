@@ -700,7 +700,7 @@ to be hand-edited.
 FastAPI and test infrastructure patterns: router test override pattern
 (`_shared_dl`, `dependency_overrides`), circular import fix pattern
 (`_helpers.py`), FastAPI `response_model` / `status_code` conventions,
-health check and Docker health check design, Black/pyright config notes,
+health check and Docker health check design, formatter/type-checker pragma notes,
 Python 3.14 compatibility deferral, surrogate-key routing collision
 handling, and logger name verification.
 **Load when**: writing FastAPI router tests, debugging import cycles,
@@ -774,9 +774,7 @@ rather than a bespoke test is the ratchet for baselined findings
 after #3352, with `test/**` exempted and each genuine cycle break marked until
 its removal in #3950), the `G004` resolution (SL-01-005: enabled by #3991, which
 rewrites every f-string log call and leaves no provisional entry in `ignore`),
-and the commit-loop habits that change when the flake8 hook is retired.
-**Decided but not yet built**: the configuration it describes lands with #3352;
-flake8, black and isort are still the live gate.
+and the commit-loop habits that changed when the flake8 hook was retired.
 **Load when**: editing `[tool.ruff]`, adding or removing an `ignore` entry,
 baselining a new rule, tightening the ruleset, or wiring a lint step into CI or
 pre-commit.

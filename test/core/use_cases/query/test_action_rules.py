@@ -20,27 +20,27 @@ Verifies CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.states.em import EM
-from vultron.core.states.rm import RM
-from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
-from vultron.enums.roles import CVDRole
-from vultron.core.use_cases.query.action_rules import (
-    ActionRule,
-    ActionRulesResult,
-    ActionRulesRequest,
-    GetActionRulesUseCase,
-)
-from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.core.models.case_status import CaseStatus
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
+)
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
+from vultron.core.use_cases.query.action_rules import (
+    ActionRule,
+    ActionRulesRequest,
+    ActionRulesResult,
+    GetActionRulesUseCase,
+)
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
 )
 
 ACTOR_ID = "https://example.org/actors/alice"
@@ -64,7 +64,9 @@ def dl():
         actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
         case_statuses=[  # type: ignore[arg-type]
             CaseStatus(
-                em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa, context=CASE_ID  # type: ignore[call-arg]
+                em_state=EM.ACTIVE,  # type: ignore[call-arg]
+                pxa_state=CS_pxa.Pxa,  # type: ignore[call-arg]
+                context=CASE_ID,
             )
         ],
     )
@@ -282,7 +284,9 @@ class TestGetActionRulesUseCase:
                 actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
                 case_statuses=[  # type: ignore[arg-type]
                     CaseStatus(
-                        em_state=em, pxa_state=CS_pxa.pxa, context=CASE_ID  # type: ignore[call-arg]
+                        em_state=em,  # type: ignore[call-arg]
+                        pxa_state=CS_pxa.pxa,  # type: ignore[call-arg]
+                        context=CASE_ID,
                     )
                 ],
             )
@@ -299,9 +303,9 @@ class TestGetActionRulesUseCase:
                 actor_id=ACTOR_ID,
             )
             result = GetActionRulesUseCase(dl=layer, request=req).execute()
-            assert (
-                result.em_state == em
-            ), f"Expected {em!r}, got {result.em_state!r}"
+            assert result.em_state == em, (
+                f"Expected {em!r}, got {result.em_state!r}"
+            )
 
     def test_participant_lookup_raises_on_index_mismatch(self):
         layer = SqliteDataLayer(

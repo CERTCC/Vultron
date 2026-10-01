@@ -29,15 +29,15 @@ import logging
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-    DataLayerConditionWithPorts,
-)
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     _resolve_actor_roles,
+)
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole

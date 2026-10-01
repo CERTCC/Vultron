@@ -20,9 +20,11 @@ TransitionParticipantRMtoDeferred bypass nodes were deleted; their behavior is
 now provided directly by CreateParticipantStatusNode.
 """
 
-import pytest
 from typing import Any, cast
 
+import pytest
+
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
@@ -33,7 +35,6 @@ from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.rm import RM
-from test.core.behaviors.bt_harness import BTTestScenario
 
 
 @pytest.fixture

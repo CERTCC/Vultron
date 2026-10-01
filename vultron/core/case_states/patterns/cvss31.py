@@ -17,14 +17,14 @@ Case State Patterns for CVSS 3.1
 
 import re
 from enum import Enum
-from typing import List, cast
+from typing import cast
 
-from vultron.core.scoring.cvss_31 import CVSS_31_E, CVSS_31_RL
 from vultron.core.case_states.patterns.base import compile_patterns
 from vultron.core.case_states.type_hints import EnumTuple
 from vultron.core.case_states.validations import (
     ensure_valid_state,
 )
+from vultron.core.scoring.cvss_31 import CVSS_31_E, CVSS_31_RL
 
 _CVSS_E_patterns = {
     ".....A": (CVSS_31_E.HIGH, CVSS_31_E.FUNCTIONAL),
@@ -57,7 +57,7 @@ def find_matches(state: str, pattern_dict: dict[re.Pattern, EnumTuple]):
 
 
 @ensure_valid_state
-def cvss_31(state: str) -> List[Enum]:
+def cvss_31(state: str) -> list[Enum]:
     """Given a Vultron Case State (vfdpxa...VFDPXA) return the CVSS 3.1 information
 
     Args:
@@ -69,4 +69,4 @@ def cvss_31(state: str) -> List[Enum]:
     _e = find_matches(state, CVSS_31_E_)
     _rl = find_matches(state, CVSS_31_RL_)
     combined = _e + _rl
-    return cast(List[Enum], sorted(list(set(combined))))
+    return cast(list[Enum], sorted(list(set(combined))))

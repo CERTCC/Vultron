@@ -14,6 +14,7 @@
 
 from typing import cast
 
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
@@ -28,7 +29,6 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.core.models._helpers import days_from_now_utc
 
 
 class TestEmbargoTermRevise:
@@ -84,6 +84,7 @@ class TestEmbargoTermRevise:
     ):
         """add_embargo_event_to_case ledgers WARNING when EM state is not on the standard machine path (state-sync override)."""
         import logging
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
@@ -177,6 +178,7 @@ class TestEmbargoTermRevise:
     ):
         """remove_embargo_event transitions EM from ACTIVE to EXITED via BT."""
         import py_trees
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
@@ -226,6 +228,7 @@ class TestEmbargoTermRevise:
     ):
         """remove_embargo_event uses state-sync override when EM is PROPOSED but embargo is active."""
         import py_trees
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,

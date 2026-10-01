@@ -20,6 +20,7 @@ Spec: SYNC-10-003, SYNC-10-004, SYNC-10-005, CLP-08-004, CLP-08-005.
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
@@ -30,7 +31,6 @@ from vultron.core.sync_helpers import (
     _reconstruct_tail_hash,
     is_ledger_fresh_for_case,
 )
-from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.errors import VultronValidationError
 
 CASE_ID = "https://example.org/cases/catchup-test"

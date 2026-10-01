@@ -14,7 +14,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import List, Literal, Set, TypeAlias
+from typing import Literal, TypeAlias
 
 from pydantic import Field, PrivateAttr, model_validator
 
@@ -40,9 +40,9 @@ class as_Collection(as_Object):
         validation_alias="type",
         serialization_alias="type",
     )
-    items: List[as_ObjectRef | None] = Field(default_factory=list)
+    items: list[as_ObjectRef | None] = Field(default_factory=list)
 
-    _ids: Set[str] = PrivateAttr(
+    _ids: set[str] = PrivateAttr(
         default_factory=set
     )  # tracks id_ URIs for duplicate detection
 

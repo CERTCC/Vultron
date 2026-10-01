@@ -28,6 +28,7 @@ def base(client: TestClient) -> str:
 @pytest.fixture(scope="module", autouse=True)
 def patch_datalayer_call(client: TestClient, base: str):
     from _pytest.monkeypatch import MonkeyPatch
+
     from vultron.demo.utils import DataLayerClient
 
     mp = MonkeyPatch()
@@ -105,9 +106,9 @@ class TestSeedContainersFcvcv:
         ]:
             actors = client.get_list("/actors/")
             names = {a.get("name") for a in actors if isinstance(a, dict)}
-            assert (
-                expected_names <= names
-            ), f"{label} container missing peers: {expected_names - names}"
+            assert expected_names <= names, (
+                f"{label} container missing peers: {expected_names - names}"
+            )
 
     def test_deterministic_ids_are_honored(self, base: str):
         finder_id = f"{base}/actors/finder-fcvcv-det"
@@ -155,5 +156,5 @@ class TestSeedContainersFcvcv:
         )
         first = seed_containers_fcvcv(**shared_kwargs)  # type: ignore[arg-type]
         second = seed_containers_fcvcv(**shared_kwargs)  # type: ignore[arg-type]
-        for a, b in zip(first, second):
+        for a, b in zip(first, second, strict=False):
             assert a.id_ == b.id_

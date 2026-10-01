@@ -43,16 +43,15 @@ rather than looking the case up itself; the single lookup site is
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.states.rm import RM, is_valid_rm_transition
-
-from vultron.core.behaviors.case.nodes.participant.status import (
-    CreateParticipantStatusNode,
-)
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.states.rm import RM, is_valid_rm_transition
 
 
 def _read_report_case_link(
@@ -149,8 +148,8 @@ class _ReportPhaseRMTransition(DataLayerActionWithPorts):
                 self.report_id,
             )
             return Status.SUCCESS
-        except Exception as e:
-            self.logger.error(
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: Error transitioning to %s: %s",
                 self.name,
                 self._target_rm.name,
@@ -346,7 +345,7 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
             self.logger.info("RM → VALID for report '%s'", self.report_id)
             return Status.SUCCESS
         except Exception as e:  # noqa: BLE001 — transient save failure retries
-            self.logger.error(
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: Error latching RM.VALID on the report link: %s",
                 self.name,
                 e,

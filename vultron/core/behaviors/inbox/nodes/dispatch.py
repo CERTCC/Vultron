@@ -159,11 +159,10 @@ class DispatchNode(_InboxNodeWithPorts):
         except Exception:
             # The bootstrap itself was applied, so a replay fault is logged
             # rather than escaping update() or rejecting it (MV-01-007).
-            self.logger.error(
+            self.logger.exception(
                 "%s: replay failed after bootstrap activity_id=%s",
                 self.name,
                 event.activity_id,
-                exc_info=True,
             )
         return Status.SUCCESS
 

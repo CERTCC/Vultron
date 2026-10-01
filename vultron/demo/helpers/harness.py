@@ -51,9 +51,9 @@ ran".
 """
 
 import logging
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Callable, Generator
 
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpReport,
@@ -199,7 +199,7 @@ def scenario_harness(
     try:
         yield harness
     except BaseException as exc:
-        logger.error(
+        logger.error(  # noqa: TRY400  # ruff-baseline #3353
             "%s demo failed mid-run; dumping case ledgers before propagating",
             demo_name,
         )

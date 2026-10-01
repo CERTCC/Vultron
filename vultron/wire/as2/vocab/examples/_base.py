@@ -43,7 +43,7 @@ organization_base_url = f"{base_url}/organizations"
 report_base_url = f"{base_url}/reports"
 
 # generated once per run so all examples in a single run share the same case number
-case_number = random.randint(10000000, 99999999)
+case_number = random.randint(10000000, 99999999)  # noqa: S311 — sample data
 
 _FINDER = as_Person(name="Finn der Vul", id_=f"{user_base_url}/finndervul")
 _VENDOR = as_Organization(
@@ -129,7 +129,7 @@ def case(random_id=False, **kwargs) -> as_VulnerabilityCase:
             f"kwargs must not override identity fields: {sorted(overlap)!r}"
         )
     if random_id:
-        _case_number = random.randint(10000000, 99999999)
+        _case_number = random.randint(10000000, 99999999)  # noqa: S311 — sample data
         return as_VulnerabilityCase(
             name=f"{_VENDOR.name} Case #{_case_number}",
             id_=_make_id("VulnerabilityCase"),
@@ -199,7 +199,9 @@ def _to_json(obj: object, **kwargs: object) -> str:
         return obj.to_json(**kwargs)  # type: ignore[union-attr,no-any-return]
     if isinstance(obj, BaseModel):
         return obj.model_dump_json(
-            exclude_none=True, by_alias=True, **kwargs  # type: ignore[arg-type]
+            exclude_none=True,
+            by_alias=True,
+            **kwargs,  # type: ignore[arg-type]
         )
     raise TypeError(f"obj must be serializable to JSON: {obj}")
 

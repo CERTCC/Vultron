@@ -34,7 +34,16 @@ class MyTestCase(unittest.TestCase):
         output = stdout.getvalue()
 
         # things that are consistently in the output
-        always_present = "q_rm q_em q_cs RS START NONE vfdpxa FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR".split()
+        always_present = [
+            "q_rm",
+            "q_em",
+            "q_cs",
+            "RS",
+            "START",
+            "NONE",
+            "vfdpxa",
+            "FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR",
+        ]
         for item in always_present:
             with self.subTest(item=item):
                 self.assertIn(item, output)

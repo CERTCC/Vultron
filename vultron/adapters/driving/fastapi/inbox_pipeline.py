@@ -28,8 +28,8 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _queue_pending_case_activity,
     _replay_pending_case_activities,
 )
-from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.errors import (
@@ -189,11 +189,10 @@ class InboxPipeline:
                 )
             return event
         except VultronProtocolViolationError:
-            logger.error(
+            logger.exception(
                 "Protocol violation in inbox item '%s'"
                 " — not re-queuing (permanent failure)",
                 activity_id,
-                exc_info=True,
             )
             return None
         except VultronValidationError:
@@ -205,10 +204,9 @@ class InboxPipeline:
             requeued = self._requeue(activity_id, queue_dl, receiving_actor_id)
             return None
         except Exception:
-            logger.error(
+            logger.exception(
                 "Error processing inbox item '%s' in InboxPipeline",
                 activity_id,
-                exc_info=True,
             )
             requeued = self._requeue(activity_id, queue_dl, receiving_actor_id)
             return None

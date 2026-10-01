@@ -1,6 +1,6 @@
 """Tests for SvcProposeEmbargoRevisionUseCase."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pytest
@@ -9,6 +9,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.use_cases.triggers.embargo import (
@@ -25,7 +26,6 @@ from .conftest import (
     _build_active_embargo_case_with_case_manager,
     _build_unbound_case_with_case_manager,
 )
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def test_propose_embargo_revision_transitions_em_to_revise(
@@ -38,7 +38,7 @@ def test_propose_embargo_revision_transitions_em_to_revise(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+        end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
     result = SvcProposeEmbargoRevisionUseCase(
@@ -66,7 +66,7 @@ def test_propose_embargo_revision_queues_outbox_activity(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+        end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
     SvcProposeEmbargoRevisionUseCase(
@@ -90,7 +90,7 @@ def test_propose_embargo_revision_invalid_em_state_raises_error(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+        end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -114,7 +114,7 @@ def test_propose_embargo_revision_invalid_state_does_not_persist_embargo(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+        end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -153,7 +153,7 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=21),
+        end_time=datetime.now(tz=UTC) + timedelta(days=21),
     )
 
     result = SvcProposeEmbargoRevisionUseCase(

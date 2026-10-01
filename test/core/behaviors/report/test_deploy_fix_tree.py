@@ -26,12 +26,11 @@ Covers all acceptance criteria from issue #1825:
   early-exit short-circuit
 """
 
-from test.core.behaviors.bt_harness import BTTestScenario
-
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
@@ -59,10 +58,10 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
 from vultron.core.behaviors.report.nodes.develop_fix import (
     _EmitParticipantStatusActivityBase,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -807,7 +806,7 @@ def test_full_deploy_arm_completes_and_emits_cd(
     before = len(participant.participant_statuses)
 
     bundle = DeployFixCallOutBundle(
-        deploy_fix_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
+        deploy_fix_factory=AlwaysSucceed,  # type: ignore[arg-type]
     )
     tree = create_deploy_fix_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle

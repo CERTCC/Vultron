@@ -21,26 +21,26 @@ forwarded Offer via trigger_activity_factory and queue it in its own outbox.
 Non-CaseManager actors MUST skip the forwarding step cleanly (role gate).
 """
 
-import pytest
-
-from vultron.core.models._helpers import now_utc
-from py_trees.common import Status
 from unittest.mock import patch
 
+import pytest
+from py_trees.common import Status
+
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     ForwardOfferToTransfereeNode,
 )
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_offer_ownership_transfer_tree,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
     OfferCaseOwnershipTransferReceivedEvent,
 )
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
-from test.core.behaviors.bt_harness import BTTestScenario
 
 CASE_ID = "https://example.org/cases/case-fwd"
 CASE_ACTOR_ID = "https://example.org/actors/case-actor-fwd"
@@ -114,9 +114,9 @@ def test_forward_offer_to_transferee_queues_in_case_actor_outbox(
     assert result.status == Status.SUCCESS
     # The real TriggerActivityAdapter creates the activity; check outbox non-empty.
     outbox = bt_scenario.dl.outbox_list()
-    assert (
-        len(outbox) == 1
-    ), f"Expected exactly 1 forwarded offer in CaseActor outbox; got {outbox}"
+    assert len(outbox) == 1, (
+        f"Expected exactly 1 forwarded offer in CaseActor outbox; got {outbox}"
+    )
 
 
 @pytest.mark.spec("CM-21-005")
@@ -198,9 +198,9 @@ def test_tree_factory_omits_forward_node_when_transferee_id_is_none() -> None:
     fwd_nodes = [
         n for n in all_nodes if isinstance(n, ForwardOfferToTransfereeNode)
     ]
-    assert (
-        len(fwd_nodes) == 0
-    ), "ForwardOfferToTransfereeNode must not appear when transferee_id is None"
+    assert len(fwd_nodes) == 0, (
+        "ForwardOfferToTransfereeNode must not appear when transferee_id is None"
+    )
 
 
 @pytest.mark.spec("CM-21-005")
@@ -224,6 +224,6 @@ def test_tree_factory_omits_forward_node_when_original_actor_id_is_none() -> (
     fwd_nodes = [
         n for n in all_nodes if isinstance(n, ForwardOfferToTransfereeNode)
     ]
-    assert (
-        len(fwd_nodes) == 0
-    ), "ForwardOfferToTransfereeNode must not appear when original_actor_id is None"
+    assert len(fwd_nodes) == 0, (
+        "ForwardOfferToTransfereeNode must not appear when original_actor_id is None"
+    )

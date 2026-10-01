@@ -230,11 +230,11 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
 
         try:
             self.datalayer.save(record)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             # A well-formed effect that could not be written IS a failed
             # effect: fail so the Selector blocks PersistReceivedLogEntry and
             # the entry is not persisted without it (SYNC-12-001).
-            self.logger.error(
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: could not store VultronOwnershipTransferOfferRecord"
                 " for offer '%s': %s",
                 self.name,

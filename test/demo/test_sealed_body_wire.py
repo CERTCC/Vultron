@@ -43,9 +43,9 @@ import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from test.demo.test_remote_case_actor_invite import (
-    _Topology,
     _bootstrap,
     _invite,
+    _Topology,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body
 
@@ -124,9 +124,9 @@ class TestTheWireCarriesTheSealedBody:
 
         sealed = read_sealed_body(owner_dl, invite_id)
         assert sealed is not None, "the emitting store must hold the seal"
-        assert (
-            delivered_body == sealed.body
-        ), "the emitter must be handed the sealed body itself, byte for byte"
+        assert delivered_body == sealed.body, (
+            "the emitter must be handed the sealed body itself, byte for byte"
+        )
         delivered = json.loads(delivered_body)
         assert delivered["id"] == invite_id
         assert delivered["actor"] == topo.ca_actor_id

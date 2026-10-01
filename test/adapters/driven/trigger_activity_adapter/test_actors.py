@@ -18,6 +18,7 @@ CASE_MANAGER delegation.
 """
 
 import json
+
 import pytest
 
 from vultron.errors import VultronValidationError
@@ -89,9 +90,9 @@ class TestInviteActorToCaseWithInlineEmbargo:
         )
         dl.create(case)
         stored = dl.read(case_id)
-        assert isinstance(
-            stored.active_embargo, EmbargoEvent
-        ), "precondition: the store hands the embargo back inline"
+        assert isinstance(stored.active_embargo, EmbargoEvent), (
+            "precondition: the store hands the embargo back inline"
+        )
 
         _, blob = adapter.invite_actor_to_case(
             invitee_id=_INVITEE, case_id=case_id, actor=_ACTOR, to=[_INVITEE]
@@ -224,9 +225,9 @@ class TestAcceptCaseInvite:
         )
 
         obj = json.loads(activity_dict).get("object")
-        assert isinstance(
-            obj, dict
-        ), "object_ must be an inline dict, not a URI"
+        assert isinstance(obj, dict), (
+            "object_ must be an inline dict, not a URI"
+        )
         assert obj.get("id") == invite_id
 
 
@@ -327,9 +328,9 @@ class TestAcceptCaseParticipantOffer:
         )
 
         obj = json.loads(activity_dict).get("object")
-        assert isinstance(
-            obj, dict
-        ), "object_ must be an inline dict, not a URI"
+        assert isinstance(obj, dict), (
+            "object_ must be an inline dict, not a URI"
+        )
         assert obj.get("id") == cp_offer_id
 
 

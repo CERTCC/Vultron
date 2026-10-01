@@ -40,6 +40,7 @@ def test_module_imports_first_in_a_fresh_interpreter(module: str) -> None:
         capture_output=True,
         text=True,
         timeout=20,
+        check=False,
     )
 
     assert result.returncode == 0, result.stderr

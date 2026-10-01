@@ -29,7 +29,7 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.errors import VultronAlreadyExistsError
 
-from .schema import VultronObjectRecord, QueueEntry, participant_status_summary
+from .schema import QueueEntry, VultronObjectRecord, participant_status_summary
 
 logger = logging.getLogger(__name__)
 
@@ -78,8 +78,7 @@ def create(
         existing = session.get(VultronObjectRecord, rec.id_)
         if existing is not None:
             raise VultronAlreadyExistsError(
-                f"record with id_={rec.id_!r} already exists "
-                f"in {rec.type_!r}"
+                f"record with id_={rec.id_!r} already exists in {rec.type_!r}"
             )
         row = VultronObjectRecord(
             id_=rec.id_,

@@ -70,7 +70,7 @@ The "real" site lives at <https://certcc.github.io/Vultron/>
 After cloning, install the git hooks used in this project:
 
 ```shell
-# Code quality hooks (black, markdownlint, flake8, spec/ADR validators)
+# Code quality hooks (ruff, markdownlint, spec/ADR validators)
 pre-commit install
 
 ```
@@ -110,7 +110,7 @@ Two caveats:
 
 - `core.hooksPath` **replaces** the hooks directory wholesale, which is why
   `.githooks/pre-commit` and `.githooks/post-checkout` forward to the shared hooks.
-  Without those forwarders, `pre-commit` (black, flake8, markdownlint) silently
+  Without those forwarders, `pre-commit` (ruff, markdownlint) silently
   stops running in that worktree.
 - The rebuild covers code files only (AST, no LLM). It re-runs community detection,
   so descriptive community names may be replaced by hub-node symbol names. Run

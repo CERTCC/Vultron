@@ -34,6 +34,9 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_TransitiveActivity,
+)
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as CaseLedgerEntry,
 )
@@ -81,9 +84,10 @@ def test_by_id_rehydration_carries_the_evidence_as_received(
     assert artifact is not None
 
     routed = adapter.rehydrate(artifact)
+    assert isinstance(routed, as_TransitiveActivity)
 
     assert routed is not artifact
-    report = getattr(routed, "object_")
+    report = routed.object_
     assert isinstance(report, VulnerabilityReport), "precondition: hydrated"
     evidence = routed.received_evidence
     assert evidence == received
@@ -178,8 +182,11 @@ def test_in_place_hydration_carries_the_evidence(
     assert artifact is not None
 
     routed = adapter.rehydrate(artifact)
+    assert isinstance(routed, as_TransitiveActivity)
 
     assert routed is not artifact, "precondition: hydrate built a new object"
-    getattr(routed, "object_").payload_snapshot["actor"] = "tampered"
+    routed_entry = routed.object_
+    assert isinstance(routed_entry, CaseLedgerEntry), "precondition: hydrated"
+    routed_entry.payload_snapshot["actor"] = "tampered"
 
     assert routed.received_evidence == received

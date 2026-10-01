@@ -105,9 +105,9 @@ def test_unobservable_edge_is_skipped() -> None:
         }
     ]
     violations = check_causal_edges(replicas, edges)
-    assert (
-        not violations
-    ), f"Unexpected violations for unobservable edge: {violations}"
+    assert not violations, (
+        f"Unexpected violations for unobservable edge: {violations}"
+    )
 
 
 def test_empty_log_returns_violation() -> None:

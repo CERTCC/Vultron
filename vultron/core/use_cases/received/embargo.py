@@ -1,13 +1,20 @@
 """Use cases for embargo management activities."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.behaviors.embargo.nodes import (
+    EmbargoProposalNotYetRecordedNode,
+)
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
+)
+from vultron.core.models._helpers import _as_id, claimed_published_iso
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.embargo import (
@@ -19,36 +26,19 @@ from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
-from vultron.core.models._helpers import _as_id, claimed_published_iso
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.predicates.addressing import is_addressed_to
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import (
-    CasePersistence,
     CaseOutboxPersistence,
+    CasePersistence,
 )
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-    _idempotent_create,
-    add_activity_to_outbox,
-)
+from vultron.core.predicates.addressing import is_addressed_to
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
-)
-from vultron.core.behaviors.embargo.nodes import (
-    EmbargoProposalNotYetRecordedNode,
-)
-from vultron.core.behaviors.sync.commit_tree import (
-    create_commit_log_entry_tree,
-)
-from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.use_cases.received._bt_verdict import (
-    applied_or_raise,
-    node_failed,
-    verdict_from_bt,
 )
 from vultron.core.states.cs import (
     is_pxa_attacks_observed,
@@ -57,6 +47,16 @@ from vultron.core.states.cs import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.core.use_cases._helpers import (
+    _idempotent_create,
+    add_activity_to_outbox,
+    resolve_receiving_actor_id,
+)
+from vultron.core.use_cases.received._bt_verdict import (
+    applied_or_raise,
+    node_failed,
+    verdict_from_bt,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -733,21 +733,20 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                     accepting_actor_id,
                     active_embargo_id,
                 )
+            elif not active_embargo_id:
+                logger.warning(
+                    "accept_invite_to_embargo_on_case: late Accept for"
+                    " case '%s' in EM.%s — no active embargo to re-invite to",
+                    case_id,
+                    em_state.name,
+                )
             else:
-                if not active_embargo_id:
-                    logger.warning(
-                        "accept_invite_to_embargo_on_case: late Accept for"
-                        " case '%s' in EM.%s — no active embargo to re-invite to",
-                        case_id,
-                        em_state.name,
-                    )
-                else:
-                    logger.warning(
-                        "accept_invite_to_embargo_on_case: late Accept for"
-                        " stale embargo on case '%s' — trigger_activity"
-                        " unavailable, re-invite not emitted",
-                        case_id,
-                    )
+                logger.warning(
+                    "accept_invite_to_embargo_on_case: late Accept for"
+                    " stale embargo on case '%s' — trigger_activity"
+                    " unavailable, re-invite not emitted",
+                    case_id,
+                )
 
         else:
             # AC-4 of #2213: EM EXITED or NONE — ack no-op.
@@ -829,7 +828,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             )
 
         # Lazy lapse detection (AC-2 of #2212, CM-28, EP-07-001).
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         service = EmbargoLifecycle(persistence=self._dl)
         lapse_result = service.detect_and_apply_lapse(
             case_id=case_id,

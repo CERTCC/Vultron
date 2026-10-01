@@ -39,11 +39,11 @@ from vultron.core.behaviors.sync.nodes import (
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import (
     LedgerGapBuffer,
     get_ledger_gap_buffer,

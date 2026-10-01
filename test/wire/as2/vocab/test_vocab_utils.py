@@ -125,7 +125,7 @@ class TestStripPublishedUpdated(unittest.TestCase):
             filename = os.path.join(tmpdirname, "report.json")
             examples.obj_to_file(report, filename)
 
-            with open(filename, "r") as f:
+            with open(filename) as f:
                 payload = json.load(f)
 
         self.assertNotIn("published", payload)
@@ -197,7 +197,7 @@ class TestVocabUtils(unittest.TestCase):
             examples.obj_to_file(foo, filename)
             self.assertTrue(os.path.exists(filename))
 
-            with open(filename, "r") as f:
+            with open(filename) as f:
                 obj = json.load(f)
             self.assertEqual(obj["bar"], "baz")
 

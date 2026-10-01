@@ -4,10 +4,10 @@ status: active
 description: >
   Environment-level pitfalls specific to this devcontainer: why every tool must
   run under `uv run`, why `PYTHONPATH` must be cleared, the `UV_NO_SYNC=1`
-  workaround for root-owned venvs, the 10-minute commit timeout the whole-tree
-  flake8 hook demands, the hanging `actionlint` hook, pushing to `origin`
-  with `-u` rather than a token URL, the HTTP/2 push that never gets a reply,
-  and the `.claude/skills` symlink to `.agents/skills`.
+  workaround for root-owned venvs, why a commit no longer needs the 10-minute
+  timeout the retired flake8 hook demanded, the hanging `actionlint` hook,
+  pushing to `origin` with `-u` rather than a token URL, the HTTP/2 push that
+  never gets a reply, and the `.claude/skills` symlink to `.agents/skills`.
 related_notes:
   - notes/docker-build.md
   - notes/git-workflow-pitfalls.md
@@ -46,26 +46,18 @@ that fails at the sync step rather than the tool itself.
 
 Sources: CONCERN-2321, Bug #2713
 
-## `git commit` Needs a 10-Minute Timeout — the flake8 Hook Runs the Whole Tree
+## `git commit` No Longer Needs a 10-Minute Timeout
 
-The `flake8 (with CC gate)` pre-commit hook is `pass_filenames: false` and lints
-the entire `vultron/`+`test/` tree on every commit regardless of what is staged
-(~35s). It is now routed through `.agents/skills/shared/run-if-changed.sh`, which
-skips the run when the sources, `.flake8`, and `uv.lock` are unchanged since the
-last successful flake8 run. `run-linters`, `format-code`, and this hook share
-that cache, so if `run-linters` ran just before the commit the hook is a fast
-no-op.
+The retired `flake8 (with CC gate)` hook linted all of `vultron/` and `test/` on
+every commit regardless of what was staged (~35s cold), which is why this note
+used to prescribe a 600000 ms `git commit` timeout. #3352 replaced it with the
+`ruff` hook, which lints and format-checks only the staged Python files; a cold
+whole-tree ruff pass takes about a second. The default command timeout is
+enough for a commit.
 
-Still give `git commit` a 600000 ms (10 min) timeout with `UV_NO_SYNC=1`: the
-guard only skips when nothing relevant changed, so a cold cache or any edited
-source file makes the hook pay the full ~35s whole-tree cost. A fast manual
-`uv run flake8` is not evidence the hook will be fast — the cost is the
-whole-tree invocation, not flake8 startup.
-
-ADR-0094 retires this hook in favour of ruff, which removes this timeout's cause
-entirely; the replacement policy is [notes/lint-tooling.md](lint-tooling.md). That
-change has **not** landed — it is tracked as #3352 — so the timeout above is still
-required. Revisit this section when #3352 merges.
+What remains slow is outside the hook: `mypy` and `pyright`, which `run-linters`
+routes through `.agents/skills/shared/run-if-changed.sh` so a repeat run with
+unchanged inputs is a no-op. Neither runs as a pre-commit hook.
 
 Sources: ISSUE-2479
 

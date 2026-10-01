@@ -177,17 +177,17 @@ def test_fv_phase_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
         case=case,
     )
 
-    assert (
-        rm_calls
-    ), "wait_for_participant_rm_state must be called (ADR-0058/CSB-18-001)"
+    assert rm_calls, (
+        "wait_for_participant_rm_state must be called (ADR-0058/CSB-18-001)"
+    )
     assert all(
         c.get("expected_states") == {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
         for c in rm_calls
     ), "expected_states must be {ACCEPTED, DEFERRED, CLOSED} (CSB-18-001)"
     assert "rm_wait" in call_order and "fix_ready" in call_order
-    assert call_order.index("rm_wait") < call_order.index(
-        "fix_ready"
-    ), "wait_for_participant_rm_state must precede actor_notifies_fix_ready (ADR-0058)"
+    assert call_order.index("rm_wait") < call_order.index("fix_ready"), (
+        "wait_for_participant_rm_state must precede actor_notifies_fix_ready (ADR-0058)"
+    )
 
 
 # ===========================================================================
@@ -366,9 +366,9 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
     )
 
     finder_timeout = timeouts_by_client_id.get(id(finder_client))
-    assert (
-        finder_timeout is not None
-    ), "wait_for_contiguous_ledger_coverage was not called for finder_client"
+    assert finder_timeout is not None, (
+        "wait_for_contiguous_ledger_coverage was not called for finder_client"
+    )
     assert finder_timeout >= 30.0, (
         f"Finder ledger coverage timeout is {finder_timeout} s, expected >= 30.0 s. "
         f"CI load requires at least 30 s for non-V2 replicas (#2337)."

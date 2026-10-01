@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from _pytest.outcomes import Failed, Skipped
@@ -107,7 +108,7 @@ def test_log_index_rejects_missing_and_negative(entry):
 
 
 def test_log_index_message_names_event_type_for_non_integer():
-    with pytest.raises(ValueError, match="'noop'.*non-integer"):
+    with pytest.raises(ValueError, match=r"'noop'.*non-integer"):
         common.log_index({"logIndex": "x", "eventType": "noop"})
 
 
@@ -1468,8 +1469,6 @@ class TestCheckPerActorReplicaCsStateTransitionsObserved:
 # CLP-14 timestamp invariants (check_clp14_timestamp_invariants)
 # ---------------------------------------------------------------------------
 
-from datetime import datetime, timedelta, timezone  # noqa: E402
-
 
 def _ts_chain_entry(
     log_index: int,
@@ -1487,7 +1486,7 @@ def _ts_chain_entry(
     return entry
 
 
-_T0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+_T0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
 _T1 = _T0 + timedelta(minutes=1)
 _T2 = _T1 + timedelta(minutes=1)
 

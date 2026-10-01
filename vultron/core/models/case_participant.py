@@ -40,10 +40,6 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.core.models._helpers import _new_urn
 from vultron.core.models.base import CoreObject, NonEmptyString
-from vultron.errors import (
-    VultronInvalidStateTransitionError,
-    VultronValidationError,
-)
 from vultron.core.models.dimensions import (
     PecDimension,
     RmDimension,
@@ -56,6 +52,10 @@ from vultron.core.models.participant_status import (
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -329,8 +329,9 @@ class CaseParticipant(CoreObject):
                 self,
             )
             if raise_when_missing:
+                # S608 false positive: "delete from" is prose, not SQL.
                 raise KeyError(
-                    f"Role {role} was not present to delete from participant.case_roles"
+                    f"Role {role} was not present to delete from participant.case_roles"  # noqa: S608
                 )
         self.case_roles = list(roles)
         self._sync_latest_status_metadata()

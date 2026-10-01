@@ -58,7 +58,7 @@ tests must not reach a non-draft PR.
   *last* stage's status, so `… | tail`, `… | tee … | tail`, `… | head`, and
   `… | wc` all report 0 no matter how pytest exited — a `pytest-timeout` kill
   reads as success. This applies to every gate command (`pytest`, `mkdocs
-  build --strict`, `flake8`, `mypy`, `pyright`, `markdownlint`), not just
+  build --strict`, `ruff`, `mypy`, `pyright`, `markdownlint`), not just
   pytest, and to the bare `2>&1 | tail -5` form as much as to `tee | tail`.
   Redirect, capture `$?`, then re-raise it:
 

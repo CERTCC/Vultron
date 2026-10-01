@@ -29,13 +29,11 @@ from unittest.mock import MagicMock, call, patch
 
 import httpx2 as httpx
 import pytest
-from vultron.demo.actor_session import ActorSession
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fv_demo as demo
-from vultron.demo.helpers.sync import verify_replica_state
 from test.demo._helpers import (
     make_client,
     make_testclient_call,
@@ -43,7 +41,9 @@ from test.demo._helpers import (
 )
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.rm import RM
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
+from vultron.demo.helpers.sync import verify_replica_state
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -268,7 +268,7 @@ class TestSeedContainers:
         finder_client = make_client(base)
         vendor_client = make_client(base)
 
-        finder, vendor = demo.seed_containers(
+        finder, _vendor = demo.seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
         )
@@ -281,7 +281,7 @@ class TestSeedContainers:
         finder_client = make_client(base)
         vendor_client = make_client(base)
 
-        finder, vendor = demo.seed_containers(
+        _finder, vendor = demo.seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
         )
@@ -294,7 +294,7 @@ class TestSeedContainers:
         finder_client = make_client(base)
         vendor_client = make_client(base)
 
-        finder, vendor = demo.seed_containers(
+        _finder, vendor = demo.seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
         )
@@ -951,7 +951,7 @@ class TestActorNotifiesFixReady:
 
     def test_returns_response(self, client: TestClient, base: str):
         """Returns a response dict from the trigger endpoint."""
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
         result = (
@@ -968,7 +968,7 @@ class TestActorNotifiesFixReady:
         from vultron.demo.utils import reset_demo_failures
 
         reset_demo_failures()
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, vendor, _case = (
             _setup_case_with_3_participants(base)
         )
         # With the accumulator pattern, no exception propagates; failure is recorded.
@@ -995,7 +995,7 @@ class TestActorNotifiesFixDeployed:
         """Vendor-only actor is blocked from VFD (d→D) by CheckDeployerRoleNode."""
         from vultron.demo.utils import post_to_trigger
 
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
         ActorSession(client=vendor_client, actor=vendor).with_case(
@@ -1028,7 +1028,7 @@ class TestActorNotifiesPublished:
 
     def test_returns_response(self, client: TestClient, base: str):
         """Returns a response dict from the trigger endpoint."""
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
         result = (
@@ -1044,7 +1044,7 @@ class TestActorClosesCase:
 
     def test_returns_response(self, client: TestClient, base: str):
         """Returns a response dict from the trigger endpoint."""
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
         result = (
@@ -1060,7 +1060,7 @@ class TestWaitForParticipantVfState:
 
     def test_times_out_for_unknown_actor(self, client: TestClient, base: str):
         """Raises AssertionError when the actor is not a participant."""
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, _vendor, case = (
             _setup_case_with_3_participants(base)
         )
         from vultron.core.states.cs import CS_vf
@@ -1083,7 +1083,7 @@ class TestWaitForCaseEmTerminated:
         self, client: TestClient, base: str
     ):
         """Raises AssertionError when embargo is still ACTIVE."""
-        _, vendor_client, _, vendor, case = _setup_case_with_3_participants(
+        _, vendor_client, _, _vendor, case = _setup_case_with_3_participants(
             base
         )
 
@@ -1103,7 +1103,7 @@ class TestWaitForAllParticipantsRmClosed:
         self, client: TestClient, base: str
     ):
         """Raises AssertionError when participants are not RM.CLOSED."""
-        _, vendor_client, _, vendor, case = _setup_case_with_3_participants(
+        _, vendor_client, _, _vendor, case = _setup_case_with_3_participants(
             base
         )
 
@@ -1163,7 +1163,7 @@ class TestWaitForAllParticipantsRmClosed:
         """
         from urllib.parse import quote
 
-        finder_client, vendor_client, finder, vendor, case = (
+        _finder_client, vendor_client, _finder, _vendor, case = (
             _setup_case_with_3_participants(base)
         )
         case_data = vendor_client.get(vendor_client.dl_path(case.id_))
@@ -1173,20 +1173,20 @@ class TestWaitForAllParticipantsRmClosed:
         # HTTP URL while participant IDs (values) are urn:uuid: URNs.
         url_based_actor_ids = [
             actor_id
-            for actor_id in fetched_case.actor_participant_index.keys()
+            for actor_id in fetched_case.actor_participant_index
             if actor_id.startswith("http")
         ]
-        assert (
-            url_based_actor_ids
-        ), "Expected at least one URL-based actor ID (Case Actor) in index keys"
+        assert url_based_actor_ids, (
+            "Expected at least one URL-based actor ID (Case Actor) in index keys"
+        )
 
         # The CaseActor Service object (HTTP-URL key) must be fetchable.
         actor_id = url_based_actor_ids[0]
         encoded = quote(actor_id, safe="")
         result = vendor_client.get(vendor_client.dl_path(encoded))
-        assert (
-            isinstance(result, dict) and result.get("id") == actor_id
-        ), f"Expected Service record for URL-format ID {actor_id!r}, got {result!r}"
+        assert isinstance(result, dict) and result.get("id") == actor_id, (
+            f"Expected Service record for URL-format ID {actor_id!r}, got {result!r}"
+        )
 
         # _all_fetchable_participants_rm_closed must also handle this layout
         # without error.
@@ -1194,7 +1194,7 @@ class TestWaitForAllParticipantsRmClosed:
             demo._all_fetchable_participants_rm_closed(
                 vendor_client, fetched_case
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
             pytest.fail(
                 f"_all_fetchable_participants_rm_closed crashed on"
                 f" URL-based actor ID {actor_id!r}: {exc}"
@@ -1758,9 +1758,9 @@ class TestDeliveryIsolation:
             offer,
             dl=vendor_isolated.store_for(vendor_id),
         )
-        assert (
-            case is not None
-        ), "Expected VulnerabilityCase after validate-report or trigger/create-case"
+        assert case is not None, (
+            "Expected VulnerabilityCase after validate-report or trigger/create-case"
+        )
 
         # The case announcement should have been delivered to Finder's inbox
         # via the outbox→_TestClientRouter→inbox chain.  Finder's isolated
@@ -1898,9 +1898,9 @@ def completed_workflow(
 
     # ADR-0041: no case after validate-report; create one directly for setup.
     case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
-    assert (
-        case is not None
-    ), "Expected as_VulnerabilityCase after trigger/create-case"
+    assert case is not None, (
+        "Expected as_VulnerabilityCase after trigger/create-case"
+    )
     # Refresh case to get actor_participant_index populated.
     case_data = vendor_client.get(vendor_client.dl_path(case.id_))
     case = as_VulnerabilityCase(**case_data)
@@ -2058,9 +2058,9 @@ class TestCaseLedgerInvariants:
             for p, s in latest_rm.items()
             if s.upper() not in ("CLOSED", "RM.CLOSED")
         }
-        assert (
-            not not_closed
-        ), f"Participants not in RM=CLOSED at scenario end: {not_closed}"
+        assert not not_closed, (
+            f"Participants not in RM=CLOSED at scenario end: {not_closed}"
+        )
 
     def test_required_event_types_present_in_case_actor_log(
         self,
@@ -2238,9 +2238,9 @@ class TestFvMilestoneAssertions:
                 case=case,
             )
 
-        assert (
-            mock_rm_wait.called
-        ), "wait_for_participant_rm_state must be called before notify-fix-ready"
+        assert mock_rm_wait.called, (
+            "wait_for_participant_rm_state must be called before notify-fix-ready"
+        )
         rm_call = mock_rm_wait.call_args_list[0]
         assert rm_call.kwargs.get("expected_states") == {
             RM.ACCEPTED,
@@ -2248,9 +2248,9 @@ class TestFvMilestoneAssertions:
             RM.CLOSED,
         }, "expected_states must be {ACCEPTED, DEFERRED, CLOSED}"
         assert "rm_wait" in call_order and "fix_ready" in call_order
-        assert call_order.index("rm_wait") < call_order.index(
-            "fix_ready"
-        ), "wait_for_participant_rm_state must be called before actor_notifies_fix_ready"
+        assert call_order.index("rm_wait") < call_order.index("fix_ready"), (
+            "wait_for_participant_rm_state must be called before actor_notifies_fix_ready"
+        )
 
     def test_phase_publication_calls_verify_publicly_disclosed(self):
         """_phase_publication calls verify_publicly_disclosed at M6."""

@@ -20,15 +20,15 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.case_lookup import (
     CaseIdInputPortMixin,
 )
+from vultron.core.behaviors.case.nodes.participant.common import (
+    resolve_participant_state_from_dl,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
 )
-from vultron.core.behaviors.case.nodes.participant.common import (
-    resolve_participant_state_from_dl,
-)
-from vultron.core.states.rm import RM
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
 from vultron.errors import VultronInvalidStateTransitionError
 
 

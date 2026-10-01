@@ -36,8 +36,9 @@ own ``model_fields``, and checks each under its field name, ``alias`` and
 for either branch (ISSUE-3589).
 """
 
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
@@ -173,9 +174,9 @@ def _parsed(obj: dict[str, Any], extra: dict[str, Any]) -> Any:
     activity_type = extra.pop("activity_type", "Create")
     activity = parse_activity(_body(obj, activity_type, **extra))
     nested = getattr(activity, "object_", None)
-    assert nested is not None and not isinstance(
-        nested, str
-    ), f"{obj['type']} was not expanded"
+    assert nested is not None and not isinstance(nested, str), (
+        f"{obj['type']} was not expanded"
+    )
     return nested
 
 

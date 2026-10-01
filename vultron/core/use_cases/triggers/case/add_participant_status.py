@@ -21,10 +21,10 @@ import py_trees.behaviour
 from vultron.core.behaviors.case.add_participant_status_trigger_tree import (
     add_participant_status_trigger_bt,
 )
+from vultron.core.models.use_case_result import StatusResult
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
-from vultron.core.models.use_case_result import StatusResult
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
@@ -68,7 +68,7 @@ class SvcAddParticipantStatusUseCase(SvcBTTriggerBase[StatusResult]):
             if not isinstance(status_id, str) or not isinstance(
                 participant_id, str
             ):
-                raise RuntimeError(
+                raise RuntimeError(  # noqa: TRY004  # ruff-baseline #3353
                     "CreateParticipantStatusNode did not populate result_out"
                     " before activity_builder was called"
                 )

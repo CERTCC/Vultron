@@ -25,13 +25,12 @@ Public surface (used by ``v2_router`` and tests):
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.adapters.driving.fastapi.routers.actors._routes import (  # noqa: F401
+# Re-exported so tests can key dependency_overrides off the package rather than
+# the private _routes module (issue #970).  This is now the actor-scoping seam:
+# get_shared_dl is gone, since no DataLayer is unscoped (ADR-0073).
+from vultron.adapters.driving.fastapi.deps import get_actor_dl
+from vultron.adapters.driving.fastapi.routers.actors._routes import (
     ActorCreateRequest,
     AnyActor,
     router,
 )
-
-# Re-exported so tests can key dependency_overrides off the package rather than
-# the private _routes module (issue #970).  This is now the actor-scoping seam:
-# get_shared_dl is gone, since no DataLayer is unscoped (ADR-0073).
-from vultron.adapters.driving.fastapi.deps import get_actor_dl  # noqa: F401

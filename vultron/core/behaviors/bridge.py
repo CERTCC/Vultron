@@ -38,8 +38,9 @@ Per specs/sync-ledger-replication.yaml:
 
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import py_trees
 from py_trees.common import Status
@@ -248,7 +249,9 @@ class BTBridge:
             or self.datalayer
         )
 
-    def _ports_for_store(self, store: CasePersistence) -> tuple[
+    def _ports_for_store(
+        self, store: CasePersistence
+    ) -> tuple[
         "TriggerActivityPort | None",
         "SyncActivityPort | None",
         "WireRenderPort | None",
@@ -609,7 +612,7 @@ class BTBridge:
             # this handler used to build.
             return self._exception_result(e, prefix="BT execution failed")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             # Anything else is a programming error — a wrong-typed port, a
             # missing attribute, a bad key.  Still caught, because a half-ticked
             # tree must not escape into a FastAPI background task, but flagged
@@ -817,7 +820,7 @@ class BTBridge:
                     )
                 except VultronError as e:
                     return self._exception_result(e, prefix="BT setup failed")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
                     return self._exception_result(
                         e, prefix="BT setup failed", internal_error=True
                     )
@@ -833,7 +836,7 @@ class BTBridge:
                     return self._exception_result(
                         e, prefix="BT execution failed"
                     )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
                     return self._exception_result(
                         e, prefix="BT execution failed", internal_error=True
                     )
