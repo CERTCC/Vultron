@@ -26,20 +26,18 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
-    get_trigger_dl,
-    get_trigger_service,
-)
+from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_report as trigger_report_router,
 )
-from vultron.core.use_cases.triggers.service import TriggerService
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.dimensions import (
+    RmDimension,
 )
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -49,16 +47,15 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
-from vultron.core.models.dimensions import (
-    RmDimension,
-)
-from vultron.core.models._helpers import days_from_now_utc
 
 # ---------------------------------------------------------------------------
 # Module-level outbox suppression
 # ---------------------------------------------------------------------------
+
+
+#: The route runs through ``run_trigger``, so the flush it schedules is the
+#: helper's ``outbox_handler`` reference, not the router module's.
+_FLUSH = "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler"
 
 
 @pytest.fixture(autouse=True)
@@ -67,35 +64,21 @@ def _no_outbox_delivery():
 
     ``outbox_handler`` uses HTTP with exponential-backoff retries.  When
     tests run with non-existent recipient URLs the retry sleeps add ~3.5 s
-    per test.  Patching to a no-op ``AsyncMock`` eliminates that overhead
-    while keeping the scheduler logic testable.
-
-    Tests in ``TestTriggerReportOutboxScheduling`` that need a trackable mock
-    use ``unittest.mock.patch`` as a context manager inside the test body,
-    which overrides this fixture's patch for the duration of that context.
+    per test.  Patching to a no-op ``AsyncMock`` eliminates that overhead;
+    that the flush is queued at all is asserted once for every verb in
+    ``test_trigger_routes_contract.py`` (TRIG-07-001).
     """
-    with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_report.outbox_handler",
-        new_callable=AsyncMock,
-    ):
+    with patch(_FLUSH, new_callable=AsyncMock):
         yield
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
 def client_triggers(dl):
+    """The report router over the ``dl`` store: one override reaches both the
+    dispatcher and the flush (TRIG-06-002)."""
     app = FastAPI()
     app.include_router(trigger_report_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
-    )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -347,32 +330,6 @@ def test_trigger_validate_report_with_note_returns_202(
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
 
-def test_trigger_validate_report_uses_injected_datalayer(
-    dl, actor, offer, received_report
-):
-    """TB-06-001, TB-06-002: TriggerService is resolved from Depends(get_trigger_service)."""
-    app = FastAPI()
-    app.include_router(trigger_report_router.router)
-
-    call_log = []
-
-    def tracking_service():
-        call_log.append("called")
-        return TriggerService(dl, trigger_activity=TriggerActivityAdapter(dl))
-
-    app.dependency_overrides[get_trigger_service] = tracking_service
-    app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
-    client = TestClient(app)
-    client.post(
-        f"/actors/{actor.id_}/trigger/validate-report",
-        json={"offer_id": offer.id_},
-    )
-    app.dependency_overrides = {}
-
-    assert len(call_log) >= 1, "get_trigger_service was not called"
-
-
 def test_trigger_validate_report_transitions_rm_to_valid(
     client_triggers, dl, actor, offer, received_report
 ):
@@ -392,7 +349,9 @@ def test_trigger_validate_report_transitions_rm_to_valid(
     link = dl.read(link_id)
     assert (
         isinstance(link, VultronReportCaseLink) and link.rm_state == RM.VALID
-    ), "Expected VultronReportCaseLink.rm_state == RM.VALID after validate-report trigger"
+    ), (
+        "Expected VultronReportCaseLink.rm_state == RM.VALID after validate-report trigger"
+    )
 
 
 def test_trigger_validate_report_non_report_offer_returns_404(
@@ -883,81 +842,3 @@ def test_trigger_submit_report_logs_report_and_offer(
     messages = [r.message for r in caplog.records]
     assert any("Created VulnerabilityReport" in m for m in messages)
     assert any("Offering report" in m for m in messages)
-
-
-# ===========================================================================
-# Tests for outbox delivery scheduling (D5-6-TRIGDELIV)
-# ===========================================================================
-
-
-class TestTriggerReportOutboxScheduling:
-    """D5-6-TRIGDELIV: trigger endpoints must schedule outbox_handler."""
-
-    def _make_patches(self):
-        """Return a context manager that mocks outbox_handler."""
-        return patch(
-            "vultron.adapters.driving.fastapi.routers"
-            ".trigger_report.outbox_handler",
-            new_callable=AsyncMock,
-        )
-
-    def test_validate_report_schedules_outbox_handler(
-        self, client_triggers, dl, actor, offer, received_report
-    ):
-        """validate-report schedules outbox delivery after execution."""
-        with self._make_patches() as mock_outbox:
-            resp = client_triggers.post(
-                f"/actors/{actor.id_}/trigger/validate-report",
-                json={"offer_id": offer.id_},
-            )
-        assert resp.status_code == status.HTTP_202_ACCEPTED
-        mock_outbox.assert_called_once()
-        assert mock_outbox.call_args.args[0] == actor.id_
-        assert mock_outbox.call_args.args[1] is dl
-        # No third positional: that slot is `emitter` now, and a store
-        # passed there silently becomes the emitter (see the ratchet in
-        # test/architecture/test_outbox_handler_emitter_keyword.py).
-        assert len(mock_outbox.call_args.args) == 2
-        assert "emitter" not in mock_outbox.call_args.kwargs
-
-    def test_invalidate_report_schedules_outbox_handler(
-        self, client_triggers, dl, actor, offer, received_report
-    ):
-        """invalidate-report schedules outbox delivery after execution."""
-        with self._make_patches() as mock_outbox:
-            resp = client_triggers.post(
-                f"/actors/{actor.id_}/trigger/invalidate-report",
-                json={"offer_id": offer.id_},
-            )
-        assert resp.status_code == status.HTTP_202_ACCEPTED
-        mock_outbox.assert_called_once()
-        assert mock_outbox.call_args.args[0] == actor.id_
-        assert mock_outbox.call_args.args[1] is dl
-        # No third positional: that slot is `emitter` now, and a store
-        # passed there silently becomes the emitter (see the ratchet in
-        # test/architecture/test_outbox_handler_emitter_keyword.py).
-        assert len(mock_outbox.call_args.args) == 2
-        assert "emitter" not in mock_outbox.call_args.kwargs
-
-    def test_submit_report_schedules_outbox_handler(
-        self, client_triggers, dl, actor
-    ):
-        """submit-report schedules outbox delivery after execution."""
-        with self._make_patches() as mock_outbox:
-            resp = client_triggers.post(
-                f"/actors/{actor.id_}/trigger/submit-report",
-                json={
-                    "report_name": "Test Report",
-                    "report_content": "Content.",
-                    "recipient_id": "https://example.org/actors/vendor",
-                },
-            )
-        assert resp.status_code == status.HTTP_202_ACCEPTED
-        mock_outbox.assert_called_once()
-        assert mock_outbox.call_args.args[0] == actor.id_
-        assert mock_outbox.call_args.args[1] is dl
-        # No third positional: that slot is `emitter` now, and a store
-        # passed there silently becomes the emitter (see the ratchet in
-        # test/architecture/test_outbox_handler_emitter_keyword.py).
-        assert len(mock_outbox.call_args.args) == 2
-        assert "emitter" not in mock_outbox.call_args.kwargs

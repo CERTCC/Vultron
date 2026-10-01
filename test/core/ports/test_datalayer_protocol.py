@@ -82,9 +82,9 @@ def test_actor_scoped_datalayer_exposes_queue_methods():
         "outbox_list",
         "outbox_pop",
     ):
-        assert callable(
-            getattr(clone, method, None)
-        ), f"clone_for_actor() result missing queue method: {method!r}"
+        assert callable(getattr(clone, method, None)), (
+            f"clone_for_actor() result missing queue method: {method!r}"
+        )
 
 
 def test_base_datalayer_clone_for_actor_return_annotation():

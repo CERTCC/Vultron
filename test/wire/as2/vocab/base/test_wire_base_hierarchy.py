@@ -19,7 +19,7 @@ core fields, configuration or registration hooks (ARCH-12-001, ARCH-12-002).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -111,27 +111,25 @@ def test_as_object_datetime_roundtrip():
 
 def test_as_object_naive_datetime_string_normalized_to_utc():
     """validate_datetime normalizes offset-less ISO strings to UTC (CS-13-001, ADR-0032)."""
-    from datetime import timezone
 
     naive_iso = "2026-01-15T12:00:00"
     obj = as_Object.model_validate({"published": naive_iso})
     assert isinstance(obj.published, datetime)
     assert obj.published.tzinfo is not None
-    assert obj.published.tzinfo == timezone.utc
+    assert obj.published.tzinfo == UTC
     assert obj.published.year == 2026
     assert obj.published.hour == 12
 
 
 def test_as_object_naive_datetime_object_normalized_to_utc():
     """validate_datetime normalizes naive datetime objects to UTC (CS-13-001, ADR-0032)."""
-    from datetime import timezone
 
-    naive_dt = datetime(2026, 1, 15, 12, 0, 0)
+    naive_dt = datetime(2026, 1, 15, 12, 0, 0)  # noqa: DTZ001 — deliberately naive
     assert naive_dt.tzinfo is None
     obj = as_Object.model_validate({"start_time": naive_dt})
     assert isinstance(obj.start_time, datetime)
     assert obj.start_time.tzinfo is not None
-    assert obj.start_time.tzinfo == timezone.utc
+    assert obj.start_time.tzinfo == UTC
 
 
 def test_as_object_attributed_to_accepts_non_string():

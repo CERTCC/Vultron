@@ -36,7 +36,6 @@ the process-area root per BTND-07-003:
 - ``create_accept_ownership_transfer_tree``
 """
 
-import json
 import logging
 from typing import Any, cast
 
@@ -44,18 +43,17 @@ from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import ValidationError
 
-from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-    _EmitSingleActivityBase,
-)
 from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
     EmitAcceptCaseInviteNode,
     EmitRejectCaseInviteNode,
 )
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
+)
 from vultron.core.behaviors.sync.commit_tree import (
-    create_commit_log_entry_tree,
+    commit_emitted_activity,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole, serialize_roles
@@ -171,21 +169,14 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         # The recorded snapshot is the exact blob the port returned: the
         # factory owns its completeness (``context``, inline objects), and
         # this same text is what the outbox delivers (VM-08-003).
-        snapshot: dict = json.loads(activity_blob)
-        commit_tree = create_commit_log_entry_tree(
+        commit_emitted_activity(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            actor_id=self.actor_id,
             case_id=self.case_id,
-            object_id=activity_id,
+            activity_id=activity_id,
+            activity_blob=activity_blob,
             event_type="invite_actor_to_case",
-            payload_snapshot=snapshot,
         )
-        result = BTBridge(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer)
-        ).execute_with_setup(tree=commit_tree, actor_id=self.actor_id)
-        if result.status != Status.SUCCESS:
-            raise RuntimeError(
-                f"ledger commit failed for"
-                f" invite_actor_to_case/{self.invitee_id}"
-            )
         return activity_id, activity_blob
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
@@ -391,7 +382,7 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
         self._injected_roles = self._coerce_injected_roles(injected_roles)
-        _seg = recommendation_id.split("/")[-1]
+        _seg = recommendation_id.rsplit("/", maxsplit=1)[-1]
         self._roles_key = f"suggested_roles_{_seg}"
 
     def _coerce_injected_roles(

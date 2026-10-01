@@ -28,7 +28,7 @@ forcing a scheduling inversion and confirming both entries are stored.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -40,18 +40,18 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     _get_actor_lock,
     run_inbox_pipeline,
 )
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
     compute_genesis_hash,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -96,7 +96,7 @@ def dl():
 @pytest.fixture
 def seeded_dl(dl):
     """DataLayer seeded with a case, genesis hash, and two chained entries."""
-    created_at = datetime.now(timezone.utc)
+    created_at = datetime.now(UTC)
     genesis_hash = compute_genesis_hash(
         case_id=_CASE_ID,
         created_at=created_at,
@@ -222,12 +222,8 @@ def test_concurrent_inbox_tasks_serialize_processing(seeded_dl) -> None:
 
     async def _run():
         await asyncio.gather(
-            run_inbox_pipeline(
-                body0, body0, dl, _PEER_ID, dispatcher, null_emitter
-            ),
-            run_inbox_pipeline(
-                body1, body1, dl, _PEER_ID, dispatcher, null_emitter
-            ),
+            run_inbox_pipeline(body0, dl, _PEER_ID, dispatcher, null_emitter),
+            run_inbox_pipeline(body1, dl, _PEER_ID, dispatcher, null_emitter),
         )
 
     asyncio.run(_run())
@@ -235,9 +231,9 @@ def test_concurrent_inbox_tasks_serialize_processing(seeded_dl) -> None:
     stored0 = dl.read(entry0.id_)
     stored1 = dl.read(entry1.id_)
 
-    assert (
-        stored0 is not None
-    ), f"Entry0 (log_index=0) was not stored. hash={entry0.entry_hash[:16]}…"
+    assert stored0 is not None, (
+        f"Entry0 (log_index=0) was not stored. hash={entry0.entry_hash[:16]}…"
+    )
     assert stored1 is not None, (
         f"Entry1 (log_index=1) was not stored — likely a hash-chain mismatch "
         f"race: entry1 was processed before entry0 was stored (issue #1525). "

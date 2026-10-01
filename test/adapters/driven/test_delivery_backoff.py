@@ -181,7 +181,7 @@ class TestDeliveryRetry:
         with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", side_effect=fake_sleep):
                 with patch("random.uniform", return_value=0.0):
-                    with pytest.raises(Exception):
+                    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
                         asyncio.run(
                             adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
                         )
@@ -209,7 +209,7 @@ class TestDeliveryRetry:
         with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", side_effect=fake_sleep):
                 with patch("random.uniform", return_value=0.0):
-                    with pytest.raises(Exception):
+                    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
                         asyncio.run(
                             adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
                         )
@@ -231,7 +231,7 @@ class TestDeliveryRetry:
         with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", new_callable=AsyncMock):
                 with caplog.at_level("ERROR"):
-                    with pytest.raises(Exception):
+                    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
                         asyncio.run(
                             adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
                         )
@@ -261,7 +261,7 @@ class TestDeliveryRetry:
         ]
 
         with patch("httpx2.AsyncClient.post", side_effect=side_effect):
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
                 asyncio.run(adapter.emit(ACTIVITY_ID, BODY, recipients))
 
         # bob was still delivered to before the exception was raised
@@ -281,7 +281,7 @@ class TestDeliveryRetry:
 
         with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", new_callable=AsyncMock):
-                with pytest.raises(Exception):
+                with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
                     asyncio.run(
                         adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
                     )
@@ -307,7 +307,7 @@ class TestDeliveryRetry:
 
         with patch("httpx2.AsyncClient.post", side_effect=four_xx):
             with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-                with pytest.raises(Exception):
+                with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
                     asyncio.run(
                         adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
                     )
@@ -338,7 +338,7 @@ class TestDeliveryRetry:
 
         with patch("httpx2.AsyncClient.post", side_effect=five_xx):
             with patch("asyncio.sleep", new_callable=AsyncMock):
-                with pytest.raises(Exception):
+                with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
                     asyncio.run(
                         adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI])
                     )

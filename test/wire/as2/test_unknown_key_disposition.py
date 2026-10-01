@@ -1,4 +1,4 @@
-"""Inbound unknown-key disposition at the parse edge (MV-11, #3900; built under #3921).
+"""Inbound unknown-key disposition at the parse edge (MV-11, #3900, #3921, #3969).
 
 One rule, stated once at ``parse_activity`` and holding at every depth: an
 unrecognised key that is a *near miss* for a declared spelling (case or
@@ -9,28 +9,39 @@ the activity proceeds on its declared fields.
 Measured on 2026-09-30 the disposition depended on class ancestry instead — a
 domain type refused (``extra="forbid"`` on core, ARCH-12-003) while the
 envelope, a generic AS2 object, a ``Link`` and an untyped inline dict all
-dropped the key silently.  Rows for behaviour not yet built are
-``xfail(strict=True)`` so the suite fails the moment the implementation lands
-and the marks must come off (SR-05-005).
+dropped the key silently.  The rows were written ``xfail(strict=True)`` ahead
+of the build (SR-05-005); #3921 built the partition
+(``vultron.wire.as2.unknown_keys``) and took every mark off.
 """
 
+import ast
+import importlib
 import logging
+import pkgutil
+from collections.abc import Callable, Collection
+from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import BaseModel
 
-from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
+from vultron.wire.as2.errors import (
+    VultronParseMissingTypeError,
+    VultronParseValidationError,
+)
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_TransitiveActivity,
+)
+from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 
 PUBLISHED = "2026-03-04T05:06:07+00:00"
 ACTIVITY_ID = "https://example.org/activities/1"
 SENDER = "https://example.org/actors/alice"
 FOREIGN_KEY = "fooBar"
-
-NOT_BUILT = (
-    "MV-11: unknown-key disposition at the parse edge is not built yet. "
-    "Tracked by #3921."
-)
 
 
 def _envelope(**extra: Any) -> dict[str, Any]:
@@ -118,6 +129,16 @@ NEAR_MISS_POSITIONS: list[tuple[str, dict[str, Any], str, str]] = [
 ]
 
 
+def _string_constants_under(root: Path, names: Collection[str]) -> list[str]:
+    """Every string constant under *root* equal to one of *names*, located."""
+    return [
+        f"{path.relative_to(root)}:{node.lineno}: {node.value!r}"
+        for path in sorted(root.rglob("*.py"))
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Constant) and node.value in names
+    ]
+
+
 def _info_records_naming(
     caplog: pytest.LogCaptureFixture, key: str
 ) -> list[logging.LogRecord]:
@@ -128,7 +149,6 @@ def _info_records_naming(
     ]
 
 
-@pytest.mark.xfail(strict=True, reason=NOT_BUILT)
 @pytest.mark.spec("MV-11-001")
 @pytest.mark.spec("MV-11-003")
 @pytest.mark.parametrize(
@@ -162,7 +182,6 @@ def test_foreign_key_is_set_aside_and_reported_once(
         assert "envelope" in message
 
 
-@pytest.mark.xfail(strict=True, reason=NOT_BUILT)
 @pytest.mark.spec("MV-11-001")
 @pytest.mark.spec("MV-11-002")
 @pytest.mark.parametrize(
@@ -203,12 +222,11 @@ def test_snake_case_field_name_is_declared(
 def test_retired_name_on_inline_object_is_refused(retired: str) -> None:
     """A retired name is in the list by name, not by normalisation (ADR-0075).
 
-    Holds today through ``ParticipantStatus._reject_retired_vfd_keys`` and must
-    keep holding when that core guard is deleted (#3921 AC-4; SDO-03-005,
-    MV-11-004) and the wire-side list takes over — so this row is not
-    ``xfail``.  Only the naming of the retired key is pinned, not the guard's
-    wording: MV-11-002 requires the arriving key and the spelling it resembles,
-    and for a retired name those are the same string.
+    Held by the wire-side ``RETIRED_NAMES`` list at the parse edge since #3921
+    deleted the core ``ParticipantStatus`` guard (AC-4; SDO-03-005, MV-11-004).
+    Only the naming of the retired key is pinned, not the list's wording:
+    MV-11-002 requires the arriving key and the spelling it resembles, and for a
+    retired name those are the same string.
     """
     body = _with_inline_object(
         {
@@ -232,8 +250,9 @@ def test_no_similarity_helper_in_the_parse_edge() -> None:
     Scans the whole wire package, not just ``parser.py``: #3921 AC-7 lets the
     partition helper move to a sibling module under ``vultron/wire/as2/``.
     """
-    import vultron.wire.as2 as wire_package
     from pathlib import Path
+
+    import vultron.wire.as2 as wire_package
 
     forbidden = (
         "difflib",
@@ -253,3 +272,550 @@ def test_no_similarity_helper_in_the_parse_edge() -> None:
         if name in path.read_text(encoding="utf-8")
     ]
     assert offenders == [], offenders
+
+
+# ---------------------------------------------------------------------------
+# Edge cases of the partition beyond the position matrix (#3921)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("MV-11-002")
+@pytest.mark.spec("EH-07-001")
+def test_every_near_miss_is_named_in_one_refusal() -> None:
+    """A refusal names every near miss at every depth, not only the first."""
+    body = _envelope(
+        Actor="dup",
+        object={
+            "type": "VulnerabilityCase",
+            "id": "https://example.org/cases/1",
+            "Name": "a case",
+            "caseStatuses": [{"type": "CaseStatus", "Context": "x"}],
+        },
+    )
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    for arriving, declared in (
+        ("Actor", "actor"),
+        ("Name", "name"),
+        ("Context", "context"),
+    ):
+        assert repr(arriving) in message and repr(declared) in message
+    assert "'object.caseStatuses[0]'" in message
+
+
+@pytest.mark.spec("MV-11-002")
+def test_core_near_miss_refusal_is_the_parse_edges_not_pydantics() -> None:
+    """A core-class near miss is refused by the partition, not ``forbid`` (AC-8)."""
+    body = NEAR_MISS_POSITIONS[-1][1]
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert "MV-11-002" in message
+    assert "Extra inputs are not permitted" not in message
+
+
+@pytest.mark.spec("MV-11-001")
+@pytest.mark.spec("MV-11-003")
+def test_untyped_dict_in_a_core_slot_is_partitioned_by_the_slot(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An untyped dict is judged by the class its parent field validates it into.
+
+    ``VulnerabilityCase.case_statuses`` holds ``CaseStatus``; a foreign key on
+    an untyped entry is set aside rather than reaching the core class's
+    ``extra="forbid"``, and is reported with its full dotted path.
+    """
+    caplog.set_level(logging.INFO)
+    body = _with_inline_object(
+        {
+            "type": "VulnerabilityCase",
+            "id": "https://example.org/cases/1",
+            "caseStatuses": [
+                {"context": "https://example.org/cases/1", FOREIGN_KEY: 2}
+            ],
+        }
+    )
+    activity = parse_activity(body)
+
+    assert isinstance(activity, as_TransitiveActivity)
+    case = activity.object_
+    assert isinstance(case, VulnerabilityCase)
+    status = case.case_statuses[0]
+    assert isinstance(status, CaseStatus)
+    assert FOREIGN_KEY not in status.model_dump(by_alias=True)
+    records = _info_records_naming(caplog, FOREIGN_KEY)
+    assert len(records) == 1
+    assert "'object.caseStatuses[0]'" in records[0].getMessage()
+
+
+@pytest.mark.spec("MV-11-003")
+@pytest.mark.spec("SL-03-001")
+def test_foreign_key_is_reported_at_info_only(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A set-aside key is a normal protocol event: nothing above INFO (AC-3)."""
+    caplog.set_level(logging.DEBUG)
+    parse_activity(FOREIGN_KEY_POSITIONS[-1][1])
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+@pytest.mark.spec("MV-11-003")
+@pytest.mark.spec("VM-08-002")
+def test_set_aside_key_survives_only_in_the_received_evidence() -> None:
+    """The evidence is the only copy of a set-aside key; the body is untouched."""
+    body = _with_inline_object(
+        {"type": "Note", "content": "hi", FOREIGN_KEY: 1}
+    )
+    activity = parse_activity(body)
+
+    assert body["object"][FOREIGN_KEY] == 1
+    evidence = activity.received_evidence
+    assert evidence is not None
+    assert evidence["object"][FOREIGN_KEY] == 1
+
+
+@pytest.mark.spec("MV-11-001")
+def test_opaque_payload_snapshot_is_carried_unexamined() -> None:
+    """A ``payloadSnapshot`` is data, not an AS2 object: nothing is set aside."""
+    from vultron.wire.as2.unknown_keys import partition_unknown_keys
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Announce,
+    )
+
+    snapshot = {"type": "Announce", "Actor": "x", FOREIGN_KEY: 1}
+    body = _envelope(
+        type="Announce",
+        object={"type": "CaseLedgerEntry", "payloadSnapshot": snapshot},
+    )
+    kept, set_aside = partition_unknown_keys(body, as_Announce)
+    assert kept["object"]["payloadSnapshot"] == snapshot
+    assert set_aside == []
+
+
+@pytest.mark.spec("MV-11-002")
+@pytest.mark.parametrize(
+    "key,expected",
+    [
+        ("attributedTo", "attributedto"),
+        ("attributed-to", "attributedto"),
+        ("ATTRIBUTED_TO", "attributedto"),
+        ("@context", "context"),
+        ("@id", "id"),
+        ("@type", "type"),
+        ("vf state!", "vfstate"),
+    ],
+)
+def test_normalisation_is_lowercase_and_strip_non_alphanumerics(
+    key: str, expected: str
+) -> None:
+    """Exactly lowercase plus strip non-alphanumerics; nothing fuzzier."""
+    from vultron.wire.as2.unknown_keys import normalise
+
+    assert normalise(key) == expected
+
+
+@pytest.mark.spec("MV-11-004")
+@pytest.mark.spec("SDO-03-005")
+def test_no_core_module_names_a_retired_key() -> None:
+    """The retired-name list lives wire-side only (MV-11-004, AC-4).
+
+    A per-class reject-guard has to spell the retired key as a string to test
+    for it, as ``ParticipantStatus._reject_retired_vfd_keys`` did; no string
+    constant under ``vultron/core/`` may equal a name on the list.
+    """
+    import vultron.core as core_package
+    from vultron.wire.as2.unknown_keys import RETIRED_NAMES
+
+    offenders = _string_constants_under(
+        Path(core_package.__file__).parent, RETIRED_NAMES.keys()
+    )
+    assert offenders == [], offenders
+
+
+@pytest.mark.spec("MV-11-001")
+@pytest.mark.spec("MV-10-001")
+def test_embargoed_invite_stub_is_judged_as_the_stub(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The informed-consent stub keeps its ``caseStatus`` (CM-17-002).
+
+    An embargoed Invite's target stub carries ``activeEmbargo`` and
+    ``caseStatus``.  Judged against the full case, which has no ``caseStatus``,
+    the key would be set aside and the invitee would lose the embargo state it
+    consents on; the stub is selected on its own key set (#2624) even when a
+    foreign key rides along, which the partition sets aside.
+    """
+    from vultron.core.models.dimensions import EmDimension
+    from vultron.core.states.em import EM
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseStub,
+    )
+
+    case_id = "https://example.org/cases/1"
+    stub = as_VulnerabilityCaseStub(
+        id_=case_id,
+        active_embargo="https://example.org/embargoes/1",
+        case_status=CaseStatus(
+            context=case_id, em=EmDimension(state=EM.ACTIVE)
+        ),
+    )
+    target = stub.model_dump(by_alias=True, mode="json", exclude_none=True)
+    target[FOREIGN_KEY] = 1
+    body = _envelope(
+        type="Invite", object="https://example.org/actors/bob", target=target
+    )
+    caplog.set_level(logging.INFO)
+
+    activity = parse_activity(body)
+
+    parsed = activity.target
+    assert type(parsed) is as_VulnerabilityCaseStub
+    assert isinstance(parsed.case_status, CaseStatus)
+    assert parsed.case_status.em.state == EM.ACTIVE
+    records = _info_records_naming(caplog, FOREIGN_KEY)
+    assert len(records) == 1 and "'target'" in records[0].getMessage()
+    assert not _info_records_naming(caplog, "caseStatus")
+
+
+@pytest.mark.spec("MV-11-002")
+@pytest.mark.parametrize("misspelled", ["CaseStatus", "case-status"])
+def test_near_miss_of_a_stub_only_key_is_refused(misspelled: str) -> None:
+    """A misspelled ``caseStatus`` refuses; it is not set aside (MV-11-002).
+
+    The resolver judges keys as the partition does, so a near miss of a key
+    only the stub declares still selects the stub, and the stub's partition
+    refuses it naming ``caseStatus``.  Judged against the full case, which has
+    no such spelling, it would have been set aside and the embargo state lost.
+    """
+    body = _envelope(
+        type="Invite",
+        object="https://example.org/actors/bob",
+        target={
+            "type": "VulnerabilityCase",
+            "id": "https://example.org/cases/1",
+            misspelled: {"type": "CaseStatus", "context": "x"},
+        },
+    )
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert repr(misspelled) in message and "'caseStatus'" in message
+
+
+@pytest.mark.spec("MV-10-001")
+@pytest.mark.parametrize(
+    "inline",
+    [
+        {"type": "VulnerabilityCase", "id": "urn:uuid:c1"},
+        {"type": "VulnerabilityCase", "id": "urn:uuid:c1", FOREIGN_KEY: 1},
+        {"type": "VulnerabilityCase", "id": "urn:uuid:c1", "name": "n"},
+        {"type": "VulnerabilityCase", "id": "urn:uuid:c1", "caseStatus": {}},
+    ],
+    ids=["minimal", "minimal-plus-foreign", "full", "stub-only-key"],
+)
+def test_partition_and_expansion_resolve_the_same_case_class(
+    inline: dict[str, Any],
+) -> None:
+    """The raw dict and its partitioned form resolve to the same class.
+
+    The partition judges the raw dict and the expansion the partitioned one;
+    if they disagreed, a key would be judged against a class that does not
+    validate it.
+    """
+    from vultron.wire.as2.unknown_keys import (
+        partition_unknown_keys,
+        resolve_inline_class,
+    )
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Offer,
+    )
+
+    kept, _ = partition_unknown_keys(_with_inline_object(inline), as_Offer)
+    assert resolve_inline_class(inline) is resolve_inline_class(kept["object"])
+
+
+@pytest.mark.spec("MV-02-002")
+@pytest.mark.parametrize("depth", [500, 3000])
+def test_a_body_nested_too_deeply_is_refused_not_crashed(depth: int) -> None:
+    """Nesting past the recursion limit is a schema fault, not a 500.
+
+    ``RecursionError`` is not a ``VultronParseError``, so the inbox adapter's
+    handler would not catch it and the sender would get a server error for a
+    malformed message.
+    """
+    inner: dict[str, Any] = {"type": "Note", "content": "leaf"}
+    for _ in range(depth):
+        inner = {"type": "Note", "inReplyTo": inner}
+    with pytest.raises(VultronParseValidationError, match="too deeply"):
+        parse_activity(_with_inline_object(inner))
+
+
+@pytest.mark.spec("MV-10-001")
+@pytest.mark.spec("CS-14-002")
+@pytest.mark.parametrize(
+    "spelling",
+    ["activeEmbargo", "active_embargo", "caseStatus", "case_status"],
+)
+def test_case_stub_is_recognised_by_every_input_spelling(
+    spelling: str,
+) -> None:
+    """A stub's own fields select the stub whether camelCase or field name.
+
+    Both roots validate by field name (CS-14-001, CS-14-002), so a stub whose
+    sender wrote ``active_embargo`` is as much a stub as one that wrote
+    ``activeEmbargo``; judging only the wire spelling sent the field-name form
+    to the full case, where ``case_status`` has no slot.
+    """
+    from vultron.wire.as2.unknown_keys import resolve_inline_class
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseStub,
+    )
+
+    inline = {"type": "VulnerabilityCase", "id": "urn:uuid:c1", spelling: "x"}
+    assert resolve_inline_class(inline) is as_VulnerabilityCaseStub
+
+
+# ---------------------------------------------------------------------------
+# JSON-LD keywords `@id` / `@type` are near misses of `id` / `type` (#3969)
+# ---------------------------------------------------------------------------
+#
+# MV-11-002 names this by design: the normative AS2 context aliases the
+# keywords and AS2 Core § 2.1 requires the compacted form, so a document
+# carrying `@id` or `@type` is legal JSON-LD but not a conforming AS2 document
+# (MV-01-001).  The refusal already fires through `normalise()`; these rows
+# make it asserted rather than incidental.
+
+JSONLD_KEYWORDS: list[tuple[str, str]] = [("@id", "id"), ("@type", "type")]
+# Values that name no class, so neither can steer class resolution.
+_KEYWORD_VALUE = {"@id": "https://example.org/objects/2", "@type": "Unrelated"}
+_AS2_CONTEXT = "https://www.w3.org/ns/activitystreams"
+
+_NOTE: dict[str, Any] = {"type": "Note", "content": "hi"}
+_CASE: dict[str, Any] = {
+    "type": "VulnerabilityCase",
+    "id": "https://example.org/cases/1",
+    "name": "a case",
+}
+
+
+def _keyword_on_note(**keys: Any) -> dict[str, Any]:
+    return _with_inline_object({**_NOTE, **keys})
+
+
+def _keyword_on_case(**keys: Any) -> dict[str, Any]:
+    return _with_inline_object({**_CASE, **keys})
+
+
+# (label, body builder, location the refusal names).  Every builder keeps
+# `type` present: the envelope's class and an inline object's class resolve
+# from it, and these rows pin the partition's judgement of a keyword beside a
+# resolved class.  The wire-class and core-class rows are AC-2's two branches.
+_KEYWORD_POSITIONS: list[tuple[str, Callable[..., dict[str, Any]], str]] = [
+    ("envelope", _envelope, "the envelope"),
+    ("inline wire-class Note", _keyword_on_note, "'object'"),
+    ("inline core-class VulnerabilityCase", _keyword_on_case, "'object'"),
+]
+_KEYWORD_BUILDER_PARAMS = pytest.mark.parametrize(
+    "build",
+    [b for _, b, _ in _KEYWORD_POSITIONS],
+    ids=[label for label, _, _ in _KEYWORD_POSITIONS],
+)
+_KEYWORD_POSITION_PARAMS = pytest.mark.parametrize(
+    "build,location",
+    [(b, loc) for _, b, loc in _KEYWORD_POSITIONS],
+    ids=[label for label, _, _ in _KEYWORD_POSITIONS],
+)
+
+
+@pytest.mark.spec("MV-11-002")
+@pytest.mark.spec("MV-01-001")
+@pytest.mark.spec("MV-02-002")
+@pytest.mark.parametrize(
+    "arriving,declared", JSONLD_KEYWORDS, ids=[k for k, _ in JSONLD_KEYWORDS]
+)
+@_KEYWORD_POSITION_PARAMS
+def test_jsonld_keyword_is_a_near_miss_of_its_as2_spelling(
+    build: Callable[..., dict[str, Any]],
+    location: str,
+    arriving: str,
+    declared: str,
+) -> None:
+    """`@id`/`@type` refuse naming the keyword and `id`/`type` (AC-1, AC-2).
+
+    The refusal is the parse edge's MV-11-002 message on the wire branch and
+    the core branch alike, never a Pydantic ``extra="forbid"`` dump.
+    """
+    body = build(**{arriving: _KEYWORD_VALUE[arriving]})
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert "MV-11-002" in message
+    assert (
+        f"{arriving!r} at {location} resembles the declared spelling"
+        f" {declared!r}"
+    ) in message
+    assert "Extra inputs are not permitted" not in message
+
+
+@pytest.mark.spec("MV-11-002")
+def test_jsonld_keyword_in_an_untyped_core_slot_is_a_near_miss() -> None:
+    """An untyped dict judged by its slot's core class refuses `@type` too."""
+    body = _keyword_on_case(
+        caseStatuses=[{"@type": "CaseStatus", "context": "x"}]
+    )
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    assert (
+        "'@type' at 'object.caseStatuses[0]' resembles the declared"
+        " spelling 'type'"
+    ) in str(exc_info.value)
+
+
+@pytest.mark.spec("MV-11-001")
+@pytest.mark.spec("MV-11-002")
+@pytest.mark.spec("EH-07-001")
+@_KEYWORD_POSITION_PARAMS
+def test_context_beside_jsonld_keywords_is_declared(
+    build: Callable[..., dict[str, Any]], location: str
+) -> None:
+    """`@context` is declared; one refusal names `@id` and `@type` only (AC-3).
+
+    All three keywords sit on the same object.  Every offending key is named
+    in the single refusal (EH-07-001), and `@context` — the one JSON-LD
+    keyword that is a declared spelling — is not among them.
+    """
+    body = build(**{"@context": _AS2_CONTEXT, **_KEYWORD_VALUE})
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert f"'@id' at {location}" in message
+    assert f"'@type' at {location}" in message
+    assert "'@context'" not in message
+    assert message.count("resembles the declared spelling") == 2
+
+
+@pytest.mark.spec("MV-11-001")
+@_KEYWORD_BUILDER_PARAMS
+def test_context_alone_is_accepted(
+    build: Callable[..., dict[str, Any]],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`@context` alone refuses nothing and is not set aside, at any position."""
+    caplog.set_level(logging.INFO)
+    parse_activity(build(**{"@context": _AS2_CONTEXT}))
+    assert not _info_records_naming(caplog, "@context")
+
+
+@pytest.mark.spec("MV-02-002")
+def test_envelope_with_only_at_type_is_refused_as_missing_type() -> None:
+    """With `@type` in place of `type`, no envelope class resolves at all.
+
+    The missing-type refusal fires before the partition has a class to judge
+    `@type` against, so the sender hears "missing type" rather than the
+    near-miss message.  This is the missing-type refusal (HTTP 400), outside
+    MV-11-002, which judges keys against a *resolved* class; pinned only so
+    such an activity is never accepted.
+    """
+    body = _envelope(**{"@type": "Offer"})
+    del body["type"]
+    with pytest.raises(VultronParseMissingTypeError):
+        parse_activity(body)
+
+
+def _raise_on_import_error(name: str) -> None:
+    """``walk_packages`` error hook: a failed subpackage import is a failure."""
+    raise ImportError(f"could not import {name} while filling registries")
+
+
+def _registered_classes() -> list[type[BaseModel]]:
+    """Every class a wire or core registry holds, after importing all of it.
+
+    A class registers when its module is imported, so reading the registries
+    as they stand covers only what earlier tests happened to import.  Walking
+    every ``vultron`` module first makes the ratchet order-independent.
+    """
+    import vultron
+
+    for info in pkgutil.walk_packages(
+        vultron.__path__, "vultron.", onerror=_raise_on_import_error
+    ):
+        importlib.import_module(info.name)
+    found = {
+        *VOCABULARY.values(),
+        *WIRE_TYPE_MAP.values(),
+        *CORE_VOCABULARY.values(),
+        *CORE_TYPE_MAP.values(),
+    }
+    return sorted(
+        found, key=lambda cls: f"{cls.__module__}.{cls.__qualname__}"
+    )
+
+
+@pytest.mark.spec("MV-11-002")
+def test_no_class_declares_a_jsonld_keyword_as_a_spelling() -> None:
+    """No wire or core class accepts `@id`/`@type` on input (AC-4).
+
+    MV-11-002: a receiver MUST NOT declare them as an alias.  Checked on the
+    spellings the partition itself derives, so an alias added through
+    ``validation_alias``, ``AliasChoices`` or an ``alias_generator`` is caught.
+    The private ``_class_spellings`` is read on purpose: it is the partition's
+    own definition of "declared", and a public restatement could drift from it.
+    """
+    from vultron.wire.as2.unknown_keys import _class_spellings
+
+    keywords = {k for k, _ in JSONLD_KEYWORDS}
+    classes = _registered_classes()
+    names = {cls.__qualname__ for cls in classes}
+    # One class from each root and each layer that registers: if these are
+    # missing, the walk did not fill the registries and the check is vacuous.
+    assert {
+        "as_Note",
+        "VulnerabilityCase",
+        "CaseStatus",
+        "OutboxDeadLetterEntry",
+    } <= names, sorted(names)
+    offenders = [
+        f"{cls.__module__}.{cls.__qualname__}: {sorted(found)}"
+        for cls in classes
+        if (found := keywords & _class_spellings(cls).annotations.keys())
+    ]
+    assert offenders == [], offenders
+
+
+@pytest.mark.spec("MV-11-002")
+def test_no_exemption_names_a_jsonld_keyword() -> None:
+    """`@id`/`@type` sit in no exemption set, and no source spells them (AC-4).
+
+    The set checks cover the partition's own exemptions; the source scan
+    (every string constant under ``vultron/`` that *equals* ``"@id"`` or
+    ``"@type"``) catches a new alias or exemption before it reaches a registry.
+    It does not see a keyword assembled at run time; the registry ratchet
+    above covers that case for every declared spelling.  The scan is deliberately
+    package-wide: AS2 compacts both keywords away (MV-11-002), so no Vultron
+    module has a reason to spell them, and one that does needs a reviewer.
+    """
+    import vultron
+    from vultron.wire.as2 import unknown_keys
+
+    keywords = {k for k, _ in JSONLD_KEYWORDS}
+    exemptions: dict[str, frozenset[str]] = {
+        "_UNEXAMINED_KEYS": unknown_keys._UNEXAMINED_KEYS,
+        "OPAQUE_PAYLOAD_KEYS": unknown_keys.OPAQUE_PAYLOAD_KEYS,
+        "RETIRED_NAMES": frozenset(unknown_keys.RETIRED_NAMES),
+        "CASE_STUB_KEYS": unknown_keys.CASE_STUB_KEYS,
+        "_CASE_STUB_INPUT_KEYS": unknown_keys._CASE_STUB_INPUT_KEYS,
+    }
+    assert {
+        name: sorted(keywords & keys)
+        for name, keys in exemptions.items()
+        if keywords & keys
+    } == {}
+
+    offenders = _string_constants_under(
+        Path(vultron.__file__).parent, keywords
+    )
+    assert offenders == [], (
+        "MV-11-002: @id/@type are near misses of id/type by design and MUST "
+        f"NOT be declared or exempted; found {offenders}"
+    )

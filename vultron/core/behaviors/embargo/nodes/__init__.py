@@ -21,7 +21,6 @@ Re-exports all public node classes from submodules for backward compatibility.
 from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
 )
-from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
 from vultron.core.behaviors.embargo.nodes.conditions import (
     HasActiveEmbargoNode,
     HasCaseStatusesNode,
@@ -32,6 +31,7 @@ from vultron.core.behaviors.embargo.nodes.conditions import (
     OptionalLookupParticipantNode,
     ValidateCaseExistsNode,
 )
+from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     AcceptEmbargoLifecycleNode,
     ProposeEmbargoLifecycleNode,
@@ -42,16 +42,24 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import (
     TerminateEmbargoLifecycleNode,
     ValidateEmbargoRevisionStateNode,
 )
+from vultron.core.behaviors.embargo.nodes.proposal import (
+    CreateAndStoreInviteNode,
+    RecordParticipantAcceptanceNode,
+    RecordParticipantRejectionNode,
+    UpdateParticipantEmbargoPecNode,
+)
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (
     ReadProposedEmbargoIdNode,
     RejectProposedEmbargoLifecycleNode,
     SendRejectEmbargoActivityNode,
 )
-from vultron.core.behaviors.embargo.nodes.proposal import (
-    CreateAndStoreInviteNode,
-    RecordParticipantAcceptanceNode,
-    RemoveStaleAcceptanceNode,
-    UpdateParticipantEmbargoPecNode,
+from vultron.core.behaviors.embargo.nodes.relay import (
+    EMBARGO_INVITE_EVENT_TYPE,
+    CollectEmbargoInviteRecipientsNode,
+    EmbargoProposalNotYetRecordedNode,
+    EmStateAdmitsProposalNode,
+    RelayEmbargoInviteToEachNode,
+    case_manager_admits_proposal_guard,
 )
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
@@ -81,11 +89,18 @@ __all__ = [
     "ApplyEmbargoTeardownNode",
     "RemoveFromProposedEmbargoesNode",
     "SendAnnounceEmbargoEventNode",
+    # Relay (EP-09)
+    "EMBARGO_INVITE_EVENT_TYPE",
+    "CollectEmbargoInviteRecipientsNode",
+    "EmStateAdmitsProposalNode",
+    "EmbargoProposalNotYetRecordedNode",
+    "RelayEmbargoInviteToEachNode",
+    "case_manager_admits_proposal_guard",
     # Proposal
     "UpdateParticipantEmbargoPecNode",
     "CreateAndStoreInviteNode",
     "RecordParticipantAcceptanceNode",
-    "RemoveStaleAcceptanceNode",
+    "RecordParticipantRejectionNode",
     # Lifecycle
     "PersistEmbargoEventNode",
     "ValidateEmbargoRevisionStateNode",

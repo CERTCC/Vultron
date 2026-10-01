@@ -31,8 +31,8 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 

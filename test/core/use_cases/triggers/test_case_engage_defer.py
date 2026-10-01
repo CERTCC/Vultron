@@ -32,14 +32,15 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
-from vultron.errors import VultronValidationError
 from vultron.core.use_cases.triggers.case import (
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
@@ -50,16 +51,15 @@ from vultron.core.use_cases.triggers.note import (
     AddNoteToCaseTriggerRequest,
     SvcAddNoteToCaseUseCase,
 )
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
     FinderParticipant,
+    as_CaseParticipant,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -180,12 +180,12 @@ class TestEngageCaseRMTransitionViaBT:
         updated = self.dl.read(self.vendor_participant.id_)
         assert updated is not None
         assert isinstance(updated, CaseParticipant)
-        assert (
-            updated.participant_statuses
-        ), "Expected at least one as_ParticipantStatus after engage"
-        assert (
-            updated.participant_statuses[-1].rm.state == RM.ACCEPTED
-        ), f"Expected RM.ACCEPTED, got {updated.participant_statuses[-1].rm.state}"
+        assert updated.participant_statuses, (
+            "Expected at least one as_ParticipantStatus after engage"
+        )
+        assert updated.participant_statuses[-1].rm.state == RM.ACCEPTED, (
+            f"Expected RM.ACCEPTED, got {updated.participant_statuses[-1].rm.state}"
+        )
 
     def test_engage_case_rm_not_updated_when_no_participant(self):
         """When participant is NOT in case_participants, the BT transitions
@@ -257,12 +257,12 @@ class TestDeferCaseRMTransitionViaBT:
         updated = self.dl.read(self.vendor_participant.id_)
         assert updated is not None
         assert isinstance(updated, CaseParticipant)
-        assert (
-            updated.participant_statuses
-        ), "Expected at least one as_ParticipantStatus after defer"
-        assert (
-            updated.participant_statuses[-1].rm.state == RM.DEFERRED
-        ), f"Expected RM.DEFERRED, got {updated.participant_statuses[-1].rm.state}"
+        assert updated.participant_statuses, (
+            "Expected at least one as_ParticipantStatus after defer"
+        )
+        assert updated.participant_statuses[-1].rm.state == RM.DEFERRED, (
+            f"Expected RM.DEFERRED, got {updated.participant_statuses[-1].rm.state}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -311,17 +311,17 @@ class TestAddNoteToCaseViaBT:
         ).execute()
 
         # The returned note should be non-None (BT created it)
-        assert (
-            result.get("note") is not None
-        ), "Expected note dict in result after BT-driven creation"
+        assert result.note is not None, (
+            "Expected note dict in result after BT-driven creation"
+        )
 
         # The case's notes list should contain the new note id
         updated_case = self.dl.read(self.case.id_)
         assert updated_case is not None
         assert isinstance(updated_case, VulnerabilityCase)
-        assert (
-            len(updated_case.notes) >= 1
-        ), "Expected case.notes to contain the new note after BT-driven attachment"
+        assert len(updated_case.notes) >= 1, (
+            "Expected case.notes to contain the new note after BT-driven attachment"
+        )
 
     def test_add_note_returns_activity_via_bt(self):
         """SvcAddNoteToCaseUseCase returns an activity dict built inside the BT."""
@@ -337,6 +337,4 @@ class TestAddNoteToCaseViaBT:
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        assert (
-            result.get("activity") is not None
-        ), "Expected activity dict in result"
+        assert result.activity is not None, "Expected activity dict in result"

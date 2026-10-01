@@ -24,10 +24,10 @@ for those very keys.  The allowlist is now derived from the stub class.
 import json
 
 from vultron.core.models._helpers import days_from_now_utc
-from vultron.wire.as2.parser import (
-    _VULNERABILITY_CASE_STUB_KEYS,
-    _inline_vocab_class,
-    parse_activity,
+from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.unknown_keys import (
+    CASE_STUB_KEYS as _VULNERABILITY_CASE_STUB_KEYS,
+    resolve_inline_class as _inline_vocab_class,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
@@ -59,17 +59,20 @@ def _enriched_stub() -> dict:
 
 def test_stub_keys_are_derived_from_the_stub_class():
     """The stub's own fields, in wire spelling, plus identity — nothing else."""
-    assert _VULNERABILITY_CASE_STUB_KEYS == frozenset(
-        {
-            "@context",
-            "id",
-            "type",
-            "summary",
-            "published",
-            "updated",
-            "activeEmbargo",
-            "caseStatus",
-        }
+    assert (
+        frozenset(
+            {
+                "@context",
+                "id",
+                "type",
+                "summary",
+                "published",
+                "updated",
+                "activeEmbargo",
+                "caseStatus",
+            }
+        )
+        == _VULNERABILITY_CASE_STUB_KEYS
     )
     # Inherited AS2 fields a full case also carries are deliberately absent,
     # so a minimal full case is not mistaken for a stub.

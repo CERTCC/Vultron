@@ -32,8 +32,9 @@ Why core legitimately needs wire-shaped JSON (only for
 uses to get it. Under ADR-0099 every `CoreObject` inherits
 `alias_generator=to_camel` on purpose (ARCH-12-003), so the port is the core
 object's own `model_dump(by_alias=True)`; `@context` comes from `CoreObject`'s
-`by_alias` serializer, not from delivery. Core logic still MUST NOT dump its own
-objects `by_alias` (ARCH-20-001, ratchet `test_core_by_alias_dumps.py`). Also
+`by_alias` serializer, not from delivery. Core logic MUST NOT dump its own
+objects `by_alias` (ARCH-20-001, ratchet `test_core_by_alias_dumps.py`, empty
+since #3930); every received use case and trigger is given the port. Also
 lists the five consumers of the old core-side aliasing, the `extra="forbid"`
 guard that replaces any flat-field reject-guard (SDO-03-005), and why persisted
 rows are unaffected. The ADR-0082 pairing registry and adapter-side translators
@@ -183,14 +184,17 @@ AKM-08).
 trust or awareness logic, or working on AKM spec requirements.
 
 **`structured-logging.md`**
-Narrative log template (SL-04-006), infrastructure demotion list (SL-04-007),
-and per-module guidance for keeping actor INFO logs readable as a CVD protocol
-story. Documents the approved verb–template inventory (`Actor '<id>' RM: A → B
-for case '<id>'`), the ~10 infrastructure patterns that MUST be at DEBUG, and
-the ~8 missing INFO messages required by SL-04-001. Source: CONCERN-1968.
-**Load when**: adding a new BT node that writes RM/CS/EM state (must add INFO
-log), auditing logging levels in actor container output, or implementing
-CONCERN-1968 logging remediation.
+Log-call shape (SL-01-005: a literal template with lazy positional args, never
+an f-string — why the split matters and why `extra=` was never the alternative;
+CONCERN-3378), narrative log template (SL-04-006), infrastructure demotion list
+(SL-04-007), and per-module guidance for keeping actor INFO logs readable as a
+CVD protocol story. Documents the approved verb–template inventory (`Actor
+'<id>' RM: A → B for case '<id>'`), the infrastructure patterns that MUST be at
+DEBUG, and how correlation fields reach the record (SL-02-003: boundary filter,
+not per-call `extra=`). Source: CONCERN-1968, CONCERN-3378.
+**Load when**: writing or rewriting any log call, adding a new BT node that
+writes RM/CS/EM state (must add INFO log), auditing logging levels in actor
+container output, or implementing correlation fields on log records.
 
 **`configuration.md`**
 Design decisions for YAML-backed Pydantic configuration loading in Vultron:
@@ -213,9 +217,11 @@ Design decisions for the `UseCaseResult` type hierarchy (`HandlerResult` /
 dispatcher boundary, the two semantically distinct request paths (`VultronEvent`
 vs `TriggerRequest`), why `UseCaseRequest` was not introduced, the trigger-side
 collapse to a one-method `TriggerDispatcher` port over a verb registry with a
-typed result hierarchy, and the ratchet test design. Received side and
-dispatcher chain are implemented; the trigger side is decided (ADR-0110) and
-planned as staged tasks, none yet built. ADRs:
+typed result hierarchy, and the ratchet test design. Both sides are
+implemented: the received side and dispatcher chain, and the trigger side's
+golden OpenAPI snapshot (#3828), typed result hierarchy with one request-model
+family (#3831), verb registry with the one-method port (#3832) and route
+cutover that retired `TriggerService` (#3833, ADR-0110). ADRs:
 `docs/adr/0040-use-case-result-envelope.md` (original),
 `docs/adr/0095-received-side-handler-result.md` (received-side half), and
 `docs/adr/0110-trigger-dispatcher-port-over-verb-registry.md` (trigger-side half).
@@ -694,7 +700,7 @@ to be hand-edited.
 FastAPI and test infrastructure patterns: router test override pattern
 (`_shared_dl`, `dependency_overrides`), circular import fix pattern
 (`_helpers.py`), FastAPI `response_model` / `status_code` conventions,
-health check and Docker health check design, Black/pyright config notes,
+health check and Docker health check design, formatter/type-checker pragma notes,
 Python 3.14 compatibility deferral, surrogate-key routing collision
 handling, and logger name verification.
 **Load when**: writing FastAPI router tests, debugging import cycles,
@@ -766,10 +772,9 @@ what makes an acceptable exclusion reason (IMPLTS-07-019), and why `RUF100`
 rather than a bespoke test is the ratchet for baselined findings
 (IMPLTS-07-020). Records the `PLC0415` policy (CS-05-005/006: enabled by #3949
 after #3352, with `test/**` exempted and each genuine cycle break marked until
-its removal in #3950), the one remaining provisional exclusion `G004` (#3378),
-and the commit-loop habits that change when the flake8 hook is retired.
-**Decided but not yet built**: the configuration it describes lands with #3352;
-flake8, black and isort are still the live gate.
+its removal in #3950), the `G004` resolution (SL-01-005: enabled by #3991, which
+rewrites every f-string log call and leaves no provisional entry in `ignore`),
+and the commit-loop habits that changed when the flake8 hook was retired.
 **Load when**: editing `[tool.ruff]`, adding or removing an `ignore` entry,
 baselining a new rule, tightening the ruleset, or wiring a lint step into CI or
 pre-commit.

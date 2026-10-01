@@ -31,6 +31,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.models._helpers import _as_id
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
@@ -40,7 +41,6 @@ from vultron.core.states.em import (
     EM,
     is_em_embargo_active,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.errors import (
     VultronError,
     VultronInvalidStateTransitionError,
@@ -156,7 +156,15 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts):
 
 
 class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
-    """Apply STRICT propose/counter-propose transition."""
+    """Apply STRICT propose/counter-propose transition.
+
+    ``proposer_id`` names the actor whose terms these are when the executing
+    actor is not the proposer: the CASE_MANAGER adjudicating a received
+    proposal runs this node in its own store (EP-09-001) but the consent
+    ``propose_embargo`` records — proposing terms is accepting them
+    (ADR-0093) — belongs to the participant that proposed, never to the
+    manager.  Absent, the executing actor is the proposer (the trigger side).
+    """
 
     def __init__(
         self,
@@ -164,10 +172,13 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
         embargo_id: str,
         result_out: dict[str, object],
         name: str | None = None,
+        *,
+        proposer_id: str | None = None,
     ) -> None:
         super().__init__(result_out=result_out, name=name)
         self._case_id_value = case_id
         self._embargo_id = embargo_id
+        self._proposer_id = proposer_id
 
     def _case_id(self) -> str:
         return self._case_id_value
@@ -181,7 +192,11 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
         return lifecycle.propose_embargo(
             case_id=self._case_id_value,
             embargo_id=self._embargo_id,
-            actor_id=actor_id,
+            actor_id=(
+                self._proposer_id
+                if self._proposer_id is not None
+                else actor_id
+            ),
             transition_mode=TransitionMode.STRICT,
             em_before=em_before,
         )

@@ -19,7 +19,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from vultron.core.models.use_case_result import HandlerDisposition
-
 from vultron.core.use_cases.received.actor.accept_reject_case_participant_role import (
     AcceptCaseParticipantRoleReceivedUseCase,
     RejectCaseParticipantRoleReceivedUseCase,
@@ -33,6 +32,18 @@ from vultron.wire.as2.factories import (
     offer_case_participant_role_activity,
     reject_case_participant_role_activity,
 )
+
+
+def _archived_by_intake(dl, activity_id: str) -> bool:
+    """True when intake archived *activity_id* under the receiver's key."""
+    from vultron.core.models.received_activity_record import (
+        ReceivedActivityRecord,
+    )
+
+    return isinstance(
+        dl.read(ReceivedActivityRecord.build_id(activity_id)),
+        ReceivedActivityRecord,
+    )
 
 
 class TestOfferCaseParticipantRoleReceivedUseCase:
@@ -101,8 +112,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
         self._execute(dl, event)
 
-        stored = dl.get(offer.type_.value, offer.id_)
-        assert stored is not None
+        assert _archived_by_intake(dl, offer.id_)
 
     def test_offer_case_participant_role_idempotent(self, make_payload):
         """Repeated execution of OfferCaseParticipantRoleReceivedUseCase is a no-op."""
@@ -118,14 +128,14 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         self._execute(dl, event)
         self._execute(dl, event)
 
-        stored = dl.get(offer.type_.value, offer.id_)
-        assert stored is not None
+        assert _archived_by_intake(dl, offer.id_)
 
     def test_offer_case_participant_role_uses_store_owner_when_no_receiving_actor(
         self, make_payload
     ):
         """When receiving_actor_id is absent the store owner processes the offer."""
         import py_trees
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         py_trees.blackboard.Blackboard.storage.clear()
@@ -141,8 +151,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
             # The BT runs under the store owner's identity; the tree stores the
             # offer idempotently regardless of receiving_actor_id stamp.
-            stored = dl.get(offer.type_.value, offer.id_)
-            assert stored is not None
+            assert _archived_by_intake(dl, offer.id_)
         finally:
             py_trees.blackboard.Blackboard.storage.clear()
 
@@ -161,14 +170,14 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
         self._execute(dl, event)
 
-        stored = dl.get(offer.type_.value, offer.id_)
-        assert stored is not None
+        assert _archived_by_intake(dl, offer.id_)
 
     def test_offer_case_participant_role_auto_accepts_when_trigger_given(
         self, make_payload
     ):
         """OfferCaseParticipantRoleReceivedUseCase auto-accepts when trigger_activity provided."""
         from unittest.mock import MagicMock
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer(

@@ -28,7 +28,7 @@ in ADR-0026/CM-16:
 
 All three trees route through the CASE_MANAGER's inbox per ADR-0021/ADR-0026
 and use
-:func:`~vultron.core.behaviors.case.nodes.lifecycle.create_receive_activity_tree`
+:func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
 to enforce CLP-10-006 ordering (ledger commit before effect nodes).
 
 Every effect in this workflow is the CASE_MANAGER's, so each tree's effect
@@ -50,9 +50,6 @@ from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
 )
-from vultron.core.behaviors.case.nodes.lifecycle import (
-    create_receive_activity_tree,
-)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
@@ -65,6 +62,9 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
     RecordRecommendationRecommenderNode,
+)
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
 )
 
 logger = logging.getLogger(__name__)

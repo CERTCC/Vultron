@@ -26,14 +26,14 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import case_addressees
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
 from vultron.core.states.em import EM
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import case_addressees
-from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import (
     reset_case_participant_embargo_consent,
 )
@@ -377,6 +377,12 @@ class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
     id therefore returns SUCCESS and changes nothing, so a best-effort Sequence
     that carries this node still reaches the nodes after it.  Left ``None``
     (teardown), the prune is unconditional.
+
+    On teardown this node removes the torn-down embargo's own entry ahead of
+    the EM write; ``ClearActiveEmbargoNode`` then runs
+    ``terminate_active_embargo``, which forgets *every* remaining open
+    proposal (EP-08-004) — so after a teardown both records are empty
+    whether or not this node found anything.
     """
 
     def __init__(

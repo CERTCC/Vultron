@@ -101,12 +101,11 @@ def _has_attributed_to_assignment(scope: ast.AST) -> bool:
                 and isinstance(node.target.ctx, ast.Store)
             ):
                 return True
-        elif isinstance(node, ast.AugAssign):
-            if (
-                isinstance(node.target, ast.Attribute)
-                and node.target.attr == "attributed_to"
-            ):
-                return True
+        elif isinstance(node, ast.AugAssign) and (
+            isinstance(node.target, ast.Attribute)
+            and node.target.attr == "attributed_to"
+        ):
+            return True
     return False
 
 
@@ -240,9 +239,9 @@ def test_detector_catches_attributed_to_with_save(tmp_path: Path) -> None:
         "        self.datalayer.save(case)\n",
         encoding="utf-8",
     )
-    assert _has_attributed_to_with_save_in_update(
-        violation_file
-    ), "Detector did not flag attributed_to assignment + self.datalayer.save()"
+    assert _has_attributed_to_with_save_in_update(violation_file), (
+        "Detector did not flag attributed_to assignment + self.datalayer.save()"
+    )
 
 
 def test_detector_does_not_flag_attributed_to_with_save_many(
@@ -257,9 +256,9 @@ def test_detector_does_not_flag_attributed_to_with_save_many(
         "        self.datalayer.save_many([case, participant])\n",
         encoding="utf-8",
     )
-    assert not _has_attributed_to_with_save_in_update(
-        clean_file
-    ), "Detector falsely flagged attributed_to + save_many() as a violation"
+    assert not _has_attributed_to_with_save_in_update(clean_file), (
+        "Detector falsely flagged attributed_to + save_many() as a violation"
+    )
 
 
 def test_detector_does_not_flag_save_without_attributed_to(
@@ -273,9 +272,9 @@ def test_detector_does_not_flag_save_without_attributed_to(
         "        self.datalayer.save(self.obj)\n",
         encoding="utf-8",
     )
-    assert not _has_attributed_to_with_save_in_update(
-        clean_file
-    ), "Detector falsely flagged save() without attributed_to mutation"
+    assert not _has_attributed_to_with_save_in_update(clean_file), (
+        "Detector falsely flagged save() without attributed_to mutation"
+    )
 
 
 def test_detector_does_not_flag_attributed_to_kwarg_with_save(
@@ -295,9 +294,9 @@ def test_detector_does_not_flag_attributed_to_kwarg_with_save(
         "        self.datalayer.save(obj)\n",
         encoding="utf-8",
     )
-    assert not _has_attributed_to_with_save_in_update(
-        clean_file
-    ), "Detector falsely flagged attributed_to constructor kwarg + save() as a violation"
+    assert not _has_attributed_to_with_save_in_update(clean_file), (
+        "Detector falsely flagged attributed_to constructor kwarg + save() as a violation"
+    )
 
 
 def test_detector_does_not_flag_violation_in_inner_function(
@@ -318,9 +317,9 @@ def test_detector_does_not_flag_violation_in_inner_function(
         "        _inner()\n",
         encoding="utf-8",
     )
-    assert not _has_attributed_to_with_save_in_update(
-        clean_file
-    ), "Detector produced false positive for violation inside nested function"
+    assert not _has_attributed_to_with_save_in_update(clean_file), (
+        "Detector produced false positive for violation inside nested function"
+    )
 
 
 def test_detector_catches_local_dl_rebind_with_save(tmp_path: Path) -> None:
@@ -338,9 +337,9 @@ def test_detector_catches_local_dl_rebind_with_save(tmp_path: Path) -> None:
         "        dl.save(case)\n",
         encoding="utf-8",
     )
-    assert _has_attributed_to_with_save_in_update(
-        violation_file
-    ), "Detector did not flag attributed_to + dl.save() via local rebind"
+    assert _has_attributed_to_with_save_in_update(violation_file), (
+        "Detector did not flag attributed_to + dl.save() via local rebind"
+    )
 
 
 def test_detector_does_not_flag_subfield_assignment(tmp_path: Path) -> None:
@@ -358,9 +357,9 @@ def test_detector_does_not_flag_subfield_assignment(tmp_path: Path) -> None:
         "        self.datalayer.save(obj)\n",
         encoding="utf-8",
     )
-    assert not _has_attributed_to_with_save_in_update(
-        clean_file
-    ), "Detector falsely flagged sub-field assignment on attributed_to as a violation"
+    assert not _has_attributed_to_with_save_in_update(clean_file), (
+        "Detector falsely flagged sub-field assignment on attributed_to as a violation"
+    )
 
 
 def test_detector_catches_augmented_assignment_to_attributed_to(
@@ -379,6 +378,6 @@ def test_detector_catches_augmented_assignment_to_attributed_to(
         "        self.datalayer.save(case)\n",
         encoding="utf-8",
     )
-    assert _has_attributed_to_with_save_in_update(
-        violation_file
-    ), "Detector did not flag augmented assignment to attributed_to + save()"
+    assert _has_attributed_to_with_save_in_update(violation_file), (
+        "Detector did not flag augmented assignment to attributed_to + save()"
+    )

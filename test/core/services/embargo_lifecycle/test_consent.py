@@ -20,19 +20,26 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
 )
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.core.models.case_participant import CaseParticipant
 
 from .conftest import (
+    _accepted_ids_of,
     _make_actor,
     _make_case,
     _make_embargo,
+    _pec_of,
+    _seed_consent,
 )
 
 
@@ -141,3 +148,101 @@ def test_record_participant_consent_illegal_trigger_raises(
             actor_id=owner.id_,
             pec_trigger=PEC_Trigger.ACCEPT,  # illegal from SIGNATORY
         )
+
+
+# ---------------------------------------------------------------------------
+# Tests: record_embargo_rejection — the consent half of a Reject (MSM-07-004)
+# ---------------------------------------------------------------------------
+
+
+def _active_with_revision(dl: SqliteDataLayer, owner: as_Service):
+    """Owner (SIGNATORY, [A]) and a finder (SIGNATORY, [A, B]); A active, B proposed."""
+    finder = _make_actor(dl, "Finder Org")
+    case, (owner_p, finder_p) = _make_case(
+        dl, owner.id_, extra_participant_ids=[finder.id_], em_state=EM.REVISE
+    )
+    active = _make_embargo(dl, case.id_)
+    revision = _make_embargo(dl, case.id_, days=90)
+    case.active_embargo = active.id_
+    case.proposed_embargoes = [revision.id_]
+    dl.save(case)
+    _seed_consent(dl, owner_p.id_, PEC.SIGNATORY, [active.id_])
+    _seed_consent(dl, finder_p.id_, PEC.SIGNATORY, [active.id_, revision.id_])
+    return case, finder, owner_p.id_, finder_p.id_, active.id_, revision.id_
+
+
+@pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("CM-18-003")
+def test_record_embargo_rejection_of_the_active_embargo_is_withdrawal(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_and_dl
+    case, finder, _owner_p, finder_p, active_id, _rev = _active_with_revision(
+        dl, owner
+    )
+
+    result = EmbargoLifecycle(persistence=dl).record_embargo_rejection(
+        case_id=case.id_, actor_id=finder.id_, embargo_id=active_id
+    )
+
+    assert result.em_before == result.em_after == EM.REVISE
+    assert result.case_changed is False
+    assert [
+        (c.pec_before, c.pec_after) for c in result.participant_changes
+    ] == [(PEC.SIGNATORY.value, PEC.DECLINED.value)]
+    assert active_id not in _accepted_ids_of(dl, finder_p)
+
+
+@pytest.mark.spec("MSM-07-004")
+def test_record_embargo_rejection_of_a_proposed_revision_keeps_a_signatory(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_and_dl
+    case, finder, _owner_p, finder_p, active_id, rev = _active_with_revision(
+        dl, owner
+    )
+
+    result = EmbargoLifecycle(persistence=dl).record_embargo_rejection(
+        case_id=case.id_, actor_id=finder.id_, embargo_id=rev
+    )
+
+    assert result.participant_changes == []
+    assert _pec_of(dl, finder_p) == PEC.SIGNATORY.value
+    assert _accepted_ids_of(dl, finder_p) == [active_id]
+    # Recording consent decides nothing: B stays an open proposal.
+    assert cast(VulnerabilityCase, dl.read(case.id_)).proposed_embargoes == [
+        rev
+    ]
+
+
+@pytest.mark.spec("MSM-07-004")
+def test_record_embargo_rejection_by_the_owner_of_a_revision_changes_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """EJ on the received side: the owner keeps A; no record moves."""
+    owner, dl = owner_and_dl
+    case, _finder, owner_p, _finder_p, active_id, rev = _active_with_revision(
+        dl, owner
+    )
+
+    result = EmbargoLifecycle(persistence=dl).record_embargo_rejection(
+        case_id=case.id_, actor_id=owner.id_, embargo_id=rev
+    )
+
+    assert result.participant_changes == []
+    assert _pec_of(dl, owner_p) == PEC.SIGNATORY.value
+    assert _accepted_ids_of(dl, owner_p) == [active_id]
+
+
+def test_record_embargo_rejection_of_an_unknown_embargo_raises(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_and_dl
+    case, finder, _o, finder_p, _a, _r = _active_with_revision(dl, owner)
+    stranger = _make_embargo(dl, case.id_, days=10)
+
+    with pytest.raises(VultronValidationError, match="neither the active"):
+        EmbargoLifecycle(persistence=dl).record_embargo_rejection(
+            case_id=case.id_, actor_id=finder.id_, embargo_id=stranger.id_
+        )
+    assert _pec_of(dl, finder_p) == PEC.SIGNATORY.value

@@ -26,7 +26,7 @@ Per specs/inbox-orchestration.yaml IO-02-001 through IO-02-003.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import py_trees
 from py_trees.common import Status
@@ -56,9 +56,6 @@ from vultron.core.behaviors.inbox.nodes import (
     KEY_PAYLOAD,
     KEY_QUEUE,
 )
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -112,8 +109,8 @@ def _run_bt_pipeline(actor_config: ActorConfig | None = None) -> Status:
             final_status = bt.root.status
             if final_status in (Status.SUCCESS, Status.FAILURE):
                 break
-    except Exception as exc:
-        logger.exception("process_payload: BT tick raised exception: %s", exc)
+    except Exception:
+        logger.exception("process_payload: BT tick raised exception")
         final_status = Status.FAILURE
     finally:
         bt.shutdown()

@@ -13,11 +13,13 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for LedgerReconciliation: RejectLedgerEntryReceivedUseCase and replay trigger.
 
-Spec: SYNC-03-001, SYNC-03-002, SYNC-04-001, SYNC-04-002.
+Spec: SYNC-03-001, SYNC-03-002.
 """
 
-import pytest
+from typing import cast
 from unittest.mock import MagicMock
+
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -25,17 +27,14 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
-    _update_replication_state,
 )
 from vultron.core.use_cases.triggers.sync import replay_missing_entries_trigger
-from typing import cast
-
-from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -158,57 +157,6 @@ class TestRejectLogEntryPattern:
         event = extract_event(activity)
         assert isinstance(event, RejectLogEntryReceivedEvent)
         assert event.last_accepted_hash == ""
-
-
-class TestUpdateReplicationState:
-    """_update_replication_state creates and updates per-peer state (SYNC-04-001)."""
-
-    @pytest.mark.spec("SYNC-04-001")
-    def test_creates_new_state(self, dl, entry0):
-        _update_replication_state(
-            CASE_URI, PARTICIPANT_URI, entry0.entry_hash, dl
-        )
-        state_id = VultronReplicationState(
-            case_id=CASE_URI, peer_id=PARTICIPANT_URI
-        ).id_
-        stored = dl.read(state_id)
-        assert stored is not None
-
-    @pytest.mark.spec("SYNC-04-001")
-    def test_stores_hash(self, dl, entry0):
-        _update_replication_state(
-            CASE_URI, PARTICIPANT_URI, entry0.entry_hash, dl
-        )
-        state_id = VultronReplicationState(
-            case_id=CASE_URI, peer_id=PARTICIPANT_URI
-        ).id_
-        stored = dl.read(state_id)
-        assert (
-            getattr(stored, "last_acknowledged_hash", None)
-            == entry0.entry_hash
-        )
-
-    @pytest.mark.spec("SYNC-04-001")
-    @pytest.mark.spec("SYNC-04-002")
-    def test_updates_existing_state(self, dl, entry0, entry1):
-        _update_replication_state(
-            CASE_URI, PARTICIPANT_URI, entry0.entry_hash, dl
-        )
-        _update_replication_state(
-            CASE_URI, PARTICIPANT_URI, entry1.entry_hash, dl
-        )
-
-        state_id = VultronReplicationState(
-            case_id=CASE_URI, peer_id=PARTICIPANT_URI
-        ).id_
-        stored = dl.read(state_id)
-        # Only one record should exist (upsert, not duplicate)
-        all_states = dl.by_type("ReplicationState")
-        assert len(all_states) == 1
-        assert (
-            getattr(stored, "last_acknowledged_hash", None)
-            == entry1.entry_hash
-        )
 
 
 class TestReplayMissingEntriesTrigger:
@@ -351,8 +299,8 @@ class TestRejectLedgerEntryReceivedUseCase:
     @pytest.mark.spec("SYNC-03-001")
     def test_ignores_reject_with_no_entry(self, dl):
         """Reject with no object_ is safely ignored."""
-        from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
         from vultron.core.models.events.base import MessageSemantics
+        from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 
         event = RejectLogEntryReceivedEvent(
             semantic_type=MessageSemantics.REJECT_CASE_LEDGER_ENTRY,

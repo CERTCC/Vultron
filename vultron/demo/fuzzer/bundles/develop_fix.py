@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import py_trees
 
-from vultron.core.behaviors.call_out.bundles.develop_fix import (  # noqa: F401
+from vultron.core.behaviors.call_out.bundles.develop_fix import (
     DEVELOP_FIX_DETERMINISTIC,
     DevelopFixCallOutBundle,
 )

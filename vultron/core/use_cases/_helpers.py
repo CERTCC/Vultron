@@ -17,17 +17,17 @@ from vultron.core.models.participant_status import (
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import (
-    CasePersistence,
     CaseOutboxPersistence,
+    CasePersistence,
 )
+from vultron.core.predicates.addressing import is_addressed_to
 from vultron.core.states.participant_embargo_consent import (
     PEC,
     PEC_Trigger,
 )
 from vultron.core.states.rm import RM
-from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.predicates.addressing import is_addressed_to
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)

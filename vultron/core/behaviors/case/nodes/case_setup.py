@@ -68,14 +68,13 @@ class PersistCase(DataLayerActionWithPorts):
         try:
             self.datalayer.save(self.case_obj)
             self.logger.info(
-                f"{self.name}: Persisted VulnerabilityCase"
-                f" {self.case_obj.id_}"
+                f"{self.name}: Persisted VulnerabilityCase {self.case_obj.id_}"
             )
             self._set_output("case_id", self.case_obj.id_)
             return Status.SUCCESS
 
-        except Exception as e:
-            self.logger.error(f"{self.name}: Error persisting case: {e}")
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(f"{self.name}: Error persisting case: {e}")  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 

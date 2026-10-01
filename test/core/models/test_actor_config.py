@@ -26,8 +26,8 @@ Spec coverage:
 
 from datetime import timedelta
 
-import yaml
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from vultron.config.actor import ActorConfig
@@ -150,7 +150,7 @@ def test_actor_config_does_not_mutate_between_uses():
     config = ActorConfig(default_case_roles=[CVDRole.VENDOR])
     roles_before = list(config.default_case_roles)
     # Simulate a second use: build effective roles list
-    _ = list(dict.fromkeys(config.default_case_roles + [CVDRole.CASE_OWNER]))
+    _ = list(dict.fromkeys([*config.default_case_roles, CVDRole.CASE_OWNER]))
     assert config.default_case_roles == roles_before
 
 

@@ -117,9 +117,9 @@ def test_handle_outbox_item_refuses_a_bare_object_for_inline_types(
     assert exc_info.value.activity_type == activity_type
     mock_emitter.emit.assert_not_called()
     read_ids = [call.args[0] for call in mock_dl.read.call_args_list]
-    assert read_ids == [
-        sealed.id_
-    ], "the handler must not expand from the store"
+    assert read_ids == [sealed.id_], (
+        "the handler must not expand from the store"
+    )
 
 
 @pytest.mark.spec("MV-09-002")
@@ -216,9 +216,9 @@ def test_handle_outbox_item_warns_when_non_standard_addr_field_present(
     with caplog.at_level("WARNING"):
         _deliver(sealed, mock_emitter)
 
-    assert any(
-        addr_field in r.message for r in caplog.records
-    ), f"Expected WARNING mentioning '{addr_field}'"
+    assert any(addr_field in r.message for r in caplog.records), (
+        f"Expected WARNING mentioning '{addr_field}'"
+    )
     mock_emitter.emit.assert_called_once()
     _, _, recipients = mock_emitter.emit.call_args[0]
     assert recipients == [RECIPIENT, other]

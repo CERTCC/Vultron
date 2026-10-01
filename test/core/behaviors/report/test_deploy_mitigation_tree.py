@@ -23,12 +23,11 @@ Covers all acceptance criteria from issue #1954:
 - AC-5: Integration — early-exit, stay-deferred, full-deploy arm, falls-through-to-monitor
 """
 
-from test.core.behaviors.bt_harness import BTTestScenario
-
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.deploy_mitigation import (
     DEPLOY_MITIGATION_DETERMINISTIC,
@@ -46,10 +45,10 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     CheckNoNewDeploymentInfoNode,
     RMinStateDeferred,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -376,7 +375,7 @@ def test_early_exit_when_mitigation_already_deployed(
     must not run.
     """
     bundle = DeployMitigationCallOutBundle(
-        mitigation_deployed_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
+        mitigation_deployed_factory=AlwaysSucceed,  # type: ignore[arg-type]
     )
     tree = create_deploy_mitigation_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle
@@ -444,9 +443,9 @@ def test_deploy_arm_completes_when_mitigation_succeeds(
     # Pin all three deploy-arm call-outs explicitly so the test is independent
     # of future changes to the DETERMINISTIC defaults.
     bundle = DeployMitigationCallOutBundle(
-        mitigation_available_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
-        prioritize_deployment_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
-        deploy_mitigation_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
+        mitigation_available_factory=AlwaysSucceed,  # type: ignore[arg-type]
+        prioritize_deployment_factory=AlwaysSucceed,  # type: ignore[arg-type]
+        deploy_mitigation_factory=AlwaysSucceed,  # type: ignore[arg-type]
     )
     tree = create_deploy_mitigation_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle
@@ -468,7 +467,7 @@ def test_deploy_arm_falls_through_to_monitor_when_deploy_mitigation_fails(
     _seed_rm_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.ACCEPTED)
 
     bundle = DeployMitigationCallOutBundle(
-        mitigation_available_factory=lambda n: AlwaysFail(n),  # type: ignore[arg-type]
+        mitigation_available_factory=AlwaysFail,  # type: ignore[arg-type]
     )
     tree = create_deploy_mitigation_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle

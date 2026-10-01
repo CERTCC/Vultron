@@ -32,16 +32,16 @@ The tree runs four steps in sequence:
    ``Add(ParticipantStatus)`` activity, and queue it.
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.participant import (
-    CreateParticipantStatusNode,
-)
 from vultron.core.behaviors.case.nodes.on_behalf_guards import (
     CheckOnBehalfAuthorizedNode,
     EnsureOnBehalfParticipantExistsNode,
+)
+from vultron.core.behaviors.case.nodes.participant import (
+    CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckSomeVendorAtVFNode,

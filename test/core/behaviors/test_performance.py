@@ -30,22 +30,22 @@ import py_trees.behaviour
 import pytest
 from py_trees.common import Status
 
+from test.support.participant_status import advance_participant_rm
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.activity import (
     VultronAccept,
     VultronOffer,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from test.support.participant_status import advance_participant_rm
 
 logger = logging.getLogger(__name__)
 

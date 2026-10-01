@@ -41,22 +41,15 @@ When run as a script, this module will:
 """
 
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
+from vultron.core.models.dimensions import (
+    PecDimension,
+    RmDimension,
 )
-from vultron.enums.roles import CVDRole
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
 from vultron.core.states.rm import RM
+from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -67,9 +60,10 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     logfmt,
     post_to_inbox_and_wait,
     ref_id,
-    verify_object_stored,
     setup_demo_logging,
+    verify_object_stored,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
     add_report_to_case_activity,
@@ -84,11 +78,16 @@ from vultron.wire.as2.factories import (
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
-
-from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.core.models.dimensions import (
-    PecDimension,
-    RmDimension,
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+)
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
 )
 
 logger = logging.getLogger(__name__)
@@ -390,7 +389,7 @@ def demo_manage_participants_reject(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     (
         "Demo: Manage Participants — Accept + Status + Remove Path",
         demo_manage_participants_accept,
@@ -404,7 +403,7 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ) -> None:
     """Main entry point for the manage participants demo demo script."""
     run_exchange_demos(

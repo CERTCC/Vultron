@@ -14,11 +14,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
-from vultron.core.scoring.explanations import Explanation
-from vultron.core.scoring.utils import unique_enum_list
 from vultron.core.case_states.patterns.base import compile_patterns
 from vultron.core.case_states.validations import ensure_valid_pattern
+from vultron.core.scoring.explanations import Explanation
+from vultron.core.scoring.utils import unique_enum_list
 
 _EXPLANATION_PATTERNS = {
     "v.....": (Explanation.VENDOR_IS_UNAWARE_OF_VULNERABILITY,),

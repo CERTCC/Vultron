@@ -35,11 +35,11 @@ from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
     CheckCsHistoryPrefixNode,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.states.cs import CS_pxa
-from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.core.models.dimensions import (
     PxaDimension,
 )
+from vultron.core.states.cs import CS_pxa
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/inv-guards-01"

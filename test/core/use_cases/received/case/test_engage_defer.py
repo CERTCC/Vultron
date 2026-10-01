@@ -20,16 +20,17 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
 )
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
@@ -119,6 +120,7 @@ class TestEngageDeferCaseBTFailureReason:
                 dl,
                 event,
                 trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         # HP-01-003: an actor with no participant record is refused.
@@ -152,6 +154,7 @@ class TestEngageDeferCaseBTFailureReason:
                 dl,
                 event,
                 trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         # HP-01-003: an actor with no participant record is refused.
@@ -229,6 +232,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
             dl,
             engage_event_with_inline_case,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         stored = dl.read(self._PARTICIPANT_ID)
@@ -258,6 +262,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
             dl,
             event,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         stored = dl.read(self._PARTICIPANT_ID)
@@ -383,6 +388,7 @@ class TestEngageCaseLedgerCommit:
             seeded_dl,
             self._engage_event(),
             trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = seeded_dl.list_objects("CaseLedgerEntry")
@@ -407,6 +413,7 @@ class TestEngageCaseLedgerCommit:
             seeded_dl,
             self._engage_event(),
             trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         announces = self._queued_announces(seeded_dl)
@@ -432,6 +439,7 @@ class TestEngageCaseLedgerCommit:
             dl,
             event,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert self._queued_announces(dl) == []
@@ -452,6 +460,7 @@ class TestEngageCaseLedgerCommit:
             seeded_dl,
             event,
             trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert [
@@ -468,6 +477,7 @@ class TestEngageCaseLedgerCommit:
             seeded_dl,
             self._engage_event(),
             trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
@@ -570,6 +580,7 @@ class TestDeferCaseLedgerCommit:
             seeded_dl,
             event,
             trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert [
@@ -592,6 +603,7 @@ class TestDeferCaseLedgerCommit:
             seeded_dl,
             self._defer_event(),
             trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = seeded_dl.list_objects("CaseLedgerEntry")
@@ -611,6 +623,7 @@ class TestDeferCaseLedgerCommit:
             seeded_dl,
             self._defer_event(),
             trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
@@ -665,9 +678,9 @@ class TestRegistrySuppliesTheTriggeringActivity:
         event = extract_event(activity)
 
         assert event.semantic_type == expected_semantics
-        assert (
-            event.activity is not None
-        ), f"{factory_name}: registry did not carry the triggering activity"
+        assert event.activity is not None, (
+            f"{factory_name}: registry did not carry the triggering activity"
+        )
         # The snapshot built from it needs both of these; the event itself has
         # neither, which is why the missing activity aborted the commit.
         assert event.activity.type_

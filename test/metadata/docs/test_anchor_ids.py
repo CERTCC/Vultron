@@ -90,6 +90,6 @@ class TestOnPageContent:
 def test_hook_is_registered_in_mkdocs_yml():
     """The hook only runs if ``mkdocs.yml`` names it under ``hooks:``."""
     hooks = cast(list[str], mkdocs_config().get("hooks") or [])
-    assert (
-        _HOOK_PATH in hooks
-    ), f"{_HOOK_PATH} is not under hooks: in mkdocs.yml"
+    assert _HOOK_PATH in hooks, (
+        f"{_HOOK_PATH} is not under hooks: in mkdocs.yml"
+    )

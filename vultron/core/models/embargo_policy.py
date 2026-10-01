@@ -51,7 +51,7 @@ def parse_duration(value: Any) -> timedelta | None:
             # are bad input and become a clean ValueError (→ 422), not a 500.
             raise ValueError(f"Invalid ISO 8601 duration: {value!r}") from exc
         if not isinstance(parsed, timedelta):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
                 f"Duration must not include years or months (calendar units"
                 f" are not allowed): {value!r}"
             )

@@ -14,6 +14,7 @@
 """Unit tests for TriggerActivityAdapter report-domain methods."""
 
 import json
+
 import pytest
 
 from vultron.core.models.offer_record import VultronOfferRecord
@@ -98,7 +99,7 @@ class TestSubmitReport:
 
         def failing_create(obj):
             if isinstance(obj, VultronOfferRecord):
-                raise RuntimeError("simulated DB failure")
+                raise RuntimeError("simulated DB failure")  # noqa: TRY004  # ruff-baseline #3353
             return original_create(obj)
 
         dl.create = failing_create
@@ -114,9 +115,9 @@ class TestSubmitReport:
         # The Offer activity must have been rolled back — list_objects("Offer")
         # should return no entries after the compensating delete.
         activities = list(dl.list_objects("Offer"))
-        assert (
-            len(activities) == 0
-        ), "Offer activity should have been deleted by compensating rollback"
+        assert len(activities) == 0, (
+            "Offer activity should have been deleted by compensating rollback"
+        )
 
     def test_no_compensating_delete_on_duplicate_offer_record(
         self, adapter, dl
@@ -164,7 +165,7 @@ class TestSubmitReport:
 
         def failing_create(obj):
             if isinstance(obj, VultronOfferRecord):
-                raise RuntimeError("simulated DB failure")
+                raise RuntimeError("simulated DB failure")  # noqa: TRY004  # ruff-baseline #3353
             return original_create(obj)
 
         def failing_delete(table, id_):

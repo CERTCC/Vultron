@@ -17,7 +17,7 @@
 
 Covers all four report-lifecycle BTs (issue #759 AC-1 through AC-5):
   - ``CreateReportReceivedBT``    — stores report + activity
-  - ``AckReportReceivedBT``      — stores activity
+  - ``AckReportReceivedBT``      — intake archives activity; forwards own ack
   - ``CloseReportReceivedBT``    — stores activity + RM → CLOSED
   - ``InvalidateReportReceivedBT`` — stores activity + RM → INVALID
 
@@ -42,10 +42,12 @@ from vultron.core.behaviors.report.nodes.storage import (
 from vultron.core.behaviors.report.received_report_trees import (
     create_ack_report_received_tree,
     create_close_report_received_tree,
-    create_report_received_tree,
     create_invalidate_report_received_tree,
+    create_report_received_tree,
 )
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
@@ -53,8 +55,6 @@ from vultron.core.models.events.report import (
     CreateReportReceivedEvent,
     InvalidateReportReceivedEvent,
 )
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport as CoreReport
 from vultron.core.states.rm import RM
@@ -83,6 +83,16 @@ PARTICIPANT_ID = "https://example.org/participants/p-bt-01"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _archived_by_intake(dl: SqliteDataLayer, activity_id: str) -> bool:
+    """True when intake archived *activity_id* under the receiver's key."""
+    from vultron.core.models.received_activity_record import (
+        ReceivedActivityRecord,
+    )
+
+    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
+    return isinstance(record, ReceivedActivityRecord)
 
 
 def _activity_stored(dl: SqliteDataLayer, activity_id: str) -> bool:
@@ -542,8 +552,8 @@ class TestCreateReportReceivedUseCase:
 
 
 class TestAckReportReceivedTree:
-    def test_happy_path_stores_activity(self, dl):
-        """Full BT stores AckReport activity → SUCCESS."""
+    def test_happy_path_archives_activity(self, dl):
+        """Full BT archives the AckReport activity via intake → SUCCESS."""
         event = _make_ack_report_event()
         tree = create_ack_report_received_tree(event)
         bridge = BTBridge(datalayer=dl)
@@ -552,7 +562,7 @@ class TestAckReportReceivedTree:
         )
 
         assert result.status == Status.SUCCESS
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_does_not_create_participant_status(self, dl):
         """AckReportReceivedBT must NOT create standalone ParticipantStatus."""
@@ -580,8 +590,8 @@ class TestAckReportReceivedTree:
 
 
 class TestAckReportReceivedUseCase:
-    def test_use_case_stores_activity(self):
-        """Use case delegates to BT; activity is persisted."""
+    def test_use_case_archives_activity(self):
+        """Use case delegates to BT; intake archives the activity."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=ACTOR_ID,
@@ -589,7 +599,7 @@ class TestAckReportReceivedUseCase:
         event = _make_ack_report_event()
         AckReportReceivedUseCase(dl, event).execute()
 
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_use_case_does_not_create_participant_status(self):
         """Use case must NOT create standalone ParticipantStatus records."""

@@ -18,6 +18,7 @@ related_notes:
   - notes/specs-vs-adrs.md
   - notes/behavioral-conformance-specs.md
   - notes/testing-pitfalls.md
+  - notes/architecture-ratchet-corpus.md
 ---
 
 # Spec Authoring Rules — Field Values, Lint Traps, and Coverage Gates
@@ -436,8 +437,12 @@ prefix a trigger spec once used; `trigger_embargo.py` had 52 `TB-` and zero
 **How to apply:**
 
 - `TB` (Testability) requirements govern tests. No module under `vultron/` may
-  cite one in an `Implements:` docstring; the ratchet that enforces this is
-  topic-scoped, not resolution-scoped.
+  cite one in an `Implements:` docstring; the ratchet that enforces this
+  (`test/architecture/test_implements_citations_topic_scoped.py`, SR-04-011, #3829) is
+  topic-scoped, not resolution-scoped — it fails on any `TB-NN-NNN` token
+  under `vultron/` by file and line, and separately checks that every
+  `Implements:` ID under the FastAPI routers resolves in the registry, so a
+  typo'd `TRIG` ID cannot replace a wrong `TB` one.
 - Repointing is per-file judgment, not a prefix swap. `TRIG-02` splits by
   domain (`-001` report, `-002` embargo, `-004` case, `-005` participant,
   `-006` demo-only), so a blind `TB-02-001` → `TRIG-02-001` mints fresh

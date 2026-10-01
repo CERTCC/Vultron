@@ -26,7 +26,6 @@ from fastapi import HTTPException
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _activity_addressed_to,
     _collect_addresses,
-    _get_body,
     _names_an_individual_actor,
     parse_activity,
 )
@@ -77,16 +76,6 @@ def test_parse_activity_raises_422_for_unknown_type():
             {"type": "NonExistentActivityType", "actor": _ACTOR_URI}
         )
     assert exc_info.value.status_code == 422
-
-
-# ---------------------------------------------------------------------------
-# _get_body
-# ---------------------------------------------------------------------------
-
-
-def test_get_body_returns_dict_unchanged():
-    body = {"type": "Create", "actor": _ACTOR_URI}
-    assert _get_body(body) is body
 
 
 # ---------------------------------------------------------------------------

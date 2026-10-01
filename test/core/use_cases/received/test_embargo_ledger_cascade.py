@@ -15,6 +15,8 @@
 from typing import cast
 
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
@@ -31,7 +33,6 @@ from vultron.wire.as2.factories import (
     em_reject_embargo_activity,
     remove_embargo_from_case_activity,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -46,7 +47,7 @@ class TestEmbargoLogEntryCascade:
         """AddEmbargoEventToCaseReceivedUseCase commits a CaseLedgerEntry."""
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_add"
-        dl, case_actor, case, embargo = make_embargo_case_with_actor(
+        dl, _case_actor, case, embargo = make_embargo_case_with_actor(
             case_id, author_id, case_manager_actor_id=author_id
         )
         case_read = cast(VulnerabilityCase, dl.read(case.id_))
@@ -61,7 +62,10 @@ class TestEmbargoLogEntryCascade:
         event = make_payload(activity, receiving_actor_id=author_id)
         sync_port = SyncActivityAdapter(dl)
         AddEmbargoEventToCaseReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
@@ -84,7 +88,7 @@ class TestEmbargoLogEntryCascade:
 
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_rem"
-        dl, case_actor, case, embargo = make_embargo_case_with_actor(
+        dl, _case_actor, case, embargo = make_embargo_case_with_actor(
             case_id, author_id, case_manager_actor_id=author_id
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
@@ -100,7 +104,10 @@ class TestEmbargoLogEntryCascade:
         event = make_payload(activity, receiving_actor_id=author_id)
         sync_port = SyncActivityAdapter(dl)
         RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
@@ -130,7 +137,7 @@ class TestEmbargoLogEntryCascade:
 
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_rem_fail"
-        dl, case_actor, case, embargo = make_embargo_case_with_actor(
+        dl, _case_actor, case, embargo = make_embargo_case_with_actor(
             case_id, author_id, case_manager_actor_id=author_id
         )
         # EM.NONE: no active embargo — BT will FAIL (IsActiveEmbargoNode)
@@ -145,7 +152,10 @@ class TestEmbargoLogEntryCascade:
         event = make_payload(activity, receiving_actor_id=author_id)
         sync_port = SyncActivityAdapter(dl)
         RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
@@ -172,7 +182,7 @@ class TestEmbargoLogEntryCascade:
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_invite"
         invitee_id = "https://example.org/users/vendor"
-        dl, case_actor, case, embargo = make_embargo_case_with_actor(
+        dl, _case_actor, _case, embargo = make_embargo_case_with_actor(
             case_id,
             author_id,
             extra_participants=[invitee_id],
@@ -191,7 +201,10 @@ class TestEmbargoLogEntryCascade:
         event = make_payload(proposal, receiving_actor_id=invitee_id)
         sync_port = SyncActivityAdapter(dl)
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # No canonical ledger entry should be committed on the invitee side.
@@ -211,7 +224,7 @@ class TestEmbargoLogEntryCascade:
         coordinator_id = "https://example.org/users/coordinator"
         case_id = "https://example.org/cases/em_cas_accept"
         vendor_id = "https://example.org/users/vendor"
-        dl, case_actor, case, embargo = make_embargo_case_with_actor(
+        dl, _case_actor, case, embargo = make_embargo_case_with_actor(
             case_id,
             coordinator_id,
             extra_participants=[vendor_id],
@@ -245,7 +258,10 @@ class TestEmbargoLogEntryCascade:
         event = make_payload(accept, receiving_actor_id=coordinator_id)
         sync_port = SyncActivityAdapter(dl)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
@@ -264,7 +280,7 @@ class TestEmbargoLogEntryCascade:
         coordinator_id = "https://example.org/users/coordinator"
         case_id = "https://example.org/cases/em_cas_reject"
         vendor_id = "https://example.org/users/vendor"
-        dl, case_actor, case, embargo = make_embargo_case_with_actor(
+        dl, _case_actor, _case, embargo = make_embargo_case_with_actor(
             case_id,
             coordinator_id,
             extra_participants=[vendor_id],
@@ -278,6 +294,10 @@ class TestEmbargoLogEntryCascade:
             id_=f"{case_id}/embargo_proposals/1",
         )
         dl.create(proposal)
+        # The Reject names an open proposal of the case.
+        case_obj = cast(VulnerabilityCase, dl.read(case_id))
+        case_obj.proposed_embargoes = [embargo.id_]
+        dl.save(case_obj)
 
         # The vendor rejects; the CASE_MANAGER receives and commits.  See the
         # accept test above for why the asserter must not be the committer.
@@ -291,7 +311,10 @@ class TestEmbargoLogEntryCascade:
         event = make_payload(reject, receiving_actor_id=coordinator_id)
         sync_port = SyncActivityAdapter(dl)
         RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [

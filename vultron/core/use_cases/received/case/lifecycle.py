@@ -10,6 +10,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.receive_close_case_tree import (
     create_close_case_received_tree,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
     CloseCaseReceivedEvent,
@@ -22,7 +23,6 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     find_named,
@@ -39,9 +39,13 @@ logger = logging.getLogger(__name__)
 
 class AddReportToCaseReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: AddReportToCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: AddReportToCaseReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AddReportToCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -168,8 +172,8 @@ def _close_arm(
 ) -> py_trees.behaviour.Behaviour | None:
     """The close arm, whose failure names why a non-declined close failed.
 
-    The root Selector tries the decline arm last, so on a plain failure the
-    decline arm's "not declining" guard is the last failed child; the cause is
-    in the close arm (BT-13-001).
+    The ``CloseOrDecline`` Selector tries the decline arm last, so on a plain
+    failure the decline arm's "not declining" guard is the last failed child;
+    the cause is in the close arm (BT-13-001).
     """
-    return find_named(tree, "ReceiveAndCloseUnlessDeclined")
+    return find_named(tree, "CloseCaseReceive")

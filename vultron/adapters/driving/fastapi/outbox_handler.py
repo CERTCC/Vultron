@@ -56,14 +56,6 @@ from vultron.adapters.driven.http_delivery import (
     DeliveryError,
     HttpDeliveryAdapter,
 )
-from vultron.adapters.driving.fastapi.outbox_lanes import (
-    BatchInterrupted,
-    RowOutcome,
-    StallOrder,
-    deliver_batch,
-    lane_keys,
-)
-from vultron.adapters.outbox_dead_letter import OutboxRetryStore
 
 # ---------------------------------------------------------------------------
 # Re-exports from outbox_addressing (keep in this namespace for compat)
@@ -79,6 +71,14 @@ from vultron.adapters.driving.fastapi.outbox_delivery import (
     _validate_to_field,
     _warn_secondary_addressing,
 )
+from vultron.adapters.driving.fastapi.outbox_lanes import (
+    BatchInterrupted,
+    RowOutcome,
+    StallOrder,
+    deliver_batch,
+    lane_keys,
+)
+from vultron.adapters.outbox_dead_letter import OutboxRetryStore
 from vultron.adapters.outbox_sealed_body import (
     parse_sealed_body,
     read_sealed_body_dict,
@@ -116,7 +116,7 @@ def _resolve_ledger_entry_id(activity_id: str, dl: DataLayer) -> str | None:
     """
     try:
         body = read_sealed_body_dict(dl, activity_id)
-    except Exception:
+    except Exception:  # noqa: BLE001  # ruff-baseline #3326
         return None
     if body is None:
         return None
@@ -133,7 +133,7 @@ def configure_default_emitter(emitter: ActivityEmitter) -> None:
     Called once during app lifespan to install the ``HttpDeliveryAdapter``
     (ADR-0042) so all inter-actor deliveries use the uniform HTTP path.
     """
-    global _default_emitter  # noqa: PLW0603
+    global _default_emitter  # noqa: PLW0603  # ruff-baseline #3985
     _default_emitter = emitter
 
 
@@ -406,11 +406,11 @@ async def _deliver_row(
                 return_now = _bookkeep_failure(
                     actor_id, activity_id, dl, retry, err_counts, e
                 )
-            except Exception as bookkeeping_error:  # noqa: BLE001
+            except Exception as bookkeeping_error:  # noqa: BLE001  # ruff-baseline #3326
                 # The retry store itself failed.  The row is not lost — the
                 # caller re-queues a stalled row — but nothing more can be
                 # learned about it this pass (OX-13-011).
-                logger.error(
+                logger.error(  # noqa: TRY400  # ruff-baseline #3353
                     "Outbox retry bookkeeping failed for '%s' (actor '%s'):"
                     " %s; stalling the row for this pass",
                     activity_id,
@@ -422,7 +422,8 @@ async def _deliver_row(
                 return return_now
             per_err = err_counts[activity_id]
             # Back off before retrying to avoid hammering a busy recipient.
-            backoff = (2 ** (per_err - 1)) + random.uniform(0, 0.5)
+            # Retry jitter, not a secret: a PRNG is the correct tool.
+            backoff = (2 ** (per_err - 1)) + random.uniform(0, 0.5)  # noqa: S311
             await asyncio.sleep(backoff)
 
 

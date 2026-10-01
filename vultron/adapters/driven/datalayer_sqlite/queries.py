@@ -298,11 +298,13 @@ def find_case_by_report_id(
         Reconstituted ``VulnerabilityCase``, or ``None`` if not found.
     """
     report_link = dl.read(VultronReportCaseLink.build_id(report_id))
-    if isinstance(report_link, VultronReportCaseLink):
-        if report_link.case_id is not None:
-            linked_case = dl.read(report_link.case_id)
-            if isinstance(linked_case, VulnerabilityCase):
-                return linked_case
+    if (
+        isinstance(report_link, VultronReportCaseLink)
+        and report_link.case_id is not None
+    ):
+        linked_case = dl.read(report_link.case_id)
+        if isinstance(linked_case, VulnerabilityCase):
+            return linked_case
 
     with dl._session() as session:
         rows = session.exec(

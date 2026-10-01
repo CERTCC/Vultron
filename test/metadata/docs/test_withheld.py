@@ -304,9 +304,9 @@ def _mkdocs_draft_docs_block() -> str:
     text = (REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8")
     _, _, after = text.partition("\ndraft_docs:")
     block, _, _ = after.partition("\ntheme:")
-    assert (
-        "ns/" in block
-    ), "ns/ is no longer a draft_docs pattern — retire this test"
+    assert "ns/" in block, (
+        "ns/ is no longer a draft_docs pattern — retire this test"
+    )
     return block
 
 
@@ -352,6 +352,6 @@ def test_mkdocs_and_note_state_the_same_unblock_condition():
         "with #3653 — the decision moved; update this test to follow it"
     )
     for text, where in ((block, "mkdocs.yml"), (section, "note § 4a")):
-        assert (
-            "provisional" not in text.lower()
-        ), f"{where} still gates ns/ on ADR-0099 being provisional"
+        assert "provisional" not in text.lower(), (
+            f"{where} still gates ns/ on ADR-0099 being provisional"
+        )

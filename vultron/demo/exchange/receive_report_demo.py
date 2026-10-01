@@ -51,10 +51,37 @@ The BT logs will show tree structure before execution and final state after comp
 # Standard library imports
 import json
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
+from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.verification import (
+    verify_activity_in_inbox,
+)
+from vultron.demo.helpers.workflow import find_case_by_report_id
+from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
+    BASE_URL,
+    DataLayerClient,
+    case_actor_id_for_report,
+    check_server_availability,  # imported by test_health_check_retry
+    demo_check,
+    demo_step,
+    get_offer_from_datalayer,
+    logfmt,
+    post_to_inbox_and_wait,
+    postfmt,
+    seed_case_actor_for_report,
+    setup_demo_logging,
+    verify_object_stored,
+)
+from vultron.wire.as2.factories import (
+    create_case_activity,
+    rm_close_report_activity,
+    rm_invalidate_report_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -63,33 +90,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
-)
-from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.verification import (
-    verify_activity_in_inbox,
-)  # noqa: F401
-from vultron.demo.utils import case_actor_id_for_report
-from vultron.demo.helpers.workflow import find_case_by_report_id
-from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
-    BASE_URL,
-    DataLayerClient,
-    check_server_availability,  # noqa: F401 — imported by test_health_check_retry
-    demo_check,
-    demo_step,
-    get_offer_from_datalayer,
-    logfmt,
-    post_to_inbox_and_wait,
-    seed_case_actor_for_report,
-    postfmt,
-    verify_object_stored,
-    setup_demo_logging,
-)
-from vultron.wire.as2.factories import (
-    create_case_activity,
-    rm_close_report_activity,
-    rm_invalidate_report_activity,
-    rm_submit_report_activity,
-    rm_validate_report_activity,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,7 +119,7 @@ def submit_to_inbox(
 
 def find_case_by_report(
     client: DataLayerClient, report_id: str
-) -> Optional[as_VulnerabilityCase]:
+) -> as_VulnerabilityCase | None:
     """Find the ``as_VulnerabilityCase`` that references *report_id*.
 
     Public name kept for backward compatibility — imported by
@@ -144,7 +144,7 @@ def demo_validate_report(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates the workflow where a vendor validates a report and creates a case.
@@ -231,7 +231,7 @@ def demo_invalidate_report(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates the workflow where a vendor invalidates a report.
@@ -319,7 +319,7 @@ def demo_invalidate_and_close_report(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates the workflow where a vendor invalidates a report and closes it.
@@ -428,7 +428,7 @@ def demo_invalidate_and_close_report(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     ("Demo 1: Validate Report", demo_validate_report),
     ("Demo 2: Invalidate Report", demo_invalidate_report),
     ("Demo 3: Invalidate and Close Report", demo_invalidate_and_close_report),
@@ -437,7 +437,7 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ):
     """Main entry point for the receive_report demo script."""
     run_exchange_demos(

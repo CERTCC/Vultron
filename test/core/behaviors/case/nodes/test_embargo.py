@@ -19,13 +19,14 @@ Unit tests for InitializeDefaultEmbargoNode.
 Per specs/case-management.yaml CM-02, OX-03-001, CM-14-003.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
 )
@@ -42,16 +43,15 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
 from vultron.core.behaviors.case.nodes.embargo_revision import (
     RegisterLongerProposalAsRevisionNode,
 )
-from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.behaviors.case.nodes.participant import (
     CreateCaseOwnerParticipant,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from test.core.behaviors.bt_harness import BTTestScenario
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -235,7 +235,7 @@ class TestInitializeDefaultEmbargoNode:
     ) -> None:
         calls: list[tuple[str, str, str, str]] = []
         embargo = EmbargoEvent(
-            end_time=datetime.now(tz=timezone.utc) + timedelta(days=1),
+            end_time=datetime.now(tz=UTC) + timedelta(days=1),
             context=case_obj.id_,
         )
         bt_scenario.dl.create(embargo)
@@ -321,7 +321,7 @@ class TestAttachEmbargoToCaseNodeAC1:
         from vultron.errors import VultronInvalidStateTransitionError
 
         embargo = EmbargoEvent(
-            end_time=datetime.now(tz=timezone.utc) + timedelta(days=1),
+            end_time=datetime.now(tz=UTC) + timedelta(days=1),
             context=case_obj.id_,
         )
         bt_scenario.dl.create(embargo)

@@ -40,9 +40,9 @@ import logging
 from typing import TYPE_CHECKING, Any, cast, overload
 
 import py_trees
-from pydantic import BaseModel
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
+from pydantic import BaseModel
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -50,12 +50,12 @@ from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
 from vultron.core.ports.case_persistence import (
-    CasePersistence,
     CaseOutboxPersistence,
+    CasePersistence,
 )
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.states.rm import RM
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronValidationError, VultronWiringError
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -68,11 +68,20 @@ logger = logging.getLogger(__name__)
 DATALAYER_UNAVAILABLE = "DataLayer not available"
 DATALAYER_OR_ACTOR_UNAVAILABLE = "DataLayer or actor_id not available"
 TRIGGER_FACTORY_UNAVAILABLE = "trigger_activity_factory not available"
+WIRE_RENDER_PORT_UNAVAILABLE = (
+    "wire_render_port not available; core cannot render the AS2 shape itself"
+    " (ARCH-20-001)"
+)
+# The received event was not placed on the blackboard (``activity=`` omitted
+# from ``execute_with_setup``): the intake node cannot record what arrived.
+ACTIVITY_UNAVAILABLE = "received activity not available"
 WIRING_UNAVAILABLE_MESSAGES = frozenset(
     {
         DATALAYER_UNAVAILABLE,
         DATALAYER_OR_ACTOR_UNAVAILABLE,
         TRIGGER_FACTORY_UNAVAILABLE,
+        WIRE_RENDER_PORT_UNAVAILABLE,
+        ACTIVITY_UNAVAILABLE,
     }
 )
 
@@ -134,7 +143,7 @@ def read_rm_states(
             "Non-canonical ParticipantStatus shape for participant"
             f" '{participant_id}': {exc}"
         )
-        node.logger.error(f"{node.name}: {node.feedback_message}")
+        node.logger.error(f"{node.name}: {node.feedback_message}")  # noqa: TRY400  # ruff-baseline #3353
         return None
 
 
@@ -280,7 +289,7 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
         )
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
-        self.wire_render_port: "WireRenderPort | None" = None
+        self.wire_render_port: WireRenderPort | None = None
 
     def setup(self, **kwargs: Any) -> None:
         """Set up blackboard access for DataLayer and actor_id."""
@@ -384,8 +393,8 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         )
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
-        self.trigger_activity_factory: "TriggerActivityPort | None" = None
-        self.wire_render_port: "WireRenderPort | None" = None
+        self.trigger_activity_factory: TriggerActivityPort | None = None
+        self.wire_render_port: WireRenderPort | None = None
 
     def setup(self, **kwargs: Any) -> None:
         """Set up blackboard access for DataLayer, actor_id, and trigger_activity_factory."""
@@ -595,8 +604,8 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
     """Base class for typed-Ports BT action nodes with DataLayer access.
 
     Declares ``datalayer``, ``actor_id``, and optionally
-    ``trigger_activity_factory`` as input ports, remapped to BTBridge flat
-    keys.  Subclasses extend ``INPUT_PORTS`` / ``OUTPUT_PORTS`` (e.g.
+    ``trigger_activity_factory`` and ``wire_render_port`` as input ports,
+    remapped to BTBridge flat keys.  Subclasses extend ``INPUT_PORTS`` / ``OUTPUT_PORTS`` (e.g.
     ``{**DataLayerActionWithPorts.INPUT_PORTS, ...}``) and implement
     ``update()``.
 
@@ -612,7 +621,8 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         )
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
-        self.trigger_activity_factory: "TriggerActivityPort | None" = None
+        self.trigger_activity_factory: TriggerActivityPort | None = None
+        self.wire_render_port: WireRenderPort | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         "datalayer": PortInformation(data_type=object, required=True),
@@ -620,6 +630,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         "trigger_activity_factory": PortInformation(
             data_type=object, required=False
         ),
+        "wire_render_port": PortInformation(data_type=object, required=False),
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {}
@@ -650,6 +661,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
                 "datalayer": _DL_KEY,
                 "actor_id": _ACTOR_KEY,
                 "trigger_activity_factory": "/trigger_activity_factory",
+                "wire_render_port": "/wire_render_port",
                 **self._domain_port_remappings(),
                 **self._instance_port_remappings(),
             }
@@ -670,6 +682,10 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
             )
         except (NoDataAvailable, NotImplementedError):
             self.trigger_activity_factory = None
+        try:
+            self.wire_render_port = self.get_input("wire_render_port")
+        except (NoDataAvailable, NotImplementedError):
+            self.wire_render_port = None
 
     def _require_datalayer(self) -> Status | None:
         if self.datalayer is None:
@@ -682,6 +698,20 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
             self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
             return Status.FAILURE
         return None
+
+    def _require_wire_render_port(self) -> "WireRenderPort":
+        """Return the rendering port, or raise if the tree was built without it.
+
+        Core never produces the AS2 shape of an object itself (ARCH-20-001), so
+        a node that needs it has no fallback: a missing port is a composition
+        fault, never the sender's doing.  Raises
+        :class:`~vultron.errors.VultronWiringError`, which ``BTBridge`` reports
+        as an internal error and a received handler re-raises rather than
+        refusing the sender (#2255, ADR-0095).
+        """
+        if self.wire_render_port is None:
+            raise VultronWiringError(WIRE_RENDER_PORT_UNAVAILABLE)
+        return self.wire_render_port
 
     def _require_case(
         self, case_id: "str | None"
@@ -780,9 +810,9 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts):
         try:
             activity_id, activity_blob = self._call_factory()
             self._emit_through_seam(activity_id, activity_blob)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"{self.__class__.__name__} failed: {e}"
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
         self._on_success(activity_id, activity_blob)
         return Status.SUCCESS
@@ -822,8 +852,8 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
             }
         )
 
-    def _participant_actor_id(self, participant: object) -> str:
-        actor_ref = getattr(participant, "attributed_to")
+    def _participant_actor_id(self, participant: CaseParticipant) -> str:
+        actor_ref = participant.attributed_to
         return (
             actor_ref
             if isinstance(actor_ref, str)
@@ -960,8 +990,11 @@ class ReadObject(DataLayerConditionWithPorts):
             name: Optional custom name (defaults to "ReadObject_{table}_{last_segment}")
         """
         # Use last part of ID for blackboard key (URL-safe)
-        self.blackboard_key = f"object_{object_id.split('/')[-1]}"
-        display_name = name or f"ReadObject_{table}_{object_id.split('/')[-1]}"
+        self.blackboard_key = f"object_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        display_name = (
+            name
+            or f"ReadObject_{table}_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        )
         super().__init__(name=display_name)
         self.table = table
         self.object_id = object_id
@@ -1005,11 +1038,11 @@ class ReadObject(DataLayerConditionWithPorts):
             self.logger.debug(self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Error reading {self.table}/{self.object_id}: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1036,8 +1069,10 @@ class UpdateObject(DataLayerActionWithPorts):
             name: Optional custom name (defaults to "UpdateObject_{last_segment}")
         """
         # Use last part of ID for blackboard key (URL-safe)
-        self.blackboard_key = f"object_{object_id.split('/')[-1]}"
-        display_name = name or f"UpdateObject_{object_id.split('/')[-1]}"
+        self.blackboard_key = f"object_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        display_name = (
+            name or f"UpdateObject_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        )
         super().__init__(name=display_name)
         self.object_id = object_id
         self.updates = updates
@@ -1124,9 +1159,9 @@ class UpdateObject(DataLayerActionWithPorts):
             self.logger.info(self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"Error updating {self.object_id}: {e}"
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1195,11 +1230,11 @@ class CreateObject(DataLayerAction):
             self.logger.info(self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Error creating object in {self.table}: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1282,6 +1317,6 @@ class UpdateActorOutbox(DataLayerActionWithPorts):
 
             return Status.SUCCESS
 
-        except Exception as e:
-            self.logger.error(f"{self.name}: Error updating actor outbox: {e}")
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(f"{self.name}: Error updating actor outbox: {e}")  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE

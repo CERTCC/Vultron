@@ -22,19 +22,19 @@ the validation workflow using the nodes from nodes.py.
 Per specs/behavior-tree-integration.yaml BT-06 and testability.yaml requirements.
 """
 
-import pytest
 import py_trees
+import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.case_actor import CaseActor
-from vultron.core.models.activity import VultronOffer
-from vultron.core.models.report import VulnerabilityReport
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
+from vultron.core.models.activity import VultronOffer
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.demo.fuzzer.bundles.validation import ValidationCallOutBundle
 
@@ -167,9 +167,9 @@ def _seed_case_participant(datalayer, case_obj, participant_actor_id, slug):
     ``Create(VulnerabilityCase)`` delivers (CBT-01-002).  Without it
     ``TransitionRMtoValid`` correctly returns FAILURE (ISSUE-2548).
     """
+    from test.support.participant_status import advance_participant_rm
     from vultron.core.models.case_participant import CaseParticipant
     from vultron.enums.roles import CVDRole
-    from test.support.participant_status import advance_participant_rm
 
     participant = CaseParticipant(
         id_=f"{case_obj.id_}/participants/{slug}",
@@ -920,9 +920,9 @@ def test_validate_report_tree_case_has_active_embargo(
 
     case_ids = list(cases.keys())
     case_obj = datalayer.read(case_ids[0])
-    assert isinstance(
-        case_obj, VulnerabilityCase
-    ), "Expected a VulnerabilityCase"
+    assert isinstance(case_obj, VulnerabilityCase), (
+        "Expected a VulnerabilityCase"
+    )
     assert case_obj.active_embargo is not None, (
         "VulnerabilityCase must have active_embargo set so participants "
         "can learn about the embargo from the Create(Case) activity"

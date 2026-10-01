@@ -151,8 +151,7 @@ class ValidateRMTransitionNode(DataLayerConditionWithPorts):
 
         if is_valid_rm_transition(current_rm, new_rm_state):
             self.logger.debug(
-                "ValidateRMTransitionNode: valid adjacent transition"
-                " %s → %s",
+                "ValidateRMTransitionNode: valid adjacent transition %s → %s",
                 current_rm,
                 new_rm_state,
             )

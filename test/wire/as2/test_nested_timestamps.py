@@ -36,8 +36,9 @@ own ``model_fields``, and checks each under its field name, ``alias`` and
 for either branch (ISSUE-3589).
 """
 
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
@@ -173,9 +174,9 @@ def _parsed(obj: dict[str, Any], extra: dict[str, Any]) -> Any:
     activity_type = extra.pop("activity_type", "Create")
     activity = parse_activity(_body(obj, activity_type, **extra))
     nested = getattr(activity, "object_", None)
-    assert nested is not None and not isinstance(
-        nested, str
-    ), f"{obj['type']} was not expanded"
+    assert nested is not None and not isinstance(nested, str), (
+        f"{obj['type']} was not expanded"
+    )
     return nested
 
 
@@ -482,7 +483,7 @@ def test_embargo_without_end_time_is_refused_at_parse():
 def test_inline_object_without_a_type_is_not_stamped_either(spelling: str):
     """An inline object that omits ``type`` is carried as received too.
 
-    ``_inline_vocab_class`` can only pre-resolve a dict that names its ``type``;
+    ``resolve_inline_class`` can only pre-resolve a dict that names its ``type``;
     without one the dict stays raw for the parent field to validate.  Reading
     absences in the parser therefore missed it, and the class the parent chose
     stamped the receiver's clock — which, being the newest value in the list,

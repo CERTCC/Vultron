@@ -28,35 +28,8 @@ import sys
 
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Offer,
-)
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
-
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
-from vultron.enums.roles import CVDRole
-from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
-    BASE_URL,
-    DataLayerClient,
-    assert_demo_success,
-    check_server_availability,
-    demo_check,
-    demo_gate,
-    demo_step,
-    ref_id,
-    reset_datalayer,
-    reset_demo_failures,
-    setup_demo_logging,
-    verify_object_stored,
-)
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
@@ -72,11 +45,10 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
-    drain_phase1_ledger,
+    LATE_JOINER_TIMEOUT,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
     find_cp_offer_for_case,
-    LATE_JOINER_TIMEOUT,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -100,6 +72,32 @@ from vultron.demo.helpers.workflow import (
     run_invite_path_rm_triage,
 )
 from vultron.demo.scenario.registry import scenario
+from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
+    BASE_URL,
+    DataLayerClient,
+    assert_demo_success,
+    check_server_availability,
+    demo_check,
+    demo_gate,
+    demo_step,
+    ref_id,
+    reset_datalayer,
+    reset_demo_failures,
+    setup_demo_logging,
+    verify_object_stored,
+)
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -360,14 +358,18 @@ def _phase_report_submission(
     # queued its ledger fan-out ahead of Create(VulnerabilityCase) and every
     # replica rejected and replayed; that ordering is fixed at the source
     # (CP-09-009, CM-17-009, #2898), so this is now a plain replication check
-    # that also keeps Phase 2's ledger indices deterministic.
-    drain_phase1_ledger(
+    # that also keeps Phase 2's ledger indices deterministic.  It is the same
+    # read-authority-tail-then-poll-each-replica loop as the sync-verification
+    # and closure phases, so it goes through the one shared helper
+    # (DEMOMA-23-005, #3906); each replica wait is a demo_gate inside it.
+    wait_for_replica_ledger_coverage(
         auth_client=vendor_client,
-        case_id=case.id_,
-        replica_pairs=[
+        replicas=[
             (finder_client, "Finder"),
             (coordinator_client, "Coordinator"),
         ],
+        case_id=case.id_,
+        phase_label="Phase 1 drain before Phase 2",
     )
 
     case = as_VulnerabilityCase.model_validate(

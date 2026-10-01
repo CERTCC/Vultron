@@ -26,11 +26,15 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.case.update import (
     UpdateCaseReceivedUseCase,
+)
+from vultron.wire.as2.factories import (
+    update_case_activity,
 )
 from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -38,10 +42,6 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.wire.as2.factories import (
-    update_case_activity,
-)
-from vultron.core.models._helpers import days_from_now_utc
 
 #: The actor receiving these Update(VulnerabilityCase) messages.
 #:

@@ -36,11 +36,12 @@ from pathlib import Path
 # The legacy VULTRON_DB_URL is also cleared to avoid confusion.
 os.environ.setdefault("VULTRON_DATABASE__DB_URL", "sqlite:///:memory:")
 
-import pytest  # noqa: E402
-from vultron.adapters.driven.datalayer_sqlite import (  # noqa: E402
+import pytest
+
+from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
-from vultron.metadata.specs import (  # noqa: E402
+from vultron.metadata.specs import (
     load_registry,
     warn_spec_registry_unavailable,
     warn_unknown_spec_id,

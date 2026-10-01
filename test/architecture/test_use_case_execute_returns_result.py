@@ -19,6 +19,12 @@ annotation of ``UseCaseResult`` or a subtype of it. A missing annotation,
 ``-> None``, ``-> dict`` and ``-> Any`` all fail — each lets a use case report
 nothing typed, which is the ambiguity ADR-0095 removes (UCORG-05-001).
 
+HP-01-001 / HP-01-002 (``specs/handler-protocol.yaml``) ride on the same scan:
+a handler's ``execute()`` takes no arguments — everything it needs arrived
+through ``__init__(dl, request)`` — so any parameter beyond ``self``
+(positional, ``*args``, keyword-only, or ``**kwargs``) fails here too, and the
+received-side return type is ``HandlerResult``, a ``UseCaseResult`` subtype.
+
 The scan is two-stage:
 
 1. **Static** — the AST (via ``_corpus``, TB-13-003) finds every top-level
@@ -27,19 +33,23 @@ The scan is two-stage:
 2. **Resolved** — ``typing.get_type_hints`` resolves the annotation on the
    imported class, which must be a class that subclasses ``UseCaseResult``. "Registered
    subtype" in UCORG-05-004 means exactly this: the subtype relation is the
-   registry, so a new result type needs no list edit here.
+   registry, so a new result type needs no list edit here. A generic base
+   whose ``execute()`` returns a ``TypeVar`` conforms when that variable is
+   *bound* to a ``UseCaseResult`` subtype (``SvcBTTriggerBase[TriggerResultT]``,
+   ADR-0110): every concrete binding is then a subtype, and an unbound
+   variable — which would admit anything — still fails.
 
-**Exclusion (UCORG-05-004b):** ``vultron/core/use_cases/triggers/`` is not
-scanned. Trigger ``execute()`` methods still return a ``dict`` or a
-``TriggerResult`` that does not yet inherit ``UseCaseResult``; #3831 migrates
-them and MUST delete ``_EXCLUDED_DIRS`` when it lands.
+The scan covers every package under ``use_cases/`` — received, query and
+trigger alike. The trigger side once carried a named exclusion (UCORG-05-004b,
+retired with #3831 when ``TriggerResult`` became a ``UseCaseResult`` subtype);
+a new directory of use cases conforms from the start.
 """
 
 import ast
 import importlib
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any, get_type_hints
+from typing import Any, NamedTuple, TypeVar, get_type_hints
 
 import pytest
 
@@ -48,17 +58,41 @@ from vultron.core.models.use_case_result import UseCaseResult
 
 _USE_CASES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "use_cases"
 
-# Retired by #3831 (trigger-side result types, UCORG-05-004b). Do not add to
-# this tuple: a new directory of use cases conforms from the start.
-_EXCLUDED_DIRS: tuple[Path, ...] = (_USE_CASES_ROOT / "triggers",)
+
+class _ExecuteSignature(NamedTuple):
+    """What the static pass reads off one top-level ``execute`` definition."""
+
+    class_name: str
+    #: Return annotation source, ``None`` when absent; used only in messages.
+    annotation: str | None
+    #: Every parameter beyond the first (``self``), as written — HP-01-001.
+    extra_params: tuple[str, ...]
 
 
-def _execute_annotations(tree: ast.AST) -> Iterator[tuple[str, str | None]]:
-    """Yield ``(class_name, annotation_source)`` per top-level ``execute``.
+def _extra_params(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> tuple[str, ...]:
+    """Parameter names of *fn* beyond the receiver, in declaration order.
 
-    ``annotation_source`` is ``None`` when ``execute`` has no return
-    annotation, and is otherwise used only in messages.
+    A ``@staticmethod`` has no receiver, so every positional parameter counts.
     """
+    args = fn.args
+    is_static = any(
+        isinstance(d, ast.Name) and d.id == "staticmethod"
+        for d in fn.decorator_list
+    )
+    positional = [*args.posonlyargs, *args.args][0 if is_static else 1 :]
+    names = [a.arg for a in positional]
+    if args.vararg is not None:
+        names.append(f"*{args.vararg.arg}")
+    names.extend(a.arg for a in args.kwonlyargs)
+    if args.kwarg is not None:
+        names.append(f"**{args.kwarg.arg}")
+    return tuple(names)
+
+
+def _execute_annotations(tree: ast.AST) -> Iterator[_ExecuteSignature]:
+    """Yield one :class:`_ExecuteSignature` per top-level ``execute``."""
     assert isinstance(tree, ast.Module)
     for cls in tree.body:
         if not isinstance(cls, ast.ClassDef):
@@ -69,8 +103,10 @@ def _execute_annotations(tree: ast.AST) -> Iterator[tuple[str, str | None]]:
                 and fn.name == "execute"
             ):
                 returns = fn.returns
-                yield cls.name, (
-                    None if returns is None else ast.unparse(returns)
+                yield _ExecuteSignature(
+                    cls.name,
+                    None if returns is None else ast.unparse(returns),
+                    _extra_params(fn),
                 )
 
 
@@ -83,7 +119,12 @@ def _violations_in(
     ``execute``; it may raise if the annotation names something unknown.
     """
     problems: list[str] = []
-    for class_name, annotation in _execute_annotations(tree):
+    for class_name, annotation, extra_params in _execute_annotations(tree):
+        if extra_params:
+            problems.append(
+                f"{class_name}: execute() takes arguments "
+                f"({', '.join(extra_params)}) — it must take none (HP-01-001)"
+            )
         if annotation is None:
             problems.append(
                 f"{class_name}: execute() has no return annotation"
@@ -96,9 +137,7 @@ def _violations_in(
                 f"{class_name}: cannot resolve -> {annotation} ({exc!r})"
             )
             continue
-        if not (
-            isinstance(resolved, type) and issubclass(resolved, UseCaseResult)
-        ):
+        if not _is_use_case_result_type(resolved):
             problems.append(
                 f"{class_name}: execute() -> {annotation} is not a "
                 "UseCaseResult subtype"
@@ -106,10 +145,18 @@ def _violations_in(
     return problems
 
 
+def _is_use_case_result_type(resolved: object) -> bool:
+    """True for a ``UseCaseResult`` subclass or a ``TypeVar`` bound to one."""
+    if isinstance(resolved, TypeVar):
+        resolved = resolved.__bound__
+    return isinstance(resolved, type) and issubclass(resolved, UseCaseResult)
+
+
 def _return_hint(namespace: dict[str, object], class_name: str) -> object:
     """Return the resolved ``execute`` return type of *class_name*."""
     cls = namespace[class_name]
-    return get_type_hints(getattr(cls, "execute"))["return"]
+    # The namespace is typed ``object``; getattr keeps the type checker out.
+    return get_type_hints(getattr(cls, "execute"))["return"]  # noqa: B009
 
 
 def _module_resolver(path: Path) -> Callable[[str], object]:
@@ -124,10 +171,6 @@ def _module_resolver(path: Path) -> Callable[[str], object]:
     return _resolve
 
 
-def _is_excluded(path: Path) -> bool:
-    return any(path.is_relative_to(d) for d in _EXCLUDED_DIRS)
-
-
 def _collect() -> tuple[set[str], list[str]]:
     """Return ``(scanned_packages, violations)`` over the use-case corpus.
 
@@ -139,8 +182,6 @@ def _collect() -> tuple[set[str], list[str]]:
     for path, tree in _corpus.files_mentioning(
         "def execute", under=_USE_CASES_ROOT
     ):
-        if _is_excluded(path):
-            continue
         if any(True for _ in _execute_annotations(tree)):
             scanned.add(path.relative_to(_USE_CASES_ROOT).parts[0])
         rel = path.relative_to(_corpus.REPO_ROOT).as_posix()
@@ -151,36 +192,22 @@ def _collect() -> tuple[set[str], list[str]]:
 
 
 def test_every_use_case_execute_returns_a_use_case_result() -> None:
-    """UCORG-05-004: ``execute()`` is annotated with a ``UseCaseResult`` type."""
+    """UCORG-05-004, HP-01-001, HP-01-002: ``execute()`` takes no arguments and
+    is annotated with a ``UseCaseResult`` type."""
     scanned, violations = _collect()
     # Guard against a vacuous pass: a broken prefilter or root would scan
     # nothing, or lose a whole package, and still report no violations.
     assert {
         "received",
         "query",
-    } <= scanned, f"expected execute() methods in received/ and query/; scanned {scanned}"
+        "triggers",
+    } <= scanned, (
+        "expected execute() methods in received/, query/ and triggers/; "
+        f"scanned {scanned}"
+    )
     assert not violations, (
         "execute() must return UseCaseResult or a subtype (UCORG-05-004, "
         "ADR-0095):\n" + "\n".join(f"  {v}" for v in violations)
-    )
-
-
-def test_triggers_exclusion_is_still_needed() -> None:
-    """UCORG-05-004b: the exclusion stays only while triggers fail the rule.
-
-    When #3831 migrates the trigger side, this fails and ``_EXCLUDED_DIRS``
-    MUST be deleted rather than left as a silent, unexplained carve-out.
-    """
-    still_failing = []
-    for excluded in _EXCLUDED_DIRS:
-        for path, tree in _corpus.files_mentioning(
-            "def execute", under=excluded
-        ):
-            if _violations_in(tree, _module_resolver(path)):
-                still_failing.append(path)
-    assert still_failing, (
-        "every use case under the excluded directories now conforms; delete "
-        "_EXCLUDED_DIRS (#3831)"
     )
 
 
@@ -193,14 +220,21 @@ class _SampleResult(UseCaseResult):
     pass
 
 
+_BoundT = TypeVar("_BoundT", bound=_SampleResult)
+_UnboundT = TypeVar("_UnboundT")
+
+
 def _check(source: str) -> list[str]:
     """Run the detector over inline *source*, executed as a sample module."""
     namespace: dict[str, object] = {
         "Any": Any,
         "_SampleResult": _SampleResult,
         "UseCaseResult": UseCaseResult,
+        "_BoundT": _BoundT,
+        "_UnboundT": _UnboundT,
     }
-    exec(compile(source, "<sample>", "exec"), namespace)
+    # Executes the test's own inline sample source, never external input.
+    exec(compile(source, "<sample>", "exec"), namespace)  # noqa: S102
     return _violations_in(
         _corpus.parse_inline(source),
         lambda class_name: _return_hint(namespace, class_name),
@@ -223,14 +257,56 @@ def test_detector_accepts_a_forward_reference() -> None:
     )
 
 
+def test_detector_accepts_a_type_variable_bound_to_a_result() -> None:
+    """A generic base binding its result TypeVar conforms (ADR-0110)."""
+    assert _check("class U:\n    def execute(self) -> _BoundT: ...\n") == []
+
+
 @pytest.mark.parametrize(
-    "annotation", ["None", "dict", "Any", "_SampleResult | None"]
+    "annotation", ["None", "dict", "Any", "_SampleResult | None", "_UnboundT"]
 )
 def test_detector_flags_a_non_result_annotation(annotation: str) -> None:
     [problem] = _check(
         f"class U:\n    def execute(self) -> {annotation}: ...\n"
     )
     assert "not a UseCaseResult subtype" in problem
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        "self, request",
+        "self, *args",
+        "self, *, dry_run=False",
+        "self, **kwargs",
+    ],
+)
+def test_detector_flags_an_execute_that_takes_arguments(params: str) -> None:
+    """HP-01-001: any parameter beyond ``self`` is a violation."""
+    [problem] = _check(
+        f"class U:\n    def execute({params}) -> _SampleResult: ...\n"
+    )
+    assert "takes arguments" in problem
+
+
+def test_detector_flags_a_staticmethod_execute_with_a_parameter() -> None:
+    """A ``@staticmethod`` has no receiver to skip, so its one parameter counts."""
+    [problem] = _check(
+        "class U:\n"
+        "    @staticmethod\n"
+        "    def execute(request) -> _SampleResult: ...\n"
+    )
+    assert "takes arguments" in problem
+
+
+def test_detector_reports_arguments_and_return_type_separately() -> None:
+    """Both defects on one ``execute()`` are both reported."""
+    problems = _check(
+        "class U:\n    def execute(self, request) -> None: ...\n"
+    )
+    assert len(problems) == 2
+    assert any("takes arguments" in p for p in problems)
+    assert any("not a UseCaseResult subtype" in p for p in problems)
 
 
 def test_detector_flags_a_missing_annotation() -> None:

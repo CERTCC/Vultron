@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _spec_yaml_items import SpecItem, iter_blocks  # noqa: E402
+from _spec_yaml_items import SpecItem, iter_blocks
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SPECS_DIR = _REPO_ROOT / "specs"

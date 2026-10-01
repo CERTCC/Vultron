@@ -20,7 +20,7 @@ backward compatibility and vocabulary lookup.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Annotated, TypeAlias, Union
+from typing import Annotated, TypeAlias
 
 from pydantic import Field
 
@@ -62,13 +62,11 @@ as_VultronGroupRef: TypeAlias = ActivityStreamRef[VultronGroup]
 
 
 ActorUnion: TypeAlias = Annotated[
-    Union[
-        VultronPerson,
-        VultronOrganization,
-        VultronService,
-        VultronApplication,
-        VultronGroup,
-    ],
+    VultronPerson
+    | VultronOrganization
+    | VultronService
+    | VultronApplication
+    | VultronGroup,
     Field(
         description="A concrete Vultron actor (Person, Organization, Service, Application, or Group)."
     ),

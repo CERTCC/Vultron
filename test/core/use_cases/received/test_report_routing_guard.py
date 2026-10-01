@@ -39,6 +39,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
@@ -46,7 +47,6 @@ from vultron.core.models.events.report import (
     InvalidateReportReceivedEvent,
 )
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
@@ -225,9 +225,9 @@ class TestInvalidateReportReceivedActorId:
             ),
         ).execute()
 
-        assert (
-            _rm_state(dl, RECEIVING_ACTOR_ID) == RM.INVALID
-        ), "Receiving actor's participant must transition to RM.INVALID"
+        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.INVALID, (
+            "Receiving actor's participant must transition to RM.INVALID"
+        )
 
     def test_sender_participant_unchanged_when_receiving_actor_differs(self):
         """Sender's participant RM state is not touched (BT-17-006 regression)."""
@@ -278,9 +278,9 @@ class TestInvalidateReportReceivedActorId:
             "the store's own actor is the executing actor when the request"
             " carries no receiving_actor_id"
         )
-        assert (
-            _rm_state(dl, other_id) == RM.RECEIVED
-        ), "no other actor's participant may be transitioned"
+        assert _rm_state(dl, other_id) == RM.RECEIVED, (
+            "no other actor's participant may be transitioned"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -307,9 +307,9 @@ class TestCloseReportReceivedActorId:
             ),
         ).execute()
 
-        assert (
-            _rm_state(dl, RECEIVING_ACTOR_ID) == RM.CLOSED
-        ), "Receiving actor's participant must transition to RM.CLOSED"
+        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.CLOSED, (
+            "Receiving actor's participant must transition to RM.CLOSED"
+        )
 
     def test_sender_participant_unchanged_when_receiving_actor_differs(self):
         """Sender's participant RM state is not touched (BT-17-006 regression)."""
@@ -367,9 +367,9 @@ class TestCloseReportReceivedActorId:
             "the store's own actor is the executing actor when the request"
             " carries no receiving_actor_id"
         )
-        assert (
-            _rm_state(dl, other_id) == RM.RECEIVED
-        ), "no other actor's participant may be transitioned"
+        assert _rm_state(dl, other_id) == RM.RECEIVED, (
+            "no other actor's participant may be transitioned"
+        )
 
 
 # ---------------------------------------------------------------------------

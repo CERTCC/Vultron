@@ -26,14 +26,20 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.states.em import EM
-from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_propose_embargo_activity,
@@ -41,11 +47,9 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.core.models._helpers import days_from_now_utc
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -147,7 +151,7 @@ class TestInviteToEmbargoRoutingGuard:
         dl.actor_id (CASE_ACTOR_ID), so the guarded commit fires and the
         ``invite_to_embargo_on_case`` ledger entry IS written.
         """
-        dl, case_actor, case, embargo = self._setup()
+        dl, _case_actor, _case, embargo = self._setup()
 
         proposal = em_propose_embargo_activity(
             embargo,
@@ -159,7 +163,11 @@ class TestInviteToEmbargoRoutingGuard:
 
         event = make_payload(proposal, receiving_actor_id=None)
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -176,7 +184,7 @@ class TestInviteToEmbargoRoutingGuard:
 
         Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry.
         """
-        dl, case_actor, case, embargo = self._setup()
+        dl, _case_actor, _case, embargo = self._setup()
 
         proposal = em_propose_embargo_activity(
             embargo,
@@ -188,7 +196,11 @@ class TestInviteToEmbargoRoutingGuard:
 
         event = make_payload(proposal, receiving_actor_id=self.CASE_ACTOR_ID)
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -204,7 +216,7 @@ class TestInviteToEmbargoRoutingGuard:
 
         Per CLP-10-003: the invitee (non-CaseActor) must skip the commit.
         """
-        dl, case_actor, case, embargo = self._setup()
+        dl, _case_actor, _case, embargo = self._setup()
 
         proposal = em_propose_embargo_activity(
             embargo,
@@ -216,7 +228,10 @@ class TestInviteToEmbargoRoutingGuard:
 
         event = make_payload(proposal, receiving_actor_id=self.INVITEE_ID)
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -268,11 +283,14 @@ class TestAcceptInviteToEmbargoRoutingGuard:
 
         Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry.
         """
-        dl, case_actor, case, accept = self._setup()
+        dl, _case_actor, _case, accept = self._setup()
 
         event = make_payload(accept, receiving_actor_id=self.CASE_ACTOR_ID)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -289,12 +307,15 @@ class TestAcceptInviteToEmbargoRoutingGuard:
 
         Per CLP-10-003: non-CaseActor receiving actors must skip the commit.
         """
-        dl, case_actor, case, accept = self._setup()
+        dl, _case_actor, _case, accept = self._setup()
 
         non_case_actor_id = "https://example.org/actors/other-vendor"
         event = make_payload(accept, receiving_actor_id=non_case_actor_id)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -312,11 +333,14 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         dl.actor_id (CASE_ACTOR_ID), so the guarded commit fires and the
         ``accept_invite_to_embargo_on_case`` ledger entry IS written.
         """
-        dl, case_actor, case, accept = self._setup()
+        dl, _case_actor, _case, accept = self._setup()
 
         event = make_payload(accept, receiving_actor_id=None)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -370,7 +394,7 @@ class TestRemoveEmbargoRoutingGuard:
 
         Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry.
         """
-        dl, case_actor, case, embargo = self._setup()
+        dl, _case_actor, _case, embargo = self._setup()
 
         remove_activity = remove_embargo_from_case_activity(
             embargo,
@@ -382,7 +406,10 @@ class TestRemoveEmbargoRoutingGuard:
             remove_activity, receiving_actor_id=self.CASE_ACTOR_ID
         )
         RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -399,7 +426,7 @@ class TestRemoveEmbargoRoutingGuard:
 
         Per CLP-10-003: non-CaseActor receiving actors must skip the commit.
         """
-        dl, case_actor, case, embargo = self._setup()
+        dl, _case_actor, _case, embargo = self._setup()
 
         remove_activity = remove_embargo_from_case_activity(
             embargo,
@@ -411,7 +438,10 @@ class TestRemoveEmbargoRoutingGuard:
             remove_activity, receiving_actor_id=self.OTHER_ACTOR_ID
         )
         RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -427,7 +457,7 @@ class TestRemoveEmbargoRoutingGuard:
         dl.actor_id (CASE_ACTOR_ID), so the guarded commit fires and the
         ``remove_embargo_event_from_case`` ledger entry IS written.
         """
-        dl, case_actor, case, embargo = self._setup()
+        dl, _case_actor, _case, embargo = self._setup()
 
         remove_activity = remove_embargo_from_case_activity(
             embargo,
@@ -437,7 +467,10 @@ class TestRemoveEmbargoRoutingGuard:
 
         event = make_payload(remove_activity, receiving_actor_id=None)
         RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)

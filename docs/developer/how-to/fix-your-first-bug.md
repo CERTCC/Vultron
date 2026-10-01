@@ -231,13 +231,13 @@ Run these checks **in order**:
 ### 1. Format your code
 
 ```bash
-uv run black vultron/ test/
+uv run ruff format
 ```
 
 ### 2. Run linters
 
 ```bash
-uv run flake8 vultron/ test/
+uv run ruff check
 uv run mypy
 uv run pyright
 ```

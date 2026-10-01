@@ -8,6 +8,7 @@ the carrier counts the MS-12-007 and MS-12-008 ratchets read.
 
 import pytest
 
+from test.metadata.specs._helpers import write_yaml
 from vultron.metadata.specs.kind_classification import (
     code_reference_in,
     count_missing_story_suppressions,
@@ -15,7 +16,6 @@ from vultron.metadata.specs.kind_classification import (
 )
 from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.schema import LintWarningCode, StatementSpec
-from test.metadata.specs._helpers import write_yaml
 
 
 def _spec(**fields) -> StatementSpec:

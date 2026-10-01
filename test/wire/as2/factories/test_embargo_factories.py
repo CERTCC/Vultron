@@ -23,10 +23,11 @@ Spec coverage:
 - AF-04-002: All factory functions re-exported from factories/__init__.py.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     activate_embargo_activity,
@@ -46,7 +47,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.core.models._helpers import days_from_now_utc
 
 _ACTOR_URI = "https://example.org/actors/alice"
 _CASE_URI = "https://example.org/cases/case-001"
@@ -111,7 +111,7 @@ def test_em_propose_embargo_invalid_raises():
 @pytest.mark.spec("CM-28-001")
 def test_em_propose_embargo_rsvp_deadline_sets_end_time(sample_embargo):
     """AC-1: rsvp_deadline is placed on activity-level end_time."""
-    deadline = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    deadline = datetime.now(tz=UTC) + timedelta(days=5)
     result = em_propose_embargo_activity(
         embargo=sample_embargo,
         rsvp_deadline=deadline,
@@ -133,7 +133,7 @@ def test_em_propose_embargo_no_rsvp_deadline_end_time_is_none(sample_embargo):
 @pytest.mark.spec("EP-07-002")
 def test_em_propose_embargo_rsvp_below_min_window_raises(sample_embargo):
     """AC-4: deadline below minimum window raises VultronActivityConstructionError."""
-    deadline = datetime.now(tz=timezone.utc) + timedelta(hours=1)
+    deadline = datetime.now(tz=UTC) + timedelta(hours=1)
     with pytest.raises(VultronActivityConstructionError, match="minimum"):
         em_propose_embargo_activity(
             embargo=sample_embargo,
@@ -145,7 +145,7 @@ def test_em_propose_embargo_rsvp_below_min_window_raises(sample_embargo):
 @pytest.mark.spec("EP-07-002")
 def test_em_propose_embargo_naive_deadline_raises(sample_embargo):
     """AC-3 (outbound): naive rsvp_deadline raises VultronActivityConstructionError."""
-    naive_deadline = datetime.now() + timedelta(days=5)  # no tzinfo
+    naive_deadline = datetime.now() + timedelta(days=5)  # noqa: DTZ005 — deliberately naive
     with pytest.raises(
         VultronActivityConstructionError, match="timezone-aware"
     ):
@@ -159,7 +159,7 @@ def test_em_propose_embargo_naive_deadline_raises(sample_embargo):
 @pytest.mark.spec("EP-07-002")
 def test_em_propose_embargo_custom_min_window_respected(sample_embargo):
     """AC-4: custom min_rsvp_window is enforced."""
-    deadline = datetime.now(tz=timezone.utc) + timedelta(hours=25)
+    deadline = datetime.now(tz=UTC) + timedelta(hours=25)
     with pytest.raises(VultronActivityConstructionError, match="minimum"):
         em_propose_embargo_activity(
             embargo=sample_embargo,
@@ -174,8 +174,8 @@ def test_em_propose_embargo_rsvp_deadline_overrides_caller_end_time(
     sample_embargo,
 ):
     """rsvp_deadline is authoritative when both it and end_time are provided."""
-    rsvp = datetime.now(tz=timezone.utc) + timedelta(days=5)
-    raw_end_time = datetime.now(tz=timezone.utc) + timedelta(days=10)
+    rsvp = datetime.now(tz=UTC) + timedelta(days=5)
+    raw_end_time = datetime.now(tz=UTC) + timedelta(days=10)
     result = em_propose_embargo_activity(
         embargo=sample_embargo,
         rsvp_deadline=rsvp,
@@ -190,7 +190,7 @@ def test_em_propose_embargo_deadline_after_embargo_end_raises():
     """The sender refuses a deadline the receiver would clamp down."""
     embargo = as_EmbargoEvent(
         context=_CASE_URI,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=10),
+        end_time=datetime.now(tz=UTC) + timedelta(days=10),
     )
     with pytest.raises(VultronActivityConstructionError, match="EP-07-006"):
         em_propose_embargo_activity(
@@ -206,7 +206,7 @@ def test_em_propose_embargo_minimum_is_remaining_embargo_when_shorter():
     """Two days left: a deadline at the embargo's end is not below minimum."""
     embargo = as_EmbargoEvent(
         context=_CASE_URI,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=2),
+        end_time=datetime.now(tz=UTC) + timedelta(days=2),
     )
     result = em_propose_embargo_activity(
         embargo=embargo,
@@ -219,7 +219,7 @@ def test_em_propose_embargo_minimum_is_remaining_embargo_when_shorter():
 @pytest.mark.spec("EP-07-002")
 def test_em_propose_embargo_minimum_measured_from_published(sample_embargo):
     """The 72 h minimum runs from the invite's ``published`` time."""
-    published = datetime.now(tz=timezone.utc) + timedelta(days=1)
+    published = datetime.now(tz=UTC) + timedelta(days=1)
     with pytest.raises(VultronActivityConstructionError, match="minimum"):
         em_propose_embargo_activity(
             embargo=sample_embargo,
@@ -236,7 +236,7 @@ def test_em_propose_embargo_minimum_measured_from_stamped_published(
     """The ``published`` the sender measures from is the one it stamps."""
     result = em_propose_embargo_activity(
         embargo=sample_embargo,
-        rsvp_deadline=datetime.now(tz=timezone.utc) + timedelta(days=5),
+        rsvp_deadline=datetime.now(tz=UTC) + timedelta(days=5),
         actor=_ACTOR_URI,
     )
     assert result.published is not None and result.end_time is not None
@@ -248,7 +248,7 @@ def test_em_propose_embargo_string_published_is_measured_from(
     sample_embargo,
 ):
     """An ISO 8601 ``published`` string is honored, not replaced by now."""
-    published = datetime.now(tz=timezone.utc) + timedelta(days=1)
+    published = datetime.now(tz=UTC) + timedelta(days=1)
     with pytest.raises(VultronActivityConstructionError, match="minimum"):
         em_propose_embargo_activity(
             embargo=sample_embargo,
@@ -270,14 +270,11 @@ def test_em_propose_embargo_naive_published_datetime_is_read_as_utc(
     is the EP-07-002 refusal, not a ``TypeError`` from comparing naive and
     aware values.
     """
-    published = (datetime.now(tz=timezone.utc) + timedelta(days=1)).replace(
-        tzinfo=None
-    )
+    published = (datetime.now(tz=UTC) + timedelta(days=1)).replace(tzinfo=None)
     with pytest.raises(VultronActivityConstructionError, match="minimum"):
         em_propose_embargo_activity(
             embargo=sample_embargo,
-            rsvp_deadline=published.replace(tzinfo=timezone.utc)
-            + timedelta(hours=71),
+            rsvp_deadline=published.replace(tzinfo=UTC) + timedelta(hours=71),
             published=published,
             actor=_ACTOR_URI,
         )
@@ -287,7 +284,7 @@ def test_em_propose_embargo_unparseable_published_raises(sample_embargo):
     with pytest.raises(VultronActivityConstructionError, match="ISO 8601"):
         em_propose_embargo_activity(
             embargo=sample_embargo,
-            rsvp_deadline=datetime.now(tz=timezone.utc) + timedelta(days=5),
+            rsvp_deadline=datetime.now(tz=UTC) + timedelta(days=5),
             published="not-a-date",
             actor=_ACTOR_URI,
         )
@@ -296,7 +293,7 @@ def test_em_propose_embargo_unparseable_published_raises(sample_embargo):
 @pytest.mark.spec("EP-07-006")
 def test_em_propose_embargo_naive_embargo_end_is_read_as_utc():
     """A naive embargo end is compared as UTC, not raised as ``TypeError``."""
-    aware_end = datetime.now(tz=timezone.utc) + timedelta(days=10)
+    aware_end = datetime.now(tz=UTC) + timedelta(days=10)
     embargo = as_EmbargoEvent(
         context=_CASE_URI, end_time=aware_end.replace(tzinfo=None)
     )

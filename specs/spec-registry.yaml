@@ -417,6 +417,28 @@ groups:
       (outside `test/metadata/specs/`) cites a spec ID absent from the registry, and
       exits 0 when all cited IDs resolve. Covered by the phantom-spec-id tests in
       `test/metadata/specs/test_lint.py`.
+  - id: SR-04-011
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A module under `vultron/` MUST NOT cite a requirement from the Testability
+      topic (`TB-` prefix) as one it implements. `Implements:` citations are
+      topic-scoped: resolving in the registry (SR-04-008) is necessary but not
+      sufficient, and a resolving citation of a topic that governs tests is a
+      defect, not traceability.
+    rationale: >-
+      Every ID cited under `vultron/` resolves to some requirement, so an
+      existence-only check (SR-04-008) cannot see a wrong-topic citation. When the
+      trigger spec was renamed from `TB` to `TRIG`, the Testability topic kept the
+      `TB` prefix and the trigger routers went on citing "the system MUST use
+      pytest" 236 times as the requirement they implement, every one of them
+      resolving (#3354, #3829). The check is topic-scoped rather than
+      resolution-scoped so the same drift cannot recur silently.
+    verification: >-
+      `test/architecture/test_implements_citations_topic_scoped.py` fails, naming
+      file and line, on any `TB-NN-NNN` token under `vultron/`, and fails when an
+      `Implements:` ID under `vultron/adapters/driving/fastapi/routers/` is absent
+      from the registry.
 - id: SR-05
   title: Pytest Integration
   specs:

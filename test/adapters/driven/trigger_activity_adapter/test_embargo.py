@@ -14,11 +14,13 @@
 """Unit tests for TriggerActivityAdapter embargo-domain methods."""
 
 import json
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _ACTOR = "https://example.org/actors/coordinator"
 _PEER = "https://example.org/actors/vendor"
+_PROPOSER = "https://example.org/actors/proposer"
 _CASE_ID = "https://example.org/cases/case-001"
 
 
@@ -66,6 +68,33 @@ class TestProposeEmbargo:
 
         assert dl.read(activity_id) is not None
 
+    def test_relayed_proposal_carries_the_proposer_in_attributed_to(
+        self, adapter, dl
+    ):
+        """CM-24-002: a relayed Invite names the proposer, not the sender."""
+        embargo = _make_embargo(dl)
+
+        _, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_PEER],
+            attributed_to=_PROPOSER,
+        )
+
+        body = json.loads(blob)
+        assert body["actor"] == _ACTOR
+        assert body["attributedTo"] == _PROPOSER
+
+    def test_a_participants_own_proposal_has_no_attribution(self, adapter, dl):
+        embargo = _make_embargo(dl)
+
+        _, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_, case_id=_CASE_ID, actor=_ACTOR
+        )
+
+        assert "attributedTo" not in json.loads(blob)
+
 
 class TestAcceptEmbargo:
     def test_returns_id_and_dict(self, adapter, dl):
@@ -110,9 +139,9 @@ class TestAcceptEmbargo:
         )
 
         obj = json.loads(activity_dict).get("object")
-        assert isinstance(
-            obj, dict
-        ), "object_ must be an inline dict, not a URI"
+        assert isinstance(obj, dict), (
+            "object_ must be an inline dict, not a URI"
+        )
         assert obj.get("id") == proposal_id
 
 
@@ -159,9 +188,9 @@ class TestRejectEmbargo:
         )
 
         obj = json.loads(activity_dict).get("object")
-        assert isinstance(
-            obj, dict
-        ), "object_ must be an inline dict, not a URI"
+        assert isinstance(obj, dict), (
+            "object_ must be an inline dict, not a URI"
+        )
         assert obj.get("id") == proposal_id
 
 

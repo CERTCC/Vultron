@@ -19,6 +19,8 @@ ARCH-23-005), and that the mechanisms this contract subsumes cannot be
 reintroduced (AC-7).
 """
 
+from datetime import UTC
+
 import pytest
 from pydantic import ValidationError
 
@@ -93,7 +95,7 @@ def test_every_core_object_forbids_extra_with_no_exemption_list() -> None:
 
 def test_unknown_key_raises_for_every_core_vocabulary_entry() -> None:
     """AC-3: an unknown key raises rather than being silently dropped."""
-    for name, obj in _constructible_vocab():
+    for _name, obj in _constructible_vocab():
         payload = obj.model_dump(mode="json")
         payload["totallyUnknownKey"] = "x"
         with pytest.raises(ValidationError):
@@ -192,12 +194,12 @@ def test_contradicted_embargo_adherence_raises_protocol_violation() -> None:
                 }
             )
         msg = str(exc_info.value)
-        assert (
-            "embargo_adherence" in msg
-        ), f"Error for spelling {spelling!r} did not name the field: {msg}"
-        assert (
-            "supplied True" in msg
-        ), f"Error for spelling {spelling!r} did not include supplied value: {msg}"
+        assert "embargo_adherence" in msg, (
+            f"Error for spelling {spelling!r} did not name the field: {msg}"
+        )
+        assert "supplied True" in msg, (
+            f"Error for spelling {spelling!r} did not include supplied value: {msg}"
+        )
         error = _protocol_violation(exc_info.value)
         assert [v.dimensions for v in error.violations] == [
             ("embargo_adherence",)
@@ -301,7 +303,7 @@ def test_json_mode_dump_round_trips_for_non_bool_computed_field(
     the Python value.  A ``datetime`` computed field arrives from a JSON dump as
     a string and must still be recognised as matching.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
     from typing import Literal
 
     from pydantic import computed_field
@@ -312,7 +314,7 @@ def test_json_mode_dump_round_trips_for_non_bool_computed_field(
         @computed_field  # type: ignore[misc]
         @property
         def when(self) -> datetime:
-            return datetime(2026, 1, 1, tzinfo=timezone.utc)
+            return datetime(2026, 1, 1, tzinfo=UTC)
 
     obj = _DatetimeComputed()
     assert _DatetimeComputed.model_validate(obj.model_dump(mode="json")) == obj
@@ -331,8 +333,10 @@ def test_contradicted_embargo_adherence_refused_at_parse() -> None:
     """
     import pytest
 
-    from vultron.wire.as2.parser import VultronParseValidationError
-    from vultron.wire.as2.parser import parse_activity
+    from vultron.wire.as2.parser import (
+        VultronParseValidationError,
+        parse_activity,
+    )
 
     body = {
         "type": "Announce",

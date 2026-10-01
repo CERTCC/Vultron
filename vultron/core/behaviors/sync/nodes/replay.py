@@ -41,11 +41,11 @@ from vultron.core.behaviors.sync.nodes.replay_guard import (
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
-from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.errors import VultronError, VultronWiringError
@@ -443,7 +443,7 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
                 activity_id,
                 peer_id,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.warning(
                 "%s: could not queue AnnounceVulnerabilityCase for peer '%s': %s",
                 self.name,

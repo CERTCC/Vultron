@@ -496,10 +496,12 @@ groups:
     statement: A `payloadSnapshot` — and every object inlined into one under CLP-07-006
       — MUST be in the wire (AS2) shape, such that the wire vocabulary class for its
       `type_` can revalidate it without translation. When the object being captured
-      is a core domain object rather than a received activity, the wire shape MUST
-      be produced through the core→wire rendering port (ARCH-20-001), never by dumping
-      the core object with `by_alias=True` or by rewriting dumped keys in core.
-    rationale: 'CLP-07-001 requires the snapshot to be reconstitutable by receivers,
+      is a core domain object, the wire shape MUST be produced through the core→wire
+      rendering port (ARCH-20-001), never by dumping the core object with `by_alias=True`
+      or by rewriting dumped keys in core. A received activity is such an object, since the
+      extractor rebuilds it as a core-branch `VultronActivity`; its snapshot is
+      rendered through the port too.
+    rationale: 'CLP-07-011 requires the snapshot to be reconstitutable by receivers,
       and CLP-01-003/CLP-01-004 make it the replication substrate. Two distinct failure
       modes existed: core objects with no `alias_generator` were inlined in snake_case
       (unreconstitutable), and `ParticipantStatus` was dumped with a core `by_alias=True`
@@ -510,7 +512,7 @@ groups:
       via `model_validate`, with no key renaming applied first.
     relationships:
     - rel_type: refines
-      spec_id: CLP-07-001
+      spec_id: CLP-07-011
     - rel_type: depends_on
       spec_id: ARCH-20-001
     adr:
@@ -882,8 +884,8 @@ groups:
       subtree (composed via `create_guarded_commit_case_ledger_entry_tree`), the commit
       subtree MUST appear after the intake node and after all pure precondition-guard
       nodes, and before any protocol-effect nodes. The intake node is the single shared
-      node that stores the received activity and its inlined objects as received
-      (CLP-10-017). A precondition-guard node is one that only reads state and returns
+      node that archives the received activity as received (CLP-10-017). A
+      precondition-guard node is one that only reads state and returns
       FAILURE on mismatch, making no writes. A protocol-effect node is any other node
       that writes to the DataLayer, mutates actor or participant state, or enqueues an
       outbox item; the intake node is not a protocol-effect node.
@@ -892,12 +894,13 @@ groups:
       as a protocol effect forced it after the commit, and handlers that needed the
       record regardless of the verdict stored it procedurally in `execute()` instead
       (ISSUE-3339, ADR-0111).
-    verification: '`test/architecture/test_receive_side_bt_commit_ordering.py` asserts
-      that every receive-side tree factory under `vultron/core/behaviors/` composes
-      through `create_receive_activity_tree` (including the factories that composed
-      `create_case_manager_gated_tree` directly before #3870), and that the tree it
-      returns has the intake node as its first child, the guarded commit after every
-      guard, and no protocol-effect node ahead of the commit.'
+    verification: '`test/architecture/test_receive_side_intake_first.py` asserts
+      that every receive-side tree factory under `vultron/core/behaviors/` returns
+      the result of `create_receive_activity_tree` (including the factories that
+      composed `create_case_manager_gated_tree` directly before #3870), so the tree
+      has the intake node as its first child; `test_receive_side_bt_commit_ordering.py`
+      asserts the guarded commit comes after every guard and no protocol-effect node
+      ahead of the commit.'
     adr:
     - ADR-0111
     - ADR-0022
@@ -959,10 +962,20 @@ groups:
   - id: CLP-10-013
     priority: MUST
     kind: project
-    statement: Every receive-side tree that uses `create_receive_activity_tree` MUST
-      also pass `case_id` so that a canonical ledger entry is committed for each accepted
-      activity.
-    rationale: A rejection validator (FAILURE-on-mismatch, read-only) belongs before
+    statement: A receive-side tree that uses `create_receive_activity_tree` MUST pass
+      `case_id`, so that a canonical ledger entry is committed for each accepted
+      activity, exactly when the received activity's `(type, object)` pair is a
+      canonical payload signature (`_CANONICAL_PAYLOAD_SIGNATURES`); a tree whose
+      received activity has no canonical signature — `Update(VulnerabilityCase)`, the
+      `Announce(CaseLedgerEntry)` replication envelope (CLP-10-004) — MUST pass
+      `case_id=None` and omit the commit stage rather than commit an entry the
+      canonical-entry check would refuse.
+    rationale: 'Amended with ADR-0111: the rule as first written required a commit for
+      every factory-built tree, which the CASE_MANAGER refused for an
+      `Update(VulnerabilityCase)` the moment the update tree moved onto the factory
+      (#3870); whether an owner''s update should become a ledgered assertion
+      (ADR-0108) is decided separately. Original rationale: a rejection validator
+      (FAILURE-on-mismatch, read-only) belongs before
       the commit; an effects node (writes, enqueues, state mutations) belongs after.
       Mixing the two — placing a rejection validator in effect_nodes — creates a window
       where the ledger records receipt of an activity the local actor then refuses
@@ -970,7 +983,13 @@ groups:
       to a locally applied protocol event. `add_participant_status_tree` previously
       contained `ValidateRMTransitionNode` after `GuardedCommit`, masked by a `_rm_was_carried_forward()`
       workaround. `add_case_status_tree` previously used a plain `py_trees.Sequence`
-      with no commit at all. Both were corrected in ISSUE-2254.
+      with no commit at all. Both were corrected in ISSUE-2254.'
+    verification: '`create_update_case_received_tree` passes `case_id=None` and its
+      structure test asserts no `GuardedCommitCaseLedgerEntryBT` child; a tree for a
+      canonical signature passes `case_id` and the ordering ratchet finds the commit
+      after the guards.'
+    adr:
+    - ADR-0111
     relationships:
     - rel_type: refines
       spec_id: CLP-10-006
@@ -1091,19 +1110,39 @@ groups:
     priority: MUST
     kind: project
     statement: Every receive-side BT tree MUST begin with the shared intake node that
-      `create_receive_activity_tree` supplies. The intake node MUST idempotently store
-      the received activity and every object inlined in it exactly as received, and
-      MUST perform no other write.
+      `create_receive_activity_tree` supplies. The intake node MUST idempotently archive
+      the received activity exactly as received, as a `ReceivedActivityRecord` whose id
+      the receiver derives (`ReceivedActivityRecord.build_id`) and which carries the
+      sender's activity id for the reverse lookup; it MUST NOT store the activity under
+      the id the sender chose, MUST NOT write a core record from any object inlined in
+      it, and MUST perform no other write. A core record a received object gives rise
+      to (a note, a report, a status, an embargo event, a case replica) is written by
+      an effect node from the copy the event carries, after the precondition guards.
     rationale: 'One node, composed once by the shared factory, replaces the handler-local
       store helpers that received-side use cases called from `execute()` — the files
-      `KNOWN_VIOLATIONS` enumerates once #3869 widens the ratchet (ISSUE-3339). What
-      intake stores is also the raw material for deferred replay and for backfilling
-      an object a later entry names only by reference (ADR-0107).'
-    verification: '`test/architecture/test_receive_side_bt_commit_ordering.py` asserts
+      `KNOWN_VIOLATIONS` enumerates once #3869 widens the ratchet (ISSUE-3339). The
+      archive is the mail, not core''s records: an object inlined in an activity is a
+      message shaped like that object, and writing it as a record before the guards
+      would let any sender seed a case replica or a ledger entry ahead of the trust
+      and chain checks (PCR-03-004, CBT-01-005) — a stored case row *is* the replica.
+      The archived row is also where #3742 persists the sealed received evidence
+      (ADR-0107) for deferred replay. The row is keyed by the receiver because the
+      DataLayer is one id-keyed table per actor: an activity stored under the id its
+      sender chose would let a sender who names its activity after a record the
+      receiver derives (a pending-case-inbox marker, an offer record) occupy that id
+      ahead of the receiver''s own write, so the later `create()` of the real record
+      fails as a duplicate and a read-then-create helper reads the squatter as
+      "already stored". A key the receiver mints is the receiver''s to manage; the
+      sender''s id is data on the row, not the row''s address.'
+    verification: '`test/architecture/test_receive_side_intake_first.py` asserts
       the intake node is the first child of every tree `create_receive_activity_tree`
-      returns. A unit test for the intake node stores a received activity with an
-      inlined object, asserts both are readable from the DataLayer unchanged, asserts a
-      second run writes nothing, and asserts no other record was created.'
+      returns and that every receive-side factory returns that tree. A unit test for
+      the intake node archives a received activity that inlines an object, asserts the
+      activity is readable through `ReceivedActivityRecord.build_id` and not under the
+      sender''s id, asserts no record of the inlined object (and no case replica) was
+      created, asserts a second run writes nothing, and asserts a sender activity whose
+      id equals a receiver-derived record id does not block the later `create()` of
+      that record.'
     adr:
     - ADR-0111
     relationships:
@@ -1112,18 +1151,17 @@ groups:
   - id: CLP-10-018
     priority: MUST
     kind: project
-    statement: A refused inbound assertion MUST leave the received activity and its
-      inlined objects stored by intake in the receiver's DataLayer; a refusal MUST NOT
-      remove or alter them.
+    statement: A refused inbound assertion MUST leave the received activity archived by
+      intake in the receiver's DataLayer; a refusal MUST NOT remove or alter the
+      archive.
     rationale: Receipt is a fact and refusal is a verdict on the assertion, not on the
-      record of receipt. A receiver that declines to create a case still needs the
-      report and the Offer for a later acknowledgement or an explicit decision
-      (CM-15-002), and the refusal itself belongs in the process log, never the ledger
-      (CLP-05-002).
+      record of receipt. The refusal itself belongs in the process log, never the
+      ledger (CLP-05-002). A receiver that declines to create a case and still keeps
+      the report and the Offer (CM-15-002) does so as an effect of that policy
+      branch, from the event's copy, not because intake stored them.
     verification: A received-side handler test posts an activity that a precondition
       guard refuses, asserts the handler disposition is REFUSED, and asserts the
-      activity and its inlined object are readable from the receiver's DataLayer
-      afterward.
+      activity is readable from the receiver's DataLayer afterward.
     adr:
     - ADR-0111
     relationships:
@@ -1132,15 +1170,17 @@ groups:
   - id: CLP-10-019
     priority: MUST_NOT
     kind: project
-    statement: A received-side use case MUST NOT store the received activity or its
-      inlined objects through any path other than the intake node — not through a
-      handler-local helper, a per-tree store node, or a call in `execute()`.
+    statement: A received-side use case MUST NOT store the received activity through
+      any path other than the intake node — not through a handler-local helper, a
+      per-tree store node, or a call in `execute()` — and MUST NOT write a core record
+      from a received object anywhere but an effect node of its tree.
     rationale: The store-what-arrived step was implemented separately across the
       received handlers `KNOWN_VIOLATIONS` enumerates (#3869) and one shared use-case
       helper, each invisible to the mutation ratchet
       because the write sat in a helper rather than in `execute()` itself (ISSUE-3339).
       One shared node is the DRY form (CS-22-001) and the only one the ratchet can
-      see.
+      see. The core records those helpers also wrote move to effect nodes, where the
+      guards have already run (ADR-0111 as amended).
     verification: '`test/architecture/test_no_dl_mutations_in_execute.py` (CLP-10-020)
       flags any DataLayer write an `execute()` body reaches through a use-case-layer
       helper, so a handler-local store path fails the build unless enumerated in

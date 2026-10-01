@@ -25,10 +25,11 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case_actor import CaseActor
-from vultron.enums.roles import CVDRole
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.note import AddNoteToCaseReceivedUseCase
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -140,6 +141,7 @@ class TestAddNoteToCaseLedgerRouting:
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
@@ -170,6 +172,7 @@ class TestAddNoteToCaseLedgerRouting:
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         # HP-01-005: the note was the CASE_MANAGER's to record; a receiver
         # without that role refuses rather than reporting a processed no-op.
@@ -207,6 +210,7 @@ class TestAddNoteToCaseLedgerRouting:
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 

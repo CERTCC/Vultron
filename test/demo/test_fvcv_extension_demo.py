@@ -26,13 +26,19 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-from vultron.demo.actor_session import ActorSession
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fvcv_extension_demo as demo
-from test.demo._helpers import make_client, make_testclient_call
+from test.demo._helpers import (
+    make_client,
+    make_testclient_call,
+    mock_actor,
+    mock_case,
+    patched_report_submission,
+)
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
 
 # ---------------------------------------------------------------------------
@@ -348,12 +354,12 @@ class TestPhasePublicationEmWaitOrdering:
                 case=case,
             )
 
-        assert (
-            "em_wait_finder" in call_log
-        ), "wait_for_case_em_terminated was not called for finder_client"
-        assert (
-            "notify_published_finder" in call_log
-        ), "actor_notifies_published was not called for finder"
+        assert "em_wait_finder" in call_log, (
+            "wait_for_case_em_terminated was not called for finder_client"
+        )
+        assert "notify_published_finder" in call_log, (
+            "actor_notifies_published was not called for finder"
+        )
         em_idx = call_log.index("em_wait_finder")
         pub_idx = call_log.index("notify_published_finder")
         assert em_idx < pub_idx, (
@@ -453,6 +459,7 @@ class TestFvcvExtensionMilestoneAssertions:
             ),
             patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 ActorSession,
                 "invite_actor_to_case",
@@ -573,17 +580,19 @@ class TestFvcvExtensionMilestoneAssertions:
                 case=case,
             )
 
-        assert (
-            len(rm_calls) == 2
-        ), f"wait_for_participant_rm_state must be called once per vendor (got {len(rm_calls)}) (ADR-0058/CSB-18-001)"
+        assert len(rm_calls) == 2, (
+            f"wait_for_participant_rm_state must be called once per vendor (got {len(rm_calls)}) (ADR-0058/CSB-18-001)"
+        )
         assert all(
             c.get("expected_states") == {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
             for c in rm_calls
-        ), "expected_states must be {ACCEPTED, DEFERRED, CLOSED} for each vendor (CSB-18-001)"
+        ), (
+            "expected_states must be {ACCEPTED, DEFERRED, CLOSED} for each vendor (CSB-18-001)"
+        )
         assert "rm_wait" in call_order and "fix_ready" in call_order
-        assert call_order.index("rm_wait") < call_order.index(
-            "fix_ready"
-        ), "wait_for_participant_rm_state must precede actor_notifies_fix_ready (ADR-0058)"
+        assert call_order.index("rm_wait") < call_order.index("fix_ready"), (
+            "wait_for_participant_rm_state must precede actor_notifies_fix_ready (ADR-0058)"
+        )
 
     def test_phase_publication_calls_verify_publicly_disclosed(self):
         """_phase_publication calls verify_publicly_disclosed at M6."""
@@ -749,10 +758,9 @@ class TestFvcvExtensionMilestoneAssertions:
         actors_closed = [
             call.args[0].actor.id_ for call in mock_close.call_args_list
         ]
-        assert (
-            actors_closed[-1] == vendor_in_vendor.id_
-        ), "Vendor1 (case owner) must close last; got order: " + str(
-            actors_closed
+        assert actors_closed[-1] == vendor_in_vendor.id_, (
+            "Vendor1 (case owner) must close last; got order: "
+            + str(actors_closed)
         )
         assert actors_closed.index(finder_in_finder.id_) < actors_closed.index(
             vendor_in_vendor.id_
@@ -868,9 +876,9 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
                 finder=finder,
             )
 
-        assert (
-            "finder_wait" in call_order
-        ), "wait_for_case_on_container(finder_client) never called"
+        assert "finder_wait" in call_order, (
+            "wait_for_case_on_container(finder_client) never called"
+        )
         assert "triage" in call_order, "run_invite_path_rm_triage never called"
         finder_idx = next(
             i for i, v in enumerate(call_order) if v == "finder_wait"
@@ -1098,6 +1106,7 @@ class TestFvcvExtensionRmTriageTimeout:
                 demo, "run_direct_path_rm_triage", return_value=case
             ) as mock_rm_triage,
             patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 ActorSession,
                 "invite_actor_to_case",
@@ -1197,6 +1206,7 @@ class TestFvcvExtensionInviteTriggerFailureSkipsDependents:
             ),
             patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 ActorSession, "invite_actor_to_case", **invite_trigger
             ),
@@ -1267,3 +1277,80 @@ class TestFvcvExtensionInviteTriggerFailureSkipsDependents:
         ], "replica_wait ran for the skipped dependent: " + str(
             replica_wait.call_args_list
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 drain goes through the shared coverage helper (DEMOMA-23-005, #3906)
+# ---------------------------------------------------------------------------
+
+
+class TestFvcvExtensionPhase1DrainViaSharedHelper:
+    """AC-1 (#3956): the Phase 1 drain is ``wait_for_replica_ledger_coverage``
+    with the same authority (Vendor1) and replica pairs the deleted
+    ``drain_phase1_ledger`` received."""
+
+    def test_phase1_drain_calls_shared_helper_with_same_authority_and_replicas(
+        self,
+    ):
+        clients = {
+            k: MagicMock(name=k)
+            for k in (
+                "finder_client",
+                "vendor_client",
+                "coordinator_client",
+                "vendor2_client",
+            )
+        }
+        case = mock_case()
+        with patched_report_submission(
+            demo,
+            seed_fn="seed_containers_fvcv",
+            seeded_actors=(
+                mock_actor("urn:test:finder"),
+                mock_actor("urn:test:vendor"),
+                mock_actor("urn:test:coordinator"),
+                mock_actor("urn:test:vendor2"),
+            ),
+            actor_lookups=[
+                mock_actor("urn:test:vendor"),
+                mock_actor("urn:test:coordinator"),
+            ],
+            case=case,
+            demo_patches={
+                name: {}
+                for name in (
+                    "wait_for_case_participants",
+                    "wait_for_replica_ledger_coverage",
+                    "find_case_invite_for_actor",
+                    "wait_for_case_on_container",
+                    "run_invite_path_rm_triage",
+                    "verify_case_active",
+                )
+            },
+            session_patches=(
+                "accept_case_invite",
+                "suggest_actor_to_case",
+                "accept_actor_recommendation",
+            ),
+        ) as mocks:
+            demo._phase_report_submission(
+                finder_id=None,
+                vendor_id=None,
+                coordinator_id=None,
+                vendor2_id=None,
+                **clients,
+            )
+
+        coverage = mocks["wait_for_replica_ledger_coverage"]
+        coverage.assert_called_once()
+        kwargs = coverage.call_args.kwargs
+        assert kwargs["auth_client"] is clients["vendor_client"]
+        assert kwargs["replicas"] == [
+            (clients["finder_client"], "Finder"),
+            (clients["coordinator_client"], "Coordinator"),
+        ]
+        assert kwargs["case_id"] == case.id_
+        assert kwargs["phase_label"] == "Phase 1 drain before Phase 2"
+        # The drain is a causal gate for Phase 2 (EDF-06-005): the helper's
+        # default, so the scenario must not pass causal=False.
+        assert "causal" not in kwargs

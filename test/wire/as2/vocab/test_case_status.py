@@ -18,7 +18,7 @@ Tests for as_CaseStatus and as_ParticipantStatus empty-string field validation
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -119,7 +119,7 @@ class TestAs2RoundTripPreservesPublished(unittest.TestCase):
     AS2 and reading it back is that path now, so that is what is asserted.
     """
 
-    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=UTC)
 
     def test_as2_round_trip_preserves_published(self):
         core = CoreCaseStatus(context=CASE_ID, published=self._FIXED_TIME)
@@ -187,7 +187,7 @@ class TestAs2RoundTripPreservesFields(unittest.TestCase):
     the round-trip is the successor path.
     """
 
-    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=UTC)
 
     def test_as2_round_trip_preserves_published(self):
         core = CoreParticipantStatus(
@@ -214,13 +214,13 @@ class TestAs2RoundTripPreservesFields(unittest.TestCase):
 
 
 class TestRetiredVfdKeyRejection(unittest.TestCase):
-    """_reject_retired_vfd_keys must raise ValidationError, not a raw
-    VultronProtocolViolationError that escapes Pydantic (issue #2905).
+    """A retired vfd key must raise ValidationError, not escape Pydantic (#2905).
 
-    Pydantic only absorbs ValueError/TypeError/AssertionError from validators.
-    When the validator raised VultronProtocolViolationError (a plain VultronError
-    subclass) the exception escaped model_validate() entirely, crashing the
-    inbox-processing loop rather than being treated as a validation failure.
+    The per-class ``_reject_retired_vfd_keys`` guard these rows were written
+    for is gone (#3921, SDO-03-005): ``extra="forbid"`` alone now refuses the
+    key on direct validation, and the parse edge refuses it by name on inbound
+    data (MV-11-002).  The rows still pin that the refusal is a Pydantic
+    ``ValidationError`` rather than an exception escaping ``model_validate()``.
     """
 
     def test_vfd_state_snake_raises_validation_error(self):

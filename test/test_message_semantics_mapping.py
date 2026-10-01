@@ -202,9 +202,9 @@ def test_actor_suggestion_accept_reject_wrap_the_participant_offer():
         pattern = _pattern(semantics)
         assert pattern.activity_ is verb
         inner = pattern.object_
-        assert isinstance(
-            inner, ActivityPattern
-        ), f"{semantics} must nest an inner ActivityPattern, not a bare object type"
+        assert isinstance(inner, ActivityPattern), (
+            f"{semantics} must nest an inner ActivityPattern, not a bare object type"
+        )
         assert inner.activity_ is TAtype.OFFER
         assert inner.object_ == "CaseParticipant", (
             f"{semantics} must wrap Offer(CaseParticipant), not Offer(Actor) — "

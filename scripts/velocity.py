@@ -19,7 +19,7 @@ import json
 import subprocess
 import sys
 from collections import defaultdict
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import httpx2 as httpx
@@ -159,9 +159,8 @@ def month_key(d: date) -> str:
     return f"{d.year}-{d.month:02d}"
 
 
-def build_metrics(issues: list[dict], start: date) -> dict:
-    # Collect all weeks and months in range up to today
-    today = date.today()
+def _period_keys(start: date, today: date) -> tuple[list[str], list[str]]:
+    """Return (weeks, sorted months) from the week of start up to today."""
     all_weeks = []
     all_months = set()
     cursor = start - timedelta(days=start.weekday())  # Monday of start week
@@ -169,25 +168,29 @@ def build_metrics(issues: list[dict], start: date) -> dict:
         all_weeks.append(week_key(cursor))
         all_months.add(month_key(cursor))
         cursor += timedelta(weeks=1)
-    all_months_sorted = sorted(all_months)
+    return all_weeks, sorted(all_months)
 
-    all_types = sorted({classify_type(i) for i in issues} | {"Untyped"})
 
-    # --- Per-period counts ---
-    # created[period][type] = count
-    created_week: dict[str, dict[str, int]] = defaultdict(
-        lambda: defaultdict(int)
-    )
-    created_month: dict[str, dict[str, int]] = defaultdict(
-        lambda: defaultdict(int)
-    )
-    closed_week: dict[str, dict[str, int]] = defaultdict(
-        lambda: defaultdict(int)
-    )
-    closed_month: dict[str, dict[str, int]] = defaultdict(
-        lambda: defaultdict(int)
-    )
+def _period_counter() -> dict[str, dict[str, int]]:
+    """Return an empty counts[period][type] mapping."""
+    return defaultdict(lambda: defaultdict(int))
 
+
+def _count_issues(
+    issues: list[dict], start: date
+) -> tuple[dict[str, dict[str, dict[str, int]]], dict[str, list[float]]]:
+    """Count created/closed issues per week and month, and collect cycle days.
+
+    Returns (counts, cycle_days_by_type) where counts is keyed by
+    "created_week", "created_month", "closed_week", "closed_month".
+    """
+    # counts[bucket][period][type] = count
+    counts = {
+        "created_week": _period_counter(),
+        "created_month": _period_counter(),
+        "closed_week": _period_counter(),
+        "closed_month": _period_counter(),
+    }
     cycle_days_by_type: dict[str, list[float]] = defaultdict(list)
 
     for issue in issues:
@@ -196,17 +199,23 @@ def build_metrics(issues: list[dict], start: date) -> dict:
         itype = classify_type(issue)
 
         if created and created >= start:
-            created_week[week_key(created)][itype] += 1
-            created_month[month_key(created)][itype] += 1
+            counts["created_week"][week_key(created)][itype] += 1
+            counts["created_month"][month_key(created)][itype] += 1
 
         if closed and closed >= start:
-            closed_week[week_key(closed)][itype] += 1
-            closed_month[month_key(closed)][itype] += 1
+            counts["closed_week"][week_key(closed)][itype] += 1
+            counts["closed_month"][month_key(closed)][itype] += 1
 
         if created and closed:
             cycle_days_by_type[itype].append((closed - created).days)
 
-    # --- Cycle time (median days to close, by type) ---
+    return counts, cycle_days_by_type
+
+
+def _cycle_time_summary(
+    cycle_days_by_type: dict[str, list[float]],
+) -> dict[str, dict]:
+    """Return median/p25/p75 days to close and sample size, by type."""
     cycle_time = {}
     for itype, days in cycle_days_by_type.items():
         s = pd.Series(days)
@@ -216,35 +225,45 @@ def build_metrics(issues: list[dict], start: date) -> dict:
             "p75_days": round(float(s.quantile(0.75)), 1),
             "n": len(days),
         }
+    return cycle_time
 
-    # --- Running open backlog per type per period ---
-    # For each period end, count issues open at that moment
-    # (created <= period_end AND (not closed OR closed > period_end))
-    def backlog_at(period_end: date) -> dict[str, int]:
-        counts: dict[str, int] = defaultdict(int)
-        for issue in issues:
-            created = iso_to_date(issue["createdAt"])
-            closed = iso_to_date(issue.get("closedAt"))
-            if created is None:
-                continue
-            if created <= period_end and (
-                closed is None or closed > period_end
-            ):
-                counts[classify_type(issue)] += 1
-        return dict(counts)
 
-    # Weekly backlog snapshots (end of each week = Sunday)
+def _backlog_at(issues: list[dict], period_end: date) -> dict[str, int]:
+    """Count issues open at period_end, by type.
+
+    Open means created <= period_end AND (not closed OR closed > period_end).
+    """
+    counts: dict[str, int] = defaultdict(int)
+    for issue in issues:
+        created = iso_to_date(issue["createdAt"])
+        closed = iso_to_date(issue.get("closedAt"))
+        if created is None:
+            continue
+        if created <= period_end and (closed is None or closed > period_end):
+            counts[classify_type(issue)] += 1
+    return dict(counts)
+
+
+def _weekly_backlog(
+    issues: list[dict], all_weeks: list[str], today: date
+) -> dict[str, dict[str, int]]:
+    """Backlog snapshot at the end (Sunday) of each completed week."""
     weekly_backlog = {}
     for w in all_weeks:
         year, wnum = int(w[:4]), int(w[6:])
         week_start = date.fromisocalendar(year, wnum, 1)
         week_end = week_start + timedelta(days=6)
         if week_end <= today:
-            weekly_backlog[w] = backlog_at(week_end)
+            weekly_backlog[w] = _backlog_at(issues, week_end)
+    return weekly_backlog
 
-    # Monthly backlog snapshots (last day of month)
+
+def _monthly_backlog(
+    issues: list[dict], all_months: list[str], today: date
+) -> dict[str, dict[str, int]]:
+    """Backlog snapshot on the last day of each completed month."""
     monthly_backlog = {}
-    for m in all_months_sorted:
+    for m in all_months:
         year, mon = int(m[:4]), int(m[5:])
         last_day = (
             date(year, mon + 1, 1) - timedelta(days=1)
@@ -252,35 +271,55 @@ def build_metrics(issues: list[dict], start: date) -> dict:
             else date(year, 12, 31)
         )
         if last_day <= today:
-            monthly_backlog[m] = backlog_at(last_day)
+            monthly_backlog[m] = _backlog_at(issues, last_day)
+    return monthly_backlog
 
-    # --- Serialize with zero-filled periods for all known types ---
-    def fill_zeros(period_dict: dict, periods: list) -> list[dict]:
-        rows = []
-        for p in periods:
-            row = {"period": p}
-            for t in all_types:
-                row[t] = period_dict.get(p, {}).get(t, 0)
-            rows.append(row)
-        return rows
+
+def _fill_zeros(
+    period_dict: dict, periods: list, all_types: list[str]
+) -> list[dict]:
+    """Serialize period_dict with zero-filled periods for all known types."""
+    rows = []
+    for p in periods:
+        row = {"period": p}
+        for t in all_types:
+            row[t] = period_dict.get(p, {}).get(t, 0)
+        rows.append(row)
+    return rows
+
+
+def build_metrics(issues: list[dict], start: date) -> dict:
+    # Collect all weeks and months in range up to today
+    today = datetime.now(UTC).date()
+    all_weeks, all_months_sorted = _period_keys(start, today)
+
+    all_types = sorted({classify_type(i) for i in issues} | {"Untyped"})
+
+    counts, cycle_days_by_type = _count_issues(issues, start)
+    weekly_backlog = _weekly_backlog(issues, all_weeks, today)
+    monthly_backlog = _monthly_backlog(issues, all_months_sorted, today)
+
+    def by_week(period_dict: dict) -> list[dict]:
+        return _fill_zeros(period_dict, all_weeks, all_types)
+
+    def by_month(period_dict: dict) -> list[dict]:
+        return _fill_zeros(period_dict, all_months_sorted, all_types)
 
     return {
         "meta": {
             "repo": f"{REPO_OWNER}/{REPO_NAME}",
             "start_date": start.isoformat(),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "total_issues_fetched": len(issues),
             "issue_types": all_types,
         },
-        "created_by_week": fill_zeros(created_week, all_weeks),
-        "created_by_month": fill_zeros(created_month, all_months_sorted),
-        "closed_by_week": fill_zeros(closed_week, all_weeks),
-        "closed_by_month": fill_zeros(closed_month, all_months_sorted),
-        "open_backlog_by_week": fill_zeros(weekly_backlog, all_weeks),
-        "open_backlog_by_month": fill_zeros(
-            monthly_backlog, all_months_sorted
-        ),
-        "cycle_time_by_type": cycle_time,
+        "created_by_week": by_week(counts["created_week"]),
+        "created_by_month": by_month(counts["created_month"]),
+        "closed_by_week": by_week(counts["closed_week"]),
+        "closed_by_month": by_month(counts["closed_month"]),
+        "open_backlog_by_week": by_week(weekly_backlog),
+        "open_backlog_by_month": by_month(monthly_backlog),
+        "cycle_time_by_type": _cycle_time_summary(cycle_days_by_type),
     }
 
 

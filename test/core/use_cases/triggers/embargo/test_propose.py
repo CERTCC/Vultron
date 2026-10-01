@@ -1,6 +1,6 @@
 """Tests for SvcProposeEmbargoUseCase."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -8,6 +8,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.states.em import EM
 from vultron.core.use_cases.triggers.embargo import SvcProposeEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
@@ -33,7 +34,7 @@ def test_propose_embargo_invalid_state_does_not_persist_embargo(
     request = ProposeEmbargoTriggerRequest(
         actor_id=finder.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=1),
+        end_time=datetime.now(tz=UTC) + timedelta(days=1),
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -41,12 +42,14 @@ def test_propose_embargo_invalid_state_does_not_persist_embargo(
             finder_dl,
             request,
             trigger_activity=TriggerActivityAdapter(finder_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
     after = len(list(finder_dl.list_objects("EmbargoEvent")))
     assert after == before
 
 
+@pytest.mark.spec("EP-09-008")
 def test_propose_embargo_updates_case_state_via_bt_path(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -60,14 +63,17 @@ def test_propose_embargo_updates_case_state_via_bt_path(
     request = ProposeEmbargoTriggerRequest(
         actor_id=finder.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=7),
+        end_time=datetime.now(tz=UTC) + timedelta(days=7),
     )
 
     result = SvcProposeEmbargoUseCase(
-        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+        finder_dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(finder_dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
-    assert "activity" in result
+    assert result.activity is not None
     updated_case = cast(VulnerabilityCase, finder_dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.PROPOSED
     assert len(updated_case.proposed_embargoes) == 1

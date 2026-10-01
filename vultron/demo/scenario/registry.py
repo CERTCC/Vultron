@@ -58,8 +58,9 @@ from __future__ import annotations
 import importlib
 import pkgutil
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, TypeVar
+from typing import TypeVar
 
 from vultron.errors import DemoScenarioRegistryError
 

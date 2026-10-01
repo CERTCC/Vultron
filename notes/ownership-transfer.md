@@ -107,8 +107,9 @@ CASE_MANAGER inbox receives Accept
 - MUST call `_find_case_actor_id()` and set `self._actor_id = case_actor_id`
   (CM-24-001).
 - MUST set `self._attributed_to = offering_actor_id` (CM-24-002).
-- When no CASE_MANAGER exists: `self._actor_id = offering_actor_id`,
-  `self._attributed_to = None` (CM-24-003).
+- A case always has a CASE_MANAGER holder (CM-24-006); when the resolver finds
+  none the helper fails rather than falling back to the offering actor (the
+  CM-24-003 fallback is retired by #3964).
 - Pass `attributed_to` through to the BT builder (CM-24-004).
 
 ### EmitOfferCaseOwnershipTransferNode
@@ -167,8 +168,8 @@ it sends under its own identity is claiming to speak for another participant, an
 nothing downstream re-checks it (CLP-07-003 validates `payloadSnapshot.actor`,
 not `attributed_to`), so relaying it unchecked would let any participant forge
 the offerer of record. Outside the delegated shape the sender is the offerer,
-which is also the right answer when the case has no CASE_MANAGER (CM-24-003). The
-refusal is logged at WARNING rather than silently swallowed.
+and a case with no CASE_MANAGER holder is a corrupt roster, not a routing mode
+(CM-24-006). The refusal is logged at WARNING rather than silently swallowed.
 
 This all required `_build_activity_snapshot`
 (`vultron/wire/as2/extractor/_builders.py`) to carry `attributed_to` at all — it
@@ -236,7 +237,8 @@ Two preconditions are easy to get wrong here and both fail far from their cause:
 1. **The case must be CASE_MANAGER-owned.** `setup_initialized_case` has the vendor
    mint the case, which leaves it with no `CASE_MANAGER` participant — there is no
    CASE_MANAGER to address and the routing silently degrades to the direct path it is
-   meant to replace (CM-24-003). Use
+   meant to replace (the retired CM-24-003 fallback; under CM-24-006 this is a
+   failure, #3964). Use
    `vultron.demo.helpers.workflow.setup_canonical_case`, which drives
    report → validate → `Create(CaseProposal)` → CASE_MANAGER.
 2. **The transferee must be in the CASE_MANAGER's address book** *and* a participant

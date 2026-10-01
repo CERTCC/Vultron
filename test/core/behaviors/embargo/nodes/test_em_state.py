@@ -19,17 +19,16 @@ from unittest.mock import MagicMock, PropertyMock
 
 import py_trees
 
+from test.core.behaviors.embargo.nodes.conftest import (
+    make_case_and_embargo,
+    setup_blackboard,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.states.em import EM
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
-)
-
-from test.core.behaviors.embargo.nodes.conftest import (
-    make_case_and_embargo,
-    setup_blackboard,
 )
 
 

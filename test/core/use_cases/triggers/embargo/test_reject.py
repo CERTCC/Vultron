@@ -6,6 +6,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
@@ -36,10 +37,13 @@ def test_non_owner_reject_embargo_on_active_case_updates_participant_only(
     )
 
     result = SvcRejectEmbargoUseCase(
-        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+        finder_dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(finder_dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
-    assert "activity" in result
+    assert result.activity is not None
 
     updated_case = finder_dl.read(case.id_)
     updated_participant = finder_dl.read(participant_id)

@@ -21,35 +21,37 @@ from nodes.lifecycle.
 Per DEMOMA-07-003 steps 4–5.
 """
 
-import pytest
-import py_trees
-from py_trees.common import Status
 from unittest.mock import MagicMock
 
+import py_trees
+import pytest
+from py_trees.common import Status
+
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes.lifecycle import (
     EmitCloseCaseNode,
     PublicDisclosureBranchNode,
     _PublicDisclosureSkipConditionNode,
 )
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    PxaDimension,
+)
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
-from vultron.core.models.dimensions import (
-    PxaDimension,
-)
-from vultron.core.models._helpers import days_from_now_utc
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_MANAGER_ID = "https://example.org/actors/case-actor"
@@ -129,7 +131,9 @@ def populated_dl(dl, participant, status_obj):
 
 @pytest.fixture
 def populated_bridge(populated_dl):
-    return BTBridge(datalayer=populated_dl)
+    return BTBridge(
+        datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+    )
 
 
 def _make_dl_with_em_state(
@@ -160,7 +164,7 @@ def _make_dl_with_em_state(
         case.active_embargo = embargo.id_
         try:
             dl.create(embargo)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3989
             pass
 
     participant = CaseParticipant(
@@ -191,7 +195,9 @@ class TestPublicDisclosureSkipConditionNode:
     def _make_bridge_and_node(
         self, dl: SqliteDataLayer, status_obj: as_ParticipantStatus
     ) -> tuple[BTBridge, _PublicDisclosureSkipConditionNode]:
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         node = _PublicDisclosureSkipConditionNode(
             status_obj=status_obj,
             sender_actor_id=ACTOR_ID,
@@ -338,7 +344,11 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         factory = MagicMock()
         factory.reject_embargo.return_value = (reject_activity_id, {})
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = PublicDisclosureBranchNode(
             status_obj=public_aware_status,
             sender_actor_id=ACTOR_ID,
@@ -455,6 +465,23 @@ class TestEmitCloseCaseNode:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CM-24-006: EmitCloseCaseNode returns SUCCESS with a warning when "
+            "no CASE_MANAGER was resolved. Tracked by #3964 (Concern #3918, "
+            "ADR-0113)."
+        ),
+    )
+    @pytest.mark.spec("CM-24-006")
+    def test_fails_when_case_manager_id_missing(self, populated_bridge):
+        """No CASE_MANAGER resolved is a fault: FAILURE, not a skip."""
+        node = EmitCloseCaseNode(case_id=CASE_ID)
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.FAILURE
+
     @pytest.mark.spec("CM-23-001")
     def test_happy_path_emits_leave_and_records_outbox(self, populated_dl):
         """With factory + case_manager_id on blackboard → queues Leave, SUCCESS."""
@@ -465,7 +492,11 @@ class TestEmitCloseCaseNode:
         py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
             CASE_MANAGER_ID
         )
-        bridge = BTBridge(datalayer=populated_dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitCloseCaseNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
@@ -486,7 +517,11 @@ class TestEmitCloseCaseNode:
         py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
             CASE_MANAGER_ID
         )
-        bridge = BTBridge(datalayer=populated_dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitCloseCaseNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 

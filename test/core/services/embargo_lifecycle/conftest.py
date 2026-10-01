@@ -19,18 +19,16 @@ One test module per submodule of ``vultron/core/services/embargo_lifecycle/``
 """
 
 from collections.abc import Generator
+from datetime import datetime
+from typing import cast
 
 import pytest
-
-# noqa: F401 — imported for vocabulary registration side-effect
-from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    as_VulnerabilityCase,
-)
 
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     CaseParticipant,
@@ -43,7 +41,11 @@ from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.core.models._helpers import days_from_now_utc
+
+# imported for vocabulary registration side-effect
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -100,10 +102,55 @@ def _make_case(
     return case, participants
 
 
-def _make_embargo(dl: SqliteDataLayer, case_id: str) -> as_EmbargoEvent:
-    embargo = as_EmbargoEvent(context=case_id, end_time=days_from_now_utc(45))
+def _make_embargo(
+    dl: SqliteDataLayer,
+    case_id: str,
+    *,
+    days: int = 45,
+    end_time: datetime | None = None,
+) -> as_EmbargoEvent:
+    """Persist an ``EmbargoEvent`` ending *days* from now (the A-vs-B knob).
+
+    Pass *end_time* to pin the terms exactly — two calls with the same *days*
+    are minted at two instants and so end a second apart whenever a second
+    boundary falls between them, which is not the "equal terms" a tie test
+    means.
+    """
+    embargo = as_EmbargoEvent(
+        context=case_id, end_time=end_time or days_from_now_utc(days)
+    )
     dl.create(embargo)
     return embargo
+
+
+def _force_pec(dl: SqliteDataLayer, participant_id: str, state: PEC) -> None:
+    """Seed a PEC state directly — test setup only, never a consent write."""
+    participant = cast(CaseParticipant, dl.read(participant_id))
+    object.__setattr__(participant, "embargo_consent_state", state)
+    dl.save(participant)
+
+
+def _pec_of(dl: SqliteDataLayer, participant_id: str) -> str:
+    return cast(CaseParticipant, dl.read(participant_id)).embargo_consent_state
+
+
+def _accepted_ids_of(dl: SqliteDataLayer, participant_id: str) -> list[str]:
+    return list(
+        cast(CaseParticipant, dl.read(participant_id)).accepted_embargo_ids
+    )
+
+
+def _seed_consent(
+    dl: SqliteDataLayer,
+    participant_id: str,
+    state: PEC,
+    accepted: list[str],
+) -> None:
+    """Seed a participant's PEC state and accepted-embargo list together."""
+    _force_pec(dl, participant_id, state)
+    participant = cast(CaseParticipant, dl.read(participant_id))
+    participant.accepted_embargo_ids = list(accepted)
+    dl.save(participant)
 
 
 # ---------------------------------------------------------------------------
@@ -112,9 +159,9 @@ def _make_embargo(dl: SqliteDataLayer, case_id: str) -> as_EmbargoEvent:
 
 
 @pytest.fixture()
-def owner_and_dl() -> (
-    Generator[tuple[as_Service, SqliteDataLayer], None, None]
-):
+def owner_and_dl() -> Generator[
+    tuple[as_Service, SqliteDataLayer], None, None
+]:
     owner = as_Service(name="Owner Org")
     reset_datalayer(owner.id_)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner.id_)

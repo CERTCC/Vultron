@@ -19,7 +19,14 @@ MUST NOT import from ``vultron/wire/`` — neither at module level nor via
 deferred (local) imports.  The wire layer is an adapter and depends on core,
 not the other way around.
 
-Spec: ARCH-01-001
+Spec: ARCH-01-001; HP-04-001 (``specs/handler-protocol.yaml``).
+
+HP-04-001 leans on this boundary: a handler reads activity data as typed
+fields of its ``VultronEvent`` subclass and never re-reads the inbound wire
+activity.  With no core → wire import there is no path from a handler to the
+AS2 parser or the semantic extractor, and the second test below pins the
+other half — ``VultronEvent.activity`` (and every subclass narrowing of it)
+resolves to the core ``VultronActivity``, never a wire ``as_*`` class.
 
 Ratchet pattern
 ---------------
@@ -39,8 +46,14 @@ fixed.  When the set is empty the boundary is completely clean.
 """
 
 import ast
+import types
+import typing
 
+import vultron.core.models.events  # noqa: F401 — registers every event subclass
 from test.architecture import _corpus
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.events import CreateReportReceivedEvent
+from vultron.core.models.events.base import VultronEvent
 
 _WIRE_MODULE = "vultron.wire"
 
@@ -109,3 +122,79 @@ def test_core_does_not_import_wire():
         diff_lines.extend(f"  - {v}" for v in sorted(resolved))
 
     assert actual == KNOWN_VIOLATIONS, "\n\n" + "\n".join(diff_lines)
+
+
+# ---------------------------------------------------------------------------
+# HP-04-001: the activity a handler reads is the core type, never a wire class
+# ---------------------------------------------------------------------------
+
+
+_EVENTS_PACKAGE = "vultron.core.models.events"
+
+
+def _event_subclasses() -> frozenset[type[VultronEvent]]:
+    """Every ``VultronEvent`` subclass the events package defines.
+
+    ``__subclasses__()`` is process-wide, so a test-local stub subclass
+    defined elsewhere in the session is excluded by module — otherwise the
+    check would depend on collection order.
+    """
+    found: set[type[VultronEvent]] = set()
+    pending: list[type[VultronEvent]] = list(VultronEvent.__subclasses__())
+    while pending:
+        cls = pending.pop()
+        if cls in found:
+            continue
+        found.add(cls)
+        pending.extend(cls.__subclasses__())
+    return frozenset(
+        cls
+        for cls in found
+        if cls.__module__ == _EVENTS_PACKAGE
+        or cls.__module__.startswith(_EVENTS_PACKAGE + ".")
+    )
+
+
+def _member_types(hint: object) -> frozenset[object]:
+    """The concrete members of *hint*, unwrapping ``X | None`` / ``Optional[X]``."""
+    if typing.get_origin(hint) in (types.UnionType, typing.Union):
+        return frozenset(typing.get_args(hint)) - {type(None)}
+    return frozenset({hint})
+
+
+def test_vultron_event_activity_is_the_core_activity_type():
+    """HP-04-001: ``VultronEvent.activity`` resolves to the core ``VultronActivity``.
+
+    Optional on the base (subclasses that always carry one narrow it to
+    required), and never a wire ``as_*`` class.
+    """
+    hint = typing.get_type_hints(VultronEvent)["activity"]
+
+    assert _member_types(hint) == {VultronActivity}, hint
+    assert VultronActivity.__module__.startswith("vultron.core."), (
+        VultronActivity.__module__
+    )
+    assert not VultronActivity.__name__.startswith("as_")
+
+
+def test_every_event_subclass_carries_a_core_activity():
+    """HP-04-001: no subclass re-types ``activity`` as a wire class.
+
+    A subclass may drop the ``None`` branch (an activity it always carries)
+    but the object it carries is always the core ``VultronActivity``.
+    """
+    subclasses = _event_subclasses()
+    # Guard against a vacuous pass: the events package must have registered
+    # its concrete subclasses through the import above.
+    assert CreateReportReceivedEvent in subclasses
+
+    offenders = {
+        cls.__name__: hint
+        for cls in subclasses
+        if _member_types(hint := typing.get_type_hints(cls)["activity"])
+        != {VultronActivity}
+    }
+    assert offenders == {}, (
+        "VultronEvent subclasses whose `activity` is not the core "
+        f"VultronActivity (HP-04-001): {offenders}"
+    )

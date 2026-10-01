@@ -24,11 +24,11 @@ The ``get_dispatcher`` factory function is provided for adapter convenience.
 """
 
 import logging
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable, Mapping
+from typing import TYPE_CHECKING, Any
 
-from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.events import MessageSemantics
+from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.errors import (
@@ -118,7 +118,7 @@ class DispatcherBase:
         try:
             self._enforce_join_backfill_gate(event, dl)
         except UnroutableActivityError as exc:
-            logger.error(
+            logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "Activity '%s' is unroutable and will be dropped"
                 " (semantics=%s actor_id=%s): no case_id extractable",
                 event.activity_id,
@@ -131,7 +131,17 @@ class DispatcherBase:
         port_factory = self._port_factories.get(event.semantic_type)
         if port_factory is not None:
             extra_kwargs = port_factory(dl)
-        result = use_case_class(dl, event, **extra_kwargs).execute()
+        use_case = use_case_class(dl, event, **extra_kwargs)
+        # HP-06-001: handler entry is logged once, here, with the handler's
+        # class name, so no handler carries its own entry line.
+        logger.debug(
+            "Entering handler %s (activity_id=%s semantics=%s actor_id=%s)",
+            type(use_case).__name__,
+            event.activity_id,
+            event.semantic_type,
+            event.actor_id,
+        )
+        result = use_case.execute()
         if not isinstance(result, HandlerResult):
             raise TypeError(
                 f"use case {use_case_class!r} for {event.semantic_type} "
@@ -186,10 +196,10 @@ class DispatcherBase:
         self, case_id: str, dl: "DataLayer"
     ) -> tuple[int, bool]:
         case_indices = sorted(
-            int(getattr(obj, "log_index"))
+            index
             for obj in dl.list_objects("CaseLedgerEntry")
             if getattr(obj, "case_id", None) == case_id
-            and isinstance(getattr(obj, "log_index", None), int)
+            and isinstance(index := getattr(obj, "log_index", None), int)
         )
         if not case_indices:
             return -1, False

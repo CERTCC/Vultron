@@ -19,7 +19,7 @@ SYNC-03-002.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from vultron.wire.as2.factories.sync import (
     announce_log_entry_activity,
@@ -37,7 +37,7 @@ _ENTRY_URI = f"{_CASE_URI}/ledger/0"
 # All-zeros genesis hash for the first entry; fixed 64-char hex for entry hash.
 _GENESIS_HASH = "0" * 64
 _ENTRY_HASH = "a1b2c3d4" * 8
-_RECEIVED_AT = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+_RECEIVED_AT = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
 
 
 def _example_ledger_entry() -> as_CaseLedgerEntry:

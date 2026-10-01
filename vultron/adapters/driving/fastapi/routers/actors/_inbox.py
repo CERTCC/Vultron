@@ -68,12 +68,12 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     try:
         return _parse_activity(body)
     except VultronParseMissingTypeError as exc:
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         )
     except VultronParseError as exc:
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         )
@@ -168,8 +168,3 @@ def _activity_addressed_to(
     # confirm names some *other* individual actor.  One unresolvable address is
     # enough uncertainty to accept the whole thing.
     return not all(_names_an_individual_actor(addr) for addr in addresses)
-
-
-def _get_body(body: dict[str, Any]) -> dict[str, Any]:
-    """FastAPI dependency: return the raw JSON request body dict."""
-    return body

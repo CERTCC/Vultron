@@ -23,14 +23,17 @@ are normalised to full URIs before use.
 """
 
 import logging
+from datetime import UTC
+from typing import cast
+
+import pytest
+from pydantic import ValidationError
+
 from test.conftest import seed_case_actor_replica
 from test.core.use_cases.received.conftest import (
     seed_store_owner_as_case_manager,
 )
-from typing import cast
-
-import pytest
-
+from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -38,6 +41,9 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
@@ -62,10 +68,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
     as_VulnerabilityCase,
+    as_VulnerabilityCaseStub,
 )
-from vultron.core.models._helpers import days_from_now_utc
 
 _BASE = "http://coordinator:7999/api/v2/actors"
 _UUID = "24d63c7d-6b1e-4f61-a5e1-180d27192d0b"
@@ -152,11 +157,14 @@ class TestSvcInviteActorToCaseUseCase:
             invitee_id=invitee.id_,
         )
         result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert "activity" in result
-        activity_data = result["activity"]
+        assert result.activity is not None
+        activity_data = activity_of(result)
         assert activity_data["type"] == "Invite"
         assert activity_data["actor"] == actor.id_
         assert invitee.id_ in activity_data.get("to", [])
@@ -176,10 +184,13 @@ class TestSvcInviteActorToCaseUseCase:
             invitee_id=invitee.id_,
         )
         result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        invite_id = result["activity"]["id"]
+        invite_id = activity_of(result)["id"]
         stored = dl.read(invite_id)
         assert stored is not None
         assert isinstance(stored, as_Invite)
@@ -214,7 +225,10 @@ class TestSvcInviteActorToCaseUseCase:
         )
         with caplog.at_level(logging.WARNING):
             result = SvcInviteActorToCaseUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert result is not None
@@ -222,15 +236,17 @@ class TestSvcInviteActorToCaseUseCase:
         assert "actor discovery returned" not in caplog.text
 
     @pytest.mark.parametrize(
-        "bad_id",
+        ("bad_id", "refused_by_model"),
         [
-            "nobody",  # bare name, no scheme
-            "/actors/nobody",  # relative path
-            "https:///actors/nobody",  # scheme but no netloc
-            "ftp://example.org/actors/nobody",  # non-HTTP scheme
+            ("nobody", True),  # bare name, no scheme
+            ("/actors/nobody", True),  # relative path
+            ("https:///actors/nobody", False),  # scheme but no netloc
+            ("ftp://example.org/actors/nobody", False),  # non-HTTP scheme
         ],
     )
-    def test_invite_rejects_undeliverable_invitee_uri(self, bad_id):
+    def test_invite_rejects_undeliverable_invitee_uri(
+        self, bad_id, refused_by_model
+    ):
         """An unknown invitee is minted, but only from a deliverable URI.
 
         Absence is not grounds for refusal (see the test above), which leaves
@@ -239,6 +255,11 @@ class TestSvcInviteActorToCaseUseCase:
         POSTed to: a typo'd or relative id would otherwise become a case
         participant that no delivery attempt can ever reach, failing far away
         in the retry loop instead of here.
+
+        Two layers refuse: an id that is not a URI at all never builds a
+        request, because the request derives from the ``UriString``-typed body
+        model (validate at the edge, ADR-0032); a URI-shaped id that is not
+        deliverable is refused by the use case.
         """
         actor, dl = _make_actor_dl("Coordinator")
         case = as_VulnerabilityCase(
@@ -246,21 +267,32 @@ class TestSvcInviteActorToCaseUseCase:
         )
         dl.create(case)
 
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=bad_id,
-        )
-        with pytest.raises(
-            VultronValidationError, match="deliverable actor URI"
-        ):
-            SvcInviteActorToCaseUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
-            ).execute()
+        if refused_by_model:
+            with pytest.raises(ValidationError, match="must be a URI"):
+                InviteActorToCaseTriggerRequest(
+                    actor_id=actor.id_,
+                    case_id=case.id_,
+                    invitee_id=bad_id,
+                )
+        else:
+            request = InviteActorToCaseTriggerRequest(
+                actor_id=actor.id_,
+                case_id=case.id_,
+                invitee_id=bad_id,
+            )
+            with pytest.raises(
+                VultronValidationError, match="deliverable actor URI"
+            ):
+                SvcInviteActorToCaseUseCase(
+                    dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                ).execute()
 
-        assert (
-            dl.read(bad_id) is None
-        ), "a rejected invitee must not be recorded as a known actor"
+        assert dl.read(bad_id) is None, (
+            "a rejected invitee must not be recorded as a known actor"
+        )
 
     def test_invite_raises_when_case_not_in_dl(self):
         actor, dl = _make_actor_dl("Coordinator")
@@ -274,14 +306,17 @@ class TestSvcInviteActorToCaseUseCase:
             case_id=missing_case_id,
             invitee_id=invitee.id_,
         )
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             SvcInviteActorToCaseUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_invite_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
-        actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
+        _actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
         invitee, _ = _make_actor_dl("Finder")
         dl.create(invitee)
         case = as_VulnerabilityCase(
@@ -296,11 +331,14 @@ class TestSvcInviteActorToCaseUseCase:
             invitee_id=invitee.id_,
         )
         result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # Activity actor field must be the full canonical URI, not the short UUID
-        assert result["activity"]["actor"] == _HTTP_ACTOR_ID
+        assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
 
     def test_invite_uses_case_actor_when_present(self):
         """PCR-08-007: when the authority is a separate actor the invite actor
@@ -347,10 +385,13 @@ class TestSvcInviteActorToCaseUseCase:
             invitee_id=invitee.id_,
         )
         result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        activity_data = result["activity"]
+        activity_data = activity_of(result)
         assert activity_data["type"] == "Invite"
         # Invite actor MUST be the Case Actor Service ID (PCR-08-007)
         assert activity_data["actor"] == case_actor.id_
@@ -409,7 +450,7 @@ class TestInviteRolesAndEmbargoEnrichment:
 
     def test_ac6_roles_field_accepted_in_request(self):
         """AC-6: InviteActorToCaseTriggerRequest accepts optional roles field."""
-        actor, invitee, dl, case = self._setup_invite()
+        actor, invitee, _dl, case = self._setup_invite()
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
             case_id=case.id_,
@@ -428,10 +469,13 @@ class TestInviteRolesAndEmbargoEnrichment:
             roles=[CVDRole.VENDOR],
         )
         result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        activity_data = result["activity"]
+        activity_data = activity_of(result)
         assert "roles" in activity_data
         assert activity_data["roles"] == ["vendor"]
 
@@ -449,22 +493,25 @@ class TestInviteRolesAndEmbargoEnrichment:
             invitee_id=invitee.id_,
         )
         result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        activity_data = result["activity"]
+        activity_data = activity_of(result)
         assert activity_data.get("roles") is None
 
     def test_ac1_active_embargo_enriches_case_stub(self):
         """AC-1: Invite.target stub carries activeEmbargo.endTime and emState=ACTIVE."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
 
         actor, invitee, dl, case = self._setup_invite()
-        end_time = datetime(2030, 1, 1, tzinfo=timezone.utc)
+        end_time = datetime(2030, 1, 1, tzinfo=UTC)
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo/e1",
             content="Active embargo",
@@ -484,18 +531,23 @@ class TestInviteRolesAndEmbargoEnrichment:
             invitee_id=invitee.id_,
         )
         result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        activity_data = result["activity"]
+        activity_data = activity_of(result)
         target = activity_data.get("target", {})
         active_embargo = target.get("activeEmbargo")
-        assert (
-            active_embargo is not None
-        ), "activeEmbargo must be present when em_state==ACTIVE"
+        assert active_embargo is not None, (
+            "activeEmbargo must be present when em_state==ACTIVE"
+        )
         assert (
             isinstance(active_embargo, dict) and "endTime" in active_embargo
-        ), "activeEmbargo must be a full embargo object with endTime (CM-17-002)"
+        ), (
+            "activeEmbargo must be a full embargo object with endTime (CM-17-002)"
+        )
         case_status = target.get("caseStatus", {})
         assert case_status.get("emState") in (
             "active",
@@ -511,17 +563,20 @@ class TestInviteRolesAndEmbargoEnrichment:
             invitee_id=invitee.id_,
         )
         result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        activity_data = result["activity"]
+        activity_data = activity_of(result)
         target = activity_data.get("target", {})
-        assert (
-            target.get("activeEmbargo") is None
-        ), "activeEmbargo must not be present when em_state != ACTIVE"
-        assert (
-            target.get("caseStatus") is None
-        ), "caseStatus must not be present when em_state != ACTIVE"
+        assert target.get("activeEmbargo") is None, (
+            "activeEmbargo must not be present when em_state != ACTIVE"
+        )
+        assert target.get("caseStatus") is None, (
+            "caseStatus must not be present when em_state != ACTIVE"
+        )
 
 
 class TestRolesThreadingIntegration:
@@ -606,9 +661,10 @@ class TestRolesThreadingIntegration:
             owner_dl,
             request,
             trigger_activity=TriggerActivityAdapter(owner_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        invite_id = result["activity"]["id"]
+        invite_id = activity_of(result)["id"]
         invite_obj = owner_dl.read(invite_id)
         assert isinstance(invite_obj, as_Invite)
         dl.create(invite_obj)
@@ -619,18 +675,21 @@ class TestRolesThreadingIntegration:
         event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         updated_case = cast(Any, dl.read(case.id_))
         participant_id = updated_case.actor_participant_index.get(invitee_id)
-        assert (
-            participant_id is not None
-        ), "invitee must be registered after Accept"
+        assert participant_id is not None, (
+            "invitee must be registered after Accept"
+        )
         participant = cast(Any, dl.read(participant_id))
-        assert (
-            participant is not None
-        ), "participant object not found in DataLayer"
+        assert participant is not None, (
+            "participant object not found in DataLayer"
+        )
         return participant
 
     def test_ac1_roles_vendor_reaches_participant_case_roles(
@@ -641,9 +700,9 @@ class TestRolesThreadingIntegration:
         participant = self._run_round_trip(
             roles=[CVDRole.VENDOR], make_payload=make_payload
         )
-        assert (
-            CVDRole.VENDOR in participant.case_roles
-        ), f"AC-1: expected CVDRole.VENDOR in case_roles, got {participant.case_roles!r}"
+        assert CVDRole.VENDOR in participant.case_roles, (
+            f"AC-1: expected CVDRole.VENDOR in case_roles, got {participant.case_roles!r}"
+        )
 
     def test_ac2_none_roles_gives_empty_case_roles(self, make_payload):
         """AC-2 (CM-17-003/004): roles=None in request results in
@@ -651,9 +710,9 @@ class TestRolesThreadingIntegration:
         participant = self._run_round_trip(
             roles=None, make_payload=make_payload
         )
-        assert (
-            participant.case_roles == []
-        ), f"AC-2: expected empty case_roles, got {participant.case_roles!r}"
+        assert participant.case_roles == [], (
+            f"AC-2: expected empty case_roles, got {participant.case_roles!r}"
+        )
 
 
 class TestSvcSuggestActorToCaseUseCase:
@@ -673,12 +732,15 @@ class TestSvcSuggestActorToCaseUseCase:
             suggested_actor_id=suggested.id_,
         )
         result = SvcSuggestActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert "activity" in result
-        assert result["activity"]["actor"] == actor.id_
-        assert result["activity"].get("to") == [case_actor.id_]
+        assert result.activity is not None
+        assert activity_of(result)["actor"] == actor.id_
+        assert activity_of(result).get("to") == [case_actor.id_]
 
     def test_suggest_proceeds_when_suggested_actor_missing(self, caplog):
         """A recommended actor is named by URI; a local record is not required.
@@ -708,7 +770,10 @@ class TestSvcSuggestActorToCaseUseCase:
         )
         with caplog.at_level(logging.WARNING):
             result = SvcSuggestActorToCaseUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert result is not None
@@ -716,35 +781,57 @@ class TestSvcSuggestActorToCaseUseCase:
         assert "actor discovery returned" not in caplog.text
 
     @pytest.mark.parametrize(
-        "bad_id",
-        ["ghost", "/actors/ghost", "https:///actors/ghost"],
+        ("bad_id", "refused_by_model"),
+        [
+            ("ghost", True),
+            ("/actors/ghost", True),
+            ("https:///actors/ghost", False),
+        ],
     )
-    def test_suggest_rejects_undeliverable_actor_uri(self, bad_id):
-        """The id is the address the eventual invitation is POSTed to."""
+    def test_suggest_rejects_undeliverable_actor_uri(
+        self, bad_id, refused_by_model
+    ):
+        """The id is the address the eventual invitation is POSTed to.
+
+        A non-URI id is refused by the ``UriString``-typed body model the
+        request derives from (ADR-0032); a URI-shaped but undeliverable one by
+        the use case.
+        """
         actor, dl = _make_actor_dl("Coordinator")
         case_actor, _ = _make_actor_dl("Case Actor")
         dl.create(case_actor)
         case = _make_case_with_case_manager(dl, actor.id_, case_actor.id_)
 
-        request = SuggestActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            suggested_actor_id=bad_id,
-        )
-        with pytest.raises(
-            VultronValidationError, match="deliverable actor URI"
-        ):
-            SvcSuggestActorToCaseUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
-            ).execute()
+        if refused_by_model:
+            with pytest.raises(ValidationError, match="must be a URI"):
+                SuggestActorToCaseTriggerRequest(
+                    actor_id=actor.id_,
+                    case_id=case.id_,
+                    suggested_actor_id=bad_id,
+                )
+        else:
+            request = SuggestActorToCaseTriggerRequest(
+                actor_id=actor.id_,
+                case_id=case.id_,
+                suggested_actor_id=bad_id,
+            )
+            with pytest.raises(
+                VultronValidationError, match="deliverable actor URI"
+            ):
+                SvcSuggestActorToCaseUseCase(
+                    dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                ).execute()
 
-        assert (
-            dl.read(bad_id) is None
-        ), "a rejected candidate must not be recorded as a known actor"
+        assert dl.read(bad_id) is None, (
+            "a rejected candidate must not be recorded as a known actor"
+        )
 
     def test_suggest_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
-        actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
+        _actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
         case_actor, _ = _make_actor_dl("Case Actor")
         suggested, _ = _make_actor_dl("Vendor")
         dl.create(case_actor)
@@ -759,11 +846,14 @@ class TestSvcSuggestActorToCaseUseCase:
             suggested_actor_id=suggested.id_,
         )
         result = SvcSuggestActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert result["activity"]["actor"] == _HTTP_ACTOR_ID
-        assert result["activity"].get("to") == [case_actor.id_]
+        assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
+        assert activity_of(result).get("to") == [case_actor.id_]
 
     def test_suggest_raises_when_no_case_manager(self):
         actor, dl = _make_actor_dl("Coordinator")
@@ -780,7 +870,10 @@ class TestSvcSuggestActorToCaseUseCase:
         )
         with pytest.raises(VultronValidationError):
             SvcSuggestActorToCaseUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
 
@@ -814,12 +907,13 @@ class TestSvcAcceptCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert "activity" in result
-        assert result["activity"]["actor"] == invitee.id_
-        assert result["activity"]["inReplyTo"] == invite.id_
-        assert result["activity"].get("to") == [inviter.id_]
+        assert result.activity is not None
+        assert activity_of(result)["actor"] == invitee.id_
+        assert activity_of(result)["inReplyTo"] == invite.id_
+        assert activity_of(result).get("to") == [inviter.id_]
 
     def test_accept_raises_when_invite_missing(self):
         _, dl = _make_actor_dl("Finder")
@@ -833,7 +927,10 @@ class TestSvcAcceptCaseInviteUseCase:
 
         with pytest.raises(VultronNotFoundError):
             SvcAcceptCaseInviteUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_accept_no_type_check_on_invite(self):
@@ -874,8 +971,9 @@ class TestSvcAcceptCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
-        assert "activity" in result
+        assert result.activity is not None
 
     def test_accept_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
@@ -908,9 +1006,10 @@ class TestSvcAcceptCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert result["activity"]["actor"] == _HTTP_ACTOR_ID
+        assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
 
 
 class TestSvcRejectCaseInviteUseCase:
@@ -943,11 +1042,12 @@ class TestSvcRejectCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert "activity" in result
-        assert result["activity"]["actor"] == invitee.id_
-        assert result["activity"].get("to") == [inviter.id_]
+        assert result.activity is not None
+        assert activity_of(result)["actor"] == invitee.id_
+        assert activity_of(result).get("to") == [inviter.id_]
 
     def test_reject_raises_when_invite_missing(self):
         _, dl = _make_actor_dl("Vendor")
@@ -960,7 +1060,10 @@ class TestSvcRejectCaseInviteUseCase:
 
         with pytest.raises(VultronNotFoundError):
             SvcRejectCaseInviteUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_reject_normalises_short_uuid_actor_id(self):
@@ -993,9 +1096,10 @@ class TestSvcRejectCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert result["activity"]["actor"] == _HTTP_ACTOR_ID
+        assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
 
 
 class TestSvcAcceptActorRecommendationUseCase:
@@ -1029,11 +1133,14 @@ class TestSvcAcceptActorRecommendationUseCase:
             case_actor_id=case_actor.id_,
         )
         result = SvcAcceptActorRecommendationUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert result.get("activity") is not None
-        activity = result["activity"]
+        assert result.activity is not None
+        activity = activity_of(result)
         assert activity["type"] == "Accept"
 
     def test_accept_raises_when_offer_not_found(self):
@@ -1046,9 +1153,12 @@ class TestSvcAcceptActorRecommendationUseCase:
             cp_offer_id="https://example.org/activities/no-such-offer",
             case_actor_id=case_actor.id_,
         )
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             SvcAcceptActorRecommendationUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_accept_raises_when_actor_not_found(self):
@@ -1066,7 +1176,10 @@ class TestSvcAcceptActorRecommendationUseCase:
         )
         with pytest.raises(VultronNotFoundError):
             SvcAcceptActorRecommendationUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
 
@@ -1095,11 +1208,14 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             transferee_id=transferee.id_,
         )
         result = SvcOfferCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert "activity" in result
-        activity_data = result["activity"]
+        assert result.activity is not None
+        activity_data = activity_of(result)
         assert activity_data["type"] == "Offer"
         assert activity_data["actor"] == owner.id_
 
@@ -1125,10 +1241,13 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             transferee_id=transferee.id_,
         )
         result = SvcOfferCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        offer_id = result["activity"]["id"]
+        offer_id = activity_of(result)["id"]
         stored = dl.read(offer_id)
         assert stored is not None
 
@@ -1163,7 +1282,10 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         )
         with caplog.at_level(logging.WARNING):
             result = SvcOfferCaseOwnershipTransferUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert result is not None
@@ -1187,9 +1309,12 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             case_id="https://example.org/cases/nope",
             transferee_id=transferee.id_,
         )
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             SvcOfferCaseOwnershipTransferUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_offer_uses_case_actor_as_sender_when_present(self):
@@ -1248,10 +1373,13 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             transferee_id=transferee.id_,
         )
         result = SvcOfferCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        activity_data = result["activity"]
+        activity_data = activity_of(result)
         assert activity_data["type"] == "Offer"
         # CM-24-001: Offer actor MUST be the CaseActor, not the offering actor
         assert activity_data["actor"] == case_actor.id_
@@ -1285,10 +1413,13 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             transferee_id=transferee.id_,
         )
         result = SvcOfferCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        activity_data = result["activity"]
+        activity_data = activity_of(result)
         assert activity_data["type"] == "Offer"
         # CM-24-003: falls back to requesting actor when no CaseActor
         assert activity_data["actor"] == owner.id_
@@ -1349,11 +1480,14 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             offer_id=offer.id_,
         )
         result = SvcAcceptCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert "activity" in result
-        activity_data = result["activity"]
+        assert result.activity is not None
+        activity_data = activity_of(result)
         assert activity_data["type"] == "Accept"
         assert activity_data["actor"] == transferee.id_
 
@@ -1382,15 +1516,18 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             offer_id=offer.id_,
         )
         result = SvcAcceptCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        accept_id = result["activity"]["id"]
+        accept_id = activity_of(result)["id"]
         stored = dl.read(accept_id)
         assert stored is not None
 
     def test_accept_raises_when_offer_not_in_dl(self):
-        owner, dl = _make_actor_dl("Vendor")
+        _owner, dl = _make_actor_dl("Vendor")
         transferee, _ = _make_actor_dl("Coordinator")
         dl.create(transferee)
 
@@ -1407,7 +1544,10 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         )
         with pytest.raises(VultronNotFoundError):
             SvcAcceptCaseOwnershipTransferUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_accept_raises_when_actor_not_found(self):
@@ -1432,7 +1572,10 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         )
         with pytest.raises(VultronNotFoundError):
             SvcAcceptCaseOwnershipTransferUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_accept_raises_when_offer_has_no_case_reference(self):
@@ -1478,6 +1621,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
                 mock_dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(mock_dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_accept_to_field_is_case_actor(self):
@@ -1519,10 +1663,13 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             offer_id=offer.id_,
         )
         result = SvcAcceptCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        activity_data = result["activity"]
+        activity_data = activity_of(result)
         assert activity_data["type"] == "Accept"
         # Primary invariant of ADR-0053 CM-21-006: Accept is routed to CaseActor.
         assert case_actor.id_ in activity_data.get("to", [])
@@ -1554,9 +1701,8 @@ class TestSvcOfferCaseParticipantRoleUseCase:
             dl, request, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        assert "activity_id" in result
-        assert "activity" in result
-        assert result["activity"]["type"] == "Offer"
+        assert isinstance(result, RoleOfferResult)
+        assert result.activity["type"] == "Offer"
 
     def test_happy_path_activity_persisted(self):
         """Emitted Offer activity is readable from the DataLayer."""
@@ -1571,7 +1717,7 @@ class TestSvcOfferCaseParticipantRoleUseCase:
             dl, request, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        stored = dl.read(result["activity_id"])
+        stored = dl.read(result.activity_id)
         assert stored is not None
 
     def test_raises_when_trigger_activity_missing(self):
@@ -1621,6 +1767,7 @@ class TestActorDiscoveryCallOut:
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
                 call_out=ACTOR_DISCOVERY_DETERMINISTIC,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert result is not None
@@ -1660,6 +1807,7 @@ class TestActorDiscoveryCallOut:
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
                 call_out=fail_bundle,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         # Invite proceeds even on FAILURE — annotating, not blocking (AC-4)
@@ -1701,6 +1849,7 @@ class TestActorDiscoveryCallOut:
             request,
             trigger_activity=TriggerActivityAdapter(dl),
             call_out=fail_bundle,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # Peer recorded even on FAILURE (protocol proceeds with URI-only record)
@@ -1729,7 +1878,7 @@ class TestActorDiscoveryCallOut:
                 return Status.RUNNING
 
         running_bundle = ActorDiscoveryCallOutBundle(
-            resolve_actor_factory=lambda name: _Running(name)  # type: ignore[arg-type]
+            resolve_actor_factory=_Running  # type: ignore[arg-type]
         )
 
         actor, dl = _make_actor_dl("Coordinator")
@@ -1753,6 +1902,7 @@ class TestActorDiscoveryCallOut:
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
                 call_out=running_bundle,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert result is not None

@@ -182,7 +182,7 @@ def _resolution_problem(site: Path, source: str) -> str | None:
                 "this check cannot verify"
             )
         if resolved in seen:
-            chain = " -> ".join(_file_url(f) for f in seen + [resolved])
+            chain = " -> ".join(_file_url(f) for f in [*seen, resolved])
             return f"its redirects loop: {chain}"
         seen.append(resolved)
         file = resolved

@@ -20,6 +20,7 @@ Tests for D5-7-TRIGNOTIFY-1: verify that trigger use cases populate the
 Spec: specs/outbox.yaml OX-03-001; specs/case-management.yaml CM-06.
 """
 
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -28,12 +29,25 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import (
+    ActivityResult,
+    OfferResult,
+    TriggerResult,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
-from vultron.errors import VultronValidationError
 from vultron.core.use_cases.triggers.case import (
     SvcAddParticipantStatusUseCase,
     SvcDeferCaseUseCase,
@@ -41,8 +55,8 @@ from vultron.core.use_cases.triggers.case import (
 )
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
-    SvcProposeEmbargoUseCase,
     SvcProposeEmbargoRevisionUseCase,
+    SvcProposeEmbargoUseCase,
     SvcRejectEmbargoUseCase,
     SvcTerminateEmbargoUseCase,
 )
@@ -52,45 +66,36 @@ from vultron.core.use_cases.triggers.report import (
     SvcRejectReportUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AcceptEmbargoTriggerRequest,
+    AddParticipantStatusTriggerRequest,
+    CloseReportTriggerRequest,
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
-    AddParticipantStatusTriggerRequest,
-    AcceptEmbargoTriggerRequest,
-    ProposeEmbargoTriggerRequest,
-    ProposeEmbargoRevisionTriggerRequest,
-    RejectEmbargoTriggerRequest,
-    TerminateEmbargoTriggerRequest,
-    CloseReportTriggerRequest,
     InvalidateReportTriggerRequest,
+    ProposeEmbargoRevisionTriggerRequest,
+    ProposeEmbargoTriggerRequest,
+    RejectEmbargoTriggerRequest,
     RejectReportTriggerRequest,
+    TerminateEmbargoTriggerRequest,
 )
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     rm_submit_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
     FinderParticipant,
+    as_CaseParticipant,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.core.models.case import VulnerabilityCase
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-from datetime import datetime, timezone
-from vultron.core.models.dimensions import (
-    RmDimension,
-)
-from vultron.core.models._helpers import days_from_now_utc
-
 FUTURE_END_TIME = "2099-12-01T00:00:00Z"
-FUTURE_END_DATETIME = datetime(2099, 12, 1, 0, 0, 0, tzinfo=timezone.utc)
+FUTURE_END_DATETIME = datetime(2099, 12, 1, 0, 0, 0, tzinfo=UTC)
 
 
 # ---------------------------------------------------------------------------
@@ -203,13 +208,13 @@ def _make_two_actor_case(
     return case
 
 
-def _new_outbox_activity(vendor, vendor_dl, result: dict):
+def _new_outbox_activity(vendor, vendor_dl, result: TriggerResult):
     """Return the first new activity added to vendor's outbox during execute()."""
     activity_id = None
-    if "activity" in result and result["activity"]:
-        activity_id = result["activity"].get("id")
-    if activity_id is None and "offer" in result:
-        activity_id = result["offer"].get("id")
+    if isinstance(result, ActivityResult) and result.activity:
+        activity_id = result.activity.get("id")
+    elif isinstance(result, OfferResult) and result.offer:
+        activity_id = result.offer.get("id")
     if activity_id is None:
         return None, None
     obj = vendor_dl.read(activity_id)
@@ -271,16 +276,19 @@ class TestCaseTriggerToField:
             case_id=self.case.id_,
         )
         result = SvcEngageCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
 
         assert recipients is not None, "to field must not be None"
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -293,16 +301,19 @@ class TestCaseTriggerToField:
             case_id=self.case.id_,
         )
         result = SvcDeferCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
 
         assert recipients is not None, "to field must not be None"
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -314,16 +325,20 @@ class TestCaseTriggerToField:
             case_id=self.case.id_,
         )
         result = SvcAddParticipantStatusUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        act_obj = self.dl.read(result["activity_id"])
+        assert result.activity_id is not None
+        act_obj = self.dl.read(result.activity_id)
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -345,6 +360,7 @@ class TestCaseTriggerToField:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
 
@@ -382,16 +398,19 @@ class TestEmbargoTriggerToField:
             end_time=FUTURE_END_DATETIME,
         )
         result = SvcProposeEmbargoUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -417,16 +436,19 @@ class TestEmbargoTriggerToField:
             proposal_id=proposal.id_,
         )
         result = SvcAcceptEmbargoUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -446,16 +468,19 @@ class TestEmbargoTriggerToField:
             case_id=self.case.id_,
         )
         result = SvcTerminateEmbargoUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -481,15 +506,18 @@ class TestEmbargoTriggerToField:
             proposal_id=proposal.id_,
         )
         result = SvcRejectEmbargoUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -510,16 +538,19 @@ class TestEmbargoTriggerToField:
             end_time=FUTURE_END_DATETIME,
         )
         result = SvcProposeEmbargoRevisionUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert (
-            len(recipients) == 1
-        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
         assert recipients[0] == self.case_actor.id_
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
@@ -619,6 +650,7 @@ class TestReportTriggerToField:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_invalidate_report_to_field_falls_back_to_offer_actor(self):
@@ -633,7 +665,10 @@ class TestReportTriggerToField:
             offer_id=self.offer.id_,
         )
         result = SvcInvalidateReportUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -656,7 +691,10 @@ class TestReportTriggerToField:
             offer_id=self.offer.id_,
         )
         result = SvcRejectReportUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -693,7 +731,10 @@ class TestReportTriggerToField:
             offer_id=self.offer.id_,
         )
         result = SvcCloseReportUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -726,7 +767,10 @@ class TestReportTriggerToField:
             offer_id=self.offer.id_,
         )
         result = SvcInvalidateReportUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -759,7 +803,10 @@ class TestReportTriggerToField:
             offer_id=self.offer.id_,
         )
         result = SvcRejectReportUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -805,4 +852,5 @@ class TestReportTriggerToField:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()

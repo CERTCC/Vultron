@@ -3,13 +3,17 @@ title: Structured Logging — Narrative Standard and Infrastructure Demotion Gui
 status: active
 tags: [logging, observability, debugging]
 description: >
-  Narrative log template (SL-04-006), infrastructure demotion list (SL-04-007),
-  and per-module guidance for keeping INFO logs readable as a CVD protocol story.
+  Log-call shape (SL-01-005: literal template plus lazy positional args, never an
+  f-string), how correlation fields reach a record (SL-02-003: boundary filter,
+  not per-call `extra=`), narrative log template (SL-04-006), infrastructure
+  demotion list (SL-04-007), and per-module guidance for keeping INFO logs
+  readable as a CVD protocol story.
 related_specs:
   - specs/structured-logging.yaml
 related_notes:
   - notes/codebase-structure.md
   - notes/bt-integration.md
+  - notes/lint-tooling.md
 ---
 
 # Structured Logging — Narrative Standard and Infrastructure Demotion Guide
@@ -25,6 +29,71 @@ The underlying requirement is SL-04-001: all state transitions MUST be logged
 at INFO. The concrete gap is that many state transitions are only visible at
 DEBUG (or not at all), while the INFO channel is dominated by infrastructure
 noise.
+
+---
+
+## Log-Call Shape: Template Plus Lazy Arguments (SL-01-005)
+
+Every log call passes a **literal template** and its values as **positional
+arguments**, and nothing else:
+
+```python
+# Right
+logger.info("Actor %s engaged case %s", actor_id, case_id)
+self.logger.debug("BT structure:\n%s", tree_repr)
+
+# Wrong — the string is built before logging sees it
+logger.info(f"Actor {actor_id} engaged case {case_id}")
+logger.info("Actor {} engaged case {}".format(actor_id, case_id))
+logger.info("Actor " + actor_id + " engaged case " + case_id)
+```
+
+This is not a style preference. Python's `logging` keeps `msg` and `args` apart
+on the record and formats them only when a handler actually emits, and the
+project relies on all three consequences of that split:
+
+- **The template is the event's identity.** Every "Actor %s engaged case %s"
+  shares one `msg`, so a test, a grep, or a log tool can group and assert on the
+  event. An f-string makes every line a unique string with no key.
+- **Rendering faults stay inside logging.** A value whose `__str__` raises, or a
+  `%d` handed a string, is reported by the logging machinery through
+  `Handler.handleError` and never raised into the caller. In an f-string the same
+  fault raises in the BT node, and `update()` is the only sanctioned catch in a
+  node (BT-HELPER-01).
+- **Rendering is deferred.** `str()` and `%` conversion of the arguments happen
+  only when a handler emits, so a filtered record never pays for them.
+
+Only rendering is deferred. The argument *expressions* are still evaluated at
+the call, so lazy args do not make an expensive value free: `unicode_tree(tree)`
+in `vultron/core/behaviors/bridge.py` and a demo `logfmt(obj)` run whether or not
+the record is emitted. A guard whose only purpose was to avoid f-string
+formatting goes; a guard around a value produced by a call stays, with a
+one-line comment saying why (#3991 AC-3). Likewise an argument expression that
+raises (`case.id` on `None`) raises in the caller under either form; only faults
+in rendering move into logging.
+
+The rule is decided in SL-01-005 and enforced by ruff rules `G001`–`G004`. The
+shape was decided under #3378; #3991 enables the rules by deleting the
+provisional `G004` `ignore` entry ADR-0094 had recorded and rewriting every site.
+The `G004` finding count at the time is in ADR-0094, not here (MS-16-001).
+
+### `extra=` is not the other option
+
+The concern that stalled `G004` framed the choice as "lazy `%`-args *or*
+structured `extra=` fields". They answer different questions. The template rule
+decides how the **message text** gets its values. Correlation fields
+(`activity_id`, `actor_id`; SL-02) decide what **attributes** the record
+carries beside the message, and SL-02-003 puts them there through ambient
+context set once at the processing boundary and a `logging.Filter`, not through
+`extra=` at each call. Per-call `extra=` at hundreds of sites is the same
+duplication failure as f-strings, on the other side of the record.
+
+Two things follow for anyone rewriting a log line:
+
+- Naming an actor or case in the message is for the human reader and stays
+  (SL-04-006). It does not satisfy SL-02 (SL-02-004); the record attribute does.
+- Rendering is the formatter's job. Plain text today, structured output if a
+  consumer ever needs it, and neither requires touching a call site.
 
 ---
 
@@ -211,7 +280,8 @@ logger.info("Found finder actor: %s", finder.get("id", "<unknown>"))
 ```
 
 Full `logfmt()` actor object output belongs at DEBUG; only the actor ID is
-meaningful at INFO.
+meaningful at INFO. The "after" form is also the SL-01-005 shape: a literal
+template with the value as a lazy argument.
 
 ---
 
@@ -219,6 +289,9 @@ meaningful at INFO.
 
 | Spec | Rule |
 |---|---|
+| SL-01-005 | Log calls pass a literal template and lazy positional args; enforced by ruff `G001`–`G004` |
+| SL-02-003 | Correlation fields are record attributes set by a boundary filter, not per-call `extra=` |
+| SL-02-004 | An id in the message text does not satisfy SL-02; the record attribute does |
 | SL-04-001 | All state transitions MUST be logged at INFO — the missing messages above violate this |
 | SL-04-006 | Narrative template SHOULD; see table above |
 | SL-04-007 | Infrastructure patterns MUST NOT be at INFO; see demotion list above |

@@ -23,41 +23,14 @@ while preserving the public API used by the existing test suite.
 
 import logging
 import sys
-from typing import Optional, Tuple
 
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
-
-from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
-    BASE_URL,
-    DataLayerClient,
-    assert_demo_success,
-    case_actor_id_on,
-    check_server_availability,
-    demo_check,
-    demo_gate,
-    demo_step,
-    logfmt,
-    ref_id,
-    reset_datalayer,
-    reset_demo_failures,
-    seed_actor,
-    verify_object_stored,
-    setup_demo_logging,
-)
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
 from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.ledger_commit import trigger_log_commit  # noqa: F401
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
@@ -76,8 +49,8 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_participants,
-    wait_for_finder_case,
     wait_for_event_type_in_ledger,
+    wait_for_finder_case,
     wait_for_finder_log_entry,
     wait_for_note_in_case,
     wait_for_participant_rm_state,
@@ -90,7 +63,6 @@ from vultron.demo.helpers.seeding import (  # noqa: F401
     seed_case_participants_for_demo,
     seed_containers,
 )
-from vultron.demo.helpers.ledger_commit import trigger_log_commit  # noqa: F401
 from vultron.demo.helpers.sync import (  # noqa: F401
     _extract_ref_id,
     run_sync_verification_phase,
@@ -118,6 +90,32 @@ from vultron.demo.helpers.workflow import (  # noqa: F401
     run_direct_path_rm_triage,
 )
 from vultron.demo.scenario.registry import scenario
+from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
+    BASE_URL,
+    DataLayerClient,
+    assert_demo_success,
+    case_actor_id_on,
+    check_server_availability,
+    demo_check,
+    demo_gate,
+    demo_step,
+    logfmt,
+    ref_id,
+    reset_datalayer,
+    reset_demo_failures,
+    seed_actor,
+    setup_demo_logging,
+    verify_object_stored,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -223,8 +221,8 @@ def finder_submits_report(
     vendor_client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    finder_client: Optional[DataLayerClient] = None,
-) -> Tuple[as_VulnerabilityReport, as_Offer]:
+    finder_client: DataLayerClient | None = None,
+) -> tuple[as_VulnerabilityReport, as_Offer]:
     """Scenario alias for :func:`~vultron.demo.helpers.workflow.reporter_submits_report`.
 
     Maintained for backward compatibility; prefer ``reporter_submits_report``
@@ -333,8 +331,8 @@ def verify_vendor_case_state(
     report_id: str,
     vendor_actor_id: str,
     reporter_actor_id: str,
-    question_note_id: Optional[str] = None,
-    reply_note_id: Optional[str] = None,
+    question_note_id: str | None = None,
+    reply_note_id: str | None = None,
 ) -> as_VulnerabilityCase:
     """Scenario alias for :func:`~vultron.demo.helpers.verification.verify_receiver_case_state`.
 
@@ -930,7 +928,7 @@ def run_fv_demo(
         logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("fv") as harness:
-        finder, vendor, vendor_in_vendor, report, offer, case = (
+        finder, vendor, vendor_in_vendor, report, _offer, case = (
             _phase_report_submission(
                 finder_client,
                 vendor_client,

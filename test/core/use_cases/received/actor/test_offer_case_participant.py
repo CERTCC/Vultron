@@ -27,10 +27,14 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.events.actor import (
     AcceptOfferCaseParticipantReceivedEvent,
     OfferCaseParticipantReceivedEvent,
@@ -52,9 +56,6 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from test.core.use_cases.received.conftest import (
-    seed_case_manager_participant,
 )
 
 # ---------------------------------------------------------------------------
@@ -183,7 +184,10 @@ class TestOfferCaseParticipantReceivedUseCase:
         # The Case Owner is not the CASE_MANAGER, so the CM-gated ledger
         # commit is correctly not done here; the Offer is addressed to it.
         result = OfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -199,7 +203,10 @@ class TestOfferCaseParticipantReceivedUseCase:
         event = self._event()  # to=[CASE_OWNER_ID]
 
         result = OfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
@@ -223,7 +230,10 @@ class TestOfferCaseParticipantReceivedUseCase:
         )
 
         result = OfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -248,7 +258,9 @@ class TestOfferCaseParticipantReceivedUseCase:
         )
         event = self._event()
         with caplog.at_level(logging.WARNING):
-            result = OfferCaseParticipantReceivedUseCase(dl, event).execute()
+            result = OfferCaseParticipantReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
         # The store holds no such case (RSH rule 3).
         assert result.disposition is HandlerDisposition.REFUSED
         messages = " ".join(r.message.lower() for r in caplog.records)
@@ -263,7 +275,9 @@ class TestOfferCaseParticipantReceivedUseCase:
         mock_event.activity = None
         with caplog.at_level(logging.WARNING):
             result = OfferCaseParticipantReceivedUseCase(
-                dl, mock_event
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
@@ -299,7 +313,10 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         dl, _ = _seed_dl_for_case_actor()
         event = self._event()
         result = AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -318,7 +335,10 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         event = self._event()
         with caplog.at_level(logging.WARNING):
             result = AcceptOfferCaseParticipantReceivedUseCase(
-                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "never recorded" in (result.reason or "")
@@ -341,7 +361,10 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         dl, _ = _seed_dl_for_case_actor()
         event = self._event(origin=None)
         result = AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "no recommendation" in (result.reason or "")
@@ -362,7 +385,10 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         event = self._event()
         with caplog.at_level(logging.WARNING):
             AcceptOfferCaseParticipantReceivedUseCase(
-                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
@@ -376,7 +402,9 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         mock_event.activity = None
         with caplog.at_level(logging.WARNING):
             result = AcceptOfferCaseParticipantReceivedUseCase(
-                dl, mock_event
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
@@ -394,7 +422,9 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         mock_event.activity.object_ = inner_offer
         with caplog.at_level(logging.WARNING):
             result = AcceptOfferCaseParticipantReceivedUseCase(
-                dl, mock_event
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
@@ -413,7 +443,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 
         RECOMMENDATION_ID = "https://example.org/activities/orig-offer-001"
 
-        dl, actor_id = _seed_dl_for_case_actor()
+        dl, _actor_id = _seed_dl_for_case_actor()
         # Seed the recommender index as OfferActorToCaseReceivedUseCase would.
         case = dl.read(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
@@ -424,7 +454,10 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 
         event = self._event()
         result = AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -475,7 +508,10 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         dl, _ = _seed_dl_for_case_actor()
         event = self._event()
         result = RejectOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -488,7 +524,10 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         event = self._event()
         with caplog.at_level(logging.WARNING):
             result = RejectOfferCaseParticipantReceivedUseCase(
-                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "never recorded" in (result.reason or "")
@@ -511,7 +550,10 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         dl, _ = _seed_dl_for_case_actor()
         event = self._event(origin=None)
         result = RejectOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "no recommendation" in (result.reason or "")
@@ -534,7 +576,10 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         event.activity.object_.origin = RECOMMENDATION_ID
         event.activity.object_.object_ = None
         result = RejectOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "no recommended actor" in (result.reason or "")
@@ -555,7 +600,10 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         event = self._event()
         with caplog.at_level(logging.WARNING):
             RejectOfferCaseParticipantReceivedUseCase(
-                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
@@ -569,7 +617,9 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         mock_event.activity = None
         with caplog.at_level(logging.WARNING):
             result = RejectOfferCaseParticipantReceivedUseCase(
-                dl, mock_event
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
@@ -585,7 +635,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
 
         RECOMMENDATION_ID = "https://example.org/activities/orig-offer-001"
 
-        dl, actor_id = _seed_dl_for_case_actor()
+        dl, _actor_id = _seed_dl_for_case_actor()
         case = dl.read(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
         case.recommendation_recommender_index[RECOMMENDATION_ID] = (
@@ -595,7 +645,10 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
 
         event = self._event()
         result = RejectOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -727,7 +780,10 @@ class TestRolesFromStoredOffer:
 
         dl, event = self._seed_and_store_offer(roles=[CVDRole.VENDOR])
         AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         outbox = dl.outbox_list()
@@ -738,9 +794,9 @@ class TestRolesFromStoredOffer:
                 invite_obj = obj
                 break
 
-        assert (
-            invite_obj is not None
-        ), "Invite must be stored in CaseActor outbox"
+        assert invite_obj is not None, (
+            "Invite must be stored in CaseActor outbox"
+        )
         invite_roles = getattr(invite_obj, "roles", None)
         assert invite_roles == [CVDRole.VENDOR.value], (
             f"ISSUE-1745: Invite must carry roles from stored Offer; "
@@ -763,7 +819,10 @@ class TestRolesFromStoredOffer:
 
         # Step 1: CaseActor receives Accept(Offer(CaseParticipant[VENDOR])) → emits Invite
         AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # Step 2: find the stored Invite
@@ -774,9 +833,9 @@ class TestRolesFromStoredOffer:
             if obj is not None and str(getattr(obj, "type_", "")) == "Invite":
                 invite_obj = obj
                 break
-        assert (
-            invite_obj is not None
-        ), "Invite must be present in CaseActor outbox"
+        assert invite_obj is not None, (
+            "Invite must be present in CaseActor outbox"
+        )
 
         # Step 3: invitee accepts the Invite
         py_trees.blackboard.Blackboard.storage.clear()
@@ -794,7 +853,10 @@ class TestRolesFromStoredOffer:
             AcceptInviteActorToCaseReceivedEvent, extract_event(accept_invite)
         )
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, accept_invite_event, sync_port=MagicMock()
+            dl,
+            accept_invite_event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # Step 4: participant must have VENDOR role
@@ -802,9 +864,9 @@ class TestRolesFromStoredOffer:
         participant_id = reloaded_case.actor_participant_index.get(
             AC1_INVITEE_ID
         )
-        assert (
-            participant_id is not None
-        ), "Invitee must be registered as participant"
+        assert participant_id is not None, (
+            "Invitee must be registered as participant"
+        )
         participant = cast(Any, dl.get(id_=participant_id))
         assert participant is not None
         assert CVDRole.VENDOR in participant.case_roles, (
@@ -870,7 +932,10 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         dl = _seed_dl_for_ac1()
         event = self._build_accept_offer_event()
         AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         outbox = dl.outbox_list()
@@ -881,9 +946,9 @@ class TestAcceptOfferCaseParticipantRolesThreading:
                 invite_obj = obj
                 break
 
-        assert (
-            invite_obj is not None
-        ), "Invite must be stored in CaseActor outbox"
+        assert invite_obj is not None, (
+            "Invite must be stored in CaseActor outbox"
+        )
         assert getattr(invite_obj, "roles", "sentinel") is None, (
             "AC-2: EmitInviteActorToCaseNode must pass roles=None when "
             "suggested_roles is absent from blackboard (no default substitution)"
@@ -905,7 +970,10 @@ class TestAcceptOfferCaseParticipantRolesThreading:
 
         # Step 1: CaseActor receives Accept(Offer(CaseParticipant)) → emits Invite
         AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # Step 2: find the stored Invite
@@ -916,9 +984,9 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             if obj is not None and str(getattr(obj, "type_", "")) == "Invite":
                 invite_obj = obj
                 break
-        assert (
-            invite_obj is not None
-        ), "Invite must be present in CaseActor outbox"
+        assert invite_obj is not None, (
+            "Invite must be present in CaseActor outbox"
+        )
 
         # Step 3: invitee sends Accept(Invite) — BT creates CaseParticipant
         py_trees.blackboard.Blackboard.storage.clear()
@@ -936,7 +1004,10 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             AcceptInviteActorToCaseReceivedEvent, extract_event(accept_invite)
         )
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, accept_invite_event, sync_port=MagicMock()
+            dl,
+            accept_invite_event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # Step 4: assert participant.case_roles == []
@@ -944,9 +1015,9 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         participant_id = reloaded_case.actor_participant_index.get(
             AC1_INVITEE_ID
         )
-        assert (
-            participant_id is not None
-        ), "Invitee must be registered as participant"
+        assert participant_id is not None, (
+            "Invitee must be registered as participant"
+        )
         participant = cast(Any, dl.get(id_=participant_id))
         assert participant is not None
         assert participant.case_roles == [], (
@@ -1004,7 +1075,10 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
         )
 
         result = AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
@@ -1030,7 +1104,10 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
         )
 
         result = RejectOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED

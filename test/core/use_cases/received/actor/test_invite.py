@@ -17,8 +17,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_store_owner_as_case_manager,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
-
 from vultron.core.use_cases.received.actor.invite import (
     AcceptInviteActorToCaseReceivedUseCase,
     InviteActorToCaseReceivedUseCase,
@@ -30,14 +35,9 @@ from vultron.wire.as2.factories import (
     rm_reject_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.core.models.case import VulnerabilityCase
-from test.core.use_cases.received.conftest import (
-    seed_store_owner_as_case_manager,
-)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
-from vultron.core.models._helpers import days_from_now_utc
 
 
 def _outbound_blob(activity) -> str:
@@ -249,7 +249,9 @@ class TestInviteActorUseCases:
 
         event = make_payload(invite)
 
-        InviteActorToCaseReceivedUseCase(dl, event).execute()
+        InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         stored = dl.get(invite.type_.value, invite.id_)
         assert stored is not None
@@ -279,7 +281,9 @@ class TestInviteActorUseCases:
         event = make_payload(invite)
 
         with caplog.at_level(logging.INFO):
-            InviteActorToCaseReceivedUseCase(dl, event).execute()
+            InviteActorToCaseReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         narrative = [
             r
@@ -313,7 +317,9 @@ class TestInviteActorUseCases:
         event = make_payload(invite)
 
         with caplog.at_level(logging.DEBUG):
-            InviteActorToCaseReceivedUseCase(dl, event).execute()
+            InviteActorToCaseReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         awaiting = [
             r
@@ -352,16 +358,18 @@ class TestInviteActorUseCases:
             id_=f"{case_id}/invitations/trust-anchor-1",
         )
         event = make_payload(invite)
-        InviteActorToCaseReceivedUseCase(dl, event).execute()
+        InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         pending_id = VultronPendingCaseInbox.build_id(case_id)
         pending = dl.read(pending_id)
-        assert isinstance(
-            pending, VultronPendingCaseInbox
-        ), "VultronPendingCaseInbox trust anchor must be written on the invitee path"
-        assert (
-            pending.case_actor_id == case_manager_id
-        ), "Trust anchor case_actor_id must equal the invite sender (the CASE_MANAGER)"
+        assert isinstance(pending, VultronPendingCaseInbox), (
+            "VultronPendingCaseInbox trust anchor must be written on the invitee path"
+        )
+        assert pending.case_actor_id == case_manager_id, (
+            "Trust anchor case_actor_id must equal the invite sender (the CASE_MANAGER)"
+        )
 
     def test_invite_trust_anchor_is_first_invite_wins(self, make_payload):
         """A second invite from a different sender does not overwrite the anchor."""
@@ -390,14 +398,18 @@ class TestInviteActorUseCases:
             id_=f"{case_id}/invitations/b",
         )
 
-        InviteActorToCaseReceivedUseCase(dl, make_payload(invite1)).execute()
-        InviteActorToCaseReceivedUseCase(dl, make_payload(invite2)).execute()
+        InviteActorToCaseReceivedUseCase(
+            dl, make_payload(invite1), wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        InviteActorToCaseReceivedUseCase(
+            dl, make_payload(invite2), wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         pending = dl.read(VultronPendingCaseInbox.build_id(case_id))
         assert isinstance(pending, VultronPendingCaseInbox)
-        assert (
-            pending.case_actor_id == first_sender
-        ), "First-invite-wins: trust anchor MUST NOT be overwritten by a second invite"
+        assert pending.case_actor_id == first_sender, (
+            "First-invite-wins: trust anchor MUST NOT be overwritten by a second invite"
+        )
 
     def test_invite_actor_to_case_idempotent(self, monkeypatch, make_payload):
         """InviteActorToCaseReceivedUseCase skips storing a duplicate Invite."""
@@ -417,13 +429,80 @@ class TestInviteActorUseCases:
 
         event = make_payload(invite)
 
-        InviteActorToCaseReceivedUseCase(dl, event).execute()
         InviteActorToCaseReceivedUseCase(
-            dl, event
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        InviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()  # second call is no-op
 
         stored = dl.get(invite.type_.value, invite.id_)
         assert stored is not None
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CLP-10-017")
+    def test_case_actor_redelivered_invite_is_skipped(self, make_payload):
+        """On the CaseActor's own inbox a redelivered Invite reports SKIPPED.
+
+        The self-delivery tree's only work is intake and the guarded commit,
+        so the first delivery is APPLIED and a redelivery, which intake finds
+        already archived, is the benign no-op of HP-01-003 — never a second
+        APPLIED and never REFUSED.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
+        from vultron.core.models.use_case_result import HandlerDisposition
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case_id = "https://example.org/cases/case-redeliver-1"
+        case_actor_id = f"{case_id}/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case = as_VulnerabilityCase(
+            id_=case_id, name="TEST-REDELIVER", attributed_to=case_actor_id
+        )
+        manager = as_CaseParticipant(
+            id_=f"{case_id}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case.case_participants.append(manager.id_)
+        case.actor_participant_index[case_actor_id] = manager.id_
+        dl.create(manager)
+        dl.create(case)
+
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_="https://example.org/users/coordinator"),
+            target=as_VulnerabilityCaseStub(id_=case_id),
+            actor=case_actor_id,
+            id_=f"{case_id}/invitations/1",
+        )
+        event = make_payload(invite).model_copy(
+            update={"receiving_actor_id": case_actor_id}
+        )
+
+        first = InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        second = InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+
+        assert first.disposition is HandlerDisposition.APPLIED
+        assert second.disposition is HandlerDisposition.SKIPPED
+        archived = dl.read(ReceivedActivityRecord.build_id(invite.id_))
+        assert isinstance(archived, ReceivedActivityRecord)
+        assert archived.activity_id == invite.id_
 
     def test_reject_invite_actor_to_case_commits_ledger_entry(
         self, make_payload
@@ -485,16 +564,17 @@ class TestInviteActorUseCases:
         )
         event = make_payload(reject)
 
-        assert (
-            event.target_id is None
-        ), "Precondition: Reject(Invite) has no top-level target"
-        assert (
-            event.case_id == case_id
-        ), "Precondition: case_id resolves via inner_target_id"
+        assert event.target_id is None, (
+            "Precondition: Reject(Invite) has no top-level target"
+        )
+        assert event.case_id == case_id, (
+            "Precondition: case_id resolves via inner_target_id"
+        )
 
         RejectInviteActorToCaseReceivedUseCase(
             dl,
             event.model_copy(update={"receiving_actor_id": case_actor_id}),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
@@ -502,12 +582,12 @@ class TestInviteActorUseCases:
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_id
         ]
-        assert (
-            len(entries) >= 1
-        ), "Expected at least one CaseLedgerEntry after reject-invite"
-        assert any(
-            "reject" in e.event_type for e in entries
-        ), f"Expected a reject-invite ledger entry; got: {[e.event_type for e in entries]}"
+        assert len(entries) >= 1, (
+            "Expected at least one CaseLedgerEntry after reject-invite"
+        )
+        assert any("reject" in e.event_type for e in entries), (
+            f"Expected a reject-invite ledger entry; got: {[e.event_type for e in entries]}"
+        )
 
     def test_accept_invite_actor_to_case_adds_participant(
         self, monkeypatch, make_payload
@@ -549,7 +629,10 @@ class TestInviteActorUseCases:
         event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         case = dl.read(case.id_)
@@ -562,9 +645,9 @@ class TestInviteActorUseCases:
     ):
         """AcceptInviteActorToCaseReceivedUseCase records the active embargo ID on the new participant (CM-10-001, CM-10-003)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.case import VulnerabilityCase
         from vultron.core.states.em import EM
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
-        from vultron.core.models.case import VulnerabilityCase
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
@@ -608,7 +691,10 @@ class TestInviteActorUseCases:
         event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         case = dl.read(case.id_)
@@ -633,8 +719,8 @@ class TestInviteActorUseCases:
         from typing import Any, cast
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.core.states.rm import RM
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -666,7 +752,10 @@ class TestInviteActorUseCases:
         event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         updated_case = cast(Any, dl.read(case.id_))
@@ -674,9 +763,9 @@ class TestInviteActorUseCases:
         participant_obj = cast(Any, dl.get(id_=participant_id))
         rm_states = [s.rm.state for s in participant_obj.participant_statuses]
         assert RM.VALID not in rm_states, "CM-11-001: no VALID at invite time"
-        assert (
-            RM.ACCEPTED not in rm_states
-        ), "CM-11-001: no ACCEPTED at invite time"
+        assert RM.ACCEPTED not in rm_states, (
+            "CM-11-001: no ACCEPTED at invite time"
+        )
         latest_status = participant_obj.participant_statuses[-1]
         assert latest_status.rm.state == RM.RECEIVED
 
@@ -689,10 +778,10 @@ class TestInviteActorUseCases:
         from typing import Any, cast
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.states.rm import RM
         from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -742,7 +831,10 @@ class TestInviteActorUseCases:
         event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # PCR-07-008: no RmEngageCaseActivity (Join) with actor=invitee_id
@@ -752,7 +844,7 @@ class TestInviteActorUseCases:
         for item_id in outbox_items:
             candidate = cast(Any, dl.read(item_id))
             if candidate is not None and str(candidate.type_) == "Join":
-                assert False, (
+                raise AssertionError(
                     f"PCR-07-008 violation: RmEngageCaseActivity (Join) with "
                     f"actor={invitee_id!r} found in outbox — identity spoofing"
                 )
@@ -765,9 +857,9 @@ class TestInviteActorUseCases:
         assert participant_obj is not None
         rm_states = [s.rm.state for s in participant_obj.participant_statuses]
         assert RM.VALID not in rm_states, "CM-11-001: no VALID at invite time"
-        assert (
-            RM.ACCEPTED not in rm_states
-        ), "CM-11-001: no ACCEPTED at invite time"
+        assert RM.ACCEPTED not in rm_states, (
+            "CM-11-001: no ACCEPTED at invite time"
+        )
         latest_status = participant_obj.participant_statuses[-1]
         assert latest_status.rm.state == RM.RECEIVED, (
             f"Expected RM.RECEIVED after Accept(Invite) (CM-11-001), "
@@ -786,10 +878,10 @@ class TestInviteActorUseCases:
         CommitCaseLedgerEntryNode.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.core.models.case_ledger_entry import (
             CaseLedgerEntry as WireCaseLedgerEntry,
         )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
         )
@@ -817,10 +909,10 @@ class TestInviteActorUseCases:
         dl.create(invitee)
         dl.create(case)
         from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
         dl.create(as_Service(id_=case_actor_id, context=case.id_))
         case_manager_participant = as_CaseParticipant(
@@ -845,7 +937,10 @@ class TestInviteActorUseCases:
         event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
@@ -878,6 +973,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=sync_port,
             trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         announced_log_indices = [
@@ -942,6 +1038,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=sync_port,
             trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         ordered = [
@@ -1083,6 +1180,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=sync_port,
             trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         announced_entries = [
@@ -1212,6 +1310,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=sync_port,
             trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         announced_entries = [
@@ -1307,6 +1406,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=sync_port,
             trigger_activity=None,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         announced_entries = [
@@ -1361,19 +1461,22 @@ class TestAcceptInviteRolesAC4:
         accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         reloaded_case = cast(Any, dl.read(case.id_))
         participant_id = reloaded_case.actor_participant_index.get(invitee_id)
-        assert (
-            participant_id is not None
-        ), "invitee must be registered as participant"
+        assert participant_id is not None, (
+            "invitee must be registered as participant"
+        )
         participant = cast(Any, dl.get(id_=participant_id))
         assert participant is not None
-        assert (
-            CVDRole.VENDOR in participant.case_roles
-        ), "AC-4: participant case_roles must include VENDOR from Invite"
+        assert CVDRole.VENDOR in participant.case_roles, (
+            "AC-4: participant case_roles must include VENDOR from Invite"
+        )
 
     def test_no_roles_invite_gives_empty_case_roles(self, make_payload):
         """AC-4 negative: Invite without roles gives participant case_roles=[]."""
@@ -1405,16 +1508,19 @@ class TestAcceptInviteRolesAC4:
         accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         reloaded_case = cast(Any, dl.read(case.id_))
         participant_id = reloaded_case.actor_participant_index.get(invitee_id)
         participant = cast(Any, dl.get(id_=participant_id))
         assert participant is not None
-        assert (
-            participant.case_roles == []
-        ), "Participant with no-roles invite must have empty case_roles"
+        assert participant.case_roles == [], (
+            "Participant with no-roles invite must have empty case_roles"
+        )
 
 
 class TestInviteDispositions:
@@ -1468,8 +1574,12 @@ class TestInviteDispositions:
         dl = self._dl()
         event = make_payload(self._invite("https://example.org/cases/d-inv1"))
 
-        first = InviteActorToCaseReceivedUseCase(dl, event).execute()
-        second = InviteActorToCaseReceivedUseCase(dl, event).execute()
+        first = InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        second = InviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert first.disposition == HandlerDisposition.APPLIED
         assert second.disposition == HandlerDisposition.SKIPPED
@@ -1479,7 +1589,9 @@ class TestInviteDispositions:
         dl = self._dl()
         event = MagicMock(case_id=None, receiving_actor_id=None)
 
-        result = RejectInviteActorToCaseReceivedUseCase(dl, event).execute()
+        result = RejectInviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -1496,7 +1608,9 @@ class TestInviteDispositions:
             )
         )
 
-        result = RejectInviteActorToCaseReceivedUseCase(dl, event).execute()
+        result = RejectInviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "CASE_MANAGER" in result.reason
@@ -1520,7 +1634,10 @@ class TestInviteDispositions:
         )
 
         result = AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1539,7 +1656,9 @@ class TestInviteDispositions:
             )
         )
 
-        result = RejectInviteActorToCaseReceivedUseCase(dl, event).execute()
+        result = RejectInviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "unknown case" in result.reason
@@ -1556,7 +1675,9 @@ class TestInviteDispositions:
             receiving_actor_id=self._OWNER,
         )
 
-        result = RejectInviteActorToCaseReceivedUseCase(dl, event).execute()
+        result = RejectInviteActorToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.APPLIED
 
@@ -1570,7 +1691,10 @@ class TestInviteDispositions:
         )
 
         result = AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1586,7 +1710,10 @@ class TestInviteDispositions:
         )
 
         result = AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1606,10 +1733,16 @@ class TestInviteDispositions:
         )
 
         first = AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         second = AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert first.disposition == HandlerDisposition.APPLIED

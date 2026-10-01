@@ -15,7 +15,9 @@ related_specs:
     ARCH-20-009, ARCH-21-002, ARCH-22-001, ARCH-23-005)
   - specs/code-style.yaml (CS-08-001, CS-08-002)
   - specs/error-handling.yaml (EH-07-001, EH-07-003)
-  - specs/message-validation.yaml (MV-04-003, MV-11-001 through MV-11-005)
+  - specs/message-validation.yaml (MV-01-001, MV-04-003, MV-10-001, MV-11-001
+    through MV-11-005)
+  - specs/structured-logging.yaml (SL-02-001, SL-02-002, SL-03-001)
   - specs/status-dimension-objects.yaml (SDO-03-005)
   - specs/vocabulary-model.yaml
 related_notes:
@@ -528,6 +530,30 @@ is stated once there and holds everywhere:
    well as by alias (CS-14-001, CS-14-002), so `attributed_to` is a declared
    spelling of `attributedTo`. The near misses are case and separator variants
    (`Actor`, `attributed-to`) and retired names.
+
+   **The JSON-LD keywords `@id` and `@type` are near misses by design**
+   (CONCERN-3958). They are not AS2 fields: AS2 spells them `id` and `type`
+   with no `@` prefix, because the normative AS2 context aliases `@id` and
+   `@type` to those names and AS2 Core § 2.1 requires the serialized form to be
+   consistent with compaction under that context. A conforming AS2 Note reads
+   `{"@context": ..., "id": "http://example.org/foo", "type": "Note", ...,
+   "attributedTo": {"id": ..., "type": "Person", ...}}` — unprefixed on the
+   envelope and on every inline object. A peer that sends `@id`/`@type` skipped
+   compaction or compacted under a context without the AS2 aliases; the message
+   is legal JSON-LD but not a conforming AS2 document, which MV-01-001 already
+   owes a refusal, and the peer meant the `id`/`type` Vultron reads. Setting the
+   keywords aside would strip the object's identity and type and cascade into
+   other refusals; declaring them as aliases would make Vultron a partial
+   JSON-LD processor with no principled place to stop (full-IRI property names
+   and `@value` objects are equally legal). So `@context` is the only JSON-LD
+   keyword that is a declared spelling, and the refusal naming `id`/`type`
+   tells the peer the compact spelling to send. Never "helpfully" add
+   `validation_alias="@id"` (or `"@type"`) to any root that declares `id` and
+   `type` — `as_Base`, `as_VultronObject`, `CoreRecord` or `CoreObject`; the
+   rule holds on both branches. Ratchet (#3969):
+   `test/wire/as2/test_unknown_key_disposition.py` fails if any registered
+   class declares either keyword, if a partition exemption set names one, or
+   if a string constant under `vultron/` equals one.
 3. Any **other** unknown key is **set aside and reported** at INFO with
    `activity_id`, the sender's `actor_id`, field path and key; the activity
    proceeds on its declared fields (MV-11-003). Never carry the key on the
@@ -536,15 +562,46 @@ is stated once there and holds everywhere:
 4. **Core `forbid` is unchanged** (MV-11-004). The parse edge is the only door
    inbound data enters by, so a core class never sees an inbound unknown key.
    The retired-name list lives on the wire side and is consulted only at the
-   parse edge; `ParticipantStatus._reject_retired_vfd_keys` is the one core
-   guard SDO-03-005 already forbids, and it goes when the wire list arrives.
+   parse edge (`unknown_keys.RETIRED_NAMES`);
+   `ParticipantStatus._reject_retired_vfd_keys`, the one core guard SDO-03-005
+   already forbade, was deleted when the wire list arrived (#3921).
 5. **Never re-validate from the raw body after parse** (MV-11-005, #3922).
-   `inbox_storage._reparse_as_specific_type` re-parses an inline object from
-   the raw request dict and falls back to a base class on failure with a DEBUG
-   line. Once keys are set aside at parse, that path sees them again on a core
-   class and silently stores the wrong type. Its purpose ended when the parser
-   began resolving inline objects to their specific class (MV-04-003).
+   `inbox_storage._reparse_as_specific_type` re-parsed an inline object from
+   the raw request dict and fell back to a base class on failure with a DEBUG
+   line. Once keys are set aside at parse, that path would see them again on a
+   core class and silently store the wrong type. Its purpose ended when the
+   parser began resolving inline objects to their specific class (MV-04-003),
+   so #3922 deleted it along with the raw-body argument threaded from the inbox
+   endpoint to feed it; ingress storage persists the parsed object.
 
-Ratchet: `test/wire/as2/test_unknown_key_disposition.py` — one matrix over
-every position, `xfail(strict=True)` on the rows not yet built so the marks must
-come off with the implementation (#3921).
+**Landed (#3921, #3922).** The partition is `vultron/wire/as2/unknown_keys.py`,
+called by `parse_activity` after the received evidence is sealed and before
+anything validates. Three details the rule above leaves open are settled
+there:
+
+- **An untyped dict** (or one whose `type` is unresolved) is judged by the
+  class its parent field validates it into. The field's annotation is read
+  through unions, `Annotated` and sequences; when it names several model
+  classes the dict is judged against the union of their spellings, and when it
+  also admits `Any` or a plain `dict`, no class decides and the dict is carried
+  unexamined (its typed children are still partitioned by their type).
+- **The case stub** is chosen by `resolve_inline_class` on the stub's own key
+  set (`CASE_STUB_KEYS`, derived from the class since #2624 so the enriched
+  CM-17-002 stub's `activeEmbargo` and `caseStatus` count). It judges keys as
+  the partition will, so the raw dict and the partitioned one resolve to the
+  same class: a key foreign to both classes cannot decide it
+  (`{"type": "VulnerabilityCase", "id": …, "fooBar": 1}` is a stub with one key
+  set aside), and a near miss counts as the spelling it resembles (`CaseStatus`
+  selects the stub, whose partition refuses it naming `caseStatus`, rather than
+  the full case, where it would have been set aside and the embargo state
+  lost).
+- **One refusal names every near miss** in the body, at every depth
+  (EH-07-001), each with its dotted path.
+- **A body nested past the recursion limit** is refused as a schema fault
+  (`VultronParseValidationError`, MV-02-002). `RecursionError` is not a
+  `VultronParseError`, so left alone it would draw a 500 from the inbox.
+
+Ratchets: `test/wire/as2/test_unknown_key_disposition.py` — one matrix over
+every position (its `xfail(strict=True)` rows came off with #3921), plus
+`test_no_core_module_names_a_retired_key` for MV-11-004; and
+`test/architecture/test_no_receive_path_reparse.py` for MV-11-005.

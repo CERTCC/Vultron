@@ -12,9 +12,8 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
-
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
 from ._helpers import (
     _store_embedded_embargo,
@@ -24,6 +23,7 @@ from ._helpers import (
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,10 @@ class EngageCaseReceivedUseCase:
         request: EngageCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: EngageCaseReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
@@ -82,6 +84,7 @@ class EngageCaseReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
         tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
@@ -109,8 +112,10 @@ class DeferCaseReceivedUseCase:
         request: DeferCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: DeferCaseReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
@@ -147,6 +152,7 @@ class DeferCaseReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
         tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(

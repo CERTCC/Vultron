@@ -23,7 +23,7 @@ Per-dimension adjudication nodes (RSH-05, ADR-0061, ISSUE-2256) live in
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from py_trees.common import Status
@@ -40,9 +40,9 @@ from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
-from vultron.core.states.cs import CS_pxa
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.states.cs import CS_pxa
 
 logger = logging.getLogger(__name__)
 
@@ -312,25 +312,18 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
             pxa=PxaDimension(state=pxa_state),
         )
 
-        # ARCH-20-001, honestly: ``new_status`` is a *core-branch* ``CaseStatus``
-        # this node just built, so the sanctioned route is ``WireRenderPort``,
-        # which is not injected into this node today.  What makes the output
-        # correct meanwhile is that ``CaseStatus`` declares its own AS2 aliases
-        # (ADR-0099 details 2 and 5), so this dump produces the same ``emState`` /
-        # ``pxaState`` snapshot shape the port would — the shape CM-18-006's
-        # invariant harness and every replica read.  Route it through the port
-        # when the rendering collapse lands.
-        status_dict: dict[str, Any] = new_status.model_dump(
-            mode="json",
-            by_alias=True,
-            serialize_as_any=True,
-            exclude_none=True,
+        # ``new_status`` is a core-branch ``CaseStatus`` this node just built, so
+        # its AS2 form — the ``emState`` / ``pxaState`` snapshot shape
+        # CM-18-006's invariant harness and every replica read — comes from the
+        # port (ARCH-20-001, CLP-07-009).
+        status_dict: dict[str, Any] = self._require_wire_render_port().render(
+            new_status
         )
         payload: dict[str, Any] = {
             "type": "Add",
             "actor": self.actor_id,
             "context": self.case_id,
-            "published": datetime.now(tz=timezone.utc).isoformat(),
+            "published": datetime.now(tz=UTC).isoformat(),
             "object": status_dict,
         }
 

@@ -52,8 +52,8 @@ from vultron.metadata.base import (
     nav_exclusion_fault,
     nav_paths,
     not_in_nav_spec,
+    repo_root as _find_repo_root,
 )
-from vultron.metadata.base import repo_root as _find_repo_root
 from vultron.metadata.docs.page_schema import (
     PageFrontmatter,
     WorkingRecordFrontmatter,
@@ -328,8 +328,7 @@ def check_docs_frontmatter(repo_root: Path | None = None) -> CheckResult:
 
     collector.raise_if_any(
         summary=(
-            f"{len(collector.failures)} docs frontmatter finding(s) "
-            f"(DF-11):"
+            f"{len(collector.failures)} docs frontmatter finding(s) (DF-11):"
         )
     )
     return result

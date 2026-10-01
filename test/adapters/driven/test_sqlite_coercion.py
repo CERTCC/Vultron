@@ -19,6 +19,7 @@ promotes base-vocab activities to subtypes).
 Fixtures (dl) come from conftest.
 """
 
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
@@ -31,7 +32,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Invite,
     as_Offer,
 )
-from vultron.core.models._helpers import days_from_now_utc
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
@@ -100,8 +100,10 @@ class TestRehydrateFields:
         Accepts as accept_case_manager_role (SE-08-001, ISSUE-2194).
         """
         from vultron.core.models.actor import CoreActor
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Actor,
+            as_Organization,
+        )
 
         org_id = "https://example.org/actors/target-org"
         org = as_Organization(id_=org_id, name="Target Org")
@@ -126,12 +128,12 @@ class TestRehydrateFields:
 
         assert stored is not None
         inline_offer = getattr(stored, "object_", None)
-        assert (
-            inline_offer is not None
-        ), "object_ should be present on stored Accept"
-        assert not isinstance(
-            inline_offer, str
-        ), "Accept.object_ should be the inline Offer, not a bare string"
+        assert inline_offer is not None, (
+            "object_ should be present on stored Accept"
+        )
+        assert not isinstance(inline_offer, str), (
+            "Accept.object_ should be the inline Offer, not a bare string"
+        )
         assert not isinstance(inline_offer.target, str), (  # type: ignore[union-attr]
             f"Offer.target should be the typed actor after recursion,"
             f" not bare string {inline_offer.target!r}"  # type: ignore[union-attr]
@@ -320,12 +322,12 @@ class TestCoerceToSemanticClass:
         result = record.to_obj()
 
         inner_offer = getattr(result, "object_", None)
-        assert (
-            inner_offer is not None
-        ), "Accept.object_ must be the inline Offer"
-        assert not isinstance(
-            inner_offer, str
-        ), "Accept.object_ must not collapse to a bare string"
+        assert inner_offer is not None, (
+            "Accept.object_ must be the inline Offer"
+        )
+        assert not isinstance(inner_offer, str), (
+            "Accept.object_ must not collapse to a bare string"
+        )
         inner_entry = getattr(inner_offer, "object_", None)
         assert isinstance(inner_entry, as_CaseLedgerEntry), (
             f"Offer.object_ should be re-typed to as_CaseLedgerEntry by recursive "

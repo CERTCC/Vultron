@@ -15,14 +15,21 @@
 
 """Abstract base classes for BT-backed trigger use cases.
 
-Two-level hierarchy:
+Three-level hierarchy:
 
 - :class:`SvcBTTriggerBase` — top-level template method that owns the
   ``__init__``, the TriggerActivityPort guard, BTBridge construction, BT
-  execution, and the failure guard.  Subclasses implement ``_prepare()``,
-  ``_build_tree()``, and ``_handle_result()``.
+  execution, and the failure guard.  Generic in the :class:`TriggerResult`
+  subtype its verb returns (UCORG-05-007).  Subclasses implement
+  ``_prepare()``, ``_build_tree()``, ``_handle_result()`` and
+  ``_build_result()``.
 
-- :class:`SvcEmbargoTriggerBase` — extends ``SvcBTTriggerBase`` with a
+- :class:`SvcActivityTriggerBase` — binds the result to
+  :class:`ActivityResult` and builds it from the captured activity and the
+  emitting actor; the base of every verb whose body is
+  ``{"activity", "emitting_actor_id"}``.
+
+- :class:`SvcEmbargoTriggerBase` — extends ``SvcActivityTriggerBase`` with a
   concrete ``_handle_result()`` that validates and stores the
   ``lifecycle_result`` from the BT output, then delegates to the
   per-operation ``_log_lifecycle_result()`` hook.
@@ -34,17 +41,21 @@ from typing import Any
 
 import py_trees.behaviour
 from py_trees.common import Status
+from pydantic import ValidationError
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.models.use_case_result import ActivityResult, TriggerResult
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycleResult
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
 
-class SvcBTTriggerBase(ABC):
+class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
     """Abstract base for all BT-backed trigger use cases.
 
     The :meth:`execute` template method orchestrates the common workflow:
@@ -60,7 +71,8 @@ class SvcBTTriggerBase(ABC):
     6. Execute the BT via ``bridge.execute_with_setup``.
     7. Raise on failure.
     8. Call :meth:`_handle_result` (abstract) — subclass logs/extracts output.
-    9. Return ``{"activity": self._captured.get("activity")}``.
+    9. Return :meth:`_build_result` (abstract) — the verb's typed
+       :class:`TriggerResult` subtype, ``TriggerResultT``.
     """
 
     _requires_trigger_activity: bool = True
@@ -70,12 +82,21 @@ class SvcBTTriggerBase(ABC):
         dl: CaseOutboxPersistence,
         request: object,
         trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        sync_port: SyncActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request = request
         self._trigger_activity = trigger_activity
+        # Every tree that commits a ledger entry renders its payload snapshot
+        # through this port; core cannot produce the AS2 shape itself
+        # (ARCH-20-001, CLP-07-009).
+        self._wire_render_port = wire_render_port
+        # A tree that commits a ledger entry fans it out through this port
+        # (SYNC-02-002); only the ``sync-log-entry`` verb's tree reads it.
+        self._sync_port = sync_port
 
-    def execute(self) -> dict:
+    def execute(self) -> TriggerResultT:
         """Template method: prepare → gate → run BT → handle result."""
         self._captured: dict = {}
         self._result_out: dict[str, object] = {}
@@ -93,6 +114,8 @@ class SvcBTTriggerBase(ABC):
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
         tree = self._build_tree()
         result = bridge.execute_with_setup(
@@ -112,10 +135,16 @@ class SvcBTTriggerBase(ABC):
 
         self._handle_result()
 
-        return {
-            "activity": self._captured.get("activity"),
-            "emitting_actor_id": self._actor_id,
-        }
+        try:
+            return self._build_result()
+        except ValidationError as exc:
+            # A result the subtype refuses is a bug in the use case or a node
+            # (a non-string id, an unexpected key), not a client fault: the
+            # routers translate pydantic ``ValidationError`` to 422, so it is
+            # re-raised as the internal error it is.
+            raise RuntimeError(
+                f"{type(self).__name__} built an invalid result: {exc}"
+            ) from exc
 
     @abstractmethod
     def _prepare(self) -> None:
@@ -143,6 +172,42 @@ class SvcBTTriggerBase(ABC):
         Called only when the BT succeeded.
         """
 
+    @abstractmethod
+    def _build_result(self) -> TriggerResultT:
+        """Assemble the verb's typed result from the captured BT output.
+
+        Called last, after :meth:`_handle_result`, and only when the BT
+        succeeded.  The returned subtype declares exactly the keys the verb's
+        response body carries (UCORG-05-005).
+        """
+
+    def _activity_fields(self) -> dict[str, Any]:
+        """The two keys every :class:`ActivityResult` body carries.
+
+        ``activity`` is what the tree captured (``None`` when it captured
+        nothing) and ``emitting_actor_id`` the actor ``_prepare()`` resolved.
+        Subtypes that extend the activity body splat this into their result.
+        """
+        return {
+            "activity": self._captured.get("activity"),
+            "emitting_actor_id": self._actor_id,
+        }
+
+    def _output_id(self, key: str) -> str | None:
+        """Return the id the BT wrote to ``_result_out[key]``, or ``None``.
+
+        BT output is ``dict[str, object]``; a result field is typed, so a
+        value that is neither a string nor absent is a node bug and raises
+        rather than being coerced into the body.
+        """
+        value = self._result_out.get(key)
+        if value is not None and not isinstance(value, str):
+            raise RuntimeError(
+                f"{type(self).__name__}: BT output {key!r} is"
+                f" {type(value).__name__}, expected str"
+            )
+        return value
+
     def _extra_execute_kwargs(self) -> dict[str, Any]:
         """Additional kwargs passed to ``bridge.execute_with_setup``.
 
@@ -153,7 +218,20 @@ class SvcBTTriggerBase(ABC):
         return {}
 
 
-class SvcEmbargoTriggerBase(SvcBTTriggerBase):
+class SvcActivityTriggerBase(SvcBTTriggerBase[ActivityResult]):
+    """BT-backed trigger whose body is the emitted activity and its emitter.
+
+    Binds :class:`SvcBTTriggerBase` to :class:`ActivityResult` and builds it
+    from the activity the tree captured (``None`` when it captured nothing)
+    and the actor ``_prepare()`` resolved.  Verbs whose body differs bind the
+    generic base to their own subtype instead.
+    """
+
+    def _build_result(self) -> ActivityResult:
+        return ActivityResult(**self._activity_fields())
+
+
+class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
     """Abstract base for embargo trigger use cases.
 
     Provides a concrete :meth:`_handle_result` that:
@@ -167,7 +245,7 @@ class SvcEmbargoTriggerBase(SvcBTTriggerBase):
     def _handle_result(self) -> None:
         lifecycle_result = self._result_out.get("lifecycle_result")
         if not isinstance(lifecycle_result, EmbargoLifecycleResult):
-            raise RuntimeError(
+            raise RuntimeError(  # noqa: TRY004  # ruff-baseline #3353
                 f"{type(self).__name__} did not capture lifecycle result"
                 " in BT output"
             )

@@ -33,21 +33,20 @@ from pydantic import (
 )
 
 from vultron.core.models.base import ValidatedAssignmentMixin
-
 from vultron.core.states.cs import (
-    CS_d,
-    CS_pxa,
-    CS_vf,
     D_FIX_DEPLOYED,
-    D_Trigger,
     PXA_ATTACKS_OBSERVED,
     PXA_EXPLOIT_PUBLIC,
     PXA_PUBLIC_AWARE,
-    PxaState,
     VF_FIX_READY,
-    VF_Trigger,
     VF_VENDOR_AWARE,
+    CS_d,
+    CS_pxa,
+    CS_vf,
+    D_Trigger,
     PXA_Trigger,
+    PxaState,
+    VF_Trigger,
     _d_transitions,
     _pxa_transitions,
     _vf_transitions,
@@ -64,8 +63,8 @@ from vultron.core.states.participant_embargo_consent import (
 )
 from vultron.core.states.rm import (
     RM,
-    RM_Trigger,
     RM_VALIDATED,
+    RM_Trigger,
     _transitions as _rm_transitions,
 )
 from vultron.errors import VultronInvalidStateTransitionError
@@ -156,7 +155,7 @@ def _apply_transition(
     """
     for t in transitions:
         src = t.get("source")
-        if src != current_state and src != "*":
+        if src not in (current_state, "*"):
             continue
         if t.get("trigger") != trigger:
             continue

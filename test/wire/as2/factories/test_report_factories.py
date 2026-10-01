@@ -46,8 +46,8 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_TentativeReject,
 )
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.base.objects.actors import as_Person
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -418,7 +418,7 @@ def test_parse_submit_report_offer_from_dict(sample_report, sample_actor):
         report=sample_report, to=_ACTOR_URI, actor=sample_actor
     )
     offer_dict = offer.model_dump(by_alias=True)
-    report_out, offer_out = parse_submit_report_offer(offer_dict)
+    report_out, _offer_out = parse_submit_report_offer(offer_dict)
     assert isinstance(report_out, as_VulnerabilityReport)
     assert report_out.id_ == sample_report.id_
 
@@ -429,7 +429,7 @@ def test_parse_submit_report_offer_from_plain_offer(
 ):
     """parse_submit_report_offer coerces a plain as_Offer correctly."""
     plain_offer = as_Offer(actor=None, object_=sample_report)
-    report_out, offer_out = parse_submit_report_offer(plain_offer)
+    report_out, _offer_out = parse_submit_report_offer(plain_offer)
     assert isinstance(report_out, as_VulnerabilityReport)
     assert report_out.id_ == sample_report.id_
 

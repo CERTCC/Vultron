@@ -55,7 +55,9 @@ from vultron.core.models.fault_classes import (
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.parser import _VULNERABILITY_CASE_STUB_KEYS
+from vultron.wire.as2.unknown_keys import (
+    CASE_STUB_KEYS as _VULNERABILITY_CASE_STUB_KEYS,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -270,8 +272,8 @@ RECIPES: dict[str, Recipe] = {
         to=[_PEER],
         result=w.case_id,
     ),
-    "emit_prepared_create_case": lambda w: (
-        w.adapter.emit_prepared_create_case(w.prepared_create_case())
+    "emit_prepared_create_case": lambda w: w.adapter.emit_prepared_create_case(
+        w.prepared_create_case()
     ),
     # embargo
     "propose_embargo": lambda w: w.adapter.propose_embargo(
@@ -463,9 +465,9 @@ def test_the_activity_is_sealed_complete(world, method):
         activity_id, blob = result, None
 
     sealed = read_sealed_body(world.dl, activity_id)
-    assert (
-        sealed is not None
-    ), f"{method} did not seal a body for {activity_id}"
+    assert sealed is not None, (
+        f"{method} did not seal a body for {activity_id}"
+    )
     if blob is not None:
         assert sealed.body == blob, f"{method} returned a blob it did not seal"
 
@@ -475,9 +477,9 @@ def test_the_activity_is_sealed_complete(world, method):
         "to"
         in inspect.signature(getattr(TriggerActivityPort, method)).parameters
     ):
-        assert body.get(
-            "to"
-        ), f"{method} sealed an activity with no recipients"
+        assert body.get("to"), (
+            f"{method} sealed an activity with no recipients"
+        )
     if body["type"] in _INLINE_OBJECT_ACTIVITY_TYPES:
         obj = body.get("object")
         assert isinstance(obj, dict) and obj.get("type"), (

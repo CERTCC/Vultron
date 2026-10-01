@@ -29,16 +29,20 @@ from unittest.mock import patch
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
 )
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.actor import (
+    AcceptCaseOwnershipTransferReceivedEvent,
+)
 from vultron.enums.roles import CVDRole
-from test.core.behaviors.bt_harness import BTTestScenario
 
 CASE_ID = "https://example.org/cases/case-2252"
 CASE_ACTOR_ID = "https://example.org/actors/case-actor"
@@ -75,25 +79,26 @@ def _seed_case(bt_scenario: BTTestScenario) -> None:
     bt_scenario.seed(case_actor_participant, transferee_participant, case)
 
 
-class _FakeAcceptActivity:
-    """Minimal accept activity for the blackboard."""
+def _accept_event() -> AcceptCaseOwnershipTransferReceivedEvent:
+    """The received Accept(Offer(Case)) as a handler places it on the blackboard.
 
-    activity_id = OFFER_ID
-
-    class activity:
-        @staticmethod
-        def model_dump(**_: object) -> dict:
-            return {
-                "id": OFFER_ID,
-                "type": "Accept",
-                "actor": TRANSFEREE_ID,
-                "context": CASE_ID,
-                "object": {
-                    "id": OFFER_ID,
-                    "type": "Offer",
-                    "object": {"id": CASE_ID, "type": "VulnerabilityCase"},
-                },
-            }
+    A real event, not a stand-in: intake reads it first (CLP-10-017) and a
+    bare object would be a wiring fault.
+    """
+    activity = VultronActivity(
+        id_=OFFER_ID,
+        type_="Accept",
+        actor=TRANSFEREE_ID,
+        context=CASE_ID,
+        object_={
+            "id": OFFER_ID,
+            "type": "Offer",
+            "object": {"id": CASE_ID, "type": "VulnerabilityCase"},
+        },
+    )
+    return AcceptCaseOwnershipTransferReceivedEvent(
+        activity_id=OFFER_ID, actor_id=TRANSFEREE_ID, activity=activity
+    )
 
 
 @pytest.mark.parametrize(
@@ -135,7 +140,7 @@ def test_accept_ownership_transfer_commit_is_role_gated(
     ) as mock_commit:
         mock_commit.return_value = Status.SUCCESS
         result = bt_scenario.run(
-            tree, actor_id=actor_id, activity=_FakeAcceptActivity()
+            tree, actor_id=actor_id, activity=_accept_event()
         )
 
     assert result.status == Status.SUCCESS
@@ -166,9 +171,7 @@ def test_accept_ownership_transfer_no_double_commit(
         CommitCaseLedgerEntryNode, "update", autospec=True
     ) as mock_commit:
         mock_commit.return_value = Status.SUCCESS
-        bt_scenario.run(
-            tree, actor_id=CASE_ACTOR_ID, activity=_FakeAcceptActivity()
-        )
+        bt_scenario.run(tree, actor_id=CASE_ACTOR_ID, activity=_accept_event())
 
     assert mock_commit.call_count == 1, (
         f"Expected exactly 1 CommitCaseLedgerEntryNode.update call for "

@@ -1,9 +1,11 @@
 """Tests for the unified SemanticRegistry module."""
 
 import importlib
+import inspect
 
 import pytest
 
+from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.base import VultronEvent
 from vultron.errors import RegistryOrderError
@@ -17,7 +19,6 @@ from vultron.semantic_registry import (
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import ActivityPattern
-from vultron.core.models.enums import VultronObjectType as VOtype
 
 
 @pytest.mark.spec("SE-03-001")
@@ -88,6 +89,40 @@ def test_use_case_map_keys_match_semantics():
     registered = set(ucm.keys())
     expected = set(MessageSemantics)
     assert registered == expected
+
+
+@pytest.mark.spec("HP-02-002")
+@pytest.mark.spec("HP-03-002")
+def test_each_use_case_accepts_the_event_class_its_semantics_route():
+    """Each registry row pairs a semantics with a handler that reads its event.
+
+    The dispatcher keys on ``event.semantic_type``; the handler it reaches must
+    annotate ``request`` as exactly that row's ``event_class``, so
+    the semantics verified at dispatch and the typed event the handler reads
+    are the same registry row.
+    """
+    mismatched: dict[str, str] = {}
+    checked = 0
+    for entry in SEMANTIC_REGISTRY:
+        if entry.event_class is None or entry.use_case_class is None:
+            continue
+        checked += 1
+        annotation = (
+            inspect.signature(entry.use_case_class.__init__)
+            .parameters["request"]
+            .annotation
+        )
+        # A ``TYPE_CHECKING``-only name elsewhere in the signature keeps
+        # ``get_type_hints`` from resolving, so compare by name: the handler
+        # annotates ``request`` as exactly the event class its row routes.
+        name = getattr(annotation, "__name__", None) or str(annotation)
+        if name != entry.event_class.__name__:
+            mismatched[entry.semantics.name] = (
+                f"{entry.use_case_class.__name__}(request: {name}) "
+                f"routed for {entry.event_class.__name__}"
+            )
+    assert checked > 0, "no registry entries carry both classes"
+    assert mismatched == {}, mismatched
 
 
 @pytest.mark.spec("SE-02-001")
@@ -245,9 +280,9 @@ def test_phrase_format_map_with_defaults_returns_non_empty(entry):
 
     slots: dict[str, str] = defaultdict(lambda: "X")
     result = entry.phrase.format_map(slots)
-    assert (
-        result
-    ), f"{entry.semantics.name} phrase produced empty string after format_map"
+    assert result, (
+        f"{entry.semantics.name} phrase produced empty string after format_map"
+    )
 
 
 def test_create_case_proposal_phrase_has_no_target_slot():
@@ -369,9 +404,9 @@ def test_event_phrase_render_no_dangling_output(entry):
 
     _slot_re = re.compile(r"\{(\w+)\}")
     result = event_phrase(entry.semantics.value)
-    assert not result.endswith(
-        "—"
-    ), f"{entry.semantics.name}: event_phrase() ends with '—': {result!r}"
-    assert not _slot_re.search(
-        result
-    ), f"{entry.semantics.name}: event_phrase() left un-substituted slot: {result!r}"
+    assert not result.endswith("—"), (
+        f"{entry.semantics.name}: event_phrase() ends with '—': {result!r}"
+    )
+    assert not _slot_re.search(result), (
+        f"{entry.semantics.name}: event_phrase() left un-substituted slot: {result!r}"
+    )

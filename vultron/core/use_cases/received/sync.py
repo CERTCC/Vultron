@@ -18,7 +18,6 @@ Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-04-001, SYNC-04-002.
 """
 
 import logging
-from typing import cast
 
 import py_trees
 from py_trees.common import Status
@@ -40,11 +39,11 @@ from vultron.core.behaviors.sync.nodes import (
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import (
     LedgerGapBuffer,
     get_ledger_gap_buffer,
@@ -53,17 +52,14 @@ from vultron.core.models.pending_assertion import (
     PendingAssertionStore,
     get_pending_assertion_store,
 )
-from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.ports.case_persistence import (
-    CasePersistence,
-    CaseOutboxPersistence,
-)
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.sync_helpers import _reconstruct_tail_hash
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
@@ -82,6 +78,7 @@ def _run_announce_bt(
     receiving_actor_id: str,
     gap_buffer: LedgerGapBuffer | None,
     sync_port: SyncActivityPort | None,
+    wire_render_port: WireRenderPort | None = None,
 ) -> tuple[py_trees.behaviour.Behaviour, BTExecutionResult]:
     """Run the announce receive BT for *request* with the gap buffer wired.
 
@@ -89,7 +86,9 @@ def _run_announce_bt(
     branch decided the outcome (#2255).
     """
     tree = create_announce_log_entry_tree()
-    result = BTBridge(datalayer=dl).execute_with_setup(
+    result = BTBridge(
+        datalayer=dl, wire_render_port=wire_render_port
+    ).execute_with_setup(
         tree=tree,
         actor_id=receiving_actor_id,
         activity=request,
@@ -173,6 +172,7 @@ def drain_gap_buffer(
     receiving_actor_id: str,
     gap_buffer: LedgerGapBuffer,
     sync_port: SyncActivityPort | None = None,
+    wire_render_port: WireRenderPort | None = None,
 ) -> None:
     """Apply buffered entries that now extend the local chain, in order.
 
@@ -227,7 +227,12 @@ def drain_gap_buffer(
         # here would be an unclassified bridge-contract violation and must
         # surface loudly rather than be absorbed (CS-23-001).
         _, result = _run_announce_bt(
-            dl, drain_event, receiving_actor_id, gap_buffer, sync_port
+            dl,
+            drain_event,
+            receiving_actor_id,
+            gap_buffer,
+            sync_port,
+            wire_render_port,
         )
         if result.status == Status.FAILURE and dl.read(successor.id_) is None:
             # Application failed and the entry was not persisted; hold it again
@@ -239,50 +244,6 @@ def drain_gap_buffer(
                 successor.id_,
             )
             return
-
-
-def _update_replication_state(
-    case_id: str,
-    peer_id: str,
-    last_acknowledged_hash: str,
-    dl: CasePersistence,
-) -> None:
-    """Upsert the :class:`VultronReplicationState` for *peer_id* in *case_id*.
-
-    Creates a new record if none exists yet; updates the
-    ``last_acknowledged_hash`` and ``updated_at`` fields on the existing one.
-
-    Spec: SYNC-04-001, SYNC-04-002.
-    """
-    state = VultronReplicationState(
-        case_id=case_id,
-        peer_id=peer_id,
-        last_acknowledged_hash=last_acknowledged_hash,
-    )
-    existing = dl.read(state.id_)
-    if existing is not None:
-        existing_state = cast(VultronReplicationState, existing)
-        existing_state.last_acknowledged_hash = last_acknowledged_hash
-        from vultron.core.models._helpers import now_utc
-
-        existing_state.updated_at = now_utc()
-        dl.save(existing_state)
-        logger.debug(
-            "sync: updated ReplicationState for peer '%s' in case '%s' "
-            "→ last_acknowledged_hash=%.16s…",
-            peer_id,
-            case_id,
-            last_acknowledged_hash,
-        )
-    else:
-        dl.save(state)
-        logger.debug(
-            "sync: created ReplicationState for peer '%s' in case '%s' "
-            "→ last_acknowledged_hash=%.16s…",
-            peer_id,
-            case_id,
-            last_acknowledged_hash,
-        )
 
 
 class AnnounceLedgerEntryReceivedUseCase:
@@ -316,8 +277,10 @@ class AnnounceLedgerEntryReceivedUseCase:
         sync_port: SyncActivityPort | None = None,
         pending_assertions: PendingAssertionStore | None = None,
         gap_buffer: LedgerGapBuffer | None = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request = request
         self._sync_port = sync_port
         self._pending_assertions = pending_assertions
@@ -357,6 +320,7 @@ class AnnounceLedgerEntryReceivedUseCase:
             receiving_actor_id,
             gap_buffer,
             self._sync_port,
+            self._wire_render_port,
         )
 
         # Whenever an entry is committed, its successor may already be waiting
@@ -370,6 +334,7 @@ class AnnounceLedgerEntryReceivedUseCase:
                 receiving_actor_id,
                 gap_buffer,
                 self._sync_port,
+                self._wire_render_port,
             )
 
         verdict = _announce_verdict(tree, result, request, entry)
@@ -405,12 +370,14 @@ class RejectLedgerEntryReceivedUseCase:
     """CaseActor handles a participant's rejection of a log entry announcement.
 
     When a participant rejects an ``Announce(CaseLedgerEntry)`` because the
-    ``prev_log_hash`` does not match their local tail, the CaseActor:
+    ``prev_log_hash`` does not match their local tail, the CaseActor runs the
+    reject tree (``create_reject_log_entry_tree``), whose nodes:
 
-    1. Updates :class:`~vultron.core.models.replication_state.VultronReplicationState`
-       for the rejecting peer (SYNC-04-001, SYNC-04-002).
-    2. Replays all missing entries from after the last-accepted hash to the
-       peer (SYNC-03-002).
+    1. Record the rejecting peer's last-acknowledged hash in its
+       per-peer replication state — ``UpdateReplicationStateNode``
+       (SYNC-04-001, SYNC-04-002).
+    2. Replay all missing entries from after the last-accepted hash to the
+       peer — ``SendMissingEntriesNode`` (SYNC-03-002).
 
     Spec: SYNC-03-001, SYNC-03-002, SYNC-04-001, SYNC-04-002.
     """
@@ -421,8 +388,10 @@ class RejectLedgerEntryReceivedUseCase:
         request: RejectLogEntryReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
@@ -452,6 +421,7 @@ class RejectLedgerEntryReceivedUseCase:
             datalayer=self._dl,
             sync_port=self._sync_port,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=resolve_receiving_actor_id(

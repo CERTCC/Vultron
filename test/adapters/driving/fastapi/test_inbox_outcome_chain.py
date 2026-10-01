@@ -121,7 +121,7 @@ def _process(
     """Run one payload through the real FastAPI adapters and the inbox BT."""
     return process_payload(
         body,
-        FastAPIIngressAdapter(dl=dl, body=body),
+        FastAPIIngressAdapter(dl=dl),
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_RECEIVER_ID, dispatcher=dispatcher
         ),
@@ -190,7 +190,7 @@ def _run_pipeline(
     emitter = AsyncMock()
     asyncio.run(
         run_inbox_pipeline(
-            body, body, dl, _RECEIVER_ID, _dispatcher_for(verdict), emitter
+            body, dl, _RECEIVER_ID, _dispatcher_for(verdict), emitter
         )
     )
 

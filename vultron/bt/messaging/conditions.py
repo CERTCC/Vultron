@@ -16,9 +16,7 @@ Provides messaging conditions for use in Vultron BTs.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import logging
-from typing import Type
 
 from vultron.bt.base.bt_node import BtNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode
@@ -42,7 +40,7 @@ MsgQueueEmpty = invert(
 )
 
 
-def check_msg_type(msg_t: MessageTypes) -> Type[ConditionCheck]:
+def check_msg_type(msg_t: MessageTypes) -> type[ConditionCheck]:
     """Given a message type, return a condition check class for that message type"""
 
     if msg_t not in MessageTypes:

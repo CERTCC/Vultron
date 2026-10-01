@@ -44,8 +44,8 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from vultron.core.models.base import (
-    UriString,
     CoreRecord,
+    UriString,
 )
 
 

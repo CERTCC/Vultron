@@ -50,11 +50,11 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronBTInternalError
 
@@ -223,6 +223,38 @@ def verdict_from_bt(
     return HandlerResult.refused(f"{label}: {reason}")
 
 
+def intake_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    result: BTExecutionResult,
+    *,
+    label: str,
+) -> HandlerResult:
+    """The ``HandlerResult`` for a tree whose only work is intake.
+
+    Intake archives what arrived and nothing else, so a run that archived
+    the activity is ``APPLIED`` and a run that found it already archived is
+    the benign no-op of a redelivery, ``SKIPPED`` (HP-01-003).  The
+    intake node reports which it was, so the handler does not inspect the
+    DataLayer (ADR-0111).  A refused or failed run reads as
+    :func:`verdict_from_bt` reads it.
+    """
+    from vultron.core.behaviors.case.nodes.intake import (
+        IntakeReceivedActivityNode,
+    )
+
+    verdict = verdict_from_bt(tree, result, label=label)
+    if verdict.disposition is not HandlerDisposition.APPLIED:
+        return verdict
+    intake = find_node(tree, IntakeReceivedActivityNode)
+    if intake is None:
+        raise VultronBTInternalError(f"{label}: tree has no intake node")
+    if intake.stored_anything:
+        return verdict
+    return HandlerResult.skipped(
+        f"{label}: nothing arrived that was not already held"
+    )
+
+
 def applied_or_raise(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     result: BTExecutionResult,
@@ -249,6 +281,7 @@ __all__ = [
     "failure_reason",
     "find_named",
     "find_node",
+    "intake_verdict",
     "node_failed",
     "node_succeeded",
     "not_case_manager",

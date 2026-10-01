@@ -110,17 +110,16 @@ class _LifecycleBase:
                     case_id,
                     em_before,
                 )
-                raise VultronInvalidStateTransitionError(
+                raise VultronInvalidStateTransitionError(  # noqa: B904  # ruff-baseline #3353
                     f"Cannot apply '{trigger}' to embargo: case '{case_id}'"
                     f" EM state '{em_before}' does not allow this transition."
                 )
-            else:
-                logger.warning(
-                    "OBSERVED mode: EM transition '%s' (trigger '%s') failed"
-                    " for case '%s' — forcing state-sync to '%s'",
-                    em_before,
-                    trigger,
-                    case_id,
-                    fallback_dest,
-                )
-                return fallback_dest
+            logger.warning(
+                "OBSERVED mode: EM transition '%s' (trigger '%s') failed"
+                " for case '%s' — forcing state-sync to '%s'",
+                em_before,
+                trigger,
+                case_id,
+                fallback_dest,
+            )
+            return fallback_dest

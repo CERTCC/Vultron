@@ -417,8 +417,7 @@ groups:
       `test/wire/as2/test_unknown_key_disposition.py` drives `parse_activity` with an unknown
       key in each of the positions this requirement names and asserts the same disposition in
       every one: refused when the key is a near miss (MV-11-002), set aside and reported when
-      it is foreign (MV-11-003). Rows for behaviour not yet built are `xfail(strict=True)`
-      until the implementation (#3921) lands.
+      it is foreign (MV-11-003). The partition is `vultron/wire/as2/unknown_keys.py` (#3921).
     relationships:
     - rel_type: depends_on
       spec_id: MV-04-003
@@ -438,7 +437,14 @@ groups:
       `actor` and `attributedTo`). A spelling the resolved class accepts on input is declared,
       never a near miss: both roots validate by field name as well as by alias (CS-14-001,
       CS-14-002), so the snake_case field name `attributed_to` is a declared spelling of
-      `attributedTo`. The refusal MUST name the arriving key and the declared or
+      `attributedTo`. The JSON-LD keywords `@id` and `@type` are near misses of `id` and `type`
+      by design, not an accident of the normalisation: AS2 spells these fields `id` and `type`
+      with no `@` prefix, because the normative AS2 context aliases the keywords and AS2 Core
+      section 2.1 requires the serialized form to be consistent with compaction under that
+      context, so a document carrying `@id` or `@type` is legal JSON-LD but not a conforming
+      AS2 document (MV-01-001). `@context` is the only JSON-LD keyword that is a declared
+      spelling; a receiver MUST NOT declare `@id` or `@type` as an alias or exempt them from
+      the near-miss test. The refusal MUST name the arriving key and the declared or
       retired spelling it resembles. The near-miss test MUST be exactly this normalisation plus
       the retired-name list: edit distance, prefix matching, or any other similarity measure
       MUST NOT be used.
@@ -449,13 +455,22 @@ groups:
       property names within one character of each other, so an edit-distance model would
       misfire constantly, and pinning down a richer notion of "near" is not worth the time
       (ADR-0099 detail 8). A retired name is not a spelling of anything, so it is in the list
-      by name rather than by normalisation.
+      by name rather than by normalisation. The JSON-LD keywords are named so the refusal is
+      understood as a decision: a peer that emits `@id`/`@type` skipped compaction or compacted
+      under a context without the AS2 aliases, and it meant the `id`/`type` Vultron reads.
+      Setting the keywords aside would strip the object's identity and type and cascade into
+      other refusals; declaring them as aliases would make Vultron a partial JSON-LD processor
+      with no principled place to stop (full-IRI property names and `@value` objects are
+      equally legal JSON-LD). Refusing tells the peer the compact spelling to send
+      (CONCERN-3958).
     verification: >-
       `test/wire/as2/test_unknown_key_disposition.py` asserts that a case variant and a
       separator variant (`attributed-to`) on the envelope and on an inline object, and a retired
       name on an inline object (the retired-name list holds status-dimension keys, which never
       sit on the envelope), each raise `VultronParseValidationError` whose message names both
-      the arriving key and the spelling it resembles; that a snake_case field name is accepted
+      the arriving key and the spelling it resembles; that the JSON-LD keywords `@id` and
+      `@type` on the envelope and on an inline object each raise the same parse-edge refusal
+      naming `id` or `type`, not a Pydantic dump; that a snake_case field name is accepted
       as a declared spelling with nothing reported; and that no module under
       `vultron/wire/as2/` contains an edit-distance or similarity helper (`difflib`,
       Levenshtein, or equivalent).
@@ -464,6 +479,8 @@ groups:
       spec_id: MV-11-001
     - rel_type: depends_on
       spec_id: MV-02-002
+    - rel_type: depends_on
+      spec_id: MV-01-001
     adr:
     - ADR-0099
   - id: MV-11-003
@@ -514,14 +531,17 @@ groups:
       or store an object with a key it does not know?" — always a bug. The parse edge asks
       "did a peer send a property we do not read?" — usually an extension. Keeping them
       separate is what lets the receive side be liberal without reopening the #2232 hole on
-      the stored side. `ParticipantStatus._reject_retired_vfd_keys` predates this rule and is
-      the one guard SDO-03-005 already forbids; it goes when the wire-side list arrives.
+      the stored side. `ParticipantStatus._reject_retired_vfd_keys` predated this rule and was
+      the one guard SDO-03-005 already forbade; #3921 deleted it when the wire-side list
+      arrived.
     verification: >-
       `test/architecture/test_core_extra_forbid.py` continues to assert every `CoreObject`
       subclass forbids extras with no exemption list. A grep of `vultron/core/models/` finds no
-      `mode="before"` validator that rejects a retired key by name — until #3921 lands that
-      grep still finds `ParticipantStatus._reject_retired_vfd_keys`; deleting it is #3921's
-      AC-4, and the grep is the ratchet that build turns green.
+      `mode="before"` validator that rejects a retired key by name: #3921 deleted
+      `ParticipantStatus._reject_retired_vfd_keys`, and
+      `test_no_core_module_names_a_retired_key` (`test/wire/as2/test_unknown_key_disposition.py`)
+      fails if any string constant under `vultron/core/` names a key on the wire-side
+      `RETIRED_NAMES` list.
     relationships:
     - rel_type: constrains
       spec_id: ARCH-12-003
@@ -540,15 +560,18 @@ groups:
     rationale: >-
       A re-parse from the raw body sees the keys the parse edge set aside and, on a core class,
       fails on them. `inbox_storage._reparse_as_specific_type` did exactly that and fell back
-      to a base class on failure with a DEBUG line, so once keys are set aside it would store
-      the wrong class silently. Its purpose — recovering the specific class when the parser
+      to a base class on failure with a DEBUG line, so once keys were set aside it would have
+      stored the wrong class silently; #3922 deleted it.
+      Its purpose — recovering the specific class when the parser
       had validated an inline object as the base type — ended when the parser began resolving
       inline objects to their specific class itself (MV-04-003).
     verification: >-
-      No function under `vultron/adapters/driving/` or `vultron/core/` passes a dict taken
-      from the request body or from `received_evidence` to `model_validate` on the receive
-      path; `_reparse_as_specific_type` is deleted or consumes the parsed object only. Tracked
-      in #3922.
+      `test/architecture/test_no_receive_path_reparse.py` fails on any `model_validate` or
+      `model_validate_json` call under `vultron/adapters/driving/` or `vultron/core/` whose
+      argument is built from `received_evidence` or from a raw-body name, directly or through
+      a local assigned from one. `test/adapters/driving/fastapi/test_inbox_storage.py` asserts
+      that ingress storage persists the class the parser produced, including a case stub and a
+      case whose foreign key was set aside (#3922).
     relationships:
     - rel_type: depends_on
       spec_id: MV-11-003

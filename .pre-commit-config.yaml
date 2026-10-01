@@ -1,11 +1,4 @@
 repos:
-  - repo: https://github.com/psf/black
-    rev: 26.1.0  # Use the latest stable version
-    hooks:
-      - id: black
-        language_version: py313
-        args: ["."]
-
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.3
     hooks:
@@ -156,18 +149,18 @@ repos:
         files: ^(vultron/wire/as2/vocab/.*\.py|vultron/metadata/wire_context/.*\.py|docs/ns/context\.jsonld)$
         pass_filenames: false
 
-      - id: flake8
-        name: flake8 (with CC gate)
-        # Routed through run-if-changed.sh so this whole-tree lint is skipped
-        # when the sources, .flake8, and uv.lock are unchanged since the last
-        # successful flake8 run (e.g. the run-linters pass just before commit).
-        # Same cache key + inputs as the skills, so they share one cache entry.
-        entry: .agents/skills/shared/run-if-changed.sh
+      - id: ruff
+        name: ruff (lint + format check)
+        # Invoked directly, not through run-if-changed.sh: the whole-tree run
+        # takes about a second, so a fingerprint lookup would cost a real share
+        # of the work it saves (ADR-0094). Fail-only, like every hook here: fix
+        # with `uv run ruff check --fix` and `uv run ruff format`.
+        # pre-commit appends the staged filenames; `force-exclude = true` in
+        # [tool.ruff] makes ruff apply the config's exclusions to them, so this
+        # hook and the CI job agree about scope (IMPLTS-07-021).
+        entry: bash -c 'uv run ruff check "$@" && uv run ruff format --check "$@"' --
         language: system
-        args:
-          ["flake8", "vultron/", "test/", ".flake8", "uv.lock", "--",
-           "uv", "run", "flake8", "vultron/", "test/"]
-        pass_filenames: false
+        files: (\.pyi?|^pyproject\.toml)$
 
       - id: spec-lint
         name: Spec registry linter

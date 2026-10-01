@@ -34,6 +34,9 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_TransitiveActivity,
+)
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as CaseLedgerEntry,
 )
@@ -76,14 +79,15 @@ def test_by_id_rehydration_carries_the_evidence_as_received(
     """The re-read copy carries the body with its bare ID, not the expansion."""
     body = _offer_of_stored_report(dl)
     received = copy.deepcopy(body)
-    adapter = FastAPIIngressAdapter(dl=dl, body=body)
+    adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(body)
     assert artifact is not None
 
     routed = adapter.rehydrate(artifact)
+    assert isinstance(routed, as_TransitiveActivity)
 
     assert routed is not artifact
-    report = getattr(routed, "object_")
+    report = routed.object_
     assert isinstance(report, VulnerabilityReport), "precondition: hydrated"
     evidence = routed.received_evidence
     assert evidence == received
@@ -107,9 +111,9 @@ def test_resend_under_a_held_id_routes_without_this_body_evidence(
     """
     first = _offer_of_stored_report(dl)
     first["summary"] = "first"
-    FastAPIIngressAdapter(dl=dl, body=first).parse(first)
+    FastAPIIngressAdapter(dl=dl).parse(first)
     second = {**copy.deepcopy(first), "summary": "second"}
-    adapter = FastAPIIngressAdapter(dl=dl, body=second)
+    adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(second)
     assert artifact is not None
 
@@ -131,7 +135,7 @@ def test_resend_under_a_held_id_routes_without_this_body_evidence(
 def test_replay_of_a_stored_activity_carries_no_evidence(dl: SqliteDataLayer):
     """A replayed activity is rebuilt from its record, which keeps no body."""
     body = _offer_of_stored_report(dl)
-    FastAPIIngressAdapter(dl=dl, body=body).parse(body)
+    FastAPIIngressAdapter(dl=dl).parse(body)
 
     replayed = StoredActivityIngressAdapter(dl=dl).parse(body["id"])
 
@@ -173,13 +177,16 @@ def test_in_place_hydration_carries_the_evidence(
         to=[ACTOR],
     ).model_dump(mode="json", by_alias=True, exclude_none=True)
     received = copy.deepcopy(body)
-    adapter = FastAPIIngressAdapter(dl=dl, body=body)
+    adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(body)
     assert artifact is not None
 
     routed = adapter.rehydrate(artifact)
+    assert isinstance(routed, as_TransitiveActivity)
 
     assert routed is not artifact, "precondition: hydrate built a new object"
-    getattr(routed, "object_").payload_snapshot["actor"] = "tampered"
+    routed_entry = routed.object_
+    assert isinstance(routed_entry, CaseLedgerEntry), "precondition: hydrated"
+    routed_entry.payload_snapshot["actor"] = "tampered"
 
     assert routed.received_evidence == received

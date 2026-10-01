@@ -168,10 +168,7 @@ def _shorthand_cell(row: RowSpec) -> str:
 
 def _render_table_row(row: RowSpec) -> str:
     entry: SemanticEntry | None = _ENTRY_MAP.get(row.semantics)
-    if entry is None:
-        wire = "—"
-    else:
-        wire = _wire_form(entry)
+    wire = "—" if entry is None else _wire_form(entry)
 
     shorthand = _shorthand_cell(row)
     semantics_cell = f"`{row.semantics.name}`"

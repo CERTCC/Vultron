@@ -17,12 +17,8 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.predicates.addressing import is_addressed_to
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import (
-    VultronAlreadyExistsError,
-    VultronBTInternalError,
-)
+from vultron.core.predicates.addressing import is_addressed_to
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
@@ -32,6 +28,10 @@ from vultron.core.use_cases.received._bt_verdict import (
     node_succeeded,
     verdict_from_bt,
 )
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronBTInternalError,
+)
 
 if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from vultron.core.ports.datalayer import StorableRecord
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +156,7 @@ def _run_submit_report_case_creation(
     trigger_activity: "TriggerActivityPort | None" = None,
     sync_port: "SyncActivityPort | None" = None,
     actor_config: "ActorConfig | None" = None,
+    wire_render_port: "WireRenderPort | None" = None,
 ) -> HandlerResult:
     """Run the vendor-side proposal BT and classify its outcome (#2255).
 
@@ -180,6 +182,7 @@ def _run_submit_report_case_creation(
         datalayer=dl,
         trigger_activity=trigger_activity,
         sync_port=sync_port,
+        wire_render_port=wire_render_port,
     )
     tree = receive_report_case_tree.create_receive_report_case_tree(
         report_id=report_id,
@@ -224,9 +227,13 @@ def _log_refusal(verdict: HandlerResult, activity_id: str) -> HandlerResult:
 
 class CreateReportReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: CreateReportReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: CreateReportReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: CreateReportReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -235,7 +242,9 @@ class CreateReportReceivedUseCase:
 
         request = self._request
         tree = received_report_trees.create_report_received_tree(request)
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             # The *receiving* actor, not the sender (BT-17-005): an
@@ -259,8 +268,10 @@ class SubmitReportReceivedUseCase:
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
         actor_config: "ActorConfig | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: SubmitReportReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
@@ -318,6 +329,7 @@ class SubmitReportReceivedUseCase:
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             actor_config=self._actor_config,
+            wire_render_port=self._wire_render_port,
         )
 
 
@@ -328,8 +340,10 @@ class ValidateReportReceivedUseCase:
         request: ValidateReportReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: ValidateReportReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
@@ -384,6 +398,7 @@ class ValidateReportReceivedUseCase:
         bridge = BTBridge(
             datalayer=self._dl,
             sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
@@ -415,9 +430,13 @@ class ValidateReportReceivedUseCase:
 
 class InvalidateReportReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: InvalidateReportReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: InvalidateReportReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: InvalidateReportReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -437,7 +456,9 @@ class InvalidateReportReceivedUseCase:
         tree = create_invalidate_report_received_tree(
             request, actor_id=receiving_actor_id
         )
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
@@ -456,8 +477,10 @@ class AckReportReceivedUseCase:
         request: AckReportReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AckReportReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
@@ -484,6 +507,7 @@ class AckReportReceivedUseCase:
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
@@ -499,9 +523,13 @@ class AckReportReceivedUseCase:
 
 class CloseReportReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: CloseReportReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: CloseReportReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: CloseReportReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -521,7 +549,9 @@ class CloseReportReceivedUseCase:
         tree = create_close_report_received_tree(
             request, actor_id=receiving_actor_id
         )
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,

@@ -388,17 +388,19 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
                 "producer_type": self.__class__.__name__,
                 # Keyed by the core fields' own AS2 aliases, because the
                 # snapshot ``object`` this patches is wire-shaped (RSH-05-009,
-                # CLP-07-001) — ADR-0099 detail 2.
+                # CLP-07-011) — ADR-0099 detail 2.
                 "fields": {
                     key: getattr(filtered, field).state.name
                     for key, field in zip(
-                        CASE_STATUS_PATCH_KEYS, CASE_STATUS_PATCH_FIELDS
+                        CASE_STATUS_PATCH_KEYS,
+                        CASE_STATUS_PATCH_FIELDS,
+                        strict=False,
                     )
                 },
             },
         )
         self.logger.warning(
-            "%s: partial accept for status '%s':" " refused %s, accepted %s",
+            "%s: partial accept for status '%s': refused %s, accepted %s",
             self.name,
             status_id,
             refused,

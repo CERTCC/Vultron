@@ -22,15 +22,17 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
 from vultron.core.behaviors.case.nodes.lifecycle import (
     BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
 )
-from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.case_actor import CaseActor
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.core.behaviors.helpers import WIRE_RENDER_PORT_UNAVAILABLE
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.events.base import MessageSemantics
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _FACTORY_PATH = (
     "vultron.core.behaviors.case.nodes.lifecycle.create_commit_log_entry_tree"
@@ -69,9 +71,30 @@ def datalayer():
     return dl
 
 
+class _ScriptedRenderPort:
+    """Render port that returns a fake activity's scripted AS2 form.
+
+    The fakes below stand in for the received activity; this port renders
+    them as their scripted payload and delegates every other object — the
+    stored objects the snapshot inlines — to the real adapter.  The node
+    under test only ever sees what the port returns (ARCH-20-001).
+    """
+
+    def __init__(self) -> None:
+        self._real = As2WireRenderAdapter()
+
+    def render(self, obj: object) -> dict[str, object]:
+        scripted = getattr(obj, "as2", None)
+        if isinstance(scripted, dict):
+            return dict(scripted)
+        return self._real.render(obj)
+
+
 @pytest.fixture
 def bridge(datalayer):
-    return BTBridge(datalayer=datalayer)
+    return BTBridge(
+        datalayer=datalayer, wire_render_port=_ScriptedRenderPort()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -95,21 +118,18 @@ class _FakeActivity:
         self.actor_id = actor_id
 
 
-class _FakeWireActivity:
-    """Minimal stand-in for a serialized wire activity payload."""
-
-    def model_dump(self, **_: object) -> dict[str, str]:
-        return {"id": ACTIVITY_ID, "type": "Create"}
-
-
 class _FakeWireActivityWithPayload:
-    """Minimal stand-in with configurable payload."""
+    """Minimal stand-in whose AS2 form ``_ScriptedRenderPort`` returns."""
 
     def __init__(self, payload: dict[str, object]):
-        self._payload = payload
+        self.as2 = payload
 
     def model_dump(self, **_: object) -> dict[str, object]:
-        return dict(self._payload)
+        raise AssertionError("core must not dump the activity itself")
+
+
+def _FakeWireActivity() -> _FakeWireActivityWithPayload:
+    return _FakeWireActivityWithPayload({"id": ACTIVITY_ID, "type": "Create"})
 
 
 # ---------------------------------------------------------------------------
@@ -136,9 +156,10 @@ def test_node_instantiates_without_case_id():
 def test_no_case_id_returns_failure_without_building_inner_tree(bridge):
     """Node returns FAILURE when no case_id is available (ARCH-15-001)."""
     node = CommitCaseLedgerEntryNode()
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge,
+    ):
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=None
         )
@@ -153,9 +174,10 @@ def test_constructor_case_id_builds_inner_commit_tree(bridge):
         activity_id=ACTIVITY_ID, semantic_type=MessageSemantics.CREATE_CASE
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
@@ -202,9 +224,10 @@ def test_blackboard_case_id_builds_inner_commit_tree(bridge, datalayer):
         name="TestSeq", memory=False, children=[_WriteCaseId(), node]
     )
 
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
@@ -227,9 +250,10 @@ def test_activity_on_blackboard_uses_semantic_type_as_event_type(bridge):
         semantic_type=MessageSemantics.CREATE_CASE,
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
@@ -251,9 +275,10 @@ def test_activity_payload_is_forwarded_as_payload_snapshot(bridge):
         activity=_FakeWireActivity(),
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
@@ -270,6 +295,58 @@ def test_activity_payload_is_forwarded_as_payload_snapshot(bridge):
             "context": CASE_ID,
         },
     )
+
+
+@pytest.mark.spec("ARCH-20-001")
+@pytest.mark.spec("CLP-07-009")
+def test_missing_render_port_is_a_wiring_fault(datalayer):
+    """Without the port the node cannot build an AS2 snapshot, so it stops.
+
+    It does not fall back to a core-side dump: the failure is a composition
+    fault, reported as an internal error rather than a refusal of the sender.
+    """
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.CREATE_CASE,
+        activity=_FakeWireActivity(),
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    with patch(_FACTORY_PATH) as mock_factory:
+        result = BTBridge(datalayer=datalayer).execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert WIRE_RENDER_PORT_UNAVAILABLE in (result.feedback_message or "")
+    mock_factory.assert_not_called()
+
+
+@pytest.mark.spec("ARCH-15-001")
+@pytest.mark.spec("ARCH-20-003")
+def test_event_without_activity_is_a_wiring_fault_not_a_refusal(bridge):
+    """An event carrying no activity has no AS2 snapshot to record.
+
+    The port would refuse the event itself, which a received handler reports
+    as the sender's fault; the node names the composition fault instead.
+    """
+    from pydantic import BaseModel
+
+    class _ActivitylessEvent(BaseModel):
+        activity_id: str = ACTIVITY_ID
+        semantic_type: MessageSemantics = MessageSemantics.CREATE_CASE
+        activity: None = None
+
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    with patch(_FACTORY_PATH) as mock_factory:
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=_ActivitylessEvent()
+        )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "carries no activity" in (result.feedback_message or "")
+    mock_factory.assert_not_called()
 
 
 def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
@@ -294,9 +371,10 @@ def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
 
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
@@ -316,9 +394,10 @@ def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
 def test_no_activity_returns_failure(bridge):
     """When no activity on blackboard, node returns FAILURE with a warning log."""
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
@@ -331,9 +410,10 @@ def test_no_activity_returns_failure(bridge):
 
 def test_inner_commit_bt_failure_propagates(bridge):
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_factory.return_value = object()
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(
@@ -531,9 +611,10 @@ def test_case_manager_as_participant_commits_without_error(bridge):
         actor_id=CASE_MANAGER_ID,
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
-    with patch(_FACTORY_PATH) as mock_factory, patch(
-        _INNER_BRIDGE_PATH
-    ) as mock_bridge_cls:
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )

@@ -17,10 +17,10 @@
 
 import pytest
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
-from test.core.behaviors.bt_harness import BTTestScenario
 
 
 @pytest.fixture

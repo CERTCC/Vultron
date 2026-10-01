@@ -55,9 +55,10 @@ import logging
 import sys
 import webbrowser
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -460,7 +461,7 @@ class CaseTimelineEvent(BaseModel):
     present_in: list[str] = Field(default_factory=list)
 
     @classmethod
-    def from_raw(cls, raw: dict[str, Any]) -> "CaseTimelineEvent":
+    def from_raw(cls, raw: dict[str, Any]) -> CaseTimelineEvent:
         """Build a distilled event from one raw JSONL entry dict.
 
         Tolerates camelCase and snake_case spellings throughout (DRPT-02-003).
@@ -834,8 +835,7 @@ def _format_delta(
     except ValueError:
         return "—"
     total_seconds = round((dt_curr - dt_prev).total_seconds())
-    if total_seconds < 0:
-        total_seconds = 0
+    total_seconds = max(total_seconds, 0)
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     if hours:
@@ -1005,7 +1005,7 @@ def _render_html_case_table(
             _html_cell(event.short_hash, title=event.entry_hash or None),
         ]
         body_rows.append(
-            f"<tr>{''.join(cells)}" f"{_html_presence_row(event, actors)}</tr>"
+            f"<tr>{''.join(cells)}{_html_presence_row(event, actors)}</tr>"
         )
 
     return (
@@ -1160,14 +1160,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         report = generate_report(input_dir, args.format)
     except ReportError as exc:
-        logger.error("error: %s", exc)
+        logger.error("error: %s", exc)  # noqa: TRY400  # ruff-baseline #3353
         return 1
 
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(report, encoding="utf-8")
     except OSError as exc:
-        logger.error("error: cannot write %s: %s", output_path, exc)
+        logger.error("error: cannot write %s: %s", output_path, exc)  # noqa: TRY400  # ruff-baseline #3353
         return 1
 
     logger.info("Wrote %s report → %s", args.format, output_path)

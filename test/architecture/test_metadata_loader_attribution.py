@@ -45,9 +45,9 @@ def _metadata_trees():
     change that finds nothing fails here instead.
     """
     trees = list(_corpus.all_trees(under=_METADATA_ROOT))
-    assert _HELPER in {
-        path for path, _ in trees
-    }, f"corpus scan of {_METADATA_ROOT} did not reach {_HELPER.name}"
+    assert _HELPER in {path for path, _ in trees}, (
+        f"corpus scan of {_METADATA_ROOT} did not reach {_HELPER.name}"
+    )
     return trees
 
 

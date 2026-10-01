@@ -564,32 +564,32 @@ class TestEventPhraseBehavioural:
     def test_actor_only_phrase_no_dangling_dash(self):
         """Actor-only phrase: ``{actor}`` filled with "—", result is coherent."""
         result = event_phrase("create_report")
-        assert not result.endswith(
-            "—"
-        ), f"event_phrase('create_report') ends with '—': {result!r}"
-        assert not _has_dangling_slot(
-            result
-        ), f"Un-substituted slot in event_phrase('create_report'): {result!r}"
+        assert not result.endswith("—"), (
+            f"event_phrase('create_report') ends with '—': {result!r}"
+        )
+        assert not _has_dangling_slot(result), (
+            f"Un-substituted slot in event_phrase('create_report'): {result!r}"
+        )
 
     def test_actor_object_phrase_no_dangling_dash(self):
         """Actor+object phrase: both slots filled; no dangling em-dash."""
         result = event_phrase("offer_actor_to_case")
-        assert not result.endswith(
-            "—"
-        ), f"event_phrase('offer_actor_to_case') ends with '—': {result!r}"
-        assert not _has_dangling_slot(
-            result
-        ), f"Un-substituted slot in event_phrase('offer_actor_to_case'): {result!r}"
+        assert not result.endswith("—"), (
+            f"event_phrase('offer_actor_to_case') ends with '—': {result!r}"
+        )
+        assert not _has_dangling_slot(result), (
+            f"Un-substituted slot in event_phrase('offer_actor_to_case'): {result!r}"
+        )
 
     def test_actor_target_phrase_no_dangling_dash(self):
         """Actor+target phrase: both slots filled; no dangling em-dash."""
         result = event_phrase("submit_report")
-        assert not result.endswith(
-            "—"
-        ), f"event_phrase('submit_report') ends with '—': {result!r}"
-        assert not _has_dangling_slot(
-            result
-        ), f"Un-substituted slot in event_phrase('submit_report'): {result!r}"
+        assert not result.endswith("—"), (
+            f"event_phrase('submit_report') ends with '—': {result!r}"
+        )
+        assert not _has_dangling_slot(result), (
+            f"Un-substituted slot in event_phrase('submit_report'): {result!r}"
+        )
 
     def test_all_semantics_no_dangling_slot(self):
         """Every MessageSemantics value: event_phrase() must not leave {slot} markers."""
@@ -600,10 +600,9 @@ class TestEventPhraseBehavioural:
             result = event_phrase(sem.value)
             if _has_dangling_slot(result):
                 failures.append(f"{sem.name}: {result!r}")
-        assert (
-            not failures
-        ), "event_phrase() left un-substituted slots for:\n" + "\n".join(
-            failures
+        assert not failures, (
+            "event_phrase() left un-substituted slots for:\n"
+            + "\n".join(failures)
         )
 
 
@@ -639,17 +638,17 @@ class TestSummarySlotsFilledBehavioural:
     def test_actor_only_event_summary_no_trailing_dash(self):
         """Summary for actor-only phrase must not trail with '—'."""
         event = self._event_with_actor("create_report")
-        assert not event.summary.endswith(
-            "—"
-        ), f"summary ends with '—': {event.summary!r}"
+        assert not event.summary.endswith("—"), (
+            f"summary ends with '—': {event.summary!r}"
+        )
         assert not _has_dangling_slot(event.summary)
 
     def test_actor_object_event_summary_no_trailing_dash(self):
         """Summary for actor+object phrase with resolved target_label."""
         event = self._event_with_actor_and_object("offer_actor_to_case")
-        assert not event.summary.endswith(
-            "—"
-        ), f"summary ends with '—': {event.summary!r}"
+        assert not event.summary.endswith("—"), (
+            f"summary ends with '—': {event.summary!r}"
+        )
         assert not _has_dangling_slot(event.summary)
 
     def test_actor_object_event_summary_no_trailing_dash_when_no_object(self):
@@ -660,9 +659,9 @@ class TestSummarySlotsFilledBehavioural:
         # When there is no resolvable object, the phrase renders with "—" in
         # the object slot.  The test verifies this is an intentional fallback
         # (non-empty output), not a structural slot-substitution failure.
-        assert not _has_dangling_slot(
-            event.summary
-        ), f"Un-substituted slot: {event.summary!r}"
+        assert not _has_dangling_slot(event.summary), (
+            f"Un-substituted slot: {event.summary!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1415,7 +1414,7 @@ class TestDiscovery:
 
     def test_no_matching_files_raises(self, tmp_path):
         (tmp_path / "empty").mkdir()
-        with pytest.raises(ReportError, match="No.*files found"):
+        with pytest.raises(ReportError, match=r"No.*files found"):
             discover_replicas(tmp_path)
 
     def test_parse_error_raises(self, tmp_path):
@@ -1468,9 +1467,7 @@ class TestCli:
     def test_no_open_suppresses_browser(self, tmp_path, monkeypatch):
         _write_replicas(tmp_path, {"vendor": [_camel_entry()]})
         calls: list[str] = []
-        monkeypatch.setattr(
-            report.webbrowser, "open", lambda url: calls.append(url)
-        )
+        monkeypatch.setattr(report.webbrowser, "open", calls.append)
         out_file = tmp_path / "report.html"
         rc = main(
             [
@@ -1489,9 +1486,7 @@ class TestCli:
     def test_html_opens_browser_without_no_open(self, tmp_path, monkeypatch):
         _write_replicas(tmp_path, {"vendor": [_camel_entry()]})
         calls: list[str] = []
-        monkeypatch.setattr(
-            report.webbrowser, "open", lambda url: calls.append(url)
-        )
+        monkeypatch.setattr(report.webbrowser, "open", calls.append)
         out_file = tmp_path / "report.html"
         rc = main(
             [str(tmp_path), "--format", "html", "--output", str(out_file)]

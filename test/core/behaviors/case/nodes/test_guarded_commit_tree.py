@@ -15,23 +15,25 @@
 
 """Unit tests for ``create_guarded_commit_case_ledger_entry_tree``."""
 
-from datetime import timezone
+from datetime import UTC
 from unittest.mock import patch
 
 import pytest
-
-from vultron.core.models._helpers import now_utc
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
+)
+from vultron.core.behaviors.case.receive_activity_tree import (
     create_guarded_commit_case_ledger_entry_tree,
 )
-from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models._helpers import now_utc
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.base import MessageSemantics
 from vultron.enums.roles import CVDRole
-from test.core.behaviors.bt_harness import BTTestScenario
 
 CASE_ID = "https://example.org/cases/case-001"
 MANAGER_ACTOR_ID = "https://example.org/actors/coordinator"
@@ -115,22 +117,15 @@ class _FakeActivity:
         self.activity_id = activity_id
         self.semantic_type = semantic_type
 
-        class _Payload:
-            def model_dump(self, **_: object) -> dict[str, object]:
-                return {
-                    "id": activity_id,
-                    "type": "Create",
-                    "actor": MANAGER_ACTOR_ID,
-                    # CLP-07-011: the commit boundary requires a claimed
-                    # timestamp on every recorded snapshot.
-                    "published": now_utc().isoformat(),
-                    "object": {
-                        "id": CASE_ID,
-                        "type": "VulnerabilityCase",
-                    },
-                }
-
-        self.activity = _Payload()
+        self.activity = VultronActivity(
+            id_=activity_id,
+            type_="Create",
+            actor=MANAGER_ACTOR_ID,
+            # CLP-07-011: the commit boundary requires a claimed timestamp on
+            # every recorded snapshot.
+            published=now_utc(),
+            object_={"id": CASE_ID, "type": "VulnerabilityCase"},
+        )
 
 
 @pytest.fixture
@@ -198,7 +193,7 @@ def test_guarded_commit_tree_entry_has_utc_received_at(
     for entry in entries:
         assert entry.received_at is not None
         assert entry.received_at.tzinfo is not None
-        assert entry.received_at.tzinfo == timezone.utc
+        assert entry.received_at.tzinfo == UTC
 
 
 @pytest.mark.spec("CM-02-002")

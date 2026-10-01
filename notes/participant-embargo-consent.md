@@ -9,15 +9,19 @@ related_specs:
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
   - specs/message-semantics-mapping.yaml
+  - specs/protocol-asks.yaml
 related_notes:
   - notes/stub-objects.md
   - notes/embargo-lifecycle.md
   - notes/embargo-default-semantics.md
   - notes/case-communication-model.md
   - notes/message-type-reference.md
+  - notes/protocol-asks.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
+  - vultron/core/behaviors/embargo
+  - vultron/core/models/case_participant.py
   - vultron/core/use_cases
 ---
 
@@ -159,10 +163,17 @@ terms they are not yet bound by, and it changes **nothing** in the consent state
 changes no consent (EP-05-002). Their answer lands in `accepted_embargo_ids`
 only, exactly as the table above says. A receive tree that applies `INVITE`
 unconditionally therefore faults on precisely the participants a revision most
-concerns. Under EP-09-003 the participant's receive tree writes no consent at
-all; the `INVITE` write belongs to the CASE_MANAGER's commit of the Invite
-emission and to the replay node that reconstructs it, and *that* is where the
-state check lives.
+concerns. The `INVITE` write belongs to the CASE_MANAGER's commit of each Invite
+emission — built in #3913 as `RelayEmbargoInviteToEachNode._invite_where_legal()`
+(`vultron/core/behaviors/embargo/nodes/relay.py`) — and to the replay node that
+reconstructs it on replicas (#3915); *that* is where the state check lives. The
+check is `CaseParticipant.apply_pec_transition_if_legal()`: the one sanctioned
+"apply where legal" shape, which asks `accepts_pec_trigger()` first and then
+routes through `apply_pec_transition()`, so an illegal trigger is a recorded
+no-op rather than a fault and every other caller stays fail-closed.
+`UpdateParticipantEmbargoPecNode(where_legal=True)` — the participant replica's
+on-receipt write, retained until #3915 gates it off (RSH-08-004) — uses the same
+method.
 
 Two further rules from the same decision matter to consent:
 
@@ -271,7 +282,7 @@ removed from `participant_embargo_consent.py` (CONCERN-1871). Use
 `apply_pec_transition()` on `CaseParticipant`, which delegates to
 `PecDimension.transition()` and is fail-closed.
 
-Consent-write sites (all ten route through `apply_pec_transition()`):
+Consent-write sites (every one routes through `apply_pec_transition()`):
 
 | Site | Uses `apply_pec_transition()`? | Syncs status? |
 |---|---|---|
@@ -280,13 +291,42 @@ Consent-write sites (all ten route through `apply_pec_transition()`):
 | `case/nodes/participant/participant_add.py` | yes | yes |
 | `case/nodes/invite_embargo_consent.py` | yes | yes |
 | `embargo/nodes/proposal.py` | yes | yes |
+| `embargo/nodes/relay.py` (via `apply_pec_transition_if_legal()`) | yes | yes |
 | `use_cases/_helpers.py` | yes | yes |
-| `services/embargo_lifecycle/` (6 sites) | yes | yes |
+| `services/embargo_lifecycle/` (`pec.py`, `consent.py`) | yes | yes |
 
-All ten sites now use `apply_pec_transition()` as the single authoritative
+Every site uses `apply_pec_transition()` as the single authoritative
 consent-write path (CM-18-005). `EmbargoLifecycle` is the intended long-term
 owner of all PEC transitions (see [embargo-lifecycle.md](embargo-lifecycle.md)
-and #538), so its five sites remain the most critical to keep correct.
+and #538), so its sites remain the most critical to keep correct. In
+`pec.py` every cascade goes through one `_cascade_pec(trigger, select)` loop —
+the RESET cascade, the activation-time REVISE cascade (signatories lacking the
+revised id) and the activation-time ACCEPT pass (non-signatories holding it) are
+each a `select` predicate, never a loop of their own. The received `Reject(Invite)` tree
+writes consent through `RecordParticipantRejectionNode` →
+`record_embargo_rejection`, so the MSM-07-004 classification lives in the
+service once (`_assert_rejectable`) rather than in a node.
+
+Three rules keep the scalar state and `accepted_embargo_ids` in agreement
+about who is bound by the active embargo (the disagreement Concern #3884
+found; the content gate `find_excluded_actor_ids` reads the *list*):
+
+- **Every activation advances the holders of the new id.**
+  `_consent_at_activation` is the one consent effect of an activation, shared
+  by the owner path of `accept_embargo_invite` and by `activate_embargo`. On a
+  replacement it records the owner's acceptance first and then runs the
+  EP-05-001 arms; on *every* activation, first or replacement, it advances a
+  non-signatory whose list already holds the id (`_advance_holders_of`) —
+  the proposer of a first embargo holds its id list-only until then.
+- **A `DECLINED` participant holds no consent.** `_record_actor_pec_acceptance`
+  records nothing for a `DECLINED` actor, list included: `ACCEPT` is not legal
+  from `DECLINED` (CM-18-003), so an id on its list would admit through the
+  gate an actor whose state says declined. It is re-invited first.
+- **Withdrawal leaves the revisions too.** A `DECLINE` that names the active
+  embargo also drops every open proposal's id from the actor's list (every
+  open proposal is a revision of the one active embargo, ADR-0113). When *no*
+  embargo is in force a Reject of a proposal is withdrawal from any state —
+  there is nothing for a `SIGNATORY` to stay signatory to.
 
 ---
 
@@ -310,16 +350,20 @@ Do not introduce a second timeout notion — they will drift.
 - The timeout is a **configurable policy option** (per-case or global setting)
 - Enforcement authority is the CASE_MANAGER (CM-28-003)
 - The deadline is stored on the **invited participant's** record
-  (`CaseParticipant.invite_rsvp_deadline`), and `detect_and_apply_lapse()`
-  reads the record of the actor whose lapse is being evaluated. Those two must
-  name the same participant or enforcement silently never fires — see
-  "Whose record holds the deadline" below
-- Enforcement is **lazy**, not scheduled: lapse is derived from
-  `(end_time, now)` whenever PEC state is read or an inbound `Accept`/`Reject`
-  is processed. No scheduler is required for correctness. The
-  `EmbargoTimerExpired` Sentinel (#1893) is an optional proactive accelerator
+  (`CaseParticipant.invite_rsvp_deadline`) by the CASE_MANAGER at its commit of
+  the relayed Invite, and reaches replicas by replay (CM-28-013);
+  `detect_and_apply_lapse()` reads the record of the actor whose lapse is being
+  evaluated. Those two must name the same participant or enforcement silently
+  never fires — see "Whose record holds the deadline" below
+- Enforcement is **lazy**, not scheduled, and it is the **CASE_MANAGER's alone**
+  (CM-28-014): lapse is derived from `(end_time, now)` whenever PEC state is
+  read or an inbound `Accept`/`Reject` is processed at the manager. No scheduler
+  is required for correctness. The `EmbargoTimerExpired` Sentinel (#1893) is an
+  optional proactive accelerator
 - When a lapse is detected, the CASE_MANAGER records the `DECLINE` transition and
-  authors a ledger entry distinguishing it from an explicit refusal (CM-28-005)
+  authors a ledger entry distinguishing it from an explicit refusal (CM-28-005);
+  the entry is role-gated and replayed, so a replica learns a lapse and never
+  computes one
 
 > **Provenance note**: the header of this file cites
 > `archived_notes/demo-review-26042001.md` as a source. The term "pocket veto"
@@ -365,18 +409,23 @@ needed to add this.
 
 ### Whose record holds the deadline
 
-*Source: ISSUE-2762.*
+*Source: ISSUE-2762; revised for #3918 (ADR-0113).*
 
 The RSVP deadline and the `PEC_Trigger.INVITE` transition both belong to the
 **invited participant** — the actor the `Invite` names in `to:` — not to
-whichever actor's replica happens to be processing the message.
-`_store_invite_deadline()` writes `invite_rsvp_deadline` on the participant
-record found via `case.actor_participant_index[invitee_id]`, and
-`EmbargoLifecycle.detect_and_apply_lapse()` later reads the record of the actor
-whose lapse it is evaluating. If the write and the read name different
-participants, enforcement cannot fire and nothing raises: the invitee has no
-deadline to lapse against, and the record that *did* receive one is not the one
-being checked.
+whichever actor's replica happens to be processing the message. Under the relay
+the deadline is set once: the CASE_MANAGER stamps `Invite.end_time` on each
+relayed Invite as its `published` plus the configured window (CM-28-012), and
+writes `invite_rsvp_deadline` on the invitee's record at its commit of that
+emission; the replica apply node writes the same value (CM-28-013). A
+participant that receives an Invite stores it and derives nothing (EP-09-003).
+Before the relay, no trigger set `end_time`, so every receiving store fell to
+the EP-07-001 fallback and derived its own deadline from its own `ActorConfig` —
+two replicas could disagree about when one invitation closed.
+`EmbargoLifecycle.detect_and_apply_lapse()` reads the record of the actor whose
+lapse it is evaluating. If the write and the read name different participants,
+enforcement cannot fire and nothing raises: the invitee has no deadline to lapse
+against, and the record that *did* receive one is not the one being checked.
 
 The failure is silent in both directions, which is why it survived for a
 release: `OptionalLookupParticipantNode` is lenient by design and
@@ -386,11 +435,14 @@ expiry, so deriving the invitee from the receiving actor puts the deadline on
 the enforcer's own record and disarms exactly the actor responsible for acting
 on it.
 
-Resolve the invitee by addressee membership rather than by position —
-`resolve_invitee_id()` in `vultron/core/use_cases/received/embargo.py` — so a
-multi-recipient `Invite` is correct in every recipient's replica instead of
-only the first one's. See also `notes/bt-integration.md` § "The message subject
-is a fourth identity, and it must stay separate".
+The invitee is the Invite's **sole** `to:` recipient (EP-09-010). Every emitter
+sends a single-recipient Invite — a participant to the CASE_MANAGER, the
+CASE_MANAGER to one participant per relayed Invite — so the multi-recipient
+resolution `resolve_invitee_id()` once carried was built for a shape nothing
+emits, and its fallback to the receiving actor put the deadline on the
+enforcer's own record. An Invite with no recipient or several is refused as a
+misrouting, never guessed at. See also `notes/bt-integration.md` § "The message
+subject is a fourth identity, and it must stay separate".
 
 ### It Is an `Invite`, Not an `Offer`
 

@@ -537,15 +537,12 @@ groups:
       activation rather than at proposal because the participant remains bound by `T1`
       for as long as `T1` is the active embargo (ADR-0093).
     verification: >-
-      Unit tests in `test/core/services/embargo_lifecycle/test_proposals.py` assert that
-      the owner's acceptance of a revision ending later than the active embargo moves
-      exactly the signatories lacking the revised id to `LAPSED`, and that acceptance of
-      a revision ending no later than it moves nobody and records the revised id on every
-      signatory.
-    note: >-
-      The verification describes the target state decided by ADR-0093 (revised 2026-09-29). The
-      implementation is tracked in #3891; until it lands, inspection of the named modules shows the
-      superseded lapse-on-propose behaviour.
+      Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` and
+      `test_activation.py` assert that the owner's acceptance of a revision ending later
+      than the active embargo moves exactly the signatories lacking the revised id to
+      `LAPSED`, that acceptance of a revision ending no later than it moves nobody and
+      records the revised id on every signatory, and that on any activation a
+      non-signatory already holding the newly active id advances to `SIGNATORY`.
     relationships:
     - rel_type: implements
       spec_id: CM-18-001
@@ -571,10 +568,6 @@ groups:
       Unit tests in `test/core/services/embargo_lifecycle/test_proposals.py` assert that
       `propose_embargo()` from `ACTIVE` and from `REVISE` reports no participant consent
       changes.
-    note: >-
-      The verification describes the target state decided by ADR-0093 (revised 2026-09-29). The
-      implementation is tracked in #3891; until it lands, inspection of the named modules shows the
-      superseded lapse-on-propose behaviour.
     relationships:
     - rel_type: refines
       spec_id: EP-05-001
@@ -618,6 +611,12 @@ groups:
       apply the configured default window, measured from the invitation's
       `published` timestamp. The default value SHOULD be 7 days, matching
       CM-18-002.
+    note: >-
+      Under the embargo relay (EP-09, ADR-0113) this fallback is discharged by the
+      CASE_MANAGER when it stamps `Invite.end_time` on each relayed Invite (CM-28-012):
+      the configured default window is what it adds to its own `published`. No receiving
+      participant applies the fallback on receipt; it derives no deadline and stores none
+      (CM-28-013).
     rationale: >-
       Aligning the fallback with the pre-existing CM-18-002 policy window means
       an invitation that omits `end_time` behaves exactly as it does today, so
@@ -689,6 +688,12 @@ groups:
       embargo. Where both would apply — a remaining embargo shorter than the
       configured window — EP-07-002 has already reduced the minimum to the
       remaining embargo, so the two agree rather than fight.
+
+      Under the embargo relay (EP-09, ADR-0113) the "receiving actor" this clause binds
+      is the CASE_MANAGER at the point it stamps the relayed Invite (CM-28-012): it
+      computes the applicable minimum and clamps before emission, so every replica reads
+      one deadline off one object. A participant that receives a relayed Invite stores it
+      and neither derives nor clamps a deadline (CM-28-013).
     rationale: >-
       Clamping makes a coercive deadline ineffective rather than fatal.
       Rejecting the invitation outright would hand the sender exactly what a
@@ -771,6 +776,10 @@ groups:
       "the configured minimum window". The applicable minimum is now derived (EP-07-002:
       the lesser of the configured window and the time remaining in the embargo), and a
       second clamp direction exists. Both are adjustments a reader of the log needs to see.
+
+      Under the embargo relay (EP-09, ADR-0113) the clamps are applied — and therefore
+      logged — by the CASE_MANAGER when it stamps the relayed Invite (CM-28-012); a
+      participant receiver applies none (CM-28-013).
     verification: >-
       A unit test confirms that clamping a sub-minimum deadline emits a log entry at
       the appropriate level recording both the original and the effective deadline
@@ -921,14 +930,18 @@ groups:
       Before this rule termination pruned the terminated embargo's own id and left its open
       revisions in both records, where the next default selection after `EXITED → PROPOSED`
       could pick a revision of a dead embargo as the earliest-expiring candidate (#3836). The
-      rule lives in `EmbargoLifecycle.terminate_active_embargo` and applies on every
-      replica without extra work: the teardown replay node runs the same method in `OBSERVED`
-      mode. `VulnerabilityCase.discard_proposed_embargo` is the pruner for both records.
+      rule lives in `EmbargoLifecycle.terminate_active_embargo`, which calls
+      `VulnerabilityCase.discard_all_proposed_embargoes` — the whole-record sibling of the
+      per-proposal pruner `discard_proposed_embargo`, clearing both records together — and
+      applies on every replica without extra work: the teardown replay node
+      (`ClearActiveEmbargoNode`) runs the same method in `OBSERVED` mode (#3914).
     verification: >-
-      A unit test in `test/core/services/embargo_lifecycle/test_activation.py` asserts that
-      terminating an embargo while a revision of it is pending leaves both
-      `proposed_embargoes` and `pending_embargo_proposal_index` empty. Until the
-      implementation lands the test is a strict `xfail` naming its tracking issue.
+      Unit tests in `test/core/services/embargo_lifecycle/test_activation.py` assert that
+      terminating an embargo while revisions of it are pending leaves both
+      `proposed_embargoes` and `pending_embargo_proposal_index` empty, in `STRICT` and in
+      `OBSERVED` mode; `test/core/behaviors/embargo/nodes/test_teardown.py` asserts the same
+      through `ClearActiveEmbargoNode`, and
+      `test/core/use_cases/triggers/embargo/test_terminate.py` through the terminate trigger.
     relationships:
     - rel_type: refines
       spec_id: EP-08-003
@@ -940,33 +953,37 @@ groups:
     stories:
     - story_2022_014
 - id: EP-09
-  title: Revision Negotiation Relays Through the CASE_MANAGER
+  title: Embargo Negotiation Relays Through the CASE_MANAGER
   description: >-
-    How an embargo revision proposal reaches every participant and every replica in the
-    CASE_MANAGER topology. The behavioural specs (EMB-03 through EMB-05) are written in the
-    voice of the formal protocol, in which every Participant is a peer and every Participant
+    How an embargo proposal — the first one for a case or a revision of the active
+    embargo — reaches every participant and every replica in the CASE_MANAGER topology.
+    The behavioural specs (EMB-01 through EMB-06) are written in the voice of the formal
+    protocol, in which every Participant is a peer and every Participant "receives EP" or
     "receives EV". Here a participant addresses its proposal to the CASE_MANAGER alone
-    (PCR-08-001), so the Participant receiving EV is the CASE_MANAGER on receipt, and every
-    other participant learns the resulting case state from the ledger. The protocol
+    (PCR-08-001), so the Participant receiving EP or EV is the CASE_MANAGER on receipt, and
+    every other participant learns the resulting case state from the ledger. The protocol
     interactions the behavioural specs define still happen: the CASE_MANAGER relays the
     proposal to the participants as an Invite, they answer the CASE_MANAGER, and the owner's
     answer decides. Each step is recorded in the ledger. Ledger entries carry case state to
     replicas and set no parse-and-respond expectation; they augment the negotiation as the
     record of the case, they do not replace it. Decided by ADR-0113 from Concerns #3892,
-    #3836 and #3863.
+    #3836 and #3863 for revisions; generalised to every proposal, with the acknowledgement,
+    RSVP-deadline, trigger-side write and invitee rules below, by its 2026-09-30 amendment
+    from Concern #3918.
   specs:
   - id: EP-09-001
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER receives an `Invite(EmbargoEvent)` for a case whose EM state is
-      `ACTIVE` and whose CS state is not yet public, exploit or attack, it MUST move the
-      canonical case to EM `REVISE` through `EmbargoLifecycle` and commit the proposal as a
-      ledger entry. When the case is already at `REVISE` (a counter-revision) it MUST commit
-      the proposal without a further EM transition. When the case is public, exploit or attack
-      it MUST refuse the proposal (EMB-03-003). This is how EMB-03-001 and EMB-03-002 are
-      realised in the CASE_MANAGER topology: the CASE_MANAGER on receipt, every other
-      participant through ledger replay (EP-09-007).
+      When the CASE_MANAGER receives an `Invite(EmbargoEvent)` for a case whose CS state is
+      not yet public, exploit or attack, it MUST move the canonical case through
+      `EmbargoLifecycle` — EM `NONE → PROPOSED` for the first proposal, `ACTIVE → REVISE`
+      for a revision — and commit the proposal as a ledger entry. When the case is already
+      at `PROPOSED` or `REVISE` (a counter-proposal) it MUST commit the proposal without a
+      further EM transition. When the case is public, exploit or attack it MUST refuse the
+      proposal (EMB-01-002, EMB-03-003). This is how EMB-01-001, EMB-01-003, EMB-03-001 and
+      EMB-03-002 are realised in the CASE_MANAGER topology: the CASE_MANAGER on receipt,
+      every other participant through ledger replay (EP-09-007).
     rationale: >-
       The received Invite tree stored the activity, moved the invitee's consent and committed
       an entry, but never moved the case, so the CASE_MANAGER's canonical record never showed
@@ -981,9 +998,16 @@ groups:
       is built for it.
     verification: >-
       A test runs the received Invite path as the CASE_MANAGER with the case at `EM.ACTIVE`
-      and asserts the persisted case is at `EM.REVISE`. Until the implementation lands the
-      test is a strict `xfail` naming its tracking issue.
+      and asserts the persisted case is at `EM.REVISE`; a second runs it with the case at
+      `EM.NONE` and asserts `EM.PROPOSED`. Until the implementation lands the tests are
+      strict `xfail`s naming their tracking issue.
     relationships:
+    - rel_type: implements
+      spec_id: EMB-01-001
+    - rel_type: implements
+      spec_id: EMB-01-002
+    - rel_type: implements
+      spec_id: EMB-01-003
     - rel_type: implements
       spec_id: EMB-03-001
     - rel_type: implements
@@ -1197,3 +1221,109 @@ groups:
     adr:
     - ADR-0113
     - ADR-0108
+  - id: EP-09-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A trigger use case MUST write shared EM state — proposing, accepting, rejecting or
+      terminating an embargo — only when the executing actor holds `CVDRole.CASE_MANAGER`
+      for the case, inside the same role gate received trees use (BT-17-001). When it does
+      not, the trigger MUST emit its activity to the CASE_MANAGER, record it in the
+      pending-assertion store (SYNC-11-002), write no EM state, and emit no case-status
+      declaration of an EM state; the actor's replica moves when the CASE_MANAGER's commit is
+      announced (EP-09-007). The CASE_MANAGER's `Reject` of a refused proposal closes the
+      pending entry.
+    rationale: >-
+      Every embargo trigger wrote its own local EM state before the CASE_MANAGER had
+      answered, then declared that state to the manager, and nothing corrected the write when
+      the manager refused, so a proposer's replica could sit at `PROPOSED` while the canonical
+      case never moved (#3918). The manager is the one writer of shared case state
+      (ADR-0108); a participant's replica of it comes from the ledger like everyone else's.
+    note: >-
+      Participant self-status (RM, `Add(ParticipantStatus)`) is the participant's own claim
+      and keeps its local write (RSH-06-001). The role gate covers the owner that still holds
+      the manager role after creation (CM-24-006): it writes canonically until it delegates.
+
+      Same ordering constraint as RSH-08-004: the replay nodes of EP-09-007 MUST exist before
+      the trigger-side write is gated, or a non-manager's replica never moves. The
+      pending-assertion store is the ephemeral half of the outstanding-ask register
+      (ASK-04-007) and never holds case state (CLP-06-002).
+    verification: >-
+      A test runs `propose_embargo_trigger_bt` as a participant that does not hold the
+      CASE_MANAGER role and asserts its case is still at `EM.NONE`, the Invite is queued to
+      the CASE_MANAGER, the pending-assertion store holds the activity, and no
+      `Add(CaseStatus)` was queued; a second runs it as the role holder and asserts
+      `EM.PROPOSED`. Until the implementation lands the tests are strict `xfail`s naming
+      their tracking issue.
+    relationships:
+    - rel_type: depends_on
+      spec_id: EP-09-007
+    - rel_type: depends_on
+      spec_id: SYNC-11-002
+    - rel_type: depends_on
+      spec_id: BT-17-001
+    - rel_type: refines
+      spec_id: RSH-08-003
+      note: The receive-side rule, applied to the trigger side for shared EM state.
+    adr:
+    - ADR-0113
+    - ADR-0108
+    stories:
+    - story_2022_014
+  - id: EP-09-009
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER's commit of a received embargo activity, fanned out as
+      `Announce(CaseLedgerEntry)`, is the acknowledgement the EMB behavioural requirements
+      express as "emit EK". Implementations MUST NOT add an EK message type, pattern or
+      emission to acknowledge an embargo activity.
+    rationale: >-
+      No EK exists in the production stack and MSM-02-009 records that its purpose is served
+      by ledger hash-chain continuity. Under the relay every accepted embargo activity is
+      committed and announced, so the record the specs want the receiver to produce already
+      exists; a second acknowledgement would be a message with no reader (#3918).
+    verification: >-
+      A test asserts `MessageSemantics` has no embargo-acknowledgement member and the
+      semantic registry has no embargo-acknowledgement pattern.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-02-009
+    - rel_type: implements
+      spec_id: EMB-09-001
+    adr:
+    - ADR-0113
+    stories:
+    - story_2022_014
+  - id: EP-09-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The invitee of an `Invite(EmbargoEvent)` is its sole `to` recipient. A receiving actor
+      MUST resolve the invitee from that single recipient, MUST refuse an Invite that names
+      no `to` recipient or more than one as a misrouting (OX-08-001), and MUST NOT infer the
+      invitee from the receiving actor.
+    note: >-
+      Scope: the relayed Invite a participant receives (EP-09-002). A proposal addressed to
+      the CASE_MANAGER is adjudicated under EP-09-001 and relayed under EP-09-002; the
+      CASE_MANAGER is that Invite's adjudicator, not its invitee, and has no invitee to
+      resolve until it relays.
+    rationale: >-
+      Every emitter sends a single-recipient Invite — a participant to the CASE_MANAGER, the
+      CASE_MANAGER to one participant per relayed Invite (EP-09-002) — so the multi-recipient
+      resolution built for a shape nothing emits was dead code, and its fallback to the
+      receiving actor put the deadline on the enforcer's own record (ISSUE-2762). Refusing
+      names the defect; guessing hides it.
+    verification: >-
+      Tests deliver an Invite with two `to` recipients and with none and assert `REFUSED`
+      with the recipient count in the reason; a single-recipient Invite resolves that
+      recipient. Until the implementation lands the refusal tests are strict `xfail`s naming
+      their tracking issue.
+    relationships:
+    - rel_type: depends_on
+      spec_id: EP-09-002
+    adr:
+    - ADR-0113
+    stories:
+    - story_2022_014
+

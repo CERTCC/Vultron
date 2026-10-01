@@ -77,3 +77,30 @@ def test_discard_of_an_unknown_embargo_changes_nothing():
     assert case.discard_proposed_embargo("urn:uuid:nobody") is False
     assert case.proposed_embargoes == [_E1, _E2]
     assert case.pending_embargo_proposal_index == {_E1: _P1, _E2: _P2}
+
+
+@pytest.mark.spec("EP-08-004")
+def test_discard_all_clears_both_records_together_and_reports_change():
+    """Termination's whole-record pruner: both records leave in one call."""
+    case = VulnerabilityCase(name="Open proposals", attributed_to="urn:o")
+    case.proposed_embargoes = ["urn:e1", "urn:e2"]
+    case.pending_embargo_proposal_index = {
+        "urn:e1": "urn:p1",
+        "urn:e2": "urn:p2",
+    }
+
+    assert case.discard_all_proposed_embargoes() is True
+    assert case.proposed_embargoes == []
+    assert case.pending_embargo_proposal_index == {}
+
+
+@pytest.mark.spec("EP-08-004")
+def test_discard_all_is_idempotent_and_clears_a_record_the_other_lacks():
+    """A second call reports no change; a lopsided pair is still cleared."""
+    case = VulnerabilityCase(name="Open proposals", attributed_to="urn:o")
+    assert case.discard_all_proposed_embargoes() is False
+
+    case.pending_embargo_proposal_index = {"urn:e1": "urn:p1"}
+    assert case.discard_all_proposed_embargoes() is True
+    assert case.pending_embargo_proposal_index == {}
+    assert case.discard_all_proposed_embargoes() is False

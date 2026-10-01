@@ -23,11 +23,11 @@ from typing import Any, cast
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
+from vultron.config.app import get_config
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.config.app import get_config
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
@@ -35,12 +35,13 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.core.sync_helpers import _find_equivalent_recorded_entry
-from vultron.core.sync_helpers import _find_prev_actor_published
-from vultron.core.sync_helpers import _reconstruct_tail_hash
-from vultron.core.sync_helpers import recorded_entries_for_case
-from vultron.errors import VultronError
-from vultron.errors import VultronValidationError
+from vultron.core.sync_helpers import (
+    _find_equivalent_recorded_entry,
+    _find_prev_actor_published,
+    _reconstruct_tail_hash,
+    recorded_entries_for_case,
+)
+from vultron.errors import VultronError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 

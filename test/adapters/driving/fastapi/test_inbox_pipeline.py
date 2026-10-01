@@ -9,12 +9,9 @@ from vultron.adapters.driving.fastapi.inbox_pipeline import (
     MAX_REQUEUE_ATTEMPTS,
     InboxPipeline,
 )
-from vultron.errors import (
-    VultronProtocolViolationError,
-    VultronValidationError,
-)
-from vultron.core.models.protocols import PersistableModel
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.use_cases.received.actor import (
     AnnounceVulnerabilityCaseReceivedUseCase,
@@ -30,6 +27,10 @@ from vultron.core.use_cases.received.status import (
 )
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
+)
+from vultron.errors import (
+    VultronProtocolViolationError,
+    VultronValidationError,
 )
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
@@ -50,7 +51,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-from vultron.core.models._helpers import days_from_now_utc
 
 PipelineFixture: TypeAlias = tuple[InboxPipeline, SqliteDataLayer]
 
@@ -364,9 +364,9 @@ def test_process_requeues_activity_on_validation_error(
 
     assert result is None, "VultronValidationError must return None"
     queue_dl = dl.clone_for_actor(RECEIVER_ID)
-    assert (
-        activity_id in queue_dl.inbox_list()
-    ), "A transient validation failure MUST re-queue the activity for retry (#2766)"
+    assert activity_id in queue_dl.inbox_list(), (
+        "A transient validation failure MUST re-queue the activity for retry (#2766)"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -390,7 +390,7 @@ def test_rehydrate_protocol_violation_returns_none_not_raises(
 
     monkeypatch.setattr(ip_module, "rehydrate", _raise_protocol)
 
-    pipeline, dl = test_pipeline
+    pipeline, _dl = test_pipeline
     result = pipeline.process("https://example.org/activities/bad-rehydrate")
 
     assert result is None, (
@@ -415,7 +415,7 @@ def test_rehydrate_generic_exception_returns_none_not_raises(
 
     monkeypatch.setattr(ip_module, "rehydrate", _raise_generic)
 
-    pipeline, dl = test_pipeline
+    pipeline, _dl = test_pipeline
     activity_id = "https://example.org/activities/transient-rehydrate"
     result = pipeline.process(activity_id)
 
@@ -450,9 +450,9 @@ def test_protocol_violation_error_does_not_requeue(test_pipeline, monkeypatch):
 
     assert result is None, "VultronProtocolViolationError must return None"
     queue_dl = dl.clone_for_actor(RECEIVER_ID)
-    assert (
-        activity_id not in queue_dl.inbox_list()
-    ), "A protocol violation MUST NOT re-queue — it creates an infinite retry loop (#2861)"
+    assert activity_id not in queue_dl.inbox_list(), (
+        "A protocol violation MUST NOT re-queue — it creates an infinite retry loop (#2861)"
+    )
 
 
 # ---------------------------------------------------------------------------

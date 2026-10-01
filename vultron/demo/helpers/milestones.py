@@ -24,9 +24,10 @@ Specs: DEMOMA-06-002, DEMOMA-06-003.
 import logging
 
 from vultron.core.states.cs import CS_d, CS_vf
-from vultron.core.states.em import is_em_embargo_active, is_em_exited
+from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.polling import (
+    wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_participant_pxa_state,
 )
@@ -77,9 +78,9 @@ def verify_case_active(
     """
     # Coordinator side
     case_data = receiver_client.get(receiver_client.dl_path(case_id))
-    assert (
-        case_data
-    ), f"verify_case_active: receiver case {case_id!r} not found"
+    assert case_data, (
+        f"verify_case_active: receiver case {case_id!r} not found"
+    )
     case = as_VulnerabilityCase.model_validate(case_data)
 
     required = {receiver_actor_id, reporter_actor_id}
@@ -345,31 +346,18 @@ def verify_publicly_disclosed(
     Raises:
         AssertionError: If any disclosure invariant is violated.
     """
+    # Every replica is gated on each awaited effect before it is asserted.
+    # actor_notifies_published returns HTTP 202 before the CaseActor fans the
+    # ledger entries out, and that fan-out reaches every replica
+    # independently, so an instant read of *either* replica races the async
+    # apply (ADR-0058, EDF-06-002, DEMOMA-06-006; #2376 reporter, #3903
+    # receiver).
     for label, client in [
         ("receiver", receiver_client),
         ("reporter", reporter_client),
     ]:
-        case_data = client.get(client.dl_path(case_id))
-        assert (
-            case_data
-        ), f"verify_publicly_disclosed {label}: case {case_id!r} not found"
-        case = as_VulnerabilityCase.model_validate(case_data)
-        if not is_em_exited(case.current_status.em_state):
-            raise AssertionError(
-                f"verify_publicly_disclosed {label}: expected EM.EXITED,"
-                f" found {case.current_status.em_state}"
-            )
+        wait_for_case_em_terminated(client=client, case_id=case_id)
         logger.info("✓ publicly disclosed %s: EM.EXITED", label)
-
-    # Gate: poll reporter replica until receiver_actor_id's pxa_state is
-    # public-aware.  actor_notifies_published returns HTTP 202 before the
-    # CaseActor's Add(CaseStatus) broadcast reaches the reporter's DataLayer,
-    # so an instant assertion races the async commit (ADR-0058).
-    wait_for_participant_pxa_state(
-        client=reporter_client,
-        case_id=case_id,
-        actor_id=receiver_actor_id,
-    )
 
     # Verify receiver participant's pxa state (and VFD only for vendor/deployer)
     # on both the coordinator's and reporter's DataLayer replicas.
@@ -378,6 +366,11 @@ def verify_publicly_disclosed(
         ("receiver", receiver_client),
         ("reporter", reporter_client),
     ]:
+        wait_for_participant_pxa_state(
+            client=c,
+            case_id=case_id,
+            actor_id=receiver_actor_id,
+        )
         p = _fetch_participant(c, case_id, receiver_actor_id)
         if p is None:
             raise AssertionError(
@@ -426,9 +419,9 @@ def verify_case_closed(
         ("reporter", reporter_client),
     ]:
         case_data = client.get(client.dl_path(case_id))
-        assert (
-            case_data
-        ), f"verify_case_closed {label}: case {case_id!r} not found"
+        assert case_data, (
+            f"verify_case_closed {label}: case {case_id!r} not found"
+        )
         case = as_VulnerabilityCase.model_validate(case_data)
         for a_id, p_id in case.actor_participant_index.items():
             p_data = _fetch_participant_data(client, p_id)

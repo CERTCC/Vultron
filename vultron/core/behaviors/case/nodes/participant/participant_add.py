@@ -25,14 +25,14 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     _queue_participant_add_notification,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     ParticipantStatus,
 )
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.enums.roles import CVDRole
-from vultron.core.models._helpers import _as_id
 
 
 class CreateParticipantInitialStatusNode(DataLayerActionWithPorts):
@@ -465,8 +465,7 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
             PEC.DECLINED,
         ):
             participant.apply_pec_transition(PEC_Trigger.ACCEPT)
-        if active_embargo_id not in participant.accepted_embargo_ids:
-            participant.accepted_embargo_ids.append(active_embargo_id)
+        participant.add_accepted_embargo(active_embargo_id)
         self.datalayer.save(participant)
         self.logger.info(
             "Seeded participant '%s' (actor '%s') as SIGNATORY"

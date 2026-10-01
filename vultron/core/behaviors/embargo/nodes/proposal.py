@@ -21,12 +21,27 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.states.participant_embargo_consent import PEC_Trigger
+from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.errors import VultronNotFoundError, VultronValidationError
+
+#: Opens the feedback of a :class:`RecordParticipantRejectionNode` FAILURE
+#: that is a repeat of a Reject already recorded.  The received reject use
+#: case reads it to report ``SKIPPED`` rather than ``REFUSED`` (HP-01-003) —
+#: the node's own verdict, not the store's state, names the repeat.
+ALREADY_DECLINED_PREFIX = "Already declined"
+
+#: Opens the feedback of a :class:`RecordParticipantAcceptanceNode` FAILURE
+#: caused by the embargo the accepted one *replaces* not being replicated
+#: here, so the EP-05-001 comparison could not run.  The received accept use
+#: case reads it to report ``DEFERRED`` — the item is parked for replay, not
+#: refused (HP-01-003).
+REPLACED_EMBARGO_UNREPLICATED_PREFIX = "Replaced embargo not replicated here"
 
 
 class UpdateParticipantEmbargoPecNode(DataLayerActionWithPorts):
@@ -41,16 +56,29 @@ class UpdateParticipantEmbargoPecNode(DataLayerActionWithPorts):
     unavailable. Raises ``VultronInvalidStateTransitionError`` (via
     ``apply_pec_transition``) if the trigger is illegal for the current
     PEC state — callers should ensure the trigger is valid for the
-    participant's current consent state before invoking this node.
+    participant's current consent state before invoking this node, or pass
+    ``where_legal=True`` to make an illegal trigger a recorded no-op instead:
+    an embargo Invite moves a participant to ``INVITED`` only from ``UNBOUND``,
+    ``LAPSED`` or ``DECLINED`` (CM-18-003), and a ``SIGNATORY`` asked about a
+    revision keeps its state (EP-09-004).
+
+    ``result_out``, when given, receives ``pec_before``, ``pec_after`` and
+    ``pec_changed`` so the handler can tell a repeat (nothing moved) from a
+    fresh application without re-reading the store (HP-01-003, #2255).
     """
 
     def __init__(
         self,
         pec_trigger: PEC_Trigger,
         name: str | None = None,
+        *,
+        where_legal: bool = False,
+        result_out: dict[str, object] | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self.pec_trigger = pec_trigger
+        self._where_legal = where_legal
+        self._result_out = result_out
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
@@ -87,7 +115,23 @@ class UpdateParticipantEmbargoPecNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        participant.apply_pec_transition(self.pec_trigger)
+        pec_before = participant.embargo_consent_state
+        if self._where_legal:
+            applied = participant.apply_pec_transition_if_legal(
+                self.pec_trigger
+            )
+        else:
+            participant.apply_pec_transition(self.pec_trigger)
+            applied = True
+        self._record(pec_before, participant.embargo_consent_state)
+        if not applied:
+            self.feedback_message = (
+                f"Participant '{participant.id_}' is {pec_before.name};"
+                f" {self.pec_trigger.name} does not apply from there"
+                " (CM-18-003) — consent state unchanged"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
         self.datalayer.save(participant)
 
         self.feedback_message = (
@@ -96,6 +140,13 @@ class UpdateParticipantEmbargoPecNode(DataLayerActionWithPorts):
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
+
+    def _record(self, pec_before: PEC, pec_after: PEC) -> None:
+        if self._result_out is None:
+            return
+        self._result_out["pec_before"] = pec_before
+        self._result_out["pec_after"] = pec_after
+        self._result_out["pec_changed"] = pec_before != pec_after
 
 
 class CreateAndStoreInviteNode(DataLayerActionWithPorts):
@@ -214,12 +265,30 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         service = EmbargoLifecycle(persistence=self.datalayer)
-        result = service.accept_embargo_invite(
-            case_id=self.case_id,
-            embargo_id=self.embargo_id,
-            actor_id=actor_id,
-            transition_mode=TransitionMode.OBSERVED,
-        )
+        try:
+            result = service.accept_embargo_invite(
+                case_id=self.case_id,
+                embargo_id=self.embargo_id,
+                actor_id=actor_id,
+                transition_mode=TransitionMode.OBSERVED,
+            )
+        except VultronNotFoundError as exc:
+            if exc.resource_id != self.embargo_id:
+                # A partial replica may lack the embargo the accepted one
+                # replaces; the EP-05-001 comparison fails closed on it, and
+                # the handler parks the Accept for replay rather than
+                # refusing it.  Replay once the record arrives: #4004.
+                self.feedback_message = (
+                    f"{REPLACED_EMBARGO_UNREPLICATED_PREFIX}: {exc}"
+                )
+            else:
+                self.feedback_message = str(exc)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        except VultronValidationError as exc:
+            self.feedback_message = str(exc)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
         if result.em_after == EM.ACTIVE and result.em_before not in (
             EM.PROPOSED,
@@ -241,69 +310,91 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class RemoveStaleAcceptanceNode(DataLayerActionWithPorts):
-    """Remove stale embargo acceptance from participant (pocket-veto).
+class RecordParticipantRejectionNode(DataLayerActionWithPorts):
+    """Record a participant's rejection of an embargo via EmbargoLifecycle.
 
-    Reads participant from blackboard, removes embargo_id from
-    accepted_embargo_ids if present (pocket-veto semantics).
+    The received-side twin of :class:`RecordParticipantAcceptanceNode`: calls
+    ``EmbargoLifecycle.record_embargo_rejection`` so the received
+    ``Reject(Invite(EmbargoEvent))`` tree applies the same MSM-07-004 rule
+    as the trigger side (ADR-0093) — a Reject naming the *active* embargo is
+    consent withdrawal (``DECLINE`` from any state, ``SIGNATORY`` included);
+    one naming a *proposed* embargo drops the id from the actor's
+    ``accepted_embargo_ids`` and declines only an actor not yet
+    ``SIGNATORY``; the owner's EJ changes nobody's record.  Moves no EM
+    state: deciding the proposal is the tree's
+    :class:`RemoveFromProposedEmbargoesNode`, and the owner's EM move is the
+    CASE_MANAGER's adjudication (EP-09-005).
 
-    Always returns SUCCESS.
+    ``rejecting_actor_id`` names the message's actor (the tree executes as the
+    receiving actor, ADR-0022).  Returns SUCCESS when the actor has no
+    participant record here (a partial replica) and when the rejection is a
+    repeat that changes nothing.  Returns FAILURE — so the handler reports a
+    refusal — when the Reject names an embargo that is neither active nor an
+    open proposal of the case (a protocol error, not a consent change), or
+    when the case is not found.
     """
 
     def __init__(
         self,
+        case_id: str,
         embargo_id: str,
+        rejecting_actor_id: str,
         name: str | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
         self.embargo_id = embargo_id
+        self.rejecting_actor_id = rejecting_actor_id
 
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "participant": PortInformation(data_type=object, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"participant": "/participant"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._participant = None
-        try:
-            self._participant = self.get_input("participant")
-        except (NoDataAvailable, NotImplementedError):
-            self._participant = None
+    def _already_declined(self, case: VulnerabilityCase) -> bool:
+        """True when the rejecting actor's record on *case* is already DECLINED."""
+        assert self.datalayer is not None
+        participant_id = case.actor_participant_index.get(
+            self.rejecting_actor_id
+        )
+        participant = (
+            self.datalayer.read(participant_id) if participant_id else None
+        )
+        return (
+            isinstance(participant, CaseParticipant)
+            and participant.embargo_consent_state == PEC.DECLINED.value
+        )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            return Status.SUCCESS
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
-        participant = self._participant
-        if participant is None:
-            self.logger.debug(
-                "%s: participant not found in blackboard", self.name
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        service = EmbargoLifecycle(persistence=self.datalayer)
+        try:
+            result = service.record_embargo_rejection(
+                case_id=self.case_id,
+                actor_id=self.rejecting_actor_id,
+                embargo_id=self.embargo_id,
             )
-            return Status.SUCCESS
+        except (VultronNotFoundError, VultronValidationError) as exc:
+            self.feedback_message = str(exc)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
-        if not isinstance(participant, CaseParticipant):
-            self.logger.debug(
-                "%s: invalid participant on blackboard", self.name
-            )
-            return Status.SUCCESS
-
-        if self.embargo_id in participant.accepted_embargo_ids:
-            participant.accepted_embargo_ids.remove(self.embargo_id)
-            self.datalayer.save(participant)
+        if not result.participant_changes and self._already_declined(case):
+            # A repeat of a Reject already recorded (HP-01-003, #2255): the
+            # handler reads this FAILURE's prefix as SKIPPED.
             self.feedback_message = (
-                f"Removed stale acceptance '{self.embargo_id}' from"
-                f" participant '{participant.id_}' (pocket-veto)"
+                f"{ALREADY_DECLINED_PREFIX}: '{self.rejecting_actor_id}'"
+                f" had declined embargo '{self.embargo_id}' on case"
+                f" '{self.case_id}' before this Reject"
             )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-        else:
-            self.feedback_message = (
-                f"No stale acceptance '{self.embargo_id}' to remove"
-                f" from participant"
-            )
+            return Status.FAILURE
 
+        self.feedback_message = (
+            f"Recorded rejection of embargo '{self.embargo_id}' by"
+            f" '{self.rejecting_actor_id}' on case '{self.case_id}'"
+            f" ({len(result.participant_changes)} PEC state change(s))"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS

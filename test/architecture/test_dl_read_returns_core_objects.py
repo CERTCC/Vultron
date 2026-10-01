@@ -50,13 +50,13 @@ read-back migration)
 
 from typing import cast
 
+from pydantic.alias_generators import to_camel
+
+from test.support.core_vocab import minimal_kwargs
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from pydantic.alias_generators import to_camel
-
-from test.support.core_vocab import minimal_kwargs
 from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.registry import CORE_VOCABULARY
@@ -140,7 +140,7 @@ def _collect_wire_escapes() -> frozenset[str]:
         kwargs["id_"] = f"urn:test:{vocab_key.lower()}:ratchet"
         try:
             obj: CoreObject = cls(**kwargs)
-        except Exception:
+        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3989
             # If we cannot construct a minimal instance we skip — the type
             # is not a concern for this ratchet (no core code saves it without
             # required fields either).
@@ -200,7 +200,7 @@ def _collect_wire_shaped_row_escapes() -> tuple[frozenset[str], int]:
         kwargs["id_"] = row_id
         try:
             core_obj: CoreObject = cls(**kwargs)
-        except Exception:
+        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3989
             continue
         # Build a *wire-shaped* copy of valid core data: camelCase spellings plus
         # the wire-facing identity keys.  Deriving it from a constructed core
@@ -217,7 +217,7 @@ def _collect_wire_shaped_row_escapes() -> tuple[frozenset[str], int]:
         storable = StorableRecord(id_=row_id, type_=vocab_key, data_=wire_data)
         try:
             dl.create(storable)
-        except Exception:
+        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3989
             continue
         result = dl.read(row_id)
         if result is None:

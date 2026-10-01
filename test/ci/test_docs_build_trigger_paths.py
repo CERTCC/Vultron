@@ -59,9 +59,9 @@ PAGE_SOURCES = (
 @pytest.mark.spec("DOCBW-02-001")
 @pytest.mark.parametrize("source", PAGE_SOURCES)
 def test_docs_workflow_still_triggers_on_page_source(source: str):
-    assert (
-        source in _pull_request_paths()
-    ), f"{WORKFLOW.name} no longer triggers on {source!r} (DOCBW-02-001)."
+    assert source in _pull_request_paths(), (
+        f"{WORKFLOW.name} no longer triggers on {source!r} (DOCBW-02-001)."
+    )
 
 
 @pytest.mark.spec("DOCBW-02-003")

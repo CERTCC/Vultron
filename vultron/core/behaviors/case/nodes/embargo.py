@@ -38,6 +38,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.models._helpers import _as_id, from_now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.ports.case_persistence import CasePersistence
@@ -50,7 +51,6 @@ from vultron.core.services.embargo_lifecycle import (
     TransitionMode,
 )
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
-from vultron.core.models._helpers import _as_id, from_now_utc
 from vultron.errors import (
     VultronAlreadyExistsError,
     VultronError,
@@ -85,7 +85,7 @@ def persist_creation_time_embargo(
             or stored.context != case_id
             or stored.end_time != embargo.end_time
         ):
-            raise VultronError(
+            raise VultronError(  # noqa: B904  # ruff-baseline #3353
                 f"embargo id {embargo.id_!r} is already held by a different"
                 f" object ({type(stored).__name__}, context"
                 f" {getattr(stored, 'context', None)!r}); refusing to bind"
@@ -171,7 +171,7 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
             persist_creation_time_embargo(self.datalayer, embargo, case_id)
         except VultronError as exc:
             self.feedback_message = f"{self.name}: {exc}"
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         self._set_output("default_embargo_id", embargo.id_)
@@ -281,7 +281,7 @@ class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
                 transition_mode=TransitionMode.STRICT,
             )
         except VultronError as exc:
-            self.logger.error(
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: Failed to propose embargo '%s' for case '%s': %s",
                 self.name,
                 embargo_id,
@@ -344,7 +344,7 @@ class AttachEmbargoToCaseNode(DataLayerActionWithPorts):
                 )
             except VultronError as exc:
                 self.feedback_message = str(exc)
-                self.logger.error(
+                self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                     "%s: Failed to activate embargo '%s' on case '%s': %s",
                     self.name,
                     embargo_id,
@@ -444,8 +444,8 @@ class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
             PEC.DECLINED,
         ):
             participant.apply_pec_transition(PEC_Trigger.ACCEPT)
-        if embargo_id and embargo_id not in participant.accepted_embargo_ids:
-            participant.accepted_embargo_ids.append(embargo_id)
+        if embargo_id:
+            participant.add_accepted_embargo(embargo_id)
         self.datalayer.save(participant)
         self.logger.info(
             "Seeded case-owner participant '%s' (actor '%s') as SIGNATORY"

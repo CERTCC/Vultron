@@ -250,7 +250,9 @@ Source concern: #1769. Consumer: #2255. Trigger-side counterpart: ADR-0110, plan
 Related: #2369 and #2682 (surfacing outcomes to the *sender*, which this ADR
 does not address — the 202 is already sent before a handler runs).
 
-Generated spec requirements: `specs/use-case-organization.yaml` UCORG-05-004b,
-UCORG-05-005, and UCORG-05-009 through UCORG-05-013 (this ADR also relies on the
-pre-existing UCORG-05-001 through UCORG-05-008);
+Generated spec requirements: `specs/use-case-organization.yaml` UCORG-05-005
+and UCORG-05-009 through UCORG-05-013 (this ADR also relies on the pre-existing
+UCORG-05-001 through UCORG-05-008); UCORG-05-004b, the ratchet's temporary
+trigger-side exclusion, was retired with #3831 (MS-09-001) once the trigger
+side conformed;
 `specs/handler-protocol.yaml` HP-01-002 (amended), HP-01-003, and HP-01-004.

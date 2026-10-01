@@ -34,7 +34,7 @@ The symptom surfaced four steps and one container away, as the invitee's
 ``validate-report`` answering ``404 Offer not found`` (#2548, fcvcv).
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -307,7 +307,7 @@ class TestProposalCarriesTheOfferItself:
     (EP-04-004, #3392).
     """
 
-    _END = datetime(2099, 6, 1, tzinfo=timezone.utc)
+    _END = datetime(2099, 6, 1, tzinfo=UTC)
 
     def _stored_offer(self, datalayer, report, *, with_terms: bool) -> str:
         """Store the Reporter's Offer (as the inbox does) and its record."""

@@ -18,9 +18,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.use_case_result import HandlerDisposition
-
-
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
@@ -60,14 +59,18 @@ class TestOwnershipTransferUseCases:
         )
         event = make_payload(activity)
 
-        result = OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+        result = OfferCaseOwnershipTransferReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         stored = dl.get(activity.type_.value, activity.id_)
         assert stored is not None
         assert result.disposition == HandlerDisposition.APPLIED
 
         # HP-01-003: a redelivered Offer stores nothing new.
-        again = OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+        again = OfferCaseOwnershipTransferReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
         assert again.disposition == HandlerDisposition.SKIPPED
 
     def test_offer_ownership_unresolvable_receiver_writes_nothing(
@@ -98,7 +101,9 @@ class TestOwnershipTransferUseCases:
 
         with pytest.raises(VultronValidationError):
             OfferCaseOwnershipTransferReceivedUseCase(
-                anonymous_store(inner), event
+                anonymous_store(inner),
+                event,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert inner.get(activity.type_.value, activity.id_) is None
@@ -144,7 +149,9 @@ class TestOwnershipTransferUseCases:
         event = make_payload(activity, receiving_actor_id=coordinator_id)
 
         result = AcceptCaseOwnershipTransferReceivedUseCase(
-            dl, event
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         updated_record = dl.get(case.type_, case.id_)
@@ -181,7 +188,9 @@ class TestOwnershipTransferUseCases:
         )
 
         result = AcceptCaseOwnershipTransferReceivedUseCase(
-            dl, event
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -197,7 +206,9 @@ class TestOwnershipTransferUseCases:
         event = MagicMock(case_id=None, receiving_actor_id=None)
 
         result = AcceptCaseOwnershipTransferReceivedUseCase(
-            dl, event
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -215,11 +226,11 @@ class TestOwnershipTransferUseCases:
         the transferee's inbox (CM-21-005, ADR-0053).
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-        from vultron.enums.roles import CVDRole
 
         case_actor_id = "https://example.org/actors/case-actor"
         vendor_id = "https://example.org/users/vendor"
@@ -267,7 +278,10 @@ class TestOwnershipTransferUseCases:
         )
 
         OfferCaseOwnershipTransferReceivedUseCase(
-            dl, event, trigger_activity=trigger_activity
+            dl,
+            event,
+            trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # trigger_activity.offer_case_ownership_transfer must be called with
@@ -307,11 +321,11 @@ class TestOwnershipTransferUseCases:
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.use_cases.received.actor import ownership
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-        from vultron.enums.roles import CVDRole
 
         assert not hasattr(ownership, "add_activity_to_outbox"), (
             "OfferCaseOwnershipTransferReceivedUseCase must not import"
@@ -369,7 +383,10 @@ class TestOwnershipTransferUseCases:
         )
 
         OfferCaseOwnershipTransferReceivedUseCase(
-            dl, event, trigger_activity=trigger_activity
+            dl,
+            event,
+            trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert calls == [
@@ -401,11 +418,11 @@ class TestOwnershipTransferUseCases:
         recover who offered.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-        from vultron.enums.roles import CVDRole
 
         case_actor_id = "https://example.org/actors/case-actor-attr"
         vendor_id = "https://example.org/users/vendor-attr"
@@ -452,7 +469,10 @@ class TestOwnershipTransferUseCases:
         )
 
         OfferCaseOwnershipTransferReceivedUseCase(
-            dl, event, trigger_activity=trigger_activity
+            dl,
+            event,
+            trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         kwargs = (
@@ -478,11 +498,11 @@ class TestOwnershipTransferUseCases:
         not `attributed_to`.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-        from vultron.enums.roles import CVDRole
 
         case_actor_id = "https://example.org/actors/case-actor-spoof"
         vendor1_id = "https://example.org/users/vendor1-spoof"
@@ -527,7 +547,10 @@ class TestOwnershipTransferUseCases:
 
         with caplog.at_level("WARNING"):
             OfferCaseOwnershipTransferReceivedUseCase(
-                dl, event, trigger_activity=trigger_activity
+                dl,
+                event,
+                trigger_activity=trigger_activity,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         kwargs = (
@@ -551,11 +574,11 @@ class TestOwnershipTransferUseCases:
         WARNING and leave all outboxes empty (CM-21-005 forwarding skipped).
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-        from vultron.enums.roles import CVDRole
 
         case_actor_id = "https://example.org/actors/case-actor-w"
         vendor_id = "https://example.org/users/vendor-w"
@@ -597,7 +620,8 @@ class TestOwnershipTransferUseCases:
             OfferCaseOwnershipTransferReceivedUseCase(
                 dl,
                 event,
-                # trigger_activity intentionally omitted
+                # trigger_activity intentionally omitted,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert any("no trigger_activity" in r.message for r in caplog.records)
@@ -627,7 +651,9 @@ class TestOwnershipTransferUseCases:
 
         with caplog.at_level(logging.INFO):
             result = RejectCaseOwnershipTransferReceivedUseCase(
-                MagicMock(), event
+                MagicMock(),
+                event,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
@@ -643,6 +669,7 @@ class TestOwnershipTransferUseCases:
         to dl.actor_id, so the offer is persisted rather than dropped.
         """
         import py_trees
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         actor_id = "https://example.org/actors/store-owner-ot"
@@ -662,7 +689,9 @@ class TestOwnershipTransferUseCases:
             )
             event = make_payload(activity, receiving_actor_id=None)
 
-            OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+            OfferCaseOwnershipTransferReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
             stored = dl.get(activity.type_.value, activity.id_)
             assert stored is not None, (
@@ -682,6 +711,7 @@ class TestOwnershipTransferUseCases:
         than dropped.
         """
         import py_trees
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         coordinator_id = "https://example.org/users/coordinator-nostamp"
@@ -709,11 +739,13 @@ class TestOwnershipTransferUseCases:
             )
             event = make_payload(activity, receiving_actor_id=None)
 
-            AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+            AcceptCaseOwnershipTransferReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
             updated = dl.get(case.type_, case.id_)
             assert updated is not None
-            from typing import cast, Any
+            from typing import Any, cast
 
             data = cast(Any, updated).get("data_", updated)
             assert data.get("attributed_to") == coordinator_id, (
@@ -750,10 +782,12 @@ class TestOwnershipOfferAtNonRecipient:
         )
         event = make_payload(activity, receiving_actor_id=bystander_id)
 
-        result = OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+        result = OfferCaseOwnershipTransferReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and bystander_id in result.reason
-        assert (
-            dl.get(activity.type_.value, activity.id_) is None
-        ), "a refused Offer must not be left behind in the bystander's store"
+        assert dl.get(activity.type_.value, activity.id_) is None, (
+            "a refused Offer must not be left behind in the bystander's store"
+        )

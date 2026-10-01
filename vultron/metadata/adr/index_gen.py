@@ -119,8 +119,7 @@ def generate_index(repo_root: Path | None = None) -> str:
             # unannotated entry reads as wholly current.
             if fm.partially_superseded_by:
                 suffix += (
-                    " — partially superseded by "
-                    f"{fm.partially_superseded_by}"
+                    f" — partially superseded by {fm.partially_superseded_by}"
                 )
             accepted.append(entry + suffix)
         elif fm.status is AdrStatus.PROPOSED:

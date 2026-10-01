@@ -16,8 +16,10 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
 from test.demo._helpers import make_testclient_call
-from vultron.demo.exchange import initialize_case_demo as init_demo
-from vultron.demo.exchange import manage_embargo_demo as demo
+from vultron.demo.exchange import (
+    initialize_case_demo as init_demo,
+    manage_embargo_demo as demo,
+)
 
 
 @pytest.fixture(scope="module")

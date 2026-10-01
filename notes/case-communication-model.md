@@ -17,6 +17,7 @@ related_specs:
   - specs/case-management.yaml
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
+  - specs/protocol-asks.yaml
 related_notes:
   - notes/sync-ledger-replication.md
   - notes/case-ledger-authority.md
@@ -28,6 +29,7 @@ related_notes:
   - notes/fv-demo.md
   - notes/outbox.md
   - notes/use-case-protocol.md
+  - notes/protocol-asks.md
 relevant_packages:
   - vultron/core/use_cases/triggers
   - vultron/core/use_cases/received
@@ -291,33 +293,41 @@ activity_id = trigger_activity.invite_actor_to_case(
 add_activity_to_outbox(actor_id, activity_id, dl)   # ← dl *is* the manager's store
 ```
 
-When a case has no `CVDRole.CASE_MANAGER` participant the delegation channel does
-not exist: the Activity is sent directly by the requesting participant, with
-`actor` set to it and `attributed_to` set to `None` (CM-24-003).
+A case always has a `CVDRole.CASE_MANAGER` participant (CM-24-006), so there is
+no un-delegated path: a resolver that finds no holder fails rather than sending
+directly. The CM-24-003 fallback (`actor` = requester, `attributed_to = None`)
+is retired; #3964 removes it from `_prepare_delegated_context()`.
 
 ---
 
-## Embargo Revision Relay: the Ledger Carries State, It Never Asks (EP-09, ADR-0113)
+## Embargo Relay: the Ledger Carries State, It Never Asks (EP-09, ADR-0113)
 
-The case Invite above is one instance of a general shape, and the embargo
-revision is the second. A participant addresses its revision proposal to the
-CASE_MANAGER only (PCR-08-001). The CASE_MANAGER adjudicates it, moves the
-canonical case to `EM.REVISE`, commits the proposal, and *then* relays it: one
+The case Invite above is one instance of a general shape, and every embargo
+proposal — the first one for a case or a revision — is the second. A
+participant addresses its proposal to the CASE_MANAGER only (PCR-08-001). The
+CASE_MANAGER adjudicates it, moves the canonical case (`NONE → PROPOSED` or
+`ACTIVE → REVISE`), commits the proposal, and *then* relays it: one
 `Invite(EmbargoEvent)` per participant except the proposer, `actor` the
-CASE_MANAGER, `attributedTo` the proposer (CM-24), each emission committed.
-Participants answer the Invite addressed to them, to the CASE_MANAGER; the
-CASE_MANAGER commits each answer; the owner's answer also decides the embargo.
-Replicas reconstruct every step from the ledger (RSH-08-004).
+CASE_MANAGER, `attributedTo` the proposer (CM-24), `end_time` stamped by the
+manager (CM-28-012), each emission committed. Participants answer the Invite
+addressed to them, to the CASE_MANAGER; the CASE_MANAGER commits each answer;
+the owner's answer also decides the embargo. Replicas reconstruct every step
+from the ledger (RSH-08-004).
 
 ```text
 Participant P sends Invite(EmbargoEvent B) → CASE_MANAGER
-  CASE_MANAGER: EM ACTIVE → REVISE, commit proposal      → Announce to all
-  CASE_MANAGER: Invite(B) → each participant ≠ P, commit → Announce to all
+  CASE_MANAGER: EM NONE → PROPOSED (or ACTIVE → REVISE), commit → Announce to all
+  CASE_MANAGER: Invite(B, end_time) → each participant ≠ P, commit → Announce to all
 Each participant Q answers Accept/Reject(Invite(B))     → CASE_MANAGER
   CASE_MANAGER: record Q's consent, commit               → Announce to all
 Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
-  CASE_MANAGER: EC activates B / EJ keeps A, commit      → Announce to all
+  CASE_MANAGER: EA/EC activates B or ER/EJ clears/keeps, commit → Announce to all
 ```
+
+The proposer's own trigger writes no EM state unless the proposer holds the
+CASE_MANAGER role: it emits, records the ask in the pending-assertion store,
+and its replica moves on the announced commit (EP-09-008). The manager's
+commit is also the acknowledgement the behavioural specs call EK (EP-09-009).
 
 The rule this pins down, because it kept getting mixed up: **an
 `Announce(CaseLedgerEntry)` is a channel for case state, not a protocol
@@ -333,8 +343,13 @@ The owner MAY decide without waiting for answers and SHOULD wait for some to
 gauge consensus; the protocol defines no quorum (EP-09-005, EP-09-006). The
 Invites still matter under fiat because their answers are the consent records
 the EP-05-001 activation cascade reads. Full write-up:
-`notes/embargo-lifecycle.md` § "Revision Negotiation Relays Through the
+`notes/embargo-lifecycle.md` § "Embargo Negotiation Relays Through the
 CASE_MANAGER".
+
+**There is no "no CASE_MANAGER" arm.** Both case-creation paths register a
+holder at birth and delegation hands the role on, so the resolver finding nobody
+means a corrupt roster, not a topology. CM-24-003's "send directly" fallback is
+superseded by CM-24-006; a resolver that finds no holder fails.
 
 ---
 
@@ -350,8 +365,8 @@ Requesting actor calls trigger: <trigger-name>
   → Trigger use case _prepare():
       self._actor_id     = case_actor_id      ← CASE_MANAGER sends (CM-24-001)
       self._attributed_to = requesting_actor_id  ← attribution preserved (CM-24-002)
-      # When unresolvable: self._actor_id = requesting_actor_id,
-      #                     self._attributed_to = None (CM-24-003)
+      # No holder found: raise (CM-24-006) — the CM-24-003 "send directly"
+      #                   fallback is retired (#3964)
   → BT runs under the CASE_MANAGER's identity → activity queued in its outbox (CM-24-004)
 
 Recipient receives Activity:
@@ -366,7 +381,7 @@ implementation.  All delegated-emit trigger use cases MUST call this helper
 (CM-24-005):
 
 ```python
-# Delegated-message contract (CM-24-001..003)
+# Delegated-message contract (CM-24-001, CM-24-002, CM-24-006)
 self._actor_id, self._attributed_to = _prepare_delegated_context(
     self._dl, self._case.id_, requesting_actor_id
 )
@@ -390,7 +405,7 @@ and ownership-transfer triggers still run the delegated emit locally.
 |---|---|
 | `SvcInviteActorToCaseUseCase` | ✅ uses `_prepare_delegated_context()` |
 | `SvcOfferCaseOwnershipTransferUseCase` | ✅ fixed in #2173 |
-| CASE_MANAGER received revision-Invite tree (EP-09-002) | planned (ADR-0113) — a *received*-side delegated emit, as CM-24-004 allows: relays `Invite(EmbargoEvent)` to every participant except the proposer with `attributed_to=proposer`, committed in the emitting tree |
+| `invite_to_embargo_on_case_tree` — CASE_MANAGER arm (EP-09-002) | ✅ built in #3913 (ADR-0113) — a *received*-side delegated emit, as CM-24-004 allows: `RelayEmbargoInviteToEachNode` relays `Invite(EmbargoEvent)` to every participant except the proposer with `actor=CASE_MANAGER`, `attributed_to=proposer`, each emission committed in the emitting tree; the proposer comes from `resolve_proposer_id()` (the Invite's `actor`, or its `attributedTo` when the proposal was itself relayed) |
 | Other trigger use cases | audit complete — no other delegated-emit callsites |
 
 ### Shared-Helper Requirement (CM-24-005)
@@ -399,6 +414,19 @@ All delegated-message trigger use cases MUST use a shared helper to enforce
 the pattern.  No callsite may independently reconstruct `actor/attributed_to`
 assignment.  See `specs/case-management.yaml` CM-24-005 for the normative
 requirement.
+
+The one *received*-side delegated emit, the embargo relay
+(`RelayEmbargoInviteToEachNode`, #3913), does not call
+`_prepare_delegated_context()`: that is a trigger use-case helper a BT node
+may not import (BTND-04-003), and its "no CASE_MANAGER, send directly" arm is
+what ADR-0113 retires (#3964).  The node holds the CM-24-001/002 invariants
+structurally instead — it runs only under `create_case_manager_gated_tree`, so
+`actor` is the role holder by construction, and `attributed_to` is the proposer
+the manager adjudicated (`resolve_proposer_id()`, which honours an inbound
+`attributedTo` only when the Invite's `actor` is itself the CASE_MANAGER, so a
+participant cannot name a third party as proposer).  A second received-side
+delegated emit should extract a shared received-side helper rather than repeat
+this reasoning.
 
 ---
 

@@ -26,16 +26,6 @@ from pydantic import (
     model_validator,
 )
 
-from pydantic.alias_generators import to_camel
-
-from vultron.core.states.cs import CS_d, CS_vf
-from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.rm import RM, is_valid_rm_transition
-from vultron.enums.roles import CVDRole
-from vultron.errors import (
-    VultronProtocolViolationError,
-    VultronValidationError,
-)
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
@@ -45,6 +35,14 @@ from vultron.core.models.dimensions import (
     VfDimension,
 )
 from vultron.core.models.wire_keys import input_keys
+from vultron.core.states.cs import CS_d, CS_vf
+from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.rm import RM, is_valid_rm_transition
+from vultron.enums.roles import CVDRole
+from vultron.errors import (
+    VultronProtocolViolationError,
+    VultronValidationError,
+)
 
 
 def coerce_em_consent_state(value: object) -> PEC | None:
@@ -179,41 +177,11 @@ class ParticipantStatus(CoreObject):
     # above accept all three spellings, and ``_ScalarDimension``'s
     # ``_accept_bare_state`` accepts the bare state value the flat form carries.
 
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_retired_vfd_keys(cls, data: Any) -> Any:
-        """Refuse the retired ``vfd_state``/``vfdState`` key (SDO-03-005).
-
-        ADR-0075 split the combined VFD dimension into ``vf`` (vendor fix) and
-        ``d`` (deployer deployment).  ``vfd_state`` names neither, so it matches no
-        field and no alias — Pydantic's ``extra="ignore"`` default would discard it
-        and leave both dimensions at their initial states.  That is silent protocol
-        state loss, so it is refused instead.
-
-        Relocated here from ``as_ParticipantStatus`` when that class was collapsed
-        into this one (ADR-0099 detail 3, AC-4).  It is the one piece of the wire
-        class's behaviour with no core equivalent: the camelCase guards it sat
-        beside are obsolete now that core derives AS2 spellings, but a *retired*
-        name is not a spelling of anything, so this guard is still load-bearing.
-
-        Raises ``VultronProtocolViolationError``, which subclasses ``ValueError``
-        so Pydantic reports it as a validation failure rather than letting it
-        escape ``model_validate()``.
-        """
-        # The camelCase form is derived, not written out: ADR-0099 detail 2 keeps
-        # AS2 spellings out of core logic, and an architecture test enforces it
-        # (test_core_no_as2_spellings).  Deriving also guarantees the guard matches
-        # whatever the project's own generator would have produced.
-        retired = "vfd_state"
-        if isinstance(data, dict) and (
-            retired in data or to_camel(retired) in data
-        ):
-            raise VultronProtocolViolationError(
-                f"{retired}/{to_camel(retired)} is retired (ADR-0075). Use"
-                " vf_state for vendor participants and d_state for deployer"
-                " participants instead."
-            )
-        return data
+    # Nor is there a retired-key reject-guard for ``vfd_state``/``vfdState``
+    # (ADR-0075).  ``extra="forbid"`` refuses it on in-process and stored data
+    # (SDO-03-005), and on inbound data the parse edge refuses it by name from
+    # the wire-side list ``vultron.wire.as2.unknown_keys.RETIRED_NAMES``
+    # (MV-11-002, MV-11-004).
 
     @model_validator(mode="before")
     @classmethod

@@ -24,25 +24,22 @@ Per specs/sync-ledger-replication.yaml SYNC-02-002, SYNC-02-003.
 import logging
 from typing import Any, cast
 
-import py_trees
 from py_trees.common import Status
-
-from vultron.core.behaviors.bridge import BTBridge
 from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.behaviors.sync.commit_tree import (
-    create_commit_log_entry_tree,
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.ledger_payload import (
+    _extract_payload_snapshot,
 )
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.ledger_patch import (
     PATCH_KEY_TWINS,
     drop_stale_twins,
 )
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
 )
-from vultron.core.use_cases._helpers import build_activity_payload_snapshot
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.errors import VultronCanonicalEntryError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -69,29 +66,6 @@ logger = logging.getLogger(__name__)
 #: ``finally`` block on every outcome, so a stranded override never bleeds into
 #: the next execution on the process-global blackboard (#3101; ADR-0087).
 BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE = "ledger_payload_object_override"
-
-
-def _extract_payload_snapshot(
-    activity: Any, dl: CasePersistence | None = None
-) -> dict[str, Any]:
-    """Build a normalized payload snapshot for case-ledger commits."""
-    event_activity = getattr(activity, "activity", None)
-    if event_activity is not None:
-        return cast(
-            dict[str, Any],
-            build_activity_payload_snapshot(event_activity, dl=dl),
-        )
-    snapshot = cast(
-        dict[str, Any], build_activity_payload_snapshot(activity, dl=dl)
-    )
-    # Domain events serialize actor_id, not the wire-format actor URI.
-    # Patch it in so the ledger schema's non-empty-URI check passes.
-    if not snapshot.get("actor"):
-        actor_id = getattr(activity, "actor_id", None)
-        if actor_id:
-            snapshot = dict(snapshot)
-            snapshot["actor"] = actor_id
-    return snapshot
 
 
 #: Producer class names recognized by the override consumer.  An override with
@@ -261,7 +235,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
         un-adjudicated path produces — flat dimension values, a nested case
         status, ``@context``, the consent state and the CVD roles, each under its
         AS2 alias — which every replica and the invariant harness rely on
-        (RSH-05-009, CLP-07-001, CM-18-006).  A whole-object replacement built in
+        (RSH-05-009, CLP-07-011, CM-18-006).  A whole-object replacement built in
         core would instead emit core dimension objects, since core must not
         import the wire layer to convert (ADR-0009, ADR-0017).
 
@@ -320,7 +294,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             or "case_event"
         )
         payload_snapshot = _extract_payload_snapshot(
-            activity, dl=self.datalayer
+            activity, self.datalayer, self._require_wire_render_port()
         )
         return object_id, event_type, payload_snapshot
 
@@ -365,7 +339,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
                     payload_snapshot
                 )
             except VultronValidationError as exc:
-                self.logger.error(
+                self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                     "%s: refusing ledger commit for case '%s':"
                     " override validation failed: %s",
                     self.name,
@@ -414,70 +388,3 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             result.feedback_message,
         )
         return Status.FAILURE
-
-
-def create_guarded_commit_case_ledger_entry_tree(
-    case_id: str | None = None,
-) -> py_trees.composites.Selector:
-    """Create a guarded commit subtree for canonical case-ledger entries.
-
-    The commit runs only when the executing actor holds ``CVDRole.CASE_MANAGER``
-    for the case; see :func:`create_case_manager_gated_tree` for the gate's
-    failure-mode semantics.
-
-    Called internally by :func:`create_receive_activity_tree`.  Direct callers
-    in tree-factory modules are a CLP-10-006 ordering violation; use
-    ``create_receive_activity_tree`` instead.
-    """
-    from vultron.core.behaviors.case.nodes.role_gates import (
-        create_case_manager_gated_tree,
-    )
-
-    return create_case_manager_gated_tree(
-        name="GuardedCommitCaseLedgerEntryBT",
-        case_id=case_id,
-        children=[CommitCaseLedgerEntryNode(case_id=case_id)],
-    )
-
-
-def create_receive_activity_tree(
-    name: str,
-    case_id: str | None,
-    precondition_guards: list[py_trees.behaviour.Behaviour],
-    effect_nodes: list[py_trees.behaviour.Behaviour],
-) -> py_trees.composites.Sequence:
-    """Compose a receive-side BT with CLP-10-006 ordering.
-
-    Structurally enforces the correct receive-side ordering::
-
-        [*precondition_guards] → GuardedCommit(receipt) → [*effect_nodes]
-
-    Precondition guards are read-only checks that may return FAILURE to abort
-    the tree before any state is written.  The guarded commit ledgers receipt
-    of the triggering activity (which is on the blackboard before any node
-    runs, placed there by ``BTBridge.execute_with_setup``).  Effect nodes
-    perform state transitions, outbox enqueues, and participant mutations —
-    all of which happen only after the receipt is recorded.
-
-    When ``case_id`` is ``None`` the commit step is omitted entirely,
-    preserving behaviour for trees that receive no explicit case context.
-
-    Per ``specs/case-ledger-processing.yaml`` CLP-10-006.
-    """
-    children: list[py_trees.behaviour.Behaviour] = list(precondition_guards)
-    if case_id is not None:
-        children.append(
-            create_guarded_commit_case_ledger_entry_tree(case_id=case_id)
-        )
-    else:
-        logger.debug(
-            "create_receive_activity_tree(%s): case_id is None"
-            " — commit step omitted",
-            name,
-        )
-    children.extend(effect_nodes)
-    return py_trees.composites.Sequence(
-        name=name,
-        memory=False,
-        children=children,
-    )

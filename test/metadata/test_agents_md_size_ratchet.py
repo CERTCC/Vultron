@@ -51,7 +51,7 @@ PER_DIRECTORY_TARGET = 200
 # Lower these as the files are condensed; never raise one.  Adding a new entry
 # means the ratchet failed to do its job.
 KNOWN_OVERAGE: dict[str, int] = {
-    "vultron/core/AGENTS.md": 251,
+    "vultron/core/AGENTS.md": 250,
     "vultron/core/behaviors/AGENTS.md": 209,
 }
 
@@ -88,9 +88,9 @@ def test_discovery_finds_the_known_agents_md_files() -> None:
         "silently collapse to a skip. Check _EXCLUDED_DIRS and the repo layout."
     )
     expected = {"AGENTS.md", "test/AGENTS.md", "specs/AGENTS.md"}
-    assert (
-        expected <= found
-    ), f"Discovery missed known files: {expected - found}"
+    assert expected <= found, (
+        f"Discovery missed known files: {expected - found}"
+    )
 
 
 def test_root_agents_md_within_target() -> None:
@@ -166,6 +166,6 @@ def test_known_overage_ceilings_are_tight() -> None:
 def test_known_overage_entries_exist() -> None:
     """A KNOWN_OVERAGE entry for a deleted or moved file MUST be removed."""
     missing = [rel for rel in KNOWN_OVERAGE if not (_REPO_ROOT / rel).exists()]
-    assert (
-        not missing
-    ), f"KNOWN_OVERAGE names files that do not exist: {missing}"
+    assert not missing, (
+        f"KNOWN_OVERAGE names files that do not exist: {missing}"
+    )

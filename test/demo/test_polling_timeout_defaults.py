@@ -21,7 +21,7 @@ default must be at least 15.0 s.
 import inspect
 from unittest.mock import MagicMock, patch
 
-import vultron.demo.helpers.polling as polling
+from vultron.demo.helpers import polling
 from vultron.demo.helpers.polling import (
     LATE_JOINER_REPLICA_TIMEOUT,
     REPLICA_PARTICIPANT_TIMEOUT,

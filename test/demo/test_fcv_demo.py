@@ -26,13 +26,13 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-from vultron.demo.actor_session import ActorSession
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fcv_demo as demo
 from test.demo._helpers import make_client, make_testclient_call
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
 from vultron.demo.helpers.polling import find_case_invite_for_actor
 
@@ -482,17 +482,17 @@ class TestFcvMilestoneAssertions:
                 case=case,
             )
 
-        assert (
-            rm_calls
-        ), "wait_for_participant_rm_state must be called (ADR-0058/CSB-18-001)"
+        assert rm_calls, (
+            "wait_for_participant_rm_state must be called (ADR-0058/CSB-18-001)"
+        )
         assert all(
             c.get("expected_states") == {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
             for c in rm_calls
         ), "expected_states must be {ACCEPTED, DEFERRED, CLOSED} (CSB-18-001)"
         assert "rm_wait" in call_order and "fix_ready" in call_order
-        assert call_order.index("rm_wait") < call_order.index(
-            "fix_ready"
-        ), "wait_for_participant_rm_state must precede actor_notifies_fix_ready (ADR-0058)"
+        assert call_order.index("rm_wait") < call_order.index("fix_ready"), (
+            "wait_for_participant_rm_state must precede actor_notifies_fix_ready (ADR-0058)"
+        )
 
     def test_phase_publication_calls_verify_publicly_disclosed(self):
         """_phase_publication calls verify_publicly_disclosed at M6."""
@@ -692,12 +692,12 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
                 finder=finder,
             )
 
-        assert (
-            "finder_wait" in call_order
-        ), "wait_for_case_on_container(finder_client) was never called before Vendor triage"
-        assert (
-            "triage" in call_order
-        ), "run_invite_path_rm_triage was never called"
+        assert "finder_wait" in call_order, (
+            "wait_for_case_on_container(finder_client) was never called before Vendor triage"
+        )
+        assert "triage" in call_order, (
+            "run_invite_path_rm_triage was never called"
+        )
         finder_idx = next(
             i for i, v in enumerate(call_order) if v == "finder_wait"
         )

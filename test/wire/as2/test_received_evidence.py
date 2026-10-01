@@ -31,6 +31,9 @@ from vultron.core.models.base import CoreObject
 from vultron.wire.as2 import parser
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_TransitiveActivity,
+)
 
 ACTOR = "https://example.org/actors/finder"
 REPORT_ID = "https://example.org/reports/r1"
@@ -75,8 +78,10 @@ def test_evidence_is_taken_before_the_parser_expands_the_body(
     monkeypatch.setattr(parser, "_expand_inline_object", rewriting_expand)
 
     activity = parse_activity(body)
+    assert isinstance(activity, as_TransitiveActivity)
+    assert isinstance(activity.object_, CoreObject)
 
-    assert getattr(activity, "object_").content == "rewritten by expansion"
+    assert activity.object_.content == "rewritten by expansion"
     assert activity.received_evidence == received
 
 
@@ -85,7 +90,8 @@ def test_mutating_the_parsed_nested_object_leaves_the_evidence():
     """The nested core object is mutable by design; the evidence is not."""
     body = _offer_report()
     activity = parse_activity(body)
-    report = getattr(activity, "object_")
+    assert isinstance(activity, as_TransitiveActivity)
+    report = activity.object_
     assert isinstance(report, CoreObject)
 
     report.content = "edited after parse"

@@ -16,20 +16,21 @@ Provides state management for the Vultron Behavior Tree
 """
 
 from collections import deque
+from collections.abc import Callable
 from enum import Flag, auto
-from typing import Any, Callable, Deque, Dict, List
+from typing import Any
 
 from pydantic import BaseModel, Field
 
-from vultron.core.states.em import EM
+from vultron.bt.messaging.message import Message
 from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.report_priority_states import (
     ReportPriority,
 )
-from vultron.core.states.rm import RM
 from vultron.bt.roles.enums import CVDRolesFlag
 from vultron.core.states.cs import CS
-from vultron.bt.messaging.message import Message
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
 
 
 class CapabilityFlag(Flag):
@@ -42,27 +43,27 @@ class CapabilityFlag(Flag):
 
 class ActorState(BaseModel):
     CVD_role: CVDRolesFlag = CVDRolesFlag.NO_ROLE
-    others: Dict = Field(default_factory=dict)
+    others: dict = Field(default_factory=dict)
 
     q_rm: RM = RM.START
     q_em: EM = EM.NONE
     q_cs: CS = CS.vfdpxa
 
-    q_rm_history: List[RM] = Field(default_factory=list)
-    q_em_history: List[EM] = Field(default_factory=list)
-    q_cs_history: List[CS] = Field(default_factory=list)
+    q_rm_history: list[RM] = Field(default_factory=list)
+    q_em_history: list[EM] = Field(default_factory=list)
+    q_cs_history: list[CS] = Field(default_factory=list)
 
-    incoming_messages: Deque = Field(default_factory=deque)
+    incoming_messages: deque = Field(default_factory=deque)
 
     emit_func: Callable | None = None
 
-    msgs_emitted_this_tick: List[Message | MessageTypes] = Field(
+    msgs_emitted_this_tick: list[Message | MessageTypes] = Field(
         default_factory=list
     )
-    msgs_received_this_tick: List[Message | MessageTypes] = Field(
+    msgs_received_this_tick: list[Message | MessageTypes] = Field(
         default_factory=list
     )
-    msg_history: List[Message | MessageTypes] = Field(default_factory=list)
+    msg_history: list[Message | MessageTypes] = Field(default_factory=list)
     current_message: Message | MessageTypes | None = None
 
     priority: ReportPriority = ReportPriority.DEFER

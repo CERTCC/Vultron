@@ -3,8 +3,9 @@ title: "Codebase Structure: FastAPI and Test Patterns"
 status: active
 description: >
   Router test override pattern, circular import fixes, FastAPI response_model
-  patterns, health check, Docker health check, Black/pyright config, Python 3.14
-  compatibility notes, surrogate-key routing, and logger name conventions.
+  patterns, health check, Docker health check, formatter/pyright pragma
+  interplay, Python 3.14 compatibility notes, surrogate-key routing, and logger
+  name conventions.
 related_specs:
   - specs/prototype-shortcuts.yaml
 related_notes:
@@ -111,6 +112,16 @@ class model.
 **Verification**: Test API serialization completeness, not just database
 storage. Check that all expected fields appear in JSON responses.
 
+**The other case — trigger routes declare `response_model` on purpose.** Every
+route under `/actors/{actor_id}/trigger/` and `/demo/` carries
+`response_model=<TriggerResult subtype>` (TRIG-12-001, ADR-0110). Filtering is
+not a hazard there: each subtype is the verb's exact key set with
+`extra="forbid"`, so there is no subclass field for the filter to drop, and the
+declaration is what puts the body shape into OpenAPI. The exact key set and the
+`null` emission are pinned per registry row by
+`test/adapters/driving/fastapi/test_trigger_routes_contract.py` (TRIG-12-002).
+Do not apply the "remove the annotation" fix above to a trigger route.
+
 See `specs/http-protocol.yaml` HTTP-08-001 (root cause) and HTTP-09-002,
 HTTP-09-003 (AS2 endpoint fix).
 
@@ -168,17 +179,21 @@ The pitfall above is self-contained. The three-layer solution (Docker health
 check, `condition: service_healthy`, and client retry) is the recommended
 pattern for any demo or integration test setup.
 
-### Black Can Invalidate Inline pyright Suppressions on Wrapped Fields
+### The Formatter Can Invalidate Inline Type-Checker Suppressions
 
-**Symptom**: pyright errors reappear on inherited Pydantic fields after Black
-formats the file, even though suppressions were previously added.
+**Symptom**: mypy or pyright errors reappear after `ruff format` runs, even
+though suppressions were previously added; often a second error reports the
+moved `# type: ignore` as unused.
 
 **Cause**: Inline end-of-line `# type: ignore` or `# pyright: ignore`
-suppressions on field assignments are brittle once Black wraps the expression
-across multiple lines — the suppression is now on a different line than the
-field definition.
+suppressions are brittle once the formatter wraps an over-long line: the
+pragma stays at the end of the statement, which is now the closing
+parenthesis, a different line from the expression it suppressed. `ruff format`
+did this at several call sites in the tree-wide reformat of #3352.
 
-**Fix**: Use file-level pyright directives
+**Fix**: Re-run `mypy` and `pyright` after every format pass (the
+`run-linters` order does this). For a wrapped call, move the pragma onto the
+line that carries the flagged argument. Use file-level pyright directives
 (`# pyright: reportGeneralTypeIssues=false` at the top of the file) for
 Pydantic inheritance edge cases where an optional base field is intentionally
 narrowed to required in a subclass. Use this sparingly and only when weakening

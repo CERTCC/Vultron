@@ -13,7 +13,7 @@
 
 """Tests for the core VulnerabilityCase domain model (step 6 of issue #699)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -133,12 +133,12 @@ class TestVulnerabilityCaseCurrentStatus:
         older = CaseStatus(
             id_="urn:uuid:00000000-0000-0000-0000-000000000001",
             context=_CASE_ID,
-            updated=datetime(2020, 1, 1, tzinfo=timezone.utc),
+            updated=datetime(2020, 1, 1, tzinfo=UTC),
         )
         newer = CaseStatus(
             id_="https://coord.example/status/1",
             context=_CASE_ID,
-            updated=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            updated=datetime(2026, 1, 1, tzinfo=UTC),
         )
         c = VulnerabilityCase(id_=_CASE_ID)
         c.case_statuses = [older, newer]
@@ -146,7 +146,7 @@ class TestVulnerabilityCaseCurrentStatus:
 
     @pytest.mark.parametrize(
         "stamp",
-        [datetime(2026, 1, 1, tzinfo=timezone.utc), None],
+        [datetime(2026, 1, 1, tzinfo=UTC), None],
         ids=["equal", "absent"],
     )
     def test_current_status_tie_goes_to_the_last_appended(

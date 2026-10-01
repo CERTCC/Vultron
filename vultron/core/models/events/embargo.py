@@ -1,7 +1,7 @@
 """Per-semantic inbound domain event types for embargo activities."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import field_validator
@@ -114,7 +114,7 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         if v is None:
             return None
         if not isinstance(v, datetime):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
                 f"rsvp_deadline must be a datetime, got {type(v).__name__}"
             )
         if v.tzinfo is None:
@@ -122,7 +122,7 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
                 "rsvp_deadline must be timezone-aware"
                 " (naive datetime rejected per EP-07-002)"
             )
-        return v.astimezone(timezone.utc)
+        return v.astimezone(UTC)
 
     @property
     def case_id(self) -> str | None:

@@ -21,7 +21,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import NonEmptyString, UriString, CoreRecord
+from vultron.core.models.base import CoreRecord, NonEmptyString, UriString
 from vultron.core.states.rm import RM
 
 

@@ -24,6 +24,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -33,7 +34,6 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.core.models.case_participant import CaseParticipant
 
 from .conftest import (
     _PXA_INELIGIBLE_STATES,
@@ -225,8 +225,11 @@ def test_reject_embargo_invite_strict_revise_pxa_raises(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
     case.append_case_status(pxa_state=pxa_state)
+    active = _make_embargo(dl, case.id_)
+    embargo = _make_embargo(dl, case.id_, days=90)
+    case.active_embargo = active.id_
+    case.proposed_embargoes = [embargo.id_]
     dl.save(case)
-    embargo = _make_embargo(dl, case.id_)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -244,8 +247,9 @@ def test_reject_embargo_invite_strict_proposed_pxa_allowed(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
     case.append_case_status(pxa_state=CS_pxa.Pxa)  # public aware
-    dl.save(case)
     embargo = _make_embargo(dl, case.id_)
+    case.proposed_embargoes = [embargo.id_]
+    dl.save(case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.reject_embargo_invite(
@@ -266,8 +270,11 @@ def test_reject_embargo_invite_observed_revise_pxa_bypasses_guard(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
     case.append_case_status(pxa_state=pxa_state)
+    active = _make_embargo(dl, case.id_)
+    embargo = _make_embargo(dl, case.id_, days=90)
+    case.active_embargo = active.id_
+    case.proposed_embargoes = [embargo.id_]
     dl.save(case)
-    embargo = _make_embargo(dl, case.id_)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.reject_embargo_invite(
@@ -318,6 +325,8 @@ class TestServiceAlwaysWritesEmState:
         owner, dl = owner_and_dl
         case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
         embargo = _make_embargo(dl, case.id_)
+        case.proposed_embargoes = [embargo.id_]
+        dl.save(case)
 
         lifecycle = EmbargoLifecycle(persistence=dl)
         result = lifecycle.reject_embargo_invite(

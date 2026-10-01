@@ -20,9 +20,10 @@ Tests for the accept-embargo trigger endpoint
 Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi import status
-from unittest.mock import AsyncMock, patch
 
 from vultron.core.states.em import EM
 
@@ -35,8 +36,7 @@ from vultron.core.states.em import EM
 def _no_outbox_delivery():
     """Suppress real outbox delivery for every test in this module."""
     with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
+        "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler",
         new_callable=AsyncMock,
     ):
         yield
@@ -183,7 +183,7 @@ def test_trigger_accept_embargo_activates_embargo(
     client_triggers, dl, actor, case_with_proposal
 ):
     """accept-embargo activates the embargo and sets EM state to ACTIVE."""
-    case_obj, proposal, embargo = case_with_proposal
+    case_obj, proposal, _embargo = case_with_proposal
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/accept-embargo",
@@ -210,31 +210,3 @@ def test_trigger_accept_embargo_without_proposal_id_uses_first_proposal(
 
     updated_case = dl.read(case_obj.id_)
     assert updated_case.current_status.em.state == EM.ACTIVE
-
-
-def test_accept_embargo_schedules_outbox_handler(
-    client_triggers, dl, actor, case_with_proposal
-):
-    """D5-6-TRIGDELIV: accept-embargo schedules outbox delivery after execution."""
-    case_obj, proposal, _ = case_with_proposal
-    with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
-        new_callable=AsyncMock,
-    ) as mock_outbox:
-        resp = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/accept-embargo",
-            json={
-                "case_id": case_obj.id_,
-                "proposal_id": proposal.id_,
-            },
-        )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
-    mock_outbox.assert_called_once()
-    assert mock_outbox.call_args.args[0] == actor.id_
-    assert mock_outbox.call_args.args[1] is dl
-    # No third positional: that slot is `emitter` now, and a store
-    # passed there silently becomes the emitter (see the ratchet in
-    # test/architecture/test_outbox_handler_emitter_keyword.py).
-    assert len(mock_outbox.call_args.args) == 2
-    assert "emitter" not in mock_outbox.call_args.kwargs

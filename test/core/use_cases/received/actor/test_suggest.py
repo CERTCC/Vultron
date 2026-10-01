@@ -18,16 +18,17 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.conftest import TEST_ACTOR_ID
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import recommend_actor_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from test.conftest import TEST_ACTOR_ID
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -107,19 +108,22 @@ class TestOfferActorToCaseReceivedUseCase:
             to=[local_actor_id],
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
-        assert isinstance(
-            event, OfferActorToCaseReceivedEvent
-        ), f"Expected OfferActorToCaseReceivedEvent, got {type(event)}"
+        assert isinstance(event, OfferActorToCaseReceivedEvent), (
+            f"Expected OfferActorToCaseReceivedEvent, got {type(event)}"
+        )
 
         result = OfferActorToCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
         outbox = dl.outbox_list()
-        assert (
-            len(outbox) == 1
-        ), f"Expected exactly 1 outbox entry (Offer(CaseParticipant)), got {len(outbox)}"
+        assert len(outbox) == 1, (
+            f"Expected exactly 1 outbox entry (Offer(CaseParticipant)), got {len(outbox)}"
+        )
         queued = dl.read(outbox[0])
         assert getattr(queued, "actor", None) == TEST_ACTOR_ID
         assert getattr(queued, "to", None) == [local_actor_id]
@@ -159,7 +163,10 @@ class TestOfferActorToCaseReceivedUseCase:
 
         with caplog.at_level(logging.WARNING):
             result = OfferActorToCaseReceivedUseCase(
-                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         # The store holds no such case, so the recommendation is refused.
@@ -170,9 +177,9 @@ class TestOfferActorToCaseReceivedUseCase:
             "the no-local-actor branch is unreachable under ADR-0073 and must"
             " not be reintroduced"
         )
-        assert (
-            "'unknown'" not in messages
-        ), "the actor identity must never be fabricated (ARCH-15-001)"
+        assert "'unknown'" not in messages, (
+            "the actor identity must never be fabricated (ARCH-15-001)"
+        )
 
     def test_offer_actor_to_case_skips_missing_recommended_id(self, caplog):
         """Skips gracefully when recommended_id is missing from the event."""
@@ -191,7 +198,9 @@ class TestOfferActorToCaseReceivedUseCase:
         mock_event.activity = None
 
         with caplog.at_level(logging.WARNING):
-            result = OfferActorToCaseReceivedUseCase(dl, mock_event).execute()
+            result = OfferActorToCaseReceivedUseCase(
+                dl, mock_event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
@@ -225,7 +234,10 @@ class TestOfferActorToCaseReceivedUseCase:
         activity_id = activity.id_
 
         OfferActorToCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         case = cast(VulnerabilityCase, dl.read(case_id))
@@ -295,7 +307,10 @@ class TestOfferActorToCaseAtNonCaseManager:
         event = self._event(make_payload)
 
         result = OfferActorToCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
@@ -318,7 +333,10 @@ class TestOfferActorToCaseAtNonCaseManager:
         event = self._event(make_payload)
 
         OfferActorToCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         case = cast(VulnerabilityCase, dl.read(self._CASE_ID))

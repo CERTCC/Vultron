@@ -34,8 +34,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import vultron.demo.helpers.workflow as workflow
 from vultron.core.states.rm import RM
+from vultron.demo.helpers import workflow
 
 
 @pytest.fixture

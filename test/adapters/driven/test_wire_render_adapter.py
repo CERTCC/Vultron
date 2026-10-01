@@ -24,12 +24,11 @@ Covers:
 Per ``specs/architecture.yaml`` ARCH-20-001 through ARCH-20-004.
 """
 
-from datetime import timedelta
+from datetime import UTC, timedelta
 
 import pytest
 
 from vultron.adapters.driven.wire_render import As2WireRenderAdapter
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.core.models.actor import VultronPerson
 from vultron.core.models.base import VULTRON_CONTEXT_URI
 from vultron.core.models.case import VulnerabilityCase
@@ -43,6 +42,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 from vultron.errors import VultronValidationError
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -61,20 +61,20 @@ def adapter():
 
 def _assert_wire_dict(result: dict, expected_type: str) -> None:
     assert isinstance(result, dict), f"Expected dict, got {type(result)}"
-    assert (
-        result.get("type") == expected_type
-    ), f"Expected type={expected_type!r}, got {result.get('type')!r}"
+    assert result.get("type") == expected_type, (
+        f"Expected type={expected_type!r}, got {result.get('type')!r}"
+    )
     # camelCase key present (not snake_case)
     # The 'id' field is always emitted by as_VultronObject
     assert "id" in result, f"Missing 'id' key in wire dict for {expected_type}"
-    # AC-5 / CLP-07-001: output must be receiver-reconstitutable
+    # AC-5 / CLP-07-011: output must be receiver-reconstitutable
     try:
         wire_cls = find_in_vocabulary(expected_type)
     except KeyError:
         wire_cls = None
-    assert (
-        wire_cls is not None
-    ), f"No vocabulary entry for {expected_type!r} — cannot verify reconstitutability"
+    assert wire_cls is not None, (
+        f"No vocabulary entry for {expected_type!r} — cannot verify reconstitutability"
+    )
     wire_cls.model_validate(result)
 
 
@@ -160,9 +160,9 @@ def test_render_returns_camel_case_keys(adapter):
     result = adapter.render(obj)
     # Wire alias for 'case_id' is 'caseId' / 'context' depending on wire model;
     # at minimum no snake_case keys that are known aliases should be present
-    assert (
-        "case_id" not in result
-    ), "Expected camelCase output (by_alias=True) but found snake_case key 'case_id'"
+    assert "case_id" not in result, (
+        "Expected camelCase output (by_alias=True) but found snake_case key 'case_id'"
+    )
 
 
 def test_render_excludes_none_fields(adapter):
@@ -170,9 +170,9 @@ def test_render_excludes_none_fields(adapter):
     obj = VulnerabilityCase()
     result = adapter.render(obj)
     for key, val in result.items():
-        assert (
-            val is not None
-        ), f"Field {key!r} should be excluded (exclude_none=True) but has value None"
+        assert val is not None, (
+            f"Field {key!r} should be excluded (exclude_none=True) but has value None"
+        )
 
 
 def test_render_same_object_twice_across_clock_tick_is_equal(
@@ -185,16 +185,14 @@ def test_render_same_object_twice_across_clock_tick_is_equal(
     the same object a new time on each render, and a snapshot of it compared
     unequal whenever a second boundary fell between two renders.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from test.support.clock import SteppingClock
     from vultron.core.models import _helpers
 
     obj = VulnerabilityCase(id_="https://example.org/cases/c1")
     obj.case_statuses = [CaseStatus(context=obj.id_)]
-    monkeypatch.setattr(
-        _helpers, "datetime", SteppingClock(datetime.now(timezone.utc))
-    )
+    monkeypatch.setattr(_helpers, "datetime", SteppingClock(datetime.now(UTC)))
 
     assert adapter.render(obj) == adapter.render(obj)
 
@@ -208,8 +206,9 @@ def test_render_is_the_core_objects_own_alias_dump(adapter):
     """AC-1/AC-4: no wire counterpart is resolved, and none is needed.
 
     Every ``CORE_VOCABULARY`` entry renders as exactly its own
-    ``model_dump(by_alias=True, exclude_none=True, mode="json")`` — including
-    the ones ``WIRE_TYPE_MAP`` has no entry for, which the old port refused.
+    ``model_dump(by_alias=True, exclude_none=True, mode="json",
+    serialize_as_any=True)`` — including the ones ``WIRE_TYPE_MAP`` has no
+    entry for, which the old port refused.
     """
     from test.support.core_vocab import build_core_vocab
 
@@ -217,8 +216,42 @@ def test_render_is_the_core_objects_own_alias_dump(adapter):
     assert not unconstructible
     for name, obj in built:
         assert adapter.render(obj) == obj.model_dump(
-            by_alias=True, exclude_none=True, mode="json"
+            by_alias=True,
+            exclude_none=True,
+            mode="json",
+            serialize_as_any=True,
         ), name
+
+
+def test_render_serialises_nested_values_by_their_runtime_type(adapter):
+    """A nested value that is not its field's declared type still renders.
+
+    A received activity's ``object_`` can be a wire actor whose ``inbox`` holds
+    the IRI string instead of the declared collection.  Serialised by declared
+    type that is a Pydantic serializer warning — an error under the suite's
+    warning filter, a degraded snapshot in production — so the port serialises
+    by runtime type, as every other AS2 path does (``serialize_as_any``).
+    """
+    import warnings
+
+    from vultron.core.models.activity import VultronActivity
+    from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+
+    inbox = "https://example.org/actors/coordinator/inbox"
+    org = as_Organization(id_="https://example.org/actors/coordinator")
+    object.__setattr__(org, "inbox", inbox)
+    activity = VultronActivity(
+        id_="https://example.org/activities/accept-1",
+        type_="Accept",
+        actor="https://example.org/actors/case-actor",
+        object_=org,
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        rendered = adapter.render(activity)
+
+    assert rendered["object"]["inbox"] == inbox
 
 
 def test_render_adapter_does_not_resolve_a_wire_counterpart():

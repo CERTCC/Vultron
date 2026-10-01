@@ -1,6 +1,6 @@
 """Tests for SvcProposeEmbargoRevisionUseCase."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pytest
@@ -9,6 +9,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.use_cases.triggers.embargo import (
@@ -37,14 +38,17 @@ def test_propose_embargo_revision_transitions_em_to_revise(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+        end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
     result = SvcProposeEmbargoRevisionUseCase(
-        dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
-    assert "activity" in result
+    assert result.activity is not None
     updated_case = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.REVISE
     assert len(updated_case.proposed_embargoes) == 2
@@ -62,11 +66,14 @@ def test_propose_embargo_revision_queues_outbox_activity(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+        end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
     SvcProposeEmbargoRevisionUseCase(
-        dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
     outbox_after = dl.outbox_list()
@@ -83,12 +90,15 @@ def test_propose_embargo_revision_invalid_em_state_raises_error(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+        end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
         SvcProposeEmbargoRevisionUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
 
@@ -104,12 +114,15 @@ def test_propose_embargo_revision_invalid_state_does_not_persist_embargo(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+        end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
         SvcProposeEmbargoRevisionUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
     after = len(list(dl.list_objects("EmbargoEvent")))
@@ -122,8 +135,10 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     """SvcProposeEmbargoRevisionUseCase succeeds when EM is already REVISE.
 
     Guards against a regression where EM.REVISE → EM.REVISE counter-revision
-    is incorrectly blocked.  Participant PEC states MUST NOT be reset on this
-    path (only ACTIVE → REVISE triggers _cascade_pec_revise).
+    is incorrectly blocked.  Participant PEC states MUST NOT change on this
+    path — nor on ACTIVE → REVISE: a revision *proposal* changes nobody's
+    consent (EP-05-002, ADR-0093); the REVISE cascade fires only when the
+    owner activates longer terms a signatory has not accepted.
     """
     actor, dl = finder_actor_and_dl
 
@@ -138,14 +153,17 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=21),
+        end_time=datetime.now(tz=UTC) + timedelta(days=21),
     )
 
     result = SvcProposeEmbargoRevisionUseCase(
-        dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
-    assert "activity" in result
+    assert result.activity is not None
     updated_case = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.REVISE
     assert len(updated_case.proposed_embargoes) == 2

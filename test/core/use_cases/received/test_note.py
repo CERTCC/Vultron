@@ -22,6 +22,7 @@ from test.core.use_cases.received.conftest import (
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -62,7 +63,9 @@ class TestNoteUseCases:
 
         event = make_payload(activity)
 
-        result = CreateNoteReceivedUseCase(dl, event).execute()
+        result = CreateNoteReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
         stored = dl.get(note.type_.value, note.id_)
@@ -86,7 +89,9 @@ class TestNoteUseCases:
         event = make_payload(activity)
 
         dl.create(note)
-        CreateNoteReceivedUseCase(dl, event).execute()
+        CreateNoteReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         stored = dl.get(note.type_.value, note.id_)
         assert stored is not None
@@ -116,7 +121,9 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        CreateNoteReceivedUseCase(dl, event).execute()
+        CreateNoteReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         refreshed = dl.read(case.id_)
         assert refreshed is not None
@@ -150,7 +157,9 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        CreateNoteReceivedUseCase(dl, event).execute()
+        CreateNoteReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         refreshed = dl.read(case.id_)
         assert refreshed is not None
@@ -217,7 +226,9 @@ class TestNoteUseCases:
             receiving_actor_id=case_actor_id,
         )
 
-        result = AddNoteToCaseReceivedUseCase(dl, event).execute()
+        result = AddNoteToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         refreshed = dl.read(case_id)
         assert refreshed is not None
@@ -251,7 +262,9 @@ class TestNoteUseCases:
             receiving_actor_id=case_actor_id,
         )
 
-        AddNoteToCaseReceivedUseCase(dl, event).execute()
+        AddNoteToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         refreshed = dl.read(case_id)
         assert refreshed is not None
@@ -297,7 +310,9 @@ class TestNoteUseCases:
             receiving_actor_id="https://example.org/actors/non-manager",
         )
 
-        result = AddNoteToCaseReceivedUseCase(dl, event).execute()
+        result = AddNoteToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         refreshed = dl.read(case.id_)
         assert refreshed is not None
@@ -335,7 +350,9 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        result = RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveNoteFromCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         case = dl.read(case.id_)
         assert case is not None
@@ -367,7 +384,9 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        result = RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveNoteFromCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
         # HP-01-003: an idempotent re-removal is a no-op.
         assert result.disposition == HandlerDisposition.SKIPPED
 
@@ -385,7 +404,9 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        result = RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveNoteFromCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "not found" in result.reason
@@ -417,7 +438,9 @@ class TestNoteUseCases:
         event = MagicMock()
         event.note = None
 
-        result = CreateNoteReceivedUseCase(dl, event).execute()
+        result = CreateNoteReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -438,7 +461,9 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        result = CreateNoteReceivedUseCase(dl, event).execute()
+        result = CreateNoteReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -460,7 +485,9 @@ class TestNoteUseCases:
             receiving_actor_id="https://example.org/actors/non-manager",
         )
 
-        result = AddNoteToCaseReceivedUseCase(dl, event).execute()
+        result = AddNoteToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -537,7 +564,12 @@ class TestNoteUseCases:
         event = make_payload(activity, receiving_actor_id=case_actor_id)
 
         sync_port = SyncActivityAdapter(dl)
-        AddNoteToCaseReceivedUseCase(dl, event, sync_port=sync_port).execute()
+        AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
 
         # Exactly one CaseLedgerEntry should be persisted for this case.
         entries = [
@@ -617,7 +649,9 @@ class TestNoteUseCases:
         event = make_payload(activity, receiving_actor_id=case_actor_id)
 
         # No sync_port — log entry is committed but fan-out is skipped.
-        AddNoteToCaseReceivedUseCase(dl, event, sync_port=None).execute()
+        AddNoteToCaseReceivedUseCase(
+            dl, event, sync_port=None, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         # Log entry MUST be committed locally even without a sync_port.
         entries = [

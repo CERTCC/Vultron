@@ -21,8 +21,8 @@ import vultron.bt.case_state.transitions as cst
 from vultron.bt.base.node_status import NodeStatus
 from vultron.bt.states import ActorState
 from vultron.core.states.cs import (
-    AttackObservation,
     CS,
+    AttackObservation,
     CS_d,
     CS_vf,
     ExploitPublication,

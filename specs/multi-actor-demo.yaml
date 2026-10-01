@@ -2896,15 +2896,25 @@ groups:
       An exchange helper function `demo_propose_and_activate_embargo` MUST be
       added to `vultron/demo/exchange/` accepting `(reporter_client,
       coordinator_client, vendor_client, case_id)` arguments; it MUST execute
-      a three-step propose-activate sequence: reporter posts
-      `trigger_propose_embargo`, coordinator polls for the EP message and posts
-      `trigger_accept_embargo`, and vendor polls for the EA message.
+      the relayed propose-and-activate sequence (EP-09): the reporter posts
+      `trigger_propose_embargo`, which sends the proposal to the CASE_MANAGER;
+      the coordinator and the vendor each poll their own replica for the
+      `Invite(EmbargoEvent)` the CASE_MANAGER relays to them and post
+      `trigger_accept_embargo` — the coordinator's, as case owner, activates the
+      embargo and the vendor's records its consent; the helper then polls every
+      replica for `em_state == EM.ACTIVE`. No participant polls for another
+      participant's message.
     rationale: >-
       Extracting the propose-and-activate sequence as a reusable exchange
       helper follows DEMOMA-17-001 (DRY for demo code). The three-party
       propose→accept→active flow is a composable unit that both rcv-embargo
       and rcvv-embargo scenarios require; a single helper prevents duplication
       and ensures both scenarios exercise identical protocol steps.
+    note: >-
+      The sequence was first written in the peer voice ("coordinator polls for
+      the EP message"); under ADR-0113 the proposal reaches the other
+      participants only as the CASE_MANAGER's relayed Invite, and their replicas
+      move only through the ledger (#3918).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -2969,10 +2979,11 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The rcv-embargo scenario invariant harness MUST verify that the following event
-      types are recorded in the case ledger in order: `propose_embargo`, `accept_embargo`,
-      and `terminate_embargo`. The event type strings used in the invariant check MUST
-      match the strings logged by the CASE_MANAGER handler.
+      The rcv-embargo scenario invariant harness MUST verify that the case ledger records,
+      in order, the event types the CASE_MANAGER commits for the embargo proposal, the
+      owner's acceptance and the termination. The event type strings used in the invariant
+      check MUST be the ones the CASE_MANAGER's commit path emits, read from the code rather
+      than hand-listed here.
     rationale: >-
       The scenario-specific invariants confirm that all three embargo protocol
       messages (EP, EA, ET) were recorded in the ledger — not just that the
@@ -3018,10 +3029,10 @@ groups:
       actor: reporter
       action: >-
         embargo_proposal phase — call demo_propose_and_activate_embargo
-        (DEMOMA-20-002): R posts trigger_propose_embargo, C posts
-        trigger_accept_embargo
+        (DEMOMA-20-002): R posts trigger_propose_embargo to the CASE_MANAGER;
+        C and V answer the relayed Invites with trigger_accept_embargo
       expected: >-
-        em_state == EM.ACTIVE on the Coordinator's replica and
+        em_state == EM.ACTIVE on every replica after the ledger fan-out and
         emConsentState == SIGNATORY for R, C and V (DEMOMA-20-009)
     - order: 3
       actor: demo-script
@@ -3036,7 +3047,7 @@ groups:
         (DEMOMA-20-003), posting trigger_terminate_embargo before the window
         expires
       expected: >-
-        em_state == EM.EXITED on the terminating actor's replica
+        em_state == EM.EXITED on the CASE_MANAGER's canonical case
         (DEMOMA-20-011)
     - order: 5
       actor: demo-script
@@ -3051,7 +3062,7 @@ groups:
       action: dump_case_ledgers phase
       expected: >-
         one case-ledger JSONL artifact per actor under devlogs/rcv-embargo/,
-        recording propose_embargo, accept_embargo and terminate_embargo
+        recording the proposal, the owner's acceptance and the termination
         (DEMOMA-20-006)
     postconditions:
     - description: >-
@@ -3093,11 +3104,14 @@ groups:
     kind: project
     statement: >-
       After delivery of `trigger_terminate_embargo`, `demo_terminate_embargo`
-      MUST assert `em_state == EM.EXITED` on the terminating actor's case
-      replica using `demo_check`.
+      MUST poll the CASE_MANAGER's canonical case for `em_state == EM.EXITED`
+      and assert it using `demo_check`.
     rationale: >-
-      Asserting on the terminating actor's replica immediately after delivery
-      confirms the embargo teardown was committed locally before returning.
+      The termination is adjudicated and committed by the CASE_MANAGER; the
+      terminating actor's own replica moves only when that commit is announced
+      (EP-09-008), so it is not the place to read the result immediately after
+      delivery. Polling the canonical case confirms the teardown was committed
+      before the helper returns (#3918).
   - id: DEMOMA-20-012
     priority: MUST
     kind: project
@@ -3161,18 +3175,27 @@ groups:
     statement: >-
       An exchange helper function `demo_propose_embargo_revision` MUST be added
       to `vultron/demo/exchange/` accepting `(proposing_client, accepting_client,
-      case_id)` arguments; it MUST execute the following sequence:
-      `proposing_client` posts `trigger_propose_embargo_revision`
-      (`em_state: ACTIVE → REVISE`), then `accepting_client` polls for the EV
-      message and posts `trigger_accept_embargo` (`em_state: REVISE → ACTIVE`).
+      owner_client, case_id)` arguments, where `owner_client` MAY be the same
+      client as `proposing_client`; it MUST execute the relayed revision
+      sequence (EP-09): `proposing_client` posts
+      `trigger_propose_embargo_revision`, which sends the proposal to the
+      CASE_MANAGER (canonical `em_state: ACTIVE → REVISE` at the manager);
+      `accepting_client` polls its own replica for the relayed
+      `Invite(EmbargoEvent)` and posts `trigger_accept_embargo`, which records
+      its consent and moves no EM state; `owner_client` posts
+      `trigger_accept_embargo`, which as the case owner's answer activates the
+      revision (canonical `em_state: REVISE → ACTIVE`); the helper then polls
+      every replica for `em_state == EM.ACTIVE`.
     rationale: >-
-      The revision exchange (EV→EJ) is a self-contained composable unit that
+      The revision exchange (EV→EC) is a self-contained composable unit that
       can be reused if future scenarios add multiple revision cycles. Accepting
       from REVISE state uses the same `trigger_accept_embargo` endpoint as
-      accepting from PROPOSED, because `AcceptEmbargoLifecycleNode` handles
-      both states (confirmed in `vultron/core/behaviors/embargo/trigger_tree.py`
-      and `vultron/core/behaviors/embargo/nodes/proposal.py`). No new endpoint
-      is needed.
+      accepting from PROPOSED; no new endpoint is needed.
+    note: >-
+      The sequence was first written in the peer voice, with a non-owner's
+      acceptance moving `REVISE → ACTIVE`; under ADR-0113 only the owner's
+      answer decides the embargo (EP-09-005), a non-owner's answer is a consent
+      record, and both reach every replica through the ledger (#3918).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -3258,13 +3281,14 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The rcvv-embargo scenario invariant harness MUST verify that the following event
-      types are recorded in the case ledger: `propose_embargo`, `accept_embargo`, and
-      `revise_embargo`. The event type strings used in the invariant check MUST match
-      the strings logged by the CASE_MANAGER handler.
+      The rcvv-embargo scenario invariant harness MUST verify that the case ledger records
+      the event types the CASE_MANAGER commits for the embargo proposal, the owner's
+      acceptance, the revision proposal and the owner's acceptance of the revision. The
+      event type strings used in the invariant check MUST be the ones the CASE_MANAGER's
+      commit path emits, read from the code rather than hand-listed here.
     rationale: >-
       The scenario-specific invariants confirm all four embargo-variation
-      protocol paths were exercised and recorded: EP (b), EV (c), EJ (c), and
+      protocol paths were exercised and recorded: EP (b), EV (c), EC (c), and
       auto-collapse via CS.P (d). The late-joiner backfill check for V2
       verifies that the ledger synchronization worked correctly when V2 joined
       mid-scenario after an embargo revision. Invariant (f) distinguishes
@@ -3313,9 +3337,13 @@ groups:
       actor: coordinator
       action: >-
         embargo_revision phase — call demo_propose_embargo_revision
-        (DEMOMA-21-002): C posts trigger_propose_embargo_revision
-        (ACTIVE → REVISE), V1 posts trigger_accept_embargo (REVISE → ACTIVE)
-      expected: em_state returns to EM.ACTIVE with the revised terms
+        (DEMOMA-21-002): C posts trigger_propose_embargo_revision to the
+        CASE_MANAGER (canonical ACTIVE → REVISE); V1 answers the relayed
+        Invite with trigger_accept_embargo (consent); C, as case owner, posts
+        trigger_accept_embargo (canonical REVISE → ACTIVE)
+      expected: >-
+        em_state returns to EM.ACTIVE with the revised terms on every replica
+        after the ledger fan-out
     - order: 4
       actor: coordinator
       action: >-
@@ -3348,8 +3376,8 @@ groups:
       action: dump_case_ledgers phase
       expected: >-
         one case-ledger JSONL artifact per actor under devlogs/rcvv-embargo/,
-        recording `propose_embargo`, `accept_embargo` and `revise_embargo`
-        (DEMOMA-21-007)
+        recording the proposal, the owner's acceptance, the revision proposal
+        and its acceptance (DEMOMA-21-007)
     postconditions:
     - description: >-
         EM.EXITED as an automatic consequence of CS.P rather than a deliberate
@@ -3371,12 +3399,14 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      After the revision sequence, `demo_propose_embargo_revision` MUST assert
-      `em_state == EM.ACTIVE` on the accepting client's case replica using
-      `demo_check`.
+      After the revision sequence, `demo_propose_embargo_revision` MUST poll
+      the CASE_MANAGER's canonical case and the accepting client's replica for
+      `em_state == EM.ACTIVE` and assert both using `demo_check`.
     rationale: >-
-      Confirming ACTIVE after the revision ensures the EJ path completed and
-      the embargo did not stall in REVISE state.
+      Confirming ACTIVE after the revision ensures the owner's decision
+      completed and the embargo did not stall in REVISE state. The canonical
+      case shows the decision was committed; the accepting client's replica
+      shows the ledger fan-out reached a non-owner (#3918).
   - id: DEMOMA-21-011
     priority: MUST
     kind: project
@@ -3720,20 +3750,26 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      A scenario module under `vultron/demo/scenario/` MUST NOT call
-      `wait_for_contiguous_ledger_coverage` or `_get_log_entries_for_case`
-      directly.
+      A module under `vultron/demo/` other than `vultron/demo/helpers/sync.py`
+      MUST NOT call or import `wait_for_contiguous_ledger_coverage` or
+      `_get_log_entries_for_case` directly. Defining the primitive and
+      re-exporting either name from a package `__init__` are exempt.
     rationale: >-
       The race guard that the concern behind this requirement (#3042) feared was
       missing was in fact present in every scenario module; what was missing was
       the single place to fix it. Forbidding the direct call is what stops the
       coverage loop from being copied back into the next scenario written from a
-      neighbour, which is how the copies arose.
+      neighbour, which is how the copies arose. The ban covers helper modules
+      too: when it named scenario modules only, a third copy of the loop
+      (`drain_phase1_ledger` in `vultron/demo/helpers/polling.py`) survived the
+      consolidation, because a copy moved into a helper module was invisible to
+      the check (#3906).
     verification: >-
       An architecture test under `test/architecture/` parses every module under
-      `vultron/demo/scenario/` and fails if one calls
-      `wait_for_contiguous_ledger_coverage` or `_get_log_entries_for_case`
-      directly.
+      `vultron/demo/` except `vultron/demo/helpers/sync.py` and fails if one
+      calls or imports `wait_for_contiguous_ledger_coverage` or
+      `_get_log_entries_for_case`, excluding the primitive's own definition and
+      package `__init__` re-exports.
     relationships:
     - rel_type: depends_on
       spec_id: DEMOMA-23-005

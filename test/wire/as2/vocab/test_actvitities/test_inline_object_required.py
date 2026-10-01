@@ -23,6 +23,7 @@ import unittest
 import pytest
 from pydantic import ValidationError
 
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.wire.as2.vocab.activities.actor import (
     _AcceptActorRecommendationActivity,
     _RecommendActorActivity,
@@ -118,7 +119,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-from vultron.core.models._helpers import days_from_now_utc
 
 _ACTOR = as_Person(name="Alice")
 _CASE = as_VulnerabilityCase(name="Test Case")

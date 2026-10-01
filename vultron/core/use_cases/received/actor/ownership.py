@@ -18,9 +18,9 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     is_recipient,
@@ -33,6 +33,7 @@ from vultron.core.use_cases.received._bt_verdict import (
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,10 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         request: OfferCaseOwnershipTransferReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: OfferCaseOwnershipTransferReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
@@ -149,7 +152,9 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             original_actor_id=original_actor_id,
         )
         bridge = BTBridge(
-            datalayer=self._dl, trigger_activity=self._trigger_activity
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
@@ -181,8 +186,10 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         request: AcceptCaseOwnershipTransferReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AcceptCaseOwnershipTransferReceivedEvent = request
         self._sync_port = sync_port
 
@@ -204,7 +211,9 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             case_id=case_id,
             new_owner_id=new_owner_id,
         )
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
@@ -230,8 +239,10 @@ class RejectCaseOwnershipTransferReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: RejectCaseOwnershipTransferReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: RejectCaseOwnershipTransferReceivedEvent = request
 
     def execute(self) -> HandlerResult:

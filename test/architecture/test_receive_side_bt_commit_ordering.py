@@ -14,19 +14,26 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Structural test: receive-side BT tree factories must not call
-``create_guarded_commit_case_ledger_entry_tree`` directly.
+Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
 
-All tree factory files under ``vultron/core/behaviors/`` that build
-receive-side BTs must use ``create_receive_activity_tree`` instead, which
-enforces the correct ledger-commit-before-effects ordering (CLP-10-006).
+1. No tree factory under ``vultron/core/behaviors/`` may call
+   ``create_guarded_commit_case_ledger_entry_tree`` directly.  Every
+   receive-side BT composes through ``create_receive_activity_tree``, which
+   fixes the stage order intake → guards → commit → effects.  Only
+   ``vultron/core/behaviors/case/receive_activity_tree.py`` — which *defines*
+   both factories — is exempt.
+2. No rejection validator sits in ``effect_nodes`` (CLP-10-009).
+3. No node that any factory uses as a protocol effect appears as a
+   precondition guard anywhere — a corpus-derived check that no effect
+   precedes the commit (CLP-10-006 verification).
 
-Only ``vultron/core/behaviors/case/nodes/lifecycle.py`` — which *defines*
-``create_guarded_commit_case_ledger_entry_tree`` and is called by
-``create_receive_activity_tree`` — is exempt from this rule.
+The intake-first ratchet — every receive-side factory returns the shared
+factory's result, with the bypassing and nesting factories as exact sets
+(CLP-10-017) — is ``test_receive_side_intake_first.py``, which imports its
+helpers from here.
 
-This test is a ratchet: if a new violation is introduced, the test fails
-immediately rather than silently accumulating debt.
+Each is a ratchet: a new violation fails immediately rather than silently
+accumulating debt.
 """
 
 import ast
@@ -37,7 +44,7 @@ from test.architecture import _corpus
 
 # Exempt files: may contain direct calls (definition site only).
 EXEMPT_FILES = {
-    "vultron/core/behaviors/case/nodes/lifecycle.py",
+    "vultron/core/behaviors/case/receive_activity_tree.py",
 }
 
 BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
@@ -51,9 +58,9 @@ def _is_forbidden_call(node: ast.AST) -> bool:
     func = node.func
     if isinstance(func, ast.Name) and func.id == FORBIDDEN_CALL:
         return True
-    if isinstance(func, ast.Attribute) and func.attr == FORBIDDEN_CALL:
-        return True
-    return False
+    return bool(
+        isinstance(func, ast.Attribute) and func.attr == FORBIDDEN_CALL
+    )
 
 
 def _find_violations() -> list[tuple[str, int]]:
@@ -72,8 +79,8 @@ def _find_violations() -> list[tuple[str, int]]:
     return violations
 
 
-def test_no_direct_calls_to_guarded_commit_outside_lifecycle() -> None:
-    """No tree factory outside lifecycle.py may call create_guarded_commit_case_ledger_entry_tree.
+def test_no_direct_calls_to_guarded_commit_outside_factory_module() -> None:
+    """Only receive_activity_tree.py may call create_guarded_commit_case_ledger_entry_tree.
 
     All receive-side tree factories must use create_receive_activity_tree,
     which enforces commit-before-effects ordering (CLP-10-006).
@@ -85,7 +92,7 @@ def test_no_direct_calls_to_guarded_commit_outside_lifecycle() -> None:
         )
         pytest.fail(
             f"Found {len(violations)} direct call(s) to"
-            f" `{FORBIDDEN_CALL}` outside the exempt lifecycle module.\n"
+            f" `{FORBIDDEN_CALL}` outside the exempt factory module.\n"
             f"Use `create_receive_activity_tree` instead (CLP-10-006):\n"
             f"{lines}"
         )
@@ -182,5 +189,66 @@ def test_no_rejection_validators_in_effect_nodes() -> None:
             f"Found {len(violations)} rejection validator(s) in effect_nodes"
             " of create_receive_activity_tree.\n"
             "Move them to precondition_guards (CLP-10-009, ISSUE-2254):\n"
+            f"{lines}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# CLP-10-006 ratchet: no protocol-effect node precedes the commit.  A node any
+# factory places in ``effect_nodes`` is, by that factory's own declaration, a
+# protocol effect; the same node in another factory's ``precondition_guards``
+# would run before the commit.
+# ---------------------------------------------------------------------------
+
+
+def _list_arg_names(call: ast.Call, arg: str) -> set[str]:
+    """Bare callee names of the elements of the ``arg=[...]`` keyword list."""
+    for kw in call.keywords:
+        if kw.arg != arg or not isinstance(kw.value, ast.List):
+            continue
+        return {
+            name
+            for elem in kw.value.elts
+            if isinstance(elem, ast.Call)
+            and (name := _call_name(elem.func)) is not None
+        }
+    return set()
+
+
+def _stage_rosters() -> tuple[set[str], dict[str, list[str]]]:
+    """Return (names used as effects anywhere, guard names → factory sites)."""
+    effects: set[str] = set()
+    guards: dict[str, list[str]] = {}
+    for py_file, tree in _corpus.files_mentioning(
+        RECEIVE_ACTIVITY_TREE_CALL, under=BEHAVIORS_ROOT
+    ):
+        rel_path = str(py_file.relative_to(_corpus.REPO_ROOT))
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and _call_name(node.func) == RECEIVE_ACTIVITY_TREE_CALL
+            ):
+                continue
+            effects |= _list_arg_names(node, "effect_nodes")
+            for name in _list_arg_names(node, "precondition_guards"):
+                guards.setdefault(name, []).append(f"{rel_path}:{node.lineno}")
+    return effects, guards
+
+
+@pytest.mark.spec("CLP-10-006")
+def test_no_effect_node_is_used_as_a_precondition_guard() -> None:
+    """A node used as a protocol effect anywhere never precedes the commit anywhere."""
+    effects, guards = _stage_rosters()
+    assert effects, "no effect_nodes found — corpus prefilter drifted?"
+    offenders = {
+        name: sites for name, sites in guards.items() if name in effects
+    }
+    if offenders:
+        lines = "\n".join(
+            f"  {name} used as a guard at {', '.join(sites)}"
+            for name, sites in sorted(offenders.items())
+        )
+        pytest.fail(
+            "Protocol-effect nodes placed before the commit (CLP-10-006):\n"
             f"{lines}"
         )

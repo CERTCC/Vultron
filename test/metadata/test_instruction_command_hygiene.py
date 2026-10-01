@@ -59,7 +59,7 @@ _REPO_ROOT = Path(__file__).parents[2]
 _GATE_COMMANDS = (
     "pytest",
     "mkdocs build",
-    "flake8",
+    "ruff",
     "mypy",
     "pyright",
     "markdownlint",
@@ -141,9 +141,9 @@ def test_discovery_finds_the_known_instruction_files() -> None:
         "docs/developer/how-to/run-tests.md",
         "notes/testing-pitfalls.md",
     }
-    assert (
-        expected <= found
-    ), f"Discovery missed known files: {expected - found}"
+    assert expected <= found, (
+        f"Discovery missed known files: {expected - found}"
+    )
 
 
 def test_masking_pipe_regex_matches_the_forms_that_regressed() -> None:
@@ -166,15 +166,15 @@ def test_masking_pipe_regex_matches_the_forms_that_regressed() -> None:
 
     should_not_match = (
         'uv run pytest --tb=short > /tmp/x.log 2>&1; rc=$?; tail -5 /tmp/x.log; echo "exit: $rc"; (exit $rc)',
-        "uv run flake8 vultron/ test/ && uv run mypy && uv run pyright",
-        "uv run black vultron/ test/",
+        "uv run ruff check && uv run mypy && uv run pyright",
+        "uv run ruff format",
         # grep's own status is the intended signal here, not a masked gate.
         'git merge-tree $(git merge-base HEAD main) HEAD main | grep -i "^CONFLICT" || true',
     )
     for command in should_not_match:
-        assert not _MASKING_PIPE.search(
-            command
-        ), f"detector false-positived: {command}"
+        assert not _MASKING_PIPE.search(command), (
+            f"detector false-positived: {command}"
+        )
 
 
 @pytest.mark.parametrize(
@@ -212,9 +212,9 @@ def test_anti_pattern_citation_allowances_are_tight() -> None:
     """
     for rel_path, allowed in ANTI_PATTERN_CITATIONS.items():
         path = _REPO_ROOT / rel_path
-        assert (
-            path.exists()
-        ), f"ANTI_PATTERN_CITATIONS names a missing file: {rel_path}"
+        assert path.exists(), (
+            f"ANTI_PATTERN_CITATIONS names a missing file: {rel_path}"
+        )
         actual = len(_masking_lines(path))
         assert actual == allowed, (
             f"{rel_path} is allowed {allowed} anti-pattern citation(s) but has "

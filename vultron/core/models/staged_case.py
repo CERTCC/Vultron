@@ -64,7 +64,7 @@ class IncomingReport(VulnerabilityCase):
     model_config = ConfigDict(from_attributes=True)
 
     @model_validator(mode="after")
-    def _check_incoming_report_invariants(self) -> "IncomingReport":
+    def _check_incoming_report_invariants(self) -> IncomingReport:
         if not self.vulnerability_reports:
             raise VultronValidationError(
                 "IncomingReport requires at least one vulnerability report "
@@ -96,7 +96,7 @@ class Case(VulnerabilityCase):
     model_config = ConfigDict(from_attributes=True)
 
     @model_validator(mode="after")
-    def _check_case_invariants(self) -> "Case":
+    def _check_case_invariants(self) -> Case:
         if not self.vulnerability_reports:
             raise VultronValidationError(
                 "Case requires at least one vulnerability report (LST-02-002)."
@@ -134,7 +134,7 @@ class EmbargoedCase(Case):
     """
 
     @model_validator(mode="after")
-    def _check_embargoed_invariants(self) -> "EmbargoedCase":
+    def _check_embargoed_invariants(self) -> EmbargoedCase:
         if self.active_embargo is None:
             raise VultronValidationError(
                 "EmbargoedCase requires active_embargo to be non-None "

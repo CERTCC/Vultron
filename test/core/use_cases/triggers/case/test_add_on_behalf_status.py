@@ -32,6 +32,10 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+    VfDimension,
+)
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.use_cases.triggers.case import (
     AddOnBehalfStatusTriggerRequest,
@@ -45,10 +49,6 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
-    VfDimension,
 )
 
 
@@ -117,7 +117,7 @@ class TestAddOnBehalfStatusVtoV:
             self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
         ).execute()
 
-        assert result.get("status_id") is not None
+        assert result.status_id is not None
 
         # Vendor now has a CaseParticipant in the case
         updated_case = self.dl.read_case(self.case.id_)
@@ -154,9 +154,9 @@ class TestAddOnBehalfStatusVtoV:
         activity = self.dl.read(activity_id)
         assert activity is not None
         to_ids = _to_ids(activity)
-        assert (
-            self.cm_actor.id_ in to_ids
-        ), f"PCR-08-001: activity must address the Case Manager; to={to_ids!r}"
+        assert self.cm_actor.id_ in to_ids, (
+            f"PCR-08-001: activity must address the Case Manager; to={to_ids!r}"
+        )
 
     def test_blocked_when_asserting_actor_not_cm_or_co(self):
         """Non-CM/CO actor cannot make an on-behalf assertion (PRM-06-003)."""
@@ -219,6 +219,26 @@ class TestAddOnBehalfRequestValidation:
         )
         assert req.vf_state is None
         assert req.d_state == CS_d.D
+
+    def test_vf_state_vf_lower_rung_raises(self):
+        """PRM-06-003 permits v→V only; recording unawareness is refused."""
+        with pytest.raises(ValueError, match="only v→V"):
+            AddOnBehalfStatusTriggerRequest(
+                actor_id="https://example.org/cm",
+                case_id="https://example.org/case",
+                target_actor_id="https://example.org/vendor",
+                vf_state=CS_vf.vf,
+            )
+
+    def test_d_state_d_lower_rung_raises(self):
+        """PRM-06-004 permits d→D only; recording non-deployment is refused."""
+        with pytest.raises(ValueError, match="only d→D"):
+            AddOnBehalfStatusTriggerRequest(
+                actor_id="https://example.org/cm",
+                case_id="https://example.org/case",
+                target_actor_id="https://example.org/deployer",
+                d_state=CS_d.d,
+            )
 
     def test_all_none_raises(self):
         with pytest.raises(ValueError, match="at least one"):

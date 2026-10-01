@@ -7,12 +7,12 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.accept_invite_tree import (
     create_accept_invite_actor_to_case_tree,
 )
-from vultron.core.behaviors.case.nodes.invite_participant import (
-    CheckInviteeNotAlreadyParticipantNode,
-)
 from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
     create_invite_actor_to_case_received_tree,
     create_reject_invite_actor_to_case_received_tree,
+)
+from vultron.core.behaviors.case.nodes.invite_participant import (
+    CheckInviteeNotAlreadyParticipantNode,
 )
 from vultron.core.behaviors.narrative_log import log_invite_received
 from vultron.core.models.events.actor import (
@@ -35,6 +35,7 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    intake_verdict,
     node_failed,
     not_case_manager_refusal,
     verdict_from_bt,
@@ -42,6 +43,7 @@ from vultron.core.use_cases.received._bt_verdict import (
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
@@ -121,8 +123,10 @@ class InviteActorToCaseReceivedUseCase:
         request: InviteActorToCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: InviteActorToCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
@@ -175,25 +179,24 @@ class InviteActorToCaseReceivedUseCase:
                     )
             return stored
 
-        # CaseActor self-delivery path (CLP-10-001): the BT handles idempotent
-        # storage via StoreActivityNode and commits the canonical CaseLedgerEntry
-        # via GuardedCommitCaseLedgerEntryBT (CLP-10-006).
+        # CaseActor self-delivery path (CLP-10-001): intake stores the Invite
+        # as received (CLP-10-017) and GuardedCommitCaseLedgerEntryBT commits
+        # the canonical CaseLedgerEntry (CLP-10-006).  The tree's only work
+        # is intake and that commit, so a redelivered Invite that intake found
+        # already archived is the benign no-op, SKIPPED (HP-01-003).
         case_id = request.target_id or ""
-        tree = create_invite_actor_to_case_received_tree(
-            invite_id=request.activity_id,
-            invite_obj=request.activity,
-            case_id=case_id,
-        )
+        tree = create_invite_actor_to_case_received_tree(case_id=case_id)
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
             sync_port=self._sync_port,
         )
-        verdict = verdict_from_bt(
+        verdict = intake_verdict(
             tree, result, label="InviteActorToCaseReceivedBT"
         )
         if verdict.disposition is HandlerDisposition.REFUSED:
@@ -225,8 +228,10 @@ class AcceptInviteActorToCaseReceivedUseCase:
         request: AcceptInviteActorToCaseReceivedEvent,
         sync_port: SyncActivityPort,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AcceptInviteActorToCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
@@ -260,6 +265,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=actor_id,
@@ -311,8 +317,10 @@ class RejectInviteActorToCaseReceivedUseCase:
         request: RejectInviteActorToCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: RejectInviteActorToCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
@@ -347,6 +355,7 @@ class RejectInviteActorToCaseReceivedUseCase:
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=actor_id,

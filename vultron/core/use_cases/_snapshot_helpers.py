@@ -17,14 +17,14 @@
 
 Split out of ``_helpers.py`` (#3515), which had grown past the CS-18-001 500-line
 cap by holding two unrelated concerns.  This is the self-contained one: building
-the AS2-shaped, self-inlining ``payloadSnapshot`` that CLP-07-001 defines and
+the AS2-shaped, self-inlining ``payloadSnapshot`` that CLP-07-011 defines and
 CLP-07-006 requires to carry full nested objects rather than bare ID strings.
 
 ``_helpers.py`` re-exports everything here, so no caller needs to change its
 import.  Kept private to the use-cases package (``_`` prefix) for the same reason
 ``_helpers`` is.
 
-Specs: CLP-07-001, CLP-07-006, ARCH-20-001.
+Specs: CLP-07-011, CLP-07-006, ARCH-20-001.
 """
 
 import logging
@@ -73,9 +73,14 @@ def _inline_snapshot_reference_value(
     resolving_ids: set[str],
     expected_context: str | None,
     depth: int,
-    wire_render_port: "WireRenderPort | None" = None,
+    wire_render_port: "WireRenderPort",
 ) -> Any:
-    """Inline nested AS2 object references for canonical payload snapshots."""
+    """Inline nested AS2 object references for canonical payload snapshots.
+
+    A reference resolved from *dl* is inlined as the port's AS2 rendering
+    (CLP-07-009): ``dl.read()`` returns core objects (DL-05-001), and core
+    never produces their wire shape itself (ARCH-20-001).
+    """
     if depth > _SNAPSHOT_INLINE_DEPTH_LIMIT:
         return value
 
@@ -128,25 +133,7 @@ def _inline_snapshot_reference_value(
 
     resolving_ids.add(value)
     try:
-        if wire_render_port is not None:
-            dumped = wire_render_port.render(resolved)
-        else:
-            # ARCH-20-001: the port is the sanctioned route and is used whenever
-            # it is injected.  This fallback runs only when no port was supplied
-            # — CLI and replay paths — and the object being dumped is being
-            # inlined into a payload snapshot, which CLP-07-001 defines as
-            # AS2-shaped.  ``resolved`` comes from the DataLayer and may be a
-            # core-branch object, in which case this *is* core producing a wire
-            # shape for one.  Since ADR-0099 detail 4 the port's own render is
-            # this same by-alias dump, so the branch differs from it only in
-            # being reachable without a port.  Counted by
-            # ``test/architecture/test_core_by_alias_dumps.py``.
-            dumped = resolved.model_dump(
-                mode="json",
-                by_alias=True,
-                serialize_as_any=True,
-                exclude_none=True,
-            )
+        dumped = wire_render_port.render(resolved)
         return _inline_snapshot_reference_value(
             dumped,
             dl,
@@ -162,10 +149,17 @@ def _inline_snapshot_reference_value(
 
 def build_activity_payload_snapshot(
     activity: Any,
-    dl: CasePersistence | None = None,
-    wire_render_port: "WireRenderPort | None" = None,
+    dl: CasePersistence | None,
+    *,
+    wire_render_port: "WireRenderPort",
 ) -> dict[str, Any]:
     """Return a normalized, self-contained payload snapshot for ledger entries.
+
+    The snapshot is the AS2 serialization of *activity* (CLP-07-011), obtained
+    from *wire_render_port*: the activity core holds is the extractor's
+    core-branch ``VultronActivity``, and core never produces its wire shape
+    itself (ARCH-20-001, CLP-07-009).  The port refuses an object with no AS2
+    spelling rather than falling back to a core-shaped dump (ARCH-20-003).
 
     If a DataLayer is provided, known nested object-reference fields are inlined
     from storage so canonical CaseLedgerEntry snapshots do not carry bare ID
@@ -174,16 +168,7 @@ def build_activity_payload_snapshot(
     if activity is None or not hasattr(activity, "model_dump"):
         return {}
 
-    # ARCH-20-001 permits this ``by_alias=True``: *activity* is the inbound
-    # activity being captured, and the result is the ledger payload snapshot,
-    # which CLP-07-001 defines as the AS2 serialization of what arrived.  The
-    # AS2 shape is the requirement here, not an accident of the dump.
-    snapshot: dict[str, Any] = activity.model_dump(
-        mode="json",
-        by_alias=True,
-        serialize_as_any=True,
-        exclude_none=True,
-    )
+    snapshot: dict[str, Any] = wire_render_port.render(activity)
     expected_context = snapshot.get("context")
     if not isinstance(expected_context, str):
         expected_context = None

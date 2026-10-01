@@ -76,7 +76,7 @@ def get_protocol_spec_ids(specs_dir: Path) -> set[str]:
     for yaml_path in sorted(specs_dir.glob("*.yaml")):
         try:
             data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
             print(f"  [SKIP] {yaml_path.name}: {exc}", file=sys.stderr)
             continue
         if not isinstance(data, dict):
@@ -94,6 +94,26 @@ def get_protocol_spec_ids(specs_dir: Path) -> set[str]:
 
 # Matches the start of a spec item: "  - id: SPEC-01-001" (2-space indent)
 _ITEM_START_RE = re.compile(r"^(\s+)- id: ([A-Z]{2,8}-\d{2}-\d{3}[a-z]?)\s*$")
+
+
+def _collect_item_lines(
+    lines: list[str], i: int, item_indent: str
+) -> tuple[list[str], int]:
+    """Collect the spec item starting at lines[i].
+
+    The item ends at the next sibling item at the same indent level or at a
+    shallower level.  Returns (item_lines, next_index).
+    """
+    item_lines: list[str] = [lines[i]]
+    i += 1
+    while i < len(lines):
+        nxt = lines[i]
+        stripped = nxt.rstrip("\n\r")
+        if stripped and not stripped.startswith(" " * (len(item_indent) + 1)):
+            break
+        item_lines.append(nxt)
+        i += 1
+    return item_lines, i
 
 
 def insert_stories_in_yaml(
@@ -119,23 +139,12 @@ def insert_stories_in_yaml(
             field_indent = item_indent + "  "  # 2 more spaces
 
             # Collect all lines belonging to this spec item
-            item_lines: list[str] = [line]
-            i += 1
-            while i < len(lines):
-                nxt = lines[i]
-                stripped = nxt.rstrip("\n\r")
-                # Next sibling item at same indent level OR a shallower level
-                if stripped and not stripped.startswith(
-                    " " * (len(item_indent) + 1)
-                ):
-                    break
-                item_lines.append(nxt)
-                i += 1
+            item_lines, i = _collect_item_lines(lines, i, item_indent)
 
             # Insert stories: if this spec needs it and doesn't already have one
             if spec_id in spec_to_stories:
                 has_stories = any(
-                    re.match(r"^\s+stories:", l) for l in item_lines
+                    re.match(r"^\s+stories:", line) for line in item_lines
                 )
                 if not has_stories:
                     stories = spec_to_stories[spec_id]
@@ -179,7 +188,7 @@ def _collect_protocol_must_no_stories(
 
     try:
         data = _yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception:  # noqa: BLE001  # ruff-baseline #3989
         return set()
     if not isinstance(data, dict):
         return set()
@@ -199,6 +208,48 @@ def _collect_protocol_must_no_stories(
     return result
 
 
+def _find_last_suppress_item(
+    item_lines: list[str], suppress_idx: int, field_indent: str
+) -> int:
+    """Return the index of the last list item under the lint_suppress: line.
+
+    Returns suppress_idx itself when the list is empty.
+    """
+    last_item_idx = suppress_idx
+    for j in range(suppress_idx + 1, len(item_lines)):
+        stripped = item_lines[j].rstrip("\n\r")
+        if stripped and stripped.startswith(field_indent + "-"):
+            last_item_idx = j
+        elif stripped and not stripped.startswith(
+            " " * (len(field_indent) + 1)
+        ):
+            break
+    return last_item_idx
+
+
+def _add_suppress_item(item_lines: list[str], field_indent: str) -> None:
+    """Add missing_story_reference to the item's lint_suppress: list in place.
+
+    Appends to an existing lint_suppress: block, or adds a new block at the
+    end of the item.
+    """
+    suppress_idx = next(
+        (j for j, il in enumerate(item_lines) if _LINT_SUPPRESS_RE.match(il)),
+        None,
+    )
+    if suppress_idx is None:
+        item_lines.append(f"{field_indent}lint_suppress:\n")
+        item_lines.append(f"{field_indent}- missing_story_reference\n")
+        return
+
+    last_item_idx = _find_last_suppress_item(
+        item_lines, suppress_idx, field_indent
+    )
+    item_lines.insert(
+        last_item_idx + 1, f"{field_indent}- missing_story_reference\n"
+    )
+
+
 def insert_suppress_in_yaml(yaml_path: Path, to_suppress: set[str]) -> int:
     """Add lint_suppress: [missing_story_reference] to specs in to_suppress.
 
@@ -216,72 +267,23 @@ def insert_suppress_in_yaml(yaml_path: Path, to_suppress: set[str]) -> int:
     updated = 0
 
     while i < len(lines):
-        line = lines[i]
-        m = _ITEM_START_RE.match(line)
-        if m:
-            item_indent = m.group(1)
-            spec_id = m.group(2)
-            field_indent = item_indent + "  "
-
-            # Collect the item's lines
-            item_lines: list[str] = [line]
+        m = _ITEM_START_RE.match(lines[i])
+        if not m:
+            result.append(lines[i])
             i += 1
-            while i < len(lines):
-                nxt = lines[i]
-                stripped = nxt.rstrip("\n\r")
-                if stripped and not stripped.startswith(
-                    " " * (len(item_indent) + 1)
-                ):
-                    break
-                item_lines.append(nxt)
-                i += 1
-
-            if spec_id in to_suppress:
-                # Check if already suppressed
-                already_suppressed = any(
-                    _SUPPRESS_ITEM_RE.match(l) for l in item_lines
-                )
-                if not already_suppressed:
-                    # Find existing lint_suppress: block
-                    suppress_idx = None
-                    for j, il in enumerate(item_lines):
-                        if _LINT_SUPPRESS_RE.match(il):
-                            suppress_idx = j
-                            break
-
-                    if suppress_idx is not None:
-                        # Append after the last existing item in the lint_suppress list
-                        # Find the last item under lint_suppress
-                        last_item_idx = suppress_idx
-                        for j in range(suppress_idx + 1, len(item_lines)):
-                            stripped = item_lines[j].rstrip("\n\r")
-                            if stripped and stripped.startswith(
-                                field_indent + "-"
-                            ):
-                                last_item_idx = j
-                            elif stripped and not stripped.startswith(
-                                " " * (len(field_indent) + 1)
-                            ):
-                                break
-                        insert_pos = last_item_idx + 1
-                        item_lines.insert(
-                            insert_pos,
-                            f"{field_indent}- missing_story_reference\n",
-                        )
-                    else:
-                        # Add a new lint_suppress: block at the end of the item
-                        item_lines.append(f"{field_indent}lint_suppress:\n")
-                        item_lines.append(
-                            f"{field_indent}- missing_story_reference\n"
-                        )
-
-                    updated += 1
-
-            result.extend(item_lines)
             continue
 
-        result.append(line)
-        i += 1
+        item_indent = m.group(1)
+        item_lines, i = _collect_item_lines(lines, i, item_indent)
+
+        already_suppressed = any(
+            _SUPPRESS_ITEM_RE.match(line) for line in item_lines
+        )
+        if m.group(2) in to_suppress and not already_suppressed:
+            _add_suppress_item(item_lines, item_indent + "  ")
+            updated += 1
+
+        result.extend(item_lines)
 
     if updated > 0:
         yaml_path.write_text("".join(result), encoding="utf-8")
@@ -341,7 +343,7 @@ def main() -> None:
                 print(f"  {yaml_path.name}: suppressed {n} spec(s)")
                 total_suppressed += n
 
-    print(f"\nBackfill complete.")
+    print("\nBackfill complete.")
     print(f"  {total_stories} spec(s) got stories:")
     print(
         f"  {total_suppressed} spec(s) got lint_suppress: [missing_story_reference]"

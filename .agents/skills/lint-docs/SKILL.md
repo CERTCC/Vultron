@@ -39,7 +39,7 @@ on how many files are in the target set (ADR-0092):
 | Deterministic substitution — one token maps to one replacement | SG-08 (register an acronym), SG-35 (`graph` → `flowchart`), SG-37 (American spelling) | Apply |
 | Prose rewrite — a model rewords a sentence | SG-02 (alias replacement), SG-24 (filler), SG-17 through SG-19 (voice) | Propose: quote the sentence and the replacement text, and apply only on confirmation |
 
-`markdownlint --fix` and `black` run tree-wide with no threshold because their
+`markdownlint --fix` and `ruff format` run tree-wide with no threshold because their
 edits are substitutions. A prose rewrite carries per-edit risk that does not
 shrink with volume, so it is proposed with its replacement rather than applied
 silently — at one file or at four hundred. SG-17 through SG-19 already self-cap

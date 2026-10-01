@@ -45,9 +45,9 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models._helpers import _as_id
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.enums.roles import CVDRole
 
@@ -196,9 +196,9 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
         try:
             activity_id, activity_blob = self._call_factory()
             self._emit_through_seam(activity_id, activity_blob)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"ForwardOfferToTransfereeNode failed: {e}"
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
         self._on_success(activity_id, activity_blob)
         return Status.SUCCESS

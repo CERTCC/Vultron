@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from vultron.core.models.protocol_pair import ProtocolPair
@@ -44,7 +44,7 @@ DEFAULT_PENDING_ASSERTION_TIMEOUT: float = 180.0
 
 #: Module-level per-actor store registry.  Keyed by actor URI string.
 #: Pure in-memory — no DataLayer interaction.
-_STORES: dict[str, "PendingAssertionStore"] = {}
+_STORES: dict[str, PendingAssertionStore] = {}
 
 
 @dataclass
@@ -65,9 +65,7 @@ class PendingAssertion:
     case_id: str
     event_type: str
     object_id: str
-    emitted_at: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    emitted_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     status: Literal["pending", "cleared", "timed_out"] = "pending"
 
     def __post_init__(self) -> None:
@@ -127,7 +125,7 @@ class PendingAssertionStore:
         """
         if entry.status != "pending":
             return False
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         age = (now - entry.emitted_at).total_seconds()
         if age >= self.timeout_seconds:
             entry.status = "timed_out"

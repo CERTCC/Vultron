@@ -12,10 +12,10 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.offer_case_participant_role_received_tree import (
     create_offer_case_participant_role_received_tree,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.actor import (
     OfferCaseParticipantRoleReceivedEvent,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -28,6 +28,7 @@ from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +50,10 @@ class OfferCaseParticipantRoleReceivedUseCase:
         request: OfferCaseParticipantRoleReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: SyncActivityPort | None = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: OfferCaseParticipantRoleReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
@@ -76,7 +79,6 @@ class OfferCaseParticipantRoleReceivedUseCase:
 
         tree = create_offer_case_participant_role_received_tree(
             offer_id=offer_id,
-            offer_obj=request.activity,
             case_id=case_id or "",
             role=role,
             target_actor_id=target_actor_id or "",
@@ -85,6 +87,7 @@ class OfferCaseParticipantRoleReceivedUseCase:
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,

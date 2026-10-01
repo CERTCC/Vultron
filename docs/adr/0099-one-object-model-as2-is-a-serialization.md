@@ -123,7 +123,7 @@ spelling, and both are the status classes covered by ADR-0036.
    **AS2 is the HTTP transmission format only.** Stored rows are not fully
    AS2-spelled (camelCase is not applied) and this decision does not change that. A received activity is
    additionally kept as an unparsed `dict[str, Any]` in the ledger payload
-   snapshot (CLP-07-001); that copy is neither serialization above. It is meant
+   snapshot (CLP-07-011); that copy is neither serialization above. It is meant
    to be the body as it arrived, but today it is rebuilt from the parsed graph;
    [ADR-0107](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
    records that gap and stages the change that records the received evidence
@@ -345,6 +345,10 @@ because the dated amendments inside it (#3485, #3490) are decision content that
   The namespace is supplied in exactly one place (VM-10).
   A `by_alias` dump of any core object is then complete AS2, with no second step to forget.
   A persistence dump, which does not use `by_alias`, still carries no context.
+
+  **Amended 2026-09-30 (#3930): the render also passes `serialize_as_any=True`.**
+  Once every ledger snapshot went through the port, a received activity's inline wire object whose field held a value other than its declared type (an actor's `inbox` as the IRI string) became a serializer warning instead of a rendering.
+  Serialising nested values by their runtime type is what every other AS2 path in the codebase already did, so ARCH-20-002 now names the flag.
 - **Collapse the core root stack from three levels to two.** The middle level
   (`VultronObject`) existed only to keep timestamps optional so the wire half
   could stay lenient (ARCH-12-002); `CoreObject` then re-tightened them. With no
@@ -512,7 +516,7 @@ issue #3900 to decide the inbound rule; the paragraph after the table records wh
 | 4 — the shared root is deleted | `test/wire/as2/vocab/base/test_wire_base_hierarchy.py`: `as_Base` stands directly on `pydantic.BaseModel`. `TestCoreRoots` and `test_wire_vocabulary_inherits_nothing_from_core` (`test/architecture/test_hierarchy_invariants.py`): core has exactly two roots and wire inherits neither. |
 | 5 — dimensions serialize as a bare value | `test/core/models/test_dimension_bare_serialization.py`, including the parity of core and wire AS2 output. |
 | 6 — wire→core allow-list | `test/architecture/test_wire_core_import_allowlist.py`, replacing the deleted ratchet. `test/architecture/test_core_no_wire_imports.py` holds ARCH-01-001 unchanged. |
-| 7 — strict on declared fields; inbound unknown keys decided at the parse edge (as amended) | `test/wire/as2/test_unknown_key_disposition.py` (MV-11): one matrix over every position an unknown key can arrive in — envelope, generic AS2 object, `Link`, untyped inline dict, inline domain object — asserting near miss → refused naming both spellings, foreign → set aside and reported once. Rows for behaviour not yet built are `xfail(strict=True)` until #3921 lands (#3922 retires the raw re-parse MV-11-005 forbids). The stored-side half is `test_unknown_key_raises_for_every_core_vocabulary_entry` and `test_every_core_object_forbids_extra_with_no_exemption_list` (`test/architecture/test_core_extra_forbid.py`): every `CoreObject` subclass refuses an unknown key, with no exemption list. |
+| 7 — strict on declared fields; inbound unknown keys decided at the parse edge (as amended) | `test/wire/as2/test_unknown_key_disposition.py` (MV-11): one matrix over every position an unknown key can arrive in — envelope, generic AS2 object, `Link`, untyped inline dict, inline domain object — asserting near miss → refused naming both spellings, foreign → set aside and reported once, built by `vultron/wire/as2/unknown_keys.py` (#3921). `test/architecture/test_no_receive_path_reparse.py` holds MV-11-005: nothing on the receive path re-validates from the raw body (#3922). The stored-side half is `test_unknown_key_raises_for_every_core_vocabulary_entry` and `test_every_core_object_forbids_extra_with_no_exemption_list` (`test/architecture/test_core_extra_forbid.py`): every `CoreObject` subclass refuses an unknown key, with no exemption list. |
 | 8 — every AS2 field declared, so only unknown keys reach the partition (as amended) | `test_vultron_activity_accepts_every_wire_activity_key` (`test/adapters/driving/fastapi/test_outbox_helpers.py`): on the stored/delivery path, every key a wire activity dumps is a declared `VultronActivity` field, so a legitimate field is never the unknown one. On the inbound path the near-miss rows of `test/wire/as2/test_unknown_key_disposition.py` assert the refusal names the declared spelling, and `test_no_similarity_helper_in_the_parse_edge` pins the deterministic normalisation. |
 | 9 — object slots hold the whole object | `test/wire/as2/test_rehydration_materialisation.py`: `rehydrate()` materialises, refuses on a model-only slot, defers on a URI-admitting one. |
 | 10 — vocabulary and message set stay separate | `test/test_message_semantics_mapping.py` (MSM-03 to MSM-05): the formal shorthands map onto the semantic registry rather than onto AS2 types one-for-one. The reconciling artifact is `notes/message-type-reference.md` (ADR-0083). |

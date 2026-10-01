@@ -20,9 +20,9 @@ import re
 
 import pytest
 
+from test.metadata.specs.conftest import spec_file_data
 from vultron.metadata.specs.registry import SpecRegistry
 from vultron.metadata.specs.schema import SpecFile, SpecKind
-from test.metadata.specs.conftest import spec_file_data
 from vultron.metadata.specs.verification import (
     VERIFICATION_CEILINGS,
     VerificationCeiling,
@@ -111,13 +111,14 @@ def test_count_covers_must_and_must_not_but_not_the_should_tier():
 
 @pytest.mark.spec("MS-10-006")
 def test_suppressed_item_is_still_counted():
-    items = _BASE_ITEMS + [
+    items = [
+        *_BASE_ITEMS,
         (
             "TST-01-006",
             "MUST",
             "protocol",
             {"lint_suppress": ["must_without_verification"]},
-        )
+        ),
     ]
     report = unverified_by_kind(_registry(items))[SpecKind.PROTOCOL]
     assert report.count == 3
@@ -134,7 +135,7 @@ def test_adding_an_unverified_must_raises_the_count_and_fails_the_ratchet():
     before = unverified_by_kind(_registry(_BASE_ITEMS))
     assert ceiling_mismatches(before, _BASE_CEILINGS) == []
     after = unverified_by_kind(
-        _registry(_BASE_ITEMS + [("TST-01-006", "MUST_NOT", "process", {})])
+        _registry([*_BASE_ITEMS, ("TST-01-006", "MUST_NOT", "process", {})])
     )
     assert after[SpecKind.PROCESS].count == before[SpecKind.PROCESS].count + 1
     problems = ceiling_mismatches(after, _BASE_CEILINGS)

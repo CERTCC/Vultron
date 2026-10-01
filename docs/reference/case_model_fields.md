@@ -58,7 +58,7 @@ Defined in `vultron/core/models/case_participant.py`.
 | `embargo_consent_state` | This participant's current Participant Embargo Consent (PEC) state |
 | `accepted_embargo_ids` | URIs of embargoes the participant has accepted |
 | `participant_case_name` | Optional human-readable name for this participant in this case |
-| `invite_rsvp_deadline` | Local bookkeeping: when this actor wants an answer to an invitation; not sent on the wire |
+| `invite_rsvp_deadline` | The RSVP deadline the CASE_MANAGER stamped as `Invite.end_time` on this participant's `Invite(EmbargoEvent)`; recorded at the manager's commit of that Invite and reaching replicas through the ledger, never derived on receipt (CM-28-012, CM-28-013) |
 
 Role-specific subclasses (`VendorParticipant`, `CoordinatorParticipant`, `ObserverParticipant`, `CaseActorParticipant`, and others) set `case_roles` for convenience.
 All of them share the same `type_` value, `"CaseParticipant"`.

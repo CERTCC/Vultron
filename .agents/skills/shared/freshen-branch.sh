@@ -39,7 +39,7 @@ fi
 TEMP="temp-freshen-$$"
 git checkout -b "$TEMP" origin/main
 
-# Disable hooks during cherry-pick: pre-commit formatters (e.g. black) modify
+# Disable hooks during cherry-pick: pre-commit formatters (e.g. ruff format) modify
 # staged files mid-operation, causing git to abort with "local changes would be
 # overwritten by merge". Hooks run at commit time when the PR is created.
 if git -c core.hooksPath=/dev/null cherry-pick $COMMITS; then

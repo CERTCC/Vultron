@@ -21,6 +21,12 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.behaviors.case.nodes.conditions import (
+    CheckIsCaseManagerNode,
+)
+from vultron.core.behaviors.case.nodes.intake import (
+    IntakeReceivedActivityNode,
+)
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
     BroadcastCaseUpdateNode,
@@ -28,19 +34,16 @@ from vultron.core.behaviors.case.nodes.update import (
     CheckCaseUpdateOwnerNode,
 )
 from vultron.core.behaviors.case.update_support import broadcast_case_update
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.use_case_result import HandlerResult
-from vultron.enums.roles import CVDRole
-from vultron.core.behaviors.case.nodes.conditions import (
-    CheckIsCaseManagerNode,
-)
 from vultron.core.behaviors.case.update_tree import (
     create_update_case_received_tree,
 )
 from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.use_cases.received.case.update import (
     UpdateCaseReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import update_case_activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -69,7 +72,11 @@ class TestUpdateCaseBTStructure:
         )
 
         assert tree.name == "UpdateCaseBT"
-        assert [child.__class__ for child in tree.children[:3]] == [
+        # Intake first (CLP-10-017, ADR-0111), then the sender-ownership guard,
+        # then the effects.  No commit stage: Update(VulnerabilityCase) is not
+        # a canonical payload signature (see create_update_case_received_tree).
+        assert [child.__class__ for child in tree.children[:4]] == [
+            IntakeReceivedActivityNode,
             CheckCaseUpdateOwnerNode,
             CaptureCaseUpdateBroadcastExclusionsNode,
             ApplyCaseUpdateNode,
@@ -79,7 +86,7 @@ class TestUpdateCaseBTStructure:
         # canonical case state (CM-06-001), mirroring CLP-09 for ledger commits.
         # A non-manager skips rather than fails — applying the update to its own
         # replica is correct.
-        guard = tree.children[3]
+        guard = tree.children[4]
         assert guard.name == "GuardedBroadcastCaseUpdateBT"
         skip, broadcast = guard.children
         assert skip.name == "SkipIfNotCaseManager"

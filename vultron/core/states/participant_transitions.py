@@ -52,6 +52,11 @@ PRM-06-002, SM-09-002.  ADR: ADR-0086, ADR-0084.
 
 from collections.abc import Sequence
 
+from vultron.core.predicates.participants import vendor_vf_invariant_ok
+from vultron.core.predicates.roles import (
+    has_deployer_role,
+    has_vendor_role,
+)
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
@@ -66,11 +71,6 @@ from vultron.core.states.cs import (
 from vultron.core.states.cs_invariants import (
     cs_from_dimensions,
     is_valid_cs_transition,
-)
-from vultron.core.predicates.participants import vendor_vf_invariant_ok
-from vultron.core.predicates.roles import (
-    has_deployer_role,
-    has_vendor_role,
 )
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole
@@ -293,9 +293,9 @@ def _classify(violations: Sequence[Violation]) -> list[Violation]:
     .composite_state_invariants.EntailmentViolation.reads` is required rather than
     defaulted: an empty ``dimensions`` would be labelled root unconditionally.
     """
-    assert all(
-        violation.dimensions for violation in violations
-    ), "every Violation must name the dimensions its rule reads (EH-07-002)"
+    assert all(violation.dimensions for violation in violations), (
+        "every Violation must name the dimensions its rule reads (EH-07-002)"
+    )
     faulted: set[str] = {
         violation.dimensions[0]
         for violation in violations

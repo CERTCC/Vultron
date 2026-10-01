@@ -24,7 +24,7 @@ Covers:
 Spec: SYNC-07-001 through SYNC-07-005.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -89,11 +89,11 @@ class TestPendingAssertionDataclass:
         assert entry.status == "pending"
 
     def test_emitted_at_is_recent_utc(self):
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         entry = PendingAssertion(
             case_id=CASE_ID, event_type=EVENT_TYPE, object_id=OBJECT_ID
         )
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
         assert before <= entry.emitted_at <= after
 
     def test_status_can_be_overridden(self):
@@ -195,7 +195,7 @@ class TestTimeout:
         store_short.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
 
         # Simulate time passing beyond the 60-second window
-        future = datetime.now(timezone.utc) + timedelta(seconds=61)
+        future = datetime.now(UTC) + timedelta(seconds=61)
         with patch(
             "vultron.core.models.pending_assertion.datetime"
         ) as mock_dt:
@@ -207,7 +207,7 @@ class TestTimeout:
     def test_expired_entry_status_becomes_timed_out(self, store_short):
         store_short.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
 
-        future = datetime.now(timezone.utc) + timedelta(seconds=61)
+        future = datetime.now(UTC) + timedelta(seconds=61)
         with patch(
             "vultron.core.models.pending_assertion.datetime"
         ) as mock_dt:
@@ -223,7 +223,7 @@ class TestTimeout:
         import logging
 
         store_short.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
-        future = datetime.now(timezone.utc) + timedelta(seconds=61)
+        future = datetime.now(UTC) + timedelta(seconds=61)
         with caplog.at_level(
             logging.ERROR,
             logger="vultron.core.models.pending_assertion",
@@ -238,7 +238,7 @@ class TestTimeout:
 
     def test_unexpired_entry_still_suppresses(self, store_short):
         store_short.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
-        future = datetime.now(timezone.utc) + timedelta(seconds=30)
+        future = datetime.now(UTC) + timedelta(seconds=30)
         with patch(
             "vultron.core.models.pending_assertion.datetime"
         ) as mock_dt:
@@ -247,7 +247,7 @@ class TestTimeout:
 
     def test_timed_out_entry_allows_subsequent_add(self, store_short):
         store_short.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
-        future = datetime.now(timezone.utc) + timedelta(seconds=61)
+        future = datetime.now(UTC) + timedelta(seconds=61)
         with patch(
             "vultron.core.models.pending_assertion.datetime"
         ) as mock_dt:
@@ -291,7 +291,7 @@ class TestExpireTimedOut:
             "engage_case",
             "https://example.org/activities/act-002",
         )
-        future = datetime.now(timezone.utc) + timedelta(seconds=61)
+        future = datetime.now(UTC) + timedelta(seconds=61)
         with patch(
             "vultron.core.models.pending_assertion.datetime"
         ) as mock_dt:
@@ -302,7 +302,7 @@ class TestExpireTimedOut:
     def test_sweep_skips_already_cleared(self, store_short):
         store_short.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
         store_short.clear(CASE_ID, EVENT_TYPE, OBJECT_ID)
-        future = datetime.now(timezone.utc) + timedelta(seconds=61)
+        future = datetime.now(UTC) + timedelta(seconds=61)
         with patch(
             "vultron.core.models.pending_assertion.datetime"
         ) as mock_dt:

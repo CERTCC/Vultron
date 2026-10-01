@@ -25,22 +25,12 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.adapters.utils import strip_id_prefix
-from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
-    get_trigger_dl,
-    get_trigger_service,
-)
+from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     demo_triggers as demo_triggers_router,
-)
-from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
 )
-from vultron.core.use_cases.triggers.service import TriggerService
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
+from vultron.adapters.utils import strip_id_prefix
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -115,19 +105,9 @@ def client_demo(dl):
     """
     from unittest.mock import AsyncMock, patch
 
-    from vultron.adapters.driven.sync_activity_adapter import (
-        SyncActivityAdapter,
-    )
-
     app = FastAPI()
     app.include_router(demo_triggers_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-    )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     mock_emitter = AsyncMock()
     with patch(
         "vultron.adapters.driving.fastapi.outbox_handler.get_default_emitter",
@@ -142,11 +122,7 @@ def client_trigger_only(dl):
     """Test client with only general trigger router — no demo routes."""
     app = FastAPI()
     app.include_router(trigger_case_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
-    )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     yield TestClient(app)
     app.dependency_overrides = {}
 
@@ -165,6 +141,105 @@ def case_with_actor(dl, actor):
     dl.create(participant)
     _add_case_manager(case_obj, dl)
     return case_obj
+
+
+@pytest.fixture
+def vendor_case(dl, actor):
+    """A case where the actor is an engaged VENDOR at the initial VF state.
+
+    The VF hop vf→Vf is role-gated to the Vendor (ADR-0075), and fix readiness
+    (``VF``) entails RM ∈ {ACCEPTED, DEFERRED, CLOSED} (CSB-15), so the demo
+    ``notify-fix-ready`` ratchet needs both the role and an RM.ACCEPTED status
+    that the bare ``case_with_actor`` participant does not carry.
+    """
+    from vultron.core.models.dimensions import RmDimension
+    from vultron.core.states.rm import RM
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_ParticipantStatus,
+    )
+
+    case_obj = as_VulnerabilityCase(name="TEST-DEMO-VENDOR-CASE")
+    participant = as_CaseParticipant(
+        attributed_to=actor.id_,
+        context=case_obj.id_,
+        case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor.id_,
+                context=case_obj.id_,
+                rm=RmDimension(state=RM.ACCEPTED),
+            )
+        ],
+    )
+    case_obj.case_participants.append(participant.id_)
+    case_obj.actor_participant_index[actor.id_] = participant.id_
+    dl.create(case_obj)
+    dl.create(participant)
+    _add_case_manager(case_obj, dl)
+    return case_obj
+
+
+# ---------------------------------------------------------------------------
+# Tests: POST /actors/{actor_id}/demo/notify-fix-ready  (DEMOMA-07-001)
+# ---------------------------------------------------------------------------
+
+
+class TestDemoNotifyFixReady:
+    """The two-hop VF ratchet (vf→Vf→VF) over the real dispatcher."""
+
+    @pytest.mark.spec("DEMOMA-07-001")
+    @pytest.mark.spec("TRIG-01-002")
+    def test_two_hops_leave_the_vendor_at_vf_fix_ready(
+        self, client_demo: TestClient, dl, actor, vendor_case
+    ):
+        """One request walks vf→Vf→VF; the response is the second hop's
+        status and the stored participant status reads ``VF``."""
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.cs import CS_vf
+
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/notify-fix-ready",
+            json={"case_id": vendor_case.id_},
+        )
+        assert response.status_code == status.HTTP_202_ACCEPTED, response.text
+        body = response.json()
+        assert set(body) == {"activity_id", "status_id"}
+        assert body["status_id"] is not None
+
+        participant = dl.read(vendor_case.actor_participant_index[actor.id_])
+        assert isinstance(participant, CaseParticipant)
+        vf_states = [
+            ps.vf.state
+            for ps in participant.participant_statuses
+            if ps.vf is not None
+        ]
+        assert vf_states[-1] == CS_vf.VF
+        assert CS_vf.Vf in vf_states, "the first hop (vf→Vf) must be recorded"
+        status_obj = dl.read(body["status_id"])
+        assert status_obj is not None
+
+    @pytest.mark.spec("TRIG-07-001")
+    def test_both_hops_are_queued_and_drained(
+        self, client_demo: TestClient, dl, actor, vendor_case
+    ):
+        """Two Add(ParticipantStatus) activities are emitted and the flushes the
+        route schedules drain them both."""
+        before = set(dl.outbox_list())
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/notify-fix-ready",
+            json={"case_id": vendor_case.id_},
+        )
+        assert response.status_code == status.HTTP_202_ACCEPTED, response.text
+        # ``client_demo`` runs the background flushes with a no-op emitter, so
+        # nothing the route queued is left behind.
+        assert set(dl.outbox_list()) - before == set()
+
+    def test_unknown_case_returns_404(self, client_demo: TestClient, actor):
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/notify-fix-ready",
+            json={"case_id": "urn:uuid:no-such-case"},
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +346,175 @@ class TestDemoAddNoteToCaseNotAtTriggerPrefix:
 # Tests: POST /actors/{actor_id}/demo/sync-log-entry  (TRIG-09-001, -003,
 #                                                       TRIG-10-004)
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def managed_case(dl, actor):
+    """A case the demo ``actor`` manages, so its store holds the canonical log.
+
+    ``attributed_to`` mints the per-case genesis hash the first commit anchors
+    on (CLP-08-005).
+    """
+    case = as_VulnerabilityCase(name="Sync Demo Case", attributed_to=actor.id_)
+    cm = as_CaseParticipant(
+        attributed_to=actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case.actor_participant_index[actor.id_] = cm.id_
+    case.case_participants.append(cm.id_)
+    dl.create(case)
+    dl.create(cm)
+    return case
+
+
+class TestDemoSyncLogEntry:
+    """The route runs ``SvcSyncLogEntryUseCase`` through the trigger
+    dispatcher; the response contract is unchanged (TRIG-12-003)."""
+
+    @pytest.mark.spec("TRIG-10-004")
+    @pytest.mark.spec("SYNC-02-002")
+    def test_returns_202_with_the_entry_identity(
+        self, client_demo: TestClient, dl, actor, managed_case
+    ):
+        resp = client_demo.post(
+            f"/actors/{actor.id_}/demo/sync-log-entry",
+            json={
+                "case_id": managed_case.id_,
+                "object_id": managed_case.id_,
+                "event_type": "demo_sync",
+            },
+        )
+        assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
+        body = resp.json()
+        assert set(body) == {
+            "log_entry_id",
+            "entry_hash",
+            "log_index",
+            "emitting_actor_id",
+        }
+        assert body["log_index"] == 0
+        assert body["emitting_actor_id"] == actor.id_
+        entry = dl.read(body["log_entry_id"])
+        assert entry is not None
+        assert entry.entry_hash == body["entry_hash"]
+        assert entry.event_type == "demo_sync"
+
+    @pytest.mark.spec("TRIG-01-003")
+    def test_unknown_actor_returns_404(
+        self, client_demo: TestClient, managed_case
+    ):
+        resp = client_demo.post(
+            "/actors/nonexistent-actor/demo/sync-log-entry",
+            json={
+                "case_id": managed_case.id_,
+                "object_id": managed_case.id_,
+                "event_type": "demo_sync",
+            },
+        )
+        assert resp.status_code == status.HTTP_404_NOT_FOUND
+        assert resp.json()["detail"]["error"] == "NotFound"
+
+    def test_missing_event_type_returns_422(
+        self, client_demo: TestClient, actor, managed_case
+    ):
+        resp = client_demo.post(
+            f"/actors/{actor.id_}/demo/sync-log-entry",
+            json={"case_id": managed_case.id_, "object_id": managed_case.id_},
+        )
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    @pytest.mark.spec("CM-24-001")
+    @pytest.mark.spec("TRIG-07-001")
+    def test_requester_that_is_not_the_manager_drains_the_managers_outbox(
+        self, client_demo: TestClient, dl, actor
+    ):
+        """Single-server shape: the commit runs as a hosted CASE_MANAGER, so
+        the flush the route schedules drains *that* actor's outbox."""
+        from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
+
+        cm_actor = as_Service(name="Hosted Case Manager")
+        reset_datalayer(cm_actor.id_)
+        cm_dl = dl.clone_for_actor(cm_actor.id_)
+        cm_dl.clear_all()
+        try:
+            cm_dl.create(cm_actor)
+            case = as_VulnerabilityCase(
+                name="Managed Elsewhere", attributed_to=cm_actor.id_
+            )
+            cm = as_CaseParticipant(
+                attributed_to=cm_actor.id_,
+                context=case.id_,
+                case_roles=[CVDRole.CASE_MANAGER],
+            )
+            me = as_CaseParticipant(
+                attributed_to=actor.id_,
+                context=case.id_,
+                case_roles=[CVDRole.REPORTER],
+            )
+            for participant_actor_id, participant in (
+                (cm_actor.id_, cm),
+                (actor.id_, me),
+            ):
+                case.actor_participant_index[participant_actor_id] = (
+                    participant.id_
+                )
+                case.case_participants.append(participant.id_)
+            for store in (dl, cm_dl):
+                store.create(case)
+                store.create(cm)
+                store.create(me)
+
+            resp = client_demo.post(
+                f"/actors/{actor.id_}/demo/sync-log-entry",
+                json={
+                    "case_id": case.id_,
+                    "object_id": case.id_,
+                    "event_type": "single_server",
+                },
+            )
+
+            assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
+            body = resp.json()
+            assert body["emitting_actor_id"] == cm_actor.id_
+            assert cm_dl.read(body["log_entry_id"]) is not None
+            # The background flush ran against the CASE_MANAGER's store: the
+            # fan-out it queued there has been popped for delivery.
+            assert cm_dl.outbox_list() == []
+            assert dl.outbox_list() == []
+        finally:
+            cm_dl.clear_all()
+            reset_datalayer(cm_actor.id_)
+
+    def test_store_without_the_canonical_log_answers_500(
+        self, client_demo: TestClient, dl, actor
+    ):
+        """The case's CASE_MANAGER is elsewhere, so the ledger-authority guard
+        declines the mint and the route keeps its historical 500."""
+        foreign_cm = "https://elsewhere.example/actors/other-cm"
+        case = as_VulnerabilityCase(
+            name="Foreign Case", attributed_to=foreign_cm
+        )
+        cm = as_CaseParticipant(
+            attributed_to=foreign_cm,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case.actor_participant_index[foreign_cm] = cm.id_
+        case.case_participants.append(cm.id_)
+        dl.create(case)
+        dl.create(cm)
+
+        resp = client_demo.post(
+            f"/actors/{actor.id_}/demo/sync-log-entry",
+            json={
+                "case_id": case.id_,
+                "object_id": case.id_,
+                "event_type": "foreign",
+            },
+        )
+        assert resp.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert resp.json() == {"detail": "Log entry commit did not persist."}
 
 
 # ---------------------------------------------------------------------------
@@ -525,12 +769,12 @@ class TestDemoCloseCase:
         data = response.json()
         assert "activity" in data, "Response must contain 'activity' key"
         activity = data["activity"]
-        assert (
-            activity.get("type") == "Leave"
-        ), f"Activity type must be 'Leave'; got {activity.get('type')}"
-        assert (
-            activity.get("actor") == actor.id_
-        ), f"Activity actor must be actor.id_; got {activity.get('actor')}"
+        assert activity.get("type") == "Leave", (
+            f"Activity type must be 'Leave'; got {activity.get('type')}"
+        )
+        assert activity.get("actor") == actor.id_, (
+            f"Activity actor must be actor.id_; got {activity.get('actor')}"
+        )
 
     def test_rm_not_closed_at_send_time(
         self, client_demo: TestClient, actor, case_with_actor, dl
@@ -547,9 +791,9 @@ class TestDemoCloseCase:
         case = dl.read(case_with_actor.id_)
         assert isinstance(case, VulnerabilityCase)
         participant_id = case.actor_participant_index.get(actor.id_)
-        assert (
-            participant_id is not None
-        ), "actor must have a participant entry in actor_participant_index"
+        assert participant_id is not None, (
+            "actor must have a participant entry in actor_participant_index"
+        )
         participant = dl.read(participant_id)
         assert isinstance(participant, CaseParticipant), (
             f"dl.read({participant_id!r}) must return CaseParticipant;"

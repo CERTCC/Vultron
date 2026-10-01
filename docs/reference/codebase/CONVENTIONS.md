@@ -24,17 +24,16 @@ stakeholder_type: [project-contributor]
 
 ### 2) Formatting and Linting
 
-- **Formatter**: black, `line-length = 79`, targets Python 3.8–3.13 — config in `pyproject.toml` `[tool.black]`
-- **Linter**: flake8 — config in `.flake8` (ignores E203, E501; max complexity 10; excludes `docs/`, `build/`, `dist/`)
+- **Formatter and linter**: ruff (ADR-0094), `line-length = 79`, `target-version = "py312"` — config in `pyproject.toml` `[tool.ruff]`, which also declares the scope, so every caller runs it with no path arguments (IMPLTS-07-021)
 - **Type checkers**: mypy + pyright (both run in CI, both must pass)
-- **Import ordering**: isort with `profile = "black"` — config in `pyproject.toml` `[tool.isort]`
+- **Import ordering**: ruff's `I` rules (CS-02-001), fixed by `ruff check --fix`
 - **Markdown**: markdownlint-cli2 via `mdlint.sh`
-- **Most relevant enforced rules**: line length 79, max cyclomatic complexity 10, unused imports allowed only in `__init__.py` (F401), both mypy and pyright must pass
+- **Most relevant enforced rules**: max cyclomatic complexity 10 (C901), unused imports allowed only in `__init__.py` (F401), unused `# noqa` directives are errors (RUF100), both mypy and pyright must pass
 - **Run commands**:
 
   ```bash
-  uv run black .          # format
-  uv run flake8 vultron/ test/  # lint
+  uv run ruff format      # format
+  uv run ruff check       # lint
   uv run mypy             # type-check
   uv run pyright          # type-check (second pass)
   ./mdlint.sh             # markdown lint
@@ -42,16 +41,17 @@ stakeholder_type: [project-contributor]
 
 ### 3) Import and Module Conventions
 
-- **Import grouping/order**: stdlib → third-party → local; isort enforces black profile
+- **Import grouping/order**: stdlib → third-party → local; ruff's `I` rules enforce it
 - **Absolute imports only**: no relative imports; all intra-package references use full `vultron.*` paths
 - **Layer isolation**: `vultron/core/` must not import from `vultron/adapters/` or `vultron/wire/`; `vultron/config/` must not import from `vultron/adapters/` or `vultron/core/`
 - **Backward-compat re-exports**: split modules re-export all public names from their `__init__.py` to avoid breaking callers (e.g., `vultron/adapters/driven/datalayer_sqlite/`)
-- **`__init__.py` F401 exception**: unused imports in `__init__.py` files are allowed (flake8 per-file-ignore)
+- **`__init__.py` F401 exception**: unused imports in `__init__.py` files are allowed (ruff `per-file-ignores`)
 
 ### 3a) BT Node Blackboard Conventions
 
 - **Typed ports (preferred)**: BT DataLayer nodes must declare blackboard key dependencies as typed class attributes (the `WithPorts` variants) rather than calling `register_key()` at runtime. The ratchet test `test_no_bare_register_key_datalayer_nodes.py` enforces this — adding a node with `register_key()` in `setup()` causes immediate CI failure (BTND-03-009).
-- **Wire render via port**: when a BT node needs wire-shaped (AS2 JSON) output from a domain object, it must use `WireRenderPort` (`vultron/core/ports/wire_render.py`) injected via the adapter — never import from `vultron/wire/` directly inside core.
+- **Wire render via port**: when a BT node needs wire-shaped (AS2 JSON) output from a domain object, it must use `WireRenderPort` (`vultron/core/ports/wire_render.py`) injected via the adapter — never import from `vultron/wire/` directly inside core, and never call `model_dump(by_alias=True)` in core (the ratchet baseline is empty).
+  A node reads the port with `_require_wire_render_port()`, which raises `VultronWiringError` when the port is missing.
 
 ### 4) Error and Logging Conventions
 
@@ -75,8 +75,7 @@ stakeholder_type: [project-contributor]
 
 ### 6) Evidence
 
-- `.flake8`
-- `pyproject.toml` `[tool.black]`, `[tool.isort]`, `[tool.pytest.ini_options]`
+- `pyproject.toml` `[tool.ruff]`, `[tool.pytest.ini_options]`
 - `AGENTS.md` "Coding Rules" section
 - `test/conftest.py`
 - `vultron/wire/as2/AGENTS.md`

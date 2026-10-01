@@ -84,9 +84,9 @@ def test_uses_pinned_to_sha(wf: Path, lineno: int, line: str) -> None:
     """
     # Extract the action reference after 'uses:'
     uses_match = re.search(r"uses:\s*(\S+)", line)
-    assert (
-        uses_match
-    ), f"{wf.name}:{lineno} — could not parse uses: line: {line!r}"
+    assert uses_match, (
+        f"{wf.name}:{lineno} — could not parse uses: line: {line!r}"
+    )
     ref = uses_match.group(1)
     sha_match = _SHA_RE.search(ref)
     assert sha_match, (

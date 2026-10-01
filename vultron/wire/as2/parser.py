@@ -10,15 +10,6 @@ import json
 import logging
 from typing import Any, cast
 
-from pydantic import BaseModel
-
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
-)
-from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.utils import is_blank
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingPublishedError,
@@ -26,41 +17,19 @@ from vultron.wire.as2.errors import (
     VultronParseUnknownTypeError,
     VultronParseValidationError,
 )
+from vultron.wire.as2.unknown_keys import (
+    OPAQUE_PAYLOAD_KEYS,
+    SetAsideKey,
+    partition_unknown_keys,
+    resolve_inline_class,
+)
+from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.utils import is_blank
 
 logger = logging.getLogger(__name__)
 
-
-def _own_wire_keys(model: type[BaseModel]) -> frozenset[str]:
-    """The wire spelling of the fields *model* itself declares, plus identity.
-
-    Reads the class's own annotations rather than ``model_fields``: the latter
-    includes every inherited AS2 field (``name``, ``content``, ...), which a
-    full object carries too, so it cannot tell a stub from a minimal full
-    object.  ``id`` and ``@context`` are identity every stub carries.
-    """
-    keys = {
-        info.serialization_alias or info.alias or name
-        for name, info in model.model_fields.items()
-        if name in model.__annotations__ and not info.exclude
-    }
-    return frozenset(keys | {"id", "@context"})
-
-
-#: Every key an inbound ``as_VulnerabilityCaseStub`` may carry, derived from the
-#: class rather than listed by hand: a hand-kept allowlist described the
-#: pre-CM-17-002 stub long after the class had grown ``activeEmbargo`` and
-#: ``caseStatus``, so an enriched stub was typed as a full case and refused for
-#: the very fields that made it a stub (#2624).
-_VULNERABILITY_CASE_STUB_KEYS = _own_wire_keys(as_VulnerabilityCaseStub)
-
-# Field names whose values are opaque data blobs (declared ``dict[str, Any]``),
-# NOT AS2 object references.  These must not be recursively coerced into typed
-# vocabulary instances: a ``CaseLedgerEntry.payload_snapshot`` may itself carry
-# an ``{"type": "Announce", "object": {...}}`` snapshot dict, and coercing it to
-# an ``as_Announce`` model would make ``CaseLedgerEntry`` validation fail
-# (payload_snapshot expects a dict), causing the parser to fall back to the base
-# ``as_Object`` type and mis-route the entry (SYNC-13-004).
-_OPAQUE_PAYLOAD_KEYS = frozenset({"payloadSnapshot", "payload_snapshot"})
 
 #: Marks every ``model_validate`` call in this module as reading inbound data,
 #: which is what tells ``as_Base`` to read an absent clock-defaulted timestamp as
@@ -68,30 +37,6 @@ _OPAQUE_PAYLOAD_KEYS = frozenset({"payloadSnapshot", "payload_snapshot"})
 #: Parsing is the only place this belongs: a caller *authoring* an object wants
 #: the default, and passing this context for one would silently drop its time.
 _INBOUND_CONTEXT = {as_Base.INBOUND_CONTEXT_KEY: True}
-
-
-def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
-    """Return the most specific *wire* vocabulary class for an inline dict.
-
-    Returns ``None`` when the wire registry holds no class for the type, which
-    leaves the dict unexpanded for the parent field to validate (MV-04-003).
-    The wire-only restriction is ``find_in_vocabulary``'s default; its docstring
-    records why it is load-bearing (ISSUE-3217) and what it does not promise.
-    """
-    obj_type = value.get("type")
-    if not isinstance(obj_type, str):
-        return None
-
-    if (
-        obj_type == "VulnerabilityCase"
-        and value.keys() <= _VULNERABILITY_CASE_STUB_KEYS
-    ):
-        return as_VulnerabilityCaseStub
-
-    try:
-        return find_in_vocabulary(obj_type)
-    except KeyError:
-        return None
 
 
 def _expand_inline_value(value: object, path: str = "") -> object:
@@ -121,12 +66,12 @@ def _expand_inline_value(value: object, path: str = "") -> object:
     expanded = {
         key: (
             item
-            if key in _OPAQUE_PAYLOAD_KEYS
+            if key in OPAQUE_PAYLOAD_KEYS
             else _expand_inline_value(item, f"{path}.{key}" if path else key)
         )
         for key, item in value.items()
     }
-    inline_cls = _inline_vocab_class(expanded)
+    inline_cls = resolve_inline_class(expanded)
     if inline_cls is None:
         return expanded
 
@@ -210,7 +155,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     try:
         cls = find_in_vocabulary(type_)
     except KeyError:
-        raise VultronParseUnknownTypeError(
+        raise VultronParseUnknownTypeError(  # noqa: B904  # ruff-baseline #3353
             f"Unrecognized activity type: {type_!r}."
         )
 
@@ -258,11 +203,19 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # received artifact VM-08-002 governs, and nothing downstream can alter it.
     evidence_json = _received_evidence_json(body)
 
+    # Decided once, here, for every object at every depth (MV-11-001): a near
+    # miss refuses, a foreign key is set aside and reported.  Nothing below
+    # sees a set-aside key, so a core class's ``extra="forbid"`` is never the
+    # rule that decides a peer's property (MV-11-004).
+    declared_body, set_aside = partition_unknown_keys(body, cls)
+    _report_set_aside(body, set_aside)
+
     try:
         activity = cast(
             as_Activity,
             cls.model_validate(
-                _expand_inline_object(body), context=_INBOUND_CONTEXT
+                _expand_inline_object(declared_body),
+                context=_INBOUND_CONTEXT,
             ),
         )
     except VultronParseError:
@@ -274,6 +227,31 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
 
     activity.seal_received_evidence(evidence_json)
     return activity
+
+
+def _report_set_aside(
+    body: dict[str, Any], set_aside: list[SetAsideKey]
+) -> None:
+    """Log one INFO record per set-aside key (MV-11-003, SL-02-001/002).
+
+    INFO, not WARNING: a property this receiver does not read is a normal
+    protocol event — usually a peer's extension — not an anomaly (SL-03-001).
+    The key survives only in the received evidence (VM-08-002).
+    """
+    if not set_aside:
+        return
+    activity_id = body.get("id")
+    actor = body.get("actor")
+    actor_id = actor.get("id") if isinstance(actor, dict) else actor
+    for entry in set_aside:
+        logger.info(
+            "Set aside unknown key %r at %s; it is not read by this receiver"
+            " (MV-11-003) [activity_id=%s actor_id=%s]",
+            entry.key,
+            entry.location,
+            activity_id,
+            actor_id,
+        )
 
 
 def _received_evidence_json(body: dict[str, Any]) -> str:

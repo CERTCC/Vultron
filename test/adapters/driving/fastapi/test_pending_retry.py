@@ -37,12 +37,12 @@ from collections.abc import Callable
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driving.fastapi.pending_retry import (
+    retry_pending_create_case_activities,
+)
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
-)
-from vultron.adapters.driving.fastapi.pending_retry import (
-    retry_pending_create_case_activities,
 )
 
 # ---------------------------------------------------------------------------
@@ -148,9 +148,9 @@ class TestRetryHappyPath:
         )
 
         retrieved = dl.read(activity.id_)
-        assert (
-            retrieved is not None
-        ), "Activity should be persisted after retry"
+        assert retrieved is not None, (
+            "Activity should be persisted after retry"
+        )
 
     def test_activity_enqueued_to_outbox(self, dl):
         """Activity is enqueued to the case-actor's outbox (AC-1)."""
@@ -163,9 +163,9 @@ class TestRetryHappyPath:
         )
 
         outbox = dl.outbox_list()
-        assert (
-            activity.id_ in outbox
-        ), "Activity id should appear in the case-actor's outbox"
+        assert activity.id_ in outbox, (
+            "Activity id should appear in the case-actor's outbox"
+        )
 
     def test_marker_deleted_after_retry(self, dl):
         """PendingCreateCaseActivity marker is removed on success (AC-3)."""
@@ -190,9 +190,9 @@ class TestRetryHappyPath:
 
         # Only the Create(VulnerabilityCase) should be in the DataLayer
         accepts = dl.list_objects("Accept")
-        assert (
-            not accepts
-        ), "No Accept activity should be written by the retry runner"
+        assert not accepts, (
+            "No Accept activity should be written by the retry runner"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -236,9 +236,9 @@ class TestRetryIdempotency:
         # Only one Create activity in the DataLayer
         creates = dl.list_objects("Create")
         activity_ids = [obj.id_ for obj in creates]
-        assert (
-            activity_ids.count(activity.id_) == 1
-        ), "Activity should appear exactly once in the DataLayer"
+        assert activity_ids.count(activity.id_) == 1, (
+            "Activity should appear exactly once in the DataLayer"
+        )
 
     def test_outbox_entry_not_duplicated_on_second_run(self, dl):
         """Outbox entry count is not increased by a no-op second run."""
@@ -301,9 +301,9 @@ class TestRetryIdempotency:
         outbox_after_second = list(dl.outbox_list())
 
         # The critical AC-4 assertion: exactly one entry, not two.
-        assert (
-            outbox_after_second.count(activity.id_) == 1
-        ), "Activity id should appear exactly once in the outbox"
+        assert outbox_after_second.count(activity.id_) == 1, (
+            "Activity id should appear exactly once in the outbox"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -406,12 +406,12 @@ class TestRetryFullScenario:
         # 2. Simulate Create(VulnerabilityCase) delivery failing:
         #    the marker was written but EmitCreateVulnerabilityCaseNode failed,
         #    so the marker was NOT cleared. The activity is also not in the DL.
-        assert (
-            dl.read(activity.id_) is None
-        ), "Activity should not exist before retry"
-        assert (
-            dl.read(marker.id_) is not None
-        ), "Marker should exist before retry"
+        assert dl.read(activity.id_) is None, (
+            "Activity should not exist before retry"
+        )
+        assert dl.read(marker.id_) is not None, (
+            "Marker should exist before retry"
+        )
         assert not dl.outbox_list(), "Outbox should be empty before retry"
 
         # 3. Retry runner fires (e.g., on next startup).
@@ -422,18 +422,18 @@ class TestRetryFullScenario:
         # 4. Verify: Create(VulnerabilityCase) was re-queued.
         assert count == 1
         retrieved = dl.read(activity.id_)
-        assert (
-            retrieved is not None
-        ), "Activity should be persisted after retry"
+        assert retrieved is not None, (
+            "Activity should be persisted after retry"
+        )
         outbox = dl.outbox_list()
-        assert (
-            activity.id_ in outbox
-        ), "Activity should be in outbox after retry"
+        assert activity.id_ in outbox, (
+            "Activity should be in outbox after retry"
+        )
 
         # 5. Verify: marker is removed (AC-3).
-        assert (
-            dl.read(marker.id_) is None
-        ), "Marker should be deleted after successful retry"
+        assert dl.read(marker.id_) is None, (
+            "Marker should be deleted after successful retry"
+        )
 
         # 6. Accept was NOT resent (AC-1 — retry only covers Create).
         accepts = dl.list_objects("Accept")
@@ -466,9 +466,9 @@ class TestRetryFullScenario:
         info_messages = [
             r for r in caplog.records if r.levelno >= logging.INFO
         ]
-        assert (
-            not info_messages
-        ), "No INFO messages expected when no markers are found"
+        assert not info_messages, (
+            "No INFO messages expected when no markers are found"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -533,9 +533,9 @@ class TestStartupRecovery:
         )
 
         outbox = actor_dl.outbox_list()
-        assert (
-            activity.id_ in outbox
-        ), "Activity should be in the outbox after startup recovery"
+        assert activity.id_ in outbox, (
+            "Activity should be in the outbox after startup recovery"
+        )
 
     def test_marker_deleted_after_store_discovery(self):
         """Marker is cleared after startup recovery completes (AC-3)."""
@@ -548,9 +548,9 @@ class TestStartupRecovery:
             marker_scan_factory=lambda: [_CASE_ACTOR_ID],
         )
 
-        assert (
-            actor_dl.read(marker.id_) is None
-        ), "Marker should be deleted after startup recovery"
+        assert actor_dl.read(marker.id_) is None, (
+            "Marker should be deleted after startup recovery"
+        )
 
     def test_no_duplicate_when_actor_already_in_cache(self):
         """An actor already in the cache is not processed twice by store discovery."""
@@ -567,9 +567,9 @@ class TestStartupRecovery:
 
         assert count == 1, "Marker should be processed exactly once"
         outbox = actor_dl.outbox_list()
-        assert (
-            outbox.count(activity.id_) == 1
-        ), "Activity should appear exactly once in the outbox"
+        assert outbox.count(activity.id_) == 1, (
+            "Activity should appear exactly once in the outbox"
+        )
 
 
 # ---------------------------------------------------------------------------

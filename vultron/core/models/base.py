@@ -15,6 +15,7 @@
 
 """Base class for Vultron Protocol core domain object models."""
 
+import inspect
 import types as _types
 import typing as _typing
 from datetime import datetime, timedelta
@@ -111,7 +112,7 @@ class CoreRecord(ValidatedAssignmentMixin):
         # placing it in the wire VOCABULARY dict. Only subclasses that declare
         # their own concrete type_ annotation are registered; abstract bases that inherit or omit
         # type_ are skipped (same guard as CoreObject).
-        own_annotations = cls.__dict__.get("__annotations__", {})
+        own_annotations = inspect.get_annotations(cls)
         if "type_" not in own_annotations:
             return
         try:
@@ -190,9 +191,8 @@ class CoreObject(CoreRecord):
     #
     # This is the mechanism behind the rendering port, not a licence for core
     # code to dump its own objects: core logic hands rendering to the port, and
-    # the `by_alias=True` sites that remain under `vultron/core/` are an exact,
-    # shrink-only baseline in test/architecture/test_core_by_alias_dumps.py
-    # (ARCH-12-003, ARCH-20-001).
+    # test/architecture/test_core_by_alias_dumps.py holds `vultron/core/` to an
+    # empty baseline of `by_alias=True` calls (ARCH-12-003, ARCH-20-001).
     #
     # No unknown key may enter a core object: a wire-shaped payload handed to a
     # core type is rejected loudly rather than silently dropping every
@@ -520,7 +520,7 @@ class CoreObject(CoreRecord):
         # ``from __future__ import annotations`` (PEP 563), where raw
         # annotations are stringified and ``isinstance(..., UnionType)``
         # would silently fall through and register abstract bases.
-        own_annotations = cls.__dict__.get("__annotations__", {})
+        own_annotations = inspect.get_annotations(cls)
         if "type_" not in own_annotations:
             # No explicit type_ annotation: _set_type_from_class_name will set
             # type_ = cls.__name__ at construction time, so register by class
@@ -560,10 +560,13 @@ class CoreObject(CoreRecord):
         # whatever the referenced object's was, and "CoreObject" is never one.
         if cls is CoreObject:
             return data
-        if isinstance(data, dict):
-            if not data.get("type") and not data.get("type_"):
-                field_info = cls.model_fields.get("type_")
-                if field_info is not None and field_info.default is None:
-                    data = dict(data)
-                    data["type"] = cls.__name__
+        if (
+            isinstance(data, dict)
+            and not data.get("type")
+            and not data.get("type_")
+        ):
+            field_info = cls.model_fields.get("type_")
+            if field_info is not None and field_info.default is None:
+                data = dict(data)
+                data["type"] = cls.__name__
         return data

@@ -20,9 +20,10 @@ Tests for the propose-embargo-revision trigger endpoint
 Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi import status
-from unittest.mock import AsyncMock, patch
 
 from vultron.core.states.em import EM
 
@@ -38,8 +39,7 @@ FUTURE_END_TIME = "2099-12-01T00:00:00Z"
 def _no_outbox_delivery():
     """Suppress real outbox delivery for every test in this module."""
     with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
+        "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler",
         new_callable=AsyncMock,
     ):
         yield

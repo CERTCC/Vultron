@@ -13,17 +13,18 @@
 
 """Operations that leave the EM state alone.
 
-Per-participant consent bookkeeping (``record_participant_consent``), lazy
-RSVP-deadline enforcement (``detect_and_apply_lapse``, EMB-17) and the
-public eligibility check callers use before creating anything
-(``assert_embargo_eligible``, EP-04-008).
+Per-participant consent bookkeeping (``record_participant_consent``,
+``record_embargo_rejection``), lazy RSVP-deadline enforcement
+(``detect_and_apply_lapse``, EMB-17) and the public eligibility check
+callers use before creating anything (``assert_embargo_eligible``,
+EP-04-008).
 """
 
 import logging
 from datetime import datetime
 
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.services.embargo_lifecycle.base import _LifecycleBase
+from vultron.core.services.embargo_lifecycle.pec import _PecEffectsMixin
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
     ParticipantPECChange,
@@ -55,8 +56,59 @@ def _unchanged(
     )
 
 
-class _ConsentOperationsMixin(_LifecycleBase):
+class _ConsentOperationsMixin(_PecEffectsMixin):
     """Consent, lapse and eligibility operations with no EM transition."""
+
+    def record_embargo_rejection(
+        self,
+        *,
+        case_id: str,
+        actor_id: str,
+        embargo_id: str,
+    ) -> EmbargoLifecycleResult:
+        """Record *actor_id*'s rejection of *embargo_id* without moving EM.
+
+        The consent half of :meth:`reject_embargo_invite`, for a receiver
+        that records what a participant answered but does not decide the
+        proposal in this call — the received ``Reject(Invite(EmbargoEvent))``
+        tree.  Applies the MSM-07-004 rule by which embargo the Reject names
+        (ADR-0093): the case's *active* embargo is consent withdrawal —
+        ``DECLINE`` from any state, ``SIGNATORY`` included; a *proposed*
+        embargo is a refusal of those terms — the id leaves the actor's
+        ``accepted_embargo_ids`` and ``DECLINE`` applies only to an actor not
+        yet ``SIGNATORY``.  The owner's EJ (the owner refusing a proposed
+        revision while an embargo is in force) changes nobody's record.
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase`` that owns the participant.
+            actor_id: ID of the rejecting actor.
+            embargo_id: ID of the ``EmbargoEvent`` the Reject names.
+
+        Returns:
+            :class:`EmbargoLifecycleResult` with ``em_before == em_after`` and
+            ``case_changed == False``; ``participant_changes`` carries the
+            actor's PEC state change, if any.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+            VultronValidationError: If *embargo_id* is neither the active
+                embargo nor an open proposal of the case.
+        """
+        case = self._read_case(case_id)
+        em_state = case.current_status.em.state
+        is_active = self._assert_rejectable(case, embargo_id)
+        participant_changes = self._rejection_consent(
+            case, actor_id, embargo_id, is_active=is_active
+        )
+        logger.info(
+            "Recorded rejection of embargo '%s' by actor '%s' on case '%s'"
+            " (%d PEC state change(s))",
+            embargo_id,
+            actor_id,
+            case_id,
+            len(participant_changes),
+        )
+        return _unchanged(em_state, participant_changes=participant_changes)
 
     def record_participant_consent(
         self,
@@ -121,17 +173,14 @@ class _ConsentOperationsMixin(_LifecycleBase):
             changed = True
 
         if pec_trigger == PEC_Trigger.ACCEPT and embargo_id is not None:
-            if embargo_id not in participant.accepted_embargo_ids:
-                participant.accepted_embargo_ids = list(
-                    dict.fromkeys(
-                        participant.accepted_embargo_ids + [embargo_id]
-                    )
-                )
+            if participant.add_accepted_embargo(embargo_id):
                 changed = True
-        elif pec_trigger == PEC_Trigger.DECLINE and embargo_id is not None:
-            if embargo_id in participant.accepted_embargo_ids:
-                participant.accepted_embargo_ids.remove(embargo_id)
-                changed = True
+        elif (
+            pec_trigger == PEC_Trigger.DECLINE
+            and embargo_id is not None
+            and participant.remove_accepted_embargo(embargo_id)
+        ):
+            changed = True
 
         if changed:
             self._persistence.save(participant)
