@@ -871,7 +871,7 @@ def test_trigger_add_object_to_case_unknown_case_returns_404(
     strict=True,
     reason=(
         "TRIG-10-001: add-object-to-case does not yet refuse an object type"
-        " the CASE_MANAGER cannot route as Add(object, case). Source: #3917."
+        " the CASE_MANAGER cannot route as Add(object, case). Tracked in #4041."
     ),
 )
 @pytest.mark.spec("TRIG-10-001")

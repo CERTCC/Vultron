@@ -44,7 +44,7 @@ NON_SIGNATORY_ID = "https://example.org/actors/finder"
     strict=True,
     reason=(
         "CM-10-006: no backfill of withheld ledger entries when the embargo"
-        " content gate admits a participant. Source: #3917."
+        " content gate admits a participant. Tracked in #4042; source #3917."
     ),
 )
 @pytest.mark.spec("CM-10-006")

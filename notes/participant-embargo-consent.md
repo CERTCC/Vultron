@@ -539,7 +539,7 @@ notes with sensitive information) is gated on `embargo_adherence=True`.
 
 ### Ledger Fan-Out Is Case Content (CM-10-005, CM-10-006)
 
-*Source: Concern #3917 (2026-10-01). Not yet implemented; tracked in #FANOUT_ISSUE.*
+*Source: Concern #3917 (2026-10-01). Not yet implemented; tracked in #4042.*
 
 The gate (`find_excluded_actor_ids`, CM-10-004) was first applied only to
 `Announce(VulnerabilityCase)`. The `Announce(CaseLedgerEntry)` fan-out, which

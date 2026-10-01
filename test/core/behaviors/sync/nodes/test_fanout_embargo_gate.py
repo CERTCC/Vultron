@@ -73,7 +73,7 @@ def _seed_embargoed_case(bt_scenario: BTTestScenario) -> None:
     strict=True,
     reason=(
         "CM-10-005: ledger fan-out does not yet apply the CM-10-004 embargo"
-        " content gate. Source: #3917."
+        " content gate. Tracked in #4042; source #3917."
     ),
 )
 @pytest.mark.spec("CM-10-005")

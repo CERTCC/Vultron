@@ -377,7 +377,7 @@ is handled gracefully without patching.
 
 Both recipient collectors in `vultron/core/behaviors/sync/nodes/fanout.py`
 must apply the CM-10-004 embargo content gate (not yet implemented; tracked
-in #FANOUT_ISSUE, strict-`xfail` markers in place): under an active embargo, a
+in #4042, strict-`xfail` markers in place): under an active embargo, a
 participant that has not accepted it is paused — sent no entries — and on
 admission is backfilled in log order from its last acknowledged entry. The
 backfill reuses the replay path (`SendMissingEntriesNode`), not a new sender.
