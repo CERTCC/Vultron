@@ -272,6 +272,15 @@ def test_type_value_index_follows_a_replaced_class(isolated_core_registries):
     assert core_class_for_row_type("Note") is _StandInNote
 
 
+def test_type_value_index_is_reused_while_the_registry_is_unchanged():
+    """An unchanged registry returns the cached index rather than rebuilding it."""
+    from vultron.adapters.driven.datalayer_sqlite import hydration
+
+    first = hydration._core_classes_by_type_value()
+    assert hydration._core_classes_by_type_value() is first
+    assert hydration._TYPE_VALUE_INDEX.index is first
+
+
 def test_core_entity_type_string_matches_class_name(dl):
     """Stored type_ string matches the core class name (required for CORE_VOCABULARY lookup)."""
     case = VulnerabilityCase()
