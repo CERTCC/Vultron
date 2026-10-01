@@ -61,8 +61,8 @@ CFG-06).
 # vultron/config/app.py
 from __future__ import annotations
 
+import functools
 import logging
-from functools import lru_cache
 from pathlib import Path
 from typing import Literal, Any
 
