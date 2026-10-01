@@ -38,29 +38,22 @@ from vultron.core.behaviors.call_out.bundles.validation import (
     VALIDATION_DETERMINISTIC,
     ValidationCallOutBundle,
 )
+from vultron.demo.fuzzer.report_management.validate import (
+    EvaluateReportCredibility,
+    EvaluateReportValidity,
+    GatherValidationInfo,
+)
 
 
 def _stochastic_credibility(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.validate import (
-        EvaluateReportCredibility,
-    )
-
     return EvaluateReportCredibility(name)
 
 
 def _stochastic_validity(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.validate import (
-        EvaluateReportValidity,
-    )
-
     return EvaluateReportValidity(name)
 
 
 def _stochastic_gather_info(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.validate import (
-        GatherValidationInfo,
-    )
-
     return GatherValidationInfo(name)
 
 

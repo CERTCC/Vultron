@@ -40,6 +40,9 @@ from vultron.core.behaviors.case.nodes.intake import (
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,10 +64,6 @@ def create_guarded_commit_case_ledger_entry_tree(
     ``case_may_be_absent`` is passed to the gate; see
     :func:`create_receive_activity_tree`.
     """
-    from vultron.core.behaviors.case.nodes.role_gates import (
-        create_case_manager_gated_tree,
-    )
-
     return create_case_manager_gated_tree(
         name="GuardedCommitCaseLedgerEntryBT",
         case_id=case_id,

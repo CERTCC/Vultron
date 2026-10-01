@@ -95,10 +95,10 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         # Local import avoids a behaviors → use_cases circular dependency.
         # The helpers are pure utility functions with no BT knowledge.
-        from vultron.core.use_cases.received.actor.announce import (
+        from vultron.core.use_cases.received.actor.announce import (  # noqa: PLC0415  # ruff-baseline #3950
             _link_report_case_links,
         )
-        from vultron.core.use_cases.received.case._helpers import (
+        from vultron.core.use_cases.received.case._helpers import (  # noqa: PLC0415  # ruff-baseline #3950
             _normalize_participant_refs,
             _store_embedded_participants,
         )

@@ -228,7 +228,7 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
     fired.  The error must include ``client.base_url`` so the container is
     identifiable from the message alone.
     """
-    import vultron.demo.helpers.verification as verification_module
+    import vultron.demo.helpers.polling as polling_module
     from vultron.demo.helpers.polling import _wait_for_participant_status_field
 
     ps = as_ParticipantStatus(
@@ -241,7 +241,7 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
     )
 
     monkeypatch.setattr(
-        verification_module,
+        polling_module,
         "_fetch_participant",
         lambda *a, **kw: participant,
     )

@@ -310,7 +310,7 @@ def create_publication_tree(
     Returns:
         Root Sequence node of the collapsed publication behavior tree.
     """
-    from vultron.core.behaviors.call_out.bundles.publication import (
+    from vultron.core.behaviors.call_out.bundles.publication import (  # noqa: PLC0415  # ruff-baseline #3950
         PUBLICATION_DETERMINISTIC,
     )
 

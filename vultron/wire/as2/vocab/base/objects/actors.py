@@ -25,6 +25,7 @@ from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
 )
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
+from vultron.wire.as2.vocab.base.utils import print_object_examples
 
 #: The ``as_Object`` fields an endpoint collection leaves unset unless the value
 #: arrived with them.  Spelled as a mapping so it can seed a dict the arrived
@@ -237,8 +238,6 @@ WIRE_TYPE_MAP["Actor"] = as_Actor
 
 
 def main():
-    from vultron.wire.as2.vocab.base.utils import print_object_examples
-
     print_object_examples()
 
 

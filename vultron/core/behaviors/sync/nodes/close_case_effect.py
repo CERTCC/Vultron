@@ -25,6 +25,7 @@ import logging
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
@@ -128,7 +129,6 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
         # Set runtime actor_id on the pre-built node; BTBridge seeds case_id
         # on the blackboard so CaseIdInputPortMixin can read it (ADR-0089).
         self._status_node._actor_id = departing_actor_id
-        from vultron.core.behaviors.bridge import BTBridge
 
         # Use the DataLayer's own actor_id so BTBridge doesn't clone an empty
         # store for departing_actor_id. The write is still attributed to the

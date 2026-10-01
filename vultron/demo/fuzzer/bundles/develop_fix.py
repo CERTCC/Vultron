@@ -31,11 +31,10 @@ from vultron.core.behaviors.call_out.bundles.develop_fix import (
     DEVELOP_FIX_DETERMINISTIC,
     DevelopFixCallOutBundle,
 )
+from vultron.demo.fuzzer.report_management.develop_fix import CreateFix
 
 
 def _stochastic_create_fix(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.develop_fix import CreateFix
-
     return CreateFix(name)
 
 

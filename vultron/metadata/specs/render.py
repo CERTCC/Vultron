@@ -26,16 +26,26 @@ import sys
 from pathlib import Path
 from typing import Any, NoReturn
 
-from vultron.metadata.specs.llm_export import CROSS_CUTTING_TOPICS
+from vultron.metadata.specs.llm_export import (
+    CROSS_CUTTING_TOPICS,
+    to_index_text,
+    to_llm_json,
+    to_requirements_text,
+    unknown_selectors,
+)
 from vultron.metadata.specs.registry import (
     SpecRegistry,
     load_registry,
 )
 from vultron.metadata.specs.schema import (
     BehavioralSpec,
+    RFC2119Priority,
+    Scope,
     Spec,
     SpecFile,
     SpecGroup,
+    SpecKind,
+    SpecTag,
 )
 
 try:
@@ -328,8 +338,6 @@ def main() -> None:
         python -m vultron.metadata.specs.render --format llm-json specs/
         python -m vultron.metadata.specs.render --format llm-json --topic CM specs/
     """
-    import sys
-
     fmt = "md"
     topic = None
     args = sys.argv[1:]
@@ -360,8 +368,6 @@ def main() -> None:
             print(export_yaml(sf))
             print("---")
     elif fmt == "llm-json":
-        from vultron.metadata.specs.llm_export import to_llm_json
-
         print(to_llm_json(registry, topic=topic))
     else:
         print(render_registry_markdown(registry))
@@ -453,13 +459,6 @@ def _build_dump_parser() -> _DumpArgParser:
 
 def _enum_problems(args: argparse.Namespace) -> list[str]:
     """Validate enum-valued flags; one message per offending flag."""
-    from vultron.metadata.specs.schema import (
-        RFC2119Priority,
-        Scope,
-        SpecKind,
-        SpecTag,
-    )
-
     checks = (
         ("kind", args.kind, SpecKind),
         ("tag", args.tag, SpecTag),
@@ -533,13 +532,6 @@ def main_llm_json() -> None:
     Agents should start with ``--index`` and load targeted subsets rather
     than reading raw YAML files or the full dump.
     """
-    from vultron.metadata.specs.llm_export import (
-        to_index_text,
-        to_llm_json,
-        to_requirements_text,
-        unknown_selectors,
-    )
-
     args = _build_dump_parser().parse_args()
     problems = _enum_problems(args) + _empty_selectors(args)
     if problems:

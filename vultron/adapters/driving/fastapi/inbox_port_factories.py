@@ -27,11 +27,20 @@ import logging
 from collections.abc import Callable
 from typing import Any, cast
 
+from vultron.adapters.driven.sync_activity_adapter import (
+    SyncActivityAdapter,
+)
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.config.actor import ActorConfig
 from vultron.config.app import load_actor_config
 from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CASE_PROPOSAL_DETERMINISTIC,
+)
+from vultron.core.behaviors.call_out.bundles.status_authorization import (
+    STATUS_AUTHORIZATION_PERMISSIVE,
 )
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
@@ -89,10 +98,6 @@ def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
     ``CaseOutboxPersistence``) — the cast is safe (DL-07-002, which retired
     ARCH-13-002).
     """
-    from vultron.adapters.driven.sync_activity_adapter import (
-        SyncActivityAdapter,
-    )
-
     return {"sync_port": SyncActivityAdapter(cast(CaseOutboxPersistence, dl))}
 
 
@@ -103,10 +108,6 @@ def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:
     ``CaseOutboxPersistence``) — the cast is safe (DL-07-002, which retired
     ARCH-13-002).
     """
-    from vultron.adapters.driven.trigger_activity_adapter import (
-        TriggerActivityAdapter,
-    )
-
     return {
         "trigger_activity": TriggerActivityAdapter(
             cast(CaseOutboxPersistence, dl)
@@ -314,10 +315,6 @@ def _status_auth_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
     EmbargoTeardownAuthorizationGate succeeds in this adapter's trusted/demo
     deployment context.
     """
-    from vultron.core.behaviors.call_out.bundles.status_authorization import (
-        STATUS_AUTHORIZATION_PERMISSIVE,
-    )
-
     return {
         **_trigger_activity_port_factory(dl),
         "call_out": STATUS_AUTHORIZATION_PERMISSIVE,
@@ -331,10 +328,6 @@ def _status_auth_sync_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
     StatusAdoptionGate succeeds for non-CASE_OWNER senders in this adapter's
     trusted/demo deployment context.
     """
-    from vultron.core.behaviors.call_out.bundles.status_authorization import (
-        STATUS_AUTHORIZATION_PERMISSIVE,
-    )
-
     return {
         **_sync_and_trigger_port_factory(dl),
         "call_out": STATUS_AUTHORIZATION_PERMISSIVE,

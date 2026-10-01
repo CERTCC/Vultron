@@ -28,6 +28,9 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.sync.nodes.conditions import (
+    _require_log_entry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,10 +77,6 @@ class _LedgerEffectNode(DataLayerActionWithPorts):
 
     def _get_entry(self):  # type: ignore[return]
         """Return the HashChainLedgerRecord from the blackboard activity."""
-        from vultron.core.behaviors.sync.nodes.conditions import (
-            _require_log_entry,
-        )
-
         return _require_log_entry(self.activity, self.name)
 
     def update(self) -> Status:  # pragma: no cover

@@ -29,6 +29,7 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
 )
@@ -135,8 +136,6 @@ class AddCaseActorParticipantNode(DataLayerActionWithPorts):
         self.datalayer.save(updated_case)
 
         # Apply RECEIVED → VALID → ACCEPTED via the composed writer (ADR-0089)
-        from vultron.core.behaviors.bridge import BTBridge
-
         bridge = BTBridge(datalayer=self.datalayer)
         for node in (
             self._received_node,
@@ -301,8 +300,6 @@ class AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         self.datalayer.save(updated_case)
-
-        from vultron.core.behaviors.bridge import BTBridge
 
         result = BTBridge(datalayer=self.datalayer).execute_with_setup(
             self._status_node,
