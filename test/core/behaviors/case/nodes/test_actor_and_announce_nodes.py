@@ -401,7 +401,7 @@ class TestSeedAnnouncedCaseNode:
         """Persisted VulnerabilityCase must not carry inline CaseParticipant objects.
 
         Regression for #2233 write path: _build_case_object materialises inline
-        participants for delivery so that _store_embedded_participants on the
+        participants for delivery so that store_embedded_participants on the
         receiver side can project and persist them.  SeedAnnouncedCaseNode must
         normalise case_participants to string IDs *before* saving the case, so
         the stored row never carries stale inline snapshots that would freeze

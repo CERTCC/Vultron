@@ -168,7 +168,7 @@ receiver validates is `case_manager_id` from the `Accept(CaseProposal)`
 recorded earlier in `accept_case_proposal_received_tree.py`.
 
 The `Create(VulnerabilityCase)` payload MUST embed participant objects inline
-so `_store_embedded_participants` can seed them on the receiver's replica.
+so `store_embedded_participants` can seed them on the receiver's replica.
 
 ## Layer and Import Rules
 

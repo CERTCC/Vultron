@@ -464,7 +464,7 @@ class TestAnnounceStoresEmbeddedParticipants:
     """Announce(as_VulnerabilityCase) seeding must store embedded participants.
 
     Regression tests for #566: ``AnnounceVulnerabilityCaseReceivedUseCase``
-    was not calling ``_store_embedded_participants`` after saving the case,
+    was not calling ``store_embedded_participants`` after saving the case,
     so late-joiner replicas never had independent ``as_CaseParticipant`` records.
     BT nodes (``CheckParticipantExists``, ``AppendParticipantStatusNode``)
     would then fail with participant-not-found on the Announce path.

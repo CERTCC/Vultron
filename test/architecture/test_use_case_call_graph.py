@@ -31,6 +31,7 @@ from test.architecture._use_case_call_graph import _UseCaseCorpus
 from test.architecture.test_no_dl_mutations_in_execute import _violations_in
 
 _SYNTHETIC_PKG = "vultron.core.use_cases"
+_SYNTHETIC_SERVICES = "vultron.core.services"
 
 
 def _synthetic_violations(
@@ -39,10 +40,11 @@ def _synthetic_violations(
     """Run both rules over a synthetic use-case package laid out in *tmp_path*.
 
     *files* maps a path relative to the package root (``received/x.py``,
-    ``_helpers.py``, ``../behaviors/node.py`` for an out-of-package module) to
-    its source.  Returns the violation set relative to *tmp_path*.
+    ``_helpers.py``, ``../services/x.py`` for an indexed core-services module,
+    ``../behaviors/node.py`` for an unindexed one) to its source.  Returns the violation set relative to *tmp_path*.
     """
     root = tmp_path / "vultron" / "core" / "use_cases"
+    services = (tmp_path / "vultron" / "core" / "services").resolve()
     trees: dict[Path, ast.AST] = {}
     for rel, source in files.items():
         path = (root / rel).resolve()
@@ -52,8 +54,14 @@ def _synthetic_violations(
     in_package = {
         p: t for p, t in trees.items() if p.is_relative_to(root.resolve())
     }
+    indexed = {
+        p: t
+        for p, t in trees.items()
+        if p.is_relative_to(root.resolve()) or p.is_relative_to(services)
+    }
     corpus = _UseCaseCorpus(
-        in_package, root=root.resolve(), package=_SYNTHETIC_PKG
+        indexed,
+        roots={root.resolve(): _SYNTHETIC_PKG, services: _SYNTHETIC_SERVICES},
     )
     return _violations_in(
         corpus,
@@ -78,6 +86,29 @@ def test_transitive_rule_flags_helper_one_call_deep(tmp_path: Path) -> None:
                 "        store(self._dl, self._obj)\n"
             ),
             "_helpers.py": ("def store(dl, obj):\n    dl.save(obj)\n"),
+        },
+    )
+    assert found == frozenset({_RECEIVED})
+
+
+def test_transitive_rule_follows_a_core_services_helper(
+    tmp_path: Path,
+) -> None:
+    """execute() → core-services helper → dl.save() is still the caller's.
+
+    A helper a use case shares with a BT node lives in ``core/services/``
+    (BT-22-005); moving it there must not hide the write from the ratchet.
+    """
+    found = _synthetic_violations(
+        tmp_path,
+        {
+            "received/uc.py": (
+                "from vultron.core.services.seed import store\n"
+                "class UC:\n"
+                "    def execute(self):\n"
+                "        store(self._dl, self._obj)\n"
+            ),
+            "../services/seed.py": ("def store(dl, obj):\n    dl.save(obj)\n"),
         },
     )
     assert found == frozenset({_RECEIVED})

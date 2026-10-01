@@ -3002,7 +3002,7 @@ groups:
       is emitted to the vendor.
     rationale: >-
       The `Create(VulnerabilityCase)` payload embeds participants inline so the
-      vendor's `CreateCaseReceivedUseCase._store_embedded_participants` can seed
+      vendor's `store_embedded_participants` can seed
       its local replica.  Absent participant records at emission time produce an
       empty replica and break role-guard checks (CP-09-002, CP-09-004).
     verification: Integration tests in `test/demo/` confirm that `Create(VulnerabilityCase)` is

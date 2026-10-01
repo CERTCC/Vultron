@@ -212,7 +212,7 @@ mismatch and must raise (ARCH-15-001, ARCH-15-002).
 object that is not a core participant is *the sender's defect*, not this
 actor's corrupt row, and it must not cost the receiver the whole case.
 `_project_to_core_participant()` in
-`vultron/core/use_cases/received/case/_helpers.py` therefore skips such an
+`vultron/core/services/case_replica_seeding.py` therefore skips such an
 object with an ERROR rather than raising, and only what passes that check
 reaches the strict reader. Under ADR-0099 detail 3 there is no projection
 step — a received status *is* the core `ParticipantStatus`, and a flat
