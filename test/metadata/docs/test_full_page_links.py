@@ -13,6 +13,8 @@ leaves the page and that every in-page target is a heading id on it.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
+from html.parser import HTMLParser
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -33,8 +35,9 @@ from vultron.metadata.docs.full_page_links import (
 
 _HOOK_PATH = "vultron/metadata/docs/full_page_links.py"
 
-# A link that leaves full.md for a page beside it, with a fragment.
-_SIBLING_LINK = re.compile(r"\]\((?:\./)?([^)/#\s]+\.md)#")
+# A rendered href into a page beside full.md, with a fragment. Python-Markdown
+# leaves ``.md`` targets as written, so the href keeps the source page name.
+_SIBLING_HREF = re.compile(r"^(?:\./)?(?P<page>[^/#:?]+\.md)#")
 _IN_PAGE_LINK = re.compile(r"\]\(#([^)\s]+)")
 
 
@@ -70,6 +73,27 @@ class TestRewriteSectionLinks:
             '[x](#41-report-management-messages "RM messages")'
         )
 
+    @pytest.mark.parametrize(
+        ("md", "expected"),
+        [
+            pytest.param(
+                "[x](layers.md#a 'single')", "[x](#a 'single')", id="single"
+            ),
+            pytest.param(
+                "[x](layers.md#a (paren))", "[x](#a (paren))", id="paren"
+            ),
+            pytest.param("[x](<layers.md#a>)", "[x](#a)", id="angle"),
+            pytest.param(
+                '[x]: layers.md#a "T"', '[x]: #a "T"', id="definition"
+            ),
+            pytest.param(
+                "  [x]: <./layers.md#a>", "  [x]: #a", id="definition-angle"
+            ),
+        ],
+    )
+    def test_other_link_forms_are_rewritten(self, md: str, expected: str):
+        assert rewrite_section_links(md) == expected
+
     def test_every_link_on_a_line_is_rewritten(self):
         md = "[a](layers.md#a) and [b](conformance.md#b)"
         assert rewrite_section_links(md) == "[a](#a) and [b](#b)"
@@ -89,6 +113,15 @@ class TestRewriteSectionLinks:
                 id="sibling-directory",
             ),
             pytest.param("[here](#already-in-page)", id="already-in-page"),
+            pytest.param("`[x](layers.md#a)`", id="inline-code"),
+            pytest.param("``[x](layers.md#a)``", id="double-tick-code"),
+            pytest.param(
+                "```markdown\n[x](layers.md#a)\n```", id="backtick-fence"
+            ),
+            pytest.param(
+                "    ~~~\n    [x]: layers.md#a\n    ~~~",
+                id="indented-tilde-fence",
+            ),
             pytest.param(
                 "[ext](https://example.org/layers.md#x)", id="external"
             ),
@@ -96,6 +129,12 @@ class TestRewriteSectionLinks:
     )
     def test_other_links_are_untouched(self, md: str):
         assert rewrite_section_links(md) == md
+
+    def test_a_link_after_a_code_block_is_still_rewritten(self):
+        md = "```\n[x](layers.md#a)\n```\n\n[y](layers.md#b) `code`"
+        assert rewrite_section_links(md) == (
+            "```\n[x](layers.md#a)\n```\n\n[y](#b) `code`"
+        )
 
 
 class TestOnPageMarkdown:
@@ -143,12 +182,38 @@ _HEADING_EXTENSIONS = [
     "pymdownx.tabbed",
 ]
 
+_DOCS_DIR = repo_root() / "docs"
+
+
+class _Hrefs(HTMLParser):
+    """Collect every ``<a href>`` in rendered HTML."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.hrefs: list[str] = []
+
+    def handle_starttag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        href = dict(attrs).get("href")
+        if tag == "a" and href:
+            self.hrefs.append(href)
+
+
+@dataclass(frozen=True)
+class _FullPage:
+    """``full.md`` before and after the hook, and the rewritten page's HTML."""
+
+    assembled: str
+    rewritten: str
+    html: str
+
 
 @pytest.fixture(scope="module")
-def full_page_markdown() -> str:
+def full_page() -> _FullPage:
     """``full.md`` as the build hands it to Python-Markdown: assembled by
     ``include-markdown`` (with the site's options), then rewritten by the
-    hook."""
+    hook, then rendered with enough extensions to give headings their ids."""
     plugin = IncludeMarkdownPlugin()
     options = next(
         entry["include-markdown"]
@@ -157,40 +222,55 @@ def full_page_markdown() -> str:
     )
     errors, _ = plugin.load_config(options)
     assert not errors, errors
-    docs_dir = repo_root() / "docs"
-    src = docs_dir / FULL_PAGE_SRC_URI
+    src = _DOCS_DIR / FULL_PAGE_SRC_URI
     page = SimpleNamespace(file=SimpleNamespace(abs_src_path=str(src)))
     assembled = include_markdown(
         src.read_text(encoding="utf-8"),
         cast(Any, page),
-        str(docs_dir),
+        str(_DOCS_DIR),
         plugin=plugin,
     )
-    return _run(assembled, FULL_PAGE_SRC_URI)
+    rewritten = _run(assembled, FULL_PAGE_SRC_URI)
+    html = markdown.markdown(rewritten, extensions=_HEADING_EXTENSIONS)
+    return _FullPage(assembled, rewritten, html)
+
+
+def _hrefs(html: str) -> list[str]:
+    parser = _Hrefs()
+    parser.feed(html)
+    parser.close()
+    return parser.hrefs
 
 
 class TestAssembledFullPage:
-    def test_no_cross_reference_leaves_for_a_part_page(
-        self, full_page_markdown: str
-    ):
+    def test_the_hook_rewrites_cross_references(self, full_page: _FullPage):
+        """Non-vacuity (DF-09-009): the page has cross-references to rewrite,
+        so the checks below are not passing on a page with none."""
+        before = set(_IN_PAGE_LINK.findall(full_page.assembled))
+        after = set(_IN_PAGE_LINK.findall(full_page.rewritten))
+        assert after - before, "the hook rewrote no link on full.md"
+
+    def test_no_href_leaves_for_a_part_page(self, full_page: _FullPage):
+        """Judged on the rendered ``href``s, not on the hook's own grammar:
+        any link into a page beside ``full.md`` other than ``index.md``, with
+        a fragment, is a cross-reference that still leaves the page."""
         leaving = sorted(
-            set(_SIBLING_LINK.findall(full_page_markdown)) - {"index.md"}
+            href
+            for href in _hrefs(full_page.html)
+            if (m := _SIBLING_HREF.match(href)) and m["page"] != "index.md"
         )
-        assert not leaving, f"full.md still links off-page to {leaving}"
+        assert not leaving, f"full.md still links off-page: {leaving}"
 
     def test_every_in_page_target_is_a_unique_heading_id(
-        self, full_page_markdown: str
+        self, full_page: _FullPage
     ):
         """A rewritten link must land on its heading: the id must exist, and
         no duplicate heading may share it (a duplicate gains a ``_1`` suffix,
         so the bare link would land on the first copy)."""
-        targets = set(_IN_PAGE_LINK.findall(full_page_markdown))
-        assert targets, "no in-page links found; the check would be vacuous"
-        ids = anchor_ids_in(
-            markdown.markdown(
-                full_page_markdown, extensions=_HEADING_EXTENSIONS
-            )
-        )
+        targets = {
+            href[1:] for href in _hrefs(full_page.html) if href[:1] == "#"
+        }
+        ids = anchor_ids_in(full_page.html)
         assert not sorted(targets - ids), "dead in-page anchors"
         duplicated = sorted(t for t in targets if f"{t}_1" in ids)
         assert not duplicated, f"ambiguous in-page anchors: {duplicated}"
@@ -198,4 +278,4 @@ class TestAssembledFullPage:
 
 def test_full_page_source_exists():
     """The hook keys on this path; a move would silently disable it."""
-    assert (repo_root() / "docs" / FULL_PAGE_SRC_URI).is_file()
+    assert (_DOCS_DIR / FULL_PAGE_SRC_URI).is_file()

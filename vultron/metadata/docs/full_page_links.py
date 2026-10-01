@@ -24,12 +24,15 @@ the page, although the section it names is further up or down the same page
 
 This ``on_page_markdown`` hook rewrites those links on ``full.md`` only. A
 Markdown link whose target is another page of the section, *with* a fragment,
-becomes a bare ``#fragment`` link. Left unchanged:
+becomes a bare ``#fragment`` link, whether it is an inline link or a reference
+definition. Left unchanged:
 
 - a link to a section page without a fragment: it names a page, not a
   section, and the page has no in-page counterpart;
 - a link to ``index.md``, the routing page, which ``full.md`` does not include;
 - a link to any page outside the section (its target holds a ``/``);
+- a link shown inside a fenced code block or an inline code span;
+- a raw-HTML ``<a href>``, which is not a Markdown link;
 - every page other than ``full.md``, so no part page renders differently.
 
 The hook runs after ``include-markdown`` has assembled the page:
@@ -72,29 +75,60 @@ _INDEX_PAGE = "index.md"
 _PRIORITY = -50
 """Below ``include-markdown``'s 100, so the page is already assembled."""
 
-# An inline link target: ``](page.md#fragment)``, optionally ``./``-prefixed
-# and optionally followed by a title. The page name has no ``/``, so only a
-# page in the same directory as ``full.md`` matches.
-_SECTION_LINK = re.compile(
-    r"\]\((?:\./)?(?P<page>[A-Za-z0-9_.-]+\.md)#(?P<fragment>[^)\s]+)"
-    r"(?P<rest>(?:\s+\"[^\"]*\")?\))"
+
+# A same-directory page with a fragment: ``page.md#fragment``, optionally
+# ``./``-prefixed. The page name has no ``/``, so only a page in the same
+# directory as ``full.md`` matches. Each link form names its own groups.
+def _target(form: str) -> str:
+    return (
+        rf"(?:\./)?(?P<{form}_page>[A-Za-z0-9_.-]+\.md)"
+        rf"#(?P<{form}_fragment>[^)>\s\"']+)"
+    )
+
+
+_TITLE = r"""(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?"""
+
+# One pass over the page. Code is matched first and kept verbatim, so a link
+# shown inside a fenced block or an inline code span is never rewritten. A link
+# is either inline, ``](target "title")`` with the target optionally in angle
+# brackets, or a reference definition, ``[label]: target "title"``.
+_TOKEN = re.compile(
+    r"(?P<code>"
+    r"^[ \t]*(?P<fence>`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*(?P=fence)[ \t]*$"
+    r"|(?P<ticks>`+)(?:(?!(?P=ticks)).)+?(?P=ticks)"
+    r")"
+    rf"|\]\(<?{_target('inline')}(?P<inline_rest>>?{_TITLE}\))"
+    rf"|(?P<definition_head>^[ \t]{{0,3}}\[[^\]\n]+\]:[ \t]*)<?"
+    rf"{_target('definition')}(?P<definition_rest>>?{_TITLE}[ \t]*$)",
+    re.MULTILINE,
 )
 
 
 def _in_page(match: re.Match[str]) -> str:
-    if match["page"] == _INDEX_PAGE:
+    if match["code"] is not None:
         return match[0]
-    return f"](#{match['fragment']}{match['rest']}"
+    form = "inline" if match["inline_page"] is not None else "definition"
+    if match[f"{form}_page"] == _INDEX_PAGE:
+        return match[0]
+    # Angle brackets go with the page: ``<layers.md#x>`` becomes ``#x``.
+    fragment = "#" + match[f"{form}_fragment"]
+    rest = match[f"{form}_rest"].removeprefix(">")
+    if form == "inline":
+        return f"]({fragment}{rest}"
+    return f"{match['definition_head']}{fragment}{rest}"
 
 
 def rewrite_section_links(markdown: str) -> str:
     """Return *markdown* with each same-section ``page.md#fragment`` link
     rewritten to ``#fragment``.
 
-    Links to ``index.md``, links without a fragment and links into another
-    directory are returned unchanged.
+    Inline links and reference definitions are rewritten. Links to
+    ``index.md``, links without a fragment, links into another directory and
+    anything inside a fenced code block or an inline code span are returned
+    unchanged. A raw-HTML ``<a href>`` is not a Markdown link and is not
+    rewritten.
     """
-    return _SECTION_LINK.sub(_in_page, markdown)
+    return _TOKEN.sub(_in_page, markdown)
 
 
 @event_priority(_PRIORITY)
