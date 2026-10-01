@@ -24,6 +24,7 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.use_cases._helpers import (
@@ -102,8 +103,10 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         request: AnnounceVulnerabilityCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         gap_buffer: LedgerGapBuffer | None = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request = request
         self._sync_port = sync_port
         self._gap_buffer = gap_buffer
@@ -167,7 +170,9 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             case_obj=case_obj,
             request=request,
         )
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             # The *receiving* actor, not the sender (BT-17-005): an
@@ -202,5 +207,6 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 ),
                 gap_buffer,
                 self._sync_port,
+                self._wire_render_port,
             )
         return HandlerResult.applied()

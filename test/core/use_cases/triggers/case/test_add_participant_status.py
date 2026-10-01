@@ -386,7 +386,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             trigger_activity=self.trigger_activity,
         ).execute()
 
-        status_id = result.get("status_id")
+        status_id = result.status_id
         assert status_id is not None, "execute() must return a status_id"
 
         # The sender's own participant record must now contain the status.

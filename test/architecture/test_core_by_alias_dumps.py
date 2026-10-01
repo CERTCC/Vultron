@@ -20,12 +20,14 @@ ADR-0099 detail 2 puts ``alias_generator=to_camel`` on ``CoreObject``, so
 the mechanism behind ``WireRenderPort``, not a licence: core logic still hands
 delivery to the port.  Every ``by_alias=True`` call under ``vultron/core/`` is
 counted per file and compared to an exact baseline, so a new call site fails
-and a removed one must be ticked off (the set may only shrink).
+and a removed one must be ticked off (the set may only shrink, ARCH-18-002).
 
 The baseline counts calls, not uses: a ``by_alias=True`` dump of an object that
-is already wire-shaped, or of a stored record whose persisted form happens to
-be camelCase, is counted alongside a genuine core-to-wire rendering.  Audit a
-site before removing it; do not add one without saying why in a comment.
+is already wire-shaped is counted alongside a genuine core-to-wire rendering.
+That is deliberate.  The activity a received handler holds is the extractor's
+core-branch ``VultronActivity`` even when its ``object_`` is a wire object, so
+"this subject is already wire-shaped" is a claim that has to be checked, and the
+port renders both cases the same way.  The baseline has been empty since #3930.
 """
 
 import ast
@@ -35,14 +37,11 @@ from test.architecture import _corpus
 
 _CORE = _corpus.REPO_ROOT / "vultron" / "core"
 
-# The "seven remaining call sites" the ARCH-20-001 comments at each site name.
-_BASELINE: dict[str, int] = {
-    "vultron/core/behaviors/case/nodes/proposal_retry_marker.py": 1,
-    "vultron/core/behaviors/inbox/nodes/dead_letter.py": 1,
-    "vultron/core/behaviors/status/nodes/case_status.py": 1,
-    "vultron/core/use_cases/_snapshot_helpers.py": 2,
-    "vultron/core/use_cases/received/case_proposal.py": 1,
-}
+# Empty since #3930: every AS2 rendering core needs goes through
+# ``WireRenderPort`` (or, for an activity the trigger-activity port builds, the
+# AS2 JSON that port returns).  A new site fails this test; route it through the
+# port rather than adding it here.
+_BASELINE: dict[str, int] = {}
 
 
 def _by_alias_calls() -> Counter[str]:

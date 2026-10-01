@@ -30,18 +30,11 @@ from fastapi.testclient import TestClient
 from vultron.adapters.driving.fastapi.routers import (
     trigger_actor as trigger_actor_router,
 )
-from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
-    get_trigger_dl,
-    get_trigger_service,
-)
+from vultron.adapters.driving.fastapi import trigger_runner
+from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 import vultron.adapters.driving.fastapi.outbox_handler as _outbox_handler
 from vultron.enums.roles import CVDRole
-from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -63,7 +56,7 @@ class _NoopEmitter:
 def _store_for(actor_id: str) -> SqliteDataLayer:
     """Open the addressed actor's own store, as the real dependencies do.
 
-    ``get_trigger_service`` builds its ``TriggerService`` from the store of the
+    ``get_trigger_dispatcher`` builds its dispatcher over the store of the
     actor named in the URL, so an override that hands every request one fixed
     store is not a stand-in for the routing — it is a shared multi-tenant store,
     the thing ADR-0073 removes. Two of these endpoints are addressed to an actor
@@ -83,18 +76,10 @@ def client_triggers(dl):
     app = FastAPI()
     app.include_router(trigger_actor_router.router)
 
-    def _service(actor_id: str = FastAPIPath(...)) -> TriggerService:
-        store = _store_for(actor_id)
-        return TriggerService(
-            store, trigger_activity=TriggerActivityAdapter(store)
-        )
-
     def _dl_for_path(actor_id: str = FastAPIPath(...)) -> SqliteDataLayer:
         return _store_for(actor_id)
 
-    app.dependency_overrides[get_trigger_service] = _service
     app.dependency_overrides[get_trigger_dl] = _dl_for_path
-    app.dependency_overrides[get_canonical_actor_dl] = _dl_for_path
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -610,11 +595,7 @@ def client_triggers_invite(dl):
 
     app = FastAPI()
     app.include_router(trigger_actor_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
-    )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     mock_emitter = AsyncMock()
     with patch(
         "vultron.adapters.driving.fastapi.outbox_handler.get_default_emitter",
@@ -807,18 +788,19 @@ def test_trigger_invite_actor_to_case_unknown_invitee_is_accepted(
 
 @pytest.fixture
 def drained(monkeypatch):
-    """Record every ``(actor_id, store actor)`` the router schedules a drain for.
+    """Record every ``(actor_id, store actor)`` the route schedules a drain for.
 
-    The router calls the ``outbox_handler`` name it imported, so that is what
-    is replaced; the recorder resolves the store's actor so the assertion is
-    about *which outbox* will be drained, not just which id was passed.
+    The route runs through ``run_trigger``, which calls the ``outbox_handler``
+    name *it* imported, so that is what is replaced; the recorder resolves the
+    store's actor so the assertion is about *which outbox* will be drained,
+    not just which id was passed.
     """
     calls: list[tuple[str, str | None]] = []
 
     async def _record(actor_id, dl, emitter=None):
         calls.append((actor_id, getattr(dl, "actor_id", None)))
 
-    monkeypatch.setattr(trigger_actor_router, "outbox_handler", _record)
+    monkeypatch.setattr(trigger_runner, "outbox_handler", _record)
     return calls
 
 
@@ -866,7 +848,7 @@ def test_suggest_actor_to_case_drains_the_emitting_actors_outbox(
 def test_invite_actor_to_case_still_drains_the_case_actors_outbox(
     client_triggers_invite, actor, case_for_invite, other_actor, drained
 ):
-    """The pre-existing #2484 behaviour survives the shared helper."""
+    """The pre-existing #2484 behaviour holds through the shared helper."""
     case, case_actor = case_for_invite
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/invite-actor-to-case",

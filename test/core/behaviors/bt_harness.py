@@ -40,6 +40,7 @@ import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -82,6 +83,7 @@ class BTTestScenario:
             datalayer=self.dl,
             is_leader=lambda: is_leader,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         )
 
     # ------------------------------------------------------------------

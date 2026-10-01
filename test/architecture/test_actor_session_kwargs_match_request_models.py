@@ -34,7 +34,7 @@ import inspect
 
 import pytest
 
-from vultron.adapters.driving.fastapi.trigger_models import (
+from vultron.core.use_cases.triggers.request_bodies import (
     AcceptActorRecommendationRequest,
     AcceptCaseInviteRequest,
     AcceptCaseOwnershipTransferRequest,

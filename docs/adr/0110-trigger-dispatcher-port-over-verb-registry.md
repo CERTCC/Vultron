@@ -45,7 +45,7 @@ This ADR narrows the rule to what it meant.
   One half does it with a one-method port and a 51-row table; the other with 27 methods and 598 lines of procedure.
 - Adding a trigger verb today costs five edits across five files that can silently disagree.
 - Response bodies are a client-visible contract.
-  Five distinct body shapes exist, no route declares a `response_model`, and no test pins an exact key set, so the shapes are invisible to OpenAPI and to review.
+  Six distinct body shapes exist (five when this ADR was written; measuring each live body for #3831 found `create-case` also returning `case_id`), no route declares a `response_model`, and no test pins an exact key set, so the shapes are invisible to OpenAPI and to review.
 - `SvcBTTriggerBase` and everything below it is already correct and is the floor of this change.
   Its template (`_prepare` / `_build_tree` / `_handle_result`, `BTBridge` construction, the port and failure guards) does not move; only its final `return {...}` becomes the typed `ActivityResult`, so the use case itself satisfies UCORG-05-007.
 - A second driving adapter (CLI beyond the demo, MCP) is not on the current priority list.
@@ -114,12 +114,17 @@ The fields UCORG-05-005 previously required on the base move down to the subtype
 TriggerResult          (no fields)
   ActivityResult       activity, emitting_actor_id
     NoteResult         + note
+    CaseResult         + case_id
   StatusResult         activity_id, status_id
   OfferResult          offer
-  RoleOfferResult      activity, activity_id
+  RoleOfferResult      activity_id, activity
+  SyncLogEntryResult   log_entry_id, entry_hash, log_index, emitting_actor_id
 ```
 
 Four verbs return bodies with no `emitting_actor_id` and one with no `activity`; a base requiring both could not be satisfied without changing live bodies.
+`CaseResult` was added when #3831 measured the live bodies: `create-case` returns the activity body plus the created case's id, which the demo layer reads.
+`SyncLogEntryResult` was added when #3832 built the registry: the demo `sync-log-entry` route had run its commit tree inline with no use case, so it could not have a row; it gained `SvcSyncLogEntryUseCase` and this subtype for the three keys its body already carried plus `emitting_actor_id`.
+That fourth key is the one deliberate body change of the migration: the commit tree runs as the case's CASE_MANAGER, so once the use case went through `BTBridge`'s store-scoped ports (DL-07-009) the fan-out landed in the CASE_MANAGER's outbox — where the inline route, which had smuggled `sync_port` past that scoping, had queued it in the requester's — and the router needs the emitter's name to drain the right queue, exactly as it does for a delegated `ActivityResult`.
 Every subtype forbids extra keys, so a use case whose return dict gains a key fails loudly rather than being filtered out of the response.
 
 `activity`, `offer`, and `note` are `dict[str, Any]`, not wire models.
@@ -161,6 +166,7 @@ def trigger_propose_embargo(actor_id, body, background_tasks, ctx, actor_dl) -> 
     return run_trigger(PROPOSE_EMBARGO, actor_id, body, ctx, background_tasks, actor_dl)
 ```
 
+One route body is two calls: the demo `notify-fix-ready` is the two-hop VF ratchet (vf→Vf→VF), each hop its own `AddParticipantStatusTriggerRequest` validated by the tree, so it dispatches and flushes twice and answers with the second hop's status; a single call cannot express the verb without the tree accepting a two-step jump.
 No `__signature__` synthesis: that would couple every endpoint to a FastAPI internal, and a break would take all of them at once.
 The `Depends(get_trigger_dl)` → `Depends(get_actor_dl)` chain is preserved because `app.dependency_overrides` keys on it (TRIG-06-002).
 The outbox flush is scheduled via `BackgroundTasks` after `trigger()` returns and not at all when it raises (TRIG-07-001).
@@ -175,7 +181,8 @@ The outbox flush is scheduled via `BackgroundTasks` after `trigger()` returns an
   It gets a route and a registry row.
   It is general-purpose, not demo-only: a coordinator recording a vendor's awareness on evidence is an intentional actor decision under TRIG-08-002, so it is mounted under `/trigger/`, making PRM-06-003 and PRM-06-004 reachable and the PRM-06-005 guard testable over HTTP.
   This adds one path; the contract freeze covers the existing ones.
-- The dead `sync_port` wiring in `deps.py` and `TriggerService.__init__` is deleted, with the grep evidence in the PR so it is not restored by habit.
+- The `sync_port` wiring that `TriggerService.__init__` and `get_trigger_service` carried was dead — nothing read `TriggerService._sync_port` — and is deleted with them, with the grep evidence in the PR so it is not restored by habit.
+  `sync_port` itself is not dead: `SvcBTTriggerBase` hands it to `BTBridge` and the `sync-log-entry` verb's commit tree fans out through it (#3832), so `get_trigger_dispatcher` keeps injecting it.
 - `svc.close_case` builds a `CloseReportTriggerRequest` and closes a report; `svc.close_report` is a deprecated alias with no production callers; `svc.leave_case` closes the case.
   The registry names each verb once, by what it does.
 
@@ -196,7 +203,7 @@ Only the final step, switching the routes and deleting the service, port, and du
 
 - Good: driving-port method count across the hexagon drops from 28 to 2, and adding a trigger verb becomes one registry row plus one route.
 - Good: per-verb static typing survives and improves; the four `Any` state parameters become the core model's real types.
-- Good: five response shapes become five declared types, visible in OpenAPI and pinned by test.
+- Good: six response shapes become six declared types, visible in OpenAPI and pinned by test.
 - Good: the UCORG-05-004 ratchet's `triggers/` exclusion is deleted, and UCORG-05-006 is satisfied rather than violated 27 times.
 - Good: one validator copy, one request family, one `CaseTriggerRequest`.
 - Bad: `test/core/use_cases/triggers/test_service.py` (48 tests, real BT execution against a real store, covering 10 of 27 verbs) tests the facade being removed.
@@ -211,20 +218,26 @@ Only the final step, switching the routes and deleting the service, port, and du
 
 ## Validation
 
-Only the first, gating step is built: the golden OpenAPI snapshot test at `test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py` covers the trigger and demo paths, and its first commit (#3828) predates the route rewrite.
-The rest is not yet built.
-This ADR is provisional until the trigger side conforms and the remaining tests named here exist.
-
-Expected, once built:
+All four steps are built.
+The gating step is the golden OpenAPI snapshot test at `test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py`, which covers the trigger and demo paths; its first commit (#3828) predates the route rewrite.
+The additive step (#3831) landed behind it with the snapshot unchanged: `TriggerResult` and its subtypes exist in `vultron/core/models/use_case_result.py`, every trigger `execute()` returns one, and the two request families are one (`request_bodies.py` owns the bodies, `requests.py` derives the generic `TriggerRequest[ResultT_co]` requests from them).
+The third step (#3832) landed the registry and the port: `vultron/trigger_registry/` (one row per verb, a lookup and an enumeration, no per-verb behavior), `TriggerDispatcher` in `vultron/core/ports/trigger_dispatcher.py` with `RegistryTriggerDispatcher` in `vultron/core/trigger_dispatcher.py`, the shared `run_trigger(...)` route body in `vultron/adapters/driving/fastapi/trigger_runner.py`, and the first two routes on it — the new `add-on-behalf-status` and the demo `sync-log-entry`, whose inline commit became `SvcSyncLogEntryUseCase` so the use-case-to-row bijection could hold.
+The cutover (#3833) moved the other 28 routes onto `run_trigger(...)`, gave every route a `response_model`, regenerated the snapshot once for exactly that change, and deleted `TriggerServicePort`, `TriggerService`, `get_trigger_service`, the adapter re-export module `trigger_models.py` and the `EvaluateEmbargo*` aliases.
+Realized:
 
 - `test/architecture/test_use_case_execute_returns_result.py` scans `triggers/` with no exclusion.
-- A trigger-registry test module asserts the route-to-registry and use-case-to-row bijections as exact set equalities, exactly one non-BT-backed row, and that row declaring no `emitting_actor_id`.
-- An exact-response-key test parametrized over the registry asserts `set(response.json()) == expected_keys` per verb.
-- A `response_model` coverage test fails on any trigger route without one.
-- A topic-scoped citation ratchet fails on any `TB-` citation under `vultron/`.
-- One outbox-ordering test asserts the flush is queued only after `trigger()` returns and not when it raises.
+- `test/core/models/test_use_case_result.py` constructs each result subtype, asserts its exact field set, and asserts an unknown key raises.
+- `test/core/use_cases/triggers/test_requests.py` resolves each verb's result through one `trigger(request) -> ResultT_co` signature under mypy and pyright, and pins the `end_time` validator to one declaration.
+- `test/architecture/test_trigger_registry_ratchets.py` asserts the use-case-to-row bijection as an exact set equality, exactly one non-BT-backed row (`SvcOfferCaseParticipantRoleUseCase`) whose result declares no `emitting_actor_id`, that every row's request model binds the row's result type, and that no registry module defines behavior beyond the row type's own validation.
+- `test/adapters/driving/fastapi/test_trigger_registry_routes.py` asserts the route-to-registry bijection and the exposure axis as exact set equalities over the mounted `/trigger/` and `/demo/` routes, and that every one of those routes declares a `response_model` that *is* its row's `result_type` (TRIG-12-001).
+- `test/adapters/driving/fastapi/test_trigger_routes_contract.py` is the exact-response-key test parametrized over the registry: for every row it asserts `set(response.json()) == expected_keys` with FastAPI's `response_model_exclude_*` and `by_alias` defaults, so a `None`-valued key is emitted as `null` (TRIG-12-002); that the dispatcher receives the row's request type over the `get_trigger_dl` store (TRIG-06-001/002); and that one outbox flush per run is queued after dispatch and none when it raises (TRIG-07-001, TRIG-01-004).
+- `test/architecture/test_trigger_port_single_method.py` asserts the `TriggerDispatcher` Protocol declares exactly one public method and that no class under `vultron/core/` has a method that constructs a `Svc*UseCase` and calls `execute()` on it — the per-verb facade shape — with an empty `KNOWN_VIOLATIONS` compared by exact equality (UCORG-05-006, ARCH-18-001).
+- `test/adapters/driving/fastapi/test_trigger_runner.py` asserts the outbox flush is queued only after `trigger()` returns and not at all when it raises.
+- `test/core/test_trigger_dispatcher.py` resolves the row from the request type, injects the BT port bundle for `bt_backed` rows and `trigger_activity` alone for the non-BT row, and returns the request's bound result with no cast.
+- A topic-scoped citation ratchet (`test/architecture/test_implements_citations_topic_scoped.py`) fails on any `TB-` citation under `vultron/`.
 
-Per ADR-0095's own rule: no entry here asserts a test exists until it does.
+Per ADR-0095's own rule: no entry here asserts a test exists until it does; every test above exists.
+The condition this ADR set for leaving `accepted-provisional` — the port collapsed and every named test in place — is met; the status flip to `accepted` is the reviewer's decision on the cutover PR, not the author's, so the frontmatter still reads `accepted-provisional` until it is taken.
 
 ## More Information
 

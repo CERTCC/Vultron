@@ -2,7 +2,7 @@
   "components": {
     "schemas": {
       "AcceptActorRecommendationRequest": {
-        "description": "Request body for the accept-actor-recommendation trigger endpoint.\n\nSent by the Case Owner (e.g. Vendor1) to accept an Offer(CaseParticipant)\nforwarded by the CaseActor per ADR-0026 (CM-16-006).\n\nTB-03-001: Must include cp_offer_id and case_actor_id.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the accept-actor-recommendation trigger endpoint.\n\nSent by the Case Owner (e.g. Vendor1) to accept an Offer(CaseParticipant)\nforwarded by the CaseActor per ADR-0026 (CM-16-006).\n\nTRIG-03-001: Must include cp_offer_id and case_actor_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "case_actor_id": {
             "title": "Case Actor Id",
@@ -21,7 +21,7 @@
         "type": "object"
       },
       "AcceptCaseInviteRequest": {
-        "description": "Request body for the accept-case-invite trigger endpoint.\n\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").\ninvite_id identifies the RmInviteToCaseActivity to accept.",
+        "description": "Request body for the accept-case-invite trigger endpoint.\n\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\ninvite_id identifies the RmInviteToCaseActivity to accept.",
         "properties": {
           "invite_id": {
             "title": "Invite Id",
@@ -35,7 +35,7 @@
         "type": "object"
       },
       "AcceptCaseOwnershipTransferRequest": {
-        "description": "Request body for the accept-case-ownership-transfer trigger endpoint.\n\nEmits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor back\nto the offering actor (TRIG-11-002).\n\nTB-03-001: Must include offer_id.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the accept-case-ownership-transfer trigger endpoint.\n\nEmits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor back\nto the offering actor (TRIG-11-002).\n\nTRIG-03-001: Must include offer_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "offer_id": {
             "title": "Offer Id",
@@ -49,7 +49,7 @@
         "type": "object"
       },
       "AcceptEmbargoRequest": {
-        "description": "Request body for the accept-embargo trigger endpoint.\n\nTB-03-001: Must include case_id to identify the target case.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nOptional proposal_id identifies the specific EmProposeEmbargoActivity to accept;\nif omitted, the earliest-expiring open proposal for the case is used\n(EP-08-002) \u2014 never the first recorded.",
+        "description": "Request body for the accept-embargo trigger endpoint.\n\nTRIG-03-001: Must include case_id to identify the target case.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nOptional proposal_id identifies the specific EmProposeEmbargoActivity to accept;\nif omitted, the earliest-expiring open proposal for the case is used\n(EP-08-002) \u2014 never the first recorded.",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -73,8 +73,35 @@
         "title": "AcceptEmbargoRequest",
         "type": "object"
       },
+      "ActivityResult": {
+        "additionalProperties": false,
+        "description": "Result of a BT-backed trigger that emits one activity.\n\n``activity`` is the emitted activity's JSON object as the BT captured\nit, or ``None`` when the tree completed without capturing one (an\nidempotent no-op path); the key is emitted either way.\n``emitting_actor_id`` names the actor whose outbox holds the activity \u2014 on\na delegated emit that is the CASE_MANAGER, not the requesting actor\n(CM-24-001), and the router drains that actor's outbox.",
+        "properties": {
+          "activity": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity"
+          },
+          "emitting_actor_id": {
+            "title": "Emitting Actor Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "emitting_actor_id"
+        ],
+        "title": "ActivityResult",
+        "type": "object"
+      },
       "AddNoteToCaseRequest": {
-        "description": "Request body for the add-note-to-case trigger endpoint.\n\nTB-03-001: Must include case_id to identify the target case.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the add-note-to-case trigger endpoint.\n\nTRIG-03-001: Must include case_id to identify the target case.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -109,7 +136,7 @@
         "type": "object"
       },
       "AddObjectToCaseRequest": {
-        "description": "Request body for the add-object-to-case general trigger endpoint.\n\nAccepts any existing AS2 object identified by ``object_id``.  The object\nmust already exist in the actor's datalayer.  Type-specific convenience\nendpoints (e.g., ``add-report-to-case``) delegate to this after\nperforming their own type validation (TRIG-10-001, TRIG-10-002).\n\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the add-object-to-case general trigger endpoint.\n\nAccepts any existing AS2 object identified by ``object_id``.  The object\nmust already exist in the actor's datalayer.  Type-specific convenience\nendpoints (e.g., ``add-report-to-case``) delegate to this after\nperforming their own type validation (TRIG-10-001, TRIG-10-002).\n\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -127,8 +154,47 @@
         "title": "AddObjectToCaseRequest",
         "type": "object"
       },
+      "AddOnBehalfStatusRequest": {
+        "description": "Request body for the add-on-behalf-status trigger.\n\nA Case Manager or Case Owner records a vendor's awareness (``v\u2192V``,\n``vf_state=\"Vf\"``) or a deployer's deployment (``d\u2192D``, ``d_state=\"D\"``)\non behalf of an actor that was notified or invited but has not joined the\ncase (ADR-0084; PRM-06-003, PRM-06-004).  ``target_actor_id`` names that\nactor.  Only the upward rungs are assertable on another actor's behalf:\n``vf_state`` must be ``\"Vf\"`` and ``d_state`` must be ``\"D\"``.\n``vf_state=\"VF\"`` (``f\u2192F``) is refused because fix readiness is not\nexternally knowable and is only ever self-declared by the Vendor-role\nholder (PRM-06-005); the lower rungs (``\"vf\"``, ``\"d\"``) are refused\nbecause recording unawareness or non-deployment on someone's behalf is\nnot an assertion PRM-06 permits.  At least one of ``vf_state`` /\n``d_state`` is required.\n\nTRIG-03-002: Unknown fields are silently ignored.",
+        "properties": {
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "d_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CS_d"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_actor_id": {
+            "title": "Target Actor Id",
+            "type": "string"
+          },
+          "vf_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CS_vf"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "case_id",
+          "target_actor_id"
+        ],
+        "title": "AddOnBehalfStatusRequest",
+        "type": "object"
+      },
       "AddReportToCaseRequest": {
-        "description": "Request body for the add-report-to-case trigger endpoint.\n\nTB-03-001: Must include case_id and report_id.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the add-report-to-case trigger endpoint.\n\nTRIG-03-001: Must include case_id and report_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -146,6 +212,25 @@
         "title": "AddReportToCaseRequest",
         "type": "object"
       },
+      "CS_d": {
+        "description": "Deployer-path sub-machine: fix deployment (2 states).\n\nMonotone ladder: d \u2192 D.",
+        "enum": [
+          "d",
+          "D"
+        ],
+        "title": "CS_d",
+        "type": "string"
+      },
+      "CS_vf": {
+        "description": "Vendor-path sub-machine: vendor awareness + fix readiness (3 states).\n\nMonotone ladder: vf \u2192 Vf \u2192 VF.",
+        "enum": [
+          "vf",
+          "Vf",
+          "VF"
+        ],
+        "title": "CS_vf",
+        "type": "string"
+      },
       "CVDRole": {
         "description": "Individual CVD role values (lowercase string enum).\n\nEach member represents a single, atomic CVD role. Participants may hold\nmultiple roles simultaneously; use ``list[CVDRole]`` at call sites rather\nthan bitmask arithmetic.\n\nValues are lowercase strings (e.g. ``CVDRole.FINDER == 'finder'``).\n\nRoles:\n    FINDER: Entity that discovers the vulnerability.\n    REPORTER: Entity that reports the vulnerability to others.\n    VENDOR: Supplier of the affected product or service.\n    DEPLOYER: Entity that deploys the fix.\n    COORDINATOR: Entity that coordinates the CVD process.\n    OBSERVER: Monitoring participant with no vendor-fix-deployment\n        obligations; the base (lowest non-null privilege) CVD role.\n        Admitted via standard Invite/Accept (CM-25). Formerly ``OTHER``;\n        renamed in ADR-0057.\n    CASE_OWNER: Actor who owns and manages a VulnerabilityCase (BTND-05-001).\n    CASE_MANAGER: The ActivityStreams Actor that performs ongoing case\n        replica synchronisation and manages the case on behalf of the case\n        owner.  A CaseManager participant SHOULD also hold the COORDINATOR\n        role (CBT-01-003); nothing requires it.  While the demo uses a\n        Service actor type, any Actor type (e.g. Person) may hold this\n        role.\n    CVE_NUMBERING_AUTHORITY: Participant that holds CVE Numbering Authority\n        (CNA) status, granting authority to assign CVE IDs.  A CNA is\n        orthogonal to other CVD roles \u2014 a VENDOR, COORDINATOR, or any other\n        participant may independently hold this role.  Used by\n        ``IsIDAssignmentAuthority`` (static capability check) and\n        ``IdAssignable`` (scope-match evaluation) BT nodes to route ID\n        assignment decisions to the correct participant(s).",
         "enum": [
@@ -162,8 +247,46 @@
         "title": "CVDRole",
         "type": "string"
       },
+      "CaseResult": {
+        "additionalProperties": false,
+        "description": "``create-case``: the activity plus the id of the case it created.",
+        "properties": {
+          "activity": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity"
+          },
+          "case_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case Id"
+          },
+          "emitting_actor_id": {
+            "title": "Emitting Actor Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "emitting_actor_id"
+        ],
+        "title": "CaseResult",
+        "type": "object"
+      },
       "CaseTriggerRequest": {
-        "description": "Request body for case-level trigger endpoints.\n\nTB-03-001: Must include case_id to identify the target case.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for case-level trigger endpoints.\n\nTRIG-03-001: Must include case_id to identify the target case.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -177,7 +300,7 @@
         "type": "object"
       },
       "CloseCaseRequest": {
-        "description": "Request body for the close-case demo trigger.\n\nSignals that the actor is closing the case (RM \u2192 CLOSED).\nTB-03-002: Unknown fields are silently ignored.",
+        "description": "Request body for the close-case demo trigger.\n\nSignals that the actor is closing the case (RM \u2192 CLOSED).\nTRIG-03-002: Unknown fields are silently ignored.",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -216,7 +339,7 @@
         "type": "object"
       },
       "CreateCaseRequest": {
-        "description": "Request body for the create-case trigger endpoint.\n\nThe actor creates a local VulnerabilityCase and queues a\nCreateCaseActivity in their outbox for delivery to the CaseActor.\n\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the create-case trigger endpoint.\n\nThe actor creates a local VulnerabilityCase and queues a\nCreateCaseActivity in their outbox for delivery to the CaseActor.\n\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "content": {
             "title": "Content",
@@ -298,7 +421,7 @@
         "type": "object"
       },
       "InviteActorToCaseRequest": {
-        "description": "Request body for the invite-actor-to-case trigger endpoint.\n\nTB-03-001: Must include case_id and invitee_id.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the invite-actor-to-case trigger endpoint.\n\nTRIG-03-001: Must include case_id and invitee_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -330,8 +453,47 @@
         "title": "InviteActorToCaseRequest",
         "type": "object"
       },
+      "NoteResult": {
+        "additionalProperties": false,
+        "description": "``add-note-to-case``: the activity plus the freshly minted note.",
+        "properties": {
+          "activity": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity"
+          },
+          "emitting_actor_id": {
+            "title": "Emitting Actor Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "emitting_actor_id"
+        ],
+        "title": "NoteResult",
+        "type": "object"
+      },
       "NotifyFixDeployedRequest": {
-        "description": "Request body for the notify-fix-deployed demo trigger.\n\nSignals that the fix has been deployed (VFd \u2192 VFD).\nTB-03-002: Unknown fields are silently ignored.",
+        "description": "Request body for the notify-fix-deployed demo trigger.\n\nSignals that the fix has been deployed (VFd \u2192 VFD).\nTRIG-03-002: Unknown fields are silently ignored.",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -345,7 +507,7 @@
         "type": "object"
       },
       "NotifyFixReadyRequest": {
-        "description": "Request body for the notify-fix-ready demo trigger.\n\nSignals that the vendor has a fix ready (VFD \u2192 VFd).\nTB-03-002: Unknown fields are silently ignored.",
+        "description": "Request body for the notify-fix-ready demo trigger.\n\nSignals that the vendor has a fix ready (VFD \u2192 VFd).\nTRIG-03-002: Unknown fields are silently ignored.",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -359,7 +521,7 @@
         "type": "object"
       },
       "NotifyPublishedRequest": {
-        "description": "Request body for the notify-published demo trigger.\n\nSignals that the vulnerability has been publicly disclosed (CS.VFDPxa).\nTB-03-002: Unknown fields are silently ignored.",
+        "description": "Request body for the notify-published demo trigger.\n\nSignals that the vulnerability has been publicly disclosed (CS.VFDPxa).\nTRIG-03-002: Unknown fields are silently ignored.",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -373,7 +535,7 @@
         "type": "object"
       },
       "OfferCaseOwnershipTransferRequest": {
-        "description": "Request body for the offer-case-ownership-transfer trigger endpoint.\n\nEmits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the\nrequesting actor to the specified transferee (TRIG-11-001).\n\nTB-03-001: Must include case_id and transferee_id.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the offer-case-ownership-transfer trigger endpoint.\n\nEmits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the\nrequesting actor to the specified transferee (TRIG-11-001).\n\nTRIG-03-001: Must include case_id and transferee_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -425,8 +587,28 @@
         "title": "OfferCaseParticipantRoleRequest",
         "type": "object"
       },
+      "OfferResult": {
+        "additionalProperties": false,
+        "description": "``submit-report``: the ``Offer(VulnerabilityReport)`` JSON object.",
+        "properties": {
+          "offer": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer"
+          }
+        },
+        "title": "OfferResult",
+        "type": "object"
+      },
       "ProposeEmbargoRequest": {
-        "description": "Request body for the propose-embargo trigger endpoint.\n\nTB-03-001: Must include case_id to identify the target case.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nTB-03-003: Optional note field may be included.\nend_time is required and must be timezone-aware and in the future.",
+        "description": "Request body for the propose-embargo trigger endpoint.\n\nTRIG-03-001: Must include case_id to identify the target case.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nTRIG-03-003: Optional note field may be included.\nend_time is required and must be timezone-aware and in the future.",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -457,7 +639,7 @@
         "type": "object"
       },
       "ProposeEmbargoRevisionRequest": {
-        "description": "Request body for the propose-embargo-revision trigger endpoint.\n\nTB-03-001: Must include case_id to identify the target case.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nend_time is required and must be timezone-aware and in the future.\nOnly valid when EM state is ACTIVE or REVISE; use propose-embargo for\ninitial proposals.",
+        "description": "Request body for the propose-embargo-revision trigger endpoint.\n\nTRIG-03-001: Must include case_id to identify the target case.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nend_time is required and must be timezone-aware and in the future.\nOnly valid when EM state is ACTIVE or REVISE; use propose-embargo for\ninitial proposals.",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -488,7 +670,7 @@
         "type": "object"
       },
       "RejectCaseInviteRequest": {
-        "description": "Request body for the reject-case-invite trigger endpoint.\n\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").\ninvite_id identifies the RmInviteToCaseActivity to reject.",
+        "description": "Request body for the reject-case-invite trigger endpoint.\n\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\ninvite_id identifies the RmInviteToCaseActivity to reject.",
         "properties": {
           "invite_id": {
             "title": "Invite Id",
@@ -502,7 +684,7 @@
         "type": "object"
       },
       "RejectEmbargoRequest": {
-        "description": "Request body for the reject-embargo trigger endpoint.\n\nTB-03-001: Must include case_id to identify the target case.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nOptional proposal_id identifies the specific EmProposeEmbargoActivity to reject;\nif omitted, the earliest-expiring open proposal for the case is used\n(EP-08-002) \u2014 never the first recorded.",
+        "description": "Request body for the reject-embargo trigger endpoint.\n\nTRIG-03-001: Must include case_id to identify the target case.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nOptional proposal_id identifies the specific EmProposeEmbargoActivity to reject;\nif omitted, the earliest-expiring open proposal for the case is used\n(EP-08-002) \u2014 never the first recorded.",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -527,7 +709,7 @@
         "type": "object"
       },
       "RejectReportRequest": {
-        "description": "Request body for the reject-report trigger endpoint.\n\nTB-03-001: Must include offer_id to identify the target offer.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nTRIG-03-004: note is required (hard-close decisions warrant documented\n    justification); an empty note emits a WARNING.",
+        "description": "Request body for the reject-report trigger endpoint.\n\nTRIG-03-001: Must include offer_id to identify the target offer.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nTRIG-03-004: note is required (hard-close decisions warrant documented\n    justification); an empty note emits a WARNING.",
         "properties": {
           "note": {
             "title": "Note",
@@ -545,8 +727,59 @@
         "title": "RejectReportRequest",
         "type": "object"
       },
+      "RoleOfferResult": {
+        "additionalProperties": false,
+        "description": "``offer-case-participant-role``: activity id and activity, no emitter.\n\nThe only trigger verb not backed by ``SvcBTTriggerBase`` (ADR-0110), so\nits body carries no ``emitting_actor_id``.",
+        "properties": {
+          "activity": {
+            "additionalProperties": true,
+            "title": "Activity",
+            "type": "object"
+          },
+          "activity_id": {
+            "title": "Activity Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "activity_id",
+          "activity"
+        ],
+        "title": "RoleOfferResult",
+        "type": "object"
+      },
+      "StatusResult": {
+        "additionalProperties": false,
+        "description": "``add-participant-status`` and the on-behalf variant.\n\nCarries the ids of the ``Add(ParticipantStatus)`` activity and of the\nstored status record; neither the activity body nor an emitting actor is\npart of this verb's response.",
+        "properties": {
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Id"
+          },
+          "status_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Id"
+          }
+        },
+        "title": "StatusResult",
+        "type": "object"
+      },
       "SubmitReportRequest": {
-        "description": "Request body for the submit-report trigger endpoint.\n\nThe finder uses this to create a VulnerabilityReport and offer it to a\nrecipient.  The actor_id is taken from the URL path; report_name,\nreport_content, and recipient_id must be supplied in the request body.\n\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the submit-report trigger endpoint.\n\nThe finder uses this to create a VulnerabilityReport and offer it to a\nrecipient.  The actor_id is taken from the URL path; report_name,\nreport_content, and recipient_id must be supplied in the request body.\n\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "proposed_embargo_end_time": {
             "anyOf": [
@@ -582,7 +815,7 @@
         "type": "object"
       },
       "SuggestActorToCaseRequest": {
-        "description": "Request body for the suggest-actor-to-case trigger endpoint.\n\nTB-03-001: Must include case_id and suggested_actor_id.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the suggest-actor-to-case trigger endpoint.\n\nTRIG-03-001: Must include case_id and suggested_actor_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -615,7 +848,7 @@
         "type": "object"
       },
       "SyncLogEntryRequest": {
-        "description": "Request body for the demo sync-log-entry trigger.\n\nCommits a canonical case ledger entry and fans it out to all participants\nvia Announce(CaseLedgerEntry). Uses Announce(VulnerabilityCase) as the\ncanonical payload type (case-actor-authored).\n\nTB-03-002: Unknown fields are silently ignored.",
+        "description": "Request body for the demo sync-log-entry trigger.\n\nCommits a canonical case ledger entry and fans it out to all participants\nvia Announce(CaseLedgerEntry). Uses Announce(VulnerabilityCase) as the\ncanonical payload type (case-actor-authored).\n\nTRIG-03-002: Unknown fields are silently ignored.",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -638,8 +871,38 @@
         "title": "SyncLogEntryRequest",
         "type": "object"
       },
+      "SyncLogEntryResult": {
+        "additionalProperties": false,
+        "description": "``sync-log-entry``: the committed ledger entry's id, hash and index.\n\nThe demo-only verb that mints a canonical ``CaseLedgerEntry`` and fans it\nout.  ``emitting_actor_id`` names the case's CASE_MANAGER, as whom the\ncommit tree ran and whose outbox holds the ``Announce(CaseLedgerEntry)``\nfan-out (CLP-09, BT-05-005); the router drains that outbox, exactly as it\ndoes for a delegated :class:`ActivityResult`.",
+        "properties": {
+          "emitting_actor_id": {
+            "title": "Emitting Actor Id",
+            "type": "string"
+          },
+          "entry_hash": {
+            "title": "Entry Hash",
+            "type": "string"
+          },
+          "log_entry_id": {
+            "title": "Log Entry Id",
+            "type": "string"
+          },
+          "log_index": {
+            "title": "Log Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "log_entry_id",
+          "entry_hash",
+          "log_index",
+          "emitting_actor_id"
+        ],
+        "title": "SyncLogEntryResult",
+        "type": "object"
+      },
       "TerminateEmbargoRequest": {
-        "description": "Request body for the terminate-embargo trigger endpoint.\n\nTB-03-001: Must include case_id to identify the target case.\nTB-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the terminate-embargo trigger endpoint.\n\nTRIG-03-001: Must include case_id to identify the target case.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -750,9 +1013,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Demo Add Note To Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/NoteResult"
                 }
               }
             },
@@ -939,9 +1200,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Demo Close Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -994,9 +1253,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Demo Notify Fix Deployed",
-                  "type": "object"
+                  "$ref": "#/components/schemas/StatusResult"
                 }
               }
             },
@@ -1049,9 +1306,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Demo Notify Fix Ready",
-                  "type": "object"
+                  "$ref": "#/components/schemas/StatusResult"
                 }
               }
             },
@@ -1104,9 +1359,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Demo Notify Published",
-                  "type": "object"
+                  "$ref": "#/components/schemas/StatusResult"
                 }
               }
             },
@@ -1158,7 +1411,9 @@
           "202": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SyncLogEntryResult"
+                }
               }
             },
             "description": "Successful Response"
@@ -1210,9 +1465,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Accept Actor Recommendation",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1265,9 +1518,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Accept Case Invite",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1320,9 +1571,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Accept Case Ownership Transfer",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1347,7 +1596,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/accept-embargo": {
       "post": {
-        "description": "Triggers the accept-embargo behavior for the given actor. Accepts the current (or specified) embargo proposal by emitting an EmAcceptEmbargoActivity activity. Activates the embargo on the case (EM state \u2192 ACTIVE). Returns the resulting activity in the response body (TB-04-001).",
+        "description": "Triggers the accept-embargo behavior for the given actor. Accepts the current (or specified) embargo proposal by emitting an EmAcceptEmbargoActivity activity. Activates the embargo on the case (EM state \u2192 ACTIVE). Returns the resulting activity in the response body (TRIG-04-001).",
         "operationId": "actors_trigger_accept_embargo",
         "parameters": [
           {
@@ -1375,9 +1624,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Accept Embargo",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1430,9 +1677,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Add Object To Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1450,6 +1695,59 @@
           }
         },
         "summary": "Add an existing AS2 object to a case.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
+    "/api/v2/actors/{actor_id}/trigger/add-on-behalf-status": {
+      "post": {
+        "description": "A Case Manager or Case Owner records, on behalf of an actor that was notified or invited but has not joined the case, the vendor's awareness (``vf_state=\"Vf\"``, v\u2192V; PRM-06-003) or the deployer's deployment (``d_state=\"D\"``, d\u2192D; PRM-06-004), creating a minimal CaseParticipant for the target when none exists (ADR-0084). Writes a ParticipantStatus for the target and queues an Add(ParticipantStatus, target=CaseParticipant) activity to the Case Manager. Fix readiness (``vf_state=\"VF\"``, f\u2192F) is refused: it is only ever self-declared by the Vendor (PRM-06-005). Returns the ids of the queued activity and the stored status.",
+        "operationId": "actors_trigger_add_on_behalf_status",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddOnBehalfStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record a vendor's awareness or a deployer's deployment on their behalf.",
         "tags": [
           "Triggers"
         ]
@@ -1485,9 +1783,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Add Report To Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1512,7 +1808,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/close-report": {
       "post": {
-        "description": "Triggers the close-report behavior for the given actor. Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) representing the RM \u2192 C (CLOSED) transition, and returns it in the response body (TB-04-001). Persists a ParticipantStatus record with RM.CLOSED for the actor and report. Unlike reject-report (which hard-rejects before validation), this endpoint closes a report that has already progressed through the RM lifecycle. Returns HTTP 409 if the report is already CLOSED.",
+        "description": "Triggers the close-report behavior for the given actor. Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) representing the RM \u2192 C (CLOSED) transition, and returns it in the response body (TRIG-04-001). Persists a ParticipantStatus record with RM.CLOSED for the actor and report. Unlike reject-report (which hard-rejects before validation), this endpoint closes a report that has already progressed through the RM lifecycle. Returns HTTP 409 if the report is already CLOSED.",
         "operationId": "actors_trigger_close_report",
         "parameters": [
           {
@@ -1540,9 +1836,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Close Report",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1595,9 +1889,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Create Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CaseResult"
                 }
               }
             },
@@ -1622,7 +1914,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/defer-case": {
       "post": {
-        "description": "Triggers the defer-case behavior for the given actor. Emits an Ignore(VulnerabilityCase) activity (RmDeferCaseActivity), transitions the actor's RM state to DEFERRED in the case, and returns the activity in the response body (TB-04-001).",
+        "description": "Triggers the defer-case behavior for the given actor. Emits an Ignore(VulnerabilityCase) activity (RmDeferCaseActivity), transitions the actor's RM state to DEFERRED in the case, and returns the activity in the response body (TRIG-04-001).",
         "operationId": "actors_trigger_defer_case",
         "parameters": [
           {
@@ -1650,9 +1942,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Defer Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1677,7 +1967,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/engage-case": {
       "post": {
-        "description": "Triggers the engage-case behavior for the given actor. Emits a Join(VulnerabilityCase) activity (RmEngageCaseActivity), transitions the actor's RM state to ACCEPTED in the case, and returns the activity in the response body (TB-04-001).",
+        "description": "Triggers the engage-case behavior for the given actor. Emits a Join(VulnerabilityCase) activity (RmEngageCaseActivity), transitions the actor's RM state to ACCEPTED in the case, and returns the activity in the response body (TRIG-04-001).",
         "operationId": "actors_trigger_engage_case",
         "parameters": [
           {
@@ -1705,9 +1995,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Engage Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1732,7 +2020,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/invalidate-report": {
       "post": {
-        "description": "Triggers the invalidate-report behavior for the given actor. Emits a TentativeReject(Offer(VulnerabilityReport)) activity (RmInvalidateReportActivity) and returns it in the response body (TB-04-001). Persists a ParticipantStatus record with RM.INVALID for the actor and report.",
+        "description": "Triggers the invalidate-report behavior for the given actor. Emits a TentativeReject(Offer(VulnerabilityReport)) activity (RmInvalidateReportActivity) and returns it in the response body (TRIG-04-001). Persists a ParticipantStatus record with RM.INVALID for the actor and report.",
         "operationId": "actors_trigger_invalidate_report",
         "parameters": [
           {
@@ -1760,9 +2048,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Invalidate Report",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1815,9 +2101,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Invite Actor To Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1870,9 +2154,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Offer Case Ownership Transfer",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1925,9 +2207,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Offer Case Participant Role",
-                  "type": "object"
+                  "$ref": "#/components/schemas/RoleOfferResult"
                 }
               }
             },
@@ -1952,7 +2232,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/propose-embargo": {
       "post": {
-        "description": "Triggers the propose-embargo behavior for the given actor. Creates a new EmbargoEvent and emits an EmProposeEmbargoActivity (Invite(EmbargoEvent)) activity. EM state transitions: N \u2192 P (new proposal) or A \u2192 R (revision). Returns the resulting activity in the response body (TB-04-001).",
+        "description": "Triggers the propose-embargo behavior for the given actor. Creates a new EmbargoEvent and emits an EmProposeEmbargoActivity (Invite(EmbargoEvent)) activity. EM state transitions: N \u2192 P (new proposal) or A \u2192 R (revision). Returns the resulting activity in the response body (TRIG-04-001).",
         "operationId": "actors_trigger_propose_embargo",
         "parameters": [
           {
@@ -1980,9 +2260,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Propose Embargo",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2007,7 +2285,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/propose-embargo-revision": {
       "post": {
-        "description": "Triggers the propose-embargo-revision behavior for the given actor. Proposes a revision to the active embargo by emitting an EmProposeEmbargoActivity activity. Only valid when EM state is ACTIVE or REVISE; use propose-embargo for initial proposals. EM state transitions: ACTIVE \u2192 REVISE or REVISE \u2192 REVISE. Returns the resulting activity in the response body (TB-04-001).",
+        "description": "Triggers the propose-embargo-revision behavior for the given actor. Proposes a revision to the active embargo by emitting an EmProposeEmbargoActivity activity. Only valid when EM state is ACTIVE or REVISE; use propose-embargo for initial proposals. EM state transitions: ACTIVE \u2192 REVISE or REVISE \u2192 REVISE. Returns the resulting activity in the response body (TRIG-04-001).",
         "operationId": "actors_trigger_propose_embargo_revision",
         "parameters": [
           {
@@ -2035,9 +2313,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Propose Embargo Revision",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2090,9 +2366,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Reject Case Invite",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2117,7 +2391,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/reject-embargo": {
       "post": {
-        "description": "Triggers the reject-embargo behavior for the given actor. Rejects the current (or specified) embargo proposal by emitting an EmRejectEmbargoActivity activity. EM state transitions: PROPOSED \u2192 NONE or REVISE \u2192 ACTIVE. Returns the resulting activity in the response body (TB-04-001).",
+        "description": "Triggers the reject-embargo behavior for the given actor. Rejects the current (or specified) embargo proposal by emitting an EmRejectEmbargoActivity activity. EM state transitions: PROPOSED \u2192 NONE or REVISE \u2192 ACTIVE. Returns the resulting activity in the response body (TRIG-04-001).",
         "operationId": "actors_trigger_reject_embargo",
         "parameters": [
           {
@@ -2145,9 +2419,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Reject Embargo",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2172,7 +2444,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/reject-report": {
       "post": {
-        "description": "Triggers the reject-report behavior for the given actor. Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) and returns it in the response body (TB-04-001). A non-empty note is required (TRIG-03-004). Persists a ParticipantStatus record with RM.CLOSED for the actor and report.",
+        "description": "Triggers the reject-report behavior for the given actor. Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) and returns it in the response body (TRIG-04-001). A non-empty note is required (TRIG-03-004). Persists a ParticipantStatus record with RM.CLOSED for the actor and report.",
         "operationId": "actors_trigger_reject_report",
         "parameters": [
           {
@@ -2200,9 +2472,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Reject Report",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2255,9 +2525,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Submit Report",
-                  "type": "object"
+                  "$ref": "#/components/schemas/OfferResult"
                 }
               }
             },
@@ -2310,9 +2578,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Suggest Actor To Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2337,7 +2603,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/terminate-embargo": {
       "post": {
-        "description": "Triggers the terminate-embargo behavior for the given actor. Announces the end of the active embargo by emitting an AnnounceEmbargoActivity activity. Updates the case EM state to EXITED and clears the active embargo. Returns HTTP 409 if no active embargo exists. Returns the resulting activity in the response body (TB-04-001).",
+        "description": "Triggers the terminate-embargo behavior for the given actor. Announces the end of the active embargo by emitting an AnnounceEmbargoActivity activity. Updates the case EM state to EXITED and clears the active embargo. Returns HTTP 409 if no active embargo exists. Returns the resulting activity in the response body (TRIG-04-001).",
         "operationId": "actors_trigger_terminate_embargo",
         "parameters": [
           {
@@ -2365,9 +2631,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Terminate Embargo",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2392,7 +2656,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/validate-report": {
       "post": {
-        "description": "Triggers the validate-report behavior for the given actor. Invokes the ValidateReportBT tree via the bridge layer and returns the resulting ActivityStreams activity (TB-04-001).",
+        "description": "Triggers the validate-report behavior for the given actor. Invokes the ValidateReportBT tree via the bridge layer and returns the resulting ActivityStreams activity (TRIG-04-001).",
         "operationId": "actors_trigger_validate_report",
         "parameters": [
           {
@@ -2420,9 +2684,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Validate Report",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },

@@ -18,7 +18,8 @@
 
 Under one object model (ADR-0099 detail 1) a core object *is* its AS2 form:
 rendering is the object's own
-``model_dump(by_alias=True, exclude_none=True, mode="json")``.  The field
+``model_dump(by_alias=True, exclude_none=True, mode="json",
+serialize_as_any=True)``.  The field
 aliases and the JSON-LD ``@context`` both come from
 :class:`~vultron.core.models.base.CoreObject`, so this adapter adds neither
 and resolves no wire counterpart.
@@ -59,9 +60,11 @@ class As2WireRenderAdapter:
             obj: A core domain model instance.
 
         Returns:
-            ``obj.model_dump(by_alias=True, exclude_none=True, mode="json")``
-            — camelCase keys plus ``@context``, ``None`` fields omitted, all
-            values JSON-serializable (e.g. datetimes are ISO strings).
+            ``obj.model_dump(by_alias=True, exclude_none=True, mode="json",
+            serialize_as_any=True)`` — camelCase keys plus ``@context``,
+            ``None`` fields omitted, nested values serialised by their runtime
+            type, all values JSON-serializable (e.g. datetimes are ISO
+            strings).
 
         Raises:
             :exc:`~vultron.errors.VultronValidationError`: When ``obj`` is not
@@ -86,4 +89,17 @@ class As2WireRenderAdapter:
                 " spelling for its fields. Rendering it would emit Python field"
                 " names and omit @context (ARCH-20-003, VM-10-001)."
             )
-        return obj.model_dump(by_alias=True, exclude_none=True, mode="json")
+        # ``serialize_as_any=True`` serialises each nested value by its runtime
+        # type rather than the field's declared one — the flag every other AS2
+        # serialization path here sets too (delivery, the trigger-activity
+        # adapter).  Without it an inline object held in a field declared as a
+        # reference union is flattened or warned about: a wire actor whose
+        # ``inbox`` is the IRI string rather than the declared collection makes
+        # Pydantic warn, which is an error in the test suite and a silently
+        # degraded snapshot in production.
+        return obj.model_dump(
+            by_alias=True,
+            exclude_none=True,
+            mode="json",
+            serialize_as_any=True,
+        )

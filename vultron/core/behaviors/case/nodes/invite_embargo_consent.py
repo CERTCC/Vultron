@@ -126,8 +126,7 @@ class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        if active_embargo_id not in participant.accepted_embargo_ids:
-            participant.accepted_embargo_ids.append(active_embargo_id)
+        participant.add_accepted_embargo(active_embargo_id)
         if participant.embargo_consent_state not in (
             PEC.SIGNATORY,
             PEC.DECLINED,

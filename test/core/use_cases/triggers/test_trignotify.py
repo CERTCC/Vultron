@@ -24,6 +24,11 @@ from typing import Any
 
 import pytest
 
+from vultron.core.models.use_case_result import (
+    ActivityResult,
+    OfferResult,
+    TriggerResult,
+)
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -88,6 +93,7 @@ from vultron.core.models.dimensions import (
     RmDimension,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 FUTURE_END_TIME = "2099-12-01T00:00:00Z"
 FUTURE_END_DATETIME = datetime(2099, 12, 1, 0, 0, 0, tzinfo=timezone.utc)
@@ -203,13 +209,13 @@ def _make_two_actor_case(
     return case
 
 
-def _new_outbox_activity(vendor, vendor_dl, result: dict):
+def _new_outbox_activity(vendor, vendor_dl, result: TriggerResult):
     """Return the first new activity added to vendor's outbox during execute()."""
     activity_id = None
-    if "activity" in result and result["activity"]:
-        activity_id = result["activity"].get("id")
-    if activity_id is None and "offer" in result:
-        activity_id = result["offer"].get("id")
+    if isinstance(result, ActivityResult) and result.activity:
+        activity_id = result.activity.get("id")
+    elif isinstance(result, OfferResult) and result.offer:
+        activity_id = result.offer.get("id")
     if activity_id is None:
         return None, None
     obj = vendor_dl.read(activity_id)
@@ -271,7 +277,10 @@ class TestCaseTriggerToField:
             case_id=self.case.id_,
         )
         result = SvcEngageCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -293,7 +302,10 @@ class TestCaseTriggerToField:
             case_id=self.case.id_,
         )
         result = SvcDeferCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -314,10 +326,14 @@ class TestCaseTriggerToField:
             case_id=self.case.id_,
         )
         result = SvcAddParticipantStatusUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        act_obj = self.dl.read(result["activity_id"])
+        assert result.activity_id is not None
+        act_obj = self.dl.read(result.activity_id)
         recipients = _to_field(act_obj)
 
         assert recipients is not None
@@ -345,6 +361,7 @@ class TestCaseTriggerToField:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
 
@@ -382,7 +399,10 @@ class TestEmbargoTriggerToField:
             end_time=FUTURE_END_DATETIME,
         )
         result = SvcProposeEmbargoUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -417,7 +437,10 @@ class TestEmbargoTriggerToField:
             proposal_id=proposal.id_,
         )
         result = SvcAcceptEmbargoUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -446,7 +469,10 @@ class TestEmbargoTriggerToField:
             case_id=self.case.id_,
         )
         result = SvcTerminateEmbargoUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -481,7 +507,10 @@ class TestEmbargoTriggerToField:
             proposal_id=proposal.id_,
         )
         result = SvcRejectEmbargoUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -510,7 +539,10 @@ class TestEmbargoTriggerToField:
             end_time=FUTURE_END_DATETIME,
         )
         result = SvcProposeEmbargoRevisionUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -619,6 +651,7 @@ class TestReportTriggerToField:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_invalidate_report_to_field_falls_back_to_offer_actor(self):
@@ -633,7 +666,10 @@ class TestReportTriggerToField:
             offer_id=self.offer.id_,
         )
         result = SvcInvalidateReportUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -656,7 +692,10 @@ class TestReportTriggerToField:
             offer_id=self.offer.id_,
         )
         result = SvcRejectReportUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -693,7 +732,10 @@ class TestReportTriggerToField:
             offer_id=self.offer.id_,
         )
         result = SvcCloseReportUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -726,7 +768,10 @@ class TestReportTriggerToField:
             offer_id=self.offer.id_,
         )
         result = SvcInvalidateReportUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -759,7 +804,10 @@ class TestReportTriggerToField:
             offer_id=self.offer.id_,
         )
         result = SvcRejectReportUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -805,4 +853,5 @@ class TestReportTriggerToField:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()

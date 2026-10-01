@@ -41,8 +41,10 @@ from datetime import datetime
 from typing import Any, cast
 from urllib.parse import urlsplit
 
+from pydantic import BaseModel, ConfigDict
+
 from vultron.core.behaviors.store_scope import same_authority
-from vultron.core.use_cases.triggers.results import TriggerResult
+from vultron.primitives import NonEmptyString
 from vultron.demo.utils import DataLayerClient, post_to_trigger, ref_id
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -56,34 +58,56 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 logger = logging.getLogger(__name__)
 
 
-class ActivityResult(TriggerResult):
-    """Trigger result whose emitted activity is typed (UCORG-05-014).
+class WireTriggerResult(BaseModel):
+    """Typed view of a trigger endpoint's HTTP response body (UCORG-05-014).
+
+    This is the demo layer's reading of the JSON a trigger route returned,
+    not a use-case return value: the core ``TriggerResult`` hierarchy in
+    ``vultron/core/models/use_case_result.py`` is what the use cases return
+    and forbids unknown keys, while this view is built by
+    ``model_validate``-ing the raw response ``dict`` and MUST tolerate the
+    keys a given verb does not carry (``extra="ignore"``).  Every field is
+    optional for the same reason: one view validates any verb's body.  The
+    ``Wire`` prefix keeps the names disjoint from core's (``WireCaseLedgerEntry``
+    follows the same convention).
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    activity: dict[str, Any] | None = None
+    case_id: NonEmptyString | None = None
+    emitting_actor_id: NonEmptyString | None = None
+    offer: dict[str, Any] | None = None
+
+
+class WireActivityResult(WireTriggerResult):
+    """Trigger response whose emitted activity is typed (UCORG-05-014).
 
     Overrides the base ``activity: dict | None`` with a required, validated
     :class:`as_TransitiveActivity`.  Built by ``model_validate``-ing the raw
     trigger response, so the ``activity`` key is coerced from its wire ``dict``
     into the typed object.  It lives here in the demo layer rather than in
     ``vultron/core/`` because :class:`as_TransitiveActivity` is a wire-only
-    class and core MUST NOT import wire (ARCH-01-001); core trigger use cases
-    capture ``activity`` as a ``dict`` from the blackboard.
+    class and core MUST NOT import wire (ARCH-01-001); the core
+    ``ActivityResult`` captures ``activity`` as a ``dict`` from the blackboard.
     """
 
     activity: as_TransitiveActivity  # type: ignore[assignment]
 
 
-class SyncLogEntryResult(TriggerResult):
-    """Result of the ``sync-log-entry`` demo trigger.
+class WireSyncLogEntryResult(WireTriggerResult):
+    """Response of the ``sync-log-entry`` demo trigger.
 
     Adds the committed ledger entry's hash, which the sync helpers assert
     against a participant replica's tail hash, and the entry's log index.
     """
 
-    entry_hash: str
+    entry_hash: NonEmptyString
     log_index: int | None = None
 
 
-class NoteResult(TriggerResult):
-    """Result of the ``add-note-to-case`` demo trigger.
+class WireNoteResult(WireTriggerResult):
+    """Response of the ``add-note-to-case`` demo trigger.
 
     Carries the freshly minted note object so the note helper can recover its
     id — the note did not exist before the trigger, so there is no other source
@@ -177,13 +201,13 @@ class ActorSession:
         body: dict[str, Any],
         path_prefix: str = "trigger",
         *,
-        result_cls: type[TriggerResult] = TriggerResult,
-    ) -> TriggerResult:
+        result_cls: type[WireTriggerResult] = WireTriggerResult,
+    ) -> WireTriggerResult:
         """Post *behavior* for this session's actor and type the response.
 
         Wraps :func:`post_to_trigger` — the one permitted call site outside
         ``utils`` — and validates the raw response ``dict`` into *result_cls*
-        (a :class:`TriggerResult` or subtype).
+        (a :class:`WireTriggerResult` or subtype).
         """
         if self.narrate:
             logger.info(
@@ -212,7 +236,7 @@ class ActorSession:
         report_content: str,
         recipient_id: str,
         proposed_embargo_end_time: datetime | None = None,
-    ) -> TriggerResult:
+    ) -> WireTriggerResult:
         """Create a report and offer it to *recipient_id* (submit-report).
 
         *proposed_embargo_end_time* states the Reporter's embargo terms for
@@ -233,7 +257,7 @@ class ActorSession:
 
     def validate_report(
         self, *, offer_id: str, note: str | None = None
-    ) -> TriggerResult:
+    ) -> WireTriggerResult:
         """Advance the offered report to RM.VALID (validate-report)."""
         body: dict[str, Any] = {"offer_id": offer_id}
         if note is not None:
@@ -242,7 +266,7 @@ class ActorSession:
 
     def invalidate_report(
         self, *, offer_id: str, note: str | None = None
-    ) -> TriggerResult:
+    ) -> WireTriggerResult:
         """Mark the offered report RM.INVALID (invalidate-report)."""
         body: dict[str, Any] = {"offer_id": offer_id}
         if note is not None:
@@ -251,7 +275,7 @@ class ActorSession:
 
     def close_report(
         self, *, offer_id: str, note: str | None = None
-    ) -> TriggerResult:
+    ) -> WireTriggerResult:
         """Close the report after its RM lifecycle (close-report)."""
         body: dict[str, Any] = {"offer_id": offer_id}
         if note is not None:
@@ -267,7 +291,7 @@ class ActorSession:
         content: str,
         report_id: str | None = None,
         to: list[str] | None = None,
-    ) -> TriggerResult:
+    ) -> WireTriggerResult:
         """Create a local case and queue a CreateCaseActivity (create-case)."""
         body: dict[str, Any] = {"name": name, "content": content}
         if report_id is not None:
@@ -276,13 +300,13 @@ class ActorSession:
             body["to"] = to
         return self._post("create-case", body)
 
-    def engage_case(self) -> TriggerResult:
+    def engage_case(self) -> WireTriggerResult:
         """Engage the bound case, advancing RM to ACCEPTED (engage-case)."""
         return self._post("engage-case", {"case_id": self._require_case_id()})
 
     def invite_actor_to_case(
         self, *, invitee_id: str, roles: list[CVDRole] | None = None
-    ) -> ActivityResult:
+    ) -> WireActivityResult:
         """Invite *invitee_id* to the bound case (invite-actor-to-case)."""
         body: dict[str, Any] = {
             "case_id": self._require_case_id(),
@@ -290,15 +314,15 @@ class ActorSession:
             **self._roles_body(roles),
         }
         return cast(
-            ActivityResult,
+            WireActivityResult,
             self._post(
-                "invite-actor-to-case", body, result_cls=ActivityResult
+                "invite-actor-to-case", body, result_cls=WireActivityResult
             ),
         )
 
     def suggest_actor_to_case(
         self, *, suggested_actor_id: str, roles: list[CVDRole] | None = None
-    ) -> TriggerResult:
+    ) -> WireTriggerResult:
         """Recommend *suggested_actor_id* to the bound case (suggest-actor-to-case)."""
         body: dict[str, Any] = {
             "case_id": self._require_case_id(),
@@ -307,17 +331,17 @@ class ActorSession:
         }
         return self._post("suggest-actor-to-case", body)
 
-    def accept_case_invite(self, *, invite_id: str) -> TriggerResult:
+    def accept_case_invite(self, *, invite_id: str) -> WireTriggerResult:
         """Accept a case invitation identified by *invite_id* (accept-case-invite)."""
         return self._post("accept-case-invite", {"invite_id": invite_id})
 
-    def reject_case_invite(self, *, invite_id: str) -> TriggerResult:
+    def reject_case_invite(self, *, invite_id: str) -> WireTriggerResult:
         """Reject a case invitation identified by *invite_id* (reject-case-invite)."""
         return self._post("reject-case-invite", {"invite_id": invite_id})
 
     def accept_actor_recommendation(
         self, *, cp_offer_id: str, case_actor_id: str
-    ) -> TriggerResult:
+    ) -> WireTriggerResult:
         """Accept a forwarded Offer(CaseParticipant) (accept-actor-recommendation)."""
         return self._post(
             "accept-actor-recommendation",
@@ -326,7 +350,7 @@ class ActorSession:
 
     def offer_case_ownership_transfer(
         self, *, transferee_id: str, content: str | None = None
-    ) -> ActivityResult:
+    ) -> WireActivityResult:
         """Offer ownership of the bound case to *transferee_id* (offer-case-ownership-transfer)."""
         body: dict[str, Any] = {
             "case_id": self._require_case_id(),
@@ -335,24 +359,24 @@ class ActorSession:
         if content is not None:
             body["content"] = content
         return cast(
-            ActivityResult,
+            WireActivityResult,
             self._post(
                 "offer-case-ownership-transfer",
                 body,
-                result_cls=ActivityResult,
+                result_cls=WireActivityResult,
             ),
         )
 
     def accept_case_ownership_transfer(
         self, *, offer_id: str
-    ) -> ActivityResult:
+    ) -> WireActivityResult:
         """Accept a case-ownership-transfer offer (accept-case-ownership-transfer)."""
         return cast(
-            ActivityResult,
+            WireActivityResult,
             self._post(
                 "accept-case-ownership-transfer",
                 {"offer_id": offer_id},
-                result_cls=ActivityResult,
+                result_cls=WireActivityResult,
             ),
         )
 
@@ -364,7 +388,7 @@ class ActorSession:
         note_name: str,
         note_content: str,
         in_reply_to: str | None = None,
-    ) -> NoteResult:
+    ) -> WireNoteResult:
         """Attach a note to the bound case (add-note-to-case)."""
         body: dict[str, Any] = {
             "case_id": self._require_case_id(),
@@ -374,16 +398,16 @@ class ActorSession:
         if in_reply_to is not None:
             body["in_reply_to"] = in_reply_to
         return cast(
-            NoteResult,
+            WireNoteResult,
             self._post(
                 "add-note-to-case",
                 body,
                 path_prefix="demo",
-                result_cls=NoteResult,
+                result_cls=WireNoteResult,
             ),
         )
 
-    def notify_fix_ready(self) -> TriggerResult:
+    def notify_fix_ready(self) -> WireTriggerResult:
         """Self-report fix ready (CS.VFd) for the bound case (notify-fix-ready)."""
         return self._post(
             "notify-fix-ready",
@@ -391,7 +415,7 @@ class ActorSession:
             path_prefix="demo",
         )
 
-    def notify_fix_deployed(self) -> TriggerResult:
+    def notify_fix_deployed(self) -> WireTriggerResult:
         """Self-report fix deployed (CS.VFD) for the bound case (notify-fix-deployed)."""
         return self._post(
             "notify-fix-deployed",
@@ -399,7 +423,7 @@ class ActorSession:
             path_prefix="demo",
         )
 
-    def notify_published(self) -> TriggerResult:
+    def notify_published(self) -> WireTriggerResult:
         """Self-report public disclosure for the bound case (notify-published)."""
         return self._post(
             "notify-published",
@@ -407,7 +431,7 @@ class ActorSession:
             path_prefix="demo",
         )
 
-    def close_case(self) -> TriggerResult:
+    def close_case(self) -> WireTriggerResult:
         """Send Leave(VulnerabilityCase) for the bound case (close-case, ADR-0050)."""
         return self._post(
             "close-case",
@@ -417,10 +441,10 @@ class ActorSession:
 
     def sync_log_entry(
         self, *, object_id: str, event_type: str
-    ) -> SyncLogEntryResult:
+    ) -> WireSyncLogEntryResult:
         """Commit and fan out a canonical ledger entry (sync-log-entry)."""
         return cast(
-            SyncLogEntryResult,
+            WireSyncLogEntryResult,
             self._post(
                 "sync-log-entry",
                 {
@@ -429,6 +453,6 @@ class ActorSession:
                     "event_type": event_type,
                 },
                 path_prefix="demo",
-                result_cls=SyncLogEntryResult,
+                result_cls=WireSyncLogEntryResult,
             ),
         )

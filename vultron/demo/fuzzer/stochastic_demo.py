@@ -173,6 +173,7 @@ def _run_embargo_full_tree(n_ticks: int = N_TICKS) -> None:
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
     from vultron.core.behaviors.bridge import BTBridge
     from vultron.core.behaviors.embargo.manage_embargo_tree import (
         create_manage_embargo_tree,
@@ -191,6 +192,7 @@ def _run_embargo_full_tree(n_ticks: int = N_TICKS) -> None:
     bridge = BTBridge(
         datalayer=dl,
         trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     )
 
     for tick in range(1, n_ticks + 1):

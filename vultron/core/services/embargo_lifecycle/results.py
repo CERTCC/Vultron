@@ -66,8 +66,10 @@ class EmbargoLifecycleResult(BaseModel):
             (e.g. an embargo was activated or cleared).
         pec_reset: True if a full PEC reset was performed across all
             participants (e.g. on embargo termination).
-        participant_changes: Per-participant PEC state changes that occurred
-            during the operation (e.g. signatories lapsed on REVISE).
+        participant_changes: Per-participant PEC *state* changes that occurred
+            during the operation (e.g. signatories lapsed when the owner
+            activated longer terms they had not accepted, EP-05-001).  A write
+            that only touches ``accepted_embargo_ids`` is not reported.
     """
 
     em_before: EM

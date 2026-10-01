@@ -47,6 +47,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.core.models.dimensions import (
     RmDimension,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
 
@@ -98,7 +99,9 @@ class TestAckReportNoStandaloneStatus:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        AckReportReceivedUseCase(dl, event).execute()
+        AckReportReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         all_statuses = dl.get_all("ParticipantStatus")
         assert all_statuses == [], (
@@ -209,7 +212,9 @@ class TestFullReportFlow:
             },
         )
         activity = create_case_activity(case, actor=self.CASE_ACTOR_ID)
-        CreateCaseReceivedUseCase(dl, make_payload(activity)).execute()
+        CreateCaseReceivedUseCase(
+            dl, make_payload(activity), wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
     def _make_submit_event(self):
         """Build a SubmitReportReceivedEvent (Offer(Report) from finder to vendor)."""
@@ -260,6 +265,7 @@ class TestFullReportFlow:
             dl,
             self._make_submit_event(),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
@@ -280,11 +286,14 @@ class TestFullReportFlow:
             dl,
             self._make_submit_event(),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         cases_after_submit = set(dl.by_type("VulnerabilityCase").keys())
 
         ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         cases_after_validate = set(dl.by_type("VulnerabilityCase").keys())
 
@@ -311,10 +320,13 @@ class TestFullReportFlow:
             dl,
             self._make_submit_event(),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         self._deliver_case_replica(dl, make_payload)
         result = ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
@@ -326,7 +338,9 @@ class TestFullReportFlow:
 
         # ID-04-004: a redelivered validate is an idempotent no-op (#2255).
         again = ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert again.disposition == HandlerDisposition.SKIPPED
 
@@ -362,9 +376,12 @@ class TestFullReportFlow:
             dl,
             self._make_submit_event(),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         result = ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         # No local case yet: refused, not reported as applied (#2255).
         assert result.disposition == HandlerDisposition.REFUSED
@@ -392,6 +409,7 @@ class TestFullReportFlow:
             dl,
             self._make_submit_event(),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
@@ -419,10 +437,13 @@ class TestFullReportFlow:
             dl,
             self._make_submit_event(),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         self._deliver_case_replica(dl, make_payload)
         ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
@@ -491,7 +512,9 @@ class TestValidateReportReceivedGuardedCommit:
             event = self._make_validate_event_with_receiving_actor(
                 receiving_actor_id=None
             )
-            ValidateReportReceivedUseCase(dl, event).execute()
+            ValidateReportReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
             # No assertion on ledger (case lookup returns None in this minimal
             # fixture), but the use case must NOT raise VultronValidationError.
         finally:
@@ -514,7 +537,9 @@ class TestValidateReportReceivedGuardedCommit:
         )
 
         with caplog.at_level(logging.DEBUG):
-            ValidateReportReceivedUseCase(dl, event).execute()
+            ValidateReportReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         assert any(
             "no case found" in r.message.lower() for r in caplog.records
@@ -576,7 +601,9 @@ class TestValidateReportReceivedGuardedCommit:
             receiving_actor_id=self.VENDOR_ID  # != case_actor_id
         )
 
-        ValidateReportReceivedUseCase(dl, event).execute()
+        ValidateReportReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
         assert not entries, (
@@ -668,7 +695,9 @@ class TestValidateReportReceivedGuardedCommit:
             tracking_create,
         )
 
-        ValidateReportReceivedUseCase(dl, event).execute()
+        ValidateReportReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         assert commit_tree_calls, (
             "Expected create_receive_activity_tree to be "
@@ -696,5 +725,7 @@ class TestValidateReportMalformed:
         dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id="https://example.org/actors/vendor"
         )
-        result = ValidateReportReceivedUseCase(dl, event).execute()
+        result = ValidateReportReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
         assert result.disposition == HandlerDisposition.REFUSED

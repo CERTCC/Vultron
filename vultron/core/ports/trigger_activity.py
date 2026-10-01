@@ -601,9 +601,14 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(EmbargoEvent, Case)`` proposal.
 
+        ``attributed_to`` carries the proposer when the CASE_MANAGER relays a
+        proposal on a participant's behalf (CM-24-002, EP-09-002): ``actor`` is
+        then the CASE_MANAGER and ``attributed_to`` the participant whose terms
+        these are.
         Returns ``(activity_id, activity_dict)``.
         """
         ...

@@ -14,19 +14,17 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """BT leaf node for emitting Add(CaseParticipant) after a successful invite acceptance."""
 
-import json
 import logging
 from typing import cast
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.sync.commit_tree import (
-    create_commit_log_entry_tree,
+    commit_emitted_activity,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
@@ -149,21 +147,14 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
         # The recorded snapshot is the exact blob the port returned; the
         # factory owns its completeness and the outbox delivers the same text
         # (VM-08-003).
-        snapshot: dict = json.loads(activity_blob)
-        commit_tree = create_commit_log_entry_tree(
+        commit_emitted_activity(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            actor_id=self.actor_id,
             case_id=self.case_id,
-            object_id=activity_id,
+            activity_id=activity_id,
+            activity_blob=activity_blob,
             event_type="add_case_participant",
-            payload_snapshot=snapshot,
         )
-        result = BTBridge(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer)
-        ).execute_with_setup(tree=commit_tree, actor_id=self.actor_id)
-        if result.status != Status.SUCCESS:
-            raise RuntimeError(
-                f"{self.name}: ledger commit failed for"
-                f" add_case_participant/{participant_id}"
-            )
         return activity_id, activity_blob
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:

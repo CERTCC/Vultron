@@ -48,6 +48,7 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 ACTOR_ID = "https://example.org/actors/owner"
 NEW_OWNER_ID = "https://example.org/actors/coordinator"
@@ -87,7 +88,7 @@ def dl(store_for):
 
 @pytest.fixture
 def bridge(dl):
-    return BTBridge(datalayer=dl)
+    return BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter())
 
 
 # ---------------------------------------------------------------------------
@@ -534,7 +535,11 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
             ),
         )
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitInviteActorToCaseNode(
             invitee_id=INVITEE_ID,
             case_id=AC3_CASE_ID,
@@ -634,7 +639,11 @@ class TestEmitAddCaseParticipantNode:
             dump_outbound_body(add_activity),
         )
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
         )
@@ -712,7 +721,11 @@ class TestEmitAddCaseParticipantNode:
             dump_outbound_body(add_activity),
         )
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
         )
@@ -764,7 +777,11 @@ class TestEmitAddCaseParticipantNode:
         participant = _make_add_node_fixture(dl)
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
         )
@@ -799,7 +816,11 @@ class TestEmitAddCaseParticipantNode:
         )
         dl.create(case)
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
         )
@@ -883,7 +904,11 @@ class TestEmitAddCaseParticipantNode:
             dump_outbound_body(add_act_to),
         )
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
         )
@@ -991,6 +1016,7 @@ class TestEmitOwnershipTransferNodes:
         bridge = BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         )
         result = bridge.execute_with_setup(tree=node, actor_id=_OT_OWNER_ID)
 
@@ -1042,7 +1068,11 @@ class TestEmitOwnershipTransferNodes:
             offer_id="https://example.org/activities/ot-offer-01",
             case_id=_OT_CASE_ID,
         )
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+        )
         result = bridge.execute_with_setup(
             tree=node, actor_id=_OT_TRANSFEREE_ID
         )

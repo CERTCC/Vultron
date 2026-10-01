@@ -856,6 +856,32 @@ class TestCaseProposalDisposition:
         ).execute()
         assert result.disposition == HandlerDisposition.REFUSED
 
+    @pytest.mark.spec("ARCH-20-001")
+    @pytest.mark.spec("HP-01-003")
+    def test_proposal_without_render_port_is_a_wiring_fault(
+        self, make_payload
+    ):
+        """Core cannot render the proposal itself, so no port means raise.
+
+        The accept path carries the proposal inline in its Accept and needs the
+        AS2 shape to do it; the only route to that shape is the port
+        (ARCH-20-001).  A missing port is this actor's composition fault, not
+        the sender's, so it raises rather than refusing (#2255, ADR-0095), and
+        it does so before any case is created.
+        """
+        from vultron.errors import VultronWiringError
+
+        dl = self._case_actor_dl()
+        activity = as_Create(
+            actor=_VENDOR_URI, object_=_make_proposal(), to=[_CASE_ACTOR_URI]
+        )
+        event = make_payload(activity).model_copy(
+            update={"receiving_actor_id": _CASE_ACTOR_URI}
+        )
+        with pytest.raises(VultronWiringError):
+            CreateCaseProposalReceivedUseCase(dl, event).execute()
+        assert list(dl.list_objects("VulnerabilityCase")) == []
+
     @pytest.mark.spec("HP-01-003")
     def test_accept_is_applied(self, make_payload):
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)

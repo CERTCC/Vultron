@@ -9,8 +9,17 @@ Core ports are split by direction.
 **Inbound ports (driving)** — external adapters call into core:
 
 - `UseCase` Protocol (`core/ports/use_case.py`) — primary inbound port.
-- `ActivityDispatcher` Protocol (`core/ports/dispatcher.py`) — routing
-  entry.
+- `ActivityDispatcher` Protocol (`core/ports/dispatcher.py`) — received-side
+  routing entry: `dispatch(event, dl) -> HandlerResult`, routed by
+  `SEMANTIC_REGISTRY`.
+- `TriggerDispatcher` Protocol (`core/ports/trigger_dispatcher.py`) —
+  trigger-side routing entry: one `trigger(request, dl) -> ResultT_co` method,
+  routed by `vultron/trigger_registry/` (ADR-0110). The return type is bound
+  to the request's type, so a router gets the verb's `TriggerResult` subtype
+  with no cast and no per-verb method (UCORG-05-006). Implementation:
+  `core/trigger_dispatcher.py` (`RegistryTriggerDispatcher`). It is the only
+  trigger driving port: `test/architecture/test_trigger_port_single_method.py`
+  fails on a second public method or a per-verb facade under `vultron/core/`.
 
 **Outbound ports (driven)** — core calls outward:
 

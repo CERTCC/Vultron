@@ -1960,9 +1960,6 @@ groups:
       `Invite.end_time`, that value is authoritative and supersedes this window
       (CM-28-002). The pocket veto and the explicit RSVP deadline are ONE
       mechanism at two levels of explicitness, not two competing timeouts.
-      The verification's lapse-at-activation clause describes the target state
-      decided by ADR-0093 (revised 2026-09-29); the implementation is tracked in
-      #3891, and until it lands `propose_embargo()` still cascades on proposal.
     rationale: >-
       Per ADR-0093 and `notes/participant-embargo-consent.md`: `LAPSED` means "the active embargo was replaced by longer
       terms I have not accepted." While a revision is merely proposed the prior embargo is still in force and every

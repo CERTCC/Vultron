@@ -26,8 +26,10 @@ accumulation model, DEMOCI-01-003/004).
 A raising wait invoked from scenario ``_phase_*`` code MUST therefore sit inside
 a ``demo_step`` / ``demo_check`` / ``demo_gate`` block, OR be invoked through a
 shared helper that performs that wrap internally so every caller inherits it
-(``wait_for_participants_on_replicas`` and ``drain_phase1_ledger`` are the two
-such helpers).
+(``wait_for_participants_on_replicas`` is the one such helper in
+``polling.py``; the ledger-coverage loop's wrapping helper,
+``wait_for_replica_ledger_coverage``, lives in ``helpers/sync.py`` and is
+governed by DEMOMA-23-005/006 and its own ratchet).
 
 The raising / wrapping classification is derived from ``polling.py`` itself, so
 a new raising helper is covered automatically and a new self-wrapping helper is
@@ -54,7 +56,7 @@ _DEMO_CONTEXTS = frozenset({"demo_step", "demo_check", "demo_gate"})
 
 #: Prefixes of the polling-helper family in ``polling.py`` that block on a
 #: side effect and raise on timeout.
-_WAIT_PREFIXES = ("wait_for_", "find_", "drain_")
+_WAIT_PREFIXES = ("wait_for_", "find_")
 
 
 def _callee_name(call: ast.Call) -> str:
@@ -145,8 +147,8 @@ def _polling_tree() -> ast.Module:
 def _classify_polling_helpers() -> tuple[frozenset[str], frozenset[str]]:
     """Return ``(raising, wrapping)`` helper-name sets derived from polling.py.
 
-    A ``wait_for_*`` / ``find_*`` / ``drain_*`` function is a *wrapping* helper
-    when it contains a demo context AND makes no raising poll call outside one —
+    A ``wait_for_*`` / ``find_*`` function is a *wrapping* helper when it
+    contains a demo context AND makes no raising poll call outside one —
     it neutralises the raise for every caller.  Otherwise it is a *raising*
     helper.  Bare raising helpers are the ones a scenario must not call outside
     a demo context; bare calls to wrapping helpers are safe.  Both ``def`` and
@@ -211,17 +213,16 @@ def test_polling_module_has_raising_and_wrapping_helpers():
     """Sanity: the classifier finds real helpers of each kind.
 
     Guards against a silently-empty ``_RAISING_WAITS`` (which would make the
-    per-scenario check vacuous) and confirms the two known self-wrapping
-    helpers are recognised.
+    per-scenario check vacuous) and confirms the known self-wrapping helper is
+    recognised, so ``_WRAPPING_WAITS`` is a real classification and not an
+    empty set that happens to satisfy every subset check.
     """
     assert "wait_for_case_participants" in _RAISING_WAITS
-    assert _WRAPPING_WAITS >= {
-        "wait_for_participants_on_replicas",
-        "drain_phase1_ledger",
-    }, (
-        "wait_for_participants_on_replicas and drain_phase1_ledger must wrap "
-        f"their raising poll internally (DEMOCI-01-011); got {_WRAPPING_WAITS}"
+    assert "wait_for_participants_on_replicas" in _WRAPPING_WAITS, (
+        "wait_for_participants_on_replicas must wrap its raising poll "
+        f"internally (DEMOCI-01-011); got {_WRAPPING_WAITS}"
     )
+    assert _WRAPPING_WAITS, "at least one real wrapping helper must exist"
 
 
 @pytest.mark.parametrize(

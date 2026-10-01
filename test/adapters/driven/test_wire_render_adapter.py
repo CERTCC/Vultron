@@ -208,8 +208,9 @@ def test_render_is_the_core_objects_own_alias_dump(adapter):
     """AC-1/AC-4: no wire counterpart is resolved, and none is needed.
 
     Every ``CORE_VOCABULARY`` entry renders as exactly its own
-    ``model_dump(by_alias=True, exclude_none=True, mode="json")`` — including
-    the ones ``WIRE_TYPE_MAP`` has no entry for, which the old port refused.
+    ``model_dump(by_alias=True, exclude_none=True, mode="json",
+    serialize_as_any=True)`` — including the ones ``WIRE_TYPE_MAP`` has no
+    entry for, which the old port refused.
     """
     from test.support.core_vocab import build_core_vocab
 
@@ -217,8 +218,42 @@ def test_render_is_the_core_objects_own_alias_dump(adapter):
     assert not unconstructible
     for name, obj in built:
         assert adapter.render(obj) == obj.model_dump(
-            by_alias=True, exclude_none=True, mode="json"
+            by_alias=True,
+            exclude_none=True,
+            mode="json",
+            serialize_as_any=True,
         ), name
+
+
+def test_render_serialises_nested_values_by_their_runtime_type(adapter):
+    """A nested value that is not its field's declared type still renders.
+
+    A received activity's ``object_`` can be a wire actor whose ``inbox`` holds
+    the IRI string instead of the declared collection.  Serialised by declared
+    type that is a Pydantic serializer warning — an error under the suite's
+    warning filter, a degraded snapshot in production — so the port serialises
+    by runtime type, as every other AS2 path does (``serialize_as_any``).
+    """
+    import warnings
+
+    from vultron.core.models.activity import VultronActivity
+    from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+
+    inbox = "https://example.org/actors/coordinator/inbox"
+    org = as_Organization(id_="https://example.org/actors/coordinator")
+    object.__setattr__(org, "inbox", inbox)
+    activity = VultronActivity(
+        id_="https://example.org/activities/accept-1",
+        type_="Accept",
+        actor="https://example.org/actors/case-actor",
+        object_=org,
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        rendered = adapter.render(activity)
+
+    assert rendered["object"]["inbox"] == inbox
 
 
 def test_render_adapter_does_not_resolve_a_wire_counterpart():

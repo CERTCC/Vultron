@@ -26,6 +26,9 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
@@ -46,6 +49,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -159,7 +163,11 @@ class TestInviteToEmbargoRoutingGuard:
 
         event = make_payload(proposal, receiving_actor_id=None)
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -188,7 +196,11 @@ class TestInviteToEmbargoRoutingGuard:
 
         event = make_payload(proposal, receiving_actor_id=self.CASE_ACTOR_ID)
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -216,7 +228,10 @@ class TestInviteToEmbargoRoutingGuard:
 
         event = make_payload(proposal, receiving_actor_id=self.INVITEE_ID)
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -272,7 +287,10 @@ class TestAcceptInviteToEmbargoRoutingGuard:
 
         event = make_payload(accept, receiving_actor_id=self.CASE_ACTOR_ID)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -294,7 +312,10 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         non_case_actor_id = "https://example.org/actors/other-vendor"
         event = make_payload(accept, receiving_actor_id=non_case_actor_id)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -316,7 +337,10 @@ class TestAcceptInviteToEmbargoRoutingGuard:
 
         event = make_payload(accept, receiving_actor_id=None)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -382,7 +406,10 @@ class TestRemoveEmbargoRoutingGuard:
             remove_activity, receiving_actor_id=self.CASE_ACTOR_ID
         )
         RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -411,7 +438,10 @@ class TestRemoveEmbargoRoutingGuard:
             remove_activity, receiving_actor_id=self.OTHER_ACTOR_ID
         )
         RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -437,7 +467,10 @@ class TestRemoveEmbargoRoutingGuard:
 
         event = make_payload(remove_activity, receiving_actor_id=None)
         RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
