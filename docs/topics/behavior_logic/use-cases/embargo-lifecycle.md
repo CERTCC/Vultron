@@ -58,6 +58,10 @@ Every EM transition runs through one service.
 A behavior tree node never assigns `case.current_status.em` and saves the case as a shortcut (EMB-18-001).
 The reason is that a transition is not a field write.
 It has to be validated against the state machine, and a failed validation must stop the node rather than log a warning and write anyway (EMB-18-002).
+A case also never names an embargo whose record its store does not hold (EMB-18-003).
+Activating an embargo reads both the record being activated and the one it replaces, and refuses before any write if either cannot be read.
+A sender carries the embargo record inline with the case, and a receiver stores that record before the case that names it, so a case naming an embargo the receiver lacks is refused rather than stored.
+A receiver refuses an inline embargo record whose context is a different case, so a sender cannot plant one case's embargo under another's id.
 
 The transitions themselves are small and fixed:
 
@@ -218,6 +222,7 @@ The embargo is over for everyone at once, which is the one thing about the EM sc
 | [EMB-16-001](../../../reference/specs/protocol.md#emb-16-001) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal and emit ER |
 | [EMB-17-001](../../../reference/specs/protocol.md#emb-17-001) | A late `Accept` MUST NOT be refused solely because the deadline passed |
 | [EMB-18-001](../../../reference/specs/architecture.md#emb-18-001) | Every EM transition MUST route through the embargo lifecycle service |
+| [EMB-18-003](../../../reference/specs/architecture.md#emb-18-003) | A case MUST NOT name an embargo whose record its store does not hold |
 | [EMB-19-001](../../../reference/specs/protocol.md#emb-19-001) | A teardown announcement MUST be authored by the case manager and exclude it from the recipients |
 | [EP-04-001](../../../reference/specs/protocol.md#ep-04-001) | A default embargo applied at case creation MUST produce `EM.ACTIVE`, not `EM.PROPOSED` |
 | [EP-07-003](../../../reference/specs/protocol.md#ep-07-003) | A sub-minimum RSVP deadline MUST be clamped up, not rejected |

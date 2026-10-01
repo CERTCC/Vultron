@@ -31,6 +31,7 @@ related_notes:
 relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/services/embargo_lifecycle/
+  - vultron/core/services/carried_embargo.py
   - vultron/core/behaviors/embargo/
   - vultron/core/behaviors/sync/nodes/embargo_relay_effect.py
   - vultron/core/use_cases/triggers/embargo.py
@@ -124,16 +125,26 @@ makes that invariant hold by construction rather than repairing it after the
 fact. Three kinds of path write `active_embargo`, and each must hold the record
 first:
 
-- **Seeding** — every trigger-built outbound case goes through
-  `_case_for_wire`, which carries `active_embargo` inline when the sender holds
-  the record, and `_store_embedded_embargo` stores it as its own record on
-  receipt, so a replica seeded mid-embargo holds A. Seeding writes the sender's
-  `active_embargo` in a whole-case save (`SeedAnnouncedCaseNode`, the
-  create/engage replica stores, and the inbox pre-store of an inbound case), so
-  it is a writer too. Two gaps remain until #4032 lands: the case is saved
-  *before* its embargo record, and a sender that lacks its own record logs a
-  WARNING and sends a bare id, which `_store_embedded_embargo` skips — leaving
-  the replica pointing at a record it cannot read.
+- **Seeding** — a sender carries `active_embargo` inline in every outbound
+  case: trigger-built cases through `_case_for_wire`, and the CASE_MANAGER's
+  case-proposal `Create(VulnerabilityCase)` through
+  `WriteCreateCaseMarkerNode._build_case_object`. A sender whose own store
+  cannot read the record has already broken the invariant, so it refuses to
+  build the activity (`VultronValidationError`; the marker node fails, logged
+  at ERROR) rather than sending a bare id. On receipt, every seeding
+  writer calls `store_carried_embargo()`
+  (`vultron/core/services/carried_embargo.py`) *before* saving the case:
+  `SeedAnnouncedCaseNode`, the create/engage replica stores
+  (`_hold_carried_embargo`) and the inbox pre-store of an inbound case. It
+  stores an inline `EmbargoEvent` as its own record, then reads the named
+  embargo through `read_embargo_event()`; a case naming one the store cannot
+  read is refused — the node fails, the handler reports `REFUSED`, the inbox
+  pre-store skips the case — and nothing is saved. An inline embargo whose
+  `context` is not the carrying case is refused unstored: the inbox pre-store
+  runs before the handler's trust checks and a first write wins, so a sender
+  must not plant another case's embargo under an id that case will name.
+  Extraction reduces an inline embargo to its id, so on the received side it
+  is the inbox pre-store that holds the carried record before dispatch.
 - **Ledger replay** — entries are applied in chain order (SYNC-14-003), and the
   CASE_MANAGER commits A's proposal before any activation that replaces it.
   Each embargo apply node — proposal, relayed Invite, Accept, Reject and
@@ -142,20 +153,24 @@ first:
   when the entry names the embargo by id only and the replica lacks it.
 - **The activation writers** — `accept_embargo_invite()` and
   `activate_embargo()`, the only paths that *activate* an embargo (EM state
-  plus `active_embargo`). On a revision they already read both records through
-  `_revision_ends_no_later`. On a first activation they do not yet read the
-  activated record, so a bare id from an inbox (which stores only the first
-  level of nesting: `Accept(Invite(A))` keeps the Invite, not A) can land;
-  #4032 makes them read it and fail closed before any write.
+  plus `active_embargo`). Both compute their EP-05-001 arm through
+  `EmbargoLifecycle._activation_arm()` before any write: it reads the
+  activated record, and on a revision the replaced one too, so a bare id from
+  an inbox (which stores only the first level of nesting: `Accept(Invite(A))`
+  keeps the Invite, not A) raises `VultronNotFoundError` or
+  `VultronNotAnEmbargoError` (a `VultronValidationError` that names the
+  embargo id) in either `TransitionMode` and writes nothing. These
+  methods live in `embargo_lifecycle/activation_arm.py`.
 
 So "a replica lacking the replaced embargo" is a broken invariant, not a
 replication lag, and no catch-up fetch, replay-on-store trigger, or
-`end_time`-in-snapshot mechanism is built for it (CONCERN-4004). Today
-`RecordParticipantAcceptanceNode` still prefixes that failure with
-`REPLACED_EMBARGO_UNREPLICATED_PREFIX` (logged at WARNING) and the handler
-reports `DEFERRED` — the arm PR #4002 added. #4032 retires it: nothing would
-re-drive the parked item, so once it lands the failure is refused and logged at
-ERROR instead.
+`end_time`-in-snapshot mechanism is built for it (CONCERN-4004). Nothing would
+re-drive a parked item, so there is no `DEFERRED` arm:
+`RecordParticipantAcceptanceNode` reports an unreadable replaced embargo
+(missing, or not an `EmbargoEvent`) as an invariant violation logged at ERROR,
+and the handler reports `REFUSED` (HP-01-003). A sender-side refusal to build
+an announce during sync replay is logged at ERROR too, not as a recoverable
+WARNING. An unknown *accepted* embargo stays an ordinary WARNING refusal.
 
 **`TransitionMode`**: `STRICT` enforces valid transitions and precondition
 guards (used by trigger-side BT behaviors).  `OBSERVED` syncs local state

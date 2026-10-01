@@ -851,7 +851,7 @@ class CVDmodel:
             is_valid_transition(from_state, to_state)
         except TransitionValidationError as e:
             logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                f"Invalid transition from {from_state} to {to_state}: {e}"
+                "Invalid transition from %s to %s: %s", from_state, to_state, e
             )
             raise
 

@@ -30,9 +30,15 @@ from typing import cast
 from pydantic import ValidationError
 
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
-from vultron.errors import VultronAlreadyExistsError, VultronValidationError
+from vultron.core.services.carried_embargo import store_carried_embargo
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 # Same logger the helpers used under routers/actors/_inbox.py, so moving them
@@ -87,6 +93,22 @@ def _store_nested_inbox_object(dl: DataLayer, activity: as_Activity) -> None:
         return
 
     typed_nested = cast(PersistableModel, nested)
+
+    if isinstance(nested, VulnerabilityCase):
+        # EMB-18-003: hold the embargo the case names before the case row is
+        # written, and never pre-store a case naming one this store cannot
+        # read — the dispatched handler then refuses it with nothing saved.
+        try:
+            store_carried_embargo(nested, dl)
+        except (VultronNotFoundError, VultronValidationError) as exc:
+            logger.warning(
+                "Not pre-storing inline VulnerabilityCase %s from ingress: it"
+                " names an active embargo this store cannot read"
+                " (EMB-18-003): %s",
+                getattr(nested, "id_", "<no id>"),
+                exc,
+            )
+            return
 
     try:
         # Normalise case_participants to string IDs in the *serialised record*

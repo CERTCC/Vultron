@@ -198,7 +198,7 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
             self._emit_through_seam(activity_id, activity_blob)
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"ForwardOfferToTransfereeNode failed: {e}"
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
         self._on_success(activity_id, activity_blob)
         return Status.SUCCESS

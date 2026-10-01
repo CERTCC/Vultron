@@ -34,8 +34,9 @@ from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptCaseOwnershipTransferNode,
 )
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
@@ -317,14 +318,20 @@ def case():
     return as_VulnerabilityCase(id_=CASE_ID2, name="Seed Announce Test")
 
 
-@pytest.fixture
-def announce_event(case) -> AnnounceVulnerabilityCaseReceivedEvent:
+def _announce_event_for(
+    case: as_VulnerabilityCase,
+) -> AnnounceVulnerabilityCaseReceivedEvent:
     activity = announce_vulnerability_case_activity(
         case, actor=ACTOR_ID, context=case.id_
     )
     event = extract_event(activity)
     assert event.semantic_type == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
     return cast(AnnounceVulnerabilityCaseReceivedEvent, event)
+
+
+@pytest.fixture
+def announce_event(case) -> AnnounceVulnerabilityCaseReceivedEvent:
+    return _announce_event_for(case)
 
 
 class TestSeedAnnouncedCaseNode:
@@ -437,6 +444,80 @@ class TestSeedAnnouncedCaseNode:
         assert dl.read(participant_id) is not None, (
             "Standalone CaseParticipant record must be stored alongside the case"
         )
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_stores_the_inline_embargo_the_case_names(
+        self, bridge, dl
+    ) -> None:
+        """An inline active embargo becomes a record this store can read."""
+        embargo = EmbargoEvent(
+            id_=f"{CASE_ID2}/embargo_events/inline",
+            context=CASE_ID2,
+            end_time=days_from_now_utc(45),
+        )
+        case = as_VulnerabilityCase(
+            id_=CASE_ID2, name="Inline Embargo", active_embargo=embargo
+        )
+        event = _announce_event_for(case)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=case, request=event
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+        assert result.status == Status.SUCCESS
+        assert isinstance(dl.read(embargo.id_), EmbargoEvent)
+        assert dl.read(CASE_ID2) is not None
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_refuses_a_case_naming_an_unheld_embargo(self, bridge, dl) -> None:
+        """A bare embargo id this store cannot read is refused, not seeded."""
+        case = as_VulnerabilityCase(
+            id_=CASE_ID2,
+            name="Unheld Embargo",
+            active_embargo=f"{CASE_ID2}/embargo_events/unheld",
+        )
+        event = _announce_event_for(case)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=case, request=event
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+        assert result.status == Status.FAILURE
+        assert dl.read(CASE_ID2) is None
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_refuses_a_reannounce_naming_an_unheld_embargo(
+        self, bridge, dl, case
+    ) -> None:
+        """An already-held case is left as stored, participants included."""
+        dl.create(case)
+        participant_id = f"{CASE_ID2}/participants/reannounced"
+        reannounced = as_VulnerabilityCase(
+            id_=CASE_ID2,
+            name="Re-announced",
+            active_embargo=f"{CASE_ID2}/embargo_events/unheld",
+            case_participants=[
+                as_CaseParticipant(
+                    id_=participant_id,
+                    attributed_to=ACTOR_ID,
+                    context=CASE_ID2,
+                )
+            ],
+        )
+        event = _announce_event_for(reannounced)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=reannounced, request=event
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+        assert result.status == Status.FAILURE
+        stored = dl.read(CASE_ID2)
+        assert stored is not None
+        assert stored.active_embargo is None
+        assert dl.read(participant_id) is None
 
 
 # ---------------------------------------------------------------------------

@@ -114,7 +114,8 @@ class AlwaysAcceptPolicy(ValidationPolicy):
             True (always accepts)
         """
         logger.info(
-            f"Policy: Accepting report {report.id_} as credible (AlwaysAcceptPolicy)"
+            "Policy: Accepting report %s as credible (AlwaysAcceptPolicy)",
+            report.id_,
         )
         return True
 
@@ -131,7 +132,8 @@ class AlwaysAcceptPolicy(ValidationPolicy):
             True (always accepts)
         """
         logger.info(
-            f"Policy: Accepting report {report.id_} as valid (AlwaysAcceptPolicy)"
+            "Policy: Accepting report %s as valid (AlwaysAcceptPolicy)",
+            report.id_,
         )
         return True
 
@@ -182,6 +184,6 @@ class AlwaysPrioritizePolicy(PrioritizationPolicy):
             True (always engages)
         """
         logger.info(
-            f"Policy: Engaging case {case.id_} (AlwaysPrioritizePolicy)"
+            "Policy: Engaging case %s (AlwaysPrioritizePolicy)", case.id_
         )
         return True
