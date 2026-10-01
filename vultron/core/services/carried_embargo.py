@@ -58,7 +58,9 @@ def store_carried_embargo(
         VultronValidationError: If the named record is not an
             ``EmbargoEvent``, or an inline embargo belongs to another case.
     """
-    embargo_ref = case_obj.active_embargo
+    # ``getattr``: a received event's ``case`` property is a cast, so the
+    # object handed in may be a bare reference stub with no case fields.
+    embargo_ref = getattr(case_obj, "active_embargo", None)
     if embargo_ref is None:
         return
     if isinstance(embargo_ref, EmbargoEvent):
