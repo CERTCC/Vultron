@@ -311,7 +311,7 @@ def _phase_invite_vendor_reject(
     # so a failed trigger or lookup skips them instead of handing them
     # ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
     with demo_step("Coordinator invites Vendor with CVDRole.VENDOR"):
-        invite = (
+        invite_offer = (
             ActorSession(
                 client=coordinator_client, actor=coordinator_in_coordinator
             )
@@ -321,7 +321,10 @@ def _phase_invite_vendor_reject(
                 invitee_id=vendor.id_, roles=[CVDRole.VENDOR]
             )
         ).activity
-        logger.info("Vendor invite created: %s", invite.id_)
+        logger.info(
+            "Coordinator asked the CASE_MANAGER to invite Vendor: %s",
+            invite_offer.id_,
+        )
 
         # The delivered Invite is the causal precondition for the reject: a
         # demo_gate, with the reject using the ID it found.

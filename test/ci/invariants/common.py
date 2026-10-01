@@ -921,6 +921,39 @@ def check_no_rejected_invite_entries(
     return violations
 
 
+def check_unique_payload_snapshot_ids(
+    replicas: dict[str, list[dict]],
+) -> list[str]:
+    """No replica holds two entries for the same activity (CLP-07-002).
+
+    A state change is recorded once, so on any one replica no two
+    ``CaseLedgerEntry`` records share a ``payloadSnapshot.id``.  The defect
+    this catches is the double commit ADR-0109 retired: an emitting tree
+    commits the Invite and the CASE_MANAGER commits it again on receipt of its
+    own ``cc:`` copy, giving two canonical entries for one activity.
+
+    Every replica is checked, the ``case-actor`` one included.  An entry whose
+    snapshot carries no ``id`` is not counted.
+
+    Returns one violation string per repeated activity id per replica.
+    """
+    violations: list[str] = []
+    for actor, entries in replicas.items():
+        seen: dict[str, list[int]] = {}
+        for e in entries:
+            snap_id = payload(e).get("id")
+            if isinstance(snap_id, str) and snap_id:
+                seen.setdefault(snap_id, []).append(log_index(e))
+        for snap_id, indices in seen.items():
+            if len(indices) > 1:
+                violations.append(
+                    f"Actor {actor!r}: payloadSnapshot.id {snap_id!r} is"
+                    f" recorded {len(indices)} times (logIndex"
+                    f" {sorted(indices)}; CLP-07-002 violation)"
+                )
+    return violations
+
+
 def for_each_replica(
     replicas: dict[str, list[dict]],
     check: Callable[[dict[str, list[dict]]], list[str]],

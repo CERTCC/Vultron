@@ -62,6 +62,7 @@ stateDiagram-v2
             I --> V
             V --> A
             D --> A
+            R --> [*]
             D --> [*]
             I--> [*]
         }

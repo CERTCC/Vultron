@@ -23,7 +23,10 @@ Spec coverage:
 - AF-04-002: All factory functions re-exported from factories/__init__.py.
 """
 
+import json
+
 import pytest
+from pydantic import BaseModel
 
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
@@ -62,6 +65,7 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -532,6 +536,70 @@ def test_rm_accept_invite_to_case_plain_invite_raises(sample_actor):
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         rm_accept_invite_to_case_activity(invite=plain_invite)
     assert exc_info.value.__cause__ is not None
+
+
+@pytest.mark.spec("CLP-10-017")
+@pytest.mark.parametrize(
+    "factory",
+    [rm_accept_invite_to_case_activity, rm_reject_invite_to_case_activity],
+)
+def test_reply_embeds_an_invite_as_intake_archived_it(sample_actor, factory):
+    """A received Invite is held as the event carried it, not as the factory
+    class.  The adapter validates that record into ``as_Invite`` at its edge;
+    the reply factories validate it on into the case-Invite class."""
+    from vultron.semantic_registry import extract_event
+
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor,
+        actor=_ACTOR_URI,
+        target=as_VulnerabilityCaseStub(id_="https://example.org/cases/c1"),
+        roles=["vendor"],
+    )
+    archived = extract_event(invite).activity
+    assert not isinstance(archived, as_Invite)
+    held = _as_plain_invite(archived)
+    assert type(held) is as_Invite
+
+    result = factory(invite=held, actor=_ACTOR_URI)
+
+    assert result.object_.id_ == invite.id_
+    assert result.object_.roles == ["vendor"]
+    assert result.in_reply_to == invite.id_
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [rm_accept_invite_to_case_activity, rm_reject_invite_to_case_activity],
+)
+def test_reply_refuses_an_archived_activity_that_is_not_an_invite(
+    sample_actor, factory
+):
+    from vultron.semantic_registry import extract_event
+    from vultron.wire.as2.factories import recommend_actor_activity
+
+    offer = recommend_actor_activity(
+        sample_actor,
+        target=as_VulnerabilityCase(
+            id_="https://example.org/cases/c1", name="Case"
+        ),
+        actor=_ACTOR_URI,
+    )
+    held = _as_plain_invite(extract_event(offer).activity)
+
+    with pytest.raises(
+        VultronActivityConstructionError, match="not a case Invite"
+    ):
+        factory(invite=held, actor=_ACTOR_URI)
+
+
+def _as_plain_invite(activity: BaseModel | None) -> as_Invite:
+    """Validate an archived activity into ``as_Invite``, as the adapter does."""
+    assert activity is not None, "intake archived no activity"
+    return as_Invite.model_validate(
+        json.loads(
+            activity.model_dump_json(by_alias=True, serialize_as_any=True)
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
