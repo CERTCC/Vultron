@@ -249,9 +249,10 @@ def trigger_add_report_to_case(
     summary="Record a vendor's awareness or a deployer's deployment on their behalf.",
     description=(
         "A Case Manager or Case Owner records, on behalf of an existing "
-        "participant (typically an invitee that has not yet replied), the "
-        'vendor\'s awareness (``vf_state="Vf"``, v→V; PRM-06-003) or the '
-        'deployer\'s deployment (``d_state="D"``, d→D; PRM-06-004). The '
+        'participant, the vendor\'s awareness (``vf_state="Vf"``, v→V; '
+        "PRM-06-003; typically for an invitee that has not yet replied) or "
+        'the deployer\'s deployment (``d_state="D"``, d→D; PRM-06-004; only '
+        "for a deployer at RM Accepted, Deferred or Closed). The "
         "target must already be a participant holding the asserted role: a "
         "non-participant target is refused and no participant is created "
         "(PRM-06-006, ADR-0084). Writes a "

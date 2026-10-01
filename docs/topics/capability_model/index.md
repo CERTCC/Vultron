@@ -352,7 +352,7 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 - `accept-actor-recommendation` — approve a suggested actor (case owner only)
 - `offer-case-participant-role` — offer a CVD role to another actor
 - `offer-case-ownership-transfer` / `accept-case-ownership-transfer` — transfer case ownership
-- `add-on-behalf-status` — as Case Manager or Case Owner, record a vendor's awareness (the *V* event) or a deployer's deployment (the *D* event) on behalf of an invitee that has not yet replied, when the evidence is in hand; the target must already be a participant, because a status update never adds an actor to the case (invite the actor first); fix readiness is never recorded on another actor's behalf
+- `add-on-behalf-status` — as Case Manager or Case Owner, record a vendor's awareness (the *V* event) on behalf of a vendor participant, typically an invitee that has not yet replied, or a deployer's deployment (the *D* event) on behalf of a deployer participant that has accepted, deferred or closed the case, when the evidence is in hand; the target must already be a participant, because a status update never adds an actor to the case (invite the actor first); fix readiness is never recorded on another actor's behalf
 
 ### Typical Sentinel patterns
 
