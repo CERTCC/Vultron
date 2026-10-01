@@ -25,7 +25,8 @@ You finish with the actor either seated as a participant or recorded as having d
 ## The exchange
 
 The sequence diagram below shows both outcomes.
-The Case Owner triggers the invitation, but every message on the wire is between the CASE_MANAGER and the invited actor.
+The Case Owner asks the CASE_MANAGER for the invitation with one `Offer`.
+Every later message is between the CASE_MANAGER and the invited actor.
 
 ```mermaid
 ---
@@ -36,7 +37,7 @@ sequenceDiagram
     participant CA as CASE_MANAGER
     actor A as Actor
     activate O
-    O ->> CA: [trigger invite]
+    O ->> CA: Offer(actor=CaseOwner, object=Actor, target=Case, suggestedRoles)
     activate CA
     CA ->>+ A: Invite(actor=CASE_MANAGER, object=Actor, target=Case, attributedTo=CaseOwner)
     note over A: Consider invitation
@@ -58,7 +59,10 @@ sequenceDiagram
 ## Send the invitation
 
 1. Trigger the invitation as Case Owner.
-2. The CASE_MANAGER sends `Invite(Actor)` to the actor's inbox, with itself as the ActivityStreams `actor` and your identity in `attributedTo` (PCR-08-007, PCR-08-008).
+   Your container sends your own `Offer(Actor, Case)` to the CASE_MANAGER, with the roles you offer in `suggestedRoles` (CM-17-007).
+   With no roles given, the CASE_MANAGER offers the default role (CM-16-003).
+2. The CASE_MANAGER commits and sends `Invite(Actor)` to the actor's inbox, with itself as the ActivityStreams `actor` and your identity in `attributedTo` (PCR-08-007, PCR-08-008).
+   The trigger's `202` response means only that your `Offer` was queued, so watch for the `Invite` on the CASE_MANAGER's ledger, not in the response.
 3. Set the reply deadline on the activity's `end_time`.
    When it is present that value settles precedence over the invitee's local policy window; when it is absent the policy window applies instead (CM-28-002, ADR-0065).
    Either way the effective deadline is clamped down to the embargo's own `end_time`, so an `end_time` that outlives the embargo does not buy the invitee extra time (EP-07-006).
