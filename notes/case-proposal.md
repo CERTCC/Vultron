@@ -210,12 +210,14 @@ the Offer, EP-04-004) reach the case-actor, which never saw the Offer; see
 at case creation (#3392, ADR-0096 amendment).
 
 The CASE_OWNER's own terms travel the same way, on the envelope rather than the
-proposal: in this implementation the `actor` of `Create(as_CaseProposal)` is the
-proposing actor's full profile inline, carrying its `embargoPolicy` when it has
-published one (CP-01-010). The protocol also permits a profile reference the
-CASE_MANAGER dereferences (CP-01-009); this prototype requires the inline form
-so case creation never fetches. A bare-URI `actor`, or a profile whose `id` is
-not the proposal's `attributed_to`, is refused at the parse edge.
+proposal: this implementation requires the `actor` of `Create(as_CaseProposal)`
+to be the proposing actor's full profile inline, carrying its `embargoPolicy`
+when it has published one (CP-01-010). The protocol also permits a profile
+reference the CASE_MANAGER dereferences (CP-01-009); this prototype requires the
+inline form so case creation never fetches. A bare-URI `actor`, or a profile
+whose `id` is not the proposal's `attributed_to`, is to be refused at the parse
+edge. None of this is built yet: the sender still puts a bare actor URI on the
+`Create` (#4027).
 
 All classes in `vultron/wire/as2/vocab/objects/` use the `as_` prefix
 (ARCH-14-001). The new type is `as_CaseProposal`; the bare name `CaseProposal`

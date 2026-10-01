@@ -238,7 +238,7 @@ groups:
     statement: >-
       When both the sender and the CASE_OWNER have an applicable embargo proposal at case
       creation (the sender proposes a duration and the CASE_OWNER's profile carries an embargo
-      policy, its actor default — CP-01-009), the shorter of the two MUST
+      policy, its actor default — EP-01-001, CP-01-010), the shorter of the two MUST
       be made active immediately (`em_state = EM.ACTIVE`) and the longer SHOULD be registered
       as a pending revision (`em_state = EM.REVISE`).
     rationale: >-
@@ -457,8 +457,9 @@ groups:
       The 90-day constant and the shared blackboard key are gone (#3390): the fallback is
       `ActorConfig.protocol_default_embargo_duration`, published as
       `protocol_default_embargo_duration` beside `actor_default_embargo_duration`, and the
-      actor default is the one policy the CASE_OWNER's profile carries (EP-01-001,
-      CP-01-010). The third
+      actor default is the shortest published policy, ties broken by policy id. Once #4027
+      lands, the actor default is the one policy the CASE_OWNER's profile carries (EP-01-001,
+      CP-01-010), and the tie-break has nothing left to choose between. The third
       implicit duration — `EmbargoEvent.end_time`'s 45-day `default_factory` in
       `vultron/core/models/embargo_event.py` — is gone too (#3404): `end_time` is required
       with no default, so every construction site states the end it means, and the protocol

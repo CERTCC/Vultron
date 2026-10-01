@@ -1199,8 +1199,8 @@ groups:
     note: >-
       Superseded by CM-22 (ADR-0041) for multi-actor deployments: in the
       CASE_MANAGER-authoritative model the `VulnerabilityCase` is created by the
-      CASE_MANAGER (not the receiving actor), which remains the case's
-      `attributed_to` (CM-14-008, CP-09-001).  CM-14-001 applies only in
+      CASE_MANAGER rather than the receiving actor; the receiving actor remains
+      the case's `attributed_to` (CM-14-008, CP-09-001).  CM-14-001 applies only in
       single-actor deployments where the receiving actor IS the CASE_MANAGER.
     relationships:
     - rel_type: depends_on

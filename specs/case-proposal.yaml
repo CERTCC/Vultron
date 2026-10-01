@@ -134,16 +134,14 @@ groups:
     kind: protocol
     statement: >-
       The `actor` of `Create(as_CaseProposal)` MAY be the proposing actor's full actor profile inline,
-      or a reference to that profile which the CASE_MANAGER dereferences. Either way, the embargo
-      policy carried on that profile (EP-01-001) is the CASE_OWNER's actor default at case creation
-      (EP-04-003).
+      or a reference to that profile which the CASE_MANAGER dereferences.
     rationale: >-
       The proposing actor becomes the CASE_OWNER (CP-09-001), and its published embargo policy lives
-      on its profile, in its own store, which the CASE_MANAGER cannot read (PCR-01-003). The protocol
-      needs the policy to reach case creation; whether the profile travels inline or is fetched is an
-      implementation choice.
+      on its profile (EP-01-001), in its own store, which the CASE_MANAGER cannot read (PCR-01-003).
+      That policy is the CASE_OWNER's actor default at case creation (EP-04-003), so it has to reach
+      case creation; whether the profile travels inline or is fetched is an implementation choice.
     relationships:
-    - rel_type: implements
+    - rel_type: depends_on
       spec_id: EP-04-003
     - rel_type: depends_on
       spec_id: EP-01-001

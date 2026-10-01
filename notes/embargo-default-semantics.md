@@ -209,8 +209,8 @@ What replaced it:
 |---|---|
 | Configured fallback, refused outside `[72h, 5d]` (EP-04-005) | `ActorConfig.protocol_default_embargo_duration` (`vultron/config/actor.py`) |
 | Shortest-wins over candidates only, fallback when none (EP-04-006/007) | `resolve_initial_embargo_duration()` (`vultron/core/services/embargo_duration.py`) |
-| Deterministic actor default: shortest, ties by policy id (EP-04-010) | `select_actor_default()` (same module) |
-| Actor default is the CASE_OWNER's own policy (EP-04-003, EP-04-010) | `ResolveEmbargoDurationNode` keys on `case.attributed_to`, the CASE_OWNER (CM-02-008) |
+| Deterministic actor default: shortest, ties by policy id (EP-04-010) | `select_actor_default()` (same module); once the policy is read from the CASE_OWNER's profile (#4027) there is at most one candidate (EP-01-001) |
+| Actor default is the CASE_OWNER's own policy (EP-04-003, EP-04-010) | `ResolveEmbargoDurationNode` keys on `case.attributed_to`; on the case-actor path that field still names the case actor until #4026 sets it to the CASE_OWNER (CM-02-008) |
 | Distinct blackboard names (EP-04-010) | `actor_default_embargo_duration`, `protocol_default_embargo_duration`, and the resolved `initial_embargo_duration` (duration plus source) |
 | P/X/A refusal before anything is created (EP-04-008) | `CaseNotEmbargoEligibleNode`, the first arm of the `InitializeDefaultEmbargoNode` Selector |
 
