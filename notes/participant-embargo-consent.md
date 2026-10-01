@@ -10,6 +10,7 @@ related_specs:
   - specs/em-behavior.yaml
   - specs/message-semantics-mapping.yaml
   - specs/protocol-asks.yaml
+  - specs/sync-ledger-replication.yaml
 related_notes:
   - notes/stub-objects.md
   - notes/embargo-lifecycle.md
@@ -17,6 +18,8 @@ related_notes:
   - notes/case-communication-model.md
   - notes/message-type-reference.md
   - notes/protocol-asks.md
+  - notes/sync-ledger-replication.md
+  - notes/case-joining.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -90,6 +93,13 @@ participant's consent state is `SIGNATORY`; `False` for all other states.
 | `LAPSED` | Direct `Accept` of revised terms | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
 | `DECLINED` | Case owner re-extends invitation | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
 | Any | Shared EM exits (`EXITED`) | `UNBOUND` | Cascade: `ET` side-effect; no outbound PEC message |
+
+The stub Invite that brings an actor into a case (ADR-0114) drives the same
+states when an embargo is active: sending it records the new participant at
+`INVITED` (CM-11-006), `Accept(Invite(stub))` moves it to `SIGNATORY`
+(CM-11-001), and `Reject(Invite(stub))` to `DECLINED` (CM-11-007). An expired
+stub Invite changes no participant state (CM-11-014). See
+[case-joining.md](case-joining.md).
 
 Normative: `specs/case-management.yaml` CM-18-003. Decision: ADR-0048.
 MSM coupling: `specs/message-semantics-mapping.yaml` MSM-07.
@@ -534,6 +544,35 @@ even to `DECLINED` and `LAPSED` participants:
 
 Only **case content** (vulnerability report details, fix status, technical
 notes with sensitive information) is gated on `embargo_adherence=True`.
+
+### Ledger Fan-Out Is Case Content (CM-10-005, CM-10-006)
+
+*Source: Concern #3917 (2026-10-01). Not yet implemented; tracked in #4042.*
+
+The gate (`find_excluded_actor_ids`, CM-10-004) was first applied only to
+`Announce(VulnerabilityCase)`. The `Announce(CaseLedgerEntry)` fan-out, which
+is how participants actually learn of an added report or note, filtered on
+RM-closed alone, so a non-signatory received every entry's payload verbatim.
+
+Ledger fan-out is case content, and the gate applies to it — but per
+participant **stream**, not per entry:
+
+- **No per-recipient redaction.** An entry's payload is hashed into the chain;
+  stripping it for one recipient breaks verification.
+- **No per-entry skip.** A replica that misses entry N buffers N+1 as a
+  forward gap and Rejects to ask for N (SYNC-14-002), so the CASE_MANAGER's
+  replay would send the withheld entry anyway. The replay path therefore needs
+  the gate as much as fan-out does.
+- **So: pause, then backfill in order.** While an embargo is active, a
+  participant whose `accepted_embargo_ids` lacks it is sent no ledger entries,
+  by fan-out or by replay; its replica is a contiguous prefix ending where the
+  pause began. When the gate admits it — it accepts, or the embargo ends — the
+  CASE_MANAGER sends the withheld suffix in log order, starting with the first
+  entry withheld, so the catch-up gate (SYNC-10-004) never sees a gap.
+
+The embargo meta-protocol above is unaffected: Invites and their responses
+are addressed to the participant directly, not fanned out from the ledger, so
+the pause cannot deadlock the participant out of accepting.
 
 ---
 

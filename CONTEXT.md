@@ -36,6 +36,19 @@ A special-purpose service actor that owns the canonical ledger for a case, coord
 participant invitations, and fans out protocol messages to all participants. Not a human.
 *Avoid*: coordinator (the Case Actor is a protocol role, not an organizational role)
 
+**Active participant / inert participant**:
+A participant is *active* — entitled to case content — when it was seated by case
+initialization or has accepted its stub Invite, and, only while an embargo is active, is
+SIGNATORY to it. Every other participant record is *inert*: tracked, but sent no case
+content (ADR-0114).
+*Avoid*: treating roster membership as entitlement to case content
+
+**Stub Invite / full-case Invite**:
+The stub Invite (`Invite(Actor, VulnerabilityCaseStub)`) asks an actor to join and creates
+its inert record; the full-case Invite (`Invite(Actor, VulnerabilityCase)`) later asks a
+joined participant to judge the case (ADR-0114, ADR-0070).
+*Avoid*: "the case Invite" without saying which
+
 **Embargo**:
 A time-limited agreement among case participants to withhold public disclosure of a
 vulnerability until a specified date or condition.

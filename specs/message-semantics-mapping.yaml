@@ -38,8 +38,12 @@ groups:
   - id: MSM-01-002
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `RI` (Report Invalid) MUST dispatch as `MessageSemantics.INVALIDATE_REPORT`; its AS2 wire
-      form is `TentativeReject(Offer(VulnerabilityReport))` per VAM-02-005.
+    statement: >-
+      Protocol shorthand `RI` (Report Invalid) MUST dispatch as
+      `MessageSemantics.INVALIDATE_REPORT`; its AS2 wire form is
+      `TentativeReject(Offer(VulnerabilityReport))` per VAM-02-005. This is the direct
+      report recipient's RI; a participant that joined through an Invite sends RI as the
+      full-case Invite reply of VAM-04-013.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.INVALIDATE_REPORT`
       is paired with an `ActivityPattern` matching
@@ -47,14 +51,20 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-005
+    adr:
+    - ADR-0070
     stories:
     - story_2022_101
     - story_2022_006
   - id: MSM-01-003
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `RV` (Report Valid) MUST dispatch as `MessageSemantics.VALIDATE_REPORT`; its AS2 wire form
-      is `Accept(Offer(VulnerabilityReport))` per VAM-02-004.
+    statement: >-
+      Protocol shorthand `RV` (Report Valid) MUST dispatch as
+      `MessageSemantics.VALIDATE_REPORT`; its AS2 wire form is
+      `Accept(Offer(VulnerabilityReport))` per VAM-02-004. This is the direct report
+      recipient's RV; a participant that joined through an Invite sends RV as the
+      full-case Invite reply of VAM-04-012.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.VALIDATE_REPORT`
       is paired with an `ActivityPattern` matching `Accept(Offer(VulnerabilityReport))`
@@ -62,6 +72,8 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-004
+    adr:
+    - ADR-0070
     stories:
     - story_2022_101
     - story_2022_006
@@ -103,8 +115,12 @@ groups:
   - id: MSM-01-006
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `RC` (Report Closed) MUST dispatch as `MessageSemantics.CLOSE_REPORT`; its AS2 wire form
-      is `Reject(Offer(VulnerabilityReport))` per VAM-02-006.
+    statement: >-
+      Protocol shorthand `RC` (Report Closed) MUST dispatch as
+      `MessageSemantics.CLOSE_REPORT`; its AS2 wire form is
+      `Reject(Offer(VulnerabilityReport))` per VAM-02-006. This is the direct report
+      recipient's RC; a participant that joined through an Invite sends RC as the
+      full-case Invite reply of VAM-04-014.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.CLOSE_REPORT`
       is paired with an `ActivityPattern` matching `Reject(Offer(VulnerabilityReport))`
@@ -112,6 +128,8 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-006
+    adr:
+    - ADR-0070
     stories:
     - story_2022_006
     - story_2022_101

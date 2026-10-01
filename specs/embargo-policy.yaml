@@ -131,6 +131,11 @@ groups:
     kind: protocol
     statement: >-
       Each Actor SHOULD expose its embargo policy at `GET /actors/{actor_id}/embargo-policy`
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
+      (`TestGetEmbargoPolicy`) confirms the route returns the published record as
+      AS2 JSON, answers 404 when none is published, and shows the same record
+      `select_actor_default_policy` chooses (EP-04-010).
     scope:
     - production
     stories:
@@ -150,6 +155,41 @@ groups:
     stories:
     - story_2022_003
     - story_2022_004
+    - story_2022_009
+  - id: EP-02-003
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A hosted Actor SHOULD be able to publish or replace its embargo policy at
+      `PUT /actors/{actor_id}/embargo-policy`, carrying only the terms (EP-01-002,
+      EP-01-003). The record's `actor_id` and `inbox` MUST be derived from the addressed
+      actor's own record, never taken from the body, and the record MUST be persisted in
+      that actor's own store so that it is the actor default shortest-wins reads at case
+      creation (EP-04-003, EP-04-010). A replace MUST leave exactly one policy for the actor.
+    rationale: >-
+      Nothing in the API wrote an `EmbargoPolicy` before #3972; the only writers were tests
+      and the demo seeder, so a Receiver could not be given an actor default without reaching
+      into its store. Deriving `actor_id` from the path actor keeps a body from publishing
+      terms in another actor's name (EP-01-005); deleting superseded records keeps
+      `owner_embargo_policies` from handing the comparison a default the actor withdrew.
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
+      (`TestPutEmbargoPolicy`) confirms 201 on first publish and 200 on replace with one
+      record remaining, `actor_id`/`inbox` derived from the actor record, 404 for an actor
+      this node does not host, 422 for a malformed or calendar-unit duration or a body that
+      names an actor, and that `owner_embargo_policies` returns the published record. The
+      published record's id is the endpoint URL (`EmbargoPolicy.build_id`), so a replace is an
+      overwrite of one record: `test_two_publishes_that_both_see_no_prior_policy_leave_one_record`
+      confirms two publishes that each read "nothing published" still leave exactly one, and
+      `test_a_publish_sweeps_policies_seeded_under_other_ids` that a record under any other id
+      is removed.
+    scope:
+    - production
+    relationships:
+    - rel_type: refines
+      spec_id: EP-01-004
+    stories:
+    - story_2022_003
     - story_2022_009
 - id: EP-03
   title: Policy Compatibility Evaluation
@@ -259,7 +299,14 @@ groups:
       proposal at case creation the shorter is the active embargo and the longer is registered
       through `EmbargoLifecycle.propose_embargo`, leaving `em_state` at `EM.REVISE` with the
       loser in `proposed_embargoes`; `test/core/behaviors/case/nodes/test_embargo_resolution.py`
-      pins the duration table.
+      pins the duration table. The same class's
+      `test_a_second_proposal_for_the_same_report_registers_no_second_revision` and
+      `test/core/behaviors/case/nodes/test_embargo.py`
+      (`test_a_second_run_registers_no_second_revision`) confirm initialization runs once per
+      case: a repeated proposal for the same report leaves one active embargo and one pending
+      revision. End to end, `test/demo/test_report_with_embargo_demo.py` runs the
+      `report-with-embargo` exchange demo through the Reporter's `submit-report` trigger in
+      both directions of the comparison.
     relationships:
     - rel_type: refines
       spec_id: EP-08-001
@@ -292,6 +339,10 @@ groups:
       `CaseProposal` that carries it; `test/core/behaviors/case/test_case_proposal_received_tree.py`
       (`TestEP04SenderProposalAtCaseCreation`) confirms the context is rewritten from the report URI to
       the case URI when the case is created, with the event's identity kept.
+      `test/core/use_cases/triggers/test_report_triggers.py` (`TestSubmitReportProposedEmbargo`) and
+      `test/adapters/driving/fastapi/routers/test_trigger_report.py` confirm a sender states the
+      terms through the `submit-report` trigger's `proposed_embargo_end_time`, which stores the
+      `EmbargoEvent` about the report and carries it on the Offer (#3971).
     relationships:
     - rel_type: refines
       spec_id: EP-04-003
@@ -1084,10 +1135,11 @@ groups:
     kind: protocol
     statement: >-
       After committing a revision proposal, the CASE_MANAGER MUST emit an
-      `Invite(EmbargoEvent)` for the revision to every case participant except the proposer,
-      with `actor` set to the CASE_MANAGER's ID and `attributedTo` set to the proposer's ID
-      (CM-24-001, CM-24-002), and MUST commit each emission as a ledger entry. The
-      CASE_MANAGER MUST NOT invite the proposer.
+      `Invite(EmbargoEvent)` for the revision to every case participant whose RM state
+      is not `RM.CLOSED`, except the proposer, with `actor` set to the CASE_MANAGER's ID
+      and `attributedTo` set to the proposer's ID (CM-24-001, CM-24-002), and MUST
+      commit each emission as a ledger entry. The CASE_MANAGER MUST NOT invite the
+      proposer.
     rationale: >-
       Participants answer an Invite addressed to them, never a proposal they saw in the
       ledger (EP-09-003), so without the relay nobody but the proposer would ever be asked.
@@ -1096,12 +1148,14 @@ groups:
       answered, and the response call-out could let a proposer decline its own open proposal,
       a state the protocol has no name for.
     note: >-
-      Excluding the proposer costs one filter: the proposer's identity is on the activity
-      just adjudicated. The emit runs on the container that hosts the CASE_MANAGER and is
-      committed in the emitting tree (CM-24-004, ADR-0109). Every participant on the case is a
-      recipient,
-      whatever its consent state; a participant not yet bound is invited into the revised
-      terms, a signatory is asked whether it accepts them (EP-09-004).
+      Excluding the proposer costs one filter: the proposer's identity is on the
+      activity just adjudicated. The emit runs on the container that hosts the
+      CASE_MANAGER and is committed in the emitting tree (CM-24-004, ADR-0109). Every
+      participant on the case whose RM state is not `RM.CLOSED` is a recipient, whatever
+      its consent state and whether or not it has joined: an embargo Invite is not case
+      content and reaches an inert participant (CM-10-007). A participant not yet bound
+      is invited into the revised terms, a signatory is asked whether it accepts them
+      (EP-09-004).
     verification: >-
       A test runs the received Invite path as the CASE_MANAGER on a case with the proposer and
       two other participants and asserts the CASE_MANAGER's outbox holds one Invite per
@@ -1118,6 +1172,7 @@ groups:
       note: The same relay shape as the case Invite.
     adr:
     - ADR-0113
+    - ADR-0114
     stories:
     - story_2022_014
   - id: EP-09-003

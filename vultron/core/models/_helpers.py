@@ -27,6 +27,7 @@ from typing import (
     Union,
     get_args,
     get_origin,
+    overload,
 )
 
 from pydantic import BaseModel
@@ -58,6 +59,39 @@ def from_now_utc(delta: timedelta) -> datetime:
 def days_from_now_utc(days: int) -> datetime:
     """Return a UTC datetime *days* in the future, at second precision."""
     return from_now_utc(timedelta(days=days))
+
+
+@overload
+def require_future_aware(value: datetime, field: str = ...) -> datetime: ...
+
+
+@overload
+def require_future_aware(value: None, field: str = ...) -> None: ...
+
+
+def require_future_aware(
+    value: datetime | None, field: str = "end_time"
+) -> datetime | None:
+    """Return *value* when it is timezone-aware and in the future; else raise.
+
+    The one validator for a deadline a caller *states* — an embargo end, a
+    proposed embargo end — shared by the core trigger request models and the
+    HTTP body models that mirror them, so the two layers cannot drift on what
+    a well-formed deadline is (CS-13-001, CS-22-001).  ``None`` passes
+    through: an optional deadline that was not stated is not a deadline to
+    check.
+
+    Raises:
+        ValueError: naive (``tzinfo`` or ``utcoffset()`` is ``None``) or not
+            strictly after now.
+    """
+    if value is None:
+        return None
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{field} must be timezone-aware")
+    if value <= datetime.now(tz=UTC):
+        raise ValueError(f"{field} must be in the future")
+    return value
 
 
 #: Recency floor for statuses that carry no timestamps: they sort to the

@@ -41,7 +41,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
-    CheckPendingProposalExistsForReport,
+    CheckProposalAlreadySentForReport,
     EnsureCaseActorHostedNode,
     ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
@@ -117,14 +117,14 @@ class TestTreeStructure:
     def test_selector_first_child_is_idempotency_check(
         self, report, offer, reporter_actor_id
     ):
-        """Selector's first child is CheckPendingProposalExistsForReport."""
+        """Selector's first child is CheckProposalAlreadySentForReport."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         sel = tree.children[1]
-        assert isinstance(sel.children[0], CheckPendingProposalExistsForReport)
+        assert isinstance(sel.children[0], CheckProposalAlreadySentForReport)
 
     def test_selector_second_child_is_flow_sequence(
         self, report, offer, reporter_actor_id
@@ -524,7 +524,7 @@ class TestIdempotency:
         report,
         bridge,
     ):
-        """CheckPendingProposalExistsForReport short-circuits; no extra activities queued."""
+        """CheckProposalAlreadySentForReport short-circuits; no extra activities queued."""
         tree1 = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
@@ -554,6 +554,55 @@ class TestIdempotency:
             "Second run must not enqueue additional outbox items"
         )
 
+    def test_second_run_after_case_linked_does_not_repropose(
+        self,
+        datalayer,
+        actor,
+        offer,
+        reporter_actor_id,
+        report,
+        bridge,
+    ):
+        """An Offer delivered again after the case is linked proposes nothing.
+
+        Once the CaseActor's Accept has linked the case, the ReportCaseLink is
+        no longer pending; the guard used to fall through on it and the tree
+        proposed the same report a second time under a fresh id, so a retried
+        Offer re-ran the CaseActor's creation-time initialization (#3393).
+        """
+        tree1 = create_receive_report_case_tree(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+        )
+        bridge.execute_with_setup(
+            tree=tree1, actor_id=actor.id_, activity=offer
+        )
+
+        link_id = VultronReportCaseLink.build_id(report.id_)
+        link = datalayer.read(link_id)
+        assert isinstance(link, VultronReportCaseLink)
+        link.case_id = "https://example.org/cases/linked-001"
+        datalayer.save(link)
+        count_after_link = len(
+            datalayer.clone_for_actor(actor.id_).outbox_list()
+        )
+
+        tree2 = create_receive_report_case_tree(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+        )
+        result = bridge.execute_with_setup(
+            tree=tree2, actor_id=actor.id_, activity=offer
+        )
+
+        assert result.status == py_trees.common.Status.SUCCESS
+        assert (
+            len(datalayer.clone_for_actor(actor.id_).outbox_list())
+            == count_after_link
+        ), "an answered proposal must not be sent again"
+
     def test_retry_after_proposal_rejected_sends_new_proposal(
         self,
         datalayer,
@@ -565,7 +614,7 @@ class TestIdempotency:
     ):
         """When proposal_rejected=True, a second tree run enqueues a new proposal.
 
-        The Selector falls through (CheckPendingProposalExistsForReport returns
+        The Selector falls through (CheckProposalAlreadySentForReport returns
         FAILURE because proposal_rejected=True), WritePendingReportCaseLinkNode
         returns SUCCESS (link exists — skips write), and ProposeReportCaseToActorNode
         enqueues another Create(as_CaseProposal).  This is the correct retry

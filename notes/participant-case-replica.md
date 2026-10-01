@@ -12,6 +12,7 @@ related_notes:
   - notes/case-communication-model.md
   - notes/case-ledger-authority.md
   - notes/sync-ledger-replication.md
+  - notes/case-joining.md
 relevant_packages:
   - vultron/core/behaviors/case
   - vultron/core/models
@@ -202,20 +203,30 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
 
 ---
 
-## Late-Joiner Bootstrap: Cascade from `Accept(Invite)`
+## Late-Joiner Bootstrap: Cascade from `Accept(Invite(stub))`
 
-When a new participant accepts an invitation, the `AcceptInviteToCaseUseCase`
-MUST trigger `Announce(VulnerabilityCase)` to the new participant as a cascade.
-This is a BT subtree, not a procedural post-BT call:
+The invitee's participant record already exists when it accepts: the
+CASE_MANAGER created it, inert, when it sent the stub Invite (CM-11-006,
+ADR-0114). When the participant accepts the stub Invite, the
+`AcceptInviteToCaseUseCase` MUST activate that record and trigger
+`Announce(VulnerabilityCase)` and the ledger replay to the participant as a
+cascade (CM-11-008), followed by the full-case Invite queued after the last
+replayed entry (CM-11-010). This is a BT subtree, not a procedural post-BT
+call:
 
 ```python
-# Inside the AcceptInviteToCase BT, after AddParticipantToCase node:
+# Target shape of the AcceptInviteToCase BT (the record is not created here):
 #
 #  SequenceNode
 #    ├── ValidateAcceptInviteNode
-#    ├── AddParticipantToCaseNode
-#    └── AnnounceFullCaseToNewParticipantNode  ← cascade node
+#    ├── ActivateInvitedParticipantNode    ← RM stays RECEIVED (CM-11-001)
+#    ├── AnnounceFullCaseToNewParticipantNode  ← cascade node
+#    └── InviteToFullCaseNode              ← full-case Invite (CM-11-010)
 ```
+
+Node names are illustrative. Today's code still creates the participant in
+this tree; the #4006 implementation issues move the creation to the stub
+Invite. See [case-joining.md](case-joining.md) for the full flow.
 
 `AnnounceFullCaseToNewParticipantNode` reads the current full case from the
 DataLayer and enqueues `Announce(VulnerabilityCase)` to the new participant's

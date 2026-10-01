@@ -24,7 +24,10 @@ execute() path against a real in-memory DataLayer and asserts:
   3. the documented failure modes the use case is documented to raise.
 """
 
+from datetime import UTC, datetime
+
 import pytest
+from pydantic import ValidationError
 
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -45,6 +48,7 @@ from vultron.core.models.report import (
     VulnerabilityReport as CoreVulnerabilityReport,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import OfferResult
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers.report import (
     SvcInvalidateReportUseCase,
@@ -825,3 +829,93 @@ class TestSvcSubmitReportUseCase:
         assert r2.offer is not None
         assert r1.offer.get("type") == "Offer"
         assert r2.offer.get("type") == "Offer"
+
+
+# ---------------------------------------------------------------------------
+# SvcSubmitReportUseCase — the Reporter's proposed embargo terms (EP-04-004)
+# ---------------------------------------------------------------------------
+
+
+class TestSubmitReportProposedEmbargo:
+    """``proposed_embargo_end_time`` rides the Offer as ``proposedEmbargo``.
+
+    The Reporter states terms once, on the Offer (ADR-0096); the use case
+    stores the ``EmbargoEvent`` about the *report* (EP-04-009) so the Reporter
+    later recognises its own terms on the case, where the CASE_MANAGER keeps
+    the event's identity when they win (EP-04-004).  #3971.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.finder, self.dl = _make_actor_dl("Finder Co")
+        self.vendor, self.vendor_dl = _make_actor_dl("Vendor Co")
+        yield
+        self.dl.clear_all()
+        self.dl.close()
+        self.vendor_dl.clear_all()
+        self.vendor_dl.close()
+        reset_datalayer(self.finder.id_)
+        reset_datalayer(self.vendor.id_)
+
+    def _submit(self, **extra) -> OfferResult:
+        request = SubmitReportTriggerRequest(
+            actor_id=self.finder.id_,
+            report_name="CVE-TEST",
+            report_content="Vulnerability details",
+            recipient_id=self.vendor.id_,
+            **extra,
+        )
+        return SvcSubmitReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+    @pytest.mark.spec("EP-04-004")
+    @pytest.mark.spec("EP-04-009")
+    def test_the_offer_carries_the_stored_terms_about_the_report(self):
+        from vultron.core.models.embargo_event import EmbargoEvent
+
+        end = days_from_now_utc(10)
+        offer = self._submit(proposed_embargo_end_time=end).offer
+        assert offer is not None
+
+        proposed = offer["proposedEmbargo"]
+        report_id = offer["object"]["id"]
+        assert proposed["type"] == "EmbargoEvent"
+        assert proposed["context"] == report_id
+        stored = self.dl.read(proposed["id"])
+        assert isinstance(stored, EmbargoEvent)
+        assert stored.context == report_id
+        assert stored.end_time == end
+
+    def test_no_terms_means_no_proposed_embargo_on_the_offer(self):
+        offer = self._submit().offer
+        assert offer is not None
+
+        assert "proposedEmbargo" not in offer
+        assert list(self.dl.list_objects("EmbargoEvent")) == []
+
+    @pytest.mark.parametrize(
+        "bad, message",
+        [
+            (
+                datetime(2030, 1, 1),  # noqa: DTZ001 — deliberately naive
+                "must be timezone-aware",
+            ),
+            (
+                datetime(2020, 1, 1, tzinfo=UTC),  # past
+                "must be in the future",
+            ),
+        ],
+        ids=["naive", "past"],
+    )
+    def test_a_naive_or_past_end_is_refused_at_the_request(self, bad, message):
+        with pytest.raises(ValidationError, match=message):
+            SubmitReportTriggerRequest(
+                actor_id=self.finder.id_,
+                report_name="CVE-TEST",
+                report_content="Vulnerability details",
+                recipient_id=self.vendor.id_,
+                proposed_embargo_end_time=bad,
+            )

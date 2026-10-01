@@ -577,6 +577,16 @@ cascade. Normative requirements: `specs/participant-case-replica.yaml` PCR-08.
 participant to send a case-scoped message, debugging out-of-band note or
 embargo delivery, or auditing outbound activity addressing.
 
+**`case-joining.md`**
+How an actor joins a case (ADR-0114, ADR-0070): the stub Invite creates an
+inert participant record, `Accept`/`Reject` of the stub decides whether it
+joins, and a joined participant judges the case by replying to a full-case
+Invite that carries a ledger-position floor. Defines *active* versus *inert*,
+the `Offer` ("take this") versus `Invite` ("take part in this") distinction,
+and records what the earlier join model got wrong.
+**Load when**: touching invitations, participant creation, recipient
+selection for case content, the accept-invite trees, or invitee RM triage.
+
 **`case-ledger-authority.md`**
 Assertion recording model for report / proto-case / case flows: implicit
 participant assertions, `CASE_MANAGER`-authored `CaseLedgerEntry`, local audit log
@@ -783,8 +793,8 @@ pre-commit.
 Pitfalls when writing or reading GitHub Actions workflows: PyYAML resolving bare
 `on:` to `True`, matrix booleans failing differently at job- vs. step-level
 `if:`, `actionlint` and block-scalar indentation, single-quoted apostrophes, the
-mandatory `notify-failure` wiring, and how to read a red job that never ran its
-assertions.
+mandatory `notify-failure` wiring, why a `GITHUB_TOKEN`-raised event never triggers
+another workflow, and how to read a red job that never ran its assertions.
 **Load when**: adding or editing a `.github/workflows/` file, or diagnosing a CI
 failure whose logs do not match the test it blames.
 

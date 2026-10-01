@@ -2025,6 +2025,39 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EMB-18-001
+  - id: EMB-18-003
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A path that writes an embargo id into a case's `active_embargo` MUST
+      already hold that `EmbargoEvent`'s record in the same store. The
+      `EmbargoLifecycle` activation writers (`accept_embargo_invite()`,
+      `activate_embargo()`) MUST read the record of the embargo being
+      activated, as well as the one it replaces (EP-05-001), and MUST fail
+      closed on an unreadable one before writing EM state or
+      `active_embargo`. An unreadable replaced embargo is a broken invariant,
+      reported as a refusal, not deferred.
+    rationale: >-
+      The EP-05-001 comparison reads the replaced embargo, so it holds only if
+      no case names an embargo its store cannot read. The ledger applies an
+      embargo's proposal before any activation that replaces it, but any
+      writer that accepts a bare id (an activation writer, or seeding a case
+      whose embargo arrived as a bare reference) lets a case name an
+      unreadable record. A deferral would wait for a record no path delivers.
+      Source: CONCERN-4004.
+    verification: >-
+      Unit tests of `accept_embargo_invite()` and `activate_embargo()` in
+      `test/core/services/embargo_lifecycle/` assert that an unreadable activated or replaced
+      embargo raises before any write and leaves the stored case unchanged, and
+      a received-Accept test asserts the handler reports `REFUSED`; a
+      seeding test asserts a received case whose `active_embargo` is a bare
+      reference the store lacks is refused rather than saved.
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-001
+    - rel_type: constrains
+      spec_id: EP-05-001
 
 - id: EMB-19
   title: Embargo Teardown Announcement
@@ -2039,10 +2072,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `Announce(EmbargoEvent)` emitted after an embargo teardown MUST be authored by the actor
-      holding `CVDRole.CASE_MANAGER` for the case, and MUST be addressed to the case's other
-      participants — every participant except the announcing actor. It MUST NOT be addressed to the
-      Case Manager.
+      The `Announce(EmbargoEvent)` emitted after an embargo teardown MUST be authored by
+      the actor holding `CVDRole.CASE_MANAGER` for the case, and MUST be addressed to
+      every active participant (CM-10-004) except the announcing actor. It MUST NOT be
+      addressed to the Case Manager.
     rationale: >-
       The teardown is canonical case state, so the role holder announces it and the participants are the
       audience. Addressing the Case Manager was correct while the tree ran as an ordinary participant
@@ -2063,10 +2096,12 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-001
     verification: >-
-      `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the announce is authored by
-      the CASE_MANAGER and addressed to the case's other participants.
+      `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the announce
+      is authored by the CASE_MANAGER and addressed to the case's other active
+      participants.
     adr:
     - ADR-0109
+    - ADR-0114
     stories:
     - story_2022_045
     - story_2022_046
