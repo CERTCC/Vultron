@@ -26,10 +26,11 @@ before the CaseActor exists.
 
 The concrete problems this gap causes:
 
-1. **AS2 authorship violation**: the vendor creates a `VulnerabilityCase` with
-   itself as `attributed_to`, but per ADR-0023 the CaseActor is the
-   authoritative case creator and the only correct `actor` on
-   `Create(VulnerabilityCase)`.
+1. **AS2 authorship violation**: the vendor creates the `VulnerabilityCase` and
+   is the `actor` on `Create(VulnerabilityCase)`, but per ADR-0023 the CaseActor
+   is the authoritative case creator and the only correct `actor` on that
+   `Create`. (Ownership is a separate fact: `attributed_to` on the case records
+   the case owner, the actor that received the report, on every path.)
 
 2. **Prologue back-fill**: `WritePrologueLedgerEntriesNode` (Issue #1688) was
    introduced as a workaround to stamp vendor-authored initialization entries
@@ -108,7 +109,7 @@ Receiver: store report + write VultronReportCaseLink(status=PENDING_PROPOSAL)
 Receiver → Create(as_CaseProposal) → CaseActor inbox
 
 CaseActor (on Accept(CaseProposal)):
-  - Create VulnerabilityCase (attributed_to=CaseActor)
+  - Create VulnerabilityCase (attributed_to=Receiver, the case owner)
   - Add receiver as CASE_OWNER participant (RM.RECEIVED)
   - Add reporter as participant (RM.ACCEPTED)
   - Initialize default embargo

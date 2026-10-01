@@ -129,6 +129,56 @@ groups:
     adr:
     - ADR-0096
     - ADR-0107
+  - id: CP-01-009
+    priority: MAY
+    kind: protocol
+    statement: >-
+      The `actor` of `Create(as_CaseProposal)` MAY be the proposing actor's full actor profile inline,
+      or a reference to that profile which the CASE_MANAGER dereferences.
+    rationale: >-
+      The proposing actor becomes the CASE_OWNER (CP-09-001), and its published embargo policy lives
+      on its profile (EP-01-001), in its own store, which the CASE_MANAGER cannot read (PCR-01-003).
+      That policy is the CASE_OWNER's actor default at case creation (EP-04-003), so it has to reach
+      case creation; whether the profile travels inline or is fetched is an implementation choice.
+    relationships:
+    - rel_type: depends_on
+      spec_id: EP-04-003
+    - rel_type: depends_on
+      spec_id: EP-01-001
+    adr:
+    - ADR-0096
+    stories:
+    - story_2022_014
+  - id: CP-01-010
+    priority: MUST
+    kind: project
+    statement: >-
+      In this implementation, the `actor` of `Create(as_CaseProposal)` MUST be the proposing actor's
+      full actor profile inline, carrying its embargo policy when it has published one, and its `id`
+      MUST equal the proposal's `attributed_to`. The CASE_MANAGER MUST read the CASE_OWNER's actor
+      default only from that inline profile, MUST NOT fetch it, and MUST NOT retain it as a candidate
+      for any other case. A proposal whose `actor` is a bare URI, or whose inline profile names a
+      different actor than `attributed_to`, MUST be refused at the parse edge with a reason naming the
+      fault. A profile with no embargo policy means the CASE_OWNER has no actor default.
+    rationale: >-
+      Carrying the profile follows the rule CP-01-008 applies to the Reporter's terms: a sender inlines
+      the objects it introduces (ADR-0107), so case creation never waits on, or fails because of, a
+      fetch. Refusing a bare URI rather than accepting it without an actor default keeps a malformed
+      proposal from silently dropping the owner's published terms. A policy read from one proposal
+      reflects that profile as sent; keeping it for later cases would let a stale policy win
+      shortest-wins.
+    verification: >-
+      Tests of the case-proposal receive path confirm that the actor default comes from the
+      inline `actor` profile's embargo policy, that a profile without one yields no actor
+      default, that a bare-URI `actor` and a profile whose `id` differs from `attributed_to` are
+      refused at parse, and that a policy carried on one proposal does not supply the default for
+      a later case.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-01-009
+    adr:
+    - ADR-0096
+    - ADR-0107
 - id: CP-02
   title: MessageSemantics Values
   specs:
@@ -585,18 +635,25 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER accepts a `Create(as_CaseProposal)`, it MUST create
-      the `VulnerabilityCase` object with `attributed_to` set to the CASE_MANAGER's
-      own actor ID.  The receiving vendor MUST NOT be the `attributed_to` author
-      of the canonical `VulnerabilityCase`.
+      the `VulnerabilityCase` object with `attributed_to` set to the proposing
+      actor (the report receiver, who becomes the CASE_OWNER), and MUST itself be
+      the `actor` of the `Create(VulnerabilityCase)` it emits. It MUST NOT set
+      `attributed_to` to its own actor ID.
     rationale: >-
-      AS2 `Create(X)` semantics mean "I (the actor) created X."  The CASE_MANAGER
-      is the authoritative case creator; attributing the case to the vendor
-      violates AS2 semantics and undermines the trust model (ADR-0023, ADR-0041).
+      `VulnerabilityCase.attributed_to` records the case owner (CM-02-008), and
+      ownership checks and ownership transfer read and write it as such (CM-13-001,
+      CM-21-002). AS2's "I created this" is carried by the `actor` of `Create(X)`
+      (ADR-0023), not by the created object's `attributedTo`, so the CASE_MANAGER
+      creating the case and the report receiver owning it are both recorded without
+      conflict (ADR-0041).
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm the created
-      `VulnerabilityCase` has `attributed_to` set to the CASE_MANAGER's own actor ID, not the vendor's URI.
+      `VulnerabilityCase` has `attributed_to` set to the proposing actor's URI and that the emitted
+      `Create(VulnerabilityCase)` has the CASE_MANAGER as `actor`.
     relationships:
     - rel_type: implements
       spec_id: CP-05-001
+    - rel_type: refines
+      spec_id: CM-02-008
     adr:
     - ADR-0023
     - ADR-0041

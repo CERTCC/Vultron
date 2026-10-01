@@ -914,11 +914,11 @@ groups:
       action: POST accept-case-ownership-transfer trigger
       expected: >-
         Coordinator CVDRole updated to CASE_OWNER; Vendor1 role updated to plain
-        participant; CaseActor attributed_to updated to Coordinator actor ID
+        participant; VulnerabilityCase attributed_to updated to Coordinator actor ID
     postconditions:
     - description: >-
         Coordinator holds CVDRole.CASE_OWNER; Vendor1 is a plain participant;
-        CaseActor.attributed_to = Coordinator actor ID; all participants' case
+        VulnerabilityCase.attributed_to = Coordinator actor ID; all participants' case
         replicas reflect the updated ownership
     relationships:
     - rel_type: refines
@@ -971,7 +971,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `CaseActor.attributed_to` field MUST be updated to the Coordinator's actor
+      The `VulnerabilityCase.attributed_to` field MUST be updated to the Coordinator's actor
       ID after the ownership transfer completes. All participants MUST observe the
       updated `attributed_to` in their case replicas.
     relationships:
@@ -1046,7 +1046,7 @@ groups:
       action: >-
         After Coordinator accepts the offer: poll Vendor1's case replica until
         attributed_to reflects the Coordinator's actor ID
-      expected: Vendor1 case replica shows CaseActor.attributed_to = Coordinator actor ID
+      expected: Vendor1 case replica shows VulnerabilityCase.attributed_to = Coordinator actor ID
     - order: 3
       actor: demo-script
       action: >-
