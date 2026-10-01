@@ -13,7 +13,8 @@
 """Planned CASE_MANAGER handling of stub- and full-case-Invite replies.
 
 Strict-``xfail`` tests for the case-joining requirements of ADR-0114 and
-ADR-0070, tracked by #4006.  Every test starts where CM-11-006 leaves the
+ADR-0070, planned under #4006; each test names the issue that implements
+it.  Every test starts where CM-11-006 leaves the
 case: the invitee already holds an *inert* participant record at RM
 ``RECEIVED`` (VF ``v`` for a vendor), created when the stub Invite was sent.
 
@@ -85,8 +86,6 @@ from vultron.wire.as2.vocab.base.objects.actors import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-
-_REASON_SUFFIX = "Tracked by #4006."
 
 
 @dataclass
@@ -236,7 +235,7 @@ def joining_case() -> Any:
     strict=True,
     reason=(
         "CM-11-007: Reject of a stub Invite moves the kept participant"
-        f" record to RM CLOSED. {_REASON_SUFFIX}"
+        " record to RM CLOSED. Tracked by #4048."
     ),
 )
 @pytest.mark.spec("CM-11-007")
@@ -262,7 +261,7 @@ def test_stub_invite_reject_closes_and_keeps_the_record(joining_case) -> None:
     strict=True,
     reason=(
         "CM-11-009: any stub-Invite reply from a VENDOR invitee sets VF V."
-        f" {_REASON_SUFFIX}"
+        " Tracked by #4048."
     ),
 )
 @pytest.mark.spec("CM-11-009")
@@ -286,7 +285,7 @@ def test_stub_invite_reply_marks_vendor_aware(joining_case, reply) -> None:
     reason=(
         "CM-11-008: accepting the stub Invite seeds the case with"
         " Announce(VulnerabilityCase) before any ledger entry reaches the"
-        f" participant. {_REASON_SUFFIX}"
+        " participant. Tracked by #4050."
     ),
 )
 @pytest.mark.spec("CM-11-008")
@@ -367,7 +366,7 @@ def _full_case_invites_to(joining: _JoiningCase) -> list[str]:
     strict=True,
     reason=(
         "CM-11-010: after the stub Accept the CASE_MANAGER sends the"
-        f" full-case Invite(Actor, VulnerabilityCase). {_REASON_SUFFIX}"
+        " full-case Invite(Actor, VulnerabilityCase). Tracked by #4050."
     ),
 )
 @pytest.mark.spec("CM-11-010")
@@ -394,7 +393,7 @@ def test_stub_invite_accept_is_followed_by_full_case_invite(
     strict=True,
     reason=(
         "CM-11-012: a full-case Invite reply that carries no ledger"
-        f" position at or beyond the Invite's is refused. {_REASON_SUFFIX}"
+        " position at or beyond the Invite's is refused. Tracked by #4050."
     ),
 )
 @pytest.mark.spec("CM-11-012")
@@ -504,7 +503,7 @@ def _rm_history(joining: _JoiningCase) -> list[RM]:
     strict=True,
     reason=(
         "CM-11-011: the CASE_MANAGER records RV/RI/RC replies to the full-case"
-        f" Invite as R → V / R → I / R → C. {_REASON_SUFFIX}"
+        " Invite as R → V / R → I / R → C. Tracked by #4050."
     ),
 )
 @pytest.mark.spec("CM-11-011")
@@ -546,7 +545,7 @@ def test_full_case_invite_reply_moves_rm_from_received(
     reason=(
         "CM-11-012: a full-case Invite reply behind the floor, or naming an"
         " entry the ledger does not hold, is refused; one beyond the floor is"
-        f" accepted. {_REASON_SUFFIX}"
+        " accepted. Tracked by #4050."
     ),
 )
 @pytest.mark.spec("CM-11-012")
@@ -596,7 +595,7 @@ def test_full_case_invite_reply_position_is_checked_against_the_floor(
     strict=True,
     reason=(
         "CM-11-003: a stub-Invite reply resolves its case from the case the"
-        f" stub names, not from the stub's own ID. {_REASON_SUFFIX}"
+        " stub names, not from the stub's own ID. Tracked by #4048."
     ),
 )
 @pytest.mark.spec("CM-11-003")
@@ -699,7 +698,7 @@ def test_valid_participant_engages_or_defers_with_join_or_ignore(
     strict=True,
     reason=(
         "RMB-14-005: a participant at RM VALID that sends Leave is recorded"
-        f" as V → D → C. {_REASON_SUFFIX}"
+        " as V → D → C. Tracked by #4044."
     ),
 )
 @pytest.mark.spec("RMB-14-005")

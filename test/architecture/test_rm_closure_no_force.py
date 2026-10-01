@@ -15,7 +15,7 @@
 ADR-0114 adds ``R → C`` to the RM table and routes a ``Leave`` from *Valid*
 through *Deferred* (``V → D → C``), so every closure becomes an ordinary
 transition and the ``force_rm_state`` override has no closure use left.
-Strict ``xfail`` until #4006 removes the closure overrides; see
+Strict ``xfail`` until #4044 removes the closure overrides; see
 ``notes/case-joining.md``.  The quarantine of the remaining (bootstrap)
 overrides is pinned separately by ``test_participant_status_validation.py``.
 """
@@ -64,7 +64,7 @@ def _forced_closure_sites() -> list[str]:
     strict=True,
     reason=(
         "RMB-14-005: no RM closure path calls force_rm_state; Leave from"
-        " VALID is V -> D -> C. Tracked by #4006."
+        " VALID is V -> D -> C. Tracked by #4044."
     ),
 )
 @pytest.mark.spec("RMB-14-005")

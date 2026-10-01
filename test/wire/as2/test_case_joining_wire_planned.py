@@ -15,7 +15,8 @@
 Strict-``xfail`` tests for requirements introduced by the case-joining plan
 and not yet implemented: the case stub's own wire identity (CM-11-013) and
 the full-case Invite and its replies being distinguishable from the stub
-Invite and its replies (CM-11-011, VAM-04-011 through VAM-04-014).  Each test flips to passing once #4006 lands; see
+Invite and its replies (CM-11-011, VAM-04-011 through VAM-04-014).  Each
+test flips to passing once the issue named in its reason lands; see
 ``notes/case-joining.md`` and ``notes/spec-authoring-rules.md`` § "Never
 Raise the Ceiling — Use a Strict ``xfail``".
 """
@@ -93,7 +94,7 @@ def _semantics_of(kind: str, invite: as_Invite) -> MessageSemantics:
     strict=True,
     reason=(
         "CM-11-013: a case stub carries its own type VulnerabilityCaseStub"
-        " and ID <case-id>/stub. Tracked by #4006."
+        " and ID <case-id>/stub. Tracked by #4045."
     ),
 )
 @pytest.mark.spec("CM-11-013")
@@ -124,7 +125,7 @@ def test_stub_invite_target_has_its_own_type_and_id() -> None:
     strict=True,
     reason=(
         "CM-11-011: Accept/TentativeReject/Reject of the full-case Invite"
-        " are recognised apart from the stub-Invite replies. Tracked by #4006."
+        " are recognised apart from the stub-Invite replies. Tracked by #4050."
     ),
 )
 @pytest.mark.spec("CM-11-011")
@@ -157,7 +158,7 @@ def test_full_case_invite_replies_have_their_own_semantics() -> None:
     strict=True,
     reason=(
         "VAM-04-011: Invite(Actor)[target=VulnerabilityCase] and the stub"
-        " Invite match different patterns. Tracked by #4006."
+        " Invite match different patterns. Tracked by #4050."
     ),
 )
 @pytest.mark.spec("VAM-04-011")
@@ -179,7 +180,7 @@ def test_full_case_invite_and_stub_invite_match_different_patterns() -> None:
     strict=True,
     reason=(
         "VAM-04-012: Accept of the full-case Invite matches the RV pattern,"
-        " not the stub Invite's Accept pattern. Tracked by #4006."
+        " not the stub Invite's Accept pattern. Tracked by #4050."
     ),
 )
 @pytest.mark.spec("VAM-04-012")
@@ -195,7 +196,7 @@ def test_full_case_invite_accept_is_not_the_stub_accept() -> None:
     strict=True,
     reason=(
         "VAM-04-013: TentativeReject of the full-case Invite matches the RI"
-        " pattern; TentativeReject of a stub matches none. Tracked by #4006."
+        " pattern; TentativeReject of a stub matches none. Tracked by #4050."
     ),
 )
 @pytest.mark.spec("VAM-04-013")
@@ -214,7 +215,7 @@ def test_full_case_invite_tentative_reject_is_ri_and_stub_has_none() -> None:
     strict=True,
     reason=(
         "VAM-04-014: Reject of the full-case Invite matches the RC pattern,"
-        " not the stub Invite's Reject pattern. Tracked by #4006."
+        " not the stub Invite's Reject pattern. Tracked by #4050."
     ),
 )
 @pytest.mark.spec("VAM-04-014")

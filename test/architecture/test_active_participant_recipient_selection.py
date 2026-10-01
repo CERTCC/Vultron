@@ -21,7 +21,7 @@ check: today such a list is the whole roster, inert participants included.
 The scan covers ``vultron/core/``.  Iterating ``.values()`` or ``.items()``
 (participant lookups) is not recipient selection and is not flagged.  The
 shared selection's own module is the one exemption; if the implementation
-moves it, move the exemption with it.  Strict ``xfail`` until #4006 routes
+moves it, move the exemption with it.  Strict ``xfail`` until #4046 routes
 every site through the shared selection; see ``notes/case-joining.md``.
 """
 
@@ -71,7 +71,7 @@ def _roster_iteration_sites() -> list[str]:
     strict=True,
     reason=(
         "CM-10-005: every case-content send selects recipients through the"
-        " shared active-participant selection. Tracked by #4006."
+        " shared active-participant selection. Tracked by #4046."
     ),
 )
 @pytest.mark.spec("CM-10-005")

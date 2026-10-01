@@ -13,7 +13,7 @@
 """RM closure edges: ``R → C`` is planned, ``V → C`` stays forbidden.
 
 ADR-0114 adds the ``RECEIVED → CLOSED`` edge so a ``Reject`` sent from RM
-*Received* is an ordinary transition (RMB-14-004, tracked by #4006), while
+*Received* is an ordinary transition (RMB-14-004, tracked by #4044), while
 *Valid* keeps no close edge (VP-02-004).  See ``notes/case-joining.md``.
 """
 
@@ -30,7 +30,7 @@ from vultron.core.states.rm import (
     strict=True,
     reason=(
         "RMB-14-004: the RM transition function permits R -> C."
-        " Tracked by #4006."
+        " Tracked by #4044."
     ),
 )
 @pytest.mark.spec("RMB-14-004")

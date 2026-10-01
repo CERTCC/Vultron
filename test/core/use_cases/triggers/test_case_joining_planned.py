@@ -12,7 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Planned trigger-side behaviour for joining a case (ADR-0114, ADR-0070).
 
-Strict-``xfail`` tests for the case-joining requirements tracked by #4006:
+Strict-``xfail`` tests for the case-joining requirements planned under #4006
+(each test names its implementing issue):
 
 - CM-11-006 — the stub Invite creates the invitee's inert participant.
 - CM-11-005 — a joined participant never answers the original report Offer.
@@ -97,8 +98,6 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-
-_REASON_SUFFIX = "Tracked by #4006."
 
 
 @pytest.fixture
@@ -198,7 +197,7 @@ def _case_with_invitee_record(
     strict=True,
     reason=(
         "CM-11-006: sending a stub Invite creates the invitee's inert"
-        f" participant at RM RECEIVED. {_REASON_SUFFIX}"
+        " participant at RM RECEIVED. Tracked by #4048."
     ),
 )
 @pytest.mark.spec("CM-11-006")
@@ -252,7 +251,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
     strict=True,
     reason=(
         "CM-11-005: a participant that joined through an Invite never"
-        f" answers the original Offer(VulnerabilityReport). {_REASON_SUFFIX}"
+        " answers the original Offer(VulnerabilityReport). Tracked by #4051."
     ),
 )
 @pytest.mark.spec("CM-11-005")
@@ -347,7 +346,7 @@ def test_joined_participant_never_answers_the_original_report_offer(
     strict=True,
     reason=(
         "PRM-06-006: an on-behalf assertion for a non-participant is"
-        f" refused and creates no participant. {_REASON_SUFFIX}"
+        " refused and creates no participant. Tracked by #4047."
     ),
 )
 @pytest.mark.spec("PRM-06-006")
@@ -397,7 +396,7 @@ def test_on_behalf_assertion_for_absent_target_is_refused(
     strict=True,
     reason=(
         "CM-11-014: a stub Invite carries a reply deadline and an unanswered"
-        f" invitee does not block all-participants-closed. {_REASON_SUFFIX}"
+        " invitee does not block all-participants-closed. Tracked by #4049."
     ),
 )
 @pytest.mark.spec("CM-11-014")
@@ -448,7 +447,7 @@ def test_stub_invite_has_deadline_and_unanswered_invitee_never_blocks_closure(
     strict=True,
     reason=(
         "CM-11-015: a re-invite is a fresh stub Invite with a new deadline"
-        f" on the existing record. {_REASON_SUFFIX}"
+        " on the existing record. Tracked by #4049."
     ),
 )
 @pytest.mark.spec("CM-11-015")
@@ -480,7 +479,7 @@ def test_reinvite_reuses_the_invitee_record_with_a_new_deadline(
     strict=True,
     reason=(
         "CM-11-015: a re-invite to a participant at RM CLOSED is refused"
-        f" (ADR-0085). {_REASON_SUFFIX}"
+        " (ADR-0085). Tracked by #4049."
     ),
 )
 @pytest.mark.spec("CM-11-015")
@@ -517,7 +516,7 @@ def _invites_to(dl: SqliteDataLayer, invitee_id: str) -> list[as_Invite]:
     reason=(
         "CM-11-016: an embargo change re-issues the outstanding stub Invite,"
         " naming the one it supersedes, and refuses an Accept of the old one."
-        f" {_REASON_SUFFIX}"
+        " Tracked by #4049."
     ),
 )
 @pytest.mark.spec("CM-11-016")
@@ -586,7 +585,7 @@ def _accept_stub_invite(
     reason=(
         "CM-11-014: all-participants-closed counts a participant that joined"
         " and is still at RM RECEIVED, and every directly seated participant;"
-        f" only an unanswered invitee is skipped. {_REASON_SUFFIX}"
+        " only an unanswered invitee is skipped. Tracked by #4049."
     ),
 )
 @pytest.mark.spec("CM-11-014")
@@ -649,7 +648,7 @@ def test_closure_check_skips_only_participants_that_never_joined(
     strict=True,
     reason=(
         "CM-11-016: a Reject of a superseded stub Invite is honoured — the"
-        f" record closes. {_REASON_SUFFIX}"
+        " record closes. Tracked by #4049."
     ),
 )
 @pytest.mark.spec("CM-11-016")
@@ -726,7 +725,7 @@ def test_stub_invite_is_addressed_to_the_inert_invitee(actor_store) -> None:
     reason=(
         "PRM-06-001: the participant's birth — one status at RM RECEIVED —"
         " is the only write about it the CASE_MANAGER makes. "
-        f"{_REASON_SUFFIX}"
+        "Tracked by #4048."
     ),
 )
 @pytest.mark.spec("PRM-06-001")

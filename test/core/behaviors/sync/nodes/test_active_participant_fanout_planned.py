@@ -15,7 +15,7 @@
 A ``CaseLedgerEntry`` announcement is case content, so the CASE_MANAGER sends
 it only to *active* participants: seated directly or having accepted its stub
 Invite, and — while an embargo is active — ``SIGNATORY`` (ADR-0114).
-Strict ``xfail`` until #4006; see ``notes/case-joining.md``.
+Strict ``xfail`` until #4046; see ``notes/case-joining.md``.
 """
 
 import py_trees
@@ -72,7 +72,7 @@ def _participant(
     reason=(
         "CM-10-004: ledger fan-out skips inert participants — an unanswered"
         " invitee, and a non-SIGNATORY while an embargo is active."
-        " Tracked by #4006."
+        " Tracked by #4046."
     ),
 )
 @pytest.mark.spec("CM-10-004")
