@@ -84,6 +84,9 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.validation import (
+    VALIDATION_DETERMINISTIC,
+)
 from vultron.core.behaviors.case.nodes.case_lookup import RequireCaseForReport
 from vultron.core.behaviors.report.nodes import (
     CheckRMStateReceivedOrInvalid,
@@ -139,10 +142,6 @@ def create_validate_report_subtree(
     Returns:
         Root node of the validation subtree (a Selector).
     """
-    from vultron.core.behaviors.call_out.bundles.validation import (
-        VALIDATION_DETERMINISTIC,
-    )
-
     bundle = call_out if call_out is not None else VALIDATION_DETERMINISTIC
 
     action_children: list[py_trees.behaviour.Behaviour] = []

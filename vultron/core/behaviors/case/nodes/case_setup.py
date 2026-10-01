@@ -31,11 +31,16 @@ Per specs/case-management.yaml CM-02 requirements.
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.case_actor_identity import (
+    case_actor_identity,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.store_scope import store_for_actor
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.errors import VultronAlreadyExistsError
 
 
@@ -238,10 +243,6 @@ class PublishCaseActorIdentityNode(DataLayerActionWithPorts):
         return {"case_id": "/case_id", "case_actor_id": "/case_actor_id"}
 
     def update(self) -> Status:
-        from vultron.core.behaviors.case.case_actor_identity import (
-            case_actor_identity,
-        )
-
         if not self._case_id:
             self.feedback_message = f"{self.name}: case_id is empty"
             self.logger.error(self.feedback_message)
@@ -296,12 +297,6 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
 
     def update(self) -> Status:
-        from vultron.core.behaviors.case.case_actor_identity import (
-            case_actor_identity,
-        )
-        from vultron.core.behaviors.store_scope import store_for_actor
-        from vultron.core.models.case_actor import CaseActor
-
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None

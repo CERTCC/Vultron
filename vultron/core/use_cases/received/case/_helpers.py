@@ -3,6 +3,9 @@
 import logging
 from typing import Any
 
+from vultron.core.behaviors.case.nodes.announce import (
+    _store_embedded_embargo as _store,
+)
 from vultron.core.behaviors.case.update_support import (
     find_excluded_actor_ids,
 )
@@ -91,10 +94,6 @@ def _store_embedded_embargo(
     ``_case_for_wire``. Storing it is what makes this actor's own
     ``case.active_embargo`` resolve.
     """
-    from vultron.core.behaviors.case.nodes.announce import (
-        _store_embedded_embargo as _store,
-    )
-
     _store(case_obj, dl)
     logger.debug(
         "_store_embedded_embargo: checked inline embargo for case '%s'",

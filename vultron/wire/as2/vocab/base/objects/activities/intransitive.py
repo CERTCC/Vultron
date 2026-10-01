@@ -26,6 +26,7 @@ from vultron.wire.as2.vocab.base.objects.activities.base import (
     as_Activity as Activity,
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
+from vultron.wire.as2.vocab.base.utils import print_activity_examples
 
 
 class as_IntransitiveActivity(Activity):
@@ -113,8 +114,6 @@ class as_Question(as_IntransitiveActivity):
 
 
 def main():
-    from vultron.wire.as2.vocab.base.utils import print_activity_examples
-
     print_activity_examples()
 
 

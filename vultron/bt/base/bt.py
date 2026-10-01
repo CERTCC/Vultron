@@ -14,6 +14,7 @@
 This module defines a Behavior Tree object.
 """
 
+import inspect
 import logging
 from types import TracebackType
 from typing import Any, Literal, Self
@@ -92,8 +93,6 @@ class BehaviorTree:
         """
         if exc_type is not None:
             # where were we in the tree?
-            import inspect
-
             frm = inspect.trace()[-1]
             obj = frm[0].f_locals["self"]
             logger.debug(f"Exception in {obj.name}")

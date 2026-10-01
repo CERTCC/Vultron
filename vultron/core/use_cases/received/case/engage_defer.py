@@ -3,6 +3,11 @@
 import logging
 from typing import TYPE_CHECKING
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.report.prioritize_tree import (
+    create_defer_case_tree,
+    create_engage_case_tree,
+)
 from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
@@ -45,10 +50,6 @@ class EngageCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.report.prioritize_tree import (
-            create_engage_case_tree,
-        )
 
         actor_id = request.actor_id
         case_id = request.case_id
@@ -122,10 +123,6 @@ class DeferCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.report.prioritize_tree import (
-            create_defer_case_tree,
-        )
 
         actor_id = request.actor_id
         case_id = request.case_id

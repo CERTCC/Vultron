@@ -53,8 +53,15 @@ from vultron.wire.as2.factories.case import (
     reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 from ._base import _case_for_wire, _seal, _to_wire
 
@@ -241,10 +248,6 @@ class _ActorsMixin:
         The ``to:`` list should contain the CaseActor URI so the Accept routes
         back to CaseActor for processing.
         """
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Offer,
-        )
-
         raw = self._dl.read(cp_offer_id)
         if raw is None:
             raise VultronNotFoundError("Offer(CaseParticipant)", cp_offer_id)
@@ -538,8 +541,6 @@ class _ActorsMixin:
 
         Returns ``(activity_id, activity_dict)``.
         """
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-
         case = _case_for_wire(self._dl, case_id)
         target = as_Actor(id_=target_actor_id)
         activity = offer_case_participant_role_activity(
@@ -570,10 +571,6 @@ class _ActorsMixin:
         to: list[str] | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
-        from vultron.wire.as2.vocab.base.objects.actors import (
-            as_Actor,
-        )
-
         target = as_Actor(id_=target_actor_id)
         case = _case_for_wire(self._dl, case_id)
         offer = offer_case_participant_role_activity(
@@ -607,10 +604,6 @@ class _ActorsMixin:
         to: list[str] | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
-        from vultron.wire.as2.vocab.base.objects.actors import (
-            as_Actor,
-        )
-
         target = as_Actor(id_=target_actor_id)
         case = _case_for_wire(self._dl, case_id)
         offer = offer_case_participant_role_activity(
@@ -692,10 +685,6 @@ class _ActorsMixin:
         imports are allowed, so both delivery paths converge on the same Accept
         (#2225, ADR-0035 DL-06-002).
         """
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Offer,
-        )
-
         raw = self._dl.read(offer_id)
         if raw is None:
             raise VultronNotFoundError("Offer(VulnerabilityCase)", offer_id)
@@ -731,10 +720,6 @@ class _ActorsMixin:
         replica (the SYNC path seeds it before the offer entry is applied), so
         read it and project it to its wire form.
         """
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
         case = self._dl.read(record.case_id)
         if case is None:
             raise VultronNotFoundError("VulnerabilityCase", record.case_id)

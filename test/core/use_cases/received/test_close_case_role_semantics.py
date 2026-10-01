@@ -1207,7 +1207,7 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
         """
         dl = _make_full_dl()
         monkeypatch.setattr(
-            "vultron.core.behaviors.sync.commit_tree"
+            "vultron.core.behaviors.case.nodes.leave.record"
             ".create_commit_log_entry_tree",
             lambda *a, **kw: py_trees.behaviours.Failure(name="ForcedFailure"),
         )

@@ -27,8 +27,12 @@ import logging
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
+)
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case_participant import CaseParticipant
@@ -72,9 +76,6 @@ class AddReporterParticipantNode(DataLayerActionWithPorts):
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
-        from vultron.core.behaviors.case.nodes.participant.status import (
-            CreateParticipantStatusNode,
-        )
 
         self._reporter_status_node = CreateParticipantStatusNode(
             actor_id="",
@@ -192,8 +193,6 @@ class AddReporterParticipantNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         self.datalayer.save(updated_case)
-
-        from vultron.core.behaviors.bridge import BTBridge
 
         # Pre-set the actor_id so execute_with_setup can use actor_id=self.actor_id
         # (the CaseActor's store) without polluting the outer BT's blackboard.

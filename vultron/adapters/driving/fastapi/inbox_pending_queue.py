@@ -22,7 +22,7 @@ before the local case replica exists (CBT-03-003, CBT-03-004).
 #  in the U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from datetime import UTC
+from datetime import UTC, datetime
 
 from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.config import get_config
@@ -115,8 +115,6 @@ def _expire_pending_case_activities(
     queues (no subsequent traffic) are reclaimed when bootstrap or a
     new activity arrives.
     """
-    from datetime import datetime
-
     if timeout_seconds is None:
         timeout_seconds = get_config().pre_bootstrap_queue_timeout_seconds
 

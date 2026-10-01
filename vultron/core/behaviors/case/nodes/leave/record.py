@@ -28,10 +28,14 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.ledger_snapshots import (
     build_add_participant_status_snapshot,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     ParticipantStatus,
@@ -243,11 +247,6 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
             self.actor_id,
             self._case_id,
             self.wire_render_port,
-        )
-
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.sync.commit_tree import (
-            create_commit_log_entry_tree,
         )
 
         result = BTBridge(

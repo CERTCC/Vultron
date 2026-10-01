@@ -39,6 +39,7 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
@@ -123,8 +124,6 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         # result (internal_error) rather than raising, so no broad catch is
         # needed here — an escaping exception would be a bridge-contract
         # violation that must surface loudly (CS-23-001).
-        from vultron.core.behaviors.bridge import BTBridge
-
         result = BTBridge(datalayer=self.datalayer).execute_with_setup(
             tree=self._vendor_aware_node,
             actor_id=self._actor_id,
@@ -141,8 +140,6 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
             return Status.FAILURE
 
         try:
-            from vultron.core.behaviors.bridge import BTBridge
-
             result = BTBridge(datalayer=self.datalayer).execute_with_setup(
                 tree=self._fix_ready_node,
                 actor_id=self._actor_id,

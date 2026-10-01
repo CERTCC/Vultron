@@ -16,7 +16,7 @@
 """Shared constants and base class for TriggerActivityAdapter submodules."""
 
 import logging
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
@@ -36,11 +36,10 @@ from vultron.errors import (
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import declared_wire_type
-
-if TYPE_CHECKING:  # pragma: no cover - deferred to avoid a wire import cycle
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCase,
-    )
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -153,10 +152,6 @@ def _case_for_wire(
     ``announce_vulnerability_case`` then refuses to send a case whose report is
     missing (CBT-01-007).
     """
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCase,
-    )
-
     case = _to_wire(dl.read(case_id), as_VulnerabilityCase)
     updates: dict[str, Any] = {}
     embargo = _carried_embargo(dl, case, case_id)
@@ -180,8 +175,6 @@ _CARRIED_LIST_FIELDS: frozenset[str] = _AS_LIST_REF_FIELDS | {
 
 def _carried_embargo(dl: CasePersistence, case: Any, case_id: str) -> Any:
     """The case's ``active_embargo`` as a wire object, or ``None`` to leave it."""
-    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-
     embargo_ref = getattr(case, "active_embargo", None)
     if not isinstance(embargo_ref, str) or not embargo_ref:
         return None  # already an object, or no embargo at all

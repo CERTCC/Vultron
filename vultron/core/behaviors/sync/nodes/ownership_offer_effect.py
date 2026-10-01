@@ -46,6 +46,12 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.sync.nodes.conditions import (
+    _require_log_entry,
+)
+from vultron.core.models.ownership_transfer_offer_record import (
+    VultronOwnershipTransferOfferRecord,
+)
 
 _OFFER_CASE_OWNERSHIP_TRANSFER_EVENT = "offer_case_ownership_transfer"
 
@@ -86,10 +92,6 @@ class IsOfferOwnershipTransferEventNode(DataLayerConditionWithPorts):
         self.activity = self.get_input("activity")
 
     def update(self) -> Status:
-        from vultron.core.behaviors.sync.nodes.conditions import (
-            _require_log_entry,
-        )
-
         entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == _OFFER_CASE_OWNERSHIP_TRANSFER_EVENT:
             return Status.SUCCESS
@@ -149,10 +151,6 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        from vultron.core.behaviors.sync.nodes.conditions import (
-            _require_log_entry,
-        )
-
         entry = _require_log_entry(self.activity, self.name)
         snapshot = (
             entry.payload_snapshot
@@ -204,9 +202,6 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
     ) -> Status:
         """Build and persist the record; FAILURE only if the write itself fails."""
         assert self.datalayer is not None
-        from vultron.core.models.ownership_transfer_offer_record import (
-            VultronOwnershipTransferOfferRecord,
-        )
 
         try:
             record = VultronOwnershipTransferOfferRecord(

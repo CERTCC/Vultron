@@ -157,9 +157,6 @@ select = [
 # Every entry states what the rule reports and why it is not enforced
 # (IMPLTS-07-019). Tighten by deleting one line — see notes/lint-tooling.md.
 ignore = [
-    # import-outside-top-level. Provisional: #3949 deletes this entry, hoists the
-    # habit sites and baselines the genuine cycle breaks (CS-05-002).
-    "PLC0415",
     # runtime-cast-value: would quote the type argument of every cast(). Churn.
     "TC006",
     # raise-vanilla-args: would require one exception class per message string.
@@ -256,7 +253,12 @@ combine-as-imports = true
 "vultron/metadata/**" = ["S603", "S607"]
 "scripts/**" = ["S603", "S607"]
 ".agents/**" = ["S603", "S607"]
-"test/**" = ["S311", "S603", "S607"]
+# import-outside-top-level: a test-local import scopes a dependency to the one
+# test that needs it, an isolation idiom rather than a cycle break (CS-05-006).
+"test/**" = ["S311", "S603", "S607", "PLC0415"]
+# import-outside-top-level: mkdocs execs this script outside the package, so
+# its vultron import has to wait for the sys.path entry its module body adds.
+"docs/_scripts/render_trigger_api.py" = ["PLC0415"]
 
 [tool.ruff.format]
 # ruff formats Python fenced inside Markdown; black never did. Excluding it

@@ -64,6 +64,9 @@ import py_trees
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
+    ASSIGN_CVE_ID_DETERMINISTIC,
+)
 from vultron.core.predicates.roles import has_cna_role
 
 if TYPE_CHECKING:
@@ -217,10 +220,6 @@ def create_assign_cve_id_tree(
     Returns:
         Root node of the ``AssignVulID`` Fallback behavior tree.
     """
-    from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
-        ASSIGN_CVE_ID_DETERMINISTIC,
-    )
-
     bundle = call_out if call_out is not None else ASSIGN_CVE_ID_DETERMINISTIC
 
     # -- IdAssignable subtree (9 children, cheapest-first) -------------------

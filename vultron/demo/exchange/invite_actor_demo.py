@@ -60,6 +60,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     ref_id,
     setup_demo_logging,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
@@ -68,6 +69,12 @@ from vultron.wire.as2.factories import (
 
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,14 +87,6 @@ def _find_case_manager_actor(
     Authority is the ``CVDRole.CASE_MANAGER`` role — hosting location is not
     consulted (ARCH-24-004, CM-02-013).
     """
-    from vultron.enums.roles import CVDRole
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        as_CaseParticipant,
-    )
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCase,
-    )
-
     try:
         case_data = client.get(client.dl_path(case_id, actor_id=vendor_id))
         case_obj = as_VulnerabilityCase(**case_data)

@@ -18,6 +18,7 @@ Provides state management for the Vultron Behavior Tree
 from collections import deque
 from collections.abc import Callable
 from enum import Flag, auto
+from pprint import pprint
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -82,8 +83,6 @@ class ActorState(BaseModel):
 
 
 def main():
-    from pprint import pprint
-
     a = ActorState()
     pprint(a.model_dump())
 

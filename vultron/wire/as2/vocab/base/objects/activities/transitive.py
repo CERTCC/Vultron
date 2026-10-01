@@ -25,7 +25,7 @@ from vultron.wire.as2.vocab.base.objects.base import (
     as_ObjectRequiredRef,
 )
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-from vultron.wire.as2.vocab.base.utils import name_of
+from vultron.wire.as2.vocab.base.utils import name_of, print_activity_examples
 
 
 class as_TransitiveActivity(Activity):
@@ -418,8 +418,6 @@ class as_Read(as_TransitiveActivity):
 
 
 def main():
-    from vultron.wire.as2.vocab.base.utils import print_activity_examples
-
     print_activity_examples()
 
 

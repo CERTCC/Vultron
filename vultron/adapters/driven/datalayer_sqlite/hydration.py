@@ -41,6 +41,7 @@ from vultron.adapters.driven.db_record import (
 )
 from vultron.core.models import find_in_core_vocabulary
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.events import MessageSemantics
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.errors import VultronValidationError
@@ -479,8 +480,6 @@ def coerce_to_semantic_class(obj: PersistableModel) -> PersistableModel:
     """
     if not isinstance(obj, as_Activity):
         return obj
-
-    from vultron.core.models.events import MessageSemantics
 
     semantics = find_matching_semantics(obj)
     if semantics == MessageSemantics.UNKNOWN:
