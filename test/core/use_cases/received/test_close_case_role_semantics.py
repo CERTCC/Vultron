@@ -52,7 +52,10 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -244,6 +247,18 @@ def _participant_rm_states(dl: SqliteDataLayer, actor_id: str) -> list[RM]:
 # ---------------------------------------------------------------------------
 
 
+def _case_ledger(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
+    """The case's ledger entries in ``log_index`` order."""
+    return sorted(
+        (
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry) and e.case_id == CASE_ID
+        ),
+        key=lambda e: e.log_index,
+    )
+
+
 class TestOwnerLeaveReceivePath:
     """CM-23-002: Owner Leave advances leaving participant + CaseActor to RM.CLOSED."""
 
@@ -390,7 +405,6 @@ class TestOwnerLeaveReceivePath:
         loopback — that is an outbox background task and could not honour the
         ordering.
         """
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
@@ -400,15 +414,7 @@ class TestOwnerLeaveReceivePath:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        by_index = sorted(
-            (
-                e
-                for e in dl.list_objects("CaseLedgerEntry")
-                if isinstance(e, CaseLedgerEntry)
-                and getattr(e, "case_id", None) == CASE_ID
-            ),
-            key=lambda e: getattr(e, "log_index", -1),
-        )
+        by_index = _case_ledger(dl)
         case_actor_idx = [
             i
             for i, e in enumerate(by_index)
@@ -545,20 +551,9 @@ class TestNonOwnerLeaveReceivePath:
         )
 
 
-def _case_ledger(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
-    """The case's ledger entries in ``log_index`` order."""
-    return sorted(
-        (
-            e
-            for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry)
-            and getattr(e, "case_id", None) == CASE_ID
-        ),
-        key=lambda e: getattr(e, "log_index", -1),
-    )
-
-
-def _close(dl: SqliteDataLayer, sender_actor_id: str, activity_id: str):
+def _close(
+    dl: SqliteDataLayer, sender_actor_id: str, activity_id: str
+) -> HandlerResult:
     return CloseCaseReceivedUseCase(
         dl=dl,
         request=_make_close_case_event(
@@ -566,6 +561,7 @@ def _close(dl: SqliteDataLayer, sender_actor_id: str, activity_id: str):
         ),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(dl),
     ).execute()
 
 
@@ -581,20 +577,41 @@ class TestPostCloseBoundary:
     def test_bystander_leave_after_owner_close_is_refused(self):
         """A bystander Leave after owner close commits nothing and closes no one.
 
-        Regression for ISSUE-3400: every demo closed the owner first, so a
+        Regression for CONCERN-3400: every demo closed the owner first, so a
         bystander's ``close_case`` landed after ``case_fully_closed``, an
         external append past the ADR-0085 write boundary.
         """
         dl = _make_full_dl()
         _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
-        entries_at_close = len(_case_ledger(dl))
+        ledger = _case_ledger(dl)
+        assert ledger and ledger[-1].event_type == "case_fully_closed", (
+            "precondition: the owner close must have committed"
+            f" case_fully_closed; tail={[e.event_type for e in ledger]}"
+        )
+        entries_at_close = len(ledger)
         rm_before = _participant_rm_states(dl, VENDOR_ID)
+        outbox_before = set(dl.outbox_list())
 
         result = _close(
             dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
         )
 
         assert result.disposition == HandlerDisposition.REFUSED
+        queued = [i for i in dl.outbox_list() if i not in outbox_before]
+        assert len(queued) == 1, (
+            "exactly one activity (the as:Reject) must be queued for a"
+            f" post-close bystander Leave (CM-23-013); queued={queued}"
+        )
+        reject = dl.read(queued[0])
+        assert getattr(reject, "type_", None) == "Reject", (
+            "a declined post-close Leave must be an as:Reject (MSM-05-001);"
+            f" got type_={getattr(reject, 'type_', None)}"
+        )
+        assert VENDOR_ID in (getattr(reject, "to", None) or [])
+        inner = getattr(reject, "object_", None)
+        assert getattr(inner, "type_", None) == "Leave", (
+            "the as:Reject must decline the Leave activity itself"
+        )
         assert len(_case_ledger(dl)) == entries_at_close, (
             "a post-close bystander Leave must commit no ledger entry"
             f" (CM-23-013); tail={[e.event_type for e in _case_ledger(dl)]}"
@@ -612,10 +629,22 @@ class TestPostCloseBoundary:
         from datetime import UTC, datetime, timedelta
 
         from vultron.core.states.participant_embargo_consent import PEC
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
 
         dl = _make_full_dl()
-        case = dl.read(CASE_ID)
+        case = dl.read_case(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
+        embargo = as_EmbargoEvent(
+            id_=f"{CASE_ID}/embargo_events/proposed",
+            context=CASE_ID,
+            end_time=datetime.now(tz=UTC) + timedelta(days=45),
+        )
+        dl.create(embargo)
+        case.proposed_embargoes = [embargo.id_]
+        case.append_case_status(em_state=EM.PROPOSED)
+        dl.save(case)
         vendor = dl.read(case.actor_participant_index[VENDOR_ID])
         assert isinstance(vendor, CaseParticipant)
         vendor.embargo_consent_state = PEC.INVITED
@@ -631,14 +660,25 @@ class TestPostCloseBoundary:
         assert vendor.embargo_consent_state == PEC.DECLINED, (
             "owner close must lapse a pending Invite immediately (CM-23-014)"
         )
-        types = [e.event_type for e in _case_ledger(dl)]
+        ledger = _case_ledger(dl)
+        types = [e.event_type for e in ledger]
+        rm_closed_ids = {e.id_ for e in _case_actor_rm_closed_entries(dl)}
+        rm_closed_idx = [
+            i for i, e in enumerate(ledger) if e.id_ in rm_closed_ids
+        ]
+        lapse_idx = [
+            i
+            for i, t in enumerate(types)
+            if t == "invite_to_embargo_on_case_lapsed"
+        ]
         assert types[-1] == "case_fully_closed", types
-        assert (
-            len(types) >= 2
-            and types[-2] != "add_participant_status_to_participant"
-        ), (
-            "the lapsed-invitation entry must sit between the CASE_MANAGER's"
-            f" RM.CLOSED entry and case_fully_closed (CM-23-014); got {types}"
+        assert rm_closed_idx and lapse_idx, (
+            "owner close must commit the CASE_MANAGER's RM.CLOSED entry and"
+            f" a lapsed-invitation entry (CM-23-014); got {types}"
+        )
+        assert max(rm_closed_idx) < min(lapse_idx), (
+            "the lapsed-invitation entry must follow the CASE_MANAGER's"
+            f" RM.CLOSED entry (CM-23-014); got {types}"
         )
 
 

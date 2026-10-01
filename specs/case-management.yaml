@@ -3110,7 +3110,7 @@ groups:
       case.  An earlier wording called case_fully_closed "the last ledger entry",
       but ADR-0085's boundary refuses only external participants' appends, not
       the CASE_MANAGER's own housekeeping, so a consumer that stopped reading
-      there would be wrong (ISSUE-3400).  The guarantee is the boundary, not
+      there would be wrong (CONCERN-3400).  The guarantee is the boundary, not
       chain finality.  See ADR-0050, ADR-0051, ADR-0085.
     verification: >-
       Integration tests in `test/demo/` confirm that a Case Owner's
@@ -3421,9 +3421,9 @@ groups:
     rationale: >-
       ADR-0085 makes owner-close a hard write boundary, and a bystander's Leave is
       an external append: committing it put a `close_case` entry after
-      `case_fully_closed` in every demo (ISSUE-3400).  The receipt commit itself
+      `case_fully_closed` in every demo (CONCERN-3400).  The receipt commit itself
       is suppressed because, as in CM-23-011, its fan-out is what closes the
-      sender on the replicas (CLP-10-001).  A participant that wants its
+      sender on the replicas (CLP-10-006, CM-23-003).  A participant that wants its
       departure recorded leaves before the Case Owner.
     verification: >-
       A test confirms that after an owner Leave(VulnerabilityCase) has committed
@@ -3450,10 +3450,12 @@ groups:
     statement: >-
       As part of the CM-23-002 owner-close sequence, after the CASE_MANAGER
       advances its own CaseParticipant to RM.CLOSED and before it commits
-      `case_fully_closed`, it MUST lapse every Invite still awaiting a reply on
-      the case, participant and embargo Invites alike, without waiting for their
-      RSVP deadlines.  It MUST commit a lapsed-invitation CaseLedgerEntry for
-      each (CM-28-009, CM-28-014).
+      `case_fully_closed`, it MUST lapse every embargo Invite still awaiting a
+      reply on the case (every participant whose consent is `PEC.INVITED`),
+      without waiting for its RSVP deadline.  It MUST commit a lapsed-invitation
+      CaseLedgerEntry for each (CM-28-009, CM-28-014).  A pending case Invite
+      carries no RSVP deadline and so needs no settling: an answer to it after
+      close is an external append, refused at the ADR-0085 boundary.
     rationale: >-
       After close a pending Invite can only lapse.  Waiting for its RSVP deadline
       would keep the CASE_MANAGER running for a closed case, possibly for years,
