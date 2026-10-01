@@ -52,14 +52,14 @@ def _find_report_case_link(
     """Return a pending ReportCaseLink expecting a bootstrap from *creator_id*.
 
     Scans all ``ReportCaseLink`` records and returns the first that has
-    ``trusted_case_creator_id == creator_id`` and ``case_id is None``
+    ``case_creator_id == creator_id`` and ``case_id is None``
     (i.e. awaiting bootstrap).  Using the sender identity rather than the
     case's vulnerability_reports list makes the lookup independent of whether
     the case snapshot embeds the report.
     """
     for obj in dl.list_objects("ReportCaseLink"):
         if isinstance(obj, VultronReportCaseLink) and (
-            obj.trusted_case_creator_id == creator_id and obj.case_id is None
+            obj.case_creator_id == creator_id and obj.case_id is None
         ):
             return obj
     return None

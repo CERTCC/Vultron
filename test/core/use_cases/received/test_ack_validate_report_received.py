@@ -592,7 +592,7 @@ class TestValidateReportReceivedGuardedCommit:
         link = VultronReportCaseLink(
             report_id=self.REPORT_ID,
             case_id=case.id_,
-            trusted_case_actor_id=self.CASE_ACTOR_ID,
+            case_manager_id=self.CASE_ACTOR_ID,
         )
         dl.save(link)
 
@@ -661,7 +661,7 @@ class TestValidateReportReceivedGuardedCommit:
         link = VultronReportCaseLink(
             report_id=self.REPORT_ID,
             case_id=CASE_ID,
-            trusted_case_actor_id=self.CASE_ACTOR_ID,
+            case_manager_id=self.CASE_ACTOR_ID,
         )
         dl.save(link)
 
