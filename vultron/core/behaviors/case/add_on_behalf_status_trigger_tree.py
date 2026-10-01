@@ -58,11 +58,36 @@ from vultron.core.states.cs import CS_d, CS_vf
 from vultron.enums.roles import CVDRole
 
 
+def on_behalf_required_roles(
+    vf_state: "CS_vf | None", d_state: "CS_d | None"
+) -> list[CVDRole]:
+    """Return the roles an on-behalf target MUST hold for the asserted dimensions.
+
+    ``VENDOR`` for a ``vf_state`` (v→V, PRM-06-003) and ``DEPLOYER`` for a
+    ``d_state`` (d→D, PRM-06-004).  The roles are derived from the dimensions,
+    never passed alongside them, so the guard cannot check a role the write
+    does not need.
+
+    Raises:
+        ValueError: when neither dimension is set — an assertion with no
+            dimension has no role to check (ARCH-10-001).
+    """
+    roles: list[CVDRole] = []
+    if vf_state is not None:
+        roles.append(CVDRole.VENDOR)
+    if d_state is not None:
+        roles.append(CVDRole.DEPLOYER)
+    if not roles:
+        raise ValueError(
+            "An on-behalf status assertion needs vf_state or d_state"
+        )
+    return roles
+
+
 def add_on_behalf_status_trigger_bt(
     case_id: str,
     asserting_actor_id: str,
     target_actor_id: str,
-    required_roles: list[CVDRole],
     vf_state: "CS_vf | None",
     d_state: "CS_d | None",
     result_out: dict,
@@ -75,9 +100,6 @@ def add_on_behalf_status_trigger_bt(
         asserting_actor_id: Actor making the assertion (must hold CASE_MANAGER
             or CASE_OWNER).
         target_actor_id: Actor whose awareness/deployment is being recorded.
-        required_roles: Roles the target participant MUST already hold;
-            ``[CVDRole.VENDOR]`` for v→V, ``[CVDRole.DEPLOYER]`` for d→D,
-            ``[CVDRole.VENDOR, CVDRole.DEPLOYER]`` when both are requested.
         vf_state: ``CS_vf.Vf`` for v→V, or ``None``.
         d_state: ``CS_d.D`` for d→D, or ``None``.
         result_out: Mutable dict populated by ``CreateParticipantStatusNode``
@@ -85,9 +107,16 @@ def add_on_behalf_status_trigger_bt(
         activity_builder: ``(case_manager_id: str) -> list[str]`` — called by
             ``sender_side_bt`` after resolving the Case Manager.
 
+    The target MUST already hold every role
+    :func:`on_behalf_required_roles` derives from ``vf_state`` and
+    ``d_state``.
+
     Returns:
         A ``py_trees.composites.Sequence`` that gates, writes the status,
         and emits.
+
+    Raises:
+        ValueError: when neither ``vf_state`` nor ``d_state`` is set.
     """
     children: list[py_trees.behaviour.Behaviour] = [
         CheckOnBehalfAuthorizedNode(
@@ -97,7 +126,7 @@ def add_on_behalf_status_trigger_bt(
         CheckOnBehalfTargetIsParticipantNode(
             case_id=case_id,
             target_actor_id=target_actor_id,
-            required_roles=required_roles,
+            required_roles=on_behalf_required_roles(vf_state, d_state),
         ),
     ]
 

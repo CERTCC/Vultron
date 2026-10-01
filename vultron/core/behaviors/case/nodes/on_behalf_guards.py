@@ -131,6 +131,11 @@ class CheckOnBehalfTargetIsParticipantNode(_OnBehalfGuardNode):
         required_roles: list[CVDRole],
         name: str | None = None,
     ) -> None:
+        if not required_roles:
+            raise ValueError(
+                "CheckOnBehalfTargetIsParticipantNode needs at least one"
+                " required role; an empty list would pass every target"
+            )
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._target_actor_id = target_actor_id

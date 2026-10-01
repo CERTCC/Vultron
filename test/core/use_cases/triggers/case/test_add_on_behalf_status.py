@@ -421,6 +421,106 @@ class TestAddOnBehalfStatusDtoD:
         assert _store_state(self.dl, self.case.id_) == before
 
 
+class TestAddOnBehalfStatusCombined:
+    """v→V and d→D in one request: the target must hold both roles.
+
+    No combined request succeeds — D entails VF — but the guard still
+    checks both roles before the write and names every missing one.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.cm_actor, self.dl = _make_actor_dl("CaseManager")
+        self.fix_vendor = _make_actor("Fix Vendor")
+        self.target = _make_actor("Vendor Deployer")
+        self.case = _make_base_case(self.dl, self.cm_actor.id_)
+        # The CSB-15-004 causal precondition: some vendor has a fix.
+        _add_participant(
+            self.dl,
+            self.case,
+            self.fix_vendor.id_,
+            [CVDRole.VENDOR],
+            RM.ACCEPTED,
+            CS_vf.VF,
+        )
+        yield
+        self.dl.clear_all()
+        reset_datalayer(self.cm_actor.id_)
+
+    def _request(self) -> AddOnBehalfStatusTriggerRequest:
+        return AddOnBehalfStatusTriggerRequest(
+            actor_id=self.cm_actor.id_,
+            case_id=self.case.id_,
+            target_actor_id=self.target.id_,
+            vf_state=CS_vf.Vf,
+            d_state=CS_d.D,
+        )
+
+    @pytest.mark.spec("PRM-06-004", "BTND-10-002")
+    def test_target_holding_both_roles_passes_guard_then_entailment_refuses(
+        self,
+    ):
+        """A vendor-deployer passes the target guard, but V and D together
+        are an impossible compound state (D entails VF, CSB-17-001), so the
+        composed evaluator refuses the one write and nothing is stored."""
+        _add_participant(
+            self.dl,
+            self.case,
+            self.target.id_,
+            [CVDRole.VENDOR, CVDRole.DEPLOYER],
+            RM.ACCEPTED,
+            CS_vf.vf,
+        )
+        before = _store_state(self.dl, self.case.id_)
+
+        with pytest.raises(VultronValidationError) as excinfo:
+            _run(self.dl, self._request())
+
+        message = str(excinfo.value)
+        assert "does not hold" not in message, "the target guard passed"
+        assert "is not a participant" not in message
+        assert "CSB-17-001" in message
+        assert _store_state(self.dl, self.case.id_) == before
+
+    @pytest.mark.spec("PRM-06-004")
+    def test_target_holding_only_vendor_is_refused(self):
+        _add_participant(
+            self.dl,
+            self.case,
+            self.target.id_,
+            [CVDRole.VENDOR],
+            RM.ACCEPTED,
+            CS_vf.vf,
+        )
+        before = _store_state(self.dl, self.case.id_)
+
+        with pytest.raises(VultronValidationError) as excinfo:
+            _run(self.dl, self._request())
+
+        message = str(excinfo.value)
+        assert self.target.id_ in message
+        assert "does not hold deployer" in message
+        assert "does not hold vendor" not in message
+        assert _store_state(self.dl, self.case.id_) == before
+
+    @pytest.mark.spec("PRM-06-003", "PRM-06-004", "EH-07-001")
+    def test_target_holding_neither_role_names_both(self):
+        _add_participant(
+            self.dl,
+            self.case,
+            self.target.id_,
+            [CVDRole.OBSERVER],
+            RM.ACCEPTED,
+        )
+        before = _store_state(self.dl, self.case.id_)
+
+        with pytest.raises(VultronValidationError) as excinfo:
+            _run(self.dl, self._request())
+
+        assert "does not hold vendor, deployer" in str(excinfo.value)
+        assert _store_state(self.dl, self.case.id_) == before
+
+
 class TestAddOnBehalfRequestValidation:
     """AC-3 / PRM-06-005: CS_vf.VF (f→F) rejected at request boundary."""
 
