@@ -19,6 +19,9 @@ from typing import Literal, cast
 
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_store_owner_as_case_manager,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -1517,6 +1520,8 @@ class TestLateAcceptHandling:
         invitee_cp_core = invitee_cp
         invitee_cp_core.invite_rsvp_deadline = _FUTURE
 
+        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(embargo)
         dl.create(invitee_cp_core)
@@ -1566,6 +1571,8 @@ class TestLateAcceptHandling:
         invitee_cp_core = invitee_cp
         # No deadline set — invite_rsvp_deadline stays None
 
+        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(embargo)
         dl.create(invitee_cp_core)

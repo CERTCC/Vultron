@@ -57,19 +57,23 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+
+# The Accept/Reject(Invite(EmbargoEvent)) trees live in ``answer_trees``
+# (CS-18-001); re-exported for existing importers.
+from vultron.core.behaviors.embargo.answer_trees import (  # noqa: F401
+    accept_invite_to_embargo_tree,
+    reject_invite_to_embargo_tree,
+)
 from vultron.core.behaviors.embargo.nodes import (
     CanAnswerEmbargoInviteNode,
     ClearActiveEmbargoNode,
     CollectEmbargoInviteRecipientsNode,
     CreateAndStoreInviteNode,
-    DecideRejectedEmbargoProposalNode,
     EmbargoProposalNotYetRecordedNode,
     HasEmbargoActiveNode,
     IsActiveEmbargoNode,
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
-    RecordParticipantAcceptanceNode,
-    RecordParticipantRejectionNode,
     RelayEmbargoInviteToEachNode,
     RemoveFromProposedEmbargoesNode,
     ResetParticipantConsentNode,
@@ -357,123 +361,5 @@ def invite_to_embargo_on_case_tree(
         invite_id,
         embargo_id,
         proposer_id,
-    )
-    return root
-
-
-def accept_invite_to_embargo_tree(
-    case_id: str,
-    embargo_id: str,
-    accepting_actor_id: str,
-    invite_id: str,
-) -> py_trees.behaviour.Behaviour:
-    """Create the BT for accepting embargo invitation (protocol EA).
-
-    Handles receipt of an ``Accept(InviteToEmbargoOnCase)`` activity.
-    Records the acceptance via EmbargoLifecycle and commits a canonical
-    ledger entry.
-
-    BT returns SUCCESS when acceptance is recorded.
-    Always commits the ledger entry regardless of BT result.
-
-    Args:
-        case_id: ID of the VulnerabilityCase.
-        embargo_id: ID of the EmbargoEvent being accepted.
-        accepting_actor_id: Actor ID of the participant accepting.
-        invite_id: ID of the InviteToEmbargoOnCase activity.
-
-    Returns:
-        Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
-    """
-    root = create_receive_activity_tree(
-        name="AcceptInviteToEmbargoBT",
-        case_id=case_id,
-        precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
-        effect_nodes=[
-            RecordParticipantAcceptanceNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                accepting_actor_id=accepting_actor_id,
-            ),
-        ],
-    )
-    logger.info(
-        "Created AcceptInviteToEmbargoBT for case=%s embargo=%s"
-        " accepting_actor=%s",
-        case_id,
-        embargo_id,
-        accepting_actor_id,
-    )
-    return root
-
-
-def reject_invite_to_embargo_tree(
-    case_id: str,
-    rejecting_actor_id: str,
-    invite_id: str,
-    embargo_id: str,
-) -> py_trees.behaviour.Behaviour:
-    """Create the BT for rejecting embargo invitation (protocol ER / EJ).
-
-    Handles receipt of a ``Reject(InviteToEmbargoOnCase)`` activity.  Records
-    the rejecting participant's consent through
-    :class:`RecordParticipantRejectionNode`, which applies the same
-    MSM-07-004 rule as ``EmbargoLifecycle.reject_embargo_invite`` (ADR-0093):
-    a Reject naming the case's *active* embargo is consent withdrawal
-    (``DECLINE`` from any state, ``SIGNATORY`` included); one naming a
-    *proposed* embargo drops the id from ``accepted_embargo_ids`` and
-    declines only a participant not yet ``SIGNATORY``; the owner's EJ changes
-    nobody's record.  When the rejecting actor is the case owner the Reject
-    *decides* the proposal: :class:`DecideRejectedEmbargoProposalNode` runs
-    ``reject_embargo_invite`` for the owner, which forgets the proposal
-    (EP-08-003) and moves EM ``PROPOSED → NONE`` or ``REVISE → ACTIVE`` — the
-    received Accept path decides through ``accept_embargo_invite`` and the
-    Reject path must not lag it, or the case would sit in REVISE with no open
-    proposal.
-
-    Commits the ledger entry before the effects (CLP-10-006); a Reject naming
-    an embargo the case knows nothing about fails the effect, so the handler
-    reports a refusal.
-
-    Args:
-        case_id: ID of the VulnerabilityCase.
-        rejecting_actor_id: Actor ID of the participant rejecting.
-        invite_id: ID of the InviteToEmbargoOnCase activity.
-        embargo_id: ID of the EmbargoEvent the Reject names (required: which
-            terms are refused decides the consent effect, MSM-07-004).
-
-    Returns:
-        Root node of the ``RejectInviteToEmbargoBT`` Sequence.
-    """
-    effect_nodes: list[py_trees.behaviour.Behaviour] = [
-        # The consent belongs to the actor who rejected, not to whoever's
-        # replica this is: a Reject routes through the CASE_MANAGER (PCR-08),
-        # so recording against the BT execution actor would decline the
-        # manager's own consent instead.
-        RecordParticipantRejectionNode(
-            case_id=case_id,
-            embargo_id=embargo_id,
-            rejecting_actor_id=rejecting_actor_id,
-        ),
-        # The owner's Reject decides the proposal (ER / EJ) and moves EM; a
-        # participant's is consent and decides nothing (EP-08-003, #3470).
-        DecideRejectedEmbargoProposalNode(
-            case_id=case_id,
-            embargo_id=embargo_id,
-            rejecting_actor_id=rejecting_actor_id,
-        ),
-    ]
-    root = create_receive_activity_tree(
-        name="RejectInviteToEmbargoBT",
-        case_id=case_id,
-        precondition_guards=[],
-        effect_nodes=effect_nodes,
-    )
-    logger.info(
-        "Created RejectInviteToEmbargoBT for case=%s rejecting_actor=%s"
-        " invite=%s",
-        case_id,
-        rejecting_actor_id,
-        invite_id,
     )
     return root

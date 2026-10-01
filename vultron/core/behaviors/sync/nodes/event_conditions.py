@@ -37,6 +37,7 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronWiringError
 
 _REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
 _ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
@@ -80,14 +81,17 @@ class _ActivityEventNode(DataLayerConditionWithPorts):
 class IsRemoveEmbargoEventNode(_ActivityEventNode):
     """Precondition: return SUCCESS when this log entry IS a remove-embargo event.
 
-    Used as the precondition in the ``EmbargoEffects`` Selector's inner
-    Sequence in ``AnnounceLogEntryReceivedBT``::
+    Used as the precondition in the ``EmbargoTeardownEffects`` slot of
+    ``AnnounceLogEntryReceivedBT`` (built by ``_event_effect_slot``)::
 
-        Selector(EmbargoEffects)
+        Selector(EmbargoTeardownEffects)
           Sequence
             IsRemoveEmbargoEventNode   ← SUCCESS iff event_type matches
             ApplyEmbargoTeardownNode
           Inverter(IsRemoveEmbargoEventNode)  ← SUCCESS iff wrong event type
+
+    The four relay slots beside it (proposal, relayed Invite, Accept and
+    Reject of an Invite) follow the same shape.
 
     The Inverter fires SUCCESS only when the condition does NOT match (routing
     no-op for the wrong event type).  When the condition matches but
@@ -303,9 +307,15 @@ class _EmbargoInviteEventNode(_ActivityEventNode):
         entry = _require_log_entry(self.activity, self.name)
         if entry.event_type != EMBARGO_INVITE_EVENT_TYPE:
             return Status.FAILURE
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
+        if self.datalayer is None:
+            # Telling a proposal from a relayed Invite needs the store; a
+            # FAILURE here would read as "not this slot" in both Inverters and
+            # leave the entry unreplayed with nothing said (a wiring fault).
+            raise VultronWiringError(
+                f"{self.name}: no DataLayer to classify the"
+                f" '{EMBARGO_INVITE_EVENT_TYPE}' entry on case"
+                f" '{entry.case_id}'"
+            )
         case = self._resolve_case_replica(entry.case_id)
         relayed = is_relayed_embargo_invite(
             entry.payload_snapshot, case, self.datalayer

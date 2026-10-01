@@ -20,6 +20,9 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from vultron.core.behaviors.embargo.nodes.relay import (
+    EMBARGO_INVITE_EVENT_TYPE,
+)
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
@@ -30,6 +33,8 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyEmbargoRejectionFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
+    IsEmbargoInviteRelayEventNode,
+    IsEmbargoProposalEventNode,
     is_relayed_embargo_invite,
 )
 from vultron.core.models._helpers import now_utc
@@ -41,6 +46,7 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronWiringError
 
 MANAGER_ACTOR_ID = "https://example.org/actors/case-manager"
 PROPOSER_ACTOR_ID = "https://example.org/actors/vendor2"
@@ -506,12 +512,22 @@ class TestApplyEmbargoAnswers:
         assert record.embargo_consent_state == PEC.DECLINED
 
     @pytest.mark.spec("SYNC-12-001")
-    def test_reject_of_an_unknown_embargo_fails(
+    @pytest.mark.spec("SYNC-14-001")
+    def test_reject_of_an_embargo_no_longer_held_replays_as_a_no_op(
         self, bridge, datalayer, revising_case
     ):
-        """Neither active nor proposed: a protocol error blocks persist."""
+        """Neither active nor open here: nothing to replay, and no stall.
+
+        The CASE_MANAGER commits only a Reject it could apply, so a replica
+        that no longer holds the embargo has already applied what followed.
+        Failing would block the persist and buffer every later entry.
+        """
+        before = _record(datalayer, PARTICIPANT_ACTOR_ID).embargo_consent_state
         result = _replay_answer(bridge, "Reject", PARTICIPANT_ACTOR_ID)
-        assert result.status == Status.FAILURE
+        assert result.status == Status.SUCCESS
+        assert "nothing to replay" in result.feedback_message
+        record = _record(datalayer, PARTICIPANT_ACTOR_ID)
+        assert record.embargo_consent_state == before
 
     @pytest.mark.spec("SYNC-12-001")
     @pytest.mark.parametrize("verb", ["Accept", "Reject"])
@@ -536,3 +552,22 @@ def test_announce_tree_carries_a_slot_per_relay_event_type():
         "EmbargoRejection",
     ):
         assert any(label in name for name in names), label
+
+
+@pytest.mark.spec("EP-09-007")
+@pytest.mark.parametrize(
+    "node_cls", [IsEmbargoProposalEventNode, IsEmbargoInviteRelayEventNode]
+)
+def test_classifying_an_invite_entry_without_a_store_is_a_wiring_fault(
+    node_cls,
+):
+    """FAILURE would read as "not this slot" in both Inverters (#3915)."""
+    node = node_cls(name=node_cls.__name__)
+    node.activity = _make_event(
+        _entry(EMBARGO_INVITE_EVENT_TYPE, _invite_snapshot()),
+        actor_id=MANAGER_ACTOR_ID,
+    )
+    node.datalayer = None
+
+    with pytest.raises(VultronWiringError):
+        node.update()

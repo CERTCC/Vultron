@@ -86,6 +86,46 @@ class IsActiveEmbargoNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
+class IsRejectableEmbargoNode(DataLayerConditionWithPorts):
+    """Guard that a Reject names an embargo the case can still refuse.
+
+    SUCCESS when ``embargo_id`` is the case's active embargo (consent
+    withdrawal) or one of its open proposals (refusal of those terms) —
+    the two readings MSM-07-004 gives a Reject (ADR-0093).  FAILURE
+    otherwise: a Reject of a proposal already decided, or of an embargo the
+    case never knew, has nothing to change.  Read-only, so it sits ahead of
+    the guarded commit (CLP-10-009): a Reject the effects would refuse is
+    never committed, and no replica is sent an entry it cannot replay
+    (SYNC-12-001).
+    """
+
+    def __init__(self, case_id: str, embargo_id: str, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.embargo_id = embargo_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        if (
+            self.embargo_id == case.active_embargo_id
+            or self.embargo_id in case.proposed_embargo_ids
+        ):
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"Embargo '{self.embargo_id}' is neither the active embargo nor"
+            f" an open proposal of case '{self.case_id}': nothing to reject"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
 class LookupParticipantNode(DataLayerConditionWithPorts):
     """Resolve participant from case and actor_id.
 

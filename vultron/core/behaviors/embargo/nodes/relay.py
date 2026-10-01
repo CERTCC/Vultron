@@ -43,7 +43,9 @@ instead: it runs only under the CASE_MANAGER gate, so ``actor`` is the role
 holder by construction, and ``attributed_to`` is the adjudicated proposer.
 """
 
-from typing import TYPE_CHECKING, cast
+import json
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -55,9 +57,11 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
+from vultron.core.models._helpers import parse_published
 from vultron.core.models.case import case_addressees
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.wire_keys import wire_key
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM, EM_Trigger
@@ -167,6 +171,16 @@ class EmStateAdmitsProposalNode(DataLayerConditionWithPorts):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         return Status.SUCCESS
+
+
+def invite_rsvp_deadline(invite: dict[str, Any]) -> datetime | None:
+    """The RSVP deadline (``endTime``) a relayed Invite's wire body carries.
+
+    The relay and its ledger replay both read it from the same sealed body,
+    so the invitee's record takes the same deadline in every store
+    (CM-28-013, EP-09-007).
+    """
+    return parse_published(invite.get(wire_key("end_time")))
 
 
 def case_manager_admits_proposal_guard(
@@ -348,7 +362,9 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         )
         self._commit_emission(activity_id, blob)
         dl.outbox_append(activity_id)
-        self._invite_where_legal(dl, recipient_id)
+        self._invite_where_legal(
+            dl, recipient_id, invite_rsvp_deadline(json.loads(blob))
+        )
         self.logger.info(
             "CASE_MANAGER '%s' relayed embargo '%s' to '%s' for '%s' (EP-09-002)",
             self.actor_id,
@@ -377,7 +393,10 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         )
 
     def _invite_where_legal(
-        self, dl: CaseOutboxPersistence, recipient_id: str
+        self,
+        dl: CaseOutboxPersistence,
+        recipient_id: str,
+        rsvp_deadline: datetime | None,
     ) -> None:
         """Apply PEC INVITE to *recipient_id* if CM-18-003 allows it (EP-09-004)."""
         # Regime 1 (ADR-0087): the relay follows the manager's own EM write on
@@ -387,7 +406,9 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         # re-raised as the internal error it is in the manager's own store.
         try:
             result = EmbargoLifecycle(persistence=dl).record_embargo_invite(
-                case_id=self._case_id, invitee_id=recipient_id
+                case_id=self._case_id,
+                invitee_id=recipient_id,
+                rsvp_deadline=rsvp_deadline,
             )
         except VultronNotFoundError as exc:
             raise RuntimeError(

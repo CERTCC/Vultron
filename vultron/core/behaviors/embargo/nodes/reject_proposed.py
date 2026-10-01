@@ -29,10 +29,12 @@ from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.models._helpers import _as_id
+from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -128,7 +130,9 @@ class DecideRejectedEmbargoProposalNode(DataLayerActionWithPorts):
     proposal of the case, this node calls
     ``EmbargoLifecycle.reject_embargo_invite`` for the owner, which drives
     ``PROPOSED → NONE`` or ``REVISE → ACTIVE`` and forgets the proposal
-    together (EMB-18-001).  The received path runs it ``STRICT`` in the
+    together (EMB-18-001) — or, while another proposal stays open, only
+    forgets this one (EP-08-001).  It leaves the consent record alone:
+    :class:`RecordParticipantRejectionNode` runs before it on both paths.  The received path runs it ``STRICT`` in the
     CASE_MANAGER's store; the ledger replay runs it ``OBSERVED`` (EP-09-007).
 
     Returns SUCCESS and changes nothing when the rejecting actor is not the
@@ -196,6 +200,9 @@ class DecideRejectedEmbargoProposalNode(DataLayerActionWithPorts):
                 actor_id=self.rejecting_actor_id,
                 transition_mode=self.transition_mode,
                 em_before=em_before,
+                # RecordParticipantRejectionNode runs first on both paths and
+                # has already applied the owner's consent effect (MSM-07-004).
+                record_consent=False,
             )
         except VultronError as exc:
             self.feedback_message = str(exc)
@@ -214,6 +221,55 @@ class DecideRejectedEmbargoProposalNode(DataLayerActionWithPorts):
             f" '{self.case_id}' (EM {result.em_before} → {result.em_after})"
         )
         return Status.SUCCESS
+
+
+class OwnerRejectsRevisionAfterDisclosureNode(DataLayerConditionWithPorts):
+    """True when the owner's Reject must end the embargo, not keep it (EMB-04-002).
+
+    SUCCESS when ``rejecting_actor_id`` is the case owner, the case is in
+    ``REVISE``, ``embargo_id`` is the last open proposal (so the Reject would
+    decide the revision, EP-08-001) and CS is already public, exploited or
+    attacked.  Returning to the prior terms is then not allowed: the EJ must
+    be answered with ET.  FAILURE in every other case, so the owner's Reject
+    is decided by :class:`DecideRejectedEmbargoProposalNode` as usual.
+    Read-only.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        rejecting_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.embargo_id = embargo_id
+        self.rejecting_actor_id = rejecting_actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        if (
+            _as_id(case.attributed_to) == self.rejecting_actor_id
+            and case.current_status.em.state == EM.REVISE
+            and case.proposed_embargo_ids == [self.embargo_id]
+            and not pxa_is_embargo_eligible(case.current_status.pxa.state)
+        ):
+            self.feedback_message = (
+                f"Owner rejected revision '{self.embargo_id}' of case"
+                f" '{self.case_id}' with P/X/A set: the embargo ends (ET)"
+                " rather than returning to its prior terms (EMB-04-002)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+        return Status.FAILURE
 
 
 class ReadProposedEmbargoIdNode(DataLayerActionWithPorts):

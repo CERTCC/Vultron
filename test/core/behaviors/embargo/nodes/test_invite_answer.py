@@ -41,6 +41,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronWiringError
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -211,3 +212,16 @@ class TestSendEmbargoInviteAnswerNode:
         assert result.internal_error
         factory.reject_embargo.assert_not_called()
         assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("EP-09-003")
+def test_answering_without_a_store_is_a_wiring_fault():
+    """FAILURE would read as "not answerable" and drop the answer (#3915)."""
+    node = CanAnswerEmbargoInviteNode(
+        case_id=CASE_ID, invitee_id=INVITEE, embargo_id=EMBARGO_ID
+    )
+    node.actor_id = INVITEE
+    node.datalayer = None
+
+    with pytest.raises(VultronWiringError):
+        node.update()

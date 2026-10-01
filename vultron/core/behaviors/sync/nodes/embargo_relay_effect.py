@@ -52,6 +52,7 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.nodes.proposal import (
     ALREADY_DECLINED_PREFIX,
 )
+from vultron.core.behaviors.embargo.nodes.relay import invite_rsvp_deadline
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
 )
@@ -60,20 +61,14 @@ from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
     _LedgerEffectNode,
 )
-from vultron.core.models._helpers import (
-    parse_published,
-    project_wire_snapshot_to_core,
-)
+from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.wire_keys import wire_key
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
 from vultron.errors import VultronNotFoundError
-
-_END_TIME = wire_key("end_time")
 
 
 def _answered_invite(snapshot: dict[str, Any]) -> Any:
@@ -250,7 +245,7 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
             ).record_embargo_invite(
                 case_id=case.id_,
                 invitee_id=invitee_id,
-                rsvp_deadline=parse_published(snapshot.get(_END_TIME)),
+                rsvp_deadline=invite_rsvp_deadline(snapshot),
             )
         except VultronNotFoundError:
             self.feedback_message = (
@@ -308,8 +303,10 @@ class ApplyEmbargoRejectionFromLedgerNode(_EmbargoRelayEffectNode):
     Delegates to :class:`RecordParticipantRejectionNode` for the rejecting
     actor, then to :class:`DecideRejectedEmbargoProposalNode` in ``OBSERVED``
     mode, which — only when the rejecting actor is the case owner — forgets
-    the open proposal and returns EM to the prior terms (EP-08-003).  A rejection this replica already holds is replayed as a
-    no-op: the record node reports the repeat, and a repeat is not a fault.
+    the open proposal and returns EM to the prior terms (EP-08-003).  A
+    rejection this replica already holds is replayed as a no-op: the record
+    node reports the repeat, and a repeat is not a fault.  So is a Reject of
+    an embargo this replica no longer holds as active or open.
     """
 
     def update(self) -> Status:
@@ -328,6 +325,22 @@ class ApplyEmbargoRejectionFromLedgerNode(_EmbargoRelayEffectNode):
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
+        if (
+            embargo_id != case.active_embargo_id
+            and embargo_id not in case.proposed_embargo_ids
+        ):
+            # The CASE_MANAGER commits only a Reject it could apply (its
+            # IsRejectableEmbargoNode guard), so a replica that no longer holds
+            # the embargo as active or open has already applied what followed
+            # (a later decision or teardown).  Failing here would block the
+            # persist and buffer every later entry (SYNC-12-001, SYNC-14-001).
+            self.feedback_message = (
+                f"Reject of embargo '{embargo_id}' on case '{case.id_}' names"
+                " neither the active embargo nor an open proposal here —"
+                " nothing to replay"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
 
         status = self._delegate(
             RecordParticipantRejectionNode(

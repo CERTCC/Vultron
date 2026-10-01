@@ -8,8 +8,9 @@ description: >
   order for multiple open proposals (EP-08); and the fragmentation concern that
   motivates the EmbargoLifecycle service (see #538); and the revision relay
   through the CASE_MANAGER, under which the ledger carries state but never asks
-  (EP-09, ADR-0113); and the invariant that a case never names an embargo its
-  store cannot read (EMB-18-003).
+  (EP-09, ADR-0113), including who records an answer and how RSH-04-002
+  reads on the relay trees; and the invariant that a case never names an
+  embargo its store cannot read (EMB-18-003).
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -19,6 +20,8 @@ related_specs:
   - specs/received-status-handling.yaml
   - specs/protocol-asks.yaml
   - specs/sync-ledger-replication.yaml
+  - specs/behavior-tree-integration.yaml
+  - specs/handler-protocol.yaml
 related_notes:
   - notes/embargo-default-semantics.md
   - notes/bt-integration.md
@@ -452,6 +455,34 @@ authority on its own progress. ADR-0108 was amended to match.
 **The role is never unfilled.** Both creation paths register a `CASE_MANAGER`
 holder at birth and delegation hands it on (CM-24-006). No "no manager" arm
 belongs in any embargo tree; a resolver that finds nobody fails.
+
+**Only the CASE_MANAGER records an answer, and only one it can apply.** The
+received `Accept`/`Reject(Invite(EmbargoEvent))` trees put their effects
+behind `create_case_manager_gated_tree`; a participant handed an answer
+directly reports `REFUSED` through `not_case_manager_refusal()` and writes
+nothing (BT-17-001, HP-01-005). A `Reject` naming an embargo that is neither
+active nor open — a late answer to a decided revision — is refused by a
+read-only guard *before* the guarded commit (`IsRejectableEmbargoNode`). Once
+committed, an entry whose replica apply node fails blocks its persist
+(SYNC-12-001) and every later entry buffers behind it (SYNC-14-001), so a
+refusal the manager makes after its commit stalls every replica. The replay
+of a rejection of an embargo the replica no longer holds is a no-op for the
+same reason.
+
+**The owner's Reject decides one proposal, not all of them.** With several
+open (EP-08-001), it forgets the one it names (EP-08-003) and EM stays
+`PROPOSED`/`REVISE` while another is open. When it rejects the last open
+revision after P/X/A is set, the case does not return to the prior terms: the
+manager runs the terminate path (`terminate_embargo_bt`, ET), as
+`PublicDisclosureBranchNode` does, and replicas follow its
+`Remove(EmbargoEvent)` (EMB-04-002).
+
+**RSH-04-002 on the relay trees.** These received trees add no
+`EmitCaseStatusUpdateNode`. Their guarded commit records the activity that
+caused the transition, and its relay apply node replays that transition in
+every replica (EP-09-007, RSH-08-004, ADR-0113), so the committed entry *is*
+the canonical ledger write. A second `CaseStatus` entry would duplicate it.
+RSH-04-002's text says so (#4103).
 
 The creation-time revision from shortest-wins follows the same relay
 (EP-04-011) — see `notes/embargo-default-semantics.md`.

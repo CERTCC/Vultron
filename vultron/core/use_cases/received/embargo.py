@@ -58,6 +58,7 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
     node_failed,
+    not_case_manager_refusal,
     verdict_from_bt,
 )
 from vultron.errors import VultronNotFoundError
@@ -855,6 +856,12 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="AcceptInviteToEmbargoBT"
         )
+        if verdict.disposition is HandlerDisposition.APPLIED:
+            # Only the CASE_MANAGER records an answer; a replica learns it
+            # from the ledger broadcast (BT-17-001, HP-01-005).
+            refusal = not_case_manager_refusal(tree, self._dl, case_id)
+            if refusal is not None:
+                verdict = refusal
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning(
                 "%s (embargo '%s', case '%s')",
@@ -871,12 +878,16 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: RejectInviteToEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
         self._request: RejectInviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
+        # The owner's Reject of a revision after disclosure terminates the
+        # embargo, and the CASE_MANAGER tells the participants (EMB-04-002).
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
         from vultron.core.behaviors.bridge import BTBridge
@@ -924,7 +935,9 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             embargo_id=embargo_id,
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
@@ -943,6 +956,12 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="RejectInviteToEmbargoBT"
         )
+        if verdict.disposition is HandlerDisposition.APPLIED:
+            # Only the CASE_MANAGER records an answer; a replica learns it
+            # from the ledger broadcast (BT-17-001, HP-01-005).
+            refusal = not_case_manager_refusal(tree, self._dl, case_id)
+            if refusal is not None:
+                verdict = refusal
         if (
             verdict.disposition is HandlerDisposition.REFUSED
             and ALREADY_DECLINED_PREFIX in (verdict.reason or "")

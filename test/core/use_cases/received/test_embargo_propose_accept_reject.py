@@ -18,6 +18,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_store_owner_as_case_manager,
+)
 from vultron.adapters.driven.db_record import StorableRecord
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -38,6 +41,7 @@ from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
 )
 from vultron.demo.utils import ref_id
+from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronValidationError,
@@ -213,6 +217,8 @@ class TestEmbargoProposalLifecycle:
         )
         # Start from PROPOSED — the standard pre-condition for activation.
         case.append_case_status(em_state=EM.PROPOSED)
+        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(embargo)
         dl.create(proposal)
@@ -225,7 +231,7 @@ class TestEmbargoProposalLifecycle:
         event = make_payload(accept, receiving_actor_id=coordinator_id)
 
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event
+            dl, event, wire_render_port=As2WireRenderAdapter()
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -270,6 +276,8 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em3_warn/embargo_proposals/1",
         )
         # Default em_state is NONE — not a valid predecessor for ACTIVE.
+        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(embargo)
         dl.create(proposal)
@@ -282,7 +290,9 @@ class TestEmbargoProposalLifecycle:
         event = make_payload(accept, receiving_actor_id=coordinator_id)
 
         with caplog.at_level(logging.WARNING):
-            AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         assert any("state-sync override" in r.message for r in caplog.records)
         case = dl.read(case.id_)
@@ -320,6 +330,8 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em5/participants/coord",
             attributed_to=coordinator_id,
             context=case.id_,
+            # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+            case_roles=[CVDRole.CASE_MANAGER],
         )
         case.add_participant(participant)
         proposal = em_propose_embargo_activity(
@@ -341,7 +353,7 @@ class TestEmbargoProposalLifecycle:
         event = make_payload(accept, receiving_actor_id=coordinator_id)
 
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event
+            dl, event, wire_render_port=As2WireRenderAdapter()
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -390,6 +402,8 @@ class TestEmbargoProposalLifecycle:
             actor="https://example.org/users/vendor",
             id_="https://example.org/cases/case_em6/embargo_proposals/1",
         )
+        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(embargo)
         dl.create(proposal)
@@ -402,7 +416,7 @@ class TestEmbargoProposalLifecycle:
         event = make_payload(accept, receiving_actor_id=coordinator_id)
 
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event
+            dl, event, wire_render_port=As2WireRenderAdapter()
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -835,6 +849,8 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             id_=case_id, name="PXA clear EA", attributed_to=coordinator_id
         )
         case.append_case_status(em_state=EM.PROPOSED)
+        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
@@ -856,7 +872,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id)
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event
+            dl, event, wire_render_port=As2WireRenderAdapter()
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 

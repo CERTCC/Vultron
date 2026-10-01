@@ -27,6 +27,7 @@ from vultron.core.behaviors.embargo.nodes.conditions import (
     IsActiveEmbargoNode,
     IsCloseBlockedByActiveEmbargoNode,
     IsProposedEmbargoNode,
+    IsRejectableEmbargoNode,
     LookupParticipantNode,
     ValidateCaseExistsNode,
 )
@@ -52,6 +53,7 @@ from vultron.core.behaviors.embargo.nodes.proposal import (
 )
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (
     DecideRejectedEmbargoProposalNode,
+    OwnerRejectsRevisionAfterDisclosureNode,
     ReadProposedEmbargoIdNode,
     RejectProposedEmbargoLifecycleNode,
     SendRejectEmbargoActivityNode,
@@ -80,6 +82,8 @@ __all__ = [
     # Conditions
     "ValidateCaseExistsNode",
     "IsActiveEmbargoNode",
+    "IsRejectableEmbargoNode",
+    "OwnerRejectsRevisionAfterDisclosureNode",
     "IsCloseBlockedByActiveEmbargoNode",
     "IsProposedEmbargoNode",
     "HasActiveEmbargoNode",

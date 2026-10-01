@@ -27,6 +27,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.errors import VultronWiringError
 
 
 class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
@@ -62,8 +63,13 @@ class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
             # is a misrouting, not a decision (EP-09-010).
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        if (f := self._require_datalayer()) is not None:
-            return f
+        if self.datalayer is None:
+            # A FAILURE would read as "not answerable" through the Inverter
+            # and drop the answer silently; a missing store is a wiring fault.
+            raise VultronWiringError(
+                f"{self.name}: no DataLayer to answer embargo Invite on case"
+                f" '{self._case_id}'"
+            )
         if self._resolve_case_replica(self._case_id) is None:
             self.feedback_message = (
                 f"invitee '{self._invitee_id}' holds no copy of case"
@@ -72,7 +78,6 @@ class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        assert self.datalayer is not None
         if self.datalayer.read(self._embargo_id) is None:
             self.feedback_message = (
                 f"invitee '{self._invitee_id}' does not hold embargo"
