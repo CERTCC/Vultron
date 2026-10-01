@@ -26,6 +26,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from test.conftest import seed_case_owner_participant
 from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.embargo_tree import (
@@ -57,6 +58,7 @@ PROTOCOL_DEFAULT = timedelta(hours=96)
 def case_obj(bt_scenario: BTTestScenario) -> VulnerabilityCase:
     bt_scenario.dl.create(CaseActor(id_=ACTOR_ID, name="Vendor Co"))
     case = VulnerabilityCase(id_=CASE_ID, name="Case", attributed_to=ACTOR_ID)
+    seed_case_owner_participant(bt_scenario.dl, case)
     bt_scenario.dl.create(case)
     return case
 

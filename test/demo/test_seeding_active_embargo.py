@@ -111,3 +111,37 @@ def test_seeded_embargo_uses_the_owners_published_policy(
     embargo = _seed(owner, dl)
 
     assert abs(_duration(embargo) - timedelta(days=30)) <= _TOLERANCE
+
+
+@pytest.mark.spec("EP-04-006")
+@pytest.mark.spec("CP-09-001")
+def test_seeded_embargo_in_the_case_actors_store_uses_the_owners_policy() -> (
+    None
+):
+    """On the case-actor path the owner is the vendor, not the store's actor.
+
+    The CASE_MANAGER holds the case attributed to the vendor (CP-09-001), so
+    the vendor's policy is the actor default and the CaseActor's own is not.
+    """
+    case_actor = as_Service(name="Case Actor")
+    vendor = as_Service(name="Seeded Vendor")
+    reset_datalayer(case_actor.id_)
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor.id_)
+    dl.clear_all()
+    try:
+        dl.create(case_actor)
+        dl.create(vendor)
+        for actor_id, days in ((vendor.id_, 30), (case_actor.id_, 5)):
+            dl.create(
+                EmbargoPolicy(
+                    actor_id=actor_id,
+                    inbox=f"{actor_id}/inbox",
+                    preferred_duration=timedelta(days=days),
+                )
+            )
+        embargo = _seed(vendor, dl)
+    finally:
+        dl.close()
+        reset_datalayer(case_actor.id_)
+
+    assert abs(_duration(embargo) - timedelta(days=30)) <= _TOLERANCE

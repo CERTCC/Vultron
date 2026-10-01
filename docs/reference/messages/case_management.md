@@ -38,6 +38,10 @@ print(render_page("case_management", heading=False))
 ## Create Case
 
 - **Protocol role:** The CASE_MANAGER mints a new `VulnerabilityCase`, seats the initial participants (the Case Owner and the reporter), and links the report, then sends the completed case once to the report submitter as the trust bootstrap (spec [§4.5](../vultron-spec/index.md#45-trust-and-bootstrap-semantics); [CBT-01-001](../specs/protocol.md#cbt-01-001), [CM-22-002](../specs/protocol.md#cm-22-002)).
+- **Who is named where:** the `actor` of the `Create` is the CASE_MANAGER that mints the case, and the case's `attributedTo` is the Case Owner ([CP-09-001](../specs/protocol.md#cp-09-001), [CM-02-008](../specs/protocol.md#cm-02-008)).
+  The two coincide when the Case Owner creates its own case, as in the example below.
+  When a case-actor service creates the case from a [Case Proposal](case_proposal.md), the service is the `actor` and `attributedTo` names the proposing actor, never the service itself.
+  Every owner check reads `attributedTo`, and an ownership transfer rewrites it ([CM-21-002](../specs/protocol.md#cm-21-002)).
 - **Triggering transition:** none — object construction precedes protocol state.
 - **Wire activity:** `Create(VulnerabilityCase)`.
 - **Example artifact:** [create_case.json](../examples/create_case.json).

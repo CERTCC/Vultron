@@ -54,6 +54,8 @@ print(json2md(create_case_proposal()))
 
 - **Protocol role:** The case-actor service signals acceptance of the
   proposal. `Create(VulnerabilityCase)` follows separately (CP-05-003).
+  The service, as CASE_MANAGER, is that `Create`'s `actor`.
+  The case's `attributedTo` is the proposing actor, who becomes the Case Owner — not the service (CP-09-001).
 - **Triggering transition:** none — response to a proposal, not a state
   machine event.
 - **Wire activity:** `Accept(CaseProposal)` sent to the proposing actor's

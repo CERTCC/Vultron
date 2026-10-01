@@ -219,7 +219,7 @@ What replaced it:
 | Configured fallback, refused outside `[72h, 5d]` (EP-04-005) | `ActorConfig.protocol_default_embargo_duration` (`vultron/config/actor.py`) |
 | Shortest-wins over candidates only, fallback when none (EP-04-006/007) | `resolve_initial_embargo_duration()` (`vultron/core/services/embargo_duration.py`) |
 | Deterministic actor default: shortest, ties by policy id (EP-04-010) | `select_actor_default()` (same module); once the policy is read from the CASE_OWNER's profile (#4027) there is at most one candidate (EP-01-001) |
-| Actor default is the CASE_OWNER's own policy (EP-04-003, EP-04-010) | `ResolveEmbargoDurationNode` keys on `case.attributed_to`; on the case-actor path that field still names the case actor until #4026 sets it to the CASE_OWNER (CM-02-008) |
+| Actor default is the CASE_OWNER's own policy (EP-04-003, EP-04-010) | `ResolveEmbargoDurationNode` keys on `case.attributed_to`, which names the CASE_OWNER on every creation path (CM-02-008, CP-09-001) |
 | Distinct blackboard names (EP-04-010) | `actor_default_embargo_duration`, `protocol_default_embargo_duration`, and the resolved `initial_embargo_duration` (duration plus source) |
 | P/X/A refusal before anything is created (EP-04-008) | `CaseNotEmbargoEligibleNode`, the first arm of the `InitializeDefaultEmbargoNode` Selector |
 
@@ -244,16 +244,17 @@ later shortest-wins. The protocol also permits a profile reference that the
 CASE_MANAGER dereferences (CP-01-009); this prototype requires the inline form.
 A profile with no policy means no actor default.
 
-**Until #4026 and #4027 land, the prototype diverges from this.** Under
-ADR-0041 as built, `case.attributed_to` is the **CaseActor** that created the
-case (`CreateCaseFromProposalNode`), not the vendor that received the report —
-the vendor holds `CASE_OWNER` as a role, not as the case's `attributed_to` — and
-`ResolveEmbargoDurationNode` reads `owner_embargo_policies` on that field. So a
-policy the vendor publishes on itself never reaches the comparison, because
-nothing carries it to the CaseActor. The `report-with-embargo` demo therefore
-publishes the Receiver's default on the CaseActor its node hosts, and marks that
-step as a workaround in its narration and docstring, so #4027 can move the
-publish onto the Receiver's own profile (planned in #3979, PR #4025).
+**Until #4027 lands, the prototype diverges from this.** `case.attributed_to`
+names the CASE_OWNER on the case-actor path too (`CreateCaseFromProposalNode`,
+CP-09-001), and `ResolveEmbargoDurationNode` reads `owner_embargo_policies` on
+that field — but in the CASE_MANAGER's store, which holds no policy of the
+CASE_OWNER's, because nothing carries it there yet. So a policy the CASE_OWNER
+publishes on itself never reaches the comparison, and neither does one published
+on the CaseActor: that one is not the owner's. The `report-with-embargo` demo's
+Step 1 published the Receiver's default on the CaseActor, which worked only
+while the case was attributed to the CaseActor; with the owner fixed, the
+Receiver's default can reach creation only through the inline profile #4027
+adds (planned in #3979, PR #4025).
 
 **Initialization runs once per case.** `InitializeDefaultEmbargoNode`'s first
 arm (`CaseEmbargoAlreadyInitializedNode`) succeeds when the case already

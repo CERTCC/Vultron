@@ -76,6 +76,8 @@ from _pytest.monkeypatch import MonkeyPatch
 
 from test.demo._helpers import make_testclient_call
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 from vultron.demo.utils import case_actor_id_for_report
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -279,6 +281,7 @@ class TestCaseProposalRoundTrip:
             "ProposeCaseToActorNode may not have run (CP-04-001, CP-04-002)."
         )
 
+    @pytest.mark.spec("CP-09-001")
     def test_case_actor_sends_accept_and_create_case(self, two_app_setup):
         """Case-actor responds with Accept(CaseProposal) + Create(VulnerabilityCase).
 
@@ -352,6 +355,18 @@ class TestCaseProposalRoundTrip:
             "The case-actor may not have emitted Create(VulnerabilityCase) "
             "(CP-05-003)."
         )
+
+        # The replica keeps the owner the CASE_MANAGER recorded: the proposing
+        # vendor, never the CaseActor that created the case (CP-09-001).
+        replicas = [
+            case
+            for case in vendor_iso.dl.list_objects("VulnerabilityCase")
+            if isinstance(case, VulnerabilityCase)
+        ]
+        assert replicas, "the vendor holds no VulnerabilityCase replica"
+        assert {_as_id(case.attributed_to) for case in replicas} == {
+            vendor_actor_id
+        }
 
 
 # ---------------------------------------------------------------------------

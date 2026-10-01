@@ -150,7 +150,7 @@ class TestWriteCreateCaseMarkerNode:
         """Seed a minimal VulnerabilityCase so _build_case_object succeeds."""
         from vultron.core.models.case import VulnerabilityCase
 
-        dl.save(VulnerabilityCase(id_=case_id, attributed_to=_CASE_ACTOR_URI))
+        dl.save(VulnerabilityCase(id_=case_id, attributed_to=_VENDOR_URI))
 
     def _run_node(
         self,
@@ -761,6 +761,291 @@ class TestADR0041VendorParticipant:
         )
 
 
+def _object_type(activity: Any) -> str | None:
+    """Return the ``type`` of *activity*'s object, inline dict or model."""
+    obj = getattr(activity, "object_", None)
+    if isinstance(obj, dict):
+        return obj.get("type")
+    return getattr(obj, "type_", None)
+
+
+def _run_proposal_to_case(
+    make_payload,
+) -> tuple[SqliteDataLayer, VulnerabilityCase]:
+    """Run the full proposal tree in the case actor's store; return the case."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+    _seed_report(dl)
+    _run_full_bt(make_payload, dl)
+    cases = list(dl.list_objects("VulnerabilityCase"))
+    assert len(cases) == 1
+    case = cases[0]
+    assert isinstance(case, VulnerabilityCase)
+    return dl, case
+
+
+def _created_case_activity(dl: SqliteDataLayer) -> Any:
+    """Return the one queued ``Create(VulnerabilityCase)``."""
+    creates = []
+    for activity_id in dl.outbox_list():
+        activity = dl.read(activity_id)
+        if (
+            getattr(activity, "type_", None) == "Create"
+            and _object_type(activity) == "VulnerabilityCase"
+        ):
+            creates.append(activity)
+    assert len(creates) == 1, (
+        f"expected one Create(VulnerabilityCase), got {creates}"
+    )
+    return creates[0]
+
+
+@pytest.mark.spec("CP-09-001")
+@pytest.mark.spec("CM-22-001")
+@pytest.mark.spec("CM-02-008")
+@pytest.mark.spec("CP-05-003")
+class TestCP09001CaseAttributedToOwner:
+    """The CASE_MANAGER creates the case; the proposer owns it."""
+
+    def test_stored_case_is_attributed_to_the_proposing_actor(
+        self, make_payload
+    ):
+        _, case = _run_proposal_to_case(make_payload)
+        assert case.attributed_to == _VENDOR_URI
+        assert case.attributed_to != _CASE_ACTOR_URI
+
+    def test_owner_field_and_case_owner_participant_name_the_same_actor(
+        self, make_payload
+    ):
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+
+        dl, case = _run_proposal_to_case(make_payload)
+        participant = dl.read(case.actor_participant_index[_VENDOR_URI])
+        assert isinstance(participant, CaseParticipant)
+        assert CVDRole.CASE_OWNER in participant.case_roles
+
+    def test_create_is_by_the_case_manager_about_an_owner_attributed_case(
+        self, make_payload
+    ):
+        """AS2 carries authorship on the activity, ownership on the object."""
+        dl, _case = _run_proposal_to_case(make_payload)
+        create = _created_case_activity(dl)
+        assert create.actor == _CASE_ACTOR_URI
+        obj = create.object_
+        attributed = (
+            obj.get("attributedTo", obj.get("attributed_to"))
+            if isinstance(obj, dict)
+            else getattr(obj, "attributed_to", None)
+        )
+        assert attributed == _VENDOR_URI
+
+    @pytest.mark.spec("CLP-08-002")
+    def test_genesis_hash_stays_bound_to_the_case_actor(self, make_payload):
+        """Moving the owner field does not move the ledger's origin binding."""
+        from vultron.core.models.case_ledger import compute_genesis_hash
+
+        _, case = _run_proposal_to_case(make_payload)
+        assert case.published is not None
+        assert case.genesis_hash == compute_genesis_hash(
+            case_id=case.id_,
+            created_at=case.published,
+            case_actor_id=_CASE_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("CM-21-002")
+@pytest.mark.spec("CM-21-003")
+def test_ownership_transfer_moves_the_owner_of_a_proposal_created_case(
+    make_payload,
+):
+    """A transfer rewrites ``attributed_to`` and moves CASE_OWNER with it.
+
+    It strips CASE_OWNER from whoever ``attributed_to`` names, so the
+    attribution must name the vendor; were it the CaseActor, the transfer
+    would strip nobody and leave the vendor a second CASE_OWNER beside the new
+    one (CM-21-001).
+    """
+    from test.core.behaviors.bt_harness import BTTestScenario
+    from vultron.core.behaviors.case.nodes.ownership_transfer import (
+        AcceptCaseOwnershipTransferNode,
+    )
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.enums.roles import CVDRole
+
+    new_owner = "https://example.org/actors/coordinator"
+    dl, case = _run_proposal_to_case(make_payload)
+    coordinator = CaseParticipant(
+        attributed_to=new_owner,
+        context=case.id_,
+        case_roles=[CVDRole.COORDINATOR],
+    )
+    dl.create(coordinator)
+    case.add_participant(coordinator)
+    dl.save(case)
+
+    result = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl).run(
+        AcceptCaseOwnershipTransferNode(
+            case_id=case.id_, new_owner_id=new_owner
+        )
+    )
+
+    assert result.status.name == "SUCCESS"
+    stored = dl.read(case.id_)
+    assert isinstance(stored, VulnerabilityCase)
+    assert stored.attributed_to == new_owner
+    owners = {
+        actor
+        for actor, pid in stored.actor_participant_index.items()
+        if CVDRole.CASE_OWNER in getattr(dl.read(pid), "case_roles", [])
+    }
+    assert owners == {new_owner}
+
+
+def _proposed_case_with_open_revision(
+    make_payload,
+) -> tuple[SqliteDataLayer, VulnerabilityCase, str]:
+    """A case the CASE_MANAGER created from a proposal, with a revision open.
+
+    Returns the CASE_MANAGER's store, the case, and the id of a proposed
+    revision of the active embargo (EM.REVISE).
+    """
+    from datetime import datetime
+
+    from vultron.core.models.embargo_event import EmbargoEvent
+    from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+
+    dl, case = _run_proposal_to_case(make_payload)
+    assert case.active_embargo is not None
+    revision = EmbargoEvent(
+        end_time=datetime.now(UTC) + timedelta(days=200),
+        context=case.id_,
+    )
+    dl.create(revision)
+    EmbargoLifecycle(persistence=dl).propose_embargo(
+        case_id=case.id_, embargo_id=revision.id_, actor_id=_VENDOR_URI
+    )
+    stored = dl.read(case.id_)
+    assert isinstance(stored, VulnerabilityCase)
+    assert stored.current_status.em.state == EM.REVISE
+    return dl, stored, revision.id_
+
+
+@pytest.mark.spec("CP-09-001")
+@pytest.mark.spec("CM-13-001")
+@pytest.mark.spec("CM-02-008")
+class TestOwnerChecksOnACaseTheCaseActorCreated:
+    """Every check that reads ``attributed_to`` treats the CASE_OWNER as owner.
+
+    The case actor created the case, but it is not the owner, so each check
+    admits the CASE_OWNER and refuses the CASE_MANAGER acting as owner.
+    """
+
+    @pytest.mark.parametrize(
+        ("sender", "expected"),
+        [(_VENDOR_URI, "SUCCESS"), (_CASE_ACTOR_URI, "FAILURE")],
+    )
+    def test_case_update_gate(self, make_payload, sender, expected):
+        from test.core.behaviors.bt_harness import BTTestScenario
+        from vultron.core.behaviors.case.nodes.update import (
+            CheckCaseUpdateOwnerNode,
+        )
+
+        dl, case, _ = _proposed_case_with_open_revision(make_payload)
+        scenario = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl)
+
+        result = scenario.run(
+            CheckCaseUpdateOwnerNode(case_id=case.id_, sender_actor_id=sender)
+        )
+
+        assert result.status.name == expected
+
+    def test_owner_accepting_a_revision_activates_it(self, make_payload):
+        """answers.py accept, and pec.py's owner-acceptance at activation."""
+        from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+        from vultron.core.states.participant_embargo_consent import PEC
+
+        dl, case, revision_id = _proposed_case_with_open_revision(make_payload)
+        EmbargoLifecycle(persistence=dl).accept_embargo_invite(
+            case_id=case.id_, embargo_id=revision_id, actor_id=_VENDOR_URI
+        )
+
+        stored = dl.read(case.id_)
+        assert isinstance(stored, VulnerabilityCase)
+        assert stored.active_embargo == revision_id
+        assert stored.current_status.em.state == EM.ACTIVE
+        from vultron.core.models.case_participant import CaseParticipant
+
+        owner = dl.read(stored.actor_participant_index[_VENDOR_URI])
+        assert isinstance(owner, CaseParticipant)
+        assert owner.embargo_consent_state == PEC.SIGNATORY
+        assert revision_id in owner.accepted_embargo_ids
+
+    def test_case_actor_accepting_a_revision_only_consents(self, make_payload):
+        from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+
+        dl, case, revision_id = _proposed_case_with_open_revision(make_payload)
+        prior = case.active_embargo
+        EmbargoLifecycle(persistence=dl).accept_embargo_invite(
+            case_id=case.id_, embargo_id=revision_id, actor_id=_CASE_ACTOR_URI
+        )
+
+        stored = dl.read(case.id_)
+        assert isinstance(stored, VulnerabilityCase)
+        assert stored.active_embargo == prior
+        assert stored.current_status.em.state == EM.REVISE
+
+    @pytest.mark.parametrize(
+        ("rejecter", "em_after"),
+        [(_VENDOR_URI, EM.ACTIVE), (_CASE_ACTOR_URI, EM.REVISE)],
+    )
+    def test_only_the_owners_reject_decides_a_revision(
+        self, make_payload, rejecter, em_after
+    ):
+        """answers.py reject, and pec.py's owner-EJ consent rule."""
+        from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+
+        dl, case, revision_id = _proposed_case_with_open_revision(make_payload)
+        result = EmbargoLifecycle(persistence=dl).reject_embargo_invite(
+            case_id=case.id_, embargo_id=revision_id, actor_id=rejecter
+        )
+
+        stored = dl.read(case.id_)
+        assert isinstance(stored, VulnerabilityCase)
+        assert stored.current_status.em.state == em_after
+        if rejecter == _VENDOR_URI:
+            # The owner keeping the prior terms changes nobody's consent (EJ).
+            assert result.participant_changes == []
+
+    @pytest.mark.parametrize(
+        ("decided_by", "pruned"),
+        [(_VENDOR_URI, True), (_CASE_ACTOR_URI, False)],
+    )
+    def test_teardown_prune_authorization(
+        self, make_payload, decided_by, pruned
+    ):
+        from test.core.behaviors.bt_harness import BTTestScenario
+        from vultron.core.behaviors.embargo.nodes.teardown import (
+            RemoveFromProposedEmbargoesNode,
+        )
+
+        dl, case, revision_id = _proposed_case_with_open_revision(make_payload)
+        assert revision_id in case.proposed_embargoes
+        scenario = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl)
+
+        result = scenario.run(
+            RemoveFromProposedEmbargoesNode(
+                case_id=case.id_,
+                embargo_id=revision_id,
+                decided_by=decided_by,
+            )
+        )
+
+        assert result.status.name == "SUCCESS"
+        stored = dl.read(case.id_)
+        assert isinstance(stored, VulnerabilityCase)
+        assert (revision_id not in stored.proposed_embargoes) is pruned
+
+
 @pytest.mark.spec("CP-09-007")
 @pytest.mark.spec("CP-09-008")
 class TestOwnerRolesComeFromActorConfig:
@@ -1078,10 +1363,11 @@ class TestADR0041EmbargoInit:
     def test_vendor_owner_seeded_as_signatory(self, make_payload):
         """CM-13: vendor (CASE_OWNER) is SIGNATORY on the active embargo.
 
-        Regression for the gap where InitializeDefaultEmbargoNode's
-        SeedOwnerAsSignatoryNode keys on actor_id (the CaseActor, not a
-        participant here) and silently no-ops, leaving an ACTIVE embargo with
-        no signatory.
+        ``InitializeDefaultEmbargoNode``'s ``SeedOwnerAsSignatoryNode`` is the
+        one path that seeds it: it reads the owner from the case's
+        ``attributed_to`` (CP-09-001), not from the executing CaseActor, which
+        is not a participant here and once left an ACTIVE embargo with no
+        signatory.
         """
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.case_participant import CaseParticipant
@@ -2071,7 +2357,7 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
         )
         dl.save(case_actor_participant)
 
-        case = VulnerabilityCase(id_=_CASE_URI, attributed_to=_CASE_ACTOR_URI)
+        case = VulnerabilityCase(id_=_CASE_URI, attributed_to=_VENDOR_URI)
         case.add_participant(vendor_participant)
         case.add_participant(case_actor_participant)
         dl.save(case)
@@ -2568,12 +2854,18 @@ class TestEP04SenderProposalAtCaseCreation:
         )
 
     def _publish_owner_policy(self, dl: SqliteDataLayer) -> None:
+        """Publish the CASE_OWNER's actor default — the proposing vendor's.
+
+        The case is attributed to the proposing actor (CP-09-001), so it is
+        that actor's policy that competes under shortest-wins (EP-04-003),
+        never one the CaseActor published.
+        """
         from vultron.core.models.embargo_policy import EmbargoPolicy
 
         dl.create(
             EmbargoPolicy(
-                actor_id=_CASE_ACTOR_URI,
-                inbox=f"{_CASE_ACTOR_URI}/inbox",
+                actor_id=_VENDOR_URI,
+                inbox=f"{_VENDOR_URI}/inbox",
                 preferred_duration=self._ACTOR_DEFAULT,
             )
         )
@@ -2655,6 +2947,34 @@ class TestEP04SenderProposalAtCaseCreation:
         assert revision.context == case.id_
         assert revision.end_time > terms.end_time
         assert revision.end_time - terms.end_time > timedelta(days=19)
+
+    @pytest.mark.spec("EP-04-003")
+    @pytest.mark.spec("CP-09-001")
+    def test_the_case_actors_own_policy_is_not_the_actor_default(
+        self, make_payload
+    ):
+        """The CASE_MANAGER creates the case but its policy never competes.
+
+        A five-day CaseActor policy would beat the sender's ten days; the
+        owner's thirty-day default must not, so the sender's terms win.
+        """
+        from vultron.core.models.embargo_policy import EmbargoPolicy
+
+        dl = self._store()
+        self._publish_owner_policy(dl)
+        dl.create(
+            EmbargoPolicy(
+                actor_id=_CASE_ACTOR_URI,
+                inbox=f"{_CASE_ACTOR_URI}/inbox",
+                preferred_duration=timedelta(days=5),
+            )
+        )
+        case, terms = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS
+        )
+
+        assert case.attributed_to == _VENDOR_URI
+        assert case.active_embargo_id == terms.id_
 
     @pytest.mark.spec("EP-04-003")
     @pytest.mark.spec("EP-04-004")
@@ -2795,13 +3115,9 @@ def _outbox_labels(dl: SqliteDataLayer) -> list[str]:
     labels: list[str] = []
     for activity_id in dl.outbox_list():
         activity = dl.read(activity_id)
-        obj = getattr(activity, "object_", None)
-        obj_type = (
-            obj.get("type")
-            if isinstance(obj, dict)
-            else getattr(obj, "type_", None)
+        labels.append(
+            f"{getattr(activity, 'type_', '?')}({_object_type(activity)})"
         )
-        labels.append(f"{getattr(activity, 'type_', '?')}({obj_type})")
     return labels
 
 

@@ -41,6 +41,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models._helpers import _as_id, from_now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_duration import (
     EmbargoDurationSource,
@@ -247,15 +248,19 @@ class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
             self._set_output("default_embargo_initialized", False)
             return Status.SUCCESS
 
+        # The creation-time embargo is the owner's to set: either the owner
+        # creates the case itself, or the CASE_MANAGER creates it on the
+        # owner's behalf from a proposal (CP-09-001, CP-09-003) — the case is
+        # then attributed to the owner while the CASE_MANAGER runs this tree.
         owner_actor_id = _as_id(stored_case.attributed_to)
-        if owner_actor_id != self.actor_id:
-            self.logger.error(
-                "%s: actor '%s' is not case owner '%s' for case '%s'",
-                self.name,
-                self.actor_id,
-                owner_actor_id,
-                case_id,
+        if self.actor_id != owner_actor_id and self.actor_id != (
+            resolve_case_manager_id(stored_case, self.datalayer)
+        ):
+            self.feedback_message = (
+                f"actor '{self.actor_id}' is neither case owner"
+                f" '{owner_actor_id}' nor the CASE_MANAGER of case '{case_id}'"
             )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
         status = self._propose_with_em_io(case_id, embargo_id)
@@ -372,7 +377,20 @@ class AttachEmbargoToCaseNode(DataLayerActionWithPorts):
 
 
 class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
-    """Seed the case-owner participant as SIGNATORY (CM-14-003)."""
+    """Seed the case-owner participant as SIGNATORY (CM-14-003).
+
+    The owner is read from the case — ``attributed_to``, the CASE_OWNER
+    (CM-02-008, CP-09-001) — never from the actor running the tree.  On the
+    CASE_MANAGER's creation path those differ: the CASE_MANAGER runs the tree
+    and the proposing actor owns the case.  Keying on the executing actor
+    seeds nobody there, so the owner comes from the case and every creation
+    path shares this one seeding node.
+
+    The owner's participant record is created before the embargo is
+    initialized (CM-14-002), so a missing record — or a case naming no owner
+    — is a broken precondition: the node fails rather than report a seed it
+    did not make (ARCH-15).
+    """
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -400,10 +418,9 @@ class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
         )
 
     def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
+        if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        assert self.actor_id is not None
 
         case_id = self.bb_case_id
         embargo_initialized = self.embargo_initialized
@@ -414,29 +431,25 @@ class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        participant_id = stored_case.actor_participant_index.get(self.actor_id)
-        if not participant_id:
-            self.logger.warning(
-                "%s: No participant found for owner '%s' in case '%s'"
-                " — cannot seed SIGNATORY",
-                self.name,
-                self.actor_id,
-                case_id,
-            )
-            return Status.SUCCESS
-
-        participant = self.datalayer.read(
-            participant_id, raise_on_missing=False
+        owner_id = _as_id(stored_case.attributed_to)
+        participant_id = (
+            stored_case.actor_participant_index.get(owner_id)
+            if owner_id is not None
+            else None
+        )
+        participant = (
+            self.datalayer.read(participant_id, raise_on_missing=False)
+            if participant_id
+            else None
         )
         if not isinstance(participant, CaseParticipant):
-            self.logger.warning(
-                "%s: Participant '%s' not found in case '%s'"
-                " — cannot seed SIGNATORY",
-                self.name,
-                participant_id,
-                case_id,
+            self.feedback_message = (
+                f"case owner '{owner_id}' has no participant record in case"
+                f" '{case_id}' — cannot seed SIGNATORY (CM-14-002 creates it"
+                " first)"
             )
-            return Status.SUCCESS
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
         embargo_id = _as_id(stored_case.active_embargo)
         if participant.embargo_consent_state not in (
@@ -451,7 +464,7 @@ class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
             "Seeded case-owner participant '%s' (actor '%s') as SIGNATORY"
             " for embargo in case '%s' (CM-14-003)",
             participant_id,
-            self.actor_id,
+            owner_id,
             case_id,
         )
         return Status.SUCCESS
