@@ -51,7 +51,8 @@ stakeholder_type: [project-contributor]
 ### 3a) BT Node Blackboard Conventions
 
 - **Typed ports (preferred)**: BT DataLayer nodes must declare blackboard key dependencies as typed class attributes (the `WithPorts` variants) rather than calling `register_key()` at runtime. The ratchet test `test_no_bare_register_key_datalayer_nodes.py` enforces this — adding a node with `register_key()` in `setup()` causes immediate CI failure (BTND-03-009).
-- **Wire render via port**: when a BT node needs wire-shaped (AS2 JSON) output from a domain object, it must use `WireRenderPort` (`vultron/core/ports/wire_render.py`) injected via the adapter — never import from `vultron/wire/` directly inside core.
+- **Wire render via port**: when a BT node needs wire-shaped (AS2 JSON) output from a domain object, it must use `WireRenderPort` (`vultron/core/ports/wire_render.py`) injected via the adapter — never import from `vultron/wire/` directly inside core, and never call `model_dump(by_alias=True)` in core (the ratchet baseline is empty).
+  A node reads the port with `_require_wire_render_port()`, which raises `VultronWiringError` when the port is missing.
 
 ### 4) Error and Logging Conventions
 

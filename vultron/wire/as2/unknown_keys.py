@@ -52,7 +52,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
 
-#: The JSON-LD context key every object may carry (MV-11-001).
+#: The JSON-LD context key every object may carry (MV-11-001).  It is the only
+#: JSON-LD keyword that is a declared spelling: ``@id`` and ``@type`` are near
+#: misses of ``id`` and ``type`` by design, because AS2 compacts them away (AS2
+#: Core section 2.1), so they MUST NOT be declared or exempted (MV-11-002).
 CONTEXT_KEY = "@context"
 
 # Field names whose values are opaque data blobs (declared ``dict[str, Any]``),

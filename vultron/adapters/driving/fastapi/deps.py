@@ -15,10 +15,11 @@
 
 """Shared FastAPI dependency providers for driving adapters.
 
-This module centralises the DataLayer and TriggerService dependencies so
-that all trigger routers share the same injectable seams.  Tests override
-a single dependency (``get_trigger_dl`` or ``get_trigger_service``) rather
-than overriding per-router local functions.
+This module centralises the DataLayer and trigger-dispatcher dependencies so
+that all trigger routers share the same injectable seams.  Tests override a
+single dependency (``get_trigger_dl``) rather than overriding per-router local
+functions; ``get_trigger_dispatcher`` resolves its store through that seam, so
+one override reaches both.
 
 Functions
 ---------
@@ -32,13 +33,13 @@ node_db_url_template
 get_trigger_dl
     Alias of :func:`get_actor_dl`, kept as a distinct override point for
     trigger-route tests.
-get_canonical_actor_dl
-    Alias of :func:`get_actor_dl`.
 get_hosted_actor_dls
     Return every store this node hosts, keyed by canonical actor URI, for
     node-level operations such as the admin reset.
-get_trigger_service
-    Construct and return a :class:`~vultron.core.use_cases.triggers.service.TriggerService`.
+get_trigger_dispatcher
+    Construct and return the registry-backed
+    :class:`~vultron.core.ports.trigger_dispatcher.TriggerDispatcher`
+    (ADR-0110); the seam ``run_trigger`` routes go through.
 
 Under ADR-0073 there is no shared DataLayer to inject, so every one of these
 resolves the path segment to a canonical actor URI by computation and returns
@@ -52,13 +53,15 @@ from typing import cast
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
-from vultron.core.ports.trigger_service import TriggerServicePort
-from vultron.core.use_cases.triggers.service import TriggerService
+from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
+from vultron.core.trigger_dispatcher import RegistryTriggerDispatcher
+from vultron.trigger_registry import entries as trigger_registry_entries
 
 
 def node_base_url(request: Request | None) -> str | None:
@@ -160,21 +163,6 @@ def get_trigger_dl(
     return dl
 
 
-def get_canonical_actor_dl(
-    dl: DataLayer = Depends(get_actor_dl),
-) -> DataLayer:
-    """FastAPI dependency: alias of :func:`get_actor_dl`.
-
-    Retained so existing trigger routes and their test overrides keep working;
-    the "canonical" qualifier is now redundant because every actor DataLayer is
-    keyed by the canonical URI.
-
-    Delegates through ``Depends`` for the reason given in
-    :func:`get_trigger_dl`.
-    """
-    return dl
-
-
 def get_hosted_actor_dls(
     request: Request = None,  # type: ignore[assignment]
 ) -> dict[str, DataLayer]:
@@ -205,23 +193,38 @@ def get_hosted_actor_dls(
     }
 
 
-def get_trigger_service(
-    dl: DataLayer = Depends(get_trigger_dl),
-) -> TriggerServicePort:
-    """FastAPI dependency: construct and return a :class:`TriggerService`.
+def outbox_store(dl: DataLayer) -> CaseOutboxPersistence:
+    """View the addressed actor's ``DataLayer`` as its ``CaseOutboxPersistence``.
 
-    Inject ``app.dependency_overrides[get_trigger_service] = lambda: mock``
-    in tests to replace the service with a ``Mock(spec=TriggerServicePort)``.
-
-    ``get_trigger_dl`` returns a ``SqliteDataLayer`` at runtime, which
-    satisfies ``CaseOutboxPersistence`` structurally.  The cast below is
-    safe; see DL-07-001 / DL-07-002 (which retired ARCH-13-001 / ARCH-13-002:
-    with every DataLayer belonging to exactly one actor there is no unscoped
-    instance the cast could smuggle in).
+    ``get_trigger_dl`` returns a ``SqliteDataLayer`` at runtime, which satisfies
+    ``CaseOutboxPersistence`` structurally.  The cast is safe: with every
+    DataLayer belonging to exactly one actor there is no unscoped instance it
+    could smuggle in (DL-07-001 / DL-07-002, which retired ARCH-13-001 /
+    ARCH-13-002).  One helper, shared by :func:`get_trigger_dispatcher` and
+    ``run_trigger``, so the reasoning is written once.
     """
-    cop = cast(CaseOutboxPersistence, dl)
-    return TriggerService(
-        cop,
-        sync_port=SyncActivityAdapter(cop),
+    return cast(CaseOutboxPersistence, dl)
+
+
+def get_trigger_dispatcher(
+    dl: DataLayer = Depends(get_trigger_dl),
+) -> TriggerDispatcher:
+    """FastAPI dependency: the registry-backed ``TriggerDispatcher``.
+
+    Built per request over the addressed actor's store, so the driven ports it
+    injects — ``TriggerActivityAdapter`` and ``SyncActivityAdapter`` persist
+    into that actor's outbox — belong to the actor the path names
+    (TRIG-06-001).  Resolves the store through ``Depends(get_trigger_dl)`` so
+    ``app.dependency_overrides`` on that seam reaches this one (TRIG-06-002).
+
+    Tests of the routes in front of this port run the real dispatcher over an
+    in-memory store; never ``Mock(spec=TriggerDispatcher)``
+    (``vultron/core/ports/AGENTS.md``).
+    """
+    cop = outbox_store(dl)
+    return RegistryTriggerDispatcher(
+        trigger_registry_entries(),
         trigger_activity=TriggerActivityAdapter(cop),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(cop),
     )

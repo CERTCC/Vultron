@@ -550,7 +550,10 @@ is stated once there and holds everywhere:
    tells the peer the compact spelling to send. Never "helpfully" add
    `validation_alias="@id"` (or `"@type"`) to any root that declares `id` and
    `type` — `as_Base`, `as_VultronObject`, `CoreRecord` or `CoreObject`; the
-   rule holds on both branches.
+   rule holds on both branches. Ratchet (#3969):
+   `test/wire/as2/test_unknown_key_disposition.py` fails if any registered
+   class declares either keyword, if a partition exemption set names one, or
+   if a string constant under `vultron/` equals one.
 3. Any **other** unknown key is **set aside and reported** at INFO with
    `activity_id`, the sender's `actor_id`, field path and key; the activity
    proceeds on its declared fields (MV-11-003). Never carry the key on the

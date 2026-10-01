@@ -345,6 +345,10 @@ because the dated amendments inside it (#3485, #3490) are decision content that
   The namespace is supplied in exactly one place (VM-10).
   A `by_alias` dump of any core object is then complete AS2, with no second step to forget.
   A persistence dump, which does not use `by_alias`, still carries no context.
+
+  **Amended 2026-09-30 (#3930): the render also passes `serialize_as_any=True`.**
+  Once every ledger snapshot went through the port, a received activity's inline wire object whose field held a value other than its declared type (an actor's `inbox` as the IRI string) became a serializer warning instead of a rendering.
+  Serialising nested values by their runtime type is what every other AS2 path in the codebase already did, so ARCH-20-002 now names the flag.
 - **Collapse the core root stack from three levels to two.** The middle level
   (`VultronObject`) existed only to keep timestamps optional so the wire half
   could stay lenient (ARCH-12-002); `CoreObject` then re-tightened them. With no

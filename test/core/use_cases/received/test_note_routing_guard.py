@@ -35,6 +35,7 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -140,6 +141,7 @@ class TestAddNoteToCaseLedgerRouting:
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
@@ -170,6 +172,7 @@ class TestAddNoteToCaseLedgerRouting:
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         # HP-01-005: the note was the CASE_MANAGER's to record; a receiver
         # without that role refuses rather than reporting a processed no-op.
@@ -207,6 +210,7 @@ class TestAddNoteToCaseLedgerRouting:
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 

@@ -226,10 +226,13 @@ groups:
       a report, proposing an embargo). A trigger is **demo-only** if the only reason it exists is to let a demo script puppeteer
       an actor through a step the actor's own BT would handle autonomously in a real deployment.
     verification: >-
-      Inspection of `vultron/adapters/driving/fastapi/` confirms that triggers for
-      external-stimulus or operator-decision use cases are registered under
-      `/trigger/` and that triggers existing solely to puppeteer demo flows are
-      registered under `/demo/`.
+      Every row of the trigger registry (TRIG-12-004) declares its `exposure`
+      (general-purpose or demo-only), so the classification is a data-table fact
+      per verb rather than a docstring judgment; the route-to-registry test
+      (`test/adapters/driving/fastapi/test_trigger_registry_routes.py`) asserts
+      each row is mounted under the prefix its exposure names. Which exposure a
+      verb *deserves* is still a review question answered against this
+      requirement's definitions when the row is added.
     lint_suppress:
     - missing_story_reference
   - id: TRIG-08-003

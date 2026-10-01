@@ -29,6 +29,7 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_guarded_commit_case_ledger_entry_tree,
 )
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -117,22 +118,15 @@ class _FakeActivity:
         self.activity_id = activity_id
         self.semantic_type = semantic_type
 
-        class _Payload:
-            def model_dump(self, **_: object) -> dict[str, object]:
-                return {
-                    "id": activity_id,
-                    "type": "Create",
-                    "actor": MANAGER_ACTOR_ID,
-                    # CLP-07-011: the commit boundary requires a claimed
-                    # timestamp on every recorded snapshot.
-                    "published": now_utc().isoformat(),
-                    "object": {
-                        "id": CASE_ID,
-                        "type": "VulnerabilityCase",
-                    },
-                }
-
-        self.activity = _Payload()
+        self.activity = VultronActivity(
+            id_=activity_id,
+            type_="Create",
+            actor=MANAGER_ACTOR_ID,
+            # CLP-07-011: the commit boundary requires a claimed timestamp on
+            # every recorded snapshot.
+            published=now_utc(),
+            object_={"id": CASE_ID, "type": "VulnerabilityCase"},
+        )
 
 
 @pytest.fixture

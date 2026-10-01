@@ -31,6 +31,7 @@ from vultron.core.use_cases.received._bt_verdict import (
 )
 
 if TYPE_CHECKING:
+    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.core.ports.sync_activity import SyncActivityPort
 
 logger = logging.getLogger(__name__)
@@ -38,9 +39,13 @@ logger = logging.getLogger(__name__)
 
 class CreateNoteReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: CreateNoteReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: CreateNoteReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: CreateNoteReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -61,7 +66,9 @@ class CreateNoteReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        )
         tree = create_note_tree(note_obj=note, case_id=case_id)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=actor_id, activity=request
@@ -98,8 +105,10 @@ class AddNoteToCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: AddNoteToCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AddNoteToCaseReceivedEvent = request
         self._sync_port = sync_port
 
@@ -127,7 +136,9 @@ class AddNoteToCaseReceivedUseCase:
             note_id=note_id,
             case_id=case_id,
         )
-        result = BTBridge(datalayer=self._dl).execute_with_setup(
+        result = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
@@ -154,9 +165,13 @@ class AddNoteToCaseReceivedUseCase:
 
 class RemoveNoteFromCaseReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: RemoveNoteFromCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: RemoveNoteFromCaseReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: RemoveNoteFromCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:

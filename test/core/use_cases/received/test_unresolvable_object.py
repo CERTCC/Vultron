@@ -15,6 +15,8 @@
 
 from typing import cast
 
+import pytest
+
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -118,6 +120,28 @@ class TestUnresolvableObjectUseCase:
         stored = dl.by_type("DeadLetterRecord")
         record_data = next(iter(stored.values()))
         assert record_data.get("activity_summary") is not None
+
+    @pytest.mark.spec("ARCH-20-001")
+    def test_activity_summary_is_stored_in_the_persistence_shape(self):
+        """The summary is a local record, so it is not rendered as AS2.
+
+        Core must not render the core-branch activity itself (ARCH-20-001), and a
+        stored record keeps Python field names with no ``@context`` (ADR-0099
+        detail 1), so the summary is the activity's plain dump.
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        event = _make_unresolvable_event()
+
+        UnresolvableObjectUseCase(dl, event).execute()
+
+        record_data = next(iter(dl.by_type("DeadLetterRecord").values()))
+        summary = record_data["activity_summary"]
+        assert summary["object_"] == event.object_id
+        assert "object" not in summary
+        assert "@context" not in summary
 
     def test_execute_is_idempotent(self):
         """Calling execute() twice stores two records (no deduplication at this layer)."""

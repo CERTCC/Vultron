@@ -38,8 +38,7 @@ FUTURE_END_TIME = "2099-12-01T00:00:00Z"
 def _no_outbox_delivery():
     """Suppress real outbox delivery for every test in this module."""
     with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
+        "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler",
         new_callable=AsyncMock,
     ):
         yield

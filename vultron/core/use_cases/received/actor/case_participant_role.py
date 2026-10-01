@@ -27,6 +27,7 @@ from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
+    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
@@ -49,8 +50,10 @@ class OfferCaseParticipantRoleReceivedUseCase:
         request: OfferCaseParticipantRoleReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: SyncActivityPort | None = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: OfferCaseParticipantRoleReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
@@ -84,6 +87,7 @@ class OfferCaseParticipantRoleReceivedUseCase:
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,

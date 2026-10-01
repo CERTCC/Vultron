@@ -22,6 +22,7 @@ from ._helpers import (
 )
 
 if TYPE_CHECKING:
+    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -35,8 +36,10 @@ class EngageCaseReceivedUseCase:
         request: EngageCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: EngageCaseReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
@@ -82,6 +85,7 @@ class EngageCaseReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
         tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
@@ -109,8 +113,10 @@ class DeferCaseReceivedUseCase:
         request: DeferCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: DeferCaseReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
@@ -147,6 +153,7 @@ class DeferCaseReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
         tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(

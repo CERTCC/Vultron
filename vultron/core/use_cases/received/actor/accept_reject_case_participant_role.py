@@ -14,6 +14,7 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import _idempotent_create
 
 logger = logging.getLogger(__name__)
@@ -31,8 +32,10 @@ class AcceptCaseParticipantRoleReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AcceptCaseParticipantRoleReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AcceptCaseParticipantRoleReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -66,8 +69,10 @@ class RejectCaseParticipantRoleReceivedUseCase:
         self,
         dl: CasePersistence,
         request: RejectCaseParticipantRoleReceivedEvent,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: RejectCaseParticipantRoleReceivedEvent = request
 
     def execute(self) -> HandlerResult:

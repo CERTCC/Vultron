@@ -424,3 +424,77 @@ class TestApplyPecTransition:
         assert status is not None
         assert status.consent is not None
         assert status.consent.state == PEC.LAPSED
+
+
+class TestAcceptedEmbargoList:
+    """``add_accepted_embargo`` / ``remove_accepted_embargo`` (CM-10-001)."""
+
+    def test_add_is_idempotent_and_reports_whether_the_id_was_new(self):
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.participant_embargo_consent import PEC
+
+        participant = CaseParticipant(
+            attributed_to="urn:actor", context="urn:case"
+        )
+        assert participant.add_accepted_embargo("urn:e1") is True
+        assert participant.add_accepted_embargo("urn:e1") is False
+        assert participant.accepted_embargo_ids == ["urn:e1"]
+        # The list is the per-embargo record; the scalar state is untouched.
+        assert participant.embargo_consent_state == PEC.UNBOUND
+
+    def test_remove_is_idempotent_and_reports_whether_the_id_was_there(self):
+        from vultron.core.models.case_participant import CaseParticipant
+
+        participant = CaseParticipant(
+            attributed_to="urn:actor",
+            context="urn:case",
+            accepted_embargo_ids=["urn:e1", "urn:e2"],
+        )
+        assert participant.remove_accepted_embargo("urn:e1") is True
+        assert participant.remove_accepted_embargo("urn:e1") is False
+        assert participant.accepted_embargo_ids == ["urn:e2"]
+
+
+class TestAcceptsPecTrigger:
+    """accepts_pec_trigger() is the read-only twin of apply_pec_transition()."""
+
+    @pytest.mark.spec("CM-18-003")
+    @pytest.mark.parametrize(
+        "state, accepts",
+        [
+            (PEC.UNBOUND, True),
+            (PEC.LAPSED, True),
+            (PEC.DECLINED, True),
+            (PEC.INVITED, False),
+            (PEC.SIGNATORY, False),
+        ],
+    )
+    def test_invite_is_legal_only_from_unbound_lapsed_or_declined(
+        self, state, accepts
+    ):
+        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+
+        p = _make(embargo_consent_state=state)
+        assert p.accepts_pec_trigger(PEC_Trigger.INVITE) is accepts
+
+    def test_asking_changes_nothing(self):
+        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+
+        p = _make(embargo_consent_state=PEC.SIGNATORY)
+        p.accepts_pec_trigger(PEC_Trigger.INVITE)
+        p.accepts_pec_trigger(PEC_Trigger.DECLINE)
+        assert p.embargo_consent_state == PEC.SIGNATORY
+
+    def test_an_unset_consent_state_reads_as_unbound(self):
+        """The None prelude mirrors apply_pec_transition(): unset is UNBOUND.
+
+        Validation never admits ``None`` (the before-validator seeds UNBOUND),
+        so the branch is reachable only on a record built without validation.
+        """
+        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+
+        p = CaseParticipant.model_construct(
+            attributed_to=_ACTOR, context=_CONTEXT, embargo_consent_state=None
+        )
+        assert p.accepts_pec_trigger(PEC_Trigger.INVITE) is True
+        assert p.accepts_pec_trigger(PEC_Trigger.REVISE) is False

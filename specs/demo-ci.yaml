@@ -171,7 +171,8 @@ groups:
           `wait_for_participants_on_replicas` (#3384) — so the constraint is
           stated explicitly and enforced by an architecture ratchet rather than
           reviewer vigilance. Wrapping inside the shared helper (as
-          `drain_phase1_ledger` already does) fixes every caller at once.
+          `wait_for_participants_on_replicas` and
+          `wait_for_replica_ledger_coverage` do) fixes every caller at once.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-01-003

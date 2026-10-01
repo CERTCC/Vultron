@@ -13,7 +13,7 @@ stakeholder_type: [project-contributor]
 - **Primary constraints**:
   1. `vultron/core/` must not import from `vultron/adapters/` or `vultron/wire/` (enforced by `test/architecture/`)
   2. All external writes flow through `DataLayer.save()` — direct ORM mutations inside `execute()` are forbidden (ARCH-13)
-  3. Use-case entry points follow `UseCase.__init__(dl, request)` + `execute() -> UseCaseResult` protocol (received handlers return `HandlerResult`; trigger use cases are not yet migrated, #3831); routing is table-driven via `USE_CASE_MAP`
+  3. Use-case entry points follow `UseCase.__init__(dl, request)` + `execute() -> UseCaseResult` protocol (received handlers return `HandlerResult`; trigger use cases return their verb's `TriggerResult` subtype, ADR-0110); routing is table-driven on both sides — `SEMANTIC_REGISTRY` for received activities, `vultron/trigger_registry/` for trigger verbs
 
 ### 2) System Flow
 

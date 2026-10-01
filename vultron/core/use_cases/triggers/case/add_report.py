@@ -21,7 +21,7 @@ import py_trees.behaviour
 from vultron.core.behaviors.case.add_object_trigger_tree import (
     add_object_trigger_bt,
 )
-from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
+from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
     resolve_case,
@@ -34,7 +34,7 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 logger = logging.getLogger(__name__)
 
 
-class SvcAddReportToCaseUseCase(SvcBTTriggerBase):
+class SvcAddReportToCaseUseCase(SvcActivityTriggerBase):
     """Link a VulnerabilityReport to an existing case.
 
     Validates that the referenced object is a ``VulnerabilityReport``, then

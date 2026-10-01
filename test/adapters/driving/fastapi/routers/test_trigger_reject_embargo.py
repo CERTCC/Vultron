@@ -35,8 +35,7 @@ from vultron.core.states.em import EM
 def _no_outbox_delivery():
     """Suppress real outbox delivery for every test in this module."""
     with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
+        "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler",
         new_callable=AsyncMock,
     ):
         yield

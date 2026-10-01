@@ -3,6 +3,7 @@ title: Architecture Ratchet Corpus
 status: active
 related_notes:
   - notes/wire-core-boundary.md
+  - notes/spec-authoring-rules.md
 ---
 
 # Architecture Ratchet Corpus

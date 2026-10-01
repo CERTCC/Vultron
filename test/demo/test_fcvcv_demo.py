@@ -28,8 +28,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import vultron.demo.helpers.sync as sync_module
 import vultron.demo.scenario.fcvcv_demo as demo
+import vultron.demo.utils as demo_utils
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.utils import reset_demo_failures
+
+from test.demo._helpers import patched_report_submission
 
 
 class _Helpers:
@@ -103,6 +108,7 @@ class TestFinderCaseReplicaWaitBeforeV1Triage(_Helpers):
             ),
             patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(demo, "verify_case_active"),
             patch.object(
                 ActorSession,
@@ -360,6 +366,7 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
             ),
             patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(demo, "verify_case_active"),
             patch.object(
                 demo, "wait_for_case_on_container", side_effect=_wait_for_case
@@ -543,7 +550,7 @@ class TestFcvcvCausalGates(_Helpers):
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_case_on_container") as replica_wait,
             patch.object(demo, "verify_case_active"),
-            patch.object(demo, "drain_phase1_ledger"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(demo, "run_invite_path_rm_triage") as rm_triage,
             patch.object(
                 ActorSession,
@@ -703,6 +710,7 @@ class TestFcvcvRmTriageTimeout(_Helpers):
                 demo, "run_direct_path_rm_triage", return_value=case
             ) as mock_rm_triage,
             patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(demo, "verify_case_active"),
             patch.object(
                 ActorSession,
@@ -797,7 +805,7 @@ class TestFcvcvInviteTriggerFailureSkipsDependents(_Helpers):
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_case_on_container") as replica_wait,
             patch.object(demo, "verify_case_active"),
-            patch.object(demo, "drain_phase1_ledger"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(demo, "run_invite_path_rm_triage") as rm_triage,
             patch.object(
                 ActorSession,
@@ -839,3 +847,141 @@ class TestFcvcvInviteTriggerFailureSkipsDependents(_Helpers):
         ], "rm_triage ran for the skipped dependent: " + str(
             rm_triage.call_args_list
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 drain goes through the shared coverage helper (DEMOMA-23-005, #3906)
+# ---------------------------------------------------------------------------
+
+
+class TestFcvcvPhase1DrainViaSharedHelper(_Helpers):
+    """The Phase 1 ledger drain is ``wait_for_replica_ledger_coverage``.
+
+    ``drain_phase1_ledger`` was the last private copy of the
+    read-authority-tail-then-poll-each-replica loop outside
+    ``vultron/demo/helpers/sync.py`` (#3906).  The scenario now calls the
+    shared helper with the same authority and replica pairs it passed the
+    drain, and inherits the helper's behaviour when the authority holds no
+    entries: one recorded gate failure naming the authority (EDF-06-005)
+    where the drain used to return silently.
+    """
+
+    _CLIENTS = (
+        "finder_client",
+        "c1_client",
+        "v1_client",
+        "c2_client",
+        "v2_client",
+    )
+
+    def _run_report_submission(self, clients: dict, *, stub_coverage: bool):
+        """Run ``_phase_report_submission`` with every other collaborator patched.
+
+        With ``stub_coverage=False`` the real ``wait_for_replica_ledger_coverage``
+        runs, and the only demo context that can record anything is the one
+        inside it, which the helper takes from ``vultron.demo.utils`` directly.
+        """
+        case = self._case("urn:test:case")
+        demo_patches: dict[str, dict] = {
+            name: {}
+            for name in (
+                "wait_for_case_participants",
+                "verify_case_active",
+                "post_to_inbox_and_wait",
+                "verify_object_stored",
+                "wait_for_case_on_container",
+                "run_invite_path_rm_triage",
+            )
+        }
+        demo_patches["find_case_invite_for_actor"] = {
+            "return_value": "urn:test:invite"
+        }
+        if stub_coverage:
+            demo_patches["wait_for_replica_ledger_coverage"] = {}
+        with patched_report_submission(
+            demo,
+            seed_fn="seed_containers_fcvcv",
+            seeded_actors=(
+                self._actor("urn:test:finder"),
+                self._actor("urn:test:c1"),
+                self._actor("urn:test:v1"),
+                self._actor("urn:test:c2"),
+                MagicMock(),
+            ),
+            actor_lookups=[
+                self._actor("urn:test:c1"),
+                self._actor("urn:test:v1"),
+                self._actor("urn:test:c2"),
+            ],
+            case=case,
+            demo_patches=demo_patches,
+            session_patches=("accept_case_invite",),
+        ) as mocks:
+            demo._phase_report_submission(
+                finder_id=None,
+                c1_id=None,
+                v1_id=None,
+                c2_id=None,
+                v2_id=None,
+                **clients,
+            )
+        return case, mocks
+
+    def test_phase1_drain_calls_shared_helper_with_same_authority_and_replicas(
+        self,
+    ):
+        """AC-1: same authority, same replica pairs, Phase 1 label, causal gate."""
+        clients = {k: self._client() for k in self._CLIENTS}
+        case, mocks = self._run_report_submission(clients, stub_coverage=True)
+
+        coverage = mocks["wait_for_replica_ledger_coverage"]
+        coverage.assert_called_once()
+        kwargs = coverage.call_args.kwargs
+        assert kwargs["auth_client"] is clients["c1_client"]
+        assert kwargs["replicas"] == [
+            (clients["finder_client"], "Finder"),
+            (clients["v1_client"], "V1"),
+            (clients["c2_client"], "C2"),
+        ]
+        assert kwargs["case_id"] == case.id_
+        assert kwargs["phase_label"] == "Phase 1 drain before Phase 2"
+        # The drain is a causal gate for Phase 2 (EDF-06-005): the helper's
+        # default, so the scenario must not downgrade it to a temporal check.
+        assert "causal" not in kwargs
+        assert "late_joiners" not in kwargs
+
+    def test_phase1_drain_records_gate_failure_when_authority_holds_no_entries(
+        self,
+    ):
+        """AC-4: an empty authority ledger is one GATE FAILED naming the authority.
+
+        ``drain_phase1_ledger`` returned silently here; the shared helper records
+        the writer's fault instead of leaving a replica-side check to report
+        "replication did not complete" (EDF-06-005).  The real
+        ``wait_for_replica_ledger_coverage`` and the real ``demo_gate`` run;
+        only the authority-tail read and the per-replica primitive are stubbed.
+        """
+        clients = {k: self._client() for k in self._CLIENTS}
+        clients["c1_client"].base_url = "http://c1.test/api/v2"
+        reset_demo_failures()
+        try:
+            with (
+                patch.object(
+                    sync_module, "_get_log_entries_for_case", return_value=[]
+                ),
+                patch.object(
+                    sync_module, "wait_for_contiguous_ledger_coverage"
+                ) as per_replica,
+            ):
+                self._run_report_submission(clients, stub_coverage=False)
+
+            per_replica.assert_not_called()
+            (failure,) = demo_utils._demo_failures
+        finally:
+            reset_demo_failures()
+        assert failure.startswith("GATE FAILED")
+        assert "http://c1.test/api/v2" in failure
+        assert "Phase 1 drain before Phase 2" in failure
+        assert "holds no CaseLedgerEntry" in failure
+        for label in ("Finder", "V1", "C2"):
+            assert label not in failure, failure

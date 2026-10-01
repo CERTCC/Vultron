@@ -13,12 +13,108 @@
 
 """Shared helpers for demo test fixtures."""
 
+import contextlib
+from collections.abc import Iterator, Mapping, Sequence
+from types import ModuleType, SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import httpx2 as httpx
 from fastapi.testclient import TestClient
 
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.utils import DataLayerClient
+
+
+def mock_actor(id_: str = "urn:test:actor") -> MagicMock:
+    """A stand-in actor whose only observed attribute is ``id_``."""
+    actor = MagicMock()
+    actor.id_ = id_
+    return actor
+
+
+def mock_case(id_: str = "urn:test:case") -> MagicMock:
+    """A stand-in ``as_VulnerabilityCase`` whose only observed attribute is ``id_``."""
+    case = MagicMock()
+    case.id_ = id_
+    return case
+
+
+@contextlib.contextmanager
+def patched_report_submission(
+    demo: ModuleType,
+    *,
+    seed_fn: str,
+    seeded_actors: Sequence[MagicMock],
+    actor_lookups: Sequence[MagicMock],
+    case: MagicMock,
+    demo_patches: Mapping[str, Mapping[str, Any]],
+    session_patches: Sequence[str] = (),
+) -> Iterator[dict[str, MagicMock]]:
+    """Patch every collaborator of a scenario's ``_phase_report_submission``.
+
+    One patch stack for the call-shape tests of every scenario module (CS-22-001):
+    the seeding, report-submission and RM-triage collaborators are stubbed the
+    same way in each, and the scenario's own ``demo_gate`` / ``demo_check`` /
+    ``demo_step`` become ``nullcontext`` so a test observes call shapes, never
+    gate control flow.  ``ActorSession.invite_actor_to_case`` returns a
+    successful invite; further ``ActorSession`` methods named in
+    *session_patches* are stubbed bare.
+
+    *demo_patches* maps a name on *demo* to the ``patch.object`` kwargs for it
+    (``{}`` for a bare ``MagicMock``).  A collaborator left out of it runs for
+    real — that is how a test lets ``wait_for_replica_ledger_coverage`` execute
+    while stubbing its primitives elsewhere.
+
+    Yields the mocks by name so the test asserts on the one it cares about.
+    """
+    with contextlib.ExitStack() as stack:
+        mocks: dict[str, MagicMock] = {}
+        stack.enter_context(patch.object(demo, "reset_containers"))
+        stack.enter_context(
+            patch.object(demo, seed_fn, return_value=tuple(seeded_actors))
+        )
+        stack.enter_context(
+            patch.object(
+                demo, "get_actor_by_id", side_effect=list(actor_lookups)
+            )
+        )
+        stack.enter_context(
+            patch.object(
+                demo,
+                "reporter_submits_report",
+                return_value=(MagicMock(), MagicMock(id_="urn:test:offer")),
+            )
+        )
+        stack.enter_context(
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case)
+        )
+        for name, kwargs in demo_patches.items():
+            mocks[name] = stack.enter_context(
+                patch.object(demo, name, **kwargs)
+            )
+        mocks["invite_actor_to_case"] = stack.enter_context(
+            patch.object(
+                ActorSession,
+                "invite_actor_to_case",
+                return_value=SimpleNamespace(
+                    activity=MagicMock(id_="urn:test:invite")
+                ),
+            )
+        )
+        for name in session_patches:
+            mocks[name] = stack.enter_context(patch.object(ActorSession, name))
+        mock_vc = stack.enter_context(
+            patch.object(demo, "as_VulnerabilityCase")
+        )
+        mock_vc.model_validate.return_value = case
+        for name in ("demo_gate", "demo_check", "demo_step"):
+            stack.enter_context(
+                patch.object(
+                    demo, name, side_effect=lambda _: contextlib.nullcontext()
+                )
+            )
+        yield mocks
 
 
 def make_testclient_call(client: TestClient, base: str):

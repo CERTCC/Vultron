@@ -1632,7 +1632,9 @@ groups:
       flow-appropriate existing rejection mechanism rather than duplicating the
       transition: reject_embargo_trigger_bt (Flow A, emitting ER and returning
       the shared EM to NONE per EMB-06) or reject_invite_to_embargo_tree
-      (Flow B, advancing that participant's PEC to DECLINED per CM-18-003). The
+      (Flow B, recording that participant's consent per MSM-07-004: DECLINE
+      when the Reject names the active embargo or the participant is not yet
+      SIGNATORY; a signatory refusing proposed terms keeps its state). The
       seam MUST also honor the mandatory rejection required by EMB-01-002 when
       CS is public/exploit/attacks, independent of any adjudication outcome.
     rationale: >-

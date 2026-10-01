@@ -186,7 +186,7 @@ The cycles the measurement found, grouped so the structural work has a map:
 | publication trees ↔ call-out bundles | `vultron/core/behaviors/report/publication_tree.py`, `publish_artifact_tree.py` |
 | hypercube ↔ its pattern modules | `vultron/core/case_states/patterns/info.py`, `potential_actions.py` |
 | BT node → use-case helper (BTND-04-003 `KNOWN_VIOLATIONS`) | `vultron/core/behaviors/case/nodes/announce.py` |
-| embargo tree and nodes ↔ status/sync node packages | `vultron/core/behaviors/embargo/trigger_tree.py` (↔ `status/nodes`), `embargo/nodes/teardown.py` (↔ `sync/nodes`) |
+| embargo tree and nodes ↔ status/sync node packages | `vultron/core/behaviors/embargo/trigger_tree.py` (↔ `status/nodes`), `embargo/nodes/teardown.py` (↔ `sync/nodes`), `embargo/nodes/relay.py` (↔ `sync/commit_tree`, and ↔ `case/nodes/role_gates` because `case/nodes/__init__` reaches `sync`) |
 | inbox pipeline ↔ use cases | `vultron/core/use_cases/received/unknown.py` (dead-letter tree → inbox pipeline nodes → semantic registry → `unknown`) |
 
 Each is a CS-05-003 finding: a shared symbol that belongs in a neutral module or

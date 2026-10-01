@@ -55,7 +55,10 @@ from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.received.report import (
     ValidateReportReceivedUseCase,
 )
-from vultron.core.use_cases.triggers.service import TriggerService
+from vultron.core.use_cases.triggers.report import SvcValidateReportUseCase
+from vultron.core.use_cases.triggers.requests import (
+    ValidateReportTriggerRequest,
+)
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -72,6 +75,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 from vultron.core.models.dimensions import (
     RmDimension,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -254,9 +258,14 @@ class TestTriggerEmitsToCaseActorOutbox:
         dl, _case, offer, case_actor_id = self._setup()
 
         before = outbox_ids(self.VENDOR_ID, dl)
-        TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
-        ).validate_report(self.VENDOR_ID, offer.id_, None)
+        SvcValidateReportUseCase(
+            dl,
+            ValidateReportTriggerRequest(
+                actor_id=self.VENDOR_ID, offer_id=offer.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
         after = outbox_ids(self.VENDOR_ID, dl)
 
         new_ids = after - before
@@ -287,9 +296,14 @@ class TestTriggerEmitsToCaseActorOutbox:
         dl, _case, offer, _case_actor_id = self._setup()
 
         before = outbox_ids(self.VENDOR_ID, dl)
-        TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
-        ).validate_report(self.VENDOR_ID, offer.id_, None)
+        SvcValidateReportUseCase(
+            dl,
+            ValidateReportTriggerRequest(
+                actor_id=self.VENDOR_ID, offer_id=offer.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
         after = outbox_ids(self.VENDOR_ID, dl)
 
         new_ids = after - before
@@ -421,7 +435,9 @@ class TestCaseActorReceivedWritesLedgerEntry:
         """
         dl = self._make_case_actor_dl()
         ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -434,7 +450,9 @@ class TestCaseActorReceivedWritesLedgerEntry:
         """The persisted ledger entry references the correct case_id."""
         dl = self._make_case_actor_dl()
         ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
@@ -457,7 +475,9 @@ class TestCaseActorReceivedWritesLedgerEntry:
         dl = self._make_case_actor_dl()
         event = self._make_validate_event(receiving_actor_id=self.VENDOR_ID)
 
-        ValidateReportReceivedUseCase(dl, event).execute()
+        ValidateReportReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         event_types = _ledger_event_types(dl)
         assert "validate_report" not in event_types, (
@@ -508,7 +528,8 @@ class TestCaseActorReceivedWritesLedgerEntry:
 
         ValidateReportReceivedUseCase(
             dl,
-            self._make_validate_event(),  # actor_id=VENDOR, receiving=CASE_ACTOR
+            self._make_validate_event(),  # actor_id=VENDOR, receiving=CASE_ACTOR,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
@@ -564,9 +585,14 @@ class TestFullValidateReportLedgerChain:
 
         # ── Step 2: trigger validate-report on vendor_dl ─────────────────────
         before = outbox_ids(self.VENDOR_ID, vendor_dl)
-        TriggerService(
-            vendor_dl, trigger_activity=TriggerActivityAdapter(vendor_dl)
-        ).validate_report(self.VENDOR_ID, offer.id_, None)
+        SvcValidateReportUseCase(
+            vendor_dl,
+            ValidateReportTriggerRequest(
+                actor_id=self.VENDOR_ID, offer_id=offer.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(vendor_dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
         after = outbox_ids(self.VENDOR_ID, vendor_dl)
 
         new_ids = after - before
@@ -650,7 +676,9 @@ class TestFullValidateReportLedgerChain:
             receiving_actor_id=case_actor_id,
         )
 
-        ValidateReportReceivedUseCase(case_actor_dl, event).execute()
+        ValidateReportReceivedUseCase(
+            case_actor_dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         # ── Step 6: assert CaseActor ledger has the validate_report entry ─────
         event_types = _ledger_event_types(case_actor_dl)
