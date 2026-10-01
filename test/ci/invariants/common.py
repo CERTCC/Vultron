@@ -29,7 +29,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -91,7 +91,7 @@ def log_index(entry: dict) -> int:
             f"Ledger entry eventType={event_type(entry)!r} has no logIndex"
         )
     if not isinstance(raw, int) or isinstance(raw, bool):
-        raise ValueError(
+        raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
             f"Ledger entry eventType={event_type(entry)!r} has non-integer "
             f"logIndex={raw!r}"
         )
@@ -368,15 +368,13 @@ def load_devlogs(
     manifest_case_ids = {m.get("caseId") for m in manifests if m.get("caseId")}
     if len(manifest_case_ids) == 1:
         (filter_id,) = manifest_case_ids
-        for actor in replicas:
-            replicas[actor] = [
-                e for e in replicas[actor] if case_id(e) == filter_id
-            ]
+        for actor, entries in replicas.items():
+            replicas[actor] = [e for e in entries if case_id(e) == filter_id]
 
     _fail_on_invalid_log_indices(replicas)
 
-    for actor in replicas:
-        replicas[actor] = sorted(replicas[actor], key=log_index)
+    for actor, entries in replicas.items():
+        replicas[actor] = sorted(entries, key=log_index)
 
     return replicas
 
@@ -651,9 +649,7 @@ def check_late_joiner_has_full_history(
     late_entries = replicas.get(late_actor, [])
 
     if not early_entries or not late_entries:
-        return (
-            []
-        )  # skip check — caller should pytest.skip when replicas absent
+        return []  # skip check — caller should pytest.skip when replicas absent
 
     early_indices = {log_index(e) for e in early_entries}
     late_indices = {log_index(e) for e in late_entries}
@@ -1162,11 +1158,11 @@ def check_causal_edges(
 
 def _parse_ts(value: object) -> datetime | None:
     if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
     if isinstance(value, str):
         try:
             dt = datetime.fromisoformat(value)
-            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
         except ValueError:
             return None
     return None

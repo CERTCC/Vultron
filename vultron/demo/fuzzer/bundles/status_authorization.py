@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import py_trees
 
-from vultron.core.behaviors.call_out.bundles.status_authorization import (  # noqa: F401
+from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     STATUS_AUTHORIZATION_PERMISSIVE,
     StatusAuthorizationCallOutBundle,

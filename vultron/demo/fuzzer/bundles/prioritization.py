@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import py_trees
 
-from vultron.core.behaviors.call_out.bundles.prioritization import (  # noqa: F401
+from vultron.core.behaviors.call_out.bundles.prioritization import (
     PRIORITIZATION_DETERMINISTIC,
     PrioritizationCallOutBundle,
 )

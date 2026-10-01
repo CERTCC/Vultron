@@ -147,8 +147,8 @@ class OutboxMonitor:
                     dl,
                     emitter=self._emitter,
                 )
-            except Exception as exc:
-                logger.error(
+            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+                logger.error(  # noqa: TRY400  # ruff-baseline #3353
                     "OutboxMonitor: unhandled error draining outbox"
                     " for actor '%s': %s",
                     actor_id,
@@ -206,7 +206,7 @@ class OutboxMonitor:
                     await asyncio.wait_for(
                         event.wait(), timeout=self._poll_interval
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
                 event.clear()
                 self._register_new_actors()
@@ -224,8 +224,7 @@ class OutboxMonitor:
         """
         if self._task is not None and not self._task.done():
             logger.warning(
-                "OutboxMonitor.start() called while already running;"
-                " ignoring."
+                "OutboxMonitor.start() called while already running; ignoring."
             )
             return
         self._loop = asyncio.get_running_loop()

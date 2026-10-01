@@ -75,8 +75,8 @@ def test_create_app_datalayers_are_isolated(app1, app2):
 
 def test_create_app_datalayer_override_not_clobbered(app1):
     """A pre-registered dependency_overrides entry is not overwritten."""
-    from vultron.adapters.driving.fastapi.deps import get_actor_dl
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
     custom_dl = SqliteDataLayer(
         db_url="sqlite:///:memory:", actor_id="custom-actor"

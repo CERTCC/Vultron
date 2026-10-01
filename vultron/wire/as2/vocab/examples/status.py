@@ -11,8 +11,23 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from vultron.core.models.dimensions import (
+    EmDimension,
+    PxaDimension,
+    RmDimension,
+    VfDimension,
+)
+from vultron.core.states.cs import CS_pxa, CS_vf
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
+from vultron.wire.as2.factories import (
+    add_status_to_case_activity,
+    add_status_to_participant_activity,
+    create_case_status_activity,
+    create_status_for_participant_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
     as_Create,
@@ -22,23 +37,8 @@ from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
-from vultron.core.states.em import EM
-from vultron.core.states.rm import RM
-from vultron.core.states.cs import CS_pxa, CS_vf
-from vultron.wire.as2.factories import (
-    add_status_to_case_activity,
-    add_status_to_participant_activity,
-    create_case_status_activity,
-    create_status_for_participant_activity,
-)
-from vultron.core.models.dimensions import (
-    EmDimension,
-    PxaDimension,
-    RmDimension,
-    VfDimension,
-)
 
-_EXAMPLE_TIMESTAMP = datetime(2026, 6, 1, 19, 12, tzinfo=timezone.utc)
+_EXAMPLE_TIMESTAMP = datetime(2026, 6, 1, 19, 12, tzinfo=UTC)
 
 
 def case_status() -> as_CaseStatus:

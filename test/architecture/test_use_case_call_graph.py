@@ -77,7 +77,7 @@ def test_transitive_rule_flags_helper_one_call_deep(tmp_path: Path) -> None:
                 "    def execute(self):\n"
                 "        store(self._dl, self._obj)\n"
             ),
-            "_helpers.py": ("def store(dl, obj):\n" "    dl.save(obj)\n"),
+            "_helpers.py": ("def store(dl, obj):\n    dl.save(obj)\n"),
         },
     )
     assert found == frozenset({_RECEIVED})
@@ -99,7 +99,7 @@ def test_transitive_rule_flags_helper_two_calls_deep(tmp_path: Path) -> None:
                 "def prepare(dl, obj):\n"
                 "    store(dl, obj)\n"
             ),
-            "_helpers.py": ("def store(dl, obj):\n" "    dl.create(obj)\n"),
+            "_helpers.py": ("def store(dl, obj):\n    dl.create(obj)\n"),
         },
     )
     assert found == frozenset({_RECEIVED})
@@ -134,7 +134,7 @@ def test_transitive_rule_follows_relative_imports(tmp_path: Path) -> None:
                 "        store(self._dl, self._obj)\n"
             ),
             "received/case/_helpers.py": (
-                "def store(dl, obj):\n" "    dl.save(obj)\n"
+                "def store(dl, obj):\n    dl.save(obj)\n"
             ),
         },
     )
@@ -159,7 +159,7 @@ def test_transitive_rule_stops_at_the_package_boundary(
                 "        run_tree(self._dl, self._obj)\n"
             ),
             "../behaviors/node.py": (
-                "def run_tree(dl, obj):\n" "    dl.save(obj)\n"
+                "def run_tree(dl, obj):\n    dl.save(obj)\n"
             ),
         },
     )
@@ -179,7 +179,7 @@ def test_transitive_rule_ignores_uncalled_helpers(tmp_path: Path) -> None:
                 "    def _later(self):\n"
                 "        store(self._dl, self._obj)\n"
             ),
-            "_helpers.py": ("def store(dl, obj):\n" "    dl.save(obj)\n"),
+            "_helpers.py": ("def store(dl, obj):\n    dl.save(obj)\n"),
         },
     )
     assert found == frozenset()
@@ -205,7 +205,7 @@ def test_transitive_rule_is_received_side_only(tmp_path: Path) -> None:
                 "    def execute(self):\n"
                 "        self._dl.save(self._obj)\n"
             ),
-            "_helpers.py": ("def store(dl, obj):\n" "    dl.save(obj)\n"),
+            "_helpers.py": ("def store(dl, obj):\n    dl.save(obj)\n"),
         },
     )
     assert found == frozenset({"vultron/core/use_cases/triggers/direct.py"})
@@ -223,10 +223,7 @@ def test_transitive_rule_survives_recursive_helpers(tmp_path: Path) -> None:
                 "        ping(self._dl)\n"
             ),
             "_helpers.py": (
-                "def ping(dl):\n"
-                "    pong(dl)\n"
-                "def pong(dl):\n"
-                "    ping(dl)\n"
+                "def ping(dl):\n    pong(dl)\ndef pong(dl):\n    ping(dl)\n"
             ),
         },
     )
@@ -246,7 +243,7 @@ def test_transitive_rule_follows_a_module_imported_by_name(
                 "    def execute(self):\n"
                 "        _helpers.store(self._dl, self._obj)\n"
             ),
-            "_helpers.py": ("def store(dl, obj):\n" "    dl.save(obj)\n"),
+            "_helpers.py": ("def store(dl, obj):\n    dl.save(obj)\n"),
         },
     )
     assert found == frozenset({_RECEIVED})

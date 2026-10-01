@@ -33,6 +33,7 @@ import pytest
 
 import vultron.wire.as2.vocab.activities as _act_pkg
 import vultron.wire.as2.vocab.objects as _obj_pkg
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.wire.as2.enums import as_AllObjectTypes
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
@@ -42,7 +43,6 @@ from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import VOCABULARY
 from vultron.wire.as2.vocab.objects.base import as_VultronObject
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.core.models._helpers import days_from_now_utc
 
 # Ensure all registered vocab types are loaded for AC-6.
 for _mi in list(pkgutil.iter_modules(_obj_pkg.__path__)):

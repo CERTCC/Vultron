@@ -5,12 +5,12 @@ from unittest.mock import MagicMock
 import py_trees.behaviour
 import pytest
 
+from vultron.core.models.use_case_result import ActivityResult, OfferResult
 from vultron.core.use_cases.triggers._base import (
     SvcActivityTriggerBase,
     SvcBTTriggerBase,
     SvcEmbargoTriggerBase,
 )
-from vultron.core.models.use_case_result import ActivityResult, OfferResult
 
 # ---------------------------------------------------------------------------
 # Minimal concrete subclasses for testing base-class hooks

@@ -18,7 +18,7 @@ confirm that fix covers the post-ownership-transfer path.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from py_trees.common import Status
@@ -38,7 +38,7 @@ from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 
-_FIXED_CREATED_AT = datetime(2024, 6, 1, 0, 0, 0, tzinfo=timezone.utc)
+_FIXED_CREATED_AT = datetime(2024, 6, 1, 0, 0, 0, tzinfo=UTC)
 
 ORIGINAL_CASE_ACTOR_ID = "https://example.org/actors/original-vendor"
 NEW_OWNER_ACTOR_ID = "https://example.org/actors/new-owner-coordinator"
@@ -225,9 +225,9 @@ class TestReportReplicatedToPostTransferParticipant:
         from vultron.core.states.rm import RM
 
         link_id = VultronReportCaseLink.build_id(REPORT_ID)
-        assert (
-            dl.read(link_id) is None
-        ), "pre-condition: no link before ledger replay"
+        assert dl.read(link_id) is None, (
+            "pre-condition: no link before ledger replay"
+        )
 
         entry = _make_add_report_ledger_entry()
         event = _make_event(entry, actor_id=new_owner_case_actor.id_)
@@ -251,9 +251,9 @@ class TestReportReplicatedToPostTransferParticipant:
         )
         assert isinstance(link, VultronReportCaseLink)
         assert link.report_id == REPORT_ID
-        assert (
-            link.rm_state == RM.RECEIVED
-        ), "Seeded link must start at RM.RECEIVED; ValidateBT advances it to RM.VALID"
+        assert link.rm_state == RM.RECEIVED, (
+            "Seeded link must start at RM.RECEIVED; ValidateBT advances it to RM.VALID"
+        )
 
     def test_idempotent_on_repeated_ledger_replay(
         self, bridge, dl, new_owner_case_actor

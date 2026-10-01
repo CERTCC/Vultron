@@ -18,7 +18,6 @@ Vultron API v2 Application
 
 import logging
 from contextlib import asynccontextmanager
-
 from uuid import uuid4
 
 from fastapi import FastAPI
@@ -113,8 +112,7 @@ def _auto_inject_isolated_datalayer(application: FastAPI) -> None:
     from vultron.adapters.driving.fastapi.deps import node_base_url
 
     db_url = (
-        f"sqlite:///file:app-{uuid4().hex}"
-        "?mode=memory&cache=shared&uri=true"
+        f"sqlite:///file:app-{uuid4().hex}?mode=memory&cache=shared&uri=true"
     )
     registry: dict[str, SqliteDataLayer] = {}
 
@@ -327,7 +325,7 @@ def create_app(
     Returns:
         A new :class:`FastAPI` instance with the Vultron router included.
     """
-    from vultron.config import RunMode, get_config  # noqa: E402
+    from vultron.config import RunMode, get_config
 
     application = FastAPI(
         title=title,

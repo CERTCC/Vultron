@@ -15,16 +15,26 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from datetime import datetime, timezone
-from typing import cast
-
 import functools
+from collections.abc import Iterator
+from datetime import UTC, datetime
+from typing import cast
 
 import anyio
 import pytest
 
+from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driving.fastapi.inbox_handler import (
+    handle_inbox_item,
+    inbox_handler,
+)
+from vultron.adapters.driving.fastapi.outbox_handler import (
+    configure_default_emitter,
+    get_default_emitter,
+    outbox_handler,
+)
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
     compute_genesis_hash,
@@ -32,30 +42,19 @@ from vultron.core.models.case_ledger import (
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
-from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
-from vultron.adapters.driving.fastapi.inbox_handler import (
-    handle_inbox_item,
-    inbox_handler,
-)
-from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-from vultron.adapters.driving.fastapi.outbox_handler import (
-    configure_default_emitter,
-    get_default_emitter,
-)
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     reject_log_entry_activity,
 )
+from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
-from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
-from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -164,7 +163,7 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
         "genesis_hash",
         compute_genesis_hash(
             case_id=case.id_,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             case_actor_id=case_actor_id,
         ),
     )
@@ -222,9 +221,9 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     # `peer_dl` above, not the app's default-slug `dl`: the Announce was delivered
     # to `peer_actor_id`, so that is the replica that received the entry.
     peer_entry = peer_dl.read(entry_id)
-    assert (
-        peer_entry is not None
-    ), "Expected peer replica to contain the announced as_CaseLedgerEntry."
+    assert peer_entry is not None, (
+        "Expected peer replica to contain the announced as_CaseLedgerEntry."
+    )
     assert peer_entry.case_id == case.id_
     assert peer_entry.log_index == payload["log_index"]
     assert peer_entry.entry_hash == payload["entry_hash"]
@@ -322,9 +321,9 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
             cast(RejectLogEntryReceivedEvent, extract_event(activity))
             for activity in peer_dl.list_objects("Reject")
         ]
-        assert (
-            peer_reject_events
-        ), "Expected peer to emit Reject(as_CaseLedgerEntry)."
+        assert peer_reject_events, (
+            "Expected peer to emit Reject(as_CaseLedgerEntry)."
+        )
         emitted_reject_event = peer_reject_events[-1]
         assert emitted_reject_event.actor_id == peer_actor_id
         assert emitted_reject_event.last_accepted_hash == entry0.entry_hash
@@ -427,7 +426,7 @@ def test_sync_duplicate_delivery_idempotency(
         "genesis_hash",
         compute_genesis_hash(
             case_id=case.id_,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             case_actor_id=case_actor_id,
         ),
     )
@@ -491,9 +490,9 @@ def test_sync_duplicate_delivery_idempotency(
         for e in peer_dl.list_objects("CaseLedgerEntry")
         if getattr(e, "case_id", None) == case.id_
     ]
-    assert (
-        len(stored_entries) == 1
-    ), f"Expected exactly 1 as_CaseLedgerEntry replica, got {len(stored_entries)}"
+    assert len(stored_entries) == 1, (
+        f"Expected exactly 1 as_CaseLedgerEntry replica, got {len(stored_entries)}"
+    )
     assert stored_entries[0].id_ == entry.id_
 
     # AC-4 guard: each actor app must use its own isolated DataLayer.

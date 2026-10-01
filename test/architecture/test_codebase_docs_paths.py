@@ -42,7 +42,6 @@ _PATH_PREFIXES = (
     "AGENTS.md",
     ".github/",
     ".devcontainer/",
-    ".flake8",
     ".env.example",
     ".pre-commit",
     "pyproject.toml",

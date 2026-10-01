@@ -21,7 +21,9 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.core.behaviors.embargo.nodes.conftest import make_case_and_embargo
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     ProposeEmbargoLifecycleNode,
@@ -29,20 +31,17 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import (
     ValidateEmbargoRevisionStateNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-
-from test.core.behaviors.embargo.nodes.conftest import make_case_and_embargo
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_MANAGER_ACTOR = "https://example.org/actors/case-manager"
@@ -682,9 +681,9 @@ class TestSetEmbargoActiveNode:
             bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        assert (
-            mock_activate.called
-        ), "EmbargoLifecycle.activate_embargo() was never called"
+        assert mock_activate.called, (
+            "EmbargoLifecycle.activate_embargo() was never called"
+        )
 
     def test_idempotent_guard_requires_active_state_not_just_matching_id(self):
         """Idempotency guard fires only when EM is ACTIVE, not REVISE (issue #2859).
@@ -843,9 +842,9 @@ class TestSetEmbargoActiveNode:
             bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        assert (
-            mock_activate.called
-        ), "EmbargoLifecycle.activate_embargo() was never called"
+        assert mock_activate.called, (
+            "EmbargoLifecycle.activate_embargo() was never called"
+        )
 
 
 class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:

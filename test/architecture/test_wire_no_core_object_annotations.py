@@ -36,12 +36,11 @@ import typing
 
 import pytest
 
-import vultron.wire.as2.vocab.activities  # noqa: F401 — trigger dynamic discovery
+import vultron.wire.as2.vocab.activities  # trigger dynamic discovery
 import vultron.wire.as2.vocab.objects  # noqa: F401
-
 from vultron.core.models.base import CoreObject
-from vultron.errors import VultronValidationError
 from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.errors import VultronValidationError
 
 
 def _hint_contains_core_object(hint: typing.Any) -> bool:
@@ -166,9 +165,9 @@ def test_core_guard_inside_wire_union_fails_the_branch() -> None:
     # ARCH-23-006 names.  (A plain string payload would prove nothing: the smart
     # union matches `str` without ever entering the guarded branch.)
     resolved = _Holder.model_validate({"slot": {"value": "bad"}})
-    assert resolved.slot == {
-        "value": "bad"
-    }, "guarded branch did not fail over — the core guard escaped the union"
+    assert resolved.slot == {"value": "bad"}, (
+        "guarded branch did not fail over — the core guard escaped the union"
+    )
 
     # With no surviving alternative the failure is still reported as a validation
     # error rather than raised out of model_validate().

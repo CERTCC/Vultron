@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
@@ -30,7 +31,6 @@ from vultron.wire.as2.factories import (
     announce_embargo_activity,
     remove_embargo_from_case_activity,
 )
-from vultron.core.models._helpers import days_from_now_utc
 
 
 class TestAnnounceEmbargoEventToCaseReceivedUseCase:
@@ -108,6 +108,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
         Regression test for #609.
         """
         import py_trees
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.states.participant_embargo_consent import PEC
         from vultron.wire.as2.vocab.objects.case_participant import (

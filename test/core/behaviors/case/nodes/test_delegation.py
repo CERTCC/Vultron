@@ -15,9 +15,10 @@
 
 """Tests for AutoAcceptCaseParticipantRoleNode and EmitRejectCaseParticipantRoleNode (ADR-0039)."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from py_trees.common import Status
-from unittest.mock import MagicMock, patch
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (

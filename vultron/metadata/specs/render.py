@@ -27,7 +27,6 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 from vultron.metadata.specs.llm_export import CROSS_CUTTING_TOPICS
-
 from vultron.metadata.specs.registry import (
     SpecRegistry,
     load_registry,

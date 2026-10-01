@@ -20,16 +20,17 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
 )
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
@@ -41,7 +42,6 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
 )
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 class TestEngageDeferCaseBTFailureReason:
@@ -678,9 +678,9 @@ class TestRegistrySuppliesTheTriggeringActivity:
         event = extract_event(activity)
 
         assert event.semantic_type == expected_semantics
-        assert (
-            event.activity is not None
-        ), f"{factory_name}: registry did not carry the triggering activity"
+        assert event.activity is not None, (
+            f"{factory_name}: registry did not carry the triggering activity"
+        )
         # The snapshot built from it needs both of these; the event itself has
         # neither, which is why the missing activity aborted the commit.
         assert event.activity.type_

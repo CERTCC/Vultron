@@ -26,8 +26,8 @@ from collections.abc import Callable
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import (
-    CasePersistence,
     CaseOutboxPersistence,
+    CasePersistence,
 )
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.services.embargo_ordering import (

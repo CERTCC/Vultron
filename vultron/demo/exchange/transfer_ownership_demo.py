@@ -50,15 +50,8 @@ properties rather than by the original offer's id (EDF-06-004).
 
 # Standard library imports
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
-# Vultron imports
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 from vultron.demo.helpers.polling import wait_for_case_attributed_to
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
@@ -75,13 +68,21 @@ from vultron.demo.utils import (
     logfmt,
     post_to_inbox_and_wait,
     seed_peer,
-    verify_object_stored,
     setup_demo_logging,
+    verify_object_stored,
 )
+
+# Vultron imports
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     offer_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ def _setup_transfer_precondition(
     finder: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
-) -> Tuple[as_VulnerabilityCase, str]:
+) -> tuple[as_VulnerabilityCase, str]:
     """Build the precondition both transfer paths share.
 
     A canonical CaseActor-owned case (so there *is* a CaseActor to route
@@ -366,7 +367,7 @@ def demo_transfer_ownership_reject(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     ("Demo: Transfer Ownership — Accept Path", demo_transfer_ownership_accept),
     ("Demo: Transfer Ownership — Reject Path", demo_transfer_ownership_reject),
 ]
@@ -374,7 +375,7 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ) -> None:
     """Main entry point for the transfer_ownership demo script."""
     run_exchange_demos(

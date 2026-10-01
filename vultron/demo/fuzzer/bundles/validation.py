@@ -34,7 +34,7 @@ import py_trees
 
 # Core-owned bundle dataclass + DETERMINISTIC default (re-exported for
 # backward-compatible import paths).
-from vultron.core.behaviors.call_out.bundles.validation import (  # noqa: F401
+from vultron.core.behaviors.call_out.bundles.validation import (
     VALIDATION_DETERMINISTIC,
     ValidationCallOutBundle,
 )

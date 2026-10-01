@@ -18,6 +18,8 @@
 import pytest
 from py_trees.composites import Sequence
 
+from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.participant_status import advance_participant_rm
 from vultron.core.behaviors.helpers import UpdateActorOutbox
 from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseActivity,
@@ -30,21 +32,19 @@ from vultron.core.behaviors.report.nodes.conditions import (
     EvaluateReportValidity,
 )
 from vultron.core.behaviors.report.nodes.rm_transitions import (
-    _ReportPhaseRMTransition,
     TransitionRMtoClosed,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
+    _ReportPhaseRMTransition,
 )
+from vultron.core.models.activity import VultronOffer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.activity import VultronOffer
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from test.core.behaviors.bt_harness import BTTestScenario
-from test.support.participant_status import advance_participant_rm
 
 
 @pytest.mark.spec("RMB-15-001")
@@ -264,6 +264,7 @@ def test_transition_rm_to_valid_is_single_atomic_node() -> None:
     update().
     """
     import py_trees
+
     from vultron.core.behaviors.case.nodes.participant.status import (
         CreateParticipantStatusNode,
     )
@@ -382,7 +383,9 @@ def test_transition_rm_to_valid_absent_link_advances_without_latching(
     link_id = VultronReportCaseLink.build_id(report.id_)
     assert not isinstance(
         bt_scenario.dl.read(link_id), VultronReportCaseLink
-    ), "test setup error: a ReportCaseLink was seeded despite omitting the fixture"
+    ), (
+        "test setup error: a ReportCaseLink was seeded despite omitting the fixture"
+    )
 
     result = bt_scenario.run(
         TransitionRMtoValid(

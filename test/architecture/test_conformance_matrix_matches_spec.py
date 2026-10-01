@@ -166,7 +166,7 @@ def test_authority_roles_require_their_defining_set_and_nothing_else_does(
     required_outside_floor: dict[str, set[str]] = {}
     for row in matrix_table.rows:
         role = _plain(row[0])
-        for name, cell in zip(matrix_table.columns[1:], row[1:]):
+        for name, cell in zip(matrix_table.columns[1:], row[1:], strict=False):
             if _plain(name) != FLOOR_SET and _plain(cell) == REQUIRED:
                 required_outside_floor.setdefault(role, set()).add(
                     _plain(name)

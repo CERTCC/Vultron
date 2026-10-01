@@ -26,14 +26,14 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import case_addressees
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
 from vultron.core.states.em import EM
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import case_addressees
-from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import (
     reset_case_participant_embargo_consent,
 )

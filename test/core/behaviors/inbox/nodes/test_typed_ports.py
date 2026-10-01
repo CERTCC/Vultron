@@ -29,14 +29,14 @@ from vultron.core.behaviors.inbox.nodes.dispatch import (
     DispatchNode,
 )
 from vultron.core.behaviors.inbox.nodes.pipeline import (
-    DeferCheckNode,
-    ExtractSemanticsNode,
     KEY_ACTIVITY,
     KEY_DISPATCH,
     KEY_EVENT,
     KEY_INGRESS,
     KEY_OUTCOME_STATUS,
     KEY_PAYLOAD,
+    DeferCheckNode,
+    ExtractSemanticsNode,
     ParsePayloadNode,
     RehydrateActivityNode,
 )

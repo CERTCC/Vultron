@@ -5,9 +5,6 @@ import py_trees
 
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.embargo.nodes import ApplyEmbargoTeardownNode
-from vultron.core.behaviors.sync.nodes.participant_status_effect import (
-    EmitImpossibleStateFaultNode,
-)
 from vultron.core.behaviors.sync.nodes import (
     ApplyCloseCaseFromLedgerNode,
     ApplyInviteAcceptFromLedgerNode,
@@ -33,6 +30,9 @@ from vultron.core.behaviors.sync.nodes import (
     SendRejectLogEntryNode,
     VerifySenderIsCaseActorNode,
     VerifySenderIsOwnIdNode,
+)
+from vultron.core.behaviors.sync.nodes.participant_status_effect import (
+    EmitImpossibleStateFaultNode,
 )
 
 

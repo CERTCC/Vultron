@@ -25,7 +25,9 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -38,8 +40,6 @@ from vultron.errors import (
     VultronValidationError,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.case_participant import CaseParticipant
 
 from .conftest import (
     _accepted_ids_of,
@@ -634,7 +634,7 @@ def test_owner_activating_a_shorter_revision_carries_every_signatory_over(
     DECLINED participant without B is untouched.
     """
     owner, dl = owner_and_dl
-    case, ids, active_id, revision_id = _revision_case(
+    case, ids, _active_id, revision_id = _revision_case(
         dl, owner, revision_days=30
     )
 

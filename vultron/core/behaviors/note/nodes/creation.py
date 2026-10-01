@@ -65,9 +65,9 @@ class CreateNoteNode(DataLayerActionWithPorts):
             self.feedback_message = f"Created note '{note_id}'"
             self.logger.info(f"{self.name}: {self.feedback_message}")
             return Status.SUCCESS
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"Error creating note: {e}"
-            self.logger.error(f"{self.name}: {self.feedback_message}")
+            self.logger.error(f"{self.name}: {self.feedback_message}")  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 

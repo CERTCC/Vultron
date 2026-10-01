@@ -16,8 +16,6 @@ This module provides fuzzer leaf nodes in support of the process of notifying ot
 """
 
 from vultron.bt.base.factory import fuzzer
-
-
 from vultron.bt.base.fuzzer import (
     AlmostAlwaysFail,
     AlmostAlwaysSucceed,

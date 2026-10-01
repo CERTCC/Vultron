@@ -43,11 +43,12 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import _find_case_actor_id
-from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     _prepare_delegated_context,
@@ -64,7 +65,6 @@ from vultron.core.use_cases.triggers.requests import (
     RejectCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
-from vultron.core.ports.wire_render import WireRenderPort
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,13 @@ class SvcSuggestActorToCaseUseCase(SvcActivityTriggerBase):
         wire_render_port: "WireRenderPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port, sync_port=sync_port)  # type: ignore[arg-type]
+        super().__init__(
+            dl=dl,  # type: ignore[arg-type]
+            request=request,
+            trigger_activity=trigger_activity,  # type: ignore[arg-type]
+            wire_render_port=wire_render_port,
+            sync_port=sync_port,
+        )
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
@@ -281,7 +287,13 @@ class SvcInviteActorToCaseUseCase(SvcActivityTriggerBase):
         wire_render_port: "WireRenderPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port, sync_port=sync_port)  # type: ignore[arg-type]
+        super().__init__(
+            dl=dl,  # type: ignore[arg-type]
+            request=request,
+            trigger_activity=trigger_activity,  # type: ignore[arg-type]
+            wire_render_port=wire_render_port,
+            sync_port=sync_port,
+        )
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
@@ -424,7 +436,13 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         wire_render_port: "WireRenderPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port, sync_port=sync_port)  # type: ignore[arg-type]
+        super().__init__(
+            dl=dl,  # type: ignore[arg-type]
+            request=request,
+            trigger_activity=trigger_activity,  # type: ignore[arg-type]
+            wire_render_port=wire_render_port,
+            sync_port=sync_port,
+        )
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:

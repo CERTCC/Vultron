@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from vultron.metadata.history.types import HistoryEntryType, LearningSignalType
 
-_UTC = datetime.timezone.utc
+_UTC = datetime.UTC
 
 
 def _now_utc() -> datetime.datetime:
@@ -50,7 +50,7 @@ class _HistoryEntryBase(BaseModel):
     @classmethod
     def must_be_non_empty(cls, v: object) -> str:
         if not isinstance(v, str):
-            raise ValueError("must be a string")
+            raise ValueError("must be a string")  # noqa: TRY004  # ruff-baseline #3353
         stripped = v.strip()
         if not stripped:
             raise ValueError("must not be empty or whitespace-only")

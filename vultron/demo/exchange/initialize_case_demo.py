@@ -43,21 +43,9 @@ prototype design. Actors post activities directly to each other's inboxes.
 
 # Standard library imports
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
-# Vultron imports
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
-from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
-)
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
+from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -68,9 +56,10 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     logfmt,
     post_to_inbox_and_wait,
     ref_id,
-    verify_object_stored,
     setup_demo_logging,
+    verify_object_stored,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
     add_report_to_case_activity,
@@ -79,7 +68,18 @@ from vultron.wire.as2.factories import (
     rm_validate_report_activity,
 )
 
-from vultron.demo.helpers.runner import run_exchange_demos
+# Vultron imports
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ def demo_initialize_case(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates the full case initialization workflow.
@@ -246,14 +246,14 @@ def demo_initialize_case(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     ("Demo: Initialize Case", demo_initialize_case),
 ]
 
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ) -> None:
     """Main entry point for the initialize case demo demo script."""
     run_exchange_demos(

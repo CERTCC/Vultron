@@ -208,7 +208,7 @@ def get_config() -> AppConfig:
     Returns:
         The active :class:`AppConfig` instance.
     """
-    global _config_cache
+    global _config_cache  # noqa: PLW0603  # ruff-baseline #3985
     if _config_cache is None:
         _config_cache = AppConfig()
     return _config_cache
@@ -245,7 +245,7 @@ def reload_config() -> AppConfig:
     Returns:
         A newly loaded :class:`AppConfig` instance.
     """
-    global _config_cache
+    global _config_cache  # noqa: PLW0603  # ruff-baseline #3985
     _config_cache = None
     return get_config()
 

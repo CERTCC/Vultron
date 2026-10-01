@@ -20,11 +20,11 @@ from typing import Any, cast
 
 import pytest
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes import _create_and_attach_participant
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
-from test.core.behaviors.bt_harness import BTTestScenario
 
 
 class TestCreateAndAttachParticipant:
@@ -178,12 +178,12 @@ class TestResolveParticipantStateShapeGuard:
             return self._obj
 
     def test_returns_state_for_core_shaped_participant(self) -> None:
+        from test.support.participant_status import advance_participant_rm
         from vultron.core.behaviors.case.nodes.participant.common import (
             resolve_participant_state_from_dl,
         )
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.states.rm import RM
-        from test.support.participant_status import advance_participant_rm
 
         actor = "https://example.org/actors/alice"
         participant = CaseParticipant(

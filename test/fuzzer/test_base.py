@@ -23,7 +23,6 @@ Tests cover:
 """
 
 import random
-from typing import Type
 
 import pytest
 from py_trees.common import Status
@@ -62,7 +61,7 @@ _TRIALS = 10_000
 _TOLERANCE = 0.03  # ±3 percentage points
 
 
-def _run_trials(node_cls: Type[WeightedBehavior], n: int = _TRIALS) -> float:
+def _run_trials(node_cls: type[WeightedBehavior], n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
     successes = sum(1 for _ in range(n) if node.update() == Status.SUCCESS)
@@ -168,21 +167,21 @@ _RATE_CASES = [
 
 @pytest.mark.parametrize("cls,expected_rate", _RATE_CASES)
 def test_success_rate_attribute(
-    cls: Type[WeightedBehavior], expected_rate: float
+    cls: type[WeightedBehavior], expected_rate: float
 ) -> None:
     assert abs(cls.success_rate - expected_rate) < 1e-9
 
 
 @pytest.mark.parametrize("cls,expected_rate", _RATE_CASES)
 def test_is_weighted_behavior_subclass(
-    cls: Type[WeightedBehavior], expected_rate: float
+    cls: type[WeightedBehavior], expected_rate: float
 ) -> None:
     assert issubclass(cls, WeightedBehavior)
 
 
 @pytest.mark.parametrize("cls,expected_rate", _RATE_CASES)
 def test_update_returns_valid_status(
-    cls: Type[WeightedBehavior], expected_rate: float
+    cls: type[WeightedBehavior], expected_rate: float
 ) -> None:
     node = cls()
     result = node.update()
@@ -207,12 +206,12 @@ def test_update_returns_valid_status(
     ],
 )
 def test_empirical_distribution(
-    cls: Type[WeightedBehavior], expected_rate: float
+    cls: type[WeightedBehavior], expected_rate: float
 ) -> None:
     rate = _run_trials(cls)
-    assert (
-        abs(rate - expected_rate) < _TOLERANCE
-    ), f"{cls.__name__}: empirical={rate:.4f} expected={expected_rate:.4f}"
+    assert abs(rate - expected_rate) < _TOLERANCE, (
+        f"{cls.__name__}: empirical={rate:.4f} expected={expected_rate:.4f}"
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -25,6 +25,12 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.core.behaviors.embargo.nodes.conftest import (
+    CASE_MANAGER_ACTOR,
+    make_case_and_embargo,
+    make_case_with_manager,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     remove_embargo_from_case_tree,
@@ -39,13 +45,6 @@ from vultron.core.states.em import EM
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
-
-from test.core.behaviors.embargo.nodes.conftest import (
-    CASE_MANAGER_ACTOR,
-    make_case_and_embargo,
-    make_case_with_manager,
-)
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 # Kept for objects that reference the vendor; the trees below execute as the
 # CASE_MANAGER, which is who the ledger commit is gated on.

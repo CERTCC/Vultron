@@ -20,7 +20,7 @@ multi-container health checks used by scenario demos.
 
 import logging
 import sys
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
 from vultron.demo.utils import (
     DataLayerClient,
@@ -35,9 +35,9 @@ logger = logging.getLogger(__name__)
 
 
 def run_exchange_demos(
-    all_demos: Sequence[Tuple[str, Callable]],
+    all_demos: Sequence[tuple[str, Callable]],
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ) -> None:
     """Run an exchange demo module's demo suite.
 
@@ -90,7 +90,7 @@ def run_exchange_demos(
             assert_demo_success()
         except Exception as e:
             _note_accumulated_failures(e)
-            logger.error("%s failed: %s", demo_name, e, exc_info=True)
+            logger.exception("%s failed", demo_name)
             errors.append((demo_name, str(e)))
 
     logger.info("=" * 80)
@@ -118,7 +118,7 @@ def run_exchange_demos(
 
 
 def check_all_containers(
-    labeled_clients: Sequence[Tuple[str, DataLayerClient]],
+    labeled_clients: Sequence[tuple[str, DataLayerClient]],
 ) -> None:
     """Check availability of all containers, exiting with status 1 on failure.
 

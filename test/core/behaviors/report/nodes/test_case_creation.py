@@ -18,15 +18,15 @@
 import pytest
 from py_trees.composites import Sequence
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.helpers import UpdateActorOutbox
 from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseActivity,
     CreateCaseNode,
 )
+from vultron.core.models.activity import VultronOffer
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.activity import VultronOffer
-from test.core.behaviors.bt_harness import BTTestScenario
 
 
 def test_create_case_node(
@@ -102,15 +102,15 @@ def test_create_case_activity(
         activity_data.get("type") == "Create"
     )  # wire-facing key (ARCH-23-005)
     assert activity_data.get("to"), "CreateCaseActivity should have recipients"
-    assert (
-        actor.id_ not in activity_data["to"]
-    ), "Sender actor should be excluded from 'to' recipients"
-    assert (
-        reporter.id_ in activity_data["to"]
-    ), "Reporter (report.attributed_to) should be in 'to' recipients"
-    assert isinstance(
-        activity_data.get("object_"), str
-    ), "CreateCaseActivity object_ should be stored as the case ID string"
+    assert actor.id_ not in activity_data["to"], (
+        "Sender actor should be excluded from 'to' recipients"
+    )
+    assert reporter.id_ in activity_data["to"], (
+        "Reporter (report.attributed_to) should be in 'to' recipients"
+    )
+    assert isinstance(activity_data.get("object_"), str), (
+        "CreateCaseActivity object_ should be stored as the case ID string"
+    )
 
 
 def test_create_case_activity_missing_case_id(

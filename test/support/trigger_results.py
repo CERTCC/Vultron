@@ -27,9 +27,9 @@ from vultron.core.models.use_case_result import ActivityResult, NoteResult
 
 def activity_of(result: ActivityResult) -> dict[str, Any]:
     """Return the emitted activity of *result*, failing if none was captured."""
-    assert (
-        result.activity is not None
-    ), f"{type(result).__name__} captured no activity"
+    assert result.activity is not None, (
+        f"{type(result).__name__} captured no activity"
+    )
     return result.activity
 
 

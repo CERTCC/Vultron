@@ -56,7 +56,7 @@ def _term_entries(table: MarkdownTable) -> list[str]:
         else ("",) * len(table.rows)
     )
     entries = []
-    for row, alias in zip(table.rows, aliases):
+    for row, alias in zip(table.rows, aliases, strict=False):
         if not row:
             continue
         term = strip_bold(row[0])

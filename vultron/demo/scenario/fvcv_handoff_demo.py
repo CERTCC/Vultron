@@ -28,37 +28,8 @@ import sys
 
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_TransitiveActivity,
-)
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,  # noqa: F401 — used in type annotation
-)
-
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
-from vultron.enums.roles import CVDRole
-from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
-    DataLayerClient,
-    assert_demo_success,
-    case_actor_id_on,
-    check_server_availability,
-    demo_check,
-    demo_gate,
-    demo_step,
-    ref_id,
-    reset_datalayer,
-    reset_demo_failures,
-    setup_demo_logging,
-)
-from vultron.demo.helpers.notes import (
-    participant_adds_note_to_case,
-)
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
@@ -72,14 +43,17 @@ from vultron.demo.helpers.milestones import (
     verify_fix_ready,
     verify_publicly_disclosed,
 )
+from vultron.demo.helpers.notes import (
+    participant_adds_note_to_case,
+)
 from vultron.demo.helpers.polling import (
-    find_case_actor_participant_id,
     LATE_JOINER_TIMEOUT,
     SharedBudget,
-    wait_for_case_actor_ledger_event,
+    find_case_actor_participant_id,
     find_case_invite_for_actor,
     find_ownership_transfer_offer_for_actor,
     wait_for_all_participants_rm_closed,
+    wait_for_case_actor_ledger_event,
     wait_for_case_attributed_to,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -103,6 +77,31 @@ from vultron.demo.helpers.workflow import (
     run_invite_path_rm_triage,
 )
 from vultron.demo.scenario.registry import scenario
+from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
+    DataLayerClient,
+    assert_demo_success,
+    case_actor_id_on,
+    check_server_availability,
+    demo_check,
+    demo_gate,
+    demo_step,
+    ref_id,
+    reset_datalayer,
+    reset_demo_failures,
+    setup_demo_logging,
+)
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_TransitiveActivity,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,  # used in type annotation
+)
 
 logger = logging.getLogger(__name__)
 

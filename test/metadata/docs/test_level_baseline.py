@@ -10,8 +10,8 @@ import pytest
 from test.metadata.docs._level_tree import (
     VIOLATING,
     failures,
-    make_repo,
     leveled_page,
+    make_repo,
 )
 from vultron.metadata.docs import level_order
 from vultron.metadata.docs.level_order import (
@@ -158,4 +158,4 @@ class TestBaseline:
 
     def test_pin_matches_the_committed_baseline(self):
         """A pruned entry leaves the pin too, so the pin cannot re-admit it."""
-        assert _BASELINED == set(read_baseline())
+        assert set(read_baseline()) == _BASELINED

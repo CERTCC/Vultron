@@ -37,7 +37,7 @@ Three-level hierarchy:
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar
+from typing import Any
 
 import py_trees.behaviour
 from py_trees.common import Status
@@ -54,10 +54,8 @@ from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
-TriggerResultT = TypeVar("TriggerResultT", bound=TriggerResult)
 
-
-class SvcBTTriggerBase(ABC, Generic[TriggerResultT]):
+class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
     """Abstract base for all BT-backed trigger use cases.
 
     The :meth:`execute` template method orchestrates the common workflow:
@@ -247,7 +245,7 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
     def _handle_result(self) -> None:
         lifecycle_result = self._result_out.get("lifecycle_result")
         if not isinstance(lifecycle_result, EmbargoLifecycleResult):
-            raise RuntimeError(
+            raise RuntimeError(  # noqa: TRY004  # ruff-baseline #3353
                 f"{type(self).__name__} did not capture lifecycle result"
                 " in BT output"
             )

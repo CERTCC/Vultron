@@ -30,7 +30,7 @@ import importlib
 import pkgutil
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from vultron.core.models.base import CoreObject
@@ -62,7 +62,7 @@ def restore_core_registries() -> Iterator[None]:
 
 
 #: The instant synthesised for a required datetime field.
-PINNED_INSTANT = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+PINNED_INSTANT = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
 
 def import_all_core_models() -> None:
@@ -115,6 +115,6 @@ def build_core_vocab(
         kwargs.update(extra or {})
         try:
             built.append((name, base_cls(**kwargs)))
-        except Exception as exc:  # noqa: PERF203
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
             unconstructible[name] = f"{type(exc).__name__}: {exc}"
     return built, unconstructible

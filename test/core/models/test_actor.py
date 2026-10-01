@@ -29,8 +29,8 @@ def test_retired_vultron_actor_mixin_alias_is_gone():
     the hole ``test_no_wire_class_name_is_also_a_core_name`` now closes. Keeping
     the alias would keep that collision alive under a name nothing reads.
     """
-    import vultron.core.models.actor as actor_module
     import vultron.core.models as models_package
+    import vultron.core.models.actor as actor_module
 
     assert not hasattr(actor_module, "VultronActorMixin")
     assert not hasattr(models_package, "VultronActorMixin")

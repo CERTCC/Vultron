@@ -19,8 +19,9 @@ It also provides a number of core node types that can be used to build a Behavio
 
 import logging
 import re
+from collections.abc import Iterable
 from copy import deepcopy
-from typing import Any, Iterable
+from typing import Any, ClassVar
 
 import networkx as nx
 
@@ -50,7 +51,7 @@ class BtNode:
 
     # Maps name_pfx values to their Mermaid display symbols.
     # Subclasses can override individual entries by redefining the dict.
-    _mermaid_prefix_map: dict[str, str] = {
+    _mermaid_prefix_map: ClassVar[dict[str, str]] = {
         ">": "&rarr; ",
         "^": "#8645; ",
         "z": "#127922; ",
@@ -166,7 +167,7 @@ class BtNode:
             the node's status (as a NodeStatus enum)
         """
         if self.name is not None:
-            logger.debug(_indent(depth) + f"{self._pfx} {self.name}")
+            logger.debug("%s%s %s", _indent(depth), self._pfx, self.name)
 
         with self:
             self._pre_tick(depth=depth)
@@ -175,7 +176,7 @@ class BtNode:
             self._post_tick(depth=depth)
 
         if self.name is not None:
-            logger.debug(_indent(depth + 1) + f"= {self.status}")
+            logger.debug("%s= %s", _indent(depth + 1), self.status)
 
         return status
 
@@ -215,9 +216,7 @@ class BtNode:
             return True
         if self._children is None:
             return True
-        if len(list(self._children)) == 0:
-            return True
-        return False
+        return len(list(self._children)) == 0
 
     def _namestr(self, depth=0) -> str:
         """Returns a string representation of the node's name."""
@@ -341,7 +340,7 @@ class LeafNode(BtNode):
 
         if result is None:
             return NodeStatus.RUNNING
-        elif result:
+        if result:
             return NodeStatus.SUCCESS
         return NodeStatus.FAILURE
 

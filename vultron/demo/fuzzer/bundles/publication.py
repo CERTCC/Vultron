@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import py_trees
 
-from vultron.core.behaviors.call_out.bundles.publication import (  # noqa: F401
+from vultron.core.behaviors.call_out.bundles.publication import (
     PUBLICATION_DETERMINISTIC,
     PublicationCallOutBundle,
 )

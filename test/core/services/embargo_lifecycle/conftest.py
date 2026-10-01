@@ -24,15 +24,11 @@ from typing import cast
 
 import pytest
 
-# noqa: F401 — imported for vocabulary registration side-effect
-from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    as_VulnerabilityCase,
-)
-
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     CaseParticipant,
@@ -45,7 +41,11 @@ from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.core.models._helpers import days_from_now_utc
+
+# imported for vocabulary registration side-effect
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -159,9 +159,9 @@ def _seed_consent(
 
 
 @pytest.fixture()
-def owner_and_dl() -> (
-    Generator[tuple[as_Service, SqliteDataLayer], None, None]
-):
+def owner_and_dl() -> Generator[
+    tuple[as_Service, SqliteDataLayer], None, None
+]:
     owner = as_Service(name="Owner Org")
     reset_datalayer(owner.id_)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner.id_)

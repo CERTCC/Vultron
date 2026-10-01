@@ -9,9 +9,11 @@ copy/paste mistake in any property on the same class cannot pass undetected.
 
 import pytest
 
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.actor import (
@@ -62,10 +64,8 @@ from vultron.core.models.events.status import (
     CreateParticipantStatusReceivedEvent,
 )
 from vultron.core.models.note import VultronNote
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models._helpers import days_from_now_utc
 
 # Shared required fields for all VultronEvent instances.
 _ACT_ID = "https://example.org/activities/act-1"
@@ -470,6 +470,6 @@ def test_aliases_return_none_when_backing_field_is_absent(
     """Named aliases must return None when the backing VultronEvent field is not set."""
     event = _mk(cls, semantic)
     for alias in alias_names:
-        assert (
-            getattr(event, alias) is None
-        ), f"{cls.__name__}.{alias} should be None when backing field is absent"
+        assert getattr(event, alias) is None, (
+            f"{cls.__name__}.{alias} should be None when backing field is absent"
+        )

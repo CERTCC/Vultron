@@ -26,7 +26,7 @@ from pathlib import Path
 from vultron.metadata.base import repo_root as _find_repo_root
 from vultron.metadata.history.readme_gen import format_month_index
 
-_UTC = datetime.timezone.utc
+_UTC = datetime.UTC
 
 
 def _month_dirs_descending(history_root: Path) -> list[Path]:
@@ -87,10 +87,7 @@ def main() -> None:
             sys.exit(0)
         print("\n\n".join(format_month_index(d) for d in month_dirs))
     else:
-        if args.month:
-            yymm = args.month
-        else:
-            yymm = datetime.datetime.now(_UTC).strftime("%y%m")
+        yymm = args.month or datetime.datetime.now(_UTC).strftime("%y%m")
         month_dir = history_root / yymm
         if not month_dir.is_dir():
             print(

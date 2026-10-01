@@ -1,6 +1,7 @@
+from collections.abc import Generator
+
 import py_trees
 import pytest
-from collections.abc import Generator
 
 
 @pytest.fixture(autouse=True, scope="function")

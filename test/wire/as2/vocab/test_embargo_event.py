@@ -14,7 +14,7 @@
 """Tests for as_EmbargoEvent / EmbargoEvent — ADR-0099 detail 3 identity."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 from vultron.wire.as2.vocab.objects.embargo_event import (
@@ -22,8 +22,8 @@ from vultron.wire.as2.vocab.objects.embargo_event import (
 )
 
 _CONTEXT = "https://example.org/cases/abc"
-_FUTURE = datetime(2099, 12, 31, tzinfo=timezone.utc)
-_START = datetime(2099, 1, 1, tzinfo=timezone.utc)
+_FUTURE = datetime(2099, 12, 31, tzinfo=UTC)
+_START = datetime(2099, 1, 1, tzinfo=UTC)
 
 
 class TestWireEmbargoEventBasics:

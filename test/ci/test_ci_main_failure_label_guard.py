@@ -47,9 +47,9 @@ def test_guard_workflow_triggers_on_issues_labeled() -> None:
         if isinstance(issues_trigger, dict)
         else []
     )
-    assert (
-        "labeled" in types
-    ), "Workflow must trigger on 'issues: labeled' (CISEC-05-005)."
+    assert "labeled" in types, (
+        "Workflow must trigger on 'issues: labeled' (CISEC-05-005)."
+    )
 
 
 def test_guard_workflow_has_issues_write_permission() -> None:
@@ -61,9 +61,9 @@ def test_guard_workflow_has_issues_write_permission() -> None:
         "Workflow permissions must be a scoped dict, not a broad string like "
         "'write-all' (CISEC-05-005)."
     )
-    assert (
-        workflow_perms.get("issues") == "write"
-    ), "Workflow-level permissions must include 'issues: write' (CISEC-05-005)."
+    assert workflow_perms.get("issues") == "write", (
+        "Workflow-level permissions must include 'issues: write' (CISEC-05-005)."
+    )
     extra = {k: v for k, v in workflow_perms.items() if k != "issues"}
     assert not extra, (
         f"Workflow should have minimal permissions (issues: write only). "
@@ -74,9 +74,9 @@ def test_guard_workflow_has_issues_write_permission() -> None:
 def test_guard_workflow_filters_to_ci_main_failure_label() -> None:
     """CISEC-05-005: workflow must filter to the ci:main-failure label."""
     text = GUARD_WORKFLOW.read_text()
-    assert (
-        _EXPECTED_LABEL in text
-    ), f"Workflow must reference '{_EXPECTED_LABEL}' label (CISEC-05-005)."
+    assert _EXPECTED_LABEL in text, (
+        f"Workflow must reference '{_EXPECTED_LABEL}' label (CISEC-05-005)."
+    )
 
 
 def test_guard_workflow_checks_actor() -> None:

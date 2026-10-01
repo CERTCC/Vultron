@@ -35,14 +35,14 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.participant.roles import (
+    resolve_case_owner_id,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
-)
-from vultron.core.behaviors.case.nodes.participant.roles import (
-    resolve_case_owner_id,
 )
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
@@ -255,7 +255,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                 actor_id=self.actor_id,
             )
             if result.status != Status.SUCCESS:
-                raise RuntimeError(
+                raise RuntimeError(  # noqa: TRY301  # ruff-baseline #3353
                     f"ledger commit failed for "
                     f"offer_case_participant/{self.recommended_id}"
                 )
@@ -270,11 +270,11 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                 self.case_id,
             )
             return Status.SUCCESS
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"EmitOfferCaseParticipantToOwner failed: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -369,11 +369,11 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
                 self.case_id,
             )
             return Status.SUCCESS
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"EmitNoteDuplicateRecommendationToOwner failed: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 

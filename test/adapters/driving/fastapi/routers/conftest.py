@@ -15,41 +15,39 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
-from vultron.adapters.driving.fastapi.routers import actors as actors_router
 from vultron.adapters.driving.fastapi.routers import (
+    actors as actors_router,
     datalayer as datalayer_router,
-)
-from vultron.adapters.driving.fastapi.routers import (
     trigger_embargo as trigger_embargo_router,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import (
+    as_Application,
+    as_Group,
     as_Organization,
     as_Person,
     as_Service,
-    as_Application,
-    as_Group,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-from vultron.core.models._helpers import days_from_now_utc
 
 
 @pytest.fixture

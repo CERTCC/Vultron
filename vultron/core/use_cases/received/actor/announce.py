@@ -7,6 +7,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.announce_case_received_tree import (
     create_announce_vulnerability_case_received_tree,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
@@ -14,6 +15,7 @@ from vultron.core.models.ledger_gap_buffer import (
     LedgerGapBuffer,
     get_ledger_gap_buffer,
 )
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -25,8 +27,6 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
     resolve_receiving_actor_id,

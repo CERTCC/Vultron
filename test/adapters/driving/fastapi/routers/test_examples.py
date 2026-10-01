@@ -64,9 +64,9 @@ class TestActorSubtypeExampleEndpoints:
         self, client_examples, path, expected_type, slug
     ):
         data = client_examples.get(path).json()
-        assert (
-            data["type"] == expected_type
-        ), f"Expected type={expected_type!r}, got {data.get('type')!r}"
+        assert data["type"] == expected_type, (
+            f"Expected type={expected_type!r}, got {data.get('type')!r}"
+        )
 
     @pytest.mark.parametrize(
         "path, expected_type, slug",

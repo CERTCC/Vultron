@@ -15,7 +15,7 @@
 
 """Unit tests for the effective RSVP deadline (EP-07, CM-28-011)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -24,7 +24,7 @@ from vultron.core.models.rsvp_deadline import (
     resolve_rsvp_deadline,
 )
 
-PUBLISHED = datetime(2026, 9, 1, tzinfo=timezone.utc)
+PUBLISHED = datetime(2026, 9, 1, tzinfo=UTC)
 HOURS = timedelta(hours=1)
 DAYS = timedelta(days=1)
 
@@ -144,9 +144,9 @@ def test_non_utc_offsets_compare_by_instant() -> None:
 
 
 def test_absent_published_measures_from_now() -> None:
-    before = datetime.now(tz=timezone.utc).replace(microsecond=0)
+    before = datetime.now(tz=UTC).replace(microsecond=0)
     deadline = resolve_rsvp_deadline(
         requested=None, published=None, embargo_end=None
     )
-    after = datetime.now(tz=timezone.utc)
+    after = datetime.now(tz=UTC)
     assert before + 7 * DAYS <= deadline.effective <= after + 7 * DAYS

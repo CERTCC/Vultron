@@ -45,7 +45,7 @@ def test_construction_error_can_be_raised_with_cause():
     """VultronActivityConstructionError supports chained __cause__ (AF-04-001)."""
     original = ValueError("bad field")
     try:
-        raise VultronActivityConstructionError("factory failed") from original
+        raise VultronActivityConstructionError("factory failed") from original  # noqa: TRY301  # ruff-baseline #3353
     except VultronActivityConstructionError as exc:
         assert str(exc) == "factory failed"
         assert exc.__cause__ is original

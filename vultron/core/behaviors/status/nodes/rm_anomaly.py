@@ -32,8 +32,8 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +157,7 @@ class EmitRMGapNoteNode(DataLayerActionWithPorts):
                 to_rm,
                 self.case_id,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.warning(
                 "EmitRMGapNoteNode: failed to emit note for RM anomaly"
                 " in case '%s': %s",

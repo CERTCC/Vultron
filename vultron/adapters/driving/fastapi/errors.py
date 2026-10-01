@@ -1,12 +1,12 @@
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError as PydanticValidationError
 
 from vultron.errors import (
-    VultronInvalidStateTransitionError,
     VultronError,
+    VultronInvalidStateTransitionError,
     VultronNotFoundError,
     VultronValidationError,
 )
@@ -18,7 +18,7 @@ def domain_error_translation() -> Generator[None, None, None]:
     try:
         yield
     except (VultronError, PydanticValidationError) as e:
-        raise translate_domain_errors(e)
+        raise translate_domain_errors(e)  # noqa: B904  # ruff-baseline #3353
 
 
 def translate_domain_errors(exc: Exception) -> HTTPException:

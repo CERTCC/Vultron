@@ -242,7 +242,7 @@ def create_publish_artifact_tree(
     review_advisory_draft_factory: CallOutBackendFactory = _default_review_advisory_draft_factory,
     revise_advisory_draft_factory: CallOutBackendFactory = _default_revise_advisory_draft_factory,
     submit_advisory_artifact_factory: CallOutBackendFactory = _default_submit_advisory_artifact_factory,
-    call_out: "PublicationCallOutBundle | None" = None,
+    call_out: PublicationCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the publish-artifact pipeline (Production Collapse 4).
 

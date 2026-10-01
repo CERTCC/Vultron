@@ -21,36 +21,37 @@ from nodes.lifecycle.
 Per DEMOMA-07-003 steps 4–5.
 """
 
-import pytest
-import py_trees
-from py_trees.common import Status
 from unittest.mock import MagicMock
 
+import py_trees
+import pytest
+from py_trees.common import Status
+
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes.lifecycle import (
     EmitCloseCaseNode,
     PublicDisclosureBranchNode,
     _PublicDisclosureSkipConditionNode,
 )
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    PxaDimension,
+)
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
-from vultron.core.models.dimensions import (
-    PxaDimension,
-)
-from vultron.core.models._helpers import days_from_now_utc
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_MANAGER_ID = "https://example.org/actors/case-actor"
@@ -163,7 +164,7 @@ def _make_dl_with_em_state(
         case.active_embargo = embargo.id_
         try:
             dl.create(embargo)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3989
             pass
 
     participant = CaseParticipant(

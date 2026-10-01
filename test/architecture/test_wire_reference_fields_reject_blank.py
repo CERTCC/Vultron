@@ -32,7 +32,7 @@ or by hand.
 import pytest
 from pydantic import BaseModel
 
-import vultron.wire.as2.vocab.activities  # noqa: F401 — trigger dynamic discovery
+import vultron.wire.as2.vocab.activities  # trigger dynamic discovery
 import vultron.wire.as2.vocab.objects  # noqa: F401
 from test.support.blank_strings import (
     declared_type,

@@ -135,8 +135,7 @@ class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
             return Status.SUCCESS
 
         self.logger.debug(
-            f"{self.name}: actor lacks CNA role"
-            " — skip direct-assignment path"
+            f"{self.name}: actor lacks CNA role — skip direct-assignment path"
         )
         return Status.FAILURE
 

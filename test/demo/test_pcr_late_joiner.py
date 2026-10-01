@@ -212,9 +212,9 @@ def _post_to_inbox(client, actor_slug: str, activity) -> None:
         content=activity.model_dump_json(by_alias=True, exclude_none=True),
         headers={"Content-Type": "application/json"},
     )
-    assert (
-        resp.status_code == 202
-    ), f"Inbox POST returned {resp.status_code}: {resp.text}"
+    assert resp.status_code == 202, (
+        f"Inbox POST returned {resp.status_code}: {resp.text}"
+    )
 
 
 def _actor_slug(actor_id: str) -> str:
@@ -306,9 +306,9 @@ def _bootstrap_case(
             "to": [reporter_actor_id],
         },
     )
-    assert (
-        resp.status_code == 202
-    ), f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+    assert resp.status_code == 202, (
+        f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+    )
 
     # Find the canonical case by report_id to avoid picking up the extra
     # VulnerabilityCase created by trigger/create-case above (ADR-0041 flow
@@ -343,9 +343,9 @@ def _bootstrap_case(
         "/trigger/validate-report",
         json={"offer_id": offer.id_},
     )
-    assert (
-        resp.status_code == 202
-    ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
+    assert resp.status_code == 202, (
+        f"validate-report trigger failed ({resp.status_code}): {resp.text}"
+    )
 
     return case_id, owner_actor_id
 
@@ -478,8 +478,7 @@ def _run_late_joiner_sequence(
         json={"invite_id": invite_id},
     )
     assert resp.status_code == 202, (
-        f"accept-case-invite trigger failed ({resp.status_code}): "
-        f"{resp.text}"
+        f"accept-case-invite trigger failed ({resp.status_code}): {resp.text}"
     )
 
     # Step 6: drain CaseActor's outbox via real outbox_handler

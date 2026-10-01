@@ -33,6 +33,8 @@ References
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
     ProbablySucceed,
@@ -86,7 +88,9 @@ class EvaluateReportCredibility(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     requires human analyst review.
     """
 
-    output_keys = {"report_credibility_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "report_credibility_verdict": str
+    }
 
 
 class EvaluateReportValidity(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
@@ -111,7 +115,7 @@ class EvaluateReportValidity(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     judgment often requires human review.
     """
 
-    output_keys = {"report_validity_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {"report_validity_verdict": str}
 
 
 class EnoughValidationInfo(UsuallySucceed):
@@ -156,4 +160,4 @@ class GatherValidationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
     involvement.
     """
 
-    output_keys = {"validation_info_gathered": str}
+    output_keys: ClassVar[dict[str, type]] = {"validation_info_gathered": str}

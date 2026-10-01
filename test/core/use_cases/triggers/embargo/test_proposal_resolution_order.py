@@ -43,11 +43,12 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.use_cases.triggers._helpers import find_embargo_proposal_id
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
@@ -57,8 +58,8 @@ from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
     RejectEmbargoTriggerRequest,
 )
-from vultron.errors import VultronNotFoundError
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -68,7 +69,6 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import _persist_actor
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def _build_case_with_two_open_proposals(
@@ -294,7 +294,7 @@ def test_three_open_proposals_resolve_to_the_earliest_expiring(
     entry is the answer, so an arrival-order or a last-writer resolver both
     fail here.
     """
-    finder, finder_dl = finder_actor_and_dl
+    _finder, finder_dl = finder_actor_and_dl
     owner = _persist_actor(finder_dl, "Vendor Co")
     case = VulnerabilityCase(
         name="Three open proposals", attributed_to=owner.id_

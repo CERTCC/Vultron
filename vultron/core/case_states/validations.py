@@ -16,8 +16,9 @@ This module contains functions to validate the various strings and patterns used
 """
 
 import re
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, TypeVar, Any
+from typing import Any, TypeVar
 
 from vultron.errors import (
     HistoryValidationError,
@@ -70,7 +71,7 @@ def is_valid_pattern(pat: str) -> None:
     if not len(pat) == 6:
         raise PatternValidationError(f"Invalid Pattern [{pat}]")
 
-    for p, c in zip(pat.lower(), "vfdpxa"):
+    for p, c in zip(pat.lower(), "vfdpxa", strict=False):
         if p == c:
             continue
         # if you got here, the chars don't match
@@ -103,8 +104,8 @@ def ensure_valid_pattern(func: F) -> F:
         pat = args[0]
         try:
             is_valid_pattern(pat)
-        except PatternValidationError as e:
-            raise e
+        except PatternValidationError:  # noqa: TRY203  # ruff-baseline #3353
+            raise
         return func(*args, **kwargs)
 
     return wrapper  # type: ignore[return-value]
@@ -130,7 +131,7 @@ def is_valid_state(state: str) -> None:
     try:
         is_valid_pattern(state)
     except PatternValidationError as e:
-        raise StateValidationError(e)
+        raise StateValidationError(e)  # noqa: B904  # ruff-baseline #3353
 
     # disqualify impossible states
     if re.match("vF....", state):
@@ -164,8 +165,8 @@ def ensure_valid_state(func: F) -> F:
         state = args[0]
         try:
             is_valid_state(state)
-        except StateValidationError as e:
-            raise e
+        except StateValidationError:  # noqa: TRY203  # ruff-baseline #3353
+            raise
         return func(*args, **kwargs)
 
     return wrapper  # type: ignore[return-value]
@@ -221,8 +222,8 @@ def ensure_valid_state_method_wrapper(func: F) -> F:
         for state in states:
             try:
                 is_valid_state(state)
-            except StateValidationError as e:
-                raise e
+            except StateValidationError:  # noqa: TRY203  # ruff-baseline #3353
+                raise
 
         return func(self, *args, **kwargs)
 
@@ -261,11 +262,11 @@ def _ensure_transition_state(state: str) -> None:
     try:
         is_valid_state(state)
     except StateValidationError as e:
-        raise TransitionValidationError(e)
+        raise TransitionValidationError(e)  # noqa: B904  # ruff-baseline #3353
 
 
 def _transition_diff(src: str, dst: str) -> list[tuple[str, str]]:
-    return [(c1, c2) for c1, c2 in zip(src, dst) if c1 != c2]
+    return [(c1, c2) for c1, c2 in zip(src, dst, strict=False) if c1 != c2]
 
 
 def _validate_transition_case(diff: tuple[str, str]) -> None:
@@ -371,8 +372,8 @@ def ensure_valid_history(func: F) -> F:
         history = args[0]
         try:
             is_valid_history(history)
-        except HistoryValidationError as e:
-            raise e
+        except HistoryValidationError:  # noqa: TRY203  # ruff-baseline #3353
+            raise
         return func(*args, **kwargs)
 
     return wrapper  # type: ignore[return-value]

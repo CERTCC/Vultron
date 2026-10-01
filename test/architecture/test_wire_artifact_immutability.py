@@ -176,9 +176,9 @@ def test_tampering_with_a_reachable_class_leaves_the_evidence(class_key: str):
             if f"{type(i).__module__}.{type(i).__qualname__}" == class_key
         ]
         assert targets, f"{example_name} no longer carries {class_key}"
-        assert any(
-            i.model_fields_set for i in targets
-        ), f"no {class_key} in {example_name} has a field to tamper with"
+        assert any(i.model_fields_set for i in targets), (
+            f"no {class_key} in {example_name} has a field to tamper with"
+        )
 
         for instance in targets:
             _tamper(instance)
@@ -196,13 +196,13 @@ def test_trigger_activity_port_returns_wire_blob_not_dict():
 
     hints = typing.get_type_hints(TriggerActivityPort.submit_report)
     return_type = hints.get("return")
-    assert (
-        return_type is not None
-    ), "submit_report must have a return type annotation"
+    assert return_type is not None, (
+        "submit_report must have a return type annotation"
+    )
     type_args = typing.get_args(return_type)
-    assert (
-        len(type_args) == 2
-    ), "return type must be a 2-tuple (activity_id, payload)"
+    assert len(type_args) == 2, (
+        "return type must be a 2-tuple (activity_id, payload)"
+    )
     payload_type = type_args[1]
     # Currently dict[str, Any]: get_origin returns dict → assertion fails (xfail).
     # After #2653, payload_type is a frozen wire object: get_origin returns None → passes.

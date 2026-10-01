@@ -27,11 +27,10 @@ Covers:
   - BT-23-002: DETERMINISTIC bundle uses AlwaysSucceed/AlwaysFail
 """
 
-from test.core.behaviors.bt_harness import BTTestScenario
-
 import py_trees
 import pytest
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
@@ -505,9 +504,9 @@ class TestBTBridgeIntegration:
             call_out=bundle,
         )
         scenario.run(tree, actor_id=_OWNER_ACTOR)
-        assert not called[
-            "flag"
-        ], "CaseOwnerApprovesEmbargoResponse must NOT be called for CASE_OWNER"
+        assert not called["flag"], (
+            "CaseOwnerApprovesEmbargoResponse must NOT be called for CASE_OWNER"
+        )
 
     # ------------------------------------------------------------------
     # Non-owner routes through call-out seam (EMB-15-002)
@@ -544,9 +543,9 @@ class TestBTBridgeIntegration:
             call_out=bundle,
         )
         scenario.run(tree, actor_id=_NON_OWNER_ACTOR)
-        assert called[
-            "flag"
-        ], "CaseOwnerApprovesEmbargoResponse must be called for non-owner"
+        assert called["flag"], (
+            "CaseOwnerApprovesEmbargoResponse must be called for non-owner"
+        )
 
     @pytest.mark.spec("EMB-15-004")
     def test_unknown_actor_falls_through_to_reject(self):
@@ -579,12 +578,12 @@ class TestBTBridgeIntegration:
         )
         result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
         scenario.assert_success(result)
-        assert deny_factory_called[
-            "flag"
-        ], "CaseOwnerApproves call-out seam must be reached for unknown actor"
-        assert reject_log[
-            "ticked"
-        ], "reject_bt must be ticked for unknown actor"
+        assert deny_factory_called["flag"], (
+            "CaseOwnerApproves call-out seam must be reached for unknown actor"
+        )
+        assert reject_log["ticked"], (
+            "reject_bt must be ticked for unknown actor"
+        )
 
     # ------------------------------------------------------------------
     # Flow A — accept/counter/reject delegation (EMB-15-001 / EMB-15-003 / EMB-15-004)
@@ -610,15 +609,15 @@ class TestBTBridgeIntegration:
         )
         result = scenario.run(tree, actor_id=_OWNER_ACTOR)
         scenario.assert_success(result)
-        assert accept_log[
-            "ticked"
-        ], "accept_bt must be ticked in Flow A default-accept"
-        assert not counter_log[
-            "ticked"
-        ], "counter_bt must NOT be ticked on default-accept"
-        assert not reject_log[
-            "ticked"
-        ], "reject_bt must NOT be ticked on default-accept"
+        assert accept_log["ticked"], (
+            "accept_bt must be ticked in Flow A default-accept"
+        )
+        assert not counter_log["ticked"], (
+            "counter_bt must NOT be ticked on default-accept"
+        )
+        assert not reject_log["ticked"], (
+            "reject_bt must NOT be ticked on default-accept"
+        )
 
     @pytest.mark.spec("EMB-15-003")
     def test_flow_a_counter_delegation_when_willing(self):
@@ -630,8 +629,8 @@ class TestBTBridgeIntegration:
         # EvaluateProposal or accept_bt).
         # WillingToCounter returns SUCCESS so counter arm is then taken.
         accept_fail_bundle = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
-            willing_to_counter_factory=lambda name: _stub(name),  # type: ignore[arg-type]
+            case_owner_approves_embargo_response_factory=_failing_stub,  # type: ignore[arg-type]
+            willing_to_counter_factory=_stub,  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
@@ -656,12 +655,12 @@ class TestBTBridgeIntegration:
         )
         result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
         scenario.assert_success(result)
-        assert counter_log[
-            "ticked"
-        ], "counter_bt must be ticked when WillingToCounter succeeds"
-        assert not reject_log[
-            "ticked"
-        ], "reject_bt must NOT be ticked when counter arm taken"
+        assert counter_log["ticked"], (
+            "counter_bt must be ticked when WillingToCounter succeeds"
+        )
+        assert not reject_log["ticked"], (
+            "reject_bt must NOT be ticked when counter arm taken"
+        )
 
     @pytest.mark.spec("EMB-15-004")
     def test_flow_a_reject_delegation_when_all_arms_fail(self):
@@ -672,8 +671,8 @@ class TestBTBridgeIntegration:
         Counter arm fails because WillingToCounter → FAILURE.
         """
         deny_all = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
-            willing_to_counter_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
+            case_owner_approves_embargo_response_factory=_failing_stub,  # type: ignore[arg-type]
+            willing_to_counter_factory=_failing_stub,  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
@@ -696,9 +695,9 @@ class TestBTBridgeIntegration:
         )
         result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
         scenario.assert_success(result)
-        assert reject_log[
-            "ticked"
-        ], "reject_bt must be ticked when all other arms fail"
+        assert reject_log["ticked"], (
+            "reject_bt must be ticked when all other arms fail"
+        )
 
     # ------------------------------------------------------------------
     # Flow B — accept/reject delegation (no counter arm)
@@ -723,12 +722,12 @@ class TestBTBridgeIntegration:
         )
         result = scenario.run(tree, actor_id=_OWNER_ACTOR)
         scenario.assert_success(result)
-        assert accept_log[
-            "ticked"
-        ], "accept_bt must be ticked in Flow B default-accept"
-        assert not reject_log[
-            "ticked"
-        ], "reject_bt must NOT be ticked on Flow B accept"
+        assert accept_log["ticked"], (
+            "accept_bt must be ticked in Flow B default-accept"
+        )
+        assert not reject_log["ticked"], (
+            "reject_bt must NOT be ticked on Flow B accept"
+        )
 
     @pytest.mark.spec("EMB-15-004")
     def test_flow_b_reject_delegation(self):
@@ -739,7 +738,7 @@ class TestBTBridgeIntegration:
         EvaluateEmbargoProposal is never reached, so no factory override needed.
         """
         deny_accept = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
+            case_owner_approves_embargo_response_factory=_failing_stub,  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
@@ -761,6 +760,6 @@ class TestBTBridgeIntegration:
         )
         result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
         scenario.assert_success(result)
-        assert reject_log[
-            "ticked"
-        ], "reject_bt must be ticked in Flow B when accept fails"
+        assert reject_log["ticked"], (
+            "reject_bt must be ticked in Flow B when accept fails"
+        )

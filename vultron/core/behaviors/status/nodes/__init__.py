@@ -47,31 +47,6 @@ Submodules:
   CSB-17-005, ISSUE-2524)
 """
 
-from vultron.core.behaviors.status.nodes.case_status import (
-    CASE_STATUS_ALREADY_PRESENT,
-    AppendCaseStatusToCaseNode,
-    CheckCaseStatusIdempotencyNode,
-    EmitCaseStatusUpdateNode,
-)
-from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
-    BB_CASE_STATUS_DIM_FILTER,
-    FilterCsEmDimensionNode,
-    FilterCsPxaDimensionNode,
-    FinalizeCsFilterNode,
-)
-from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
-    CheckCsEphemeralStateNode,
-    CheckCsHistoryPrefixNode,
-)
-from vultron.core.behaviors.status.nodes.conditions import (
-    AllParticipantsRMClosedConditionNode,
-    CloseNotYetEmittedConditionNode,
-    VerifySenderIsParticipantNode,
-)
-from vultron.core.behaviors.status.nodes.dimension_filter import (
-    BB_DIMENSION_FILTER,
-    FilterParticipantStatusDimensionsNode,
-)
 from vultron.core.behaviors.status.nodes.append import (
     AppendStatusAndSaveParticipantNode,
     CheckStatusNotAlreadyAppendedNode,
@@ -79,8 +54,33 @@ from vultron.core.behaviors.status.nodes.append import (
     ResolveAndPersistStatusObjectNode,
     SkipIfIdempotentNode,
 )
-from vultron.core.behaviors.status.nodes.rm_validation import (
-    ValidateRMTransitionNode,
+from vultron.core.behaviors.status.nodes.case_status import (
+    CASE_STATUS_ALREADY_PRESENT,
+    AppendCaseStatusToCaseNode,
+    CheckCaseStatusIdempotencyNode,
+    EmitCaseStatusUpdateNode,
+)
+from vultron.core.behaviors.status.nodes.conditions import (
+    AllParticipantsRMClosedConditionNode,
+    CloseNotYetEmittedConditionNode,
+    VerifySenderIsParticipantNode,
+)
+from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
+    BB_CASE_STATUS_DIM_FILTER,
+    FilterCsEmDimensionNode,
+    FilterCsPxaDimensionNode,
+    FinalizeCsFilterNode,
+)
+from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
+    PxaEmInvariantDiagnosticNode,
+)
+from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
+    CheckCsEphemeralStateNode,
+    CheckCsHistoryPrefixNode,
+)
+from vultron.core.behaviors.status.nodes.dimension_filter import (
+    BB_DIMENSION_FILTER,
+    FilterParticipantStatusDimensionsNode,
 )
 from vultron.core.behaviors.status.nodes.lifecycle import (
     EmitCloseCaseNode,
@@ -91,8 +91,8 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
 from vultron.core.behaviors.status.nodes.rm_anomaly import (
     EmitRMGapNoteNode,
 )
-from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
-    PxaEmInvariantDiagnosticNode,
+from vultron.core.behaviors.status.nodes.rm_validation import (
+    ValidateRMTransitionNode,
 )
 
 __all__ = [

@@ -250,8 +250,9 @@ def test_no_similarity_helper_in_the_parse_edge() -> None:
     Scans the whole wire package, not just ``parser.py``: #3921 AC-7 lets the
     partition helper move to a sibling module under ``vultron/wire/as2/``.
     """
-    import vultron.wire.as2 as wire_package
     from pathlib import Path
+
+    import vultron.wire.as2 as wire_package
 
     forbidden = (
         "difflib",

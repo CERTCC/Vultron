@@ -63,9 +63,9 @@ class TestMultiActorComposeHostPorts:
     """Host port bindings must be configurable via environment variables."""
 
     def test_compose_file_exists(self):
-        assert (
-            _COMPOSE_FILE.exists()
-        ), f"Compose file not found: {_COMPOSE_FILE}"
+        assert _COMPOSE_FILE.exists(), (
+            f"Compose file not found: {_COMPOSE_FILE}"
+        )
 
     def test_all_actor_services_have_port_mappings(self):
         """Every actor service must expose exactly one port mapping."""

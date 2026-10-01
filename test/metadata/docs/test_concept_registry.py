@@ -9,8 +9,8 @@ import pytest
 
 from test.metadata.docs._level_tree import (
     failures,
-    make_repo,
     leveled_page,
+    make_repo,
 )
 
 # ---------------------------------------------------------------------------

@@ -26,7 +26,7 @@
 """
 
 import inspect
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import assert_type
 
 import pytest
@@ -65,7 +65,7 @@ from vultron.core.use_cases.triggers.requests import (
 
 _ACTOR = "https://example.org/actors/vendor"
 _CASE = "https://example.org/api/v2/VulnerabilityCases/abc"
-_FUTURE = datetime(2099, 12, 1, tzinfo=timezone.utc)
+_FUTURE = datetime(2099, 12, 1, tzinfo=UTC)
 
 
 def _concrete_requests() -> list[type[TriggerRequest[TriggerResult]]]:
@@ -294,7 +294,8 @@ def test_end_time_validator_is_declared_once() -> None:
     )
     for model in _END_TIME_MODELS:
         assert (
-            getattr(model, "end_time_must_be_tz_aware_and_future").__func__
+            # Typed ``type[BaseModel]``; getattr keeps the type checker out.
+            getattr(model, "end_time_must_be_tz_aware_and_future").__func__  # noqa: B009
             is owner.__func__
         )
 
@@ -302,12 +303,13 @@ def test_end_time_validator_is_declared_once() -> None:
 @pytest.mark.parametrize("model", _END_TIME_MODELS, ids=lambda m: m.__name__)
 def test_end_time_rejects_a_naive_datetime(model: type[BaseModel]) -> None:
     with pytest.raises(ValidationError, match="timezone-aware"):
-        model.model_validate(_end_time_payload(model, datetime(2099, 12, 1)))
+        naive = datetime(2099, 12, 1)  # noqa: DTZ001 — deliberately naive
+        model.model_validate(_end_time_payload(model, naive))
 
 
 @pytest.mark.parametrize("model", _END_TIME_MODELS, ids=lambda m: m.__name__)
 def test_end_time_rejects_a_past_datetime(model: type[BaseModel]) -> None:
-    past = datetime.now(tz=timezone.utc) - timedelta(days=1)
+    past = datetime.now(tz=UTC) - timedelta(days=1)
     with pytest.raises(ValidationError, match="in the future"):
         model.model_validate(_end_time_payload(model, past))
 
@@ -317,4 +319,5 @@ def test_end_time_accepts_an_aware_future_datetime(
     model: type[BaseModel],
 ) -> None:
     built = model.model_validate(_end_time_payload(model, _FUTURE))
-    assert getattr(built, "end_time") == _FUTURE
+    # Typed ``BaseModel``; getattr keeps the type checker out.
+    assert getattr(built, "end_time") == _FUTURE  # noqa: B009

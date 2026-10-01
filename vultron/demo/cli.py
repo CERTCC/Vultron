@@ -46,19 +46,24 @@ from typing import Any, cast
 
 import click
 
-import vultron.demo.exchange.acknowledge_demo as acknowledge_demo
-import vultron.demo.exchange.establish_embargo_demo as establish_embargo_demo
-import vultron.demo.exchange.initialize_case_demo as initialize_case_demo
-import vultron.demo.exchange.initialize_participant_demo as initialize_participant_demo
-import vultron.demo.exchange.invite_actor_demo as invite_actor_demo
-import vultron.demo.exchange.manage_case_demo as manage_case_demo
-import vultron.demo.exchange.manage_embargo_demo as manage_embargo_demo
-import vultron.demo.exchange.manage_participants_demo as manage_participants_demo
-import vultron.demo.exchange.receive_report_demo as receive_report_demo
-import vultron.demo.exchange.status_updates_demo as status_updates_demo
-import vultron.demo.exchange.suggest_actor_demo as suggest_actor_demo
-import vultron.demo.exchange.transfer_ownership_demo as transfer_ownership_demo
-import vultron.demo.exchange.trigger_demo as trigger_demo
+import vultron.bt.base.demo.cvd as cvd_vultrabot_demo
+import vultron.bt.base.demo.pacman as pacman_demo
+import vultron.bt.base.demo.robot as robot_demo
+from vultron.demo.exchange import (
+    acknowledge_demo,
+    establish_embargo_demo,
+    initialize_case_demo,
+    initialize_participant_demo,
+    invite_actor_demo,
+    manage_case_demo,
+    manage_embargo_demo,
+    manage_participants_demo,
+    receive_report_demo,
+    status_updates_demo,
+    suggest_actor_demo,
+    transfer_ownership_demo,
+    trigger_demo,
+)
 from vultron.demo.helpers.actor_roles import (
     ActorRole,
     role_kwarg_names,
@@ -66,12 +71,9 @@ from vultron.demo.helpers.actor_roles import (
 )
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 from vultron.demo.seed_config import SeedConfig
-from vultron.demo.utils import DataLayerClient, BASE_URL, seed_actor, seed_peer
+from vultron.demo.utils import BASE_URL, DataLayerClient, seed_actor, seed_peer
 from vultron.errors import DemoScenarioRegistryError
 from vultron.logging_setup import suppress_third_party_info_noise
-import vultron.bt.base.demo.pacman as pacman_demo
-import vultron.bt.base.demo.robot as robot_demo
-import vultron.bt.base.demo.cvd as cvd_vultrabot_demo
 
 # Ordered list of (sub-command name, demo module) pairs.
 # Order defines execution sequence for the `all` sub-command (DC-01-003).
@@ -308,7 +310,7 @@ def run_all(skip_health_check: bool) -> None:
         try:
             module.main(skip_health_check=skip_health_check)
             results.append((name, True, ""))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
             results.append((name, False, str(exc)))
             click.echo(f"\n❌  Demo '{name}' FAILED: {exc}", err=True)
             _print_summary(results)

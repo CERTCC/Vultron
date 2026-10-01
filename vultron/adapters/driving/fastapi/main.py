@@ -20,8 +20,7 @@ from enum import Enum
 from typing import Any, cast
 
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.routing import APIRoute
 from starlette.routing import BaseRoute, Mount
 

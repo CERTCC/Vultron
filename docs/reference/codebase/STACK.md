@@ -41,11 +41,9 @@ stakeholder_type: [project-contributor]
 
 | Tool | Purpose | Evidence |
 |------|---------|----------|
-| black | Code formatter (>=26.5.1, line-length 79) | `pyproject.toml` `[tool.black]`, `[dependency-groups].dev` |
-| flake8 | Linter (>=7.3.0; E203/E501 ignored, max complexity 10) | `.flake8`, `[dependency-groups].dev` |
+| ruff | Linter, formatter and import sorter (>=0.16.9; line-length 79, max complexity 10; ADR-0094) | `pyproject.toml` `[tool.ruff]`, `[dependency-groups].dev` |
 | mypy | Static type checking (>=2.3.0) | `pyproject.toml` `[dependency-groups].dev` |
 | pyright | Static type checking (>=1.1.411, second pass) | `pyrightconfig.json`, `[dependency-groups].dev` |
-| isort | Import ordering (>=7.0.0, black profile) | `pyproject.toml` `[tool.isort]` |
 | pre-commit | Git hook runner (>=4.6.2) | `[dependency-groups].dev` |
 | pytest | Test runner (>=9.1.1) | `pyproject.toml` `[dependency-groups].dev` |
 | pytest-timeout | Per-test timeout (30 s unit tier, raised from 5 s in #2270; 60 s integration tier) | `pyproject.toml` `[tool.pytest.ini_options]`, `test/conftest.py` |
@@ -67,10 +65,10 @@ uv run pytest --tb=short
 uv run pytest -m "" --tb=short
 
 # Format code
-uv run black .
+uv run ruff format
 
 # Lint
-uv run flake8 vultron/ test/
+uv run ruff check
 uv run mypy
 uv run pyright
 
@@ -99,7 +97,6 @@ PYTHONPATH= uv run spec-dump --topic CS --text
 
 - `pyproject.toml`
 - `uv.lock`
-- `.flake8`
 - `.env.example`
 - `.github/workflows/python-app.yml`
 - `Makefile`

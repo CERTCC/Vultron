@@ -37,15 +37,15 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import case_addressees
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     participant_status_rm_state,
 )
-from vultron.core.states.rm import RM
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.models.case import case_addressees
+from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +120,7 @@ class CollectNonClosedLogEntryRecipientsNode(DataLayerActionWithPorts):
 
         recipients = [
             actor_id
-            for actor_id in case_obj.actor_participant_index.keys()
+            for actor_id in case_obj.actor_participant_index
             if actor_id != self.actor_id
             and not self._is_rm_closed(
                 case_obj.actor_participant_index.get(actor_id, "")

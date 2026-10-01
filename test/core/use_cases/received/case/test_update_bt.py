@@ -21,6 +21,9 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.behaviors.case.nodes.conditions import (
+    CheckIsCaseManagerNode,
+)
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -31,19 +34,16 @@ from vultron.core.behaviors.case.nodes.update import (
     CheckCaseUpdateOwnerNode,
 )
 from vultron.core.behaviors.case.update_support import broadcast_case_update
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.use_case_result import HandlerResult
-from vultron.enums.roles import CVDRole
-from vultron.core.behaviors.case.nodes.conditions import (
-    CheckIsCaseManagerNode,
-)
 from vultron.core.behaviors.case.update_tree import (
     create_update_case_received_tree,
 )
 from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.use_cases.received.case.update import (
     UpdateCaseReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import update_case_activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,

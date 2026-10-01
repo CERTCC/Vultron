@@ -15,7 +15,8 @@ This module defines a Behavior Tree object.
 """
 
 import logging
-from typing import Any, Literal, Type
+from types import TracebackType
+from typing import Any, Literal, Self
 
 from vultron.bt.base.blackboard import Blackboard
 from vultron.bt.base.bt_node import BtNode
@@ -37,12 +38,12 @@ class BehaviorTree:
         bb: the blackboard object
     """
 
-    bbclass: Type[Any] = Blackboard
+    bbclass: type[Any] = Blackboard
 
     def __init__(
         self,
         root: BtNode | None = None,
-        bbclass: Type[Any] | None = None,
+        bbclass: type[Any] | None = None,
     ):
         """
         Initialize the BehaviorTree object.
@@ -62,7 +63,7 @@ class BehaviorTree:
         self._setup: bool = False
 
     # runtime context
-    def __enter__(self) -> "BehaviorTree":
+    def __enter__(self) -> Self:
         """
         Runtime context for the BehaviorTree object.
 
@@ -73,7 +74,10 @@ class BehaviorTree:
         return self
 
     def __exit__(
-        self, exc_type: Exception, exc_val: str, exc_tb: list
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> Literal[False]:
         """
         Runtime context for the BehaviorTree object.

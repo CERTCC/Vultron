@@ -392,13 +392,15 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
                 "fields": {
                     key: getattr(filtered, field).state.name
                     for key, field in zip(
-                        CASE_STATUS_PATCH_KEYS, CASE_STATUS_PATCH_FIELDS
+                        CASE_STATUS_PATCH_KEYS,
+                        CASE_STATUS_PATCH_FIELDS,
+                        strict=False,
                     )
                 },
             },
         )
         self.logger.warning(
-            "%s: partial accept for status '%s':" " refused %s, accepted %s",
+            "%s: partial accept for status '%s': refused %s, accepted %s",
             self.name,
             status_id,
             refused,

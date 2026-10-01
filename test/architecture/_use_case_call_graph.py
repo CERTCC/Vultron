@@ -80,9 +80,7 @@ def _is_dl_mutation_call(node: ast.AST) -> bool:
     ):
         return True
     # dl.METHOD (local variable)
-    if isinstance(recv, ast.Name) and recv.id in _DL_RECEIVER_ATTRS:
-        return True
-    return False
+    return bool(isinstance(recv, ast.Name) and recv.id in _DL_RECEIVER_ATTRS)
 
 
 def _walk_own_scope(node: ast.AST) -> Iterator[ast.AST]:
@@ -231,9 +229,11 @@ class _UseCaseCorpus:
         """True if any ``execute()`` in *module* reaches a DL write in-package."""
         index = self._modules[module]
         for cls, methods in index.methods.items():
-            if (execute := methods.get("execute")) is not None:
-                if self._reaches_mutation(module, cls, execute, set()):
-                    return True
+            execute = methods.get("execute")
+            if execute is not None and self._reaches_mutation(
+                module, cls, execute, set()
+            ):
+                return True
         return False
 
     def _reaches_mutation(

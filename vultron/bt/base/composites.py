@@ -39,7 +39,7 @@ class SequenceNode(BtNode):
             child_status = child.tick(depth + 1)
             if child_status == NodeStatus.RUNNING:
                 return NodeStatus.RUNNING
-            elif child_status == NodeStatus.FAILURE:
+            if child_status == NodeStatus.FAILURE:
                 return NodeStatus.FAILURE
         return NodeStatus.SUCCESS
 
@@ -63,7 +63,7 @@ class FallbackNode(BtNode):
 
             if child_status == NodeStatus.RUNNING:
                 return NodeStatus.RUNNING
-            elif child_status == NodeStatus.SUCCESS:
+            if child_status == NodeStatus.SUCCESS:
                 return NodeStatus.SUCCESS
         return NodeStatus.FAILURE
 
@@ -126,6 +126,6 @@ class ParallelNode(BtNode):
 
             if successes >= self.m:
                 return NodeStatus.SUCCESS
-            elif failures > (self.N - self.m):
+            if failures > (self.N - self.m):
                 return NodeStatus.FAILURE
         return NodeStatus.RUNNING

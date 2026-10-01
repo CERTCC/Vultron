@@ -194,16 +194,16 @@ def test_gate_precedes_the_pages_upload(command: str):
     bad build was already on Pages.
     """
     deploy = WORKFLOWS_DIR / "deploy_site.yml"
-    assert (
-        deploy.is_file()
-    ), f"{deploy} is missing — the publishing path moved."
+    assert deploy.is_file(), (
+        f"{deploy} is missing — the publishing path moved."
+    )
     steps = _steps(load_workflow(deploy))
     gate = _index_of(steps, command, "run")
     upload = _index_of(steps, UPLOAD_PAGES_ACTION, "uses")
     assert gate is not None, f"deploy_site.yml does not run '{command}'."
-    assert (
-        upload is not None
-    ), "deploy_site.yml no longer uploads a Pages artifact."
+    assert upload is not None, (
+        "deploy_site.yml no longer uploads a Pages artifact."
+    )
     assert gate < upload, (
         f"'{command}' must run before '{UPLOAD_PAGES_ACTION}' so a bad build "
         f"cannot reach Pages (DOCBW-03-006, {GATES[command]})."

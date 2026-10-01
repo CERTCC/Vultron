@@ -1,12 +1,14 @@
 """Tests for SvcTerminateEmbargoUseCase."""
 
-import pytest
 from typing import cast
+
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
@@ -26,7 +28,6 @@ from .conftest import (
     _build_unbound_case_with_case_manager,
     _persist_actor,
 )
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 def test_terminate_embargo_transitions_case_to_exited_via_bt_path(

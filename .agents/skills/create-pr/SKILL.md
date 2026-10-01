@@ -104,7 +104,7 @@ Docs: pending check-docs-sync
 ## Verification
 
 - All N unit tests pass (M new)
-- Black, flake8, mypy, pyright clean
+- ruff, mypy, pyright clean
 ```
 
 If the caller supplied no Spec manifest, write `Spec manifest: not provided —
@@ -189,13 +189,9 @@ Run the appropriate suite based on PR type:
 **Docs PR** (`type: docs`):
 
 ```bash
-# Linters only — no Python changed. Scope matches run-linters and build
-# Phase 6; bare `uv run flake8` walks the whole repo (including scripts/,
-# which carries pre-existing C901/E741 findings no other gate covers) and
-# fails every docs PR on debt it did not introduce.
-uv run black --check .
-uv run flake8 vultron/ test/
-uv run mypy vultron
+# Linters only — no Python changed. Each tool reads its scope from config.
+uv run ruff check && uv run ruff format --check
+uv run mypy
 uv run pyright
 ```
 
@@ -205,8 +201,8 @@ before proceeding. Do not open a PR with lint failures.
 **Implementation PR** (`type: implementation`):
 
 ```bash
-uv run black vultron/ test/
-uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
+uv run ruff check --fix && uv run ruff format
+uv run ruff check && uv run mypy && uv run pyright
 uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
 uv run pytest -m integration --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
 ```

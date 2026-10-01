@@ -19,7 +19,7 @@ It also provides functions for converting between state strings and enums.
 """
 
 from enum import Enum, StrEnum
-from typing import NamedTuple, Tuple
+from typing import NamedTuple
 
 from transitions import Machine
 
@@ -302,19 +302,19 @@ def _first3(s):
 
 @ensure_valid_state
 def vfd(state):
-    vf, d, pxa = state_string_to_enums(state)
+    vf, d, _pxa = state_string_to_enums(state)
     return (vf, d)
 
 
 @ensure_valid_state
 def pxa(state):
-    vf, d, pxa = state_string_to_enums(state)
+    _vf, _d, pxa = state_string_to_enums(state)
     value = pxa.value
     return value
 
 
 @ensure_valid_state
-def state_string_to_enums(s: str) -> Tuple[CS_vf, CS_d, CS_pxa]:
+def state_string_to_enums(s: str) -> tuple[CS_vf, CS_d, CS_pxa]:
     """
     Convert a state string to a tuple of enums that define the state `(CS_vf, CS_d, CS_pxa)`
 
@@ -335,7 +335,7 @@ def state_string_to_enums(s: str) -> Tuple[CS_vf, CS_d, CS_pxa]:
 @ensure_valid_state
 def state_string_to_enum2(
     s: str,
-) -> Tuple[StrEnum, ...]:
+) -> tuple[StrEnum, ...]:
     """
     Convert a state string to a list of enums that define the state
 
@@ -369,7 +369,7 @@ def state_string_to_enum2(
     ]
 
     resolved_enums = []
-    for value, enum in zip(s, enums):
+    for value, enum in zip(s, enums, strict=False):
         resolved_enums.append(enum[value])
 
     return tuple(resolved_enums)
@@ -630,7 +630,8 @@ def _is_monotonic_forward(
     if source == dest:
         return False
     return not any(
-        _is_component_regression(s, d) for s, d in zip(source, dest)
+        _is_component_regression(s, d)
+        for s, d in zip(source, dest, strict=False)
     )
 
 

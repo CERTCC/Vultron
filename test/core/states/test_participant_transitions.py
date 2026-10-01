@@ -55,9 +55,9 @@ class TestLegalWrites:
 
     def test_same_state_write_is_a_confirmation_not_a_transition(self):
         """A snapshot records current state; re-asserting it is legitimate."""
-        assert (
-            _violations(current_rm=RM.VALID, requested_rm=RM.VALID) == []
-        ), "re-confirming the current RM state is not a transition"
+        assert _violations(current_rm=RM.VALID, requested_rm=RM.VALID) == [], (
+            "re-confirming the current RM state is not a transition"
+        )
 
     def test_absent_dimension_is_unconstrained(self):
         """A None *current* vf is absence, not an initial state (ADR-0075).

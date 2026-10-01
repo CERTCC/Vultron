@@ -17,6 +17,10 @@
 
 import py_trees
 
+from test.core.behaviors.embargo.nodes.conftest import (
+    make_case_and_embargo,
+    setup_blackboard,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.conditions import (
     HasActiveEmbargoNode,
@@ -34,11 +38,6 @@ from vultron.core.states.em import EM
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-
-from test.core.behaviors.embargo.nodes.conftest import (
-    make_case_and_embargo,
-    setup_blackboard,
 )
 
 

@@ -14,12 +14,18 @@
 
 import json
 from typing import cast
+
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.dimensions import (
+    EmDimension,
+    RmDimension,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -43,11 +49,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.core.models.dimensions import (
-    EmDimension,
-    RmDimension,
-)
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 
 class TestStatusUseCases:
@@ -198,9 +199,9 @@ class TestStatusUseCases:
         assert updated_case is not None
         updated_case = cast(as_VulnerabilityCase, updated_case)
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
-        assert (
-            bad_status.id_ not in status_ids
-        ), "Bad status should not have been appended"
+        assert bad_status.id_ not in status_ids, (
+            "Bad status should not have been appended"
+        )
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason
 
@@ -1101,7 +1102,7 @@ class TestParticipantStatusLogEntryCascade:
 
         actor_id = "https://example.org/users/vendor"
         case_id = "https://example.org/cases/st_le_abs"
-        dl, case_actor_id, participant, pstatus = self._make_dl(
+        dl, _case_actor_id, participant, pstatus = self._make_dl(
             case_id, actor_id
         )
         case = cast(as_VulnerabilityCase, dl.read(case_id))

@@ -54,8 +54,8 @@ from vultron.metadata.demo_scenarios.narrative_pages import (
     NARRATIVE_INDEX,
 )
 from vultron.metadata.demo_scenarios.prose_checks import (
-    SCENARIO_TABLES,
     SCENARIO_TABLE_CONSUMERS,
+    SCENARIO_TABLES,
     consistency_problems,
     missing_event_type_requirements,
     missing_narrative_nav_entries,
@@ -435,7 +435,8 @@ def test_partition_holds_on_the_committed_tree() -> None:
 
 def test_partition_reports_a_scenario_in_both_registers() -> None:
     """A planned scenario that is also registered is reported."""
-    both = discover_scenarios() + (
+    both = (
+        *discover_scenarios(),
         ScenarioSpec(
             name="fcvd",
             label="FCVD",
@@ -1509,6 +1510,6 @@ def test_scenario_set_statement_check_reports_a_stale_enumeration(
         encoding="utf-8",
     )
     problems = scenario_set_statement_problems(prose_root)
-    assert any(
-        "DEMOCI-06-002 names scenarios" in p for p in problems
-    ), problems
+    assert any("DEMOCI-06-002 names scenarios" in p for p in problems), (
+        problems
+    )

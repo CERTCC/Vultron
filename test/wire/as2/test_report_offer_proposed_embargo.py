@@ -22,7 +22,7 @@ Extraction surfaces the terms on both received events (ADR-0035).  #3392.
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -53,7 +53,7 @@ _FINDER = "https://example.org/actors/finder"
 _VENDOR = "https://example.org/actors/vendor"
 _CASE_ACTOR = "https://example.org/case-actors/alpha"
 _CASE = "https://example.org/cases/1"
-_END = datetime(2099, 6, 1, tzinfo=timezone.utc)
+_END = datetime(2099, 6, 1, tzinfo=UTC)
 
 
 def _report() -> as_VulnerabilityReport:

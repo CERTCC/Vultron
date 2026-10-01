@@ -99,7 +99,7 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
                 actor_id=self.actor_id,
             )
             if result.status != Status.SUCCESS:
-                raise RuntimeError(
+                raise RuntimeError(  # noqa: TRY301  # ruff-baseline #3353
                     f"ledger commit failed for "
                     f"accept_actor_recommendation/{self.recommended_id}"
                 )
@@ -113,11 +113,11 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
                 self.case_id,
             )
             return Status.SUCCESS
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"EmitAcceptActorRecommendation failed: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -177,7 +177,7 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
                 actor_id=self.actor_id,
             )
             if result.status != Status.SUCCESS:
-                raise RuntimeError(
+                raise RuntimeError(  # noqa: TRY301  # ruff-baseline #3353
                     f"ledger commit failed for "
                     f"reject_actor_recommendation/{self.recommended_id}"
                 )
@@ -191,11 +191,11 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
                 self.case_id,
             )
             return Status.SUCCESS
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"EmitRejectActorRecommendation failed: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 

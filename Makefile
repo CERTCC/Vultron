@@ -35,27 +35,21 @@ upgrade_deps:  ## Upgrade all dependencies
 test:  ## Run tests locally
 	uv run pytest test
 
-# black code formatting
-.PHONY: black
-black:  ## Format code with black
-	uv run black .
+# ruff code formatting; scope comes from [tool.ruff] in pyproject.toml
+.PHONY: format
+format:  ## Format code with ruff
+	uv run ruff format
 
 # markdownlint-cli2 code formatting
 .PHONY: mdlint
 mdlint:  ## Lint markdown files
 	./mdlint.sh
 
-# flake8
-.PHONY: flake8
-flake8:  ## Check code with flake8
-	# edit $(PROJECT_HOME)/.flake8 to configure flake8 options
-	uv run flake8 ${VULTRON_DIR} ${TEST_DIR}
-
-# flake8 code linting
-.PHONY: flake8-lint
-flake8-lint:  ## Lint code with flake8
-	# edit $(PROJECT_HOME)/.flake8 to configure flake8 options
-	uv run flake8 --exit-zero ${VULTRON_DIR} ${TEST_DIR}
+# ruff code linting
+.PHONY: ruff
+ruff:  ## Lint code with ruff
+	# edit [tool.ruff] in $(PROJECT_HOME)/pyproject.toml to configure ruff
+	uv run ruff check
 
 # mypy type checking
 .PHONY: mypy
@@ -70,7 +64,7 @@ pyright:  ## Run pyright for static type checking
 
 # run all linters
 .PHONY: lint
-lint: black mdlint flake8-lint mypy ## Run all linters (black, markdownlint)
+lint: format ruff mdlint mypy ## Run all linters (ruff, markdownlint, mypy)
 
 # serve docs locally
 .PHONY: docs

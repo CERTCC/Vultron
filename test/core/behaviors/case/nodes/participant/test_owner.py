@@ -20,6 +20,8 @@ from typing import Any, cast
 import py_trees
 import pytest
 
+from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes import CreateCaseOwnerParticipant
 from vultron.core.behaviors.case.nodes.participant import (
     AttachOwnerParticipantToCaseNode,
@@ -28,11 +30,9 @@ from vultron.core.behaviors.case.nodes.participant import (
     PersistOwnerCaseNode,
     RecordOwnerJoinedEventNode,
 )
-from vultron.config.actor import ActorConfig
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.enums.roles import CVDRole
-from test.core.behaviors.bt_harness import BTTestScenario
 
 
 @pytest.mark.spec("CM-14-009")

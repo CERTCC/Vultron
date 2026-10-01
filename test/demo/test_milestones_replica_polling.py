@@ -307,9 +307,9 @@ class TestFindOwnershipTransferOfferForActor:
             poll_interval=0.05,
         )
         assert result == _OT_FORWARDED_OFFER_ID
-        assert (
-            client.calls > 2
-        ), "helper must have polled more than once before finding offer"
+        assert client.calls > 2, (
+            "helper must have polled more than once before finding offer"
+        )
 
     def test_raises_assertion_error_on_timeout(self):
         client = _LateOTOfferClient(delay=10**6)
@@ -372,7 +372,7 @@ def _pxa_case_payload(em_state: str = "EXITED") -> dict:
 def _public_aware_participant(actor_id: str) -> MagicMock:
     """A participant whose latest status has a public-aware pxa_state."""
     p = MagicMock()
-    p.id_ = f"urn:uuid:participant-{actor_id.split('/')[-1]}"
+    p.id_ = f"urn:uuid:participant-{actor_id.rsplit('/', maxsplit=1)[-1]}"
     object.__setattr__(p, "case_roles", [])
     status = MagicMock()
     cs = MagicMock()
@@ -700,9 +700,9 @@ class TestWaitForInitializedCase:
         client = _LateInitializedCaseClient(delay=2, empty_before_init=True)
         result = self._run(client)
         assert result.id_ == _IC_CASE_ID
-        assert (
-            client.calls > 2
-        ), "must have polled past the empty-participants case"
+        assert client.calls > 2, (
+            "must have polled past the empty-participants case"
+        )
 
     def test_raises_on_timeout_when_no_initialized_case(self):
         """Raises AssertionError when no initialized case appears within timeout."""

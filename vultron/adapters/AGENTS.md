@@ -91,7 +91,7 @@ See [notes/codebase-structure-fastapi-patterns.md](../../notes/codebase-structur
 - FastAPI response\_model Filtering
 - Health Check Readiness Gap
 - Docker Health Check Coordination
-- Black Can Invalidate Inline pyright Suppressions on Wrapped Fields
+- The Formatter Can Invalidate Inline Type-Checker Suppressions
 
 See [notes/codebase-structure.md](../../notes/codebase-structure.md) for:
 

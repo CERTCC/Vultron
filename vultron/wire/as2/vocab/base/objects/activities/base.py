@@ -20,10 +20,10 @@ from typing import Any
 from pydantic import Field, PrivateAttr
 
 from vultron.core.models.actor import CoreActor
+from vultron.wire.as2.enums import as_ObjectType as O_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
-from vultron.wire.as2.enums import as_ObjectType as O_type
 
 
 class as_Activity(as_Object):

@@ -24,9 +24,13 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
@@ -44,10 +48,6 @@ from vultron.core.use_cases.received.report import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.core.models.dimensions import (
-    RmDimension,
-)
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
 
@@ -168,14 +168,14 @@ class TestFullReportFlow:
         RM.RECEIVED, and the active embargo (DUR-07-004).
         """
         from vultron.core.states.rm import RM
+        from vultron.core.use_cases.received.case.create import (
+            CreateCaseReceivedUseCase,
+        )
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.factories import create_case_activity
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
             as_ParticipantStatus,
-        )
-        from vultron.core.use_cases.received.case.create import (
-            CreateCaseReceivedUseCase,
         )
 
         case_manager = as_CaseParticipant(
@@ -270,9 +270,9 @@ class TestFullReportFlow:
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         link = dl.read(link_id)
-        assert isinstance(
-            link, VultronReportCaseLink
-        ), "Expected a pending VultronReportCaseLink (ADR-0041)"
+        assert isinstance(link, VultronReportCaseLink), (
+            "Expected a pending VultronReportCaseLink (ADR-0041)"
+        )
         assert link.case_id is None
 
     def test_full_flow_validate_does_not_recreate_case(self):
@@ -447,9 +447,9 @@ class TestFullReportFlow:
         ).execute()
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
-        assert isinstance(
-            dl.read(link_id), VultronReportCaseLink
-        ), "Pending VultronReportCaseLink must exist after submit (ADR-0041)"
+        assert isinstance(dl.read(link_id), VultronReportCaseLink), (
+            "Pending VultronReportCaseLink must exist after submit (ADR-0041)"
+        )
 
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
         assert (

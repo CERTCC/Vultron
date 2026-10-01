@@ -9,15 +9,15 @@ Spec coverage:
 import pytest
 
 from vultron.core.states.cs import (
-    CS_d,
-    CS_pxa,
-    CS_vf,
     D_FIX_DEPLOYED,
     PXA_ATTACKS_OBSERVED,
     PXA_EXPLOIT_PUBLIC,
     PXA_PUBLIC_AWARE,
     VF_FIX_READY,
     VF_VENDOR_AWARE,
+    CS_d,
+    CS_pxa,
+    CS_vf,
     is_d_fix_deployed,
     is_pxa_attacks_observed,
     is_pxa_exploit_public,

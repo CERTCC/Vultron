@@ -53,9 +53,9 @@ def test_camelcase_keys():
     body = json.loads(bytes(response.body))
 
     # vulnerability_reports → vulnerabilityReports (camelCase)
-    assert (
-        "vulnerabilityReports" in body
-    ), f"Expected 'vulnerabilityReports' in body keys: {list(body.keys())}"
+    assert "vulnerabilityReports" in body, (
+        f"Expected 'vulnerabilityReports' in body keys: {list(body.keys())}"
+    )
     # snake_case key must NOT appear
     assert "vulnerability_reports" not in body
 
@@ -103,9 +103,9 @@ def test_exclude_none_true():
 
     # Fields that are None should be absent, not null
     for key, value in body.items():
-        assert (
-            value is not None
-        ), f"Field '{key}' is null — exclude_none=True should have dropped it"
+        assert value is not None, (
+            f"Field '{key}' is null — exclude_none=True should have dropped it"
+        )
 
 
 def test_non_as2_content_passthrough():

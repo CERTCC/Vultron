@@ -19,18 +19,18 @@ import logging
 
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import OUTBOUND_DUMP_KWARGS
-from ._base import _seal
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
+from vultron.errors import VultronAlreadyExistsError, VultronNotFoundError
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-from vultron.errors import VultronAlreadyExistsError, VultronNotFoundError
+from ._base import _seal
 
 logger = logging.getLogger(__name__)
 

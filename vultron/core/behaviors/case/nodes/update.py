@@ -29,8 +29,8 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.errors import VultronError
 
 

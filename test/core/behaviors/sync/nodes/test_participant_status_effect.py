@@ -17,7 +17,7 @@ See: specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -36,15 +36,15 @@ from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     EmitImpossibleStateFaultNode,
 )
 from vultron.core.models.case_ledger import (
-    compute_genesis_hash,
     HashChainLedgerRecord,
+    compute_genesis_hash,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
-_FIXED_CREATED_AT = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+_FIXED_CREATED_AT = datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC)
 CASE_GENESIS_HASH = compute_genesis_hash(
     CASE_ID, _FIXED_CREATED_AT, OWNER_ACTOR_ID
 )
@@ -281,9 +281,9 @@ class TestApplyParticipantStatusCompositeStateViolation:
 
         assert result.status == Status.FAILURE
         updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
-        assert (
-            len(updated.participant_statuses) == initial_count
-        ), "FAILURE must not write to DataLayer"
+        assert len(updated.participant_statuses) == initial_count, (
+            "FAILURE must not write to DataLayer"
+        )
 
     @pytest.mark.spec("RSH-05-021")
     def test_impossible_state_vf_not_ready_d_deployed_fails(
@@ -311,9 +311,9 @@ class TestApplyParticipantStatusCompositeStateViolation:
 
         assert result.status == Status.FAILURE
         updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
-        assert (
-            len(updated.participant_statuses) == initial_count
-        ), "FAILURE must not write to DataLayer"
+        assert len(updated.participant_statuses) == initial_count, (
+            "FAILURE must not write to DataLayer"
+        )
 
     @pytest.mark.spec("RSH-05-007")
     def test_rm_ratchet_interacts_correctly_with_composite_state_check(
@@ -375,10 +375,10 @@ class TestEmitImpossibleStateFaultNode:
     ):
         """Node emits ProcessingFault with ImpossibleState class and returns FAILURE."""
         from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.ports.trigger_activity import TriggerActivityPort
         from vultron.core.models.fault_classes import (
             VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
         )
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
 
         trigger_activity = MagicMock(spec=TriggerActivityPort)
         trigger_activity.emit_processing_fault.return_value = (

@@ -18,15 +18,15 @@
 import logging
 from typing import Any, cast
 
-import pytest
 import py_trees
+import pytest
 from py_trees.common import Status
 
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.store_scope import same_authority
 from vultron.errors import VultronError
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 
@@ -761,9 +761,9 @@ def test_final_bt_state_logged_at_debug(
         r for r in caplog.records if "Final BT state" in r.message
     ]
     assert final_state_records, "Expected 'Final BT state' log entry"
-    assert all(
-        r.levelno == logging.DEBUG for r in final_state_records
-    ), f"Expected DEBUG but got {final_state_records[0].levelname}"
+    assert all(r.levelno == logging.DEBUG for r in final_state_records), (
+        f"Expected DEBUG but got {final_state_records[0].levelname}"
+    )
 
 
 def test_bt_structure_logged_at_debug(bridge, test_actor_id, caplog):

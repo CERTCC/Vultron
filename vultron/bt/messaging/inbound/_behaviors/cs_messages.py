@@ -16,7 +16,6 @@ This module contains the behaviors that are used by the inbound message handler 
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 from vultron.bt.base.factory import fallback_node, sequence_node
 from vultron.bt.case_state.conditions import (
     CSinStateAttacksObserved,

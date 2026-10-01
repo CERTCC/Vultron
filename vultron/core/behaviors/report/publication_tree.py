@@ -275,7 +275,7 @@ def _make_artifact_arm(
 
 def create_publication_tree(
     case_id: str,
-    call_out: "PublicationCallOutBundle | None" = None,
+    call_out: PublicationCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the collapsed publication behavior tree (Production Collapses 2 + 4).
 

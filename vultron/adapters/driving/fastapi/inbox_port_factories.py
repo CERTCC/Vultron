@@ -28,11 +28,11 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.config.actor import ActorConfig
+from vultron.config.app import load_actor_config
 from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CASE_PROPOSAL_DETERMINISTIC,
 )
-from vultron.config.actor import ActorConfig
-from vultron.config.app import load_actor_config
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer

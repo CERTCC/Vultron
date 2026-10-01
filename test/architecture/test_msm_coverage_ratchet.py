@@ -29,8 +29,8 @@ import pytest
 from vultron.core.models.events.base import MessageSemantics
 from vultron.metadata.msm._mapping import (
     EXEMPTED_SEMANTICS,
-    ROW_SPECS,
     PAGE_SLUGS,
+    ROW_SPECS,
 )
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 
@@ -72,18 +72,18 @@ def test_every_row_semantics_is_a_known_value():
     Failure means a typo or stale enum value in ``_mapping.py``.
     """
     for row in ROW_SPECS:
-        assert (
-            row.semantics in _ALL_SEMANTICS
-        ), f"RowSpec references unknown semantics: {row.semantics!r}"
+        assert row.semantics in _ALL_SEMANTICS, (
+            f"RowSpec references unknown semantics: {row.semantics!r}"
+        )
 
 
 @pytest.mark.spec("MSM-06-002")
 def test_every_row_page_is_a_known_slug():
     """Every ``RowSpec.page`` is one of the eight canonical page slugs."""
     for row in ROW_SPECS:
-        assert (
-            row.page in PAGE_SLUGS
-        ), f"RowSpec for {row.semantics.name!r} has unknown page {row.page!r}"
+        assert row.page in PAGE_SLUGS, (
+            f"RowSpec for {row.semantics.name!r} has unknown page {row.page!r}"
+        )
 
 
 @pytest.mark.spec("MSM-06-002")

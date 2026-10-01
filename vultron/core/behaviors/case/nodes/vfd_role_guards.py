@@ -39,12 +39,12 @@ import logging
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.participants._lookup import iter_case_participants
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants._lookup import iter_case_participants
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.participants import some_vendor_at_vf
 from vultron.core.predicates.roles import (

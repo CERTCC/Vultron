@@ -31,7 +31,7 @@ This satisfies BT-15-001: the ParticipantStatus write (protocol-significant
 behavior) lives inside the BT, not directly in ``execute()``.
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 import py_trees
 

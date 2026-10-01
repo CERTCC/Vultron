@@ -36,8 +36,8 @@ See also:
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Protocol
 
-from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.protocol_pair import ProtocolPair
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 
 if TYPE_CHECKING:
@@ -129,7 +129,7 @@ class CasePersistence(Protocol):
 if TYPE_CHECKING:
     from vultron.core.ports.case_outbox import (
         CaseOutboxPersistence,
-    )  # noqa: F401
+    )
 
 __all__ = ["CasePersistence", "CaseOutboxPersistence"]
 
@@ -138,7 +138,7 @@ def __getattr__(name: str) -> type:
     if name == "CaseOutboxPersistence":
         from vultron.core.ports.case_outbox import (
             CaseOutboxPersistence,
-        )  # noqa: F811
+        )
 
         globals()[name] = CaseOutboxPersistence
         return CaseOutboxPersistence

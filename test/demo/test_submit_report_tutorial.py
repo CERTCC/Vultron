@@ -20,9 +20,8 @@ tells the reader to expect, this test fails.
 Marked ``integration`` automatically by ``test/demo/conftest.py``.
 """
 
-from vultron.wire.as2.vocab.examples import submit_report_tutorial as t
-
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from vultron.wire.as2.vocab.examples import submit_report_tutorial as t
 
 
 def test_tutorial_flow_creates_submits_and_stores_report():

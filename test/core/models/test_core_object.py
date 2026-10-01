@@ -4,30 +4,29 @@ import importlib.util
 import pathlib
 import re
 import tokenize
+from datetime import UTC
 from typing import Literal
 
 import pytest
 from pydantic import BaseModel
 
 import vultron
-
+from test.support.core_vocab import restore_core_registries
 from vultron.core.models import (
     CORE_VOCABULARY,
     CoreObject,
     find_in_core_vocabulary,
 )
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import VULTRON_CONTEXT_URI, CoreRecord
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.registry import CORE_TYPE_MAP
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry as CoreCaseLedgerEntry,
 )
 from vultron.core.models.note import VultronNote
-from vultron.core.models.activity import VultronActivity
+from vultron.core.models.registry import CORE_TYPE_MAP
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
-
-from test.support.core_vocab import restore_core_registries
 
 # --- Inheritance shape ------------------------------------------------------
 
@@ -49,9 +48,9 @@ def test_core_object_has_required_as2_fields():
         "updated",
         "context_",
     ):
-        assert (
-            required in fields
-        ), f"CoreObject missing required field {required!r}"
+        assert required in fields, (
+            f"CoreObject missing required field {required!r}"
+        )
 
 
 def test_core_object_default_instance():
@@ -151,8 +150,8 @@ def test_restore_core_registries_restores_both_maps():
             CORE_TYPE_MAP["RestoreProbeTypeMapOnly"] is RestoreProbeTypeMapOnly
         )
 
-    assert CORE_VOCABULARY == vocab_before
-    assert CORE_TYPE_MAP == type_map_before
+    assert vocab_before == CORE_VOCABULARY
+    assert type_map_before == CORE_TYPE_MAP
     assert "RestoreProbeConcrete" not in CORE_TYPE_MAP
     assert "RestoreProbeTypeMapOnly" not in CORE_TYPE_MAP
 
@@ -247,7 +246,8 @@ def test_registry_robust_under_future_annotations(
     module_dir = tmp_path / "future_annot_pkg"
     module_dir.mkdir()
     (module_dir / "__init__.py").write_text("")
-    (module_dir / "fixtures.py").write_text(textwrap.dedent("""
+    (module_dir / "fixtures.py").write_text(
+        textwrap.dedent("""
             from __future__ import annotations
             from typing import Literal
             from vultron.core.models import CoreObject
@@ -257,7 +257,8 @@ def test_registry_robust_under_future_annotations(
 
             class FutureAnnotConcrete(CoreObject):
                 type_: Literal["FutureAnnotConcrete"] = "FutureAnnotConcrete"
-            """))
+            """)
+    )
     sys.path.insert(0, str(tmp_path))
     try:
         mod = importlib.import_module("future_annot_pkg.fixtures")
@@ -533,11 +534,11 @@ def test_every_core_vocabulary_entry_spells_the_as2_envelope_in_camel_case():
     among them — dumped ``media_type`` / ``start_time`` / ``end_time`` /
     ``attributed_to`` verbatim.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from test.support.core_vocab import build_core_vocab
 
-    when = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    when = datetime(2026, 1, 2, tzinfo=UTC)
     built, unconstructible = build_core_vocab(
         "envelope",
         {

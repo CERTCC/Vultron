@@ -62,7 +62,7 @@ DEFAULT_LEDGER_GAP_BUFFER_MAX: int = 256
 
 #: Module-level per-actor registry.  Keyed by actor URI string.  Pure
 #: in-memory — no DataLayer interaction (mirrors ``pending_assertion._STORES``).
-_BUFFERS: dict[str, "LedgerGapBuffer"] = {}
+_BUFFERS: dict[str, LedgerGapBuffer] = {}
 
 
 class LedgerGapBuffer:

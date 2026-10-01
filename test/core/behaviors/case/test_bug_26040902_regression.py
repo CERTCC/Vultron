@@ -114,10 +114,10 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     from vultron.core.behaviors.case.receive_report_case_tree import (
         create_receive_report_case_tree,
     )
-    from vultron.core.models.report_case_link import VultronReportCaseLink
-    from vultron.core.models.case_actor import CaseActor
     from vultron.core.models.activity import VultronOffer
+    from vultron.core.models.case_actor import CaseActor
     from vultron.core.models.report import VulnerabilityReport
+    from vultron.core.models.report_case_link import VultronReportCaseLink
     from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
     dl = _fresh_datalayer

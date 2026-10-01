@@ -328,8 +328,7 @@ class CreateInviteeParticipantNode(DataLayerActionWithPorts):
         # full triage cycle is a later step (PCR-08-010).
         participant = CaseParticipant(
             id_=(
-                f"{self.case_id}/participants/"
-                f"{self.invitee_id.split('/')[-1]}"
+                f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}"
             ),
             attributed_to=self.invitee_id,
             context=self.case_id,

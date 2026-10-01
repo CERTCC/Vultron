@@ -170,9 +170,9 @@ def _post_to_inbox(client, actor_slug: str, activity) -> None:
         content=activity.model_dump_json(by_alias=True, exclude_none=True),
         headers={"Content-Type": "application/json"},
     )
-    assert (
-        resp.status_code == 202
-    ), f"Inbox POST returned {resp.status_code}: {resp.text}"
+    assert resp.status_code == 202, (
+        f"Inbox POST returned {resp.status_code}: {resp.text}"
+    )
 
 
 def _actor_slug(actor_id: str) -> str:
@@ -273,9 +273,9 @@ def _bootstrap_and_engage(
             "to": [reporter_actor_id],
         },
     )
-    assert (
-        resp.status_code == 202
-    ), f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+    assert resp.status_code == 202, (
+        f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+    )
 
     # Find the canonical case by report_id to avoid picking up the extra
     # VulnerabilityCase created by trigger/create-case above (ADR-0041 flow
@@ -312,15 +312,15 @@ def _bootstrap_and_engage(
         f"/api/v2/actors/{_actor_slug(owner_actor_id)}/trigger/validate-report",
         json={"offer_id": offer.id_},
     )
-    assert (
-        resp.status_code == 202
-    ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
+    assert resp.status_code == 202, (
+        f"validate-report trigger failed ({resp.status_code}): {resp.text}"
+    )
 
     # Drain CaseActor's outbox so Create(VulnerabilityCase) reaches reporter.
     case_actor_id = _find_case_actor_id(owner_dl, case_id)
-    assert (
-        case_actor_id is not None
-    ), f"Could not find CaseActor for case '{case_id}' in owner's DataLayer."
+    assert case_actor_id is not None, (
+        f"Could not find CaseActor for case '{case_id}' in owner's DataLayer."
+    )
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     # Reporter must have received the case replica before engage-case fires.
@@ -343,9 +343,9 @@ def _bootstrap_and_engage(
         f"/api/v2/actors/{_actor_slug(owner_actor_id)}/trigger/engage-case",
         json={"case_id": case_id},
     )
-    assert (
-        resp.status_code == 202
-    ), f"engage-case trigger failed ({resp.status_code}): {resp.text}"
+    assert resp.status_code == 202, (
+        f"engage-case trigger failed ({resp.status_code}): {resp.text}"
+    )
 
     # Drain CaseActor's outbox so the Announce(VulnerabilityCase) reaches the
     # reporter.  EngageCaseBT queues the broadcast after updating RM state;
@@ -435,7 +435,7 @@ class TestEngageCaseParticipantExpansion:
         """
         owner_iso, reporter_iso, owner_tc, reporter_tc = two_app_setup
 
-        case_id, owner_actor_id, reporter_actor_id = _bootstrap_and_engage(
+        _case_id, _owner_actor_id, reporter_actor_id = _bootstrap_and_engage(
             owner_iso,
             reporter_iso,
             owner_tc,

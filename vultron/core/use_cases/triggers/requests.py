@@ -70,7 +70,9 @@ from vultron.core.use_cases.triggers.request_bodies import (
 ResultT_co = TypeVar("ResultT_co", bound=TriggerResult, covariant=True)
 
 
-class TriggerRequest(BaseModel, Generic[ResultT_co]):
+# ADR-0110 exports ResultT_co for callers to import; a PEP 695 parameter is
+# class-scoped and could not be.
+class TriggerRequest(BaseModel, Generic[ResultT_co]):  # noqa: UP046
     """Base of every trigger use-case request: ``actor_id`` plus a result type.
 
     Concrete requests bind ``ResultT_co`` to the :class:`TriggerResult`

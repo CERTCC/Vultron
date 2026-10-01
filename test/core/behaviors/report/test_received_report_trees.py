@@ -42,10 +42,12 @@ from vultron.core.behaviors.report.nodes.storage import (
 from vultron.core.behaviors.report.received_report_trees import (
     create_ack_report_received_tree,
     create_close_report_received_tree,
-    create_report_received_tree,
     create_invalidate_report_received_tree,
+    create_report_received_tree,
 )
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
@@ -53,8 +55,6 @@ from vultron.core.models.events.report import (
     CreateReportReceivedEvent,
     InvalidateReportReceivedEvent,
 )
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport as CoreReport
 from vultron.core.states.rm import RM

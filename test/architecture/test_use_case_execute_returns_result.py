@@ -155,7 +155,8 @@ def _is_use_case_result_type(resolved: object) -> bool:
 def _return_hint(namespace: dict[str, object], class_name: str) -> object:
     """Return the resolved ``execute`` return type of *class_name*."""
     cls = namespace[class_name]
-    return get_type_hints(getattr(cls, "execute"))["return"]
+    # The namespace is typed ``object``; getattr keeps the type checker out.
+    return get_type_hints(getattr(cls, "execute"))["return"]  # noqa: B009
 
 
 def _module_resolver(path: Path) -> Callable[[str], object]:
@@ -232,7 +233,8 @@ def _check(source: str) -> list[str]:
         "_BoundT": _BoundT,
         "_UnboundT": _UnboundT,
     }
-    exec(compile(source, "<sample>", "exec"), namespace)
+    # Executes the test's own inline sample source, never external input.
+    exec(compile(source, "<sample>", "exec"), namespace)  # noqa: S102
     return _violations_in(
         _corpus.parse_inline(source),
         lambda class_name: _return_hint(namespace, class_name),

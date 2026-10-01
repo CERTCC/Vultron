@@ -180,7 +180,7 @@ class AdvanceInviteeToReceivedNode(DataLayerActionWithPorts):
         """
         assert self.datalayer is not None
         participant_id = (
-            f"{self.case_id}/participants/" f"{self.invitee_id.split('/')[-1]}"
+            f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}"
         )
         participant = self.datalayer.read(participant_id)
         if not isinstance(participant, CaseParticipant):
@@ -213,8 +213,7 @@ class AdvanceInviteeToReceivedNode(DataLayerActionWithPorts):
         )
         if result.status != Status.SUCCESS:
             self.feedback_message = (
-                f"failed to advance invitee '{self.invitee_id}'"
-                " to RM.RECEIVED"
+                f"failed to advance invitee '{self.invitee_id}' to RM.RECEIVED"
             )
             self.logger.error("%s: %s", self.name, self.feedback_message)
         return result.status

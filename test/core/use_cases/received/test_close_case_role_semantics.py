@@ -25,11 +25,10 @@ from __future__ import annotations
 
 import logging
 from typing import cast
-
-import pytest
-import py_trees
-
 from unittest.mock import MagicMock
+
+import py_trees
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -43,12 +42,16 @@ from vultron.core.behaviors.sync.announce_tree import (
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
@@ -56,10 +59,6 @@ from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.case.lifecycle import (
     CloseCaseReceivedUseCase,
 )
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.participant_status import ParticipantStatus
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
@@ -458,9 +457,9 @@ class TestOwnerLeaveReceivePath:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert (
-            sync_mock.send_announce_log_entry.called
-        ), "Fan-out must call sync_port.send_announce_log_entry after owner Leave (CM-23-002)"
+        assert sync_mock.send_announce_log_entry.called, (
+            "Fan-out must call sync_port.send_announce_log_entry after owner Leave (CM-23-002)"
+        )
 
         # Identify calls for the case_fully_closed entry specifically
         case_fully_closed_recipients: list[str] = []
@@ -825,22 +824,22 @@ class TestOwnerLeaveDuringActiveEmbargo:
         ).execute()
 
         outbox = dl.outbox_list()
-        assert (
-            len(outbox) == 1
-        ), f"Exactly one activity (the as:Reject) must be queued; outbox={outbox}"
+        assert len(outbox) == 1, (
+            f"Exactly one activity (the as:Reject) must be queued; outbox={outbox}"
+        )
         reject = dl.read(outbox[0])
         assert reject is not None, "as:Reject must be readable from the outbox"
         assert getattr(reject, "type_", None) == "Reject", (
             f"Declined close must be an as:Reject (MSM-05-001);"
             f" got type_={getattr(reject, 'type_', None)}"
         )
-        assert OWNER_ID in (
-            getattr(reject, "to", None) or []
-        ), f"as:Reject must be addressed to the owner; to={getattr(reject, 'to', None)}"
+        assert OWNER_ID in (getattr(reject, "to", None) or []), (
+            f"as:Reject must be addressed to the owner; to={getattr(reject, 'to', None)}"
+        )
         inner = getattr(reject, "object_", None)
-        assert (
-            getattr(inner, "type_", None) == "Leave"
-        ), "as:Reject must decline the Leave activity itself"
+        assert getattr(inner, "type_", None) == "Leave", (
+            "as:Reject must decline the Leave activity itself"
+        )
 
     @pytest.mark.spec("CM-23-011")
     def test_close_proceeds_after_embargo_terminated(self):
@@ -875,12 +874,12 @@ class TestOwnerLeaveDuringActiveEmbargo:
             f" RM.CLOSED (CM-23-011/CM-23-002);"
             f" rm_states={_participant_rm_states(dl, OWNER_ID)}"
         )
-        assert RM.CLOSED in _participant_rm_states(
-            dl, CASE_ACTOR_ID
-        ), "After embargo termination the CaseActor must reach RM.CLOSED"
-        assert _case_fully_closed_present(
-            dl
-        ), "After embargo termination a case_fully_closed entry must be written"
+        assert RM.CLOSED in _participant_rm_states(dl, CASE_ACTOR_ID), (
+            "After embargo termination the CaseActor must reach RM.CLOSED"
+        )
+        assert _case_fully_closed_present(dl), (
+            "After embargo termination a case_fully_closed entry must be written"
+        )
 
     @pytest.mark.spec("CM-23-011")
     def test_owner_close_not_closed_when_reject_emit_cannot_run(self):
@@ -909,12 +908,12 @@ class TestOwnerLeaveDuringActiveEmbargo:
             "Owner must NOT reach RM.CLOSED when the decline emit could not run"
             f" (CM-23-011); rm_states={_participant_rm_states(dl, OWNER_ID)}"
         )
-        assert RM.CLOSED not in _participant_rm_states(
-            dl, CASE_ACTOR_ID
-        ), "CaseActor must NOT reach RM.CLOSED when the decline emit fails"
-        assert not _case_fully_closed_present(
-            dl
-        ), "No case_fully_closed entry may be written when the decline emit fails"
+        assert RM.CLOSED not in _participant_rm_states(dl, CASE_ACTOR_ID), (
+            "CaseActor must NOT reach RM.CLOSED when the decline emit fails"
+        )
+        assert not _case_fully_closed_present(dl), (
+            "No case_fully_closed entry may be written when the decline emit fails"
+        )
 
 
 def _case_actor_rm_closed_entries(dl: SqliteDataLayer) -> list:
@@ -1027,9 +1026,9 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert (
-            _latest_rm(dl, OWNER_ID) == RM.CLOSED
-        ), "the departing owner must reach RM.CLOSED (CM-23-002 step 1)"
+        assert _latest_rm(dl, OWNER_ID) == RM.CLOSED, (
+            "the departing owner must reach RM.CLOSED (CM-23-002 step 1)"
+        )
         assert RM.CLOSED in _participant_rm_states(dl, CASE_ACTOR_ID), (
             "the CaseActor must still advance itself to RM.CLOSED (CM-23-002"
             " step 2) — a failed *recording* must not divert the tree onto the"
@@ -1082,9 +1081,9 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert not _case_actor_rm_closed_entries(
-            dl
-        ), "sanity: the forced failure must actually have suppressed the entry"
+        assert not _case_actor_rm_closed_entries(dl), (
+            "sanity: the forced failure must actually have suppressed the entry"
+        )
         assert _case_fully_closed_present(dl), (
             "case_fully_closed must still be committed when the CASE_MANAGER's"
             " RM.CLOSED entry cannot be committed — a gapped local ledger must"

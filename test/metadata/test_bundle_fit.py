@@ -271,7 +271,7 @@ class TestSizeBudget:
     def test_unsized_candidate_is_weighted_as_largest_bundlable(self):
         """#3340 carried no size: label and was bundled with no accounting."""
         assert task(1, size=None).weight == UNSIZED_WEIGHT
-        assert UNSIZED_WEIGHT == max(SIZE_WEIGHTS.values())
+        assert max(SIZE_WEIGHTS.values()) == UNSIZED_WEIGHT
 
     def test_the_largest_size_label_wins_and_is_the_one_reported(self):
         """Two size labels resolved by `max` for the weight but by list order
@@ -446,9 +446,9 @@ class TestCoherenceHints:
             task(2, title="Document specs/outbox.yaml in notes/outbox.md"),
         ]
         hints = coherence_hints(members)
-        assert any(
-            "path specs/outbox.yaml" in h for h in hints
-        ), f"no path hint in {hints}"
+        assert any("path specs/outbox.yaml" in h for h in hints), (
+            f"no path hint in {hints}"
+        )
 
     def test_process_labels_are_not_coherence_evidence(self):
         """`needs-rebase` on two members says nothing about subject matter."""

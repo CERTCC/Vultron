@@ -24,21 +24,14 @@ Tech. Rep. CMU/SEI-2021-SR-021, Software Engineering Institute, Carnegie-Mellon 
 import logging
 import random
 import re
+from collections.abc import Generator
 from itertools import product
-from typing import Any, Generator, cast, overload
+from typing import Any, cast, overload
 
 import networkx as nx
 import numpy as np
 import pandas as pd
 
-from vultron.errors import (
-    CVDmodelError,
-    HistoryValidationError,
-    PatternValidationError,
-    ScoringError,
-    StateValidationError,
-    TransitionValidationError,
-)
 from vultron.core.case_states.patterns.embargo import (
     can_start_embargo,
     embargo_viable,
@@ -47,15 +40,21 @@ from vultron.core.case_states.patterns.explanations import explain
 from vultron.core.case_states.patterns.info import info
 from vultron.core.case_states.patterns.potential_actions import action
 from vultron.core.case_states.patterns.zerodays import zeroday_type
-from vultron.core.states.cs import pxa, vfd
 from vultron.core.case_states.validations import (
     ensure_valid_state_method_wrapper as ensure_valid_state,
-)
-from vultron.core.case_states.validations import (
     is_valid_history,
     is_valid_pattern,
     is_valid_state,
     is_valid_transition,
+)
+from vultron.core.states.cs import pxa, vfd
+from vultron.errors import (
+    CVDmodelError,
+    HistoryValidationError,
+    PatternValidationError,
+    ScoringError,
+    StateValidationError,
+    TransitionValidationError,
 )
 
 logger = logging.getLogger(__name__)
@@ -111,7 +110,7 @@ def _diffstate(s1, s2):
     except TransitionValidationError:
         return None
 
-    diff = [(c1, c2) for c1, c2 in zip(s1, s2) if c1 != c2]
+    diff = [(c1, c2) for c1, c2 in zip(s1, s2, strict=False) if c1 != c2]
     c1, c2 = diff[0]
 
     assert c1.upper() == c2.upper()
@@ -288,7 +287,7 @@ class CVDmodel:
             try:
                 is_valid_transition(state, successor)
             except TransitionValidationError as e:
-                raise CVDmodelError(e)
+                raise CVDmodelError(e)  # noqa: B904  # ruff-baseline #3353
 
             edge_data = self.G.get_edge_data(state, successor)
             if edge_data["label"] == transition:
@@ -444,7 +443,8 @@ class CVDmodel:
             if n:
                 p = 1 / n
 
-            next_state = random.choice(neighbors)
+            # A random walk over the state graph, not a secret.
+            next_state = random.choice(neighbors)  # noqa: S311
             step = (current, next_state)
             path.append(step)
             probabilities.append(p)
@@ -555,16 +555,16 @@ class CVDmodel:
             for d, is_met in D_h.items():
                 # d is a tuple of A,B where A<B
                 # is_met is true/false, we want it as an int
-                is_met = int(is_met)
+                met = int(is_met)
 
                 # simple unweighted history-vs-desiderata columns
                 col = "<".join(d)
-                row[col] = is_met
+                row[col] = met
                 d_cols.add(col)
 
                 # history-vs-desiderata columns weighted by history likelihood
                 col2 = f"w{col}"
-                row[col2] = p * is_met
+                row[col2] = p * met
                 w_cols.add(col2)
 
             data.append(row)
@@ -585,8 +585,7 @@ class CVDmodel:
 
         f_d = {}
         for k, v in _f_d.items():
-            k = k.replace("w", "")
-            a, b = k.split("<")
+            a, b = k.replace("w", "").split("<")
             new_k = (a, b)
             f_d[new_k] = v
 
@@ -611,7 +610,7 @@ class CVDmodel:
         try:
             is_valid_history(h)
         except HistoryValidationError:
-            raise ScoringError(f"Invalid history {h}")
+            raise ScoringError(f"Invalid history {h}")  # noqa: B904  # ruff-baseline #3353
 
         D_h = {(e1, e2): h.index(e1) < h.index(e2) for (e1, e2) in self._D}
         return D_h
@@ -829,7 +828,7 @@ class CVDmodel:
         try:
             is_valid_pattern(pat)
         except PatternValidationError as e:
-            raise CVDmodelError(e)
+            raise CVDmodelError(e)  # noqa: B904  # ruff-baseline #3353
 
         matches = []
         for state in self.states:
@@ -851,10 +850,10 @@ class CVDmodel:
         try:
             is_valid_transition(from_state, to_state)
         except TransitionValidationError as e:
-            logger.error(
+            logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 f"Invalid transition from {from_state} to {to_state}: {e}"
             )
-            raise e
+            raise
 
         curr_score = self.score_state(from_state)
         next_score = self.score_state(to_state)
