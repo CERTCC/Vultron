@@ -5,9 +5,10 @@ description: >
   Structural and editorial conventions for the Vultron Protocol Specification
   under docs/reference/vultron-spec/: the page map (routing landing page, six
   body pages, seven annex pages, Open Questions, hidden full.md) and the
-  fragments each page includes, fragment naming, the per-annex fragment split,
-  the shared tip fragment, the section citation convention, source treatment,
-  STE style, and the DAG-first authoring workflow.
+  fragments each page includes, the full.md in-page link rewrite, fragment
+  naming, the per-annex fragment split, the shared tip fragment, the section
+  citation convention, source treatment, STE style, and the DAG-first authoring
+  workflow.
 related_notes:
   - notes/documentation-strategy.md
   - notes/rfc-review-rubric.md
@@ -108,6 +109,12 @@ in its frontmatter, so search results always land on the page that owns a
 section. Readers reach it through the shared tip and the landing page. It is a
 published page, so it is still a `lint-docs` target and its page-scoped rules
 are evaluated (ADR-0092).
+
+On `full.md` a cross-reference stays on the page. The MkDocs hook
+`vultron/metadata/docs/full_page_links.py` runs after `include-markdown` and
+rewrites each link to another page of the section that has a fragment to a bare
+`#fragment` link. Links without a fragment, `index.md` links and every other page
+are left unchanged, so no fragment is edited (#4092).
 
 ### The shared tip fragment
 
@@ -267,9 +274,12 @@ Meanings"). The docs style guide states the rule and a test under
 `test/metadata/docs/` enforces it for `docs/` (#4062).
 
 A link to a section targets the page that owns the section, with the heading
-anchor: `tracking-models.md#6-report-management-rm-state-machine-n`. On `full.md`
-such a link leaves the page for the owning page; that is the cost of
-single-sourcing the fragments, and it keeps every link valid on every page.
+anchor: `tracking-models.md#6-report-management-rm-state-machine-n`. That keeps
+every link valid on every page that renders the fragment. On `full.md` the
+`full_page_links.py` hook rewrites such a link to the in-page `#anchor` (see
+"`full.md`, the all-in-one page"), which holds only while every heading id is
+the same on `full.md` as on its owning page and no two headings on `full.md`
+share an id.
 
 ---
 
