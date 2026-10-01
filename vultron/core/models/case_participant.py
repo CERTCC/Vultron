@@ -40,7 +40,10 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.core.models._helpers import _new_urn
 from vultron.core.models.base import CoreObject, NonEmptyString
-from vultron.errors import VultronValidationError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
 from vultron.core.models.dimensions import (
     PecDimension,
     RmDimension,
@@ -174,6 +177,40 @@ class CaseParticipant(CoreObject):
         new_dim = PecDimension(state=current_pec).transition(trigger)
         self.embargo_consent_state = new_dim.state
         self._sync_latest_status_metadata()
+
+    def accepts_pec_trigger(self, trigger: PEC_Trigger) -> bool:
+        """True when *trigger* is legal from the current consent state.
+
+        The read-only twin of :meth:`apply_pec_transition`, for a caller that
+        applies a trigger only where CM-18-003 allows it — a relayed embargo
+        Invite moves a participant to ``INVITED`` from ``UNBOUND``, ``LAPSED``
+        or ``DECLINED`` and leaves a ``SIGNATORY`` or an already-``INVITED``
+        participant untouched (EP-09-004).  Asking first, rather than catching
+        the machine's refusal, keeps the write path fail-closed for every
+        caller that does not opt into the no-op.
+        """
+        current_pec = coerce_em_consent_state(self.embargo_consent_state)
+        if current_pec is None:
+            current_pec = PEC.UNBOUND
+        try:
+            PecDimension(state=current_pec).transition(trigger)
+        except VultronInvalidStateTransitionError:
+            return False
+        return True
+
+    def apply_pec_transition_if_legal(self, trigger: PEC_Trigger) -> bool:
+        """Apply *trigger* when CM-18-003 allows it; True when the state moved.
+
+        The one "apply where legal" shape for every caller that treats an
+        illegal trigger as a recorded no-op rather than a fault — the relayed
+        embargo Invite, which leaves a ``SIGNATORY`` or an already-``INVITED``
+        participant untouched (EP-09-004).  The caller persists the record;
+        this method only moves the machine.
+        """
+        if not self.accepts_pec_trigger(trigger):
+            return False
+        self.apply_pec_transition(trigger)
+        return True
 
     def add_accepted_embargo(self, embargo_id: str) -> bool:
         """Record *embargo_id* as accepted (CM-10-001); True if it was new.

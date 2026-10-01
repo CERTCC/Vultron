@@ -148,6 +148,7 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
+    create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckIsCaseOwnerNode,
@@ -278,6 +279,7 @@ __all__ = [
     "ForwardOfferToTransfereeNode",
     # role_gates (gated composites)
     "create_case_manager_gated_tree",
+    "create_participant_replica_gated_tree",
     # vfd_role_guards (condition nodes)
     "CheckNotSoleObserverVfdNode",
     # on_behalf_guards (ADR-0084)

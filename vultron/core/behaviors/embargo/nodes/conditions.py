@@ -167,7 +167,9 @@ class OptionalLookupParticipantNode(DataLayerConditionWithPorts):
     tree continues to cascade the log entry to all peers (idempotent behavior).
 
     Used in received-side BT workflows where participant may legitimately not
-    exist locally yet.
+    exist locally yet.  Every no-op path writes ``None`` to the ``participant``
+    key first (BT-17-003): the blackboard is process-global, so a key left
+    unwritten hands the *previous* execution's participant to the PEC node.
 
     When ``target_actor_id`` is provided it is used for the participant lookup
     instead of the BT-execution ``actor_id`` (which is the receiving actor).
@@ -195,6 +197,7 @@ class OptionalLookupParticipantNode(DataLayerConditionWithPorts):
         return {"participant": "/participant"}
 
     def update(self) -> Status:
+        self._set_output("participant", None)
         if self.datalayer is None:
             return Status.SUCCESS
 

@@ -29,6 +29,7 @@ related_notes:
 relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/services/embargo_lifecycle/
+  - vultron/core/behaviors/embargo/
   - vultron/core/use_cases/triggers/embargo.py
   - vultron/core/use_cases/received/embargo.py
   - vultron/bt/embargo_management
@@ -136,8 +137,17 @@ through nodes: the received Accept runs `accept_embargo_invite(OBSERVED)`
 (`RecordParticipantAcceptanceNode`), the received Reject records consent through
 `record_embargo_rejection` (`RecordParticipantRejectionNode`) and decides the
 proposal through `RemoveFromProposedEmbargoesNode`, and the teardown replay runs
-`terminate_active_embargo(OBSERVED)`. The received Invite tree still moves no EM
-state — that is the CASE_MANAGER adjudication of EP-09 (#3913). EMB-01-002 and
+`terminate_active_embargo(OBSERVED)`. The received Invite tree
+(`invite_to_embargo_on_case_tree`) has two role-gated arms (#3913, EP-09-001):
+in the CASE_MANAGER's store `ProposeEmbargoLifecycleNode(proposer_id=…)` runs
+`propose_embargo(STRICT)` — `NONE → PROPOSED`, `ACTIVE → REVISE`, or no move for
+a counter-proposal — recording the *proposer's* consent, after a read-only
+`EmStateAdmitsProposalNode` guard ahead of the commit has refused an `EXITED`
+case; then `RelayEmbargoInviteToEachNode` relays the Invite to every participant
+except the proposer, commits each emission and applies PEC `INVITE` where
+CM-18-003 allows it. In any other store the tree records the Invite on the
+replica (`UpdateParticipantEmbargoPecNode(where_legal=True)`) until #3915 lands
+the replay node and gates that write off (RSH-08-004). EMB-01-002 and
 EMB-02-002 are enforced as explicit pre-flight guards in
 `InviteToEmbargoOnCaseReceivedUseCase.execute()` and
 `AcceptInviteToEmbargoOnCaseReceivedUseCase.execute()` respectively (implemented

@@ -405,7 +405,7 @@ and ownership-transfer triggers still run the delegated emit locally.
 |---|---|
 | `SvcInviteActorToCaseUseCase` | ✅ uses `_prepare_delegated_context()` |
 | `SvcOfferCaseOwnershipTransferUseCase` | ✅ fixed in #2173 |
-| CASE_MANAGER received revision-Invite tree (EP-09-002) | planned (ADR-0113) — a *received*-side delegated emit, as CM-24-004 allows: relays `Invite(EmbargoEvent)` to every participant except the proposer with `attributed_to=proposer`, committed in the emitting tree |
+| `invite_to_embargo_on_case_tree` — CASE_MANAGER arm (EP-09-002) | ✅ built in #3913 (ADR-0113) — a *received*-side delegated emit, as CM-24-004 allows: `RelayEmbargoInviteToEachNode` relays `Invite(EmbargoEvent)` to every participant except the proposer with `actor=CASE_MANAGER`, `attributed_to=proposer`, each emission committed in the emitting tree; the proposer comes from `resolve_proposer_id()` (the Invite's `actor`, or its `attributedTo` when the proposal was itself relayed) |
 | Other trigger use cases | audit complete — no other delegated-emit callsites |
 
 ### Shared-Helper Requirement (CM-24-005)
@@ -414,6 +414,19 @@ All delegated-message trigger use cases MUST use a shared helper to enforce
 the pattern.  No callsite may independently reconstruct `actor/attributed_to`
 assignment.  See `specs/case-management.yaml` CM-24-005 for the normative
 requirement.
+
+The one *received*-side delegated emit, the embargo relay
+(`RelayEmbargoInviteToEachNode`, #3913), does not call
+`_prepare_delegated_context()`: that is a trigger use-case helper a BT node
+may not import (BTND-04-003), and its "no CASE_MANAGER, send directly" arm is
+what ADR-0113 retires (#3964).  The node holds the CM-24-001/002 invariants
+structurally instead — it runs only under `create_case_manager_gated_tree`, so
+`actor` is the role holder by construction, and `attributed_to` is the proposer
+the manager adjudicated (`resolve_proposer_id()`, which honours an inbound
+`attributedTo` only when the Invite's `actor` is itself the CASE_MANAGER, so a
+participant cannot name a third party as proposer).  A second received-side
+delegated emit should extract a shared received-side helper rather than repeat
+this reasoning.
 
 ---
 

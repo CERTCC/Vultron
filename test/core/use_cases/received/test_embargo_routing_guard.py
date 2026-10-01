@@ -26,6 +26,9 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
@@ -163,6 +166,7 @@ class TestInviteToEmbargoRoutingGuard:
             dl,
             event,
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -195,6 +199,7 @@ class TestInviteToEmbargoRoutingGuard:
             dl,
             event,
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 

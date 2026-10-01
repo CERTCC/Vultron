@@ -16,7 +16,14 @@
 """
 Embargo lifecycle behavior tree compositions.
 
-Provides factory functions for embargo-related BTs:
+Provides factory functions for the received-side embargo BTs:
+
+``invite_to_embargo_on_case_tree`` — handles receipt of an ``Invite(EmbargoEvent)``
+activity (protocol EP / EV message).  Two role-gated arms behind the shared
+intake and guarded commit (ADR-0113, EP-09): the CASE_MANAGER adjudicates the
+proposal (``ProposeEmbargoLifecycleNode``) and relays it to every participant
+except the proposer (``RelayEmbargoInviteToEachNode``, ``nodes/relay.py``); any
+other store records the Invite on its replica.  The tree's docstring draws it.
 
 ``remove_embargo_from_case_tree`` — handles receipt of a ``Remove(EmbargoEvent)``
 activity (protocol ET message).  Sequence:
@@ -42,24 +49,35 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+    create_participant_replica_gated_tree,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (
     ClearActiveEmbargoNode,
+    CollectEmbargoInviteRecipientsNode,
     CreateAndStoreInviteNode,
+    EmbargoProposalNotYetRecordedNode,
     HasEmbargoActiveNode,
     IsActiveEmbargoNode,
     OptionalLookupParticipantNode,
+    PersistEmbargoEventNode,
+    ProposeEmbargoLifecycleNode,
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
+    RelayEmbargoInviteToEachNode,
     RemoveFromProposedEmbargoesNode,
     ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
     SetEmbargoActiveNode,
     UpdateParticipantEmbargoPecNode,
     ValidateCaseExistsNode,
+    case_manager_admits_proposal_guard,
 )
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.services.embargo_lifecycle import TransitionMode
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
@@ -187,43 +205,130 @@ def invite_to_embargo_on_case_tree(
     case_id: str,
     invitee_id: str,
     invite_id: str,
+    *,
+    embargo_id: str,
+    proposer_id: str,
+    embargo: EmbargoEvent | None = None,
+    pec_result_out: dict[str, object] | None = None,
 ) -> py_trees.behaviour.Behaviour:
-    """Create the BT for receiving embargo invitation (protocol EI).
+    """Create the BT for receiving an embargo proposal or invitation (EP / EV).
 
-    Handles receipt of an ``Invite(InviteToEmbargoOnCase)`` activity.
-    Stores the invite activity idempotently (always succeeds), then optionally
-    looks up the invitee's participant record and advances their PEC state to
-    INVITED (skips silently if case/participant not found). Finally, commits
-    a canonical ledger entry.
+    Handles receipt of an ``Invite(EmbargoEvent)`` activity.  The tree has
+    two mutually exclusive arms behind the shared intake and guarded commit,
+    because the same wire message means two different things depending on
+    who receives it (ADR-0113):
 
-    BT always returns SUCCESS (invite storage is idempotent).
-    Always commits the ledger entry regardless of BT result.
+    **The CASE_MANAGER adjudicates** (EP-09-001, EP-09-002).  A participant
+    addresses its proposal to the CASE_MANAGER alone (PCR-08-001), so the
+    "Participant receiving EP/EV" of EMB-01 and EMB-03 is the manager.  Under
+    its role gate (BT-17-001) it persists the proposed ``EmbargoEvent`` from
+    the copy the message carries (CLP-10-017), resolves the relay recipients
+    before anything moves (BT-19-001), moves the canonical case through
+    ``EmbargoLifecycle.propose_embargo`` in STRICT mode — ``NONE → PROPOSED``
+    for a first proposal, ``ACTIVE → REVISE`` for a revision, no transition
+    for a counter-proposal at ``PROPOSED`` or ``REVISE`` — recording the
+    *proposer's* consent to its own terms (ADR-0093), then relays one
+    ``Invite(EmbargoEvent)`` to every participant except the proposer as
+    ``actor`` with the proposer in ``attributedTo`` (CM-24), committing each
+    emission and applying the invitee's PEC ``INVITE`` where CM-18-003 allows
+    it (EP-09-004).  A case whose EM state admits no proposal (``EXITED``) is
+    refused by a read-only guard ahead of the commit (CLP-10-009); the P/X/A
+    refusal with ER (EMB-01-002, EMB-03-003) is the use case's pre-flight.
+    The CM-24 authorship invariants hold structurally — the relay runs only
+    under the role gate, so ``actor`` is the role holder — rather than through
+    the trigger-side ``_prepare_delegated_context()`` helper, which a BT node
+    may not import (BTND-04-003) and whose fallback arm ADR-0113 retires.
+
+    **Either arm is preceded by an idempotency guard**: the same Invite
+    delivered again (``pending_embargo_proposal_index`` already maps the
+    embargo to this Invite's id) commits nothing and the handler reports it
+    as a repeat (CLP-13-001, HP-01-003).
+
+    **A participant replica records** the Invite addressed to it: the
+    invitee's participant record is looked up leniently and PEC ``INVITE``
+    applied where legal — a ``SIGNATORY`` asked about a revision keeps its
+    state and the tree succeeds (EP-09-004).  This on-receipt write is the
+    pre-relay behaviour retained until the replica apply node for the
+    manager's Invite commit lands (RSH-08-004, #3915); EP-09-003 then gates
+    it off.
 
     Args:
         case_id: ID of the VulnerabilityCase.
-        invitee_id: Actor ID of the invitee.
-        invite_id: ID of the InviteToEmbargoOnCase activity.
+        invitee_id: Actor ID of the invitee (the Invite's sole ``to``).
+        invite_id: ID of the received Invite activity.
+        embargo_id: ID of the proposed ``EmbargoEvent`` (the Invite's object).
+        proposer_id: Actor whose terms these are — the Invite's ``actor``, or
+            its ``attributedTo`` when the proposal was itself relayed.
+        embargo: The inline ``EmbargoEvent`` the message carries, persisted
+            in the manager's store before adjudication; ``None`` when the
+            message named its object by bare URI.
+        pec_result_out: Receives the replica arm's ``pec_before`` /
+            ``pec_changed`` so the handler can report a repeat as SKIPPED.
 
     Returns:
         Root node of the ``InviteToEmbargoOnCaseBT`` Sequence.
     """
+    adjudication: list[py_trees.behaviour.Behaviour] = []
+    if embargo is not None:
+        adjudication.append(PersistEmbargoEventNode(embargo=embargo))
+    adjudication.extend(
+        [
+            CollectEmbargoInviteRecipientsNode(
+                case_id=case_id, proposer_id=proposer_id
+            ),
+            ProposeEmbargoLifecycleNode(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                result_out={},
+                proposer_id=proposer_id,
+            ),
+            RelayEmbargoInviteToEachNode(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                proposer_id=proposer_id,
+            ),
+        ]
+    )
     root = create_receive_activity_tree(
         name="InviteToEmbargoOnCaseBT",
         case_id=case_id,
-        precondition_guards=[],
+        precondition_guards=[
+            EmbargoProposalNotYetRecordedNode(
+                case_id=case_id, embargo_id=embargo_id, invite_id=invite_id
+            ),
+            case_manager_admits_proposal_guard(case_id=case_id),
+        ],
         effect_nodes=[
             CreateAndStoreInviteNode(),
-            OptionalLookupParticipantNode(
-                case_id=case_id, target_actor_id=invitee_id
+            create_case_manager_gated_tree(
+                name="AdjudicateEmbargoProposal",
+                case_id=case_id,
+                children=adjudication,
             ),
-            UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.INVITE),
+            create_participant_replica_gated_tree(
+                name="RecordInviteOnReplica",
+                case_id=case_id,
+                children=[
+                    OptionalLookupParticipantNode(
+                        case_id=case_id, target_actor_id=invitee_id
+                    ),
+                    UpdateParticipantEmbargoPecNode(
+                        pec_trigger=PEC_Trigger.INVITE,
+                        where_legal=True,
+                        result_out=pec_result_out,
+                    ),
+                ],
+            ),
         ],
     )
     logger.info(
-        "Created InviteToEmbargoOnCaseBT for case=%s invitee=%s invite=%s",
+        "Created InviteToEmbargoOnCaseBT for case=%s invitee=%s invite=%s"
+        " embargo=%s proposer=%s",
         case_id,
         invitee_id,
         invite_id,
+        embargo_id,
+        proposer_id,
     )
     return root
 
