@@ -437,6 +437,62 @@ class TestSectionIndexDecisions:
         (page,) = discover_section_indexes(root).routing
         assert routing_faults(root, page) == []
 
+    def test_routing_index_counts_links_in_a_whole_included_fragment(
+        self, tmp_path
+    ):
+        """A fragment shared by two pages routes both of them (DF-10-002): its
+        links resolve against the fragment, as include-markdown rewrites them."""
+        body = '# Sub\n\n{% include-markdown "../../includes/cards.md" %}\n'
+        root = self._nested_repo(
+            tmp_path,
+            _index("routing", body),
+            **{
+                "docs/includes/cards.md": (
+                    "[Leaf](../guides/sub/leaf.md) [Other](../guides/sub/other.md)\n"
+                )
+            },
+        )
+        (page,) = discover_section_indexes(root).routing
+        assert routing_faults(root, page) == []
+
+    def test_routing_index_ignores_links_in_a_partial_include(self, tmp_path):
+        """A ``start=`` include may cut the link, so it is not counted."""
+        body = (
+            "# Sub\n\n[Leaf](leaf.md)\n\n"
+            '{% include-markdown "../../includes/cards.md" start="<!--s-->" %}\n'
+        )
+        root = self._nested_repo(
+            tmp_path,
+            _index("routing", body),
+            **{
+                "docs/includes/cards.md": (
+                    "[Other](../guides/sub/other.md)\n<!--s-->\nNothing.\n"
+                )
+            },
+        )
+        (page,) = discover_section_indexes(root).routing
+        (fault,) = routing_faults(root, page)
+        assert "guides/sub/other.md" in str(fault)
+
+    def test_routing_index_ignores_links_after_an_end_marker(self, tmp_path):
+        """An ``end=`` include may cut the link too, so it is not counted."""
+        body = (
+            "# Sub\n\n[Leaf](leaf.md)\n\n"
+            '{% include-markdown "../../includes/cards.md" end="<!--e-->" %}\n'
+        )
+        root = self._nested_repo(
+            tmp_path,
+            _index("routing", body),
+            **{
+                "docs/includes/cards.md": (
+                    "Intro.\n<!--e-->\n[Other](../guides/sub/other.md)\n"
+                )
+            },
+        )
+        (page,) = discover_section_indexes(root).routing
+        (fault,) = routing_faults(root, page)
+        assert "guides/sub/other.md" in str(fault)
+
     def test_routing_index_reports_every_missing_member(self, tmp_path):
         root = self._nested_repo(tmp_path, _index("routing"))
         (page,) = discover_section_indexes(root).routing
@@ -856,6 +912,7 @@ class TestSiteSync:
             "howto/activitypub/index.md",
             "howto/activitypub/activities/index.md",
             "reference/specs/index.md",
+            "start/index.md",
         }
         assert set(indexes.rendered) == {"topics/scenarios/index.md"}
 
