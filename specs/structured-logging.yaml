@@ -52,15 +52,21 @@ groups:
       Python's `logging` keeps the template (`msg`) and its values (`args`) apart on
       the record and formats them only when a handler emits. That split gives every
       recurring event one stable template to group, grep, and assert on; it defers
-      the formatting cost until a record is known to be emitted, which removes the
-      hand-written `isEnabledFor` guards around expensive renders; and it keeps a
-      formatting fault inside the logging machinery instead of raising it into the
-      caller. A pre-formatted string discards all three. Structured record fields
+      rendering the arguments (`str()` and `%` conversion) until a record is known
+      to be emitted; and it keeps a fault raised while rendering an argument inside
+      the logging machinery instead of in the caller. Only rendering is deferred:
+      an argument expression is still evaluated at the call, so a value produced by
+      a call (a tree dump, a `logfmt()` render) still needs an `isEnabledFor` guard,
+      while a guard that only avoided f-string formatting is removed. A
+      pre-formatted string discards all three properties. Structured record fields
       (SL-02) are a separate mechanism and are not an alternative way to interpolate
       values into the message. Enforced by ruff rules `G001`-`G004` (ADR-0094).
     verification: >-
       `ruff check` with the `G` rule family selected and no `G004` entry in
-      `[tool.ruff.lint] ignore` reports zero findings (IMPLTS-07-018).
+      `[tool.ruff.lint] ignore` reports zero findings (IMPLTS-07-018). The `G`
+      rules see only a formatting expression written inside the call, so a message
+      pre-built into a name and then passed (`msg = f"..."; logger.info(msg)`) is
+      outside their reach and is a review finding, not a ruff one.
     relationships:
     - rel_type: refines
       spec_id: SL-01-004

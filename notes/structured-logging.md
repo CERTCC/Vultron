@@ -3,8 +3,11 @@ title: Structured Logging — Narrative Standard and Infrastructure Demotion Gui
 status: active
 tags: [logging, observability, debugging]
 description: >
-  Narrative log template (SL-04-006), infrastructure demotion list (SL-04-007),
-  and per-module guidance for keeping INFO logs readable as a CVD protocol story.
+  Log-call shape (SL-01-005: literal template plus lazy positional args, never an
+  f-string), how correlation fields reach a record (SL-02-003: boundary filter,
+  not per-call `extra=`), narrative log template (SL-04-006), infrastructure
+  demotion list (SL-04-007), and per-module guidance for keeping INFO logs
+  readable as a CVD protocol story.
 related_specs:
   - specs/structured-logging.yaml
 related_notes:
@@ -52,19 +55,27 @@ project relies on all three consequences of that split:
 - **The template is the event's identity.** Every "Actor %s engaged case %s"
   shares one `msg`, so a test, a grep, or a log tool can group and assert on the
   event. An f-string makes every line a unique string with no key.
-- **Formatting faults stay inside logging.** A bad `%s` argument is reported by
-  the logging machinery and never raised into the caller. An f-string that
-  throws takes the BT node down with it, and `update()` is the only sanctioned
-  catch in a node (BT-HELPER-01).
-- **Formatting is deferred.** The BT tree dump and the demo `logfmt()` calls are
-  expensive renders; with lazy args they cost nothing when the record is
-  filtered, and the hand-written `isEnabledFor(DEBUG)` guards around them become
-  unnecessary.
+- **Rendering faults stay inside logging.** A value whose `__str__` raises, or a
+  `%d` handed a string, is reported by the logging machinery through
+  `Handler.handleError` and never raised into the caller. In an f-string the same
+  fault raises in the BT node, and `update()` is the only sanctioned catch in a
+  node (BT-HELPER-01).
+- **Rendering is deferred.** `str()` and `%` conversion of the arguments happen
+  only when a handler emits, so a filtered record never pays for them.
 
-The rule is decided in SL-01-005 and enforced by ruff's `G` family (`G001`
-through `G004`), which #3378 enabled by deleting the provisional `G004` `ignore`
-entry ADR-0094 had recorded. The `G004` finding count at the time is in
-ADR-0094, not here (MS-16-001).
+Only rendering is deferred. The argument *expressions* are still evaluated at
+the call, so lazy args do not make an expensive value free: `unicode_tree(tree)`
+in `vultron/core/behaviors/bridge.py` and a demo `logfmt(obj)` run whether or not
+the record is emitted. A guard whose only purpose was to avoid f-string
+formatting goes; a guard around a value produced by a call stays, with a
+one-line comment saying why (#3991 AC-3). Likewise an argument expression that
+raises (`case.id` on `None`) raises in the caller under either form; only faults
+in rendering move into logging.
+
+The rule is decided in SL-01-005 and enforced by ruff rules `G001`–`G004`. The
+shape was decided under #3378; #3991 enables the rules by deleting the
+provisional `G004` `ignore` entry ADR-0094 had recorded and rewriting every site.
+The `G004` finding count at the time is in ADR-0094, not here (MS-16-001).
 
 ### `extra=` is not the other option
 

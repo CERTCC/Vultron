@@ -770,9 +770,9 @@ what makes an acceptable exclusion reason (IMPLTS-07-019), and why `RUF100`
 rather than a bespoke test is the ratchet for baselined findings
 (IMPLTS-07-020). Records the `PLC0415` policy (CS-05-005/006: enabled by #3949
 after #3352, with `test/**` exempted and each genuine cycle break marked until
-its removal in #3950), the `G004` resolution (SL-01-005: enabled, every f-string
-log call rewritten, no provisional entry left in `ignore`), and the commit-loop
-habits that change when the flake8 hook is retired.
+its removal in #3950), the `G004` resolution (SL-01-005: enabled by #3991, which
+rewrites every f-string log call and leaves no provisional entry in `ignore`),
+and the commit-loop habits that change when the flake8 hook is retired.
 **Decided but not yet built**: the configuration it describes lands with #3352;
 flake8, black and isort are still the live gate.
 **Load when**: editing `[tool.ruff]`, adding or removing an `ignore` entry,

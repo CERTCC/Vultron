@@ -10,6 +10,7 @@ description: >
 related_specs:
   - specs/tech-stack.yaml
   - specs/code-style.yaml
+  - specs/structured-logging.yaml
 related_notes:
   - notes/devcontainer-tooling.md
   - notes/ci-workflow-authoring.md
@@ -193,22 +194,28 @@ on the side of the cycle that owns it. Do not add a file to this table to make a
 new finding go away — a new cycle is a new reorganization, and the marker it
 would carry needs its own tracking issue.
 
-**`G004` (`logging-f-string`) was the other provisional exclusion, and it too is
-deleted, not kept.** Its ADR-0094 row cited #3378, which asked whether the rewrite
-target was lazy `%`-args or structured `extra=` fields. The answer is that these
+**`G004` (`logging-f-string`) is the other provisional exclusion in the
+configuration that #3352 lands with, and that entry too is deleted, not
+kept — #3991 removes it.** Its ADR-0094 row cited #3378, which asked whether the
+rewrite target was lazy `%`-args or structured `extra=` fields. The answer is these
 were never alternatives: the template-plus-args shape decides how the *message*
 gets its values (SL-01-005), while `extra=`-style record fields are the
-correlation mechanism (SL-02-003) and are set by a boundary filter rather than
-per call. So the rule is **enabled**, every f-string log call is rewritten to a
-literal template with positional args, and no marker is placed — `G004` has no
-autofix, but the rewrite is bounded and mechanical, and "too many to fix now" is
-not a reason to exclude (below). The reasoning is in
-[notes/structured-logging.md](structured-logging.md) § "Log-Call Shape".
+correlation mechanism (SL-02-003, built by #3992) and are set by a boundary
+filter rather than per call. So the rule is **enabled**: #3991 rewrites every
+f-string log call to a literal template with positional args and places no
+marker. Ruff's `G004` fix is available only under `--preview --unsafe-fixes` and
+declines a placeholder that carries a conversion or format spec (`{x!r}`,
+`{x:>5}`), so the bulk is autofixed one category at a time per ADR-0094 and the
+residue is hand work; either way the rewrite is bounded, and "too many to fix
+now" is not a reason to exclude (above). The reasoning is in
+[notes/structured-logging.md](structured-logging.md) § "Log-Call Shape: Template
+Plus Lazy Arguments (SL-01-005)".
 
-With both provisional rows resolved, **no entry in `ignore` cites a tracking
-issue**: every remaining exclusion rests on one of the first three standing
-reasons above. A new provisional exclusion needs a new issue, and this section
-should name it.
+Until #3991 lands, the `G004` entry cites #3991 as its tracking issue
+(IMPLTS-07-019). Once it does, **no entry in `ignore` cites a tracking issue**:
+every remaining exclusion rests on one of the first three standing reasons
+above. A new provisional exclusion needs a new issue, and this section should
+name it.
 
 ## Baselining: `RUF100` is the ratchet
 
