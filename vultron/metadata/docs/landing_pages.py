@@ -50,7 +50,10 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from vultron.metadata.base import mkdocs_config
-from vultron.metadata.docs.page_frontmatter import classify_docs_tree
+from vultron.metadata.docs.page_frontmatter import (
+    classify_docs_tree,
+    include_directives,
+)
 from vultron.metadata.docs.page_links import link_targets
 from vultron.metadata.docs.page_schema import LEVELS, is_working_record
 from vultron.metadata.file_loading import MetadataLoadError, load_frontmatter
@@ -486,10 +489,20 @@ def discover_landing_pages(root: Path) -> tuple[LandingPage, ...]:
 def routing_faults(root: Path, page: RoutingPage) -> list[MetadataLoadError]:
     """Return one fault per member *page* is required to link but does not.
 
-    Every missing member is reported, not only the first (EH-07-001).
+    A link counts whether the page writes it or a fragment it includes whole
+    carries it, so cards shared with another page route both (DF-10-002). A
+    fragment's links resolve against the fragment, as include-markdown rewrites
+    them; a ``start=`` or ``end=`` include may cut the link, so it is not
+    counted. Every
+    missing member is reported, not only the first (EH-07-001).
     """
-    source = (root / "docs" / page.path).read_text(encoding="utf-8")
-    linked = link_targets(page.path, source)
+    docs_dir = root / "docs"
+    host = docs_dir / page.path
+    linked = link_targets(page.path, host.read_text(encoding="utf-8"))
+    for _, fragment, whole in include_directives(host, docs_dir, uncut=True):
+        if whole:
+            text = (docs_dir / fragment).read_text(encoding="utf-8")
+            linked |= link_targets(fragment, text)
     return [
         MetadataLoadError(
             f"declares `{CONTENTS_KEY}: {Contents.ROUTING.value}` but does not "

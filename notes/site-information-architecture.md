@@ -494,6 +494,7 @@ new group index is decided here before it lands.
 | `reference/formal_protocol/index.md` | generated | Bullets became the listing; the set-notation in the blurbs became prose in `description:`. |
 | `reference/messages/index.md` | generated | The shorthand codes each page covers folded into its `description:`. |
 | `reference/specs/index.md` | routing | Routes all four tiers, two of which (`project.md`, `process.md`) are working record the nav omits (DF-11-003); a nav-derived listing would drop them. |
+| `start/index.md` | routing | Opens *Start Here*; its four situation cards come from `includes/start_here_cards.md`, the same fragment the home page's "Where to start" uses, and `routing_faults` counts a whole-included fragment's links (DF-10-002). |
 | `topics/measuring_cvd/index.md` | generated | The table became the listing; the reading-order sentence stays as framing. |
 | `topics/other_uses/index.md` | generated | As above. |
 
@@ -528,7 +529,12 @@ an enumeration of a section's children, so DF-11-005's generate-and-gate rule
 does not apply to them (#3524 AC-11).
 They also sit in the nav as a *Start Here* section, labelled by situation, so
 a reader who lands mid-site reaches an entry path without going back to the
-home page (#3627).
+home page (#3627). The section opens with `start/index.md`, so the tab lands
+on a choice of paths rather than inside the first one. Its cards, and an aside
+that sends a reader with a vul to report to the vendor or CERT/CC instead, are
+one fragment shared with the home page; only the "none of these" fallback to
+*What Is Vultron?* is the Start Here page's own, since the home page already
+answers that question in its own prose.
 
 ### The coverage matrix is generated too
 
