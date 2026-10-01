@@ -5,7 +5,7 @@ description: >
   How an actor goes from invited to participating, what the case records at
   each step, what an inert participant may receive, and what the old model got
   wrong; how removal and reinstatement withdraw and restore entitlement without
-  touching membership (ADR-0115). Sources: CONCERN-4006 and CONCERN-2257
+  touching membership (ADR-0116). Sources: CONCERN-4006 and CONCERN-2257
   planning sessions (2026-10-01).
 related_specs:
   - specs/case-management.yaml
@@ -35,7 +35,7 @@ relevant_packages:
 # Joining a Case — Stub Invite, Inert Participant, Full-Case Invite
 
 The decisions are ADR-0114 (joining, inert participants, the stub type, the
-`R → C` transition), ADR-0070 (judging the case) and ADR-0115 (removal and
+`R → C` transition), ADR-0070 (judging the case) and ADR-0116 (removal and
 reinstatement). This note keeps the flow in
 one place and records what the earlier model got wrong, because each piece of that model
 was internally consistent and the error only showed once all of them were laid
@@ -66,7 +66,7 @@ stub Invite, not removed, RM not `CLOSED`, and — only when an embargo is activ
 active embargo: one not yet established, or one already exited.
 
 Being active is computed by one case-level check from stored facts, and never
-stored (CM-30-002). It is a case method, not a participant property: whether an
+stored (CM-31-002). It is a case method, not a participant property: whether an
 embargo is active is case state the record cannot see, and a participant-level
 "joined" property would read as "active" at a send site.
 
@@ -102,7 +102,7 @@ active check, not roster membership.
 
 ## Removal and reinstatement
 
-Removal withdraws entitlement; it does not delete the record (ADR-0115, CM-30).
+Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 
 | Step | Message | Ledger | Effect |
 |---|---|---|---|
@@ -117,12 +117,12 @@ Removal withdraws entitlement; it does not delete the record (ADR-0115, CM-30).
   own initiative. Self-removal is `Leave(VulnerabilityCase)`.
 - **Consent is untouched.** A removed `SIGNATORY` stays bound. So does a
   participant that left the case: both get the direct embargo-ending notices
-  (CM-30-009), the only messages a removed participant receives besides the
+  (CM-31-009), the only messages a removed participant receives besides the
   removal itself.
 - **`Add(CaseParticipant)` only reinstates.** It is refused for a participant
   that is not removed or never joined. The CASE_MANAGER no longer emits `Add`
   after a stub-Invite acceptance; replicas learn of a new member from the
-  `Accept(Invite)` entry (CM-30-012).
+  `Accept(Invite)` entry (CM-31-012).
 - **Catch-up follows the active check.** A participant reinstated into a case
   whose embargo it has not accepted stays inert; it is sent that embargo's
   Invite, and its backfill waits for its consent.

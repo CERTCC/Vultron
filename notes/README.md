@@ -585,7 +585,7 @@ Invite that carries a ledger-position floor. Defines *active* versus *inert*,
 the `Offer` ("take this") versus `Invite` ("take part in this") distinction,
 records what the earlier join model got wrong, and how removal and
 reinstatement withdraw and restore entitlement without deleting the record
-(ADR-0115).
+(ADR-0116).
 **Load when**: touching invitations, participant creation, recipient
 selection for case content, the accept-invite trees, invitee RM triage, or
 `Add`/`Remove(CaseParticipant)`.

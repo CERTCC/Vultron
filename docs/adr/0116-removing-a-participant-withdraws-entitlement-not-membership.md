@@ -161,11 +161,11 @@ A participant reinstated into a case with an active embargo it has not accepted 
 
 ## Validation
 
-- Strict `xfail` goal tests carry the CM-30 markers until each implementation issue lands.
+- Strict `xfail` goal tests carry the CM-31 markers until each implementation issue lands.
 - A received-side test drives a removal from the Case Owner and asserts the record remains, the participant is absent from `activeParticipants`, one ledger entry was committed, and the removed party was sent the notice and the entry.
 - A test asserts a reinstated participant receives the withheld entries in order, and that replaying an embargo change it already took from a direct notice changes nothing.
 
-Spec requirements: `specs/case-management.yaml` CM-30 (new); CM-10-004, CM-10-006 and CM-10-007 amended; `specs/received-status-handling.yaml` RSH-08-003 amended; `specs/vultron-as2-mapping.yaml` VAM-06-002 and VAM-06-003 annotated.
+Spec requirements: `specs/case-management.yaml` CM-31 (new); CM-10-004, CM-10-006 and CM-10-007 amended; `specs/received-status-handling.yaml` RSH-08-003 amended; `specs/vultron-as2-mapping.yaml` VAM-06-002 and VAM-06-003 annotated.
 
 ## Pros and Cons of the Options
 

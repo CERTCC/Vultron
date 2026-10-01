@@ -10,26 +10,26 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Planned participant removal and reinstatement (ADR-0115, CM-30).
+"""Planned participant removal and reinstatement (ADR-0116, CM-31).
 
 Strict-``xfail`` goal tests planned under #2257; each test names the issue
-that implements it.  Every test starts from a CASE_MANAGER store holding a
+that implements it (``_TRACKED_BY``).  Every test starts from a CASE_MANAGER store holding a
 case with the CASE_MANAGER, a Case Owner, a joined vendor that is
 ``SIGNATORY`` to the active embargo, and a second joined vendor.
 
-- CM-30-001 — removal keeps the record and makes the participant inert.
-- CM-30-003 — the case publishes a computed ``activeParticipants``.
-- CM-30-004 — only the Case Owner may remove, and never the manager or owner.
-- CM-30-005 — one ledger entry, under a canonical signature.
-- CM-30-006 — a direct notice to the removed participant.
-- CM-30-007 — replicas apply the removal from its ledger entry.
-- CM-30-008 — removal leaves embargo consent untouched.
-- CM-30-009 — a removed signatory is told when the embargo is terminated.
-- CM-30-010 — a paused replica ignores an embargo-ending notice from a
+- CM-31-001 — removal keeps the record and makes the participant inert.
+- CM-31-003 — the case publishes a computed ``activeParticipants``.
+- CM-31-004 — only the Case Owner may remove, and never the manager or owner.
+- CM-31-005 — one ledger entry, under a canonical signature.
+- CM-31-006 — a direct notice to the removed participant.
+- CM-31-007 — replicas apply the removal from its ledger entry.
+- CM-31-008 — removal leaves embargo consent untouched.
+- CM-31-009 — a removed signatory is told when the embargo is terminated.
+- CM-31-010 — a paused replica ignores an embargo-ending notice from a
   non-manager.
-- CM-30-011 — ``Add(CaseParticipant)`` reinstates, and only reinstates.
-- CM-30-012 — no ``Add(CaseParticipant)`` after a stub-Invite acceptance.
-- CM-30-013 — a removed participant is not sent an embargo Invite.
+- CM-31-011 — ``Add(CaseParticipant)`` reinstates, and only reinstates.
+- CM-31-012 — no ``Add(CaseParticipant)`` after a stub-Invite acceptance.
+- CM-31-013 — a removed participant is not sent an embargo Invite.
 
 Activities are routed the way the inbox routes them (``route_received``), so
 a test keeps working when the implementation adds new semantics.  See
@@ -81,7 +81,28 @@ VENDOR = "https://example.org/actors/vendor-removal"
 OTHER = "https://example.org/actors/other-removal"
 EMBARGO_ID = f"{CASE_ID}/embargo_events/active"
 
-_REMOVAL = "ADR-0115 participant removal (CM-30). Tracked by #2257."
+# The issue implementing each CM-31 requirement (ADR-0116).
+_TRACKED_BY = {
+    "CM-31-001": 4080,
+    "CM-31-003": 4079,
+    "CM-31-004": 4080,
+    "CM-31-005": 4080,
+    "CM-31-006": 4080,
+    "CM-31-007": 4080,
+    "CM-31-008": 4080,
+    "CM-31-009": 4083,
+    "CM-31-010": 4083,
+    "CM-31-011": 4081,
+    "CM-31-012": 4081,
+    "CM-31-013": 4084,
+}
+
+
+def _planned(spec_id: str) -> str:
+    return (
+        f"{spec_id}: ADR-0116 participant removal."
+        f" Tracked by #{_TRACKED_BY[spec_id]}."
+    )
 
 
 @dataclass
@@ -178,8 +199,8 @@ def removal_case() -> _RemovalCase:
     return _RemovalCase(dl=dl, case=_seed(dl))
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-001: {_REMOVAL}")
-@pytest.mark.spec("CM-30-001")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-001"))
+@pytest.mark.spec("CM-31-001")
 def test_removal_keeps_the_record_on_the_roster(removal_case) -> None:
     """Removal withdraws entitlement; the record, and its index entry, stay."""
     result = removal_case.remove(VENDOR)
@@ -192,25 +213,27 @@ def test_removal_keeps_the_record_on_the_roster(removal_case) -> None:
     assert case.actor_participant_index.get(VENDOR) == _participant_id(VENDOR)
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-003: {_REMOVAL}")
-@pytest.mark.spec("CM-30-003")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-003"))
+@pytest.mark.spec("CM-31-003")
 def test_case_publishes_active_participants_and_round_trips(
     removal_case,
 ) -> None:
-    """``activeParticipants`` is computed, published, and read back cleanly."""
-    removal_case.remove(VENDOR)
+    """``activeParticipants`` is computed, published, and read back cleanly.
+
+    Every seeded participant is active (joined and ``SIGNATORY``); that a
+    removed one leaves the view is CM-31-001's test.
+    """
     case = removal_case.read_case()
 
     dumped = case.model_dump(by_alias=True, mode="json")
     assert "activeParticipants" in dumped
     active = {getattr(p, "id_", p) for p in dumped["activeParticipants"]}
-    assert _participant_id(VENDOR) not in active
-    assert _participant_id(OTHER) in active
+    assert {_participant_id(VENDOR), _participant_id(OTHER)} <= active
     assert as_VulnerabilityCase.model_validate(dumped) == case
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-004: {_REMOVAL}")
-@pytest.mark.spec("CM-30-004")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-004"))
+@pytest.mark.spec("CM-31-004")
 @pytest.mark.parametrize(
     ("sender", "removed"),
     [
@@ -239,23 +262,23 @@ def test_removal_is_refused_unless_the_owner_removes_a_removable_participant(
     assert result.disposition is HandlerDisposition.REFUSED
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-004: {_REMOVAL}")
-@pytest.mark.spec("CM-30-004")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-004"))
+@pytest.mark.spec("CM-31-004")
 def test_a_second_removal_is_skipped(removal_case) -> None:
     """Removing an already-removed participant is a no-op, reported as such."""
     assert removal_case.remove(VENDOR).disposition is (
         HandlerDisposition.APPLIED
     )
     # Today the first removal deletes the record, so the second is skipped
-    # for the wrong reason; removal must keep it (CM-30-001).
+    # for the wrong reason; removal must keep it (CM-31-001).
     assert VENDOR in removal_case.read_case().actor_participant_index
     second = removal_case.remove(VENDOR)
 
     assert second.disposition is HandlerDisposition.SKIPPED
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-005: {_REMOVAL}")
-@pytest.mark.spec("CM-30-005")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-005"))
+@pytest.mark.spec("CM-31-005")
 def test_removal_is_one_canonical_ledger_entry_by_the_owner(
     removal_case,
 ) -> None:
@@ -274,8 +297,8 @@ def test_removal_is_one_canonical_ledger_entry_by_the_owner(
     assert added[0].payload_snapshot.get("actor") == OWNER
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-006: {_REMOVAL}")
-@pytest.mark.spec("CM-30-006")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-006"))
+@pytest.mark.spec("CM-31-006")
 def test_removed_participant_is_sent_a_direct_remove_naming_it(
     removal_case,
 ) -> None:
@@ -287,8 +310,8 @@ def test_removed_participant_is_sent_a_direct_remove_naming_it(
     assert getattr(notices[0], "attributed_to", None) == OWNER
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-007: {_REMOVAL}")
-@pytest.mark.spec("CM-30-007")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-007"))
+@pytest.mark.spec("CM-31-007")
 def test_announce_tree_has_a_removal_replay_node() -> None:
     """A replica applies removal from the ledger entry, not the direct notice.
 
@@ -307,8 +330,8 @@ def test_announce_tree_has_a_removal_replay_node() -> None:
     assert any("Remove" in n and "Participant" in n for n in names), names
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-008: {_REMOVAL}")
-@pytest.mark.spec("CM-30-008")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-008"))
+@pytest.mark.spec("CM-31-008")
 def test_removal_leaves_embargo_consent_untouched(removal_case) -> None:
     """A removed signatory stays bound by the embargo it accepted."""
     removal_case.remove(VENDOR)
@@ -320,8 +343,8 @@ def test_removal_leaves_embargo_consent_untouched(removal_case) -> None:
     assert participant.accepted_embargo_ids == [EMBARGO_ID]
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-009: {_REMOVAL}")
-@pytest.mark.spec("CM-30-009")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-009"))
+@pytest.mark.spec("CM-31-009")
 def test_removed_signatory_is_sent_the_termination(removal_case) -> None:
     """Terminating the embargo sends the removed signatory a direct ET."""
     removal_case.remove(VENDOR)
@@ -338,8 +361,8 @@ def test_removed_signatory_is_sent_the_termination(removal_case) -> None:
     )
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-010: {_REMOVAL}")
-@pytest.mark.spec("CM-30-010")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-010"))
+@pytest.mark.spec("CM-31-010")
 def test_paused_replica_ignores_an_ending_notice_from_a_non_manager() -> None:
     """Only the CASE_MANAGER's notice moves a paused replica's embargo."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
@@ -360,8 +383,8 @@ def test_paused_replica_ignores_an_ending_notice_from_a_non_manager() -> None:
     assert case.active_embargo is not None
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-011: {_REMOVAL}")
-@pytest.mark.spec("CM-30-011")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-011"))
+@pytest.mark.spec("CM-31-011")
 def test_owner_add_reinstates_a_removed_participant(removal_case) -> None:
     """``Add(CaseParticipant)`` from the owner reverses a removal."""
     removal_case.remove(VENDOR)
@@ -379,8 +402,8 @@ def test_owner_add_reinstates_a_removed_participant(removal_case) -> None:
     assert _participant_id(VENDOR) in active
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-011: {_REMOVAL}")
-@pytest.mark.spec("CM-30-011")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-011"))
+@pytest.mark.spec("CM-31-011")
 def test_add_naming_a_participant_that_is_not_removed_is_refused(
     removal_case,
 ) -> None:
@@ -394,8 +417,8 @@ def test_add_naming_a_participant_that_is_not_removed_is_refused(
     assert result.disposition is HandlerDisposition.REFUSED
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-012: {_REMOVAL}")
-@pytest.mark.spec("CM-30-012")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-012"))
+@pytest.mark.spec("CM-31-012")
 def test_accept_invite_tree_emits_no_add_case_participant() -> None:
     """Replicas learn of a new member from the ``Accept(Invite)`` entry."""
     from vultron.core.behaviors.case.accept_invite_tree import (
@@ -411,8 +434,8 @@ def test_accept_invite_tree_emits_no_add_case_participant() -> None:
     assert "EmitAddCaseParticipantNode" not in names
 
 
-@pytest.mark.xfail(strict=True, reason=f"CM-30-013: {_REMOVAL}")
-@pytest.mark.spec("CM-30-013")
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-013"))
+@pytest.mark.spec("CM-31-013")
 def test_removed_participant_is_not_invited_to_an_embargo_revision() -> None:
     """The embargo-Invite recipients exclude a removed participant."""
     from vultron.core.behaviors.embargo.nodes.relay import (
