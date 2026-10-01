@@ -42,7 +42,10 @@ from vultron.errors import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from .conftest import (
+    UNHELD_EMBARGO_ID,
     _accepted_ids_of,
+    _assert_activation_wrote_nothing,
+    _case_awaiting_activation,
     _force_pec,
     _make_actor,
     _make_case,
@@ -1000,8 +1003,13 @@ def test_owner_accepting_a_first_proposal_makes_its_non_owner_proposer_a_signato
 
 
 @pytest.mark.spec("EP-05-001")
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.parametrize(
+    "mode", [TransitionMode.STRICT, TransitionMode.OBSERVED], ids=str
+)
 def test_owner_accept_with_an_unreadable_previous_embargo_changes_nothing(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    mode: TransitionMode,
 ) -> None:
     """The A-vs-B read fails closed *before* EM, active_embargo or any list move."""
     owner, dl = owner_and_dl
@@ -1015,7 +1023,10 @@ def test_owner_accept_with_an_unreadable_previous_embargo_changes_nothing(
 
     with pytest.raises(VultronNotFoundError):
         EmbargoLifecycle(persistence=dl).accept_embargo_invite(
-            case_id=case.id_, embargo_id=revision.id_, actor_id=owner.id_
+            case_id=case.id_,
+            embargo_id=revision.id_,
+            actor_id=owner.id_,
+            transition_mode=mode,
         )
 
     untouched = cast(VulnerabilityCase, dl.read(case.id_))
@@ -1090,3 +1101,75 @@ def test_declined_participant_accepting_records_nothing(
     assert result.case_changed is False
     assert _pec_of(dl, decliner_p.id_) == PEC.DECLINED.value
     assert _accepted_ids_of(dl, decliner_p.id_) == []
+
+
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.parametrize(
+    "mode", [TransitionMode.STRICT, TransitionMode.OBSERVED], ids=str
+)
+@pytest.mark.parametrize(
+    "replaces", [False, True], ids=["first-activation", "revision"]
+)
+def test_owner_accept_of_an_unheld_embargo_writes_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    mode: TransitionMode,
+    replaces: bool,
+) -> None:
+    """The activated embargo is read first: an unheld one raises, no write."""
+    owner, dl = owner_and_dl
+    case, owner_p, active_id = _case_awaiting_activation(
+        dl, owner.id_, replaces=replaces, activated_id=UNHELD_EMBARGO_ID
+    )
+
+    with pytest.raises(VultronNotFoundError) as excinfo:
+        EmbargoLifecycle(persistence=dl).accept_embargo_invite(
+            case_id=case.id_,
+            embargo_id=UNHELD_EMBARGO_ID,
+            actor_id=owner.id_,
+            transition_mode=mode,
+        )
+
+    assert excinfo.value.resource_id == UNHELD_EMBARGO_ID
+    _assert_activation_wrote_nothing(
+        dl,
+        case,
+        owner_p,
+        active_id=active_id,
+        activated_id=UNHELD_EMBARGO_ID,
+    )
+
+
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.parametrize(
+    "mode", [TransitionMode.STRICT, TransitionMode.OBSERVED], ids=str
+)
+@pytest.mark.parametrize(
+    "replaces", [False, True], ids=["first-activation", "revision"]
+)
+def test_owner_accept_of_a_non_embargo_record_writes_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    mode: TransitionMode,
+    replaces: bool,
+) -> None:
+    """An id that resolves to something other than an EmbargoEvent fails closed."""
+    owner, dl = owner_and_dl
+    stranger = _make_actor(dl, "not an embargo")
+    case, owner_p, active_id = _case_awaiting_activation(
+        dl, owner.id_, replaces=replaces, activated_id=stranger.id_
+    )
+
+    with pytest.raises(VultronValidationError):
+        EmbargoLifecycle(persistence=dl).accept_embargo_invite(
+            case_id=case.id_,
+            embargo_id=stranger.id_,
+            actor_id=owner.id_,
+            transition_mode=mode,
+        )
+
+    _assert_activation_wrote_nothing(
+        dl,
+        case,
+        owner_p,
+        active_id=active_id,
+        activated_id=stranger.id_,
+    )

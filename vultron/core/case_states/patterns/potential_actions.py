@@ -16,7 +16,7 @@
 
 from vultron.core.case_states.patterns.base import compile_patterns
 from vultron.core.scoring.potential_actions import Actions
-from vultron.core.scoring.utils import unique_enum_list
+from vultron.core.scoring.utils import enum2title, unique_enum_list
 
 # things you COULD do, not necessarily things you SHOULD do
 _ACTIONS = {
@@ -105,8 +105,9 @@ def action(state):
 
 
 def main():
-    from vultron.core.case_states.hypercube import CVDmodel
-    from vultron.core.scoring.utils import enum2title
+    from vultron.core.case_states.hypercube import (  # noqa: PLC0415  # ruff-baseline #3950
+        CVDmodel,
+    )
 
     model = CVDmodel()
     for state in model.states:

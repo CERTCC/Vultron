@@ -21,11 +21,30 @@ a clean baseline before a demo run.
 """
 
 import logging
+import uuid
 from collections.abc import Callable, Sequence
 from urllib.parse import quote
 
+from vultron.config.app import get_config
+from vultron.core.behaviors.case.case_actor_identity import (
+    case_actor_identity,
+)
 from vultron.core.behaviors.store_scope import store_for_actor
+from vultron.core.models._helpers import _as_id, from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import EmDimension, RmDimension
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.embargo_duration import (
+    actor_default_duration,
+    resolve_initial_embargo_duration,
+    stored_actor_profile,
+)
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
@@ -33,6 +52,7 @@ from vultron.demo.utils import (
     seed_actor,
     seed_peer,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
@@ -1132,12 +1152,6 @@ def _actors_to_verify(label: str, client: DataLayerClient) -> list[str]:
 
 
 def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
-    from vultron.core.models.case_participant import CaseParticipant
-    from vultron.core.models.dimensions import RmDimension
-    from vultron.core.models.participant_status import ParticipantStatus
-    from vultron.core.states.rm import RM
-    from vultron.enums.roles import CVDRole
-
     case_id = case_obj.id_
     if vendor_actor_id in case_obj.actor_participant_index:
         return
@@ -1178,9 +1192,6 @@ def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
 def _seed_reporter_participant(
     case_obj, reporter_actor_id: str | None, dl
 ) -> None:
-    from vultron.core.models.case_participant import CaseParticipant
-    from vultron.enums.roles import CVDRole
-
     case_id = case_obj.id_
     if not reporter_actor_id:
         return
@@ -1204,16 +1215,6 @@ def _seed_reporter_participant(
 
 
 def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
-    import uuid as _uuid
-
-    from vultron.config.app import get_config
-    from vultron.core.behaviors.case.case_actor_identity import (
-        case_actor_identity,
-    )
-    from vultron.core.models.case_actor import CaseActor
-    from vultron.core.models.case_participant import CaseParticipant
-    from vultron.enums.roles import CVDRole
-
     case_id = case_obj.id_
     del report_id  # the CaseActor identity does not vary by report (#1872)
     case_actor_id = case_actor_identity() or case_actor_identity(
@@ -1258,7 +1259,7 @@ def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
     # matching production where RegisterCaseActorParticipantNode creates
     # the participant with a separate UUID attributed to case_actor_id.
     participant_id = (
-        f"urn:uuid:{_uuid.uuid5(_uuid.NAMESPACE_URL, case_actor_id)}"
+        f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, case_actor_id)}"
     )
     manager_p = CaseParticipant(
         id_=participant_id,
@@ -1294,17 +1295,6 @@ def _seed_active_embargo(case_obj, dl) -> None:
         ValueError: when the case has no owner.
         VultronNotFoundError: when *dl* holds no actor record for the owner.
     """
-    from vultron.config.app import get_config
-    from vultron.core.models._helpers import _as_id, from_now_utc
-    from vultron.core.models.dimensions import EmDimension
-    from vultron.core.models.embargo_event import EmbargoEvent
-    from vultron.core.services.embargo_duration import (
-        actor_default_duration,
-        resolve_initial_embargo_duration,
-        stored_actor_profile,
-    )
-    from vultron.core.states.em import EM
-
     case_id = case_obj.id_
     if case_obj.active_embargo:
         return
@@ -1368,8 +1358,6 @@ def seed_case_participants_for_demo(
             replica?" is exactly the question a shared DataLayer let callers skip,
             and the participants seeded here are per-replica state.
     """
-    from vultron.core.models.case import VulnerabilityCase
-
     case_obj = dl.read(case_id)
     if not isinstance(case_obj, VulnerabilityCase):
         logger.warning(

@@ -41,6 +41,7 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
@@ -48,6 +49,7 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
@@ -885,7 +887,15 @@ def _seed_active_embargo(
     """Give CASE_ID a live embargo: active_embargo set + EM state *em_state*."""
     case = dl.read_case(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
-    case.active_embargo = f"{CASE_ID}/embargo_events/e1"
+    # Hold the record too: a case never names an embargo its own store
+    # cannot read (EMB-18-003).
+    embargo = EmbargoEvent(
+        id_=f"{CASE_ID}/embargo_events/e1",
+        context=CASE_ID,
+        end_time=days_from_now_utc(45),
+    )
+    dl.save(embargo)
+    case.active_embargo = embargo.id_
     case.append_case_status(em_state=em_state)
     dl.save(case)
 
@@ -1207,7 +1217,7 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
         """
         dl = _make_full_dl()
         monkeypatch.setattr(
-            "vultron.core.behaviors.sync.commit_tree"
+            "vultron.core.behaviors.case.nodes.leave.record"
             ".create_commit_log_entry_tree",
             lambda *a, **kw: py_trees.behaviours.Failure(name="ForcedFailure"),
         )

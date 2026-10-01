@@ -55,6 +55,10 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.embargo import (
+    EMBARGO_DETERMINISTIC,
+)
+
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.embargo import (
         EmbargoCallOutBundle,
@@ -90,10 +94,6 @@ def create_manage_embargo_tree(
     Returns:
         Root node of the manage-embargo behavior tree (Phase 1 stub Sequence).
     """
-    from vultron.core.behaviors.call_out.bundles.embargo import (
-        EMBARGO_DETERMINISTIC,
-    )
-
     bundle = call_out if call_out is not None else EMBARGO_DETERMINISTIC
     # Phase 2: bundle.on_embargo_exit_factory, bundle.on_embargo_accept_factory,
     # and bundle.on_embargo_reject_factory are reserved for the full termination,
@@ -130,5 +130,5 @@ def create_manage_embargo_tree(
             ),
         ],
     )
-    logger.info(f"Created ManageEmbargoBT (Phase 1 stub) for case={case_id}")
+    logger.info("Created ManageEmbargoBT (Phase 1 stub) for case=%s", case_id)
     return root

@@ -28,6 +28,8 @@ argument to :func:`get_datalayer` to override the config value, e.g. for
 
 import logging
 
+from vultron.config import get_config
+
 from .datalayer import SqliteDataLayer
 from .engine import dispose_actor_engines, reset_store_claimants
 from .schema import QueueEntry, VultronObjectRecord
@@ -83,8 +85,6 @@ def get_datalayer(actor_id: str, db_url: str | None = None) -> SqliteDataLayer:
     Raises:
         ValueError: If *actor_id* is empty.
     """
-    from vultron.config import get_config
-
     if not actor_id:
         raise ValueError(
             "get_datalayer requires a canonical actor URI; there is no "
@@ -149,13 +149,11 @@ def reset_datalayer(actor_id: str | None = None) -> None:
         actor_id: If provided, resets only the instance for that actor.
             If ``None``, resets every per-actor instance.
     """
-    global _actor_instances  # noqa: PLW0603  # ruff-baseline #3985
-
     instances_to_close: list[SqliteDataLayer] = []
 
     if actor_id is None:
         instances_to_close.extend(_actor_instances.values())
-        _actor_instances = {}
+        _actor_instances.clear()
     else:
         # Every ``db_url`` this actor was cached under, not just the configured
         # one: a reset that left one behind would hand the stale store back.

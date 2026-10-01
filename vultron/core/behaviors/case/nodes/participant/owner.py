@@ -21,8 +21,12 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
+)
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -110,9 +114,6 @@ class CreateOwnerInitialStatusNode(DataLayerActionWithPorts):
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        from vultron.core.behaviors.case.nodes.participant.status import (
-            CreateParticipantStatusNode,
-        )
 
         self._status_node = CreateParticipantStatusNode(
             actor_id="",
@@ -150,8 +151,6 @@ class CreateOwnerInitialStatusNode(DataLayerActionWithPorts):
         if not isinstance(case_id, str):
             self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
-
-        from vultron.core.behaviors.bridge import BTBridge
 
         result = BTBridge(datalayer=self.datalayer).execute_with_setup(
             self._status_node,

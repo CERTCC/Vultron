@@ -70,6 +70,7 @@ BackgroundTask execution model.
 """
 
 import importlib
+import logging
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -282,7 +283,9 @@ class TestCaseProposalRoundTrip:
         )
 
     @pytest.mark.spec("CP-09-001")
-    def test_case_actor_sends_accept_and_create_case(self, two_app_setup):
+    def test_case_actor_sends_accept_and_create_case(
+        self, two_app_setup, caplog
+    ):
         """Case-actor responds with Accept(CaseProposal) + Create(VulnerabilityCase).
 
         After the vendor's outbox flushes Create(as_CaseProposal) to the
@@ -328,7 +331,8 @@ class TestCaseProposalRoundTrip:
             _actor_slug(case_actor_id_for_report(str(report.id_))),
             "Case Actor CP",
         )
-        _post_to_inbox(vendor_tc, _actor_slug(vendor_actor_id), offer)
+        with caplog.at_level(logging.WARNING):
+            _post_to_inbox(vendor_tc, _actor_slug(vendor_actor_id), offer)
 
         # The full chain runs synchronously inside TestClient's
         # BackgroundTask model:
@@ -367,6 +371,28 @@ class TestCaseProposalRoundTrip:
         assert {_as_id(case.attributed_to) for case in replicas} == {
             vendor_actor_id
         }
+
+        # EMB-18-003: the vendor's replica names the default embargo the
+        # CASE_MANAGER minted, so the Create must have carried that record and
+        # the vendor must hold it — a bare id would have been refused.
+        from vultron.core.services.embargo_ordering import read_embargo_event
+
+        cases = [
+            vendor_iso.dl.read(case_id) for case_id in vulnerability_cases
+        ]
+        embargoed = [c for c in cases if getattr(c, "active_embargo", None)]
+        assert embargoed, (
+            "Expected the vendor's case replica to name an embargo"
+        )
+        for case in embargoed:
+            ref = case.active_embargo
+            read_embargo_event(vendor_iso.dl, getattr(ref, "id_", ref))
+        refusals = [
+            r.getMessage()
+            for r in caplog.records
+            if "EMB-18-003" in r.getMessage()
+        ]
+        assert not refusals, refusals
 
 
 # ---------------------------------------------------------------------------

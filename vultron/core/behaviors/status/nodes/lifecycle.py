@@ -52,6 +52,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.predicates.roles import has_case_owner_role
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 
 logger = logging.getLogger(__name__)
@@ -86,8 +87,6 @@ class _PublicDisclosureSkipConditionNode(DataLayerConditionWithPorts):
 
     def _public_aware(self) -> bool:
         """Return True if the status signals public awareness (CS.P is set)."""
-        from vultron.core.states.cs import CS_pxa
-
         case_status: object = getattr(self.status_obj, "case_status", None)
         pxa_state = read_pxa_state(case_status)
         if pxa_state is None:
@@ -283,7 +282,7 @@ class EmitCloseCaseNode(DataLayerActionWithPorts):
                 f"EmitCloseCase: case_manager_id not set on blackboard"
                 f" for case '{self.case_id}' — cannot emit"
             )
-            self.logger.warning(self.feedback_message)
+            self.logger.warning("%s", self.feedback_message)
             return Status.SUCCESS
 
         try:
@@ -305,7 +304,7 @@ class EmitCloseCaseNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"EmitCloseCase: failed to emit close_case: {e}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         return Status.SUCCESS

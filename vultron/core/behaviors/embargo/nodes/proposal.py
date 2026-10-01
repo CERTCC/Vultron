@@ -27,21 +27,22 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
+from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.core.use_cases._helpers import (
+    _idempotent_create,
+)
+from vultron.errors import (
+    VultronNotAnEmbargoError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 #: Opens the feedback of a :class:`RecordParticipantRejectionNode` FAILURE
 #: that is a repeat of a Reject already recorded.  The received reject use
 #: case reads it to report ``SKIPPED`` rather than ``REFUSED`` (HP-01-003) —
 #: the node's own verdict, not the store's state, names the repeat.
 ALREADY_DECLINED_PREFIX = "Already declined"
-
-#: Opens the feedback of a :class:`RecordParticipantAcceptanceNode` FAILURE
-#: caused by the embargo the accepted one *replaces* not being replicated
-#: here, so the EP-05-001 comparison could not run.  The received accept use
-#: case reads it to report ``DEFERRED`` — the item is parked for replay, not
-#: refused (HP-01-003).
-REPLACED_EMBARGO_UNREPLICATED_PREFIX = "Replaced embargo not replicated here"
 
 
 class UpdateParticipantEmbargoPecNode(DataLayerActionWithPorts):
@@ -191,10 +192,6 @@ class CreateAndStoreInviteNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        from vultron.core.use_cases._helpers import (
-            _idempotent_create,
-        )
-
         activity_type = getattr(request, "activity_type", None)
         activity_id = getattr(request, "activity_id", None)
         activity = getattr(request, "activity", None)
@@ -218,6 +215,26 @@ class CreateAndStoreInviteNode(DataLayerActionWithPorts):
         self.feedback_message = f"Stored invite activity '{activity_id}'"
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
+
+
+def _unreadable_embargo_id(
+    exc: VultronNotFoundError | VultronValidationError,
+) -> str | None:
+    """The embargo id a fail-closed embargo read named, if *exc* is one.
+
+    :func:`~vultron.core.services.embargo_ordering.read_embargo_event` raises
+    :exc:`VultronNotFoundError` for a missing ``EmbargoEvent`` and
+    :exc:`VultronNotAnEmbargoError` for a record of another type; any other
+    error did not come from an embargo read.
+    """
+    if (
+        isinstance(exc, VultronNotFoundError)
+        and exc.resource_type == "EmbargoEvent"
+    ):
+        return exc.resource_id
+    if isinstance(exc, VultronNotAnEmbargoError):
+        return exc.embargo_id
+    return None
 
 
 class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
@@ -246,8 +263,6 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
         self.accepting_actor_id = accepting_actor_id
 
     def update(self) -> Status:
-        from vultron.core.states.em import EM
-
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
@@ -272,22 +287,25 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
                 actor_id=actor_id,
                 transition_mode=TransitionMode.OBSERVED,
             )
-        except VultronNotFoundError as exc:
-            if exc.resource_id != self.embargo_id:
-                # A partial replica may lack the embargo the accepted one
-                # replaces; the EP-05-001 comparison fails closed on it, and
-                # the handler parks the Accept for replay rather than
-                # refusing it.  Replay once the record arrives: #4004.
+        except (VultronNotFoundError, VultronValidationError) as exc:
+            unreadable_id = _unreadable_embargo_id(exc)
+            if unreadable_id is not None and unreadable_id != self.embargo_id:
+                # The case names an active embargo its own store cannot read
+                # (missing, or not an EmbargoEvent): no path may write that
+                # state (EMB-18-003), so this is a broken invariant, refused —
+                # never parked for a replay that nothing would drive.
                 self.feedback_message = (
-                    f"{REPLACED_EMBARGO_UNREPLICATED_PREFIX}: {exc}"
+                    f"Invariant violation (EMB-18-003): case '{self.case_id}'"
+                    f" names active embargo '{unreadable_id}', which this"
+                    " store cannot read; refusing the acceptance of embargo"
+                    f" '{self.embargo_id}'"
+                )
+                self.logger.exception(
+                    "%s: %s", self.name, self.feedback_message
                 )
             else:
                 self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        except VultronValidationError as exc:
-            self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
+                self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
         if result.em_after == EM.ACTIVE and result.em_before not in (

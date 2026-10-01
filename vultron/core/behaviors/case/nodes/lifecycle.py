@@ -306,8 +306,8 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
         case_id = self._resolve_case_id()
         if not case_id:
             self.logger.error(
-                f"{self.name}: no case_id available — cannot commit ledger"
-                " entry"
+                "%s: no case_id available — cannot commit ledger entry",
+                self.name,
             )
             return Status.FAILURE
 

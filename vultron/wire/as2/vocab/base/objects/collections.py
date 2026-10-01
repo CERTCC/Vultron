@@ -20,6 +20,7 @@ from pydantic import Field, PrivateAttr, model_validator
 
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
+from vultron.wire.as2.vocab.base.utils import print_object_examples
 
 
 class as_Collection(as_Object):
@@ -94,8 +95,6 @@ as_OrderedCollectionRef: TypeAlias = ActivityStreamRef[as_OrderedCollection]
 
 
 def main():
-    from vultron.wire.as2.vocab.base.utils import print_object_examples
-
     print_object_examples()
 
 

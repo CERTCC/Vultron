@@ -93,7 +93,7 @@ def _run_simulation() -> bool:
         )
 
         for tick in range(1, 1001):
-            logger.debug(f"# tick {tick} #")
+            logger.debug("# tick %s #", tick)
             tree.tick()
 
             # maybe add a random message to the incoming queue
@@ -108,15 +108,15 @@ def _run_simulation() -> bool:
                 closed = True
                 break
     if closed:
-        logger.info(f"Closed in {tick} ticks")
+        logger.info("Closed in %s ticks", tick)
     else:
-        logger.warning(f"Did not close within {tick} ticks")
+        logger.warning("Did not close within %s ticks", tick)
 
     for k, v in tree.bb.model_dump().items():
         if "history" in k:
-            logger.info(f"### {k} ###")
+            logger.info("### %s ###", k)
             for i, row in enumerate(v, start=1):
-                logger.info(f"  {i} {row}")
+                logger.info("  %s %s", i, row)
 
     return closed
 
@@ -146,12 +146,16 @@ def _print_sim_result():
 
 
 def _setup_logger(args):
-    """Configure the root logger using the log level from parsed arguments."""
-    global logger  # noqa: PLW0603  # ruff-baseline #3985
-    logger = logging.getLogger()
-    logger.setLevel(args.log_level)
+    """Configure the root logger using the log level from parsed arguments.
+
+    The module ``logger`` keeps its own name and level ``NOTSET``, so it takes
+    the root logger's level and propagates its records to the root handler
+    installed here.
+    """
+    root = logging.getLogger()
+    root.setLevel(args.log_level)
     hdlr = logging.StreamHandler()
-    logger.addHandler(hdlr)
+    root.addHandler(hdlr)
 
 
 def _parse_args():

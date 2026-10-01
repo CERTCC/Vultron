@@ -70,6 +70,7 @@ from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import BaseModel
 
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.behaviors.report.publish_artifact_tree import (
     create_publish_artifact_tree,
 )
@@ -139,9 +140,7 @@ class _ShouldPublishArtifactGate(BehaviourWithPorts):
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.logger = logging.getLogger(  # type: ignore[assignment]
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)  # type: ignore[assignment]
 
     # data_type=object: accept any value; isinstance check in update()
     # handles the type contract (avoid TypeError from get_input).
@@ -311,7 +310,7 @@ def create_publication_tree(
     Returns:
         Root Sequence node of the collapsed publication behavior tree.
     """
-    from vultron.core.behaviors.call_out.bundles.publication import (
+    from vultron.core.behaviors.call_out.bundles.publication import (  # noqa: PLC0415  # ruff-baseline #3950
         PUBLICATION_DETERMINISTIC,
     )
 

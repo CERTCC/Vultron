@@ -172,7 +172,7 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
             persist_creation_time_embargo(self.datalayer, embargo, case_id)
         except VultronError as exc:
             self.feedback_message = f"{self.name}: {exc}"
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         self._set_output("default_embargo_id", embargo.id_)

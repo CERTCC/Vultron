@@ -125,7 +125,7 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
 )
 from vultron.core.behaviors.case.nodes.on_behalf_guards import (
     CheckOnBehalfAuthorizedNode,
-    EnsureOnBehalfParticipantExistsNode,
+    CheckOnBehalfTargetIsParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
@@ -285,7 +285,7 @@ __all__ = [
     "CheckNotSoleObserverVfdNode",
     # on_behalf_guards (ADR-0084)
     "CheckOnBehalfAuthorizedNode",
-    "EnsureOnBehalfParticipantExistsNode",
+    "CheckOnBehalfTargetIsParticipantNode",
     # suggest_actor (leaf nodes)
     "ActorAlreadyParticipantNode",
     "EmitAcceptActorRecommendationNode",

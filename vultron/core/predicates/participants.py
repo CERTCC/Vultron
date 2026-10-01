@@ -21,14 +21,10 @@ convergence state over a live container should fetch participants first, then
 delegate to these predicates.
 """
 
-from typing import TYPE_CHECKING
-
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-
-if TYPE_CHECKING:
-    from vultron.core.states.cs import CS_vf
 
 
 def vendor_vf_invariant_ok(
@@ -48,7 +44,6 @@ def vendor_vf_invariant_ok(
         return True
     if CVDRole.VENDOR not in roles:
         return True
-    from vultron.core.states.cs import CS_vf  # avoid circular at module level
 
     return vf_state != CS_vf.vf
 
@@ -63,8 +58,6 @@ def some_vendor_at_vf(participants: list[CaseParticipant]) -> bool:
     A participant with no status record, or whose ``vf`` dimension is ``None``,
     does not satisfy the gate.
     """
-    from vultron.core.states.cs import CS_vf  # avoid circular at module level
-
     for participant in participants:
         if CVDRole.VENDOR not in (participant.case_roles or []):
             continue

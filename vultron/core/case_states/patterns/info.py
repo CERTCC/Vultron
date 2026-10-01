@@ -18,6 +18,7 @@ from vultron.core.case_states.patterns.base import compile_patterns
 from vultron.core.case_states.patterns.cvss31 import cvss_31 as cvss
 from vultron.core.case_states.patterns.embargo import embargo_viability
 from vultron.core.case_states.patterns.explanations import explain
+from vultron.core.case_states.patterns.potential_actions import action
 from vultron.core.case_states.patterns.ssvc import ssvc
 from vultron.core.case_states.patterns.vep import vep
 from vultron.core.case_states.validations import ensure_valid_pattern
@@ -59,8 +60,9 @@ def info(state, include_ssvc=True, include_cvss=True, include_vep=True):
 
 
 def main():
-    from vultron.core.case_states.hypercube import CVDmodel
-    from vultron.core.case_states.patterns.potential_actions import action
+    from vultron.core.case_states.hypercube import (  # noqa: PLC0415  # ruff-baseline #3950
+        CVDmodel,
+    )
 
     model = CVDmodel()
 

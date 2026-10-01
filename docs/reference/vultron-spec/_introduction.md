@@ -26,11 +26,11 @@ participant can see which vendors have read the report, which have agreed to an
 embargo, or in what order events occurred. Adding a party mid-case means
 re-sending the history by hand, and nothing detects the gap if that fails. Vultron
 gives each of these an explicit, machine-checkable representation: report status
-per participant ([§6](index.md#6-report-management-rm-state-machine-n)), embargo
+per participant ([§6 Report Management (RM) State Machine](tracking-models.md#6-report-management-rm-state-machine-n)), embargo
 agreement per participant
-([§9](index.md#9-participant-embargo-consent-pec-state-machine-n)), and an ordered
+([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)), and an ordered
 case ledger that every participant replicates
-([§5.4](index.md#54-addressing-and-channels)).
+([§5.4 Addressing and Channels](layers.md#54-addressing-and-channels)).
 
 Embargo timing is worth noting early. In practice the first two parties to a case
 establish the initial embargo, and it carries forward as further participants join
@@ -38,11 +38,12 @@ and agree to it. Establishing terms early is generally easier than negotiating
 them once many parties are already involved.
 
 The protocol tracks coordination state across four dimensions: the report
-lifecycle (RM), the embargo (EM), what is known about the vulnerability (CS), and
-each participant's agreement to the embargo (PEC). Because CS is a compound of two
+lifecycle, Report Management (RM); the embargo, Embargo Management (EM); what is
+known about the vulnerability, Case State (CS); and each participant's agreement to
+the embargo, Participant Embargo Consent (PEC). Because CS is a compound of two
 independent axes, an implementation runs five state machines
-([§3.3](index.md#33-tracking-dimensions)). Messages are ActivityStreams 2.0
-Activities delivered over HTTP. Delivery is asynchronous: no exchange requires both
+([§3.3 Tracking Dimensions](introduction.md#33-tracking-dimensions)). Messages are ActivityStreams 2.0
+Activities delivered over Hypertext Transfer Protocol (HTTP). Delivery is asynchronous: no exchange requires both
 parties to be available at the same moment.
 
 !!! info "Who this specification is for"
@@ -51,10 +52,10 @@ parties to be available at the same moment.
     conforms.
 
     It assumes familiarity with coordinated vulnerability disclosure as a
-    practice — reporters, vendors, coordinators, embargoes, CVE IDs. It does not
+    practice — reporters, vendors, coordinators, embargoes, Common Vulnerabilities and Exposures (CVE) IDs. It does not
     assume prior knowledge of Vultron. Where it relies on an external
     specification, it says so and cites it
-    ([§1.3](index.md#13-relationship-to-existing-standards)).
+    ([§1.3 Relationship to Existing Standards](introduction.md#13-relationship-to-existing-standards)).
 
 !!! info "See also"
     - [CVD as a Coordination Problem](../../topics/background/cvd-coordination-problem.md)
@@ -69,7 +70,7 @@ assembled from the messages it has received. A participant is the authority on i
 own report and fix status. What the case as a whole asserts — its embargo state
 and what is publicly known — has a single writer, the participant holding the
 Case Manager role, so that concurrent claims resolve to one answer
-([§5.4.1](index.md#541-single-writer-authority)).
+([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
 
 **Coordination is scoped to a case, not to a system.** The Case Manager role is
 held per case, and different cases may be managed by different actors. The
@@ -81,7 +82,7 @@ require, within a case, that shared state have one writer.
 
     Vultron does **not** require a single central authority holding all cases. Any
     actor able to satisfy the Case Manager role can manage a case, and the role is
-    transferable ([§11.3](index.md#113-case-ownership-transfer-n)).
+    transferable ([§11.3 Case Ownership Transfer](interactions.md#113-case-ownership-transfer-n)).
 
     Equally, Vultron as it stands is **not** a fully decentralized design. Within
     a case there is one writer, and its availability bounds how fast the case can
@@ -90,7 +91,7 @@ require, within a case, that shared state have one writer.
 
     The protocol leaves more distributed realizations open — a shared ledger
     among peers, for instance — and this version does not specify one
-    ([§5.4.2](index.md#542-routing-topology)).
+    ([§5.4.2 Routing Topology](layers.md#542-routing-topology)).
 
 **Asynchronous, message-driven coordination.** Participants announce their own
 transitions rather than being polled, and no exchange requires two parties to be
@@ -99,7 +100,7 @@ others from making progress.
 
 **Extensible role model.** Roles are not exclusive: a participant may hold
 Reporter, Vendor and Coordinator at the same time
-([§3.5](index.md#35-participants-and-roles)). Roles that confer protocol authority
+([§3.5 Participants and Roles](introduction.md#35-participants-and-roles)). Roles that confer protocol authority
 are kept separate from roles that describe what an actor does in the world, so the
 two can vary independently.
 
@@ -123,7 +124,7 @@ may become a compatibility profile. An implementation built against this version
 should expect to be re-evaluated against that one. This paragraph is the
 specification's single statement of that roadmap; other sections cite it.
 
-**ISO/IEC 29147 and 30111.** ISO 29147 specifies vulnerability disclosure
+**ISO/IEC 29147 and 30111.** International Organization for Standardization (ISO) 29147 specifies vulnerability disclosure
 practices; ISO 30111 specifies vulnerability handling processes. Vultron
 implements the multi-party coordination layer those standards describe at a
 high level. The CERT Guide to Coordinated Vulnerability Disclosure provides

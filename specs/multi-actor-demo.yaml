@@ -47,7 +47,7 @@ groups:
     statement: >-
       Each call to `create_app()` MUST create fresh per-app instances of the dispatcher,
       emitter, and DataLayer stored on `app.state`; `create_app()` MUST NOT mutate
-      module-level singleton globals such as `_default_emitter`, `_DISPATCHER`, or
+      module-level singleton state such as `_DEFAULT_EMITTER_SLOT`, `_DISPATCHER_SLOT`, or
       `_shared_instance`
     rationale: >-
       When multiple Vultron actors are co-located in the same Python process (e.g., a
