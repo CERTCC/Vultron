@@ -64,8 +64,11 @@ class RM(StrEnum):
     C = CLOSED
 
 
-# Report Management States that can be closed
+# Report Management States that can be closed by a single transition.
+# RM.VALID is deliberately absent (VP-02-004): a Valid report is accepted or
+# deferred before it closes (RMB-14-004).
 RM_CLOSABLE = (
+    RM.RECEIVED,
     RM.INVALID,
     RM.DEFERRED,
     RM.ACCEPTED,
@@ -151,6 +154,9 @@ _transitions = [
         trigger=RM_Trigger.DEFER, source=RM.ACCEPTED, dest=RM.DEFERRED
     ).model_dump(),
     RmTransition(
+        trigger=RM_Trigger.CLOSE, source=RM.RECEIVED, dest=RM.CLOSED
+    ).model_dump(),
+    RmTransition(
         trigger=RM_Trigger.CLOSE, source=RM.ACCEPTED, dest=RM.CLOSED
     ).model_dump(),
     RmTransition(
@@ -167,6 +173,45 @@ def is_valid_rm_transition(source: RM, dest: RM) -> bool:
     return any(
         t["source"] == source and t["dest"] == dest for t in _transitions
     )
+
+
+# The ordinary transitions an RM closure writes, from each source state
+# (RMB-14-005, CM-23-012).  Every closable state closes in one step; RM.VALID
+# has no close edge (VP-02-004), so it closes through RM.DEFERRED; RM.START
+# has not yet received the report, so it receives it first.  Pinned against
+# ``_transitions`` by ``test/core/states/test_rm_close_from_received.py``.
+_RM_CLOSURE_PATHS: dict[RM, tuple[RM, ...]] = {
+    RM.START: (RM.RECEIVED, RM.CLOSED),
+    RM.RECEIVED: (RM.CLOSED,),
+    RM.INVALID: (RM.CLOSED,),
+    RM.VALID: (RM.DEFERRED, RM.CLOSED),
+    RM.DEFERRED: (RM.CLOSED,),
+    RM.ACCEPTED: (RM.CLOSED,),
+    RM.CLOSED: (),
+}
+
+# Every state an RM closure path writes, in path order (for pre-building the
+# writers a closure node needs, BTND-10-004).
+RM_CLOSURE_RUNGS: tuple[RM, ...] = tuple(
+    dict.fromkeys(rung for path in _RM_CLOSURE_PATHS.values() for rung in path)
+)
+
+
+def rm_closure_path(source: RM) -> tuple[RM, ...]:
+    """Return the RM states a closure from *source* writes, in order.
+
+    Each consecutive pair, starting from *source*, is a transition the RM
+    transition function permits, so a closure never overrides the table
+    (RMB-14-005).  A ``Leave`` from ``VALID`` is therefore recorded as
+    ``V → D → C`` (CM-23-012), and a closure from ``CLOSED`` writes nothing.
+
+    Examples::
+
+        rm_closure_path(RM.RECEIVED)  # (RM.CLOSED,)
+        rm_closure_path(RM.VALID)     # (RM.DEFERRED, RM.CLOSED)
+        rm_closure_path(RM.CLOSED)    # ()
+    """
+    return _RM_CLOSURE_PATHS[source]
 
 
 # Progress values for each RM state: higher = closer to CLOSED.

@@ -797,32 +797,139 @@ class TestCloseCaseFanOut:
 
 
 class TestClosureRMBoundary:
-    """CM-23-012: a Leave advances only the leaver's RM (regardless of rung);
-    owner-close leaves every bystander at its prior RM rung."""
+    """CM-23-012: a Leave advances only the leaver's RM, through ordinary RM
+    transitions (RMB-14-005); owner-close leaves every bystander at its prior
+    RM rung."""
 
     @pytest.mark.spec("CM-23-012")
-    def test_leaver_advances_to_closed_from_non_adjacent_rung(self):
-        """Owner Leave from RM.RECEIVED still reaches RM.CLOSED.
+    @pytest.mark.spec("RMB-14-004")
+    @pytest.mark.spec("RMB-14-005")
+    @pytest.mark.parametrize(
+        "leaver_id", [OWNER_ID, VENDOR_ID], ids=["owner", "non-owner"]
+    )
+    @pytest.mark.parametrize(
+        "source",
+        [RM.RECEIVED, RM.INVALID, RM.ACCEPTED, RM.DEFERRED],
+        ids=lambda s: s.name,
+    )
+    def test_leave_from_closable_rung_records_one_transition(
+        self, leaver_id: str, source: RM
+    ):
+        """A Leave from R, I, A or D records the single transition to CLOSED.
 
-        RECEIVED -> CLOSED is not a valid RM adjacency (CLOSED is reachable only
-        from ACCEPTED/INVALID/DEFERRED). CM-23-012: the leaver's own Leave is a
-        self-declaratory closure act, so the leaver advances regardless of rung
-        via the sanctioned force_rm_state override.
+        ``R → C`` is an ordinary RM transition (RMB-14-004), as are ``I → C``,
+        ``A → C`` and ``D → C``, so the leaver's history gains exactly one
+        CLOSED record and no forced write (RMB-14-005).
         """
         dl = _make_full_dl()
-        _seed_rm(dl, OWNER_ID, RM.RECEIVED)
+        _seed_rm(dl, leaver_id, source)
+        before = _participant_rm_states(dl, leaver_id)
 
         CloseCaseReceivedUseCase(
             dl=dl,
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            request=_make_close_case_event(sender_actor_id=leaver_id),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert _latest_rm(dl, OWNER_ID) == RM.CLOSED, (
-            "Leaver seeded at RM.RECEIVED must still advance to RM.CLOSED"
-            f" (CM-23-012); rm_states={_participant_rm_states(dl, OWNER_ID)}"
+        after = _participant_rm_states(dl, leaver_id)
+        assert after == [*before, RM.CLOSED], (
+            f"Leave from RM.{source.name} must record {source.name} -> CLOSED"
+            f" and nothing else (RMB-14-005); rm_states={after}"
         )
+
+    @pytest.mark.spec("CM-23-012")
+    @pytest.mark.spec("RMB-14-005")
+    @pytest.mark.spec("VP-02-004")
+    @pytest.mark.parametrize(
+        "leaver_id", [OWNER_ID, VENDOR_ID], ids=["owner", "non-owner"]
+    )
+    def test_leave_from_valid_is_recorded_through_deferred(
+        self, leaver_id: str
+    ):
+        """A Leave from VALID records VALID → DEFERRED, then DEFERRED → CLOSED.
+
+        *Valid* has no close edge (VP-02-004), so the closure walks the RM
+        table through *Deferred* instead of forcing past it (RMB-14-005).
+        """
+        dl = _make_full_dl()
+        _seed_rm(dl, leaver_id, RM.VALID)
+        before = _participant_rm_states(dl, leaver_id)
+
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=leaver_id),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        after = _participant_rm_states(dl, leaver_id)
+        assert after == [*before, RM.DEFERRED, RM.CLOSED], (
+            "Leave from RM.VALID must be recorded as V -> D -> C"
+            f" (RMB-14-005); rm_states={after}"
+        )
+
+    @pytest.mark.spec("CM-23-012")
+    @pytest.mark.spec("RMB-14-005")
+    def test_leave_from_start_receives_then_closes(self):
+        """A leaver still at RM.START records START → RECEIVED → CLOSED.
+
+        ``S → C`` is not in the RM table; the leaver has received the case it
+        is leaving, so the closure records the receipt first (RMB-14-005).
+        """
+        dl = _make_full_dl()
+        assert _latest_rm(dl, VENDOR_ID) == RM.START
+        before = _participant_rm_states(dl, VENDOR_ID)
+
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=VENDOR_ID),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        after = _participant_rm_states(dl, VENDOR_ID)
+        assert after == [*before, RM.RECEIVED, RM.CLOSED], after
+
+    @pytest.mark.spec("CM-23-012")
+    @pytest.mark.spec("RMB-14-005")
+    @pytest.mark.parametrize(
+        ("source", "path"),
+        [
+            (RM.RECEIVED, [RM.CLOSED]),
+            (RM.ACCEPTED, [RM.CLOSED]),
+            (RM.VALID, [RM.DEFERRED, RM.CLOSED]),
+        ],
+        ids=lambda v: v.name if isinstance(v, RM) else None,
+    )
+    def test_fanout_records_the_same_closure_path(
+        self, source: RM, path: list[RM]
+    ):
+        """A replica applying a close_case entry records the same RM path.
+
+        ``ApplyCloseCaseFromLedgerNode`` walks the RM table exactly as the
+        CASE_MANAGER does, so a departing participant at VALID passes through
+        DEFERRED on every replica too (RMB-14-005).
+        """
+        dl = _make_full_dl(store_owner_id=VENDOR_ID)
+        _seed_rm(dl, OWNER_ID, source)
+        before = _participant_rm_states(dl, OWNER_ID)
+        entry = _make_close_case_ledger_entry(dl, departing_actor_id=OWNER_ID)
+        event = _make_announce_event(
+            entry=entry, sender_actor_id=CASE_ACTOR_ID
+        )
+
+        BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        ).execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=VENDOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        after = _participant_rm_states(dl, OWNER_ID)
+        assert after == [*before, *path], after
 
     @pytest.mark.spec("CM-23-012")
     def test_owner_leave_leaves_bystander_at_prior_rung(self):

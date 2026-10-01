@@ -164,8 +164,8 @@ class ParticipantStatus(CoreObject):
         exclude=True,
         description=(
             "Suppress the construction-time RM adjacency check. Set only by the"
-            " sanctioned closure call sites (same semantics as"
-            " CreateParticipantStatusNode.force_rm_state). Not serialised."
+            " bootstrap writes of a participant's first status (same semantics"
+            " as CreateParticipantStatusNode.force_rm_state). Not serialised."
         ),
     )
 
@@ -232,8 +232,8 @@ class ParticipantStatus(CoreObject):
         a no-op when that field is ``None`` (most construction sites do not have
         the previous state in scope).  Same-state re-assertions are allowed
         (idempotent), consistent with how ``_rm_violations`` treats them.  Pass
-        ``force_rm_state=True`` to bypass — only the three sanctioned closure
-        call sites should ever do this.
+        ``force_rm_state=True`` to bypass — only the enumerated bootstrap writes
+        should ever do this; closure never does (RMB-14-005).
         """
         prev = self.previous_rm_state
         if prev is not None and not self.force_rm_state:
@@ -245,7 +245,7 @@ class ParticipantStatus(CoreObject):
                     f"Invalid RM transition at construction:"
                     f" {prev!r} → {requested!r} (not adjacent)."
                     " Pass force_rm_state=True to override"
-                    " (only sanctioned closure sites)."
+                    " (only enumerated bootstrap writes)."
                 )
         return self
 

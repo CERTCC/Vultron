@@ -265,7 +265,7 @@ do not appear in any scenario unless explicitly scripted.
 | D → A (resumed after deferral) | non-linear | `fcvcv` (Var B, planned) |
 | I → C (closed from invalid) | non-linear | not yet exercised by any scenario |
 | V → D (deferred without accepting) | non-linear | not yet exercised by any scenario |
-| R → C (stub Invite rejected) | non-linear | `fcv-reject` once RMB-14-004 lands |
+| R → C (stub Invite rejected) | non-linear | `fcv-reject` once CM-11-007 lands (#4048; the edge is in the table since #4044) |
 
 **Notes:**
 

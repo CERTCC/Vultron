@@ -27,7 +27,7 @@ completed, should map onto the RM process outlined here.
 
 ## RM State Machine
 
-The RM process is a state machine with seven states and eleven transitions between them.
+The RM process is a state machine with seven states and twelve transitions between them.
 This page covers the states first and then the transitions.
 Each Participant in a case has its own RM state, which only that Participant changes.
 
@@ -114,6 +114,9 @@ scope of concern and consider reports outside their scope to be
 vulnerability. Alternatively, a Vendor might institute a policy
 designating reports unaccompanied by a working proof-of-concept exploit
 as *Invalid* by default.
+
+A Participant can also close a report straight from *Received*, without validating it first.
+This is how a Participant declines a report, or an invitation to a case, outright: sending a `Reject` from *Received* is the *close* transition.
 
 !!! note ""
 
@@ -329,10 +332,8 @@ precedence over an active case.
 
 #### The *Closed* (*C*) State
 
-The *Closed* state implies no further work is to be done; therefore, any
-pre-closure review (e.g., for quality assurance purposes) should be
-performed before the case moves to the *Closed* state (i.e., while the
-report is in *Invalid*, *Deferred*, or *Accepted*).
+The *Closed* state implies no further work is to be done.
+Therefore, any pre-closure review (e.g., for quality assurance purposes) should be performed before the case moves to the *Closed* state (i.e., while the report is in *Received*, *Invalid*, *Deferred*, or *Accepted*).
 
 ```mermaid
 stateDiagram-v2
@@ -346,6 +347,7 @@ stateDiagram-v2
     Valid --> Deferred
     Accepted --> Deferred
     Deferred --> Accepted
+    Received --> Closed
     Accepted --> Closed
     Deferred --> Closed
     Invalid --> Closed
@@ -532,12 +534,15 @@ stateDiagram-v2
 
 ##### Case Closure
 
-Finally, a Participant can complete work on an *Accepted* report or
-abandon further work on an *Invalid* or *Deferred* report.
+Finally, a Participant can complete work on an *Accepted* report, abandon further work on an *Invalid* or *Deferred* report, or decline a *Received* report without validating it.
 
 !!! note ""
 
     Participants MAY close _Accepted_ or _Deferred_ cases or _Invalid_ reports.
+
+!!! note ""
+
+    Participants MAY close a report from the _Received_ state; a `Reject` sent from _Received_ is that closure.
 
 ```mermaid
 ---
@@ -545,20 +550,18 @@ title: Case Closure
 ---
 stateDiagram-v2
     direction LR
+    Received --> Closed: close
     Accepted --> Closed: close
     Deferred --> Closed: close
     Invalid --> Closed: close
 ```
 
-Our model assumes that *Valid* reports cannot be closed directly without
-first passing through either *Accepted* or *Deferred*. It is reasonable
-to wonder why *close* is not a valid transition from the *Valid* state.
-The answer is that we wanted to allow prioritization and closure to be
-distinct activities; deferral is reversible, whereas closure is not.
-Often a Participant might initially *defer* a case only to resume work
-later, once more information has arrived. However, there is nothing
-stopping a Participant from instituting a process that goes from *Valid*
-to *Deferred* to *Closed* in rapid (even immediate) succession.
+Our model assumes that *Valid* reports cannot be closed directly without first passing through either *Accepted* or *Deferred*.
+It is reasonable to wonder why *close* is not a valid transition from the *Valid* state.
+The answer is that we wanted to allow prioritization and closure to be distinct activities; deferral is reversible, whereas closure is not.
+Often a Participant might initially *defer* a case only to resume work later, once more information has arrived.
+However, there is nothing stopping a Participant from instituting a process that goes from *Valid* to *Deferred* to *Closed* in rapid (even immediate) succession.
+A Participant at *Valid* that leaves a case does exactly that: its departure is recorded as *Valid* to *Deferred*, then *Deferred* to *Closed*.
 
 !!! note ""
 

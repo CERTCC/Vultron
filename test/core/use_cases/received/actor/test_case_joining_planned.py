@@ -27,7 +27,8 @@ case: the invitee already holds an *inert* participant record at RM
 - CM-11-012 — a full-case reply is checked against the Invite's floor.
 - CM-11-002, CM-11-004 — ``Join``/``Ignore`` engage or defer; joining alone
   is not RM.ACCEPTED (passing markers: already true today).
-- RMB-14-005 — ``Leave`` from RM.VALID is recorded as V → D → C.
+- RMB-14-005 — ``Leave`` from RM.VALID is recorded as V → D → C
+  (passing: implemented by #4044).
 
 Replies are routed the way the inbox routes them — semantic extraction then
 ``use_case_map()`` — so a test keeps working when the implementation adds new
@@ -694,19 +695,9 @@ def test_valid_participant_engages_or_defers_with_join_or_ignore(
     assert _rm_history(joining_case)[-2:] == [RM.VALID, expected]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "RMB-14-005: a participant at RM VALID that sends Leave is recorded"
-        " as V → D → C. Tracked by #4044."
-    ),
-)
 @pytest.mark.spec("RMB-14-005")
 def test_leave_from_valid_is_recorded_through_deferred(joining_case) -> None:
-    """``V → C`` is not in the RM table, so Leave from VALID passes through D.
-
-    Today the closure is forced straight from ``VALID`` to ``CLOSED``.
-    """
+    """``V → C`` is not in the RM table, so Leave from VALID passes through D."""
     from vultron.wire.as2.factories import rm_close_case_activity
 
     _advance_invitee_to(joining_case, RM.VALID)

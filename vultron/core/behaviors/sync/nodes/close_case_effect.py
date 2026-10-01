@@ -25,8 +25,8 @@ import logging
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.participant.status import (
-    CreateParticipantStatusNode,
+from vultron.core.behaviors.case.nodes.participant.rm_closure import (
+    RMClosureWriter,
 )
 from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
@@ -46,7 +46,8 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
     and the entry's ``event_type`` is ``close_case``, this node extracts the
     departing actor ID from ``payload_snapshot["actor"]`` and advances that
     actor's :class:`~vultron.core.models.participant_status.ParticipantStatus`
-    to ``RM.CLOSED`` on the local DataLayer replica.
+    to ``RM.CLOSED`` on the local DataLayer replica, by the same ordinary RM
+    transitions the CASE_MANAGER wrote (``V → D → C`` from Valid, RMB-14-005).
 
     This is the fan-out counterpart of the CaseActor's ``receive_close_case_tree``
     effect: both paths MUST produce the same end state on every replica
@@ -63,21 +64,12 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
     def __init__(self, name: str | None = None) -> None:
         _name = name or self.__class__.__name__
         super().__init__(name=_name)
-        # Pre-build the status node (BTND-10-004: no construction in update()).
-        # actor_id is set to "" as placeholder; update() overwrites _actor_id
-        # with the runtime departing actor before delegating via BTBridge.
-        # Sanctioned override (CM-23-012, resolving #3106): force_rm_state=True
-        # replicates the departing actor's self-declaratory Leave regardless of
-        # rung (ADR-0084, ADR-0089).
-        self._status_node = CreateParticipantStatusNode(
-            actor_id="",
-            rm_state=RM.CLOSED,
-            vf_state=None,
-            d_state=None,
-            pxa_state=None,
-            name=f"{_name}.CreateParticipantStatus",
-            force_rm_state=True,
-        )
+        # Pre-build the status writers (BTND-10-004: no construction in
+        # update()).  actor_id is "" as a placeholder; update() supplies the
+        # runtime departing actor.  The departing actor's self-declaratory
+        # Leave (ADR-0084) is replicated as ordinary RM transitions, so a Leave
+        # from VALID is V -> D -> C on every replica (RMB-14-005, CM-23-012).
+        self._closure = RMClosureWriter(actor_id="", name=_name)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -124,21 +116,17 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
                     )
                     return Status.SUCCESS
 
-        # Advance the departing actor to RM.CLOSED via the canonical writer.
-        # Set runtime actor_id on the pre-built node; BTBridge seeds case_id
-        # on the blackboard so CaseIdInputPortMixin can read it (ADR-0089).
-        self._status_node._actor_id = departing_actor_id
-        from vultron.core.behaviors.bridge import BTBridge
-
-        # Use the DataLayer's own actor_id so BTBridge doesn't clone an empty
-        # store for departing_actor_id. The write is still attributed to the
-        # departing actor via _status_node._actor_id set above (ADR-0089).
-        bt_result = BTBridge(datalayer=self.datalayer).execute_with_setup(
-            tree=self._status_node,
-            actor_id=self.datalayer.actor_id,
-            case_id=case_id,
+        # Advance the departing actor to RM.CLOSED via the canonical writer,
+        # attributed to the departing actor; BTBridge seeds case_id on the
+        # blackboard so CaseIdInputPortMixin can read it (ADR-0089).
+        closed = self._closure.close(
+            self,
+            self.datalayer,
+            participant_id,
+            case_id,
+            actor_id=departing_actor_id,
         )
-        if bt_result.status != Status.SUCCESS:
+        if closed != Status.SUCCESS:
             self.logger.warning(
                 "%s: failed to advance departing actor '%s' to RM.CLOSED"
                 " in case '%s'",

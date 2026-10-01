@@ -268,9 +268,9 @@ def validate_participant_status_write(
 
     Args:
         validate_rm_transition: Passed through to the evaluator.  ``False`` only
-            for the enumerated sanctioned self-declared-Leave override
-            (``force_rm_state``, CM-23-012); every other caller leaves the full
-            rule set in force.
+            for the enumerated bootstrap writes (``force_rm_state``); every
+            other caller, closure included (RMB-14-005), leaves the full rule
+            set in force.
 
     Returns:
         ``Status.FAILURE`` when the write is refused, ``None`` when it is legal

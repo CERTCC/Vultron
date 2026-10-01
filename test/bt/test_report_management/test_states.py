@@ -75,8 +75,9 @@ class MyTestCase(unittest.TestCase):
                 self.assertNotIn(s, alias)
 
     @pytest.mark.spec("RMB-14-001")
+    @pytest.mark.spec("RMB-14-003")
     def test_closable(self):
-        self._test_convenience_aliases(RM_CLOSABLE, (RM.I, RM.D, RM.A))
+        self._test_convenience_aliases(RM_CLOSABLE, (RM.R, RM.I, RM.D, RM.A))
 
     def test_unclosed(self):
         self._test_convenience_aliases(

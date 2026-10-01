@@ -396,10 +396,23 @@ class TestCloseInvalidateDisposition:
         assert result.disposition == HandlerDisposition.APPLIED
 
     @pytest.mark.spec("HP-01-003")
-    def test_close_from_received_is_refused(self):
-        """RECEIVED → CLOSED is not an RM transition, so the Close is refused."""
+    @pytest.mark.spec("RMB-14-004")
+    def test_close_from_received_is_applied(self):
+        """RECEIVED → CLOSED is an RM transition (ADR-0114), so it applies."""
+        dl = _make_dl()
         result = CloseReportReceivedUseCase(
-            dl=_make_dl(), request=_make_close_report_event()
+            dl=dl, request=_make_close_report_event()
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED, result.reason
+        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.CLOSED
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("VP-02-004")
+    def test_close_from_valid_is_refused(self):
+        """VALID → CLOSED is not an RM transition, so the Close is refused."""
+        result = CloseReportReceivedUseCase(
+            dl=_make_dl(receiving_rm=RM.VALID),
+            request=_make_close_report_event(),
         ).execute()
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason and "Invalid RM transition" in result.reason
