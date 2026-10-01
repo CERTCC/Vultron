@@ -467,6 +467,10 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: VAM-01-008
+    stories:
+    - story_2022_002
+    - story_2022_012
+    - story_2022_038
 - id: HP-10
   title: Unsupported Addressing Fields
   specs:

@@ -14,31 +14,25 @@ groups:
   specs:
   - id: VM-01-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Every concrete wire-layer AS2 class (object, activity, or link) MUST be registered in the shared `VOCABULARY`
       registry automatically at class-definition time
     verification: Unit tests in `test/wire/as2/vocab/base/test_registry.py` confirm that a concrete `as_Object` subclass
       with a `Literal` `type_` annotation is present in `VOCABULARY` immediately after class definition, with no explicit
       registration call.
-    lint_suppress:
-    - missing_story_reference
   - id: VM-01-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The `VOCABULARY` singleton MUST be the sole authoritative source for type lookup during dynamic deserialization
     verification: Unit tests in `test/wire/as2/vocab/base/test_registry.py` confirm that `find_in_vocabulary()` returns the
       correct registered class for a known type and raises `KeyError` for any unregistered type name.
-    lint_suppress:
-    - missing_story_reference
   - id: VM-01-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: New vocabulary types MUST be importable at startup without explicit registration calls in application code
     verification: Unit tests in `test/wire/as2/vocab/base/test_registry_completeness.py` confirm that importing
       `vultron.wire.as2.vocab` populates all expected vocabulary types in `VOCABULARY` without any explicit registration
       call in application code.
-    lint_suppress:
-    - missing_story_reference
   - id: VM-01-004
     priority: MUST
     kind: project
@@ -161,7 +155,7 @@ groups:
       (c) strict-mode validation.
   - id: VM-02-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The `@context` field (`as_context`) MUST use explicit `validation_alias="@context"` and `serialization_alias="@context"`
       because `@` is not a valid Python identifier character and cannot be handled by the camelCase alias generator
     verification: Unit test `test_as_base_context_alias_accepted` in `test/wire/as2/vocab/base/test_wire_base_hierarchy.py`
@@ -170,30 +164,24 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VM-02-001
-    lint_suppress:
-    - missing_story_reference
   - id: VM-02-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Wire-layer models MUST provide `to_json()`, `to_dict()`, and `from_json()` convenience methods that exclude
       `None` values and serialize using aliases by default
     verification: Unit tests in `test/wire/as2/vocab/test_vocab_case_examples.py` confirm that `to_json()` produces
       alias-keyed JSON with `None` fields excluded and that `from_json()` correctly round-trips the resulting string.
-    lint_suppress:
-    - missing_story_reference
 - id: VM-03
   title: Type Auto-Inference
   specs:
   - id: VM-03-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The `as_type` field on every concrete wire-layer class MUST be set automatically at construction time if not
       supplied by the caller
     verification: Unit tests `test_as_base_type_set_from_class_name` and `test_as_object_type_set_from_class_name` in
       `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` confirm that `type_` is populated from the stripped class
       name when no explicit value is provided to the constructor.
-    lint_suppress:
-    - missing_story_reference
   - id: VM-03-002
     priority: MUST
     kind: protocol
@@ -241,7 +229,7 @@ groups:
   specs:
   - id: VM-04-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: All wire-layer objects MUST have a globally unique `as_id` field set at construction time by `generate_new_id()`
       if not supplied
     verification: Unit tests `test_as_base_id_uses_wire_default` and `test_two_objects_have_different_ids` in
@@ -250,8 +238,6 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: OID-01-001
-    lint_suppress:
-    - missing_story_reference
 - id: VM-05
   title: Vocabulary Extension
   specs:
@@ -293,7 +279,7 @@ groups:
   specs:
   - id: VM-06-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Before any wire-layer activity is passed to semantic extraction, callers MUST attempt to rehydrate all nested
       URI string references into fully typed objects via `rehydrate(obj, dl)`
     verification: Integration tests in `test/adapters/driven/test_sqlite_rehydration.py` confirm that `rehydrate()` is
@@ -302,29 +288,23 @@ groups:
     - rel_type: refines
       spec_id: SE-01-002
       note: semantic-extraction.md
-    lint_suppress:
-    - missing_story_reference
   - id: VM-06-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`rehydrate()` MUST receive the active `DataLayer` instance via the `dl` parameter'
     verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that `rehydrate()` accepts and uses the `dl`
       parameter to resolve URI strings; tests in `test/adapters/driven/test_sqlite_rehydration.py` verify that resolved
       objects are fetched from the supplied DataLayer.
-    lint_suppress:
-    - missing_story_reference
   - id: VM-06-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Rehydration MUST be recursive: if a rehydrated object itself contains URI string references in its nested
       fields, those MUST also be rehydrated up to `MAX_REHYDRATION_DEPTH` levels'
     verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that the rehydration loop is bounded by
       `MAX_REHYDRATION_DEPTH` and recurses into newly materialized objects to expand nested URI strings at each level.
-    lint_suppress:
-    - missing_story_reference
   - id: VM-06-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       If a URI string reference cannot be resolved (object not in DataLayer),
       rehydration MUST: (a) leave the field as the original URI string value,
@@ -337,20 +317,16 @@ groups:
     - rel_type: implements
       spec_id: SE-01-003
       note: semantic-extraction.md
-    lint_suppress:
-    - missing_story_reference
   - id: VM-06-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: If a rehydrated object's `as_type` is not found in the vocabulary registry, rehydration MUST raise `KeyError`
       or `ValueError` rather than returning a partially constructed object
     verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that a vocabulary lookup failure for an unknown
       `as_type` propagates as `KeyError` or `ValueError` rather than returning a partially constructed object.
-    lint_suppress:
-    - missing_story_reference
   - id: VM-06-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A vocabulary override (replacing the default `VultronVocabulary` with a custom one) MUST preserve at least
       one registration from each base module that the production codebase depends on. An override that silently clears all
       base registrations is equivalent to a blank vocabulary and will cause rehydration failures for all standard Vultron
@@ -364,11 +340,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VM-06-001
-    lint_suppress:
-    - missing_story_reference
   - id: VM-06-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       `rehydrate()` in `vultron/wire/as2/rehydration.py` is the sole owner of ID-to-object
       materialisation. When a slot's declared type admits a model but admits no `str` branch —
@@ -405,8 +379,6 @@ groups:
     - rel_type: depends_on
       spec_id: VM-06-002
       note: Materialisation needs the `dl` parameter that requirement mandates.
-    lint_suppress:
-    - missing_story_reference
   - id: VM-06-008
     priority: MUST
     kind: project
@@ -443,29 +415,25 @@ groups:
   specs:
   - id: VM-07-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Serialized wire-layer objects MUST exclude `None` fields and MUST exclude empty string fields
     verification: Unit tests `test_render_excludes_none_fields` in `test/adapters/driven/test_wire_render_adapter.py` and
       `test_exclude_none_true` in `test/adapters/driving/fastapi/test_responses.py` confirm that `None` fields are absent
       from serialized output.
-    lint_suppress:
-    - missing_story_reference
   - id: VM-07-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Serialized wire-layer objects MUST use camelCase field aliases in output, not Python snake_case field names
     verification: Unit tests `test_render_returns_camel_case_keys` in `test/adapters/driven/test_wire_render_adapter.py`
       and `test_camelcase_keys` in `test/adapters/driving/fastapi/test_responses.py` confirm that JSON output uses
       camelCase keys rather than Python snake_case names.
-    lint_suppress:
-    - missing_story_reference
   - id: VM-07-003
     priority: MUST_NOT
     kind: protocol
     statement: '`object_to_record()` MUST NOT be called on an object whose `as_type` starts with `"as_"`'
   - id: VM-07-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`serialize_as_any=True` MUST be declared on any Pydantic model field that holds an object whose concrete runtime
       type is a subtype of the field''s declared type, at **both** the persistence serialization boundary and the wire delivery
       serialization boundary. Omitting `serialize_as_any=True` at either boundary causes the serializer to use the declared
@@ -482,8 +450,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VM-07-001
-    lint_suppress:
-    - missing_story_reference
 - id: VM-08
   title: Static Object Integrity
   specs:
@@ -494,7 +460,7 @@ groups:
       use immutable (frozen) configuration so that any attempt to modify them at runtime raises an exception
   - id: VM-08-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       A received wire Activity MUST carry, as its received evidence, the JSON body that arrived,
       as decoded and re-serialized by the parser before anything expands, validates, or hydrates
@@ -529,8 +495,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VM-08-001
-    lint_suppress:
-    - missing_story_reference
   - id: VM-08-003
     priority: MUST
     kind: protocol

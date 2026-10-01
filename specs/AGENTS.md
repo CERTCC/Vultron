@@ -120,9 +120,12 @@ that bite most often:
   not infer a `kind` from the surrounding entries in the same file.
 - **`lint_suppress: [missing_story_reference]`** — a ratcheted escape hatch,
   not a free one. MS-12-007 pins the corpus-wide count to a ceiling that can
-  only fall (the test is #3600's AC-4, not yet built), so adding a suppression
-  fails the ratchet unless another one is removed. If SR-11-003 fires on a new
-  entry, the usual fix is a corrected `kind:`, not a suppression.
+  only fall (`MAX_MISSING_STORY_SUPPRESSIONS` in
+  `test/architecture/test_spec_kind_ratchet.py`), so adding a suppression fails
+  the ratchet unless another one is removed. If SR-11-003 fires on a new entry,
+  the usual fix is a corrected `kind:`, not a suppression. The same holds for
+  MS-12-006's `protocol_kind_with_code_reference` (MS-12-008,
+  `MAX_CODE_REFERENCE_SUPPRESSIONS`, pinned at 0).
 - **`priority:`** — underscores, not spaces: `MUST_NOT`, `SHOULD_NOT`. A space
   is a FATAL registry load error. A `MUST_NOT` is the MUST tier (MS-02-003), so
   it needs a `verification:` clause exactly as a `MUST` does (MS-10-003).

@@ -64,7 +64,7 @@ class VerificationCeiling:
 VERIFICATION_CEILINGS: Mapping[SpecKind, VerificationCeiling] = (
     MappingProxyType(
         {
-            SpecKind.PROTOCOL: VerificationCeiling(129, ("#3612",)),
+            SpecKind.PROTOCOL: VerificationCeiling(127, ("#3612",)),
             SpecKind.ARCHITECTURE: VerificationCeiling(68, ("#2569",)),
             SpecKind.PROCESS: VerificationCeiling(177, ("#2571",)),
             SpecKind.PROJECT: VerificationCeiling(

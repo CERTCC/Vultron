@@ -52,7 +52,7 @@ groups:
     - story_2022_045
   - id: CM-02-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: CASE_MANAGER MUST persist until the associated VulnerabilityCase is closed
     note: >-
       Read this as the *role assignment* persisting, not an object's lifetime. The CASE_MANAGER is
@@ -67,8 +67,6 @@ groups:
       Inspection of `vultron/core/` confirms nothing revokes `CVDRole.CASE_MANAGER` from the holding
       participant before the case closes. Read per the note: what must persist is the role assignment
       on the participant record, not an object's lifetime.
-    lint_suppress:
-    - missing_story_reference
   - id: CM-02-004
     priority: MUST
     kind: protocol
@@ -151,7 +149,7 @@ groups:
     - story_2022_045
   - id: CM-02-010
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The actor enacting CASE_MANAGER and the case owner (named actor) MUST have distinct actor identities — each with their own actor
       ID — even when co-located on the same server
     rationale: Enforcing distinct identities ensures that all case-state transitions pass through the wire protocol regardless
@@ -165,8 +163,6 @@ groups:
       spec_id: CM-01-001
     - rel_type: depends_on
       spec_id: CM-02-001
-    lint_suppress:
-    - missing_story_reference
   - id: CM-02-011
     priority: MUST
     kind: architecture
@@ -192,8 +188,6 @@ groups:
       spec_id: CM-02-002
     adr:
     - ADR-0088
-    lint_suppress:
-    - missing_story_reference
   - id: CM-02-012
     priority: MUST
     kind: architecture
@@ -215,8 +209,6 @@ groups:
       spec_id: CM-02-011
     adr:
     - ADR-0088
-    lint_suppress:
-    - missing_story_reference
   - id: CM-02-013
     priority: MUST_NOT
     kind: architecture
@@ -238,11 +230,9 @@ groups:
       spec_id: CM-02-011
     adr:
     - ADR-0088
-    lint_suppress:
-    - missing_story_reference
   - id: CM-02-014
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       A `VulnerabilityCase` MUST have both a `CVDRole.CASE_OWNER` participant and a
       `CVDRole.CASE_MANAGER` participant from the moment of creation. Neither slot may be left
@@ -262,11 +252,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-02-001
-    lint_suppress:
-    - missing_story_reference
   - id: CM-02-015
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       When a `VulnerabilityCase` is created via the direct-mint path (e.g. `trigger/create-case`,
       without a `Create(as_CaseProposal)` round-trip), the creating actor MUST be registered as a
@@ -287,8 +275,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-02-014
-    lint_suppress:
-    - missing_story_reference
 - id: CM-03
   title: Case State Model
   specs:
@@ -375,12 +361,10 @@ groups:
     - story_2022_088
   - id: CM-03-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Collection fields that hold status histories MUST be pluralized and documented as history collections
     verification: Inspection of `vultron/core/models/` confirms that history collection fields
       (e.g., `case_statuses`, `participant_statuses`) are pluralized list fields.
-    lint_suppress:
-    - missing_story_reference
   - id: CM-03-007
     priority: MUST
     kind: protocol
@@ -472,13 +456,11 @@ groups:
     - story_2022_069
   - id: CM-04-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Handlers that implement VFD or PXA transitions MUST validate the requested transition against the authoritative
       current state before persisting it
     verification: Inspection of `vultron/core/` confirms that VFD and PXA transition handlers
       call the state machine's transition validator before persisting any state change.
-    lint_suppress:
-    - missing_story_reference
   - id: CM-04-006
     priority: MUST_NOT
     kind: protocol
@@ -518,7 +500,7 @@ groups:
     - story_2022_027
   - id: CM-04-009
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       A handler processing an EM state transition accept event MUST update at most one of
       CaseStatus.em_state or ParticipantStatus.embargo_adherence per accept event, except when
@@ -530,8 +512,6 @@ groups:
     verification: Integration tests in `test/demo/` confirm that a single embargo-accept event
       updates either `CaseStatus.em_state` or `ParticipantStatus.embargo_adherence` but never
       both unconditionally.
-    lint_suppress:
-    - missing_story_reference
 - id: CM-05
   title: Object Model Relationships
   specs:
@@ -572,12 +552,10 @@ groups:
     statement: A `VulnerabilityCase` MAY have zero or more associated `CaseReference` objects
   - id: CM-05-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`CaseReference` objects MUST include at minimum a `url` field.'
     verification: Inspection of `vultron/core/models/case.py` confirms that the `CaseReference`
       model declares a required `url` field.
-    lint_suppress:
-    - missing_story_reference
   - id: CM-05-006
     priority: MAY
     kind: protocol
@@ -607,13 +585,11 @@ groups:
       CERT/CC VU# ID)
   - id: CM-05-010
     priority: MUST
-    kind: protocol
+    kind: project
     statement: When a `VulnerabilityRecord` is a `CVERecord` (i.e., it carries a CVE ID), its data MUST conform to the CVE
       JSON schema (<https://github.com/CVEProject/cve-schema>)
     verification: Inspection of `vultron/core/` confirms that `CVERecord` (or the equivalent
       CVE-typed `VulnerabilityRecord`) validates its data against the CVE JSON schema.
-    lint_suppress:
-    - missing_story_reference
   - id: CM-05-011
     priority: SHOULD
     kind: protocol
@@ -1069,7 +1045,7 @@ groups:
     - story_2022_023
   - id: CM-12-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`InvalidateReportReceivedUseCase`, `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase` MUST
       dereference the incoming report ID to the associated case ID before delegating to the corresponding case-level use case'
     verification: Inspection of `vultron/core/` confirms that `InvalidateReportReceivedUseCase`,
@@ -1078,8 +1054,6 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-12-001
-    lint_suppress:
-    - missing_story_reference
 - id: CM-13
   title: Embargo Acceptance Ownership
   specs:
@@ -1310,7 +1284,7 @@ groups:
     - ADR-0096
   - id: CM-14-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Additional participants MUST NOT be invited and embargo modifications MUST NOT be initiated until the case
       initialization sequence defined in CM-14-001 (including any applicable conditional steps) is complete
     rationale: 'The initialization sequence establishes the minimum valid case state: a case object, an owner, an optional
@@ -1321,8 +1295,6 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-14-001
-    lint_suppress:
-    - missing_story_reference
   - id: CM-14-008
     priority: MUST
     kind: protocol
@@ -1422,7 +1394,7 @@ groups:
   specs:
   - id: CM-15-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'ActorConfig MUST expose an `auto_create_case` boolean field with a default value of `True`.'
     rationale: Receivers that follow the Option 3 protocol path (send Read(Offer(Report)) before deciding to accept or reject)
       require the ability to delay case creation. The default (True) preserves the original ADR-0015 Option 4 "always create
@@ -1435,11 +1407,9 @@ groups:
     adr:
     - ADR-0015
     - ADR-0041
-    lint_suppress:
-    - missing_story_reference
   - id: CM-15-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       When a receiver's `auto_create_case` is `False`, processing an inbound
       `Offer(Report)` MUST store the `VulnerabilityReport` and the `Offer(Report)`
@@ -1450,8 +1420,6 @@ groups:
     verification: Integration tests in `test/demo/` confirm that when `auto_create_case` is
       `False`, processing an `Offer(Report)` persists the report and offer in the DataLayer
       without creating a `VulnerabilityCase`.
-    lint_suppress:
-    - missing_story_reference
   - id: CM-15-003
     priority: MUST_NOT
     kind: protocol
@@ -1462,7 +1430,7 @@ groups:
       case anyway would make the flag meaningless.
   - id: CM-15-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       When a receiver's `auto_create_case` is `False`, processing an inbound
       `Offer(Report)` MUST leave the receiver's outbox unchanged (no outbound activities
@@ -1471,8 +1439,6 @@ groups:
       (e.g., Create(Case) to the reporter); the observable outcome is no outbound messages.
     verification: Integration tests in `test/demo/` confirm that when `auto_create_case` is
       `False`, processing an `Offer(Report)` leaves the actor's outbox empty.
-    lint_suppress:
-    - missing_story_reference
   - id: CM-15-005
     priority: MUST
     kind: project
@@ -1645,7 +1611,7 @@ groups:
     - story_2022_053
   - id: CM-16-010
     priority: MUST
-    kind: protocol
+    kind: project
     statement: In every step of the actor suggestion flow, the CASE_MANAGER MUST commit the ledger entry for a protocol event
       AFTER the corresponding message has been sent or received, never before.
     rationale: Pre-announcing a decision in the ledger before communicating the decision creates a window where the ledger
@@ -1653,8 +1619,6 @@ groups:
     verification: Integration tests in `test/demo/` confirm that ledger entries in the actor
       suggestion flow are committed only after the corresponding message has been sent or
       received, never before.
-    lint_suppress:
-    - missing_story_reference
   - id: CM-16-014
     priority: MUST
     kind: project
@@ -1700,7 +1664,7 @@ groups:
       for the same actor, leading to conflicting state if the Case Owner responds to both.
   - id: CM-16-018
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       When the CASE_MANAGER processes `Accept(Offer(CaseParticipant))` from the Case
       Owner, the roles assigned to the new participant MUST be read from the stored
@@ -1724,8 +1688,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-16-006
-    lint_suppress:
-    - missing_story_reference
 - id: CM-17
   title: Invitation Flow — Enrichment and Roles
   specs:
@@ -1808,7 +1770,7 @@ groups:
       Creating one before the invitee has consented would grant protocol access prematurely.
   - id: CM-17-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The CASE_MANAGER MUST commit exactly one `CaseLedgerEntry` for an emitted `Invite`
       activity, in the tree that emits it, after the Invite activity has been constructed and
@@ -1830,8 +1792,6 @@ groups:
       spec_id: CLP-10-006
     adr:
     - ADR-0109
-    lint_suppress:
-    - missing_story_reference
   - id: CM-17-007
     priority: MUST
     kind: project
@@ -1880,7 +1840,7 @@ groups:
       object on `Accept(Invite)` processing.
   - id: CM-17-009
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Any canonical `CaseLedgerEntry` the CASE_MANAGER commits while admitting an
       invitee whose fan-out reaches that invitee — the `Add(CaseParticipant)` entry
@@ -1909,8 +1869,6 @@ groups:
       spec_id: CM-17-004
     - rel_type: depends_on
       spec_id: SYNC-15-004
-    lint_suppress:
-    - missing_story_reference
 - id: CM-18
   title: Participant Embargo Consent State Machine
   specs:
@@ -2604,7 +2562,7 @@ groups:
     - story_2022_051
   - id: CM-21-010
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       An actor emitting `Reject(Offer(VulnerabilityCase))` (ownership-transfer
       variant) MUST address the activity to the CASE_MANAGER's inbox
@@ -2634,8 +2592,6 @@ groups:
       spec_id: CM-21-006
     adr:
     - ADR-0053
-    lint_suppress:
-    - missing_story_reference
 - id: CM-22
   title: CASE_MANAGER-Authoritative Case Creation
   description: >-
@@ -3637,7 +3593,7 @@ groups:
     - missing_story_reference
   - id: CM-28-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Embargo invite expiry MUST be evaluated lazily: lapse is derived from
       `(end_time, now)` whenever a participant's PEC state is read or an inbound
@@ -3653,8 +3609,6 @@ groups:
       spec_id: CM-28-003
     adr:
     - ADR-0065
-    lint_suppress:
-    - missing_story_reference
   - id: CM-28-008
     priority: MUST_NOT
     kind: protocol
@@ -3835,7 +3789,13 @@ groups:
   specs:
   - id: CM-27-001
     priority: MUST_NOT
-    kind: protocol
+    kind: project
+    verification: >-
+      `test/architecture/test_validate_assignment_ratchet.py` scans every core
+      module for a direct `case_participants` or `case_statuses` write —
+      attribute assignment or in-place list mutation — outside the canonical
+      mutator module and fails on any hit; its backlog test pins the enumerated
+      set in both directions so a new violation and a stale entry both fail.
     statement: >-
       Core code under `vultron/core/` MUST NOT mutate `case_participants` or
       `case_statuses` directly on a `VulnerabilityCase` instance after
@@ -3857,7 +3817,7 @@ groups:
     - ADR-0064
   - id: CM-27-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Passing `case_participants=[...]` or `case_statuses=[...]` as a constructor
       argument when creating a `VulnerabilityCase` is permitted and does not
@@ -3875,8 +3835,6 @@ groups:
       spec_id: CM-27-001
     adr:
     - ADR-0064
-    lint_suppress:
-    - missing_story_reference
   - id: CM-27-003
     priority: MUST
     kind: project
@@ -3935,5 +3893,3 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-27-001
-    lint_suppress:
-    - missing_story_reference

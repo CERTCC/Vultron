@@ -6,8 +6,9 @@ and for each non-no_match spec:
   - Removes the ``- missing_story_reference`` line from ``lint_suppress:``
   - If ``lint_suppress:`` only had that one item, removes the whole block
 
-Text-manipulation approach: same line-by-line state machine as backfill_stories.py.
-No YAML load/dump round-trip — preserves all formatting.
+Text-manipulation approach: items are sliced by ``_spec_yaml_items.iter_blocks``,
+shared with ``relabel_spec_kinds.py``. No YAML load/dump round-trip — preserves
+all formatting.
 
 Usage:
     uv run python scripts/apply_story_mappings.py mappings.json [--dry-run]
@@ -18,10 +19,11 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _spec_yaml_items import iter_blocks
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Matches the start of a spec item: "  - id: SPEC-01-001"
-_ITEM_START_RE = re.compile(r"^(\s+)- id: ([A-Z]{2,8}-\d{2}-\d{3}[a-z]?)\s*$")
 # Matches lint_suppress: line
 _LINT_SUPPRESS_RE = re.compile(r"^(\s+)lint_suppress:\s*$")
 # Matches "- missing_story_reference"
@@ -37,25 +39,6 @@ def _build_story_map(spec_mappings: list[dict]) -> dict[str, list[str]]:
         if not m.get("no_match") and m.get("story_ids"):
             story_map[m["spec_id"]] = m["story_ids"]
     return story_map
-
-
-def _collect_item_lines(
-    lines: list[str], i: int, item_indent: str
-) -> tuple[list[str], int]:
-    """Collect the spec item starting at lines[i].
-
-    Returns (item_lines, next_index).
-    """
-    item_lines: list[str] = [lines[i]]
-    i += 1
-    while i < len(lines):
-        nxt = lines[i]
-        stripped = nxt.rstrip("\n\r")
-        if stripped and not stripped.startswith(" " * (len(item_indent) + 1)):
-            break
-        item_lines.append(nxt)
-        i += 1
-    return item_lines, i
 
 
 def _collect_suppress_items(
@@ -149,23 +132,19 @@ def apply_file_mappings(
     lines = text.splitlines(keepends=True)
 
     result: list[str] = []
-    i = 0
     applied = 0
     skipped = 0
 
-    while i < len(lines):
-        m = _ITEM_START_RE.match(lines[i])
-        if not m:
-            result.append(lines[i])
-            i += 1
+    for block in iter_blocks(lines):
+        if isinstance(block, str):
+            result.append(block)
             continue
 
-        item_indent = m.group(1)  # e.g. "  "
-        field_indent = item_indent + "  "  # 2 more spaces for fields
-        item_lines, i = _collect_item_lines(lines, i, item_indent)
+        field_indent = block.field_indent
+        item_lines = block.lines
 
         # Check if this spec needs story mapping
-        story_ids = story_map.get(m.group(2))
+        story_ids = story_map.get(block.spec_id)
         if story_ids is None:
             result.extend(item_lines)
             continue

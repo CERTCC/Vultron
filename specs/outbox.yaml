@@ -674,8 +674,6 @@ groups:
     - ADR-0066
     tags:
     - observability
-    lint_suppress:
-    - missing_story_reference
   - id: OX-14-002
     priority: MUST_NOT
     kind: protocol
@@ -714,5 +712,3 @@ groups:
     - ADR-0080
     tags:
     - observability
-    lint_suppress:
-    - missing_story_reference

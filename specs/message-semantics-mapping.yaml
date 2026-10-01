@@ -117,7 +117,7 @@ groups:
     - story_2022_101
   - id: MSM-01-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthand `RE` (Report Management Error) has no dedicated `MessageSemantics` dispatch value and no
       entry in `SEMANTIC_REGISTRY`; report-management error conditions MUST instead be reported through the
       failure-mode mechanisms specified in MSM-05-001.
@@ -132,8 +132,6 @@ groups:
       `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
       registry entry names `RE`; a unit test asserts this absence to prevent
       unintended additions.
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-01-008
     priority: MUST
     kind: protocol
@@ -266,7 +264,7 @@ groups:
     - story_2022_015
   - id: MSM-02-008
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthand `EE` (Embargo Management Error) has no dedicated `MessageSemantics` dispatch value and no
       entry in `SEMANTIC_REGISTRY`; embargo-management error conditions MUST instead be reported through the
       failure-mode mechanisms specified in MSM-05-001.
@@ -281,11 +279,9 @@ groups:
       `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
       registry entry names `EE`; a unit test asserts this absence to prevent
       unintended additions.
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-02-009
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthand `EK` (Embargo Management Acknowledgment) has no dedicated `MessageSemantics` dispatch value
       and no entry in `SEMANTIC_REGISTRY`; acknowledgement of embargo state carried on the case ledger MUST instead
       follow the cumulative hash-chain mechanism specified in MSM-05-002.
@@ -300,8 +296,6 @@ groups:
       `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
       registry entry names `EK`; a unit test asserts this absence to prevent
       unintended additions.
-    lint_suppress:
-    - missing_story_reference
 - id: MSM-03
   title: CS Protocol Message Shorthands
   description: 'Normative shorthand-to-semantic mappings for CVD Case State (CS) protocol messages, covering CV, CF, CD, CP,
@@ -433,7 +427,7 @@ groups:
     - story_2022_081
   - id: MSM-03-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthand `CE` (Case State Error) has no dedicated `MessageSemantics` dispatch value and no entry
       in `SEMANTIC_REGISTRY`; case-state error conditions MUST instead be reported through the failure-mode
       mechanisms specified in MSM-05-001.
@@ -448,11 +442,9 @@ groups:
       `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
       registry entry names `CE`; a unit test asserts this absence to prevent
       unintended additions.
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-03-008
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthand `CK` (Case State Acknowledgment) has no dedicated `MessageSemantics` dispatch value and
       no entry in `SEMANTIC_REGISTRY`; acknowledgement of case-state changes carried on the case ledger MUST instead
       follow the cumulative hash-chain mechanism specified in MSM-05-002.
@@ -467,8 +459,6 @@ groups:
       `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
       registry entry names `CK`; a unit test asserts this absence to prevent
       unintended additions.
-    lint_suppress:
-    - missing_story_reference
 - id: MSM-04
   title: General Protocol Message Shorthands
   description: 'Normative shorthand-to-semantic mappings for General (non-state-machine) protocol messages, covering GI, GK,
@@ -477,7 +467,7 @@ groups:
   specs:
   - id: MSM-04-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The note lifecycle MUST realize protocol shorthand `GI` (General Inquiry) as
       `MessageSemantics.CREATE_NOTE`, `MessageSemantics.ADD_NOTE_TO_CASE`, and
       `MessageSemantics.REMOVE_NOTE_FROM_CASE`; their AS2 wire forms are `Create(Note)` per VAM-07-001,
@@ -497,11 +487,9 @@ groups:
       spec_id: VAM-07-002
     - rel_type: derives_from
       spec_id: VAM-07-003
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-04-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthand `GI` MUST additionally cover the actor-suggestion exchange, dispatching as
       `MessageSemantics.OFFER_ACTOR_TO_CASE`, `MessageSemantics.OFFER_CASE_PARTICIPANT`,
       `MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT`, or `MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT`.
@@ -521,8 +509,6 @@ groups:
       spec_id: VAM-04-002
     - rel_type: derives_from
       spec_id: VAM-04-003
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-04-003
     priority: MUST
     kind: protocol
@@ -565,7 +551,7 @@ groups:
     - missing_story_reference
   - id: MSM-05-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Acknowledgement of replicated case-ledger state MUST be cumulative and implicit via hash-chain continuity. A
       receiver whose `prev_log_hash` matches its local tail MUST NOT emit an acknowledgement, and MUST emit
       `Reject(CaseLedgerEntry)` on a mismatch, whereupon the CASE_MANAGER replays all entries after the last accepted hash.'
@@ -580,8 +566,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-003
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-05-005
     priority: MUST
     kind: protocol
@@ -643,8 +627,6 @@ groups:
       and the whole of `docs/` returns no definitions and no documentation
       references. `ActivityPattern.in_reply_to_` has been removed from the
       codebase; the pattern matcher cannot match on a field that does not exist.
-    lint_suppress:
-    - missing_story_reference
 - id: MSM-06
   title: Message Type Reference Rendering
   description: Requirements governing the consolidated per-message-type reference pages under `docs/reference/messages/`, so
@@ -664,7 +646,6 @@ groups:
       produced by a `markdown_exec` block reading the spec and semantic registries,
       following the `docs/reference/specs/*.md` pattern.
     lint_suppress:
-    - missing_story_reference
     - phantom_path_ref
   - id: MSM-06-002
     priority: MUST
@@ -682,7 +663,6 @@ groups:
       designation for every entry outside the declared exemption set, and that the entry
       appears on its designated page.
     lint_suppress:
-    - missing_story_reference
     - phantom_path_ref
   - id: MSM-06-003
     priority: MUST
@@ -696,8 +676,6 @@ groups:
     verification: >-
       Inspection of the rendered pages confirms a status column is present and
       populated for every row.
-    lint_suppress:
-    - missing_story_reference
 - id: MSM-07
   title: Participant Embargo Consent (PEC) State Machine Coupling to EM Wire Activities
   description: >-
@@ -719,7 +697,7 @@ groups:
   specs:
   - id: MSM-07-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The Participant Embargo Consent (PEC) state machine MUST NOT be assigned any
       formal shorthand in the 28-shorthand protocol message set; all PEC transitions
@@ -739,11 +717,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-07-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The wire activity INVITE_TO_EMBARGO_ON_CASE (EP wire form:
       Invite(Event)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger to
@@ -765,11 +741,9 @@ groups:
       spec_id: CM-18-003
     - rel_type: refines
       spec_id: MSM-02-001
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-07-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The wire activity ACCEPT_INVITE_TO_EMBARGO_ON_CASE (EA wire form:
       Accept(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
@@ -818,11 +792,9 @@ groups:
       spec_id: MSM-02-002
     adr:
     - ADR-0093
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-07-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (ER wire form:
       Reject(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
@@ -870,11 +842,9 @@ groups:
       spec_id: MSM-02-006
     adr:
     - ADR-0093
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-07-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       When the case owner's Accept(Invite(Event)) (EC) replaces active embargo A
       with revision B (shared EM REVISE → ACTIVE, `active_embargo` changes),
@@ -926,11 +896,9 @@ groups:
       spec_id: MSM-02-003
     adr:
     - ADR-0093
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-07-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       When the shared EM state transitions to EXITED (driven by an ET /
       REMOVE_EMBARGO_EVENT_FROM_CASE wire activity), implementations MUST
@@ -954,11 +922,9 @@ groups:
       spec_id: CM-18-003
     - rel_type: refines
       spec_id: MSM-02-007
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-07-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The timer-based pocket-veto transition — INVITED to DECLINED after the
       invitation deadline passes — MUST be enforced lazily with no outbound wire
@@ -988,5 +954,3 @@ groups:
       spec_id: CM-28-005
     adr:
     - ADR-0093
-    lint_suppress:
-    - missing_story_reference

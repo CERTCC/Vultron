@@ -113,7 +113,7 @@ groups:
     specs:
       - id: BW-02-001
         priority: MUST
-        kind: protocol
+        kind: process
         statement: >-
           Every file in `plan/incoming/learnings/` MUST use the same YAML
           frontmatter format as history entry files: required fields
@@ -134,8 +134,6 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: HM-02-001
-        lint_suppress:
-        - missing_story_reference
       - id: BW-02-002
         priority: MUST
         kind: protocol
@@ -182,7 +180,7 @@ groups:
         - missing_story_reference
       - id: BW-02-004
         priority: MUST_NOT
-        kind: protocol
+        kind: process
         statement: >-
           The `timestamp` field MUST NOT be written as a bare `YYYY-MM-DD`
           date. `_coerce_to_utc()` in `vultron/metadata/history/models.py`
@@ -209,8 +207,6 @@ groups:
             spec_id: BW-02-001
           - rel_type: depends_on
             spec_id: HM-06-005
-        lint_suppress:
-        - missing_story_reference
       - id: BW-02-005
         priority: MUST
         kind: process
@@ -236,8 +232,6 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: BW-02-001
-        lint_suppress:
-        - missing_story_reference
       - id: BW-02-006
         priority: MUST
         kind: project
@@ -260,8 +254,6 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: BW-02-001
-        lint_suppress:
-        - missing_story_reference
   - id: BW-03
     title: learn Skill Processing
     specs:

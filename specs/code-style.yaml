@@ -157,13 +157,11 @@ groups:
     rationale: Idiomatic Python (PEP 8); keeps models readable and decoupled from AS2 naming conventions.
   - id: CS-07-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Do not introduce new `as_`-prefixed field names anywhere. All wire-layer and core-layer field names use the
       trailing-underscore convention where needed. Class names retain `as_`.
     verification: Inspection of `vultron/` confirms no Pydantic field name (as opposed to class name) begins with `as_`;
       the `as_` prefix convention applies only to class names.
-    lint_suppress:
-    - missing_story_reference
 - id: CS-08
   title: Optional Field Non-Emptiness
   specs:

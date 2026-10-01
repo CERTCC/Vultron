@@ -88,16 +88,18 @@ is what produced the defect behind ISSUE-2601: MS-12 went unenforced from its
 adoption until 2026-09, and by then a large fraction of the `kind: protocol`
 corpus was carrying `lint_suppress: [missing_story_reference]` instead of a
 corrected `kind` — code naming conventions, test-coverage requirements, and
-build-file formats all tagged as wire-protocol obligations. The live count is
-`grep -c missing_story_reference specs/*.yaml` until the ratchet MS-12-007
-requires lands (#3600, AC-4); once it does, its pinned constant under
-`test/architecture/` is the authoritative figure and it only goes down.
-Suppressing the story-traceability gate is almost never the right response to it
-firing; a spec that cannot be traced to a user story is usually mis-classified,
-not story-less. Once #3600 lands, MS-12-006 will make the unambiguous cases a
-hard error (its AC-2) and MS-12-007 will ratchet the suppression count downward
-(its AC-4); neither is built yet, and neither will detect a misclassification
-whose statement names no code.
+build-file formats all tagged as wire-protocol obligations. For the live count,
+read `MAX_MISSING_STORY_SUPPRESSIONS` in
+`test/architecture/test_spec_kind_ratchet.py`, the ceiling MS-12-007 pins; it is
+the authoritative figure and it only goes down. Suppressing the
+story-traceability gate is almost never the right response to it firing; a spec
+that cannot be traced to a user story is usually mis-classified, not story-less.
+MS-12-006 now makes the unambiguous cases a hard error, and MS-12-007 ratchets
+the suppression count downward, but neither detects a misclassification whose
+statement names no code. MS-12-008 gives MS-12-006's own escape hatch,
+`protocol_kind_with_code_reference`, a ceiling of its own
+(`MAX_CODE_REFERENCE_SUPPRESSIONS`, 0 at introduction), so a suppression cannot
+move from one code to the other unseen.
 
 #### Why MS-12-006 is scoped the way it is
 
@@ -137,6 +139,26 @@ The general lesson, from ISSUE-3480: **an enforced MUST advertises itself throug
 full compliance in the artifacts; an unenforced one anti-advertises.** A rule at
 half adoption reads to the next author as "no rule here" — worse than one at zero
 adoption, which at least reads as "not done yet".
+
+#### Relabeling a `kind:` moves more than the field
+
+A relabel pass (the MS-12 passes in #3600 and #3601) has three mechanical
+consequences, each with a tool:
+
+- **Anchors move.** A spec renders only on its own kind's docs page (SR-09-002),
+  so every prose link to `specs/protocol.md#xx-nn-nnn` dangles the moment the
+  item becomes `project`, and so does a group anchor once its last protocol item
+  leaves. Run `uv run python scripts/relink_requirement_anchors.py` after the
+  relabel; it repoints each link at the page its anchor now renders on.
+- **Verification travels with the spec (MS-10-008).** An unverified MUST or
+  MUST_NOT that changes kind gains its `verification:` in the same change, or the
+  destination kind's ceiling would have to rise.
+- **The suppression goes with the old kind.** `scripts/relabel_spec_kinds.py`
+  applies a `{spec_id: kind}` mapping and strips `missing_story_reference` from
+  each item in one pass, preserving every other line byte for byte. The
+  protocol-coverage ceiling (`MAX_UNCOVERED_PROTOCOL_SPECS`) then drops too, since
+  a spec that leaves the protocol tier leaves that population; lower it to the new
+  live count in the same PR.
 
 ### Valid `priority:` Values — Underscores, Not Spaces
 

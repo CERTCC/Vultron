@@ -108,7 +108,7 @@ def test_em_propose_embargo_invalid_raises():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("CM-27-001")
+@pytest.mark.spec("CM-28-001")
 def test_em_propose_embargo_rsvp_deadline_sets_end_time(sample_embargo):
     """AC-1: rsvp_deadline is placed on activity-level end_time."""
     deadline = datetime.now(tz=UTC) + timedelta(days=5)
@@ -120,7 +120,7 @@ def test_em_propose_embargo_rsvp_deadline_sets_end_time(sample_embargo):
     assert result.end_time == deadline
 
 
-@pytest.mark.spec("CM-27-001")
+@pytest.mark.spec("CM-28-001")
 def test_em_propose_embargo_no_rsvp_deadline_end_time_is_none(sample_embargo):
     """AC-7 (absent): no rsvp_deadline → end_time not set on activity."""
     result = em_propose_embargo_activity(

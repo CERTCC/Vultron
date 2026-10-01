@@ -112,7 +112,7 @@ as a path-prefixed `ValueError` — the shape every hand-written copy took.
 | `load_frontmatter(path, root=)` | a markdown file's frontmatter block |
 | `loads_frontmatter(text)` | the no-path form, for content not yet on disk |
 | `validate(Model, data, path=, root=, prefix=, key_lines=)` | the Pydantic half; `key_lines` locates the failure at its key's line |
-| `FailureCollector` | report **every** failing file, not the first (SR-03-009) |
+| `FailureCollector` | report **every** failing file, not the first (SR-03-009): these loaders reject the corpus as a unit, so stopping early reports less than the tool knows (EH-07-001 is the general principle; `load_registry` and `history/incoming.py` show the shape) |
 
 All raise `MetadataLoadError`, a `ValueError` subclass carrying `path`, `line`,
 `column` and `detail` (MS-17-004); `FailureCollector.raise_if_any()` raises
@@ -145,11 +145,6 @@ What the helper absorbs, so you know not to re-solve it:
    and the model's class name. Across a directory that locates nothing, so
    `validate()` attributes it to the file too.
 
-A loader that walks a set of files reports **every** failing file, not just the
-first (SR-03-009). These loaders reject the corpus as a unit, so stopping at the
-first fault makes the tool report less than it knows; see EH-07-001 for the
-general principle, and `load_registry` or `history/incoming.py` for the shape.
-
 ## Spec-First References Need a Lint Suppression
 
 `spec-lint` hard-errors when a spec `statement` or `verification` names a file
@@ -172,6 +167,12 @@ Remove the suppression in the PR that creates the file, so the reference goes
 back under the check. Only `statement`, `verification`, and behavioral
 step/condition text are scanned; `rationale` is exempt by design, because it
 narrates history and legitimately names things that were removed.
+
+A `kind: protocol` spec with no `stories:` whose `statement` or `verification`
+names a `.py` file, a `vultron/`, `test/` or `scripts/` path, or `pytest`,
+`pydantic` or `py_trees` is a hard error too (MS-12-006). The fix is a corrected
+`kind:` via the MS-12-001 → MS-12-005 tree in order, not a suppression;
+`protocol_kind_with_code_reference` is for a genuinely incidental reference.
 
 ## Changing a Linter Check
 

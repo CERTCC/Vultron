@@ -15,51 +15,41 @@ groups:
   specs:
   - id: CP-01-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The wire layer MUST define an `as_CaseProposal` object type that extends `as_VultronObject`.
     rationale: A dedicated object type enables pattern-discriminated routing in the semantic extractor and preserves AS2 semantics
       by separating the proposal object from the eventual `VulnerabilityCase`.
     verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `as_CaseProposal` is declared as
       a class that extends `as_VultronObject`.
-    lint_suppress:
-    - missing_story_reference
   - id: CP-01-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`as_CaseProposal` MUST include an `id_` field containing a full URI that uniquely identifies the proposal.'
     verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `id_` is inherited from
       `as_VultronObject` as a required URI field on every `as_CaseProposal` instance.
-    lint_suppress:
-    - missing_story_reference
   - id: CP-01-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`as_CaseProposal` MUST include an `attributed_to` field identifying the vendor actor (proposer) that originated
       the proposal.'
     verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `attributed_to` is a required
       `NonEmptyString` field on `as_CaseProposal`.
-    lint_suppress:
-    - missing_story_reference
   - id: CP-01-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`as_CaseProposal` MUST include an `object_` field containing a fully inline `as_VulnerabilityReport` around
       which the case is to be created. URI references to the report are NOT permitted (see AKM-03-001).'
     rationale: The case-actor service needs the vulnerability report to initialize the case. URI references are prohibited
       because the receiver may not have the referenced object and no dereferencing mechanism is currently specified (AKM-03-001).
     verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `object_` is typed as
       `ActivityStreamRequiredRef[as_VulnerabilityReport]`, enforcing an inline report and rejecting bare URI references.
-    lint_suppress:
-    - missing_story_reference
   - id: CP-01-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`as_CaseProposal` MUST include a `target` field containing the URI of the prospective case-actor service to
       which the proposal is addressed.'
     verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `target` is a required
       `NonEmptyString` field on `as_CaseProposal`.
-    lint_suppress:
-    - missing_story_reference
   - id: CP-01-006
     priority: MAY
     kind: protocol
@@ -67,13 +57,8 @@ groups:
   - id: CP-01-007
     lint_suppress:
     - rationale_too_long
-    # No story back-reference for the same reason as its parent CP-01-004:
-    # offer provenance is internal plumbing the 2022 story corpus never asked
-    # for. It exists because omitting it fails silently (ISSUE-2548), not
-    # because a Participant wanted it.
-    - missing_story_reference
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       When the proposing actor knows which `Offer(VulnerabilityReport)` brought it the report,
       `as_CaseProposal` MUST carry that provenance as `offerId` and `offerActorId`, and the case-actor MUST
@@ -98,10 +83,8 @@ groups:
     adr:
     - ADR-0073
   - id: CP-01-008
-    lint_suppress:
-    - missing_story_reference
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       When the proposing actor holds the `Offer(VulnerabilityReport)` that brought it the report,
       `as_CaseProposal` MUST carry that Offer whole, inline, as `inReplyTo`. When both `inReplyTo` and
@@ -184,58 +167,46 @@ groups:
   specs:
   - id: CP-02-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The `MessageSemantics` enum MUST include `CREATE_CASE_PROPOSAL` for the pattern `Create(as_CaseProposal)`.
     verification: Inspection of `vultron/core/models/events/base.py` confirms `CREATE_CASE_PROPOSAL` is present in
       `MessageSemantics`; `test/test_semantic_activity_patterns.py::test_create_case_proposal_dispatches_correctly` validates it.
-    lint_suppress:
-    - missing_story_reference
   - id: CP-02-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The `MessageSemantics` enum MUST include `ACCEPT_CASE_PROPOSAL` for the pattern `Accept(as_CaseProposal)`.
     verification: Inspection of `vultron/core/models/events/base.py` confirms `ACCEPT_CASE_PROPOSAL` is present in
       `MessageSemantics`; `test/test_semantic_activity_patterns.py::test_accept_case_proposal_dispatches_correctly` validates it.
-    lint_suppress:
-    - missing_story_reference
   - id: CP-02-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The `MessageSemantics` enum MUST include `REJECT_CASE_PROPOSAL` for the pattern `Reject(as_CaseProposal)`.
     verification: Inspection of `vultron/core/models/events/base.py` confirms `REJECT_CASE_PROPOSAL` is present in
       `MessageSemantics`; `test/test_semantic_activity_patterns.py::test_reject_case_proposal_dispatches_correctly` validates it.
-    lint_suppress:
-    - missing_story_reference
 - id: CP-03
   title: Extractor Patterns
   specs:
   - id: CP-03-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`SEMANTIC_REGISTRY` MUST contain a pattern entry for `(Create, as_CaseProposal) -> CREATE_CASE_PROPOSAL`.'
     verification: A unit test in `test/test_semantic_activity_patterns.py::test_create_case_proposal_dispatches_correctly`
       confirms `(Create, as_CaseProposal)` resolves to `CREATE_CASE_PROPOSAL` via `SEMANTIC_REGISTRY`.
-    lint_suppress:
-    - missing_story_reference
   - id: CP-03-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`SEMANTIC_REGISTRY` MUST contain a pattern entry for `(Accept, as_CaseProposal) -> ACCEPT_CASE_PROPOSAL`.'
     verification: A unit test in `test/test_semantic_activity_patterns.py::test_accept_case_proposal_dispatches_correctly`
       confirms `(Accept, as_CaseProposal)` resolves to `ACCEPT_CASE_PROPOSAL` via `SEMANTIC_REGISTRY`.
-    lint_suppress:
-    - missing_story_reference
   - id: CP-03-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`SEMANTIC_REGISTRY` MUST contain a pattern entry for `(Reject, as_CaseProposal) -> REJECT_CASE_PROPOSAL`.'
     verification: A unit test in `test/test_semantic_activity_patterns.py::test_reject_case_proposal_dispatches_correctly`
       confirms `(Reject, as_CaseProposal)` resolves to `REJECT_CASE_PROPOSAL` via `SEMANTIC_REGISTRY`.
-    lint_suppress:
-    - missing_story_reference
   - id: CP-03-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: All three `CaseProposal` extractor patterns MUST appear before any more-general patterns that could match the
       same activity types (e.g., generic `Accept` or `Reject` catch-all entries), to prevent misrouting (per SE-03-002).
     verification: A unit test in `test/test_semantic_activity_patterns.py::test_non_overlapping_activity_patterns` confirms
@@ -243,8 +214,6 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: SE-03-002
-    lint_suppress:
-    - missing_story_reference
 - id: CP-04
   title: Protocol Flow — Sending
   specs:
@@ -373,7 +342,7 @@ groups:
     - story_2022_016
   - id: CP-05-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: If the case-actor service successfully sends `Accept(as_CaseProposal)` but fails to send `Create(VulnerabilityCase)`,
       it MUST retry `Create(VulnerabilityCase)` independently. The `Accept` is irrevocable once sent and MUST NOT be resent
       on retry; only `Create(VulnerabilityCase)` requires retry.
@@ -384,8 +353,6 @@ groups:
       runner can replay the exact activity without re-running the BT.
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py::test_marker_present_when_create_fails`
       confirm the retry marker is stored when `Create(VulnerabilityCase)` fails, without resending `Accept(as_CaseProposal)`.
-    lint_suppress:
-    - missing_story_reference
   - id: CP-05-006
     priority: MUST
     kind: protocol
@@ -480,31 +447,25 @@ groups:
   specs:
   - id: CP-07-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Unit tests MUST cover pattern matching for all three `CaseProposal` extractor patterns (`CREATE_CASE_PROPOSAL`,
       `ACCEPT_CASE_PROPOSAL`, `REJECT_CASE_PROPOSAL`).
     verification: Unit tests `test_create_case_proposal_dispatches_correctly`, `test_accept_case_proposal_dispatches_correctly`,
       and `test_reject_case_proposal_dispatches_correctly` in `test/test_semantic_activity_patterns.py` cover all three patterns.
-    lint_suppress:
-    - missing_story_reference
   - id: CP-07-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Unit tests MUST cover `CreateCaseProposalReceivedUseCase`, `AcceptCaseProposalReceivedUseCase`, and `RejectCaseProposalReceivedUseCase`
       execute() paths.
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` cover the `execute()` paths of
       `CreateCaseProposalReceivedUseCase`, `AcceptCaseProposalReceivedUseCase`, and `RejectCaseProposalReceivedUseCase`.
-    lint_suppress:
-    - missing_story_reference
   - id: CP-07-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Integration tests MUST cover the full `Create(CaseProposal)` → `Accept(CaseProposal)` + `Create(VulnerabilityCase)`
       round-trip between a vendor actor and a case-actor service.
     verification: Integration tests in `test/demo/test_case_proposal_round_trip.py::test_demo_round_trip` confirm the full
       `Create(CaseProposal)` → `Accept(CaseProposal)` + `Create(VulnerabilityCase)` round-trip completes successfully.
-    lint_suppress:
-    - missing_story_reference
 - id: CP-08
   title: Case-Actor Service URL Configuration
   specs:
