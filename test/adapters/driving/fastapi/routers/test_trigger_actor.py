@@ -69,8 +69,10 @@ def _store_for(actor_id: str) -> SqliteDataLayer:
 
 
 @pytest.fixture
-def client_triggers(dl):
-    _outbox_handler._default_emitter = _NoopEmitter()
+def client_triggers(dl, monkeypatch):
+    monkeypatch.setattr(
+        _outbox_handler._DEFAULT_EMITTER_SLOT, "value", _NoopEmitter()
+    )
     app = FastAPI()
     app.include_router(trigger_actor_router.router)
 
@@ -81,7 +83,6 @@ def client_triggers(dl):
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
-    _outbox_handler._default_emitter = None
 
 
 @pytest.fixture

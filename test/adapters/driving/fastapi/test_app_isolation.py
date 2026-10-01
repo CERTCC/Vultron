@@ -98,11 +98,11 @@ def test_create_app_per_app_dispatcher_on_state(app1):
 
 
 def test_create_app_does_not_mutate_global_dispatcher(app1):
-    """create_app() lifespan must not overwrite the module-level _DISPATCHER."""
-    original = ih._DISPATCHER
+    """create_app() lifespan must not overwrite the module-level _DISPATCHER_SLOT."""
+    original = ih._DISPATCHER_SLOT.value
 
     with TestClient(app1):
-        assert ih._DISPATCHER is original
+        assert ih._DISPATCHER_SLOT.value is original
 
 
 def test_create_app_dispatchers_are_distinct(app1, app2):

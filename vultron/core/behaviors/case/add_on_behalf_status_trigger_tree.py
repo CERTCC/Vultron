@@ -16,18 +16,25 @@
 """Trigger-side BT for the on-behalf v→V / d→D assertion workflow.
 
 The asserting actor (Case Manager or Case Owner) records vendor-awareness
-or deployer-fix-deployment on behalf of a notified-but-not-yet-joined actor.
-The tree runs four steps in sequence:
+or deployer-fix-deployment on behalf of an existing participant — for v→V
+typically an inert invitee that has not yet replied to its stub Invite.  The tree never
+creates or attaches a ``CaseParticipant``: an on-behalf assertion whose target
+is not a participant is refused before any write (PRM-06-006, ADR-0084,
+ADR-0114).  The tree runs these steps in sequence; every guard precedes the
+only write (step 4):
 
 1. **CheckOnBehalfAuthorizedNode** — verify the asserting actor holds
    CASE_MANAGER or CASE_OWNER (ADR-0084, PRM-06-003/004).
-2. **EnsureOnBehalfParticipantExistsNode** — create a minimal
-   ``CaseParticipant`` for the target if absent (ADR-0084).
+2. **CheckOnBehalfTargetIsParticipantNode** — refuse, naming the target,
+   when the target is not in ``actor_participant_index`` or lacks the
+   asserted dimension's role (PRM-06-003/004/006).
 3. (optional) **CheckSomeVendorAtVFNode** — when ``d_state`` is non-``None``,
    gate d→D on the causal precondition that at least one VENDOR participant
    has reached ``vf.state=VF`` (CSB-15-004).
-4. **CreateParticipantStatusNode** — write the ParticipantStatus snapshot
-   for the target actor (BT-15-001: protocol-significant write inside BT).
+4. **CreateParticipantStatusNode** — validate (BTND-10-002: role gates and
+   the RM↔D entailment) and write the ParticipantStatus snapshot for the
+   target actor (BT-15-001: protocol-significant write inside BT).  RM is
+   carried over unchanged (PRM-06-003).
 5. **sender_side_bt** — resolve the Case Manager, build the outbound
    ``Add(ParticipantStatus)`` activity, and queue it.
 """
@@ -38,7 +45,7 @@ import py_trees
 
 from vultron.core.behaviors.case.nodes.on_behalf_guards import (
     CheckOnBehalfAuthorizedNode,
-    EnsureOnBehalfParticipantExistsNode,
+    CheckOnBehalfTargetIsParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
@@ -51,11 +58,36 @@ from vultron.core.states.cs import CS_d, CS_vf
 from vultron.enums.roles import CVDRole
 
 
+def on_behalf_required_roles(
+    vf_state: "CS_vf | None", d_state: "CS_d | None"
+) -> list[CVDRole]:
+    """Return the roles an on-behalf target MUST hold for the asserted dimensions.
+
+    ``VENDOR`` for a ``vf_state`` (v→V, PRM-06-003) and ``DEPLOYER`` for a
+    ``d_state`` (d→D, PRM-06-004).  The roles are derived from the dimensions,
+    never passed alongside them, so the guard cannot check a role the write
+    does not need.
+
+    Raises:
+        ValueError: when neither dimension is set — an assertion with no
+            dimension has no role to check (ARCH-10-001).
+    """
+    roles: list[CVDRole] = []
+    if vf_state is not None:
+        roles.append(CVDRole.VENDOR)
+    if d_state is not None:
+        roles.append(CVDRole.DEPLOYER)
+    if not roles:
+        raise ValueError(
+            "An on-behalf status assertion needs vf_state or d_state"
+        )
+    return roles
+
+
 def add_on_behalf_status_trigger_bt(
     case_id: str,
     asserting_actor_id: str,
     target_actor_id: str,
-    required_roles: list[CVDRole],
     vf_state: "CS_vf | None",
     d_state: "CS_d | None",
     result_out: dict,
@@ -68,9 +100,6 @@ def add_on_behalf_status_trigger_bt(
         asserting_actor_id: Actor making the assertion (must hold CASE_MANAGER
             or CASE_OWNER).
         target_actor_id: Actor whose awareness/deployment is being recorded.
-        required_roles: Roles to assign when creating a new participant;
-            ``[CVDRole.VENDOR]`` for v→V, ``[CVDRole.DEPLOYER]`` for d→D,
-            ``[CVDRole.VENDOR, CVDRole.DEPLOYER]`` when both are requested.
         vf_state: ``CS_vf.Vf`` for v→V, or ``None``.
         d_state: ``CS_d.D`` for d→D, or ``None``.
         result_out: Mutable dict populated by ``CreateParticipantStatusNode``
@@ -78,18 +107,26 @@ def add_on_behalf_status_trigger_bt(
         activity_builder: ``(case_manager_id: str) -> list[str]`` — called by
             ``sender_side_bt`` after resolving the Case Manager.
 
+    The target MUST already hold every role
+    :func:`on_behalf_required_roles` derives from ``vf_state`` and
+    ``d_state``.
+
     Returns:
-        A ``py_trees.composites.Sequence`` that gates, creates, and emits.
+        A ``py_trees.composites.Sequence`` that gates, writes the status,
+        and emits.
+
+    Raises:
+        ValueError: when neither ``vf_state`` nor ``d_state`` is set.
     """
     children: list[py_trees.behaviour.Behaviour] = [
         CheckOnBehalfAuthorizedNode(
             case_id=case_id,
             asserting_actor_id=asserting_actor_id,
         ),
-        EnsureOnBehalfParticipantExistsNode(
+        CheckOnBehalfTargetIsParticipantNode(
             case_id=case_id,
             target_actor_id=target_actor_id,
-            required_roles=required_roles,
+            required_roles=on_behalf_required_roles(vf_state, d_state),
         ),
     ]
 
