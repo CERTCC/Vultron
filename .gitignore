@@ -158,10 +158,33 @@ devlogs
 # Use `uv run show-history` to view on demand.
 plan/history/*/README.md
 
+# macOS files
+.DS_Store
+
+# Claude Code files
+.claudeignore
 # Generated data artifacts (e.g. velocity.json from scripts/velocity.py)
 plan/data/
 .devcontainer/devcontainer.env
 .claude/settings.local.json
+.claude/.gitignore
+
+# Devcontainer: shared scaffolding (Dockerfile, setup/postcreate/poststart.sh,
+# README, certs/README) IS tracked. These are per-developer local files —
+# corp CA certs, worktree/rename/spawn tooling, and env — kept out of git.
+.devcontainer/devcontainer.env
+.devcontainer/.gitignore
+.devcontainer/certs/*.crt
+.devcontainer/devcontainer-lock.json
+.devcontainer/devcontainer.json
+.devcontainer/features/
+.devcontainer/*.ps1
+.devcontainer/rename.sh
+.devcontainer/spawn.sh
+
+# Vite cache
+ui/.vite/
+ui/node_modules/
 .claude/pr-*.json
 # Board/project node-ID cache — auto-regenerated on first run, contains volatile timestamp
 .agents/skills/shared/board-ids.json
