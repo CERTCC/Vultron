@@ -18,6 +18,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+import yaml
+
 from vultron.metadata.specs.lint import sr_11_003_gate_applies
 from vultron.metadata.specs.schema import RFC2119Priority, SpecKind
 from vultron.metadata.specs.yaml_items import iter_blocks
@@ -71,8 +73,6 @@ def invert_mapping(
 
 def get_protocol_spec_ids(specs_dir: Path) -> set[str]:
     """Return spec IDs with kind:protocol from the loaded registry."""
-    import yaml
-
     protocol_ids: set[str] = set()
     for yaml_path in sorted(specs_dir.glob("*.yaml")):
         try:
@@ -156,10 +156,8 @@ def _collect_protocol_must_no_stories(
     :func:`~vultron.metadata.specs.lint.sr_11_003_gate_applies`, so this script
     and the linter cannot disagree about which specs need the suppression.
     """
-    import yaml as _yaml
-
     try:
-        data = _yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001  # ruff-baseline #3989
         return set()
     if not isinstance(data, dict):

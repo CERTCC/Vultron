@@ -38,65 +38,47 @@ from vultron.core.behaviors.call_out.bundles.publication import (
     PUBLICATION_DETERMINISTIC,
     PublicationCallOutBundle,
 )
+from vultron.demo.fuzzer.report_management.publication import (
+    DraftAdvisoryArtifact,
+    PrepareExploit,
+    PrepareFix,
+    PrepareReport,
+    PrioritizePublicationIntents,
+    ReviewAdvisoryDraft,
+    ReviseAdvisoryDraft,
+    SubmitAdvisoryArtifact,
+)
 
 
 def _stochastic_prioritize_intents(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.publication import (
-        PrioritizePublicationIntents,
-    )
-
     return PrioritizePublicationIntents(name)
 
 
 def _stochastic_prepare_exploit(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.publication import (
-        PrepareExploit,
-    )
-
     return PrepareExploit(name)
 
 
 def _stochastic_prepare_fix(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.publication import PrepareFix
-
     return PrepareFix(name)
 
 
 def _stochastic_prepare_report(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.publication import PrepareReport
-
     return PrepareReport(name)
 
 
 def _stochastic_draft_advisory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.publication import (
-        DraftAdvisoryArtifact,
-    )
-
     return DraftAdvisoryArtifact(name)
 
 
 def _stochastic_review_advisory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.publication import (
-        ReviewAdvisoryDraft,
-    )
-
     return ReviewAdvisoryDraft(name)
 
 
 def _stochastic_revise_advisory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.publication import (
-        ReviseAdvisoryDraft,
-    )
-
     return ReviseAdvisoryDraft(name)
 
 
 def _stochastic_submit_advisory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.publication import (
-        SubmitAdvisoryArtifact,
-    )
-
     return SubmitAdvisoryArtifact(name)
 
 

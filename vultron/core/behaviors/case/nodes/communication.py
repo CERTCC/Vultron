@@ -31,6 +31,7 @@ module.
 import logging
 
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -139,8 +140,6 @@ class CreateAndPersistCaseActivityNode(DataLayerActionWithPorts):
         }
 
     def initialise(self) -> None:
-        from py_trees.ports import NoDataAvailable
-
         super().initialise()
         self.case_id_bb: str = self.get_input("case_id")
         try:

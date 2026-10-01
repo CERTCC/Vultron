@@ -64,6 +64,7 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
 )
 from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.adapters.utils import strip_id_prefix
+from vultron.config import get_config
 from vultron.core.models.actor import (
     CoreActor,
     VultronOrganization,
@@ -168,7 +169,6 @@ def _is_foreign_authority(actor_id: str, base_url: str | None) -> bool:
     parsed_id = urlsplit(actor_id)
     if not parsed_id.scheme:
         return False
-    from vultron.config import get_config
 
     effective_base = base_url or get_config().server.base_url
     return parsed_id.netloc != urlsplit(effective_base).netloc

@@ -36,59 +36,43 @@ from vultron.core.behaviors.call_out.bundles.deploy_mitigation import (
     DEPLOY_MITIGATION_DETERMINISTIC,
     DeployMitigationCallOutBundle,
 )
+from vultron.demo.fuzzer.report_management.deploy_fix import (
+    DeployMitigation,
+    MitigationAvailable,
+    MitigationDeployed,
+    MonitorDeployment,
+    MonitoringRequirement,
+    PrioritizeDeployment,
+)
 
 
 def _stochastic_prioritize_deployment(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        PrioritizeDeployment,
-    )
-
     return PrioritizeDeployment(name)
 
 
 def _stochastic_monitoring_requirement(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        MonitoringRequirement,
-    )
-
     return MonitoringRequirement(name)
 
 
 def _stochastic_monitor_deployment(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        MonitorDeployment,
-    )
-
     return MonitorDeployment(name)
 
 
 def _stochastic_mitigation_deployed(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        MitigationDeployed,
-    )
-
     return MitigationDeployed(name)
 
 
 def _stochastic_mitigation_available(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        MitigationAvailable,
-    )
-
     return MitigationAvailable(name)
 
 
 def _stochastic_deploy_mitigation(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        DeployMitigation,
-    )
-
     return DeployMitigation(name)
 
 

@@ -26,6 +26,7 @@ import logging
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
@@ -117,8 +118,6 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
                     participant_id,
                 )
                 return Status.SUCCESS
-
-        from vultron.core.behaviors.bridge import BTBridge
 
         # Use the DataLayer's own actor_id so BTBridge doesn't clone an empty
         # store for _leaving_actor_id. The write is attributed to the leaving
@@ -222,8 +221,6 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
                     self._case_actor_id,
                 )
                 return Status.SUCCESS
-
-        from vultron.core.behaviors.bridge import BTBridge
 
         # Use the DataLayer's own actor_id so BTBridge doesn't clone an empty
         # store for _case_actor_id. The write is attributed to the case actor

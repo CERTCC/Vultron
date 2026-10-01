@@ -24,6 +24,11 @@ framework imports allowed here.
 import logging
 from collections.abc import Callable
 
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.sender.send_tree import sender_side_bt
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
@@ -34,7 +39,7 @@ from vultron.core.services.embargo_ordering import (
     earliest_expiring_embargo_id,
 )
 from vultron.core.use_cases._helpers import _find_case_actor_id
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -88,8 +93,6 @@ def find_embargo_proposal_id(
 
 def _coerce_embargo_event(raw_embargo: object, embargo_id: str) -> object:
     """Normalize a persisted embargo record; raise domain errors on failure."""
-    from vultron.errors import VultronNotFoundError, VultronValidationError
-
     if getattr(raw_embargo, "type_", "") == "EmbargoEvent":
         return raw_embargo
     if raw_embargo is None:
@@ -101,8 +104,6 @@ def _coerce_embargo_event(raw_embargo: object, embargo_id: str) -> object:
 
 def _is_case_owner(case: object | None, actor_id: str) -> bool:
     """Return True when ``actor_id`` matches the case owner."""
-    from vultron.core.models._helpers import _as_id
-
     if case is None:
         return False
     owner_id = _as_id(getattr(case, "attributed_to", None))
@@ -122,8 +123,6 @@ def _resolve_embargo_proposal(
     ``VultronNotFoundError`` when no pending proposal can be located.
     ADR-0035: no DL wire re-read.
     """
-    from vultron.errors import VultronNotFoundError
-
     index = case.pending_embargo_proposal_index
 
     if proposal_id:
@@ -149,8 +148,6 @@ def _resolve_embargo_id_from_proposal_id(
     The index maps embargo_id → proposal_id; this function inverts the lookup.
     Raises ``VultronValidationError`` when the proposal_id is not found.
     """
-    from vultron.errors import VultronValidationError
-
     for embargo_id, pid in case.pending_embargo_proposal_index.items():
         if pid == proposal_id:
             return embargo_id
@@ -169,17 +166,10 @@ def send_case_actor_activity(
     activity_builder: Callable[[str], list[str]],
 ) -> None:
     """Send an activity to the case manager via the sender-side BT."""
-    from py_trees.common import Status
-
-    from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.sender.send_tree import sender_side_bt
-
     bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
     tree = sender_side_bt(case_id=case_id, activity_builder=activity_builder)
     result = bridge.execute_with_setup(tree, actor_id=actor_id)
     if result.status != Status.SUCCESS:
-        from vultron.errors import VultronValidationError
-
         raise VultronValidationError(
             f"{failure_label} failed: {BTBridge.get_failure_reason(tree)}"
         )

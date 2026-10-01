@@ -33,7 +33,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
-from vultron.core.behaviors.case import case_actor_identity as identity_mod
+from vultron.core.behaviors.case.nodes import case_setup
 from vultron.core.behaviors.case.nodes.case_setup import (
     PublishCaseActorIdentityNode,
 )
@@ -48,7 +48,7 @@ EXPECTED_IDENTITY = f"{SERVICE_URL}/actors/case-actor"
 def configured(monkeypatch):
     """Configure a CaseActor service URL for the duration of a test."""
     monkeypatch.setattr(
-        identity_mod,
+        case_setup,
         "case_actor_identity",
         lambda base_url=None: EXPECTED_IDENTITY,
     )
@@ -58,7 +58,7 @@ def configured(monkeypatch):
 def unconfigured(monkeypatch):
     """No ``case_actor_service_url`` — the state a bare node starts in."""
     monkeypatch.setattr(
-        identity_mod, "case_actor_identity", lambda base_url=None: None
+        case_setup, "case_actor_identity", lambda base_url=None: None
     )
 
 

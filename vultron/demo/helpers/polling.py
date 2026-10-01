@@ -23,9 +23,19 @@ import time
 from collections.abc import Callable, Sequence
 
 from vultron.adapters.utils import parse_id, strip_id_prefix
+from vultron.core.models.pending_case_inbox import (
+    VultronPendingCaseInbox,
+)
+from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import is_em_exited
+from vultron.demo.helpers.verification import (
+    _all_fetchable_participants_rm_closed,
+    _fetch_participant,
+)
 from vultron.demo.utils import (
     CASE_ACTOR_SLUG,
     DataLayerClient,
+    case_actor_id_for_report,
     demo_check,
     logfmt,
 )
@@ -1145,11 +1155,6 @@ def _wait_for_participant_status_field(
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.
     """
-    # Import here to avoid a circular dependency with verification.py.
-    from vultron.demo.helpers.verification import (
-        _fetch_participant,
-    )
-
     deadline = time.monotonic() + timeout_seconds
     poll_count = 0
     while time.monotonic() < deadline:
@@ -1311,7 +1316,6 @@ def wait_for_case_em_terminated(
     Raises:
         AssertionError: If EM.EXITED is not observed within *timeout_seconds*.
     """
-    from vultron.core.states.em import is_em_exited
 
     def _check() -> bool:
         case_data = client.get(client.dl_path(case_id))
@@ -1384,9 +1388,6 @@ def wait_for_all_participants_rm_closed(
         AssertionError: If any participant is not RM.CLOSED within
             *timeout_seconds*.
     """
-    from vultron.demo.helpers.verification import (
-        _all_fetchable_participants_rm_closed,
-    )
 
     def _check() -> bool:
         case_data = client.get(client.dl_path(case_id))
@@ -1434,11 +1435,6 @@ def wait_for_participant_pxa_state(
 
     Spec: DEMOMA-06-002.
     """
-    from vultron.core.states.cs import CS_pxa
-    from vultron.demo.helpers.verification import (
-        _fetch_participant,
-    )
-
     if expected_states is None:
         expected_states = {CS_pxa.Pxa, CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA}
 
@@ -1572,8 +1568,6 @@ def wait_for_initialized_case(
 
     Spec: ISSUE-2359 / ADR-0041.
     """
-    from vultron.demo.utils import case_actor_id_for_report
-
     case_actor_id = case_actor_id_for_report(report_id)
     found: list[as_VulnerabilityCase] = []
 
@@ -1637,10 +1631,6 @@ def wait_for_pending_inbox_quiescent(
 
     Spec: EDF-06-001.
     """
-    from vultron.core.models.pending_case_inbox import (
-        VultronPendingCaseInbox,
-    )
-
     pending_id = VultronPendingCaseInbox.build_id(case_id)
 
     def _check() -> bool:

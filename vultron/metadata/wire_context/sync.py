@@ -46,6 +46,7 @@ import pkgutil
 import sys
 from pathlib import Path
 
+import vultron.wire.as2.vocab as vocab_pkg
 from vultron.metadata.base import repo_root
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
@@ -75,8 +76,6 @@ def _import_all_vocab() -> None:
     ``VulnerabilityCaseStub`` are left out), so the package tree is walked and
     every module imported before enumeration.
     """
-    import vultron.wire.as2.vocab as vocab_pkg
-
     for module in pkgutil.walk_packages(
         vocab_pkg.__path__, vocab_pkg.__name__ + "."
     ):

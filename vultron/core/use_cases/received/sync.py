@@ -61,7 +61,10 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.sync_helpers import _reconstruct_tail_hash
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases._helpers import (
+    _find_case_actor_id,
+    resolve_receiving_actor_id,
+)
 from vultron.core.use_cases.received._bt_verdict import (
     node_failed,
     node_succeeded,
@@ -195,8 +198,6 @@ def drain_gap_buffer(
     flight; ``actor_id`` is resolved to the CaseActor when known, falling back to
     ``case_id``.
     """
-    from vultron.core.use_cases._helpers import _find_case_actor_id
-
     actor_id = _find_case_actor_id(dl, case_id) or case_id
     while True:
         try:

@@ -30,6 +30,7 @@ from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from http import HTTPMethod
 from typing import Any, cast
+from urllib.parse import urlsplit
 
 # Third-party imports
 import httpx2 as httpx
@@ -38,6 +39,10 @@ from pydantic import BaseModel
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
+from vultron.config import get_config
+from vultron.core.behaviors.case.case_actor_identity import (
+    case_actor_identity,
+)
 from vultron.core.models.base import NonEmptyString
 from vultron.errors import DemoFailureError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -762,8 +767,6 @@ def seed_peer(
     Returns:
         The created (or pre-existing) peer ``as_Actor`` object.
     """
-    from urllib.parse import urlsplit
-
     slug = urlsplit(local_actor_id).path.rstrip("/").rsplit("/", 1)[-1]
     payload: dict = {"id": peer_id, "name": name, "actor_type": actor_type}
     response_data = client.post(f"/actors/{slug}/peers/", json=payload)
@@ -805,11 +808,6 @@ def case_actor_id_for_report(report_id: str) -> str:
     Falls back to this node's own base URL when no CaseActor service is
     configured, which is the single-container demo topology.
     """
-    from vultron.config import get_config
-    from vultron.core.behaviors.case.case_actor_identity import (
-        case_actor_identity,
-    )
-
     del report_id  # one CaseActor per container, not per report
     cfg = get_config()
     return (
@@ -827,8 +825,6 @@ def _is_same_node(base_url: str, actor_id: str) -> bool:
     prefix is deliberately ignored: it varies (``/api/v2``) without changing which
     process answers.
     """
-    from urllib.parse import urlsplit
-
     a, b = urlsplit(base_url), urlsplit(actor_id)
     return (a.scheme, a.netloc) == (b.scheme, b.netloc)
 
