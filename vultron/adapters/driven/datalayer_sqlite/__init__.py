@@ -149,13 +149,11 @@ def reset_datalayer(actor_id: str | None = None) -> None:
         actor_id: If provided, resets only the instance for that actor.
             If ``None``, resets every per-actor instance.
     """
-    global _actor_instances  # noqa: PLW0603  # ruff-baseline #3985
-
     instances_to_close: list[SqliteDataLayer] = []
 
     if actor_id is None:
         instances_to_close.extend(_actor_instances.values())
-        _actor_instances = {}
+        _actor_instances.clear()
     else:
         # Every ``db_url`` this actor was cached under, not just the configured
         # one: a reset that left one behind would hand the stale store back.

@@ -381,10 +381,13 @@ class AddOnBehalfStatusRequest(CaseTriggerRequest):
 
     A Case Manager or Case Owner records a vendor's awareness (``v→V``,
     ``vf_state="Vf"``) or a deployer's deployment (``d→D``, ``d_state="D"``)
-    on behalf of an actor that was notified or invited but has not joined the
-    case (ADR-0084; PRM-06-003, PRM-06-004).  ``target_actor_id`` names that
-    actor.  Only the upward rungs are assertable on another actor's behalf:
-    ``vf_state`` must be ``"Vf"`` and ``d_state`` must be ``"D"``.
+    on behalf of an existing participant (ADR-0084; PRM-06-003, PRM-06-004).
+    A v→V target is typically an invitee that has not yet replied; a d→D
+    target must be a deployer at RM ``ACCEPTED``, ``DEFERRED`` or
+    ``CLOSED``.  ``target_actor_id`` names that participant; a
+    non-participant target is refused and no participant is created
+    (PRM-06-006).  Only the upward rungs are assertable on another actor's
+    behalf: ``vf_state`` must be ``"Vf"`` and ``d_state`` must be ``"D"``.
     ``vf_state="VF"`` (``f→F``) is refused because fix readiness is not
     externally knowable and is only ever self-declared by the Vendor-role
     holder (PRM-06-005); the lower rungs (``"vf"``, ``"d"``) are refused

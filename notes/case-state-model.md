@@ -428,8 +428,8 @@ Implemented in PR #3197 (closes #3109):
   → `CreateParticipantStatusNode` → emit.
 - **BT wiring (on-behalf path)**: in `add_on_behalf_status_trigger_tree.py`, when
   `d_state` is non-None `CheckSomeVendorAtVFNode` is inserted after
-  `EnsureOnBehalfParticipantExistsNode`, applying the same causal gate when a
-  CASE_MANAGER asserts d→D on behalf of a DEPLOYER participant.
+  `CheckOnBehalfTargetIsParticipantNode`, applying the same causal gate when a
+  CASE_MANAGER asserts d→D on behalf of an existing DEPLOYER participant.
 
 The gate is generic — "some vendor at VF" — because per-deployer/per-vendor
 dependency tracking is intentionally out of scope (Concern #2665).

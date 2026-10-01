@@ -275,7 +275,7 @@ def create_app(
 
     - Creates a per-app inbox dispatcher (stored on ``app.state.dispatcher``)
       so that multiple ``create_app()`` instances in the same process never
-      share the module-level ``_DISPATCHER`` global (issue #534).
+      share the module-level ``_DISPATCHER_SLOT`` (issue #534).
     - Injects per-actor in-memory ``SqliteDataLayer`` instances via
       ``app.dependency_overrides[get_actor_dl]`` when no override has already
       been registered.  Each app gets its own *named* in-memory deployment, so
