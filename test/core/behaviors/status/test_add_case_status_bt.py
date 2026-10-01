@@ -1690,7 +1690,7 @@ class TestEmitCaseStatusUpdateNodePromotion:
 
     def test_pXa_promoted_to_PXa_by_emit_node(self):
         """AC-1 / SM-09-001: pXa in case.current_status is promoted to PXa."""
-        from vultron.core.behaviors.status.nodes.case_status import (
+        from vultron.core.behaviors.case_status_snapshot import (
             EmitCaseStatusUpdateNode,
         )
         from vultron.core.models.dimensions import EmDimension, PxaDimension

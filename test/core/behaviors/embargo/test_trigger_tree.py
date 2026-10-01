@@ -22,6 +22,9 @@ CaseStatus ledger write via EmitCaseStatusUpdateNode (issue #2175).
 import py_trees
 import pytest
 
+from vultron.core.behaviors.case_status_snapshot import (
+    EmitCaseStatusUpdateNode,
+)
 from vultron.core.behaviors.embargo.nodes import (
     AcceptEmbargoLifecycleNode,
     RejectEmbargoLifecycleNode,
@@ -36,7 +39,6 @@ from vultron.core.behaviors.embargo.trigger_tree import (
     reject_proposed_embargo_bt,
     terminate_embargo_bt,
 )
-from vultron.core.behaviors.status.nodes import EmitCaseStatusUpdateNode
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 

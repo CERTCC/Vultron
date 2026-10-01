@@ -25,12 +25,15 @@ replication flows:
 - :func:`~vultron.core.behaviors.sync.commit_tree.create_commit_log_entry_tree`
   — commits a new log entry and fans it out to peers
 
+The announce tree is imported from its own module and is deliberately not
+re-exported here.  It composes the embargo teardown node, and the embargo
+nodes commit through :mod:`~vultron.core.behaviors.sync.commit_tree`; a
+package ``__init__`` that loaded the announce tree would make importing the
+commit tree load the embargo nodes, closing an import cycle (CS-05-003).
+
 Spec: SBT-01 through SBT-05.
 """
 
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
-)
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -39,7 +42,6 @@ from vultron.core.behaviors.sync.reject_tree import (
 )
 
 __all__ = [
-    "create_announce_log_entry_tree",
     "create_commit_log_entry_tree",
     "create_reject_log_entry_tree",
 ]

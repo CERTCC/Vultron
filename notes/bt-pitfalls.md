@@ -627,7 +627,7 @@ occurred", because the pattern immediately above defeats it twice over:
   stays `False` — verified at `case/nodes/actor.py`.
 - The nine nodes that run a subtree through their own `BTBridge` discard the
   inner `result.internal_error` and return a bare `Status.FAILURE`
-  (`case/nodes/lifecycle.py`, `status/nodes/case_status.py`, and seven more), so
+  (`case/nodes/lifecycle.py`, `case_status_snapshot.py`, and seven more), so
   a crash inside a subtree is invisible in the outer result.
 
 Both gaps are uniform across every nested-bridge site — there is no site where

@@ -48,6 +48,9 @@ from typing import TYPE_CHECKING, cast
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+)
 from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -55,6 +58,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
+from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.case import case_addressees
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import EmDimension
@@ -178,14 +182,6 @@ def case_manager_admits_proposal_guard(
     canonical case cannot take is refused before the guarded commit writes
     an entry for it.
     """
-    # Deferred import: ``case.nodes`` (the package ``role_gates`` lives in)
-    # reaches ``sync`` through ``accept_invite``, and ``sync`` imports the
-    # embargo nodes for its teardown replay — the same embargo/nodes <-> sync
-    # cycle as ``_commit_emission`` (notes/lint-tooling.md).
-    from vultron.core.behaviors.case.nodes.role_gates import (  # noqa: PLC0415  # ruff-baseline #3950
-        create_case_manager_gated_tree,
-    )
-
     return create_case_manager_gated_tree(
         name="AdmitsEmbargoProposalIfCaseManager",
         case_id=case_id,
@@ -357,13 +353,6 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
 
     def _commit_emission(self, activity_id: str, blob: str) -> None:
         """Commit the emitted Invite as a canonical entry (ADR-0109, VM-08-003)."""
-        # Deferred import: ``sync`` imports the embargo nodes for its teardown
-        # replay (``announce_tree``), so a module-level import here is a cycle
-        # (embargo/nodes <-> sync, notes/lint-tooling.md).
-        from vultron.core.behaviors.sync.commit_tree import (  # noqa: PLC0415  # ruff-baseline #3950
-            commit_emitted_activity,
-        )
-
         commit_emitted_activity(
             datalayer=cast(CaseOutboxPersistence, self.datalayer),
             actor_id=cast(str, self.actor_id),
