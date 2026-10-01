@@ -72,8 +72,19 @@ one-line comment saying why (#3991 AC-3). Likewise an argument expression that
 raises (`case.id` on `None`) raises in the caller under either form; only faults
 in rendering move into logging.
 
+**A plain `py_trees` node's `self.logger` cannot take lazy arguments.** It is
+`py_trees.logging.Logger`, whose level methods accept one pre-rendered message,
+so `self.logger.debug("tick %s", n)` raises `TypeError` inside `update()`; and
+ruff's `G` rules fire on any `.debug(...)` call, so pre-rendering it is not an
+option either. Log through the stdlib logger that
+`vultron/core/behaviors/node_logger.py`'s `node_logger(node)` returns: the
+`DataLayer*` bases and the other Vultron node bases rebind `self.logger` to it,
+and a module-level helper that logs on a node's behalf calls
+`node_logger(node)` rather than `node.logger`. mypy reports the mistake as
+`Too many arguments for "debug" of "Logger"` where the receiver is typed.
+
 The rule is decided in SL-01-005 and enforced by ruff rules `G001`–`G004`. The
-shape was decided under #3378; #3991 enables the rules by deleting the
+shape was decided under #3378; #3991 enabled the rules by deleting the
 provisional `G004` `ignore` entry ADR-0094 had recorded and rewriting every site.
 The `G004` finding count at the time is in ADR-0094, not here (MS-16-001).
 

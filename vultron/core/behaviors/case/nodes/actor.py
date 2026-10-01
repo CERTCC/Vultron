@@ -52,6 +52,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.behaviors.sync.commit_tree import (
     commit_emitted_activity,
 )
@@ -378,9 +379,7 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
         self.suggested_actor_id = suggested_actor_id
         self.case_id = case_id
         self.recommendation_id = recommendation_id
-        self.logger = logging.getLogger(  # type: ignore[assignment]
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)  # type: ignore[assignment]
         self._injected_roles = self._coerce_injected_roles(injected_roles)
         _seg = recommendation_id.rsplit("/", maxsplit=1)[-1]
         self._roles_key = f"suggested_roles_{_seg}"

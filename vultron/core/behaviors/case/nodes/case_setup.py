@@ -68,13 +68,15 @@ class PersistCase(DataLayerActionWithPorts):
         try:
             self.datalayer.save(self.case_obj)
             self.logger.info(
-                f"{self.name}: Persisted VulnerabilityCase {self.case_obj.id_}"
+                "%s: Persisted VulnerabilityCase %s",
+                self.name,
+                self.case_obj.id_,
             )
             self._set_output("case_id", self.case_obj.id_)
             return Status.SUCCESS
 
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
-            self.logger.error(f"{self.name}: Error persisting case: {e}")  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s: Error persisting case: %s", self.name, e)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -94,13 +96,15 @@ class SetCaseAttributedTo(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         if self.actor_id is None:
-            self.logger.error(f"{self.name}: actor_id not available")
+            self.logger.error("%s: actor_id not available", self.name)
             return Status.FAILURE
 
         self.case_obj.attributed_to = self.actor_id
         self.logger.debug(
-            f"{self.name}: Set attributed_to={self.actor_id}"
-            f" on case {self.case_obj.id_}"
+            "%s: Set attributed_to=%s on case %s",
+            self.name,
+            self.actor_id,
+            self.case_obj.id_,
         )
         return Status.SUCCESS
 
@@ -139,7 +143,7 @@ class RecordOfferReceivedEventNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         case_id = self.case_id_bb
         if not isinstance(case_id, str):
-            self.logger.error(f"{self.name}: case_id not found in blackboard")
+            self.logger.error("%s: case_id not found in blackboard", self.name)
             return Status.FAILURE
 
         case, failure = self._require_case(case_id)
@@ -185,13 +189,13 @@ class RecordCaseCreatedEventNode(DataLayerActionWithPorts):
 
         case_id = self.case_id_bb
         if not isinstance(case_id, str):
-            self.logger.error(f"{self.name}: case_id not found in blackboard")
+            self.logger.error("%s: case_id not found in blackboard", self.name)
             return Status.FAILURE
 
         case = self.case_for_creation_events_bb
         if case is None:
             self.logger.error(
-                f"{self.name}: case_for_creation_events missing or invalid"
+                "%s: case_for_creation_events missing or invalid", self.name
             )
             return Status.FAILURE
 

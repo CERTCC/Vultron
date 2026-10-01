@@ -61,6 +61,11 @@ stakeholder_type: [project-contributor]
   - Adapters: catch and translate errors into HTTP responses or log entries
 - **Pydantic validator exceptions**: any custom exception raised from a `model_validator` or `field_validator` MUST inherit from `ValueError` (or `TypeError`/`AssertionError`) so Pydantic wraps it in `ValidationError` rather than letting it escape `model_validate()`. See `VultronProtocolViolationError` in `vultron/errors.py` for the canonical example; its docstring explains the requirement (issue #2905).
 - **Logging**: use `logging.getLogger(__name__)` at module level; `logger.debug(...)` for trace detail, `logger.warning(...)` for recoverable issues
+- **Log-call shape (SL-01-005)**: the message argument is a literal template and its values are lazy positional arguments, as in `logger.info("Actor %s engaged case %s", actor_id, case_id)`.
+  Never build the message before the call with an f-string, `str.format()`, `%`-formatting, or concatenation; `!r` in a former f-string becomes `%r`.
+  Ruff's `G` family (`G001`–`G004`) enforces this with no `ignore` entry and no `# noqa` markers.
+  Lazy arguments defer only rendering, not evaluation, so a guard such as `isEnabledFor(logging.DEBUG)` stays only around a value produced by an expensive call, with a comment saying so.
+  The reasoning is in `notes/structured-logging.md` § "Log-Call Shape: Template Plus Lazy Arguments (SL-01-005)".
 - **Sensitive data**: no specific redaction rules observed; [ASK USER] whether PII from vulnerability reports requires redaction at log points
 
 ### 5) Testing Conventions

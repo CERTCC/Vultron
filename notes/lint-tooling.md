@@ -210,9 +210,9 @@ on the side of the cycle that owns it. Do not add a file to this table to make a
 new finding go away — a new cycle is a new reorganization, and the marker it
 would carry needs its own tracking issue.
 
-**`G004` (`logging-f-string`) is the other provisional exclusion in the
-configuration that #3352 lands with, and that entry too is deleted, not
-kept — #3991 removes it.** Its ADR-0094 row cited #3378, which asked whether the
+**`G004` (`logging-f-string`) was the other provisional exclusion in the
+configuration that #3352 landed with, and that entry too was deleted, not
+kept — #3991 removed it.** Its ADR-0094 row cited #3378, which asked whether the
 rewrite target was lazy `%`-args or structured `extra=` fields. The answer is these
 were never alternatives: the template-plus-args shape decides how the *message*
 gets its values (SL-01-005), while `extra=`-style record fields are the
@@ -227,11 +227,12 @@ now" is not a reason to exclude (above). The reasoning is in
 [notes/structured-logging.md](structured-logging.md) § "Log-Call Shape: Template
 Plus Lazy Arguments (SL-01-005)".
 
-Until #3991 lands, the `G004` entry cites #3991 as its tracking issue
-(IMPLTS-07-019). Once it does, **no entry in `ignore` cites a tracking issue**:
-every remaining exclusion rests on one of the first three standing reasons
-above. A new provisional exclusion needs a new issue, and this section should
-name it.
+With #3991 landed, the `G004` entry is gone, the whole `G` family runs with no
+`ignore` entry and no `# noqa: G00x` marker, and a new f-string log call fails
+the gate. Once the `PLC0415` entry goes too (#3949), **no entry in `ignore`
+cites a tracking issue**: every remaining exclusion rests on one of the first
+three standing reasons above. A new provisional exclusion needs a new issue, and
+this section should name it.
 
 ## Baselining: `RUF100` is the ratchet
 

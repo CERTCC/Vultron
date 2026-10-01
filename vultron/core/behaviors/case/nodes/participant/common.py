@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, NamedTuple, cast
 import py_trees.behaviour
 from py_trees.common import Status
 
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.enums import VultronObjectType
@@ -235,7 +236,7 @@ def resolve_transition_context_or_report(
             f"Participant '{participant_id}' status is not core-shaped:"
             f" {exc} (ARCH-15-001)"
         )
-        node.logger.warning(f"{node.name}: {node.feedback_message}")
+        node_logger(node).warning("%s: %s", node.name, node.feedback_message)
         return Status.FAILURE
 
 
@@ -297,7 +298,7 @@ def validate_participant_status_write(
         violations=violations,
     )
     node.feedback_message = str(error)
-    node.logger.warning(f"{node.name}: {node.feedback_message}")
+    node_logger(node).warning("%s: %s", node.name, node.feedback_message)
     if result_out is not None:
         result_out["error"] = error
     return Status.FAILURE

@@ -115,7 +115,7 @@ class CreateCaseNode(DataLayerActionWithPorts):
             )
             if report_obj is None:
                 self.logger.error(
-                    f"{self.name}: Report {self.report_id} not found"
+                    "%s: Report %s not found", self.name, self.report_id
                 )
                 return Status.FAILURE
 
@@ -129,18 +129,24 @@ class CreateCaseNode(DataLayerActionWithPorts):
             try:
                 self.datalayer.create(case)
                 self.logger.info(
-                    f"{self.name}: Created VulnerabilityCase {case.id_}: {case.name}"
+                    "%s: Created VulnerabilityCase %s: %s",
+                    self.name,
+                    case.id_,
+                    case.name,
                 )
             except VultronAlreadyExistsError as e:
                 self.logger.warning(
-                    f"{self.name}: VulnerabilityCase {case.id_} already exists: {e}"
+                    "%s: VulnerabilityCase %s already exists: %s",
+                    self.name,
+                    case.id_,
+                    e,
                 )
 
             self._set_output("case_id", case.id_)
             return Status.SUCCESS
 
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
-            self.logger.error(f"{self.name}: Error creating case: {e}")  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s: Error creating case: %s", self.name, e)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -202,7 +208,7 @@ class CreateCaseActivity(DataLayerActionWithPorts):
             case_id = self.case_id_bb
             if case_id is None:
                 self.logger.error(
-                    f"{self.name}: case_id not found in blackboard"
+                    "%s: case_id not found in blackboard", self.name
                 )
                 return Status.FAILURE
 
@@ -219,7 +225,7 @@ class CreateCaseActivity(DataLayerActionWithPorts):
                 actor, report, offer_record, self.actor_id
             )
             self.logger.info(
-                f"{self.name}: Notifying addressees: {addressees}"
+                "%s: Notifying addressees: %s", self.name, addressees
             )
 
             case_obj = self.datalayer.read(case_id)
@@ -233,11 +239,16 @@ class CreateCaseActivity(DataLayerActionWithPorts):
             try:
                 self.datalayer.create(create_case_activity)
                 self.logger.info(
-                    f"{self.name}: Created CreateCaseActivity activity: {create_case_activity.id_}"
+                    "%s: Created CreateCaseActivity activity: %s",
+                    self.name,
+                    create_case_activity.id_,
                 )
             except VultronAlreadyExistsError as e:
                 self.logger.warning(
-                    f"{self.name}: CreateCaseActivity activity {create_case_activity.id_} already exists: {e}"
+                    "%s: CreateCaseActivity activity %s already exists: %s",
+                    self.name,
+                    create_case_activity.id_,
+                    e,
                 )
 
             self._set_output("activity_id", create_case_activity.id_)
@@ -245,6 +256,8 @@ class CreateCaseActivity(DataLayerActionWithPorts):
 
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                f"{self.name}: Error creating CreateCaseActivity activity: {e}"
+                "%s: Error creating CreateCaseActivity activity: %s",
+                self.name,
+                e,
             )
             return Status.FAILURE

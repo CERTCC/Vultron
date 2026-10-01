@@ -130,5 +130,5 @@ def create_manage_embargo_tree(
             ),
         ],
     )
-    logger.info(f"Created ManageEmbargoBT (Phase 1 stub) for case={case_id}")
+    logger.info("Created ManageEmbargoBT (Phase 1 stub) for case=%s", case_id)
     return root

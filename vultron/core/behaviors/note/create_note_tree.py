@@ -73,6 +73,6 @@ def create_note_tree(
         ],
     )
     logger.info(
-        f"Created CreateNoteBT for note={note_obj.id_}, case={case_id}"
+        "Created CreateNoteBT for note=%s, case=%s", note_obj.id_, case_id
     )
     return root
