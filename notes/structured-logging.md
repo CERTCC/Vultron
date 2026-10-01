@@ -75,7 +75,7 @@ in rendering move into logging.
 **A plain `py_trees` node's `self.logger` cannot take lazy arguments.** It is
 `py_trees.logging.Logger`, whose level methods accept one pre-rendered message,
 so `self.logger.debug("tick %s", n)` raises `TypeError` inside `update()`; and
-ruff's `G` rules recognise a logger by its receiver name (`logger`, `log`,
+ruff's `G` rules recognize a logger by its receiver name (`logger`, `log`,
 `self.logger`), not its type, so pre-rendering into an f-string fails the gate.
 Log through the stdlib logger that `vultron/core/behaviors/node_logger.py`'s
 `node_logger(node)` returns: the `DataLayer*` bases and the other Vultron node
