@@ -42,43 +42,7 @@ See [What Is Vultron?](topics/background/what-is-vultron.md) for the full answer
 
 ## Where to start
 
-Pick the description that matches your situation.
-
-<div class="grid cards" markdown>
-
-- :material-shield-search:{ .lg .middle } **You handle vulnerability reports and coordinate cases with other organizations**
-
-    ---
-
-    How a case moves under Vultron, what it asks of each participant, and how it maps onto what you already do.
-
-    [:octicons-arrow-right-24: Start here](start/coordinate-cases.md)
-
-- :fontawesome-solid-code:{ .lg .middle } **You maintain a vulnerability tracker and want it to talk to your partners**
-
-    ---
-
-    What your system sends and when, and where your own logic plugs in.
-
-    [:octicons-arrow-right-24: Start here](start/connect-your-tracker.md)
-
-- :material-chart-timeline-variant:{ .lg .middle } **You study how vulnerability disclosure works and want the models behind it**
-
-    ---
-
-    The process models, the measurements built on them, and the formal protocol definition.
-
-    [:octicons-arrow-right-24: Start here](start/study-the-process.md)
-
-- :material-source-pull:{ .lg .middle } **You want to work on the Vultron reference implementation**
-
-    ---
-
-    Run the demos, then learn how the codebase is built and why.
-
-    [:octicons-arrow-right-24: Start here](start/contribute.md)
-
-</div>
+{% include-markdown "./includes/start_here_cards.md" %}
 
 ## Who this documentation is for
 

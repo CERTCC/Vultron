@@ -642,7 +642,9 @@ groups:
       and in CI, failing when a generated landing page differs from what frontmatter
       implies, when a section index declares no shape or an unknown one, or when a routing
       index does not link a member of its section — the group's navigation members plus any
-      reader page in its own directory the navigation omits. Per DF-09-009 the check fails
+      reader page in its own directory the navigation omits. A link counts when the index
+      writes it or carries it in a fragment it includes uncut (no `start=` or `end=`), so
+      cards shared with another page route both (DF-10-002). Per DF-09-009 the check fails
       rather than passes when it resolves no generated page.
       `test/metadata/docs/test_site_sync.py` pins the committed set of generated, routing,
       and rendered indexes.

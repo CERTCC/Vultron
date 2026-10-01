@@ -144,6 +144,8 @@ code is required.
   a closed case cannot yet be reopened in the reference implementation.
 - Bad: the note handler and analogous handlers need a new closed-case guard, and
   `VP-03-013` / the RM-behavior satisfiers must be broadened beyond R\*.
+- Bad: a bystander `Leave(VulnerabilityCase)` is an external append too, so a participant that wants its departure recorded must leave before the Case Owner, and one arriving after close is declined with `as:Reject` and commits nothing (CM-23-013).
+- Neutral: the boundary is not chain finality, because the Case Actor's own housekeeping is not an external append, so `case_fully_closed` is not a log-complete marker; owner-close settles pending Invites first so that nothing follows it in practice (CM-23-002, CM-23-014).
 
 ## Validation
 
@@ -167,5 +169,6 @@ code is required.
 - ADR-0084 — Participant Assertion Authority (companion decision)
 - CONCERN-3106 — whether case closure should force participant RM state
   (resolved: only the leaver advances; bystanders retain their rung — CM-23-012)
+- CONCERN-3400 — `case_fully_closed` was called the last ledger entry while bystander `Leave`s still landed after it (resolved: CM-23-013, CM-23-014)
 - Deferred: post-join role change (`Update(CaseParticipant)`, #3065) and case
   reopen mechanics (#3066) are tracked as Ideas under Epic #2567.

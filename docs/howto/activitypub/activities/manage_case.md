@@ -122,7 +122,7 @@ What your closure does to the case depends on whether you are the Case Owner.
 - If you are **not** the Case Owner, only your own RM state advances to `RM.CLOSED`.
   The case stays open for everyone else (CM-23-003).
 - If you **are** the Case Owner, your `Leave(VulnerabilityCase)` closes the case.
-  The CASE_MANAGER advances you and itself to `RM.CLOSED` and commits a final `case_fully_closed` ledger entry (CM-23-002).
+  The CASE_MANAGER advances you and itself to `RM.CLOSED` and commits a `case_fully_closed` ledger entry (CM-23-002).
   Every other participant keeps the RM state it already held — closure does not advance bystanders (CM-23-012).
 
 !!! warning "An owner closure is refused while an embargo is active"
@@ -138,7 +138,7 @@ What your closure does to the case depends on whether you are the Case Owner.
 |---|---|
 | `Join(VulnerabilityCase)` | Your participant record shows `rm_state` = `ACCEPTED`. |
 | `Ignore(VulnerabilityCase)` | Your participant record shows `rm_state` = `DEFERRED`. |
-| `Leave(VulnerabilityCase)` | Your participant record shows `rm_state` = `CLOSED`. As Case Owner, also confirm a final `case_fully_closed` ledger entry. |
+| `Leave(VulnerabilityCase)` | Your participant record shows `rm_state` = `CLOSED`. As Case Owner, also confirm a `case_fully_closed` ledger entry. |
 | `Reject(Offer(VulnerabilityReport))` | Your RM state is `CLOSED` and no case was created. |
 
 Each transition is committed to the case ledger, so the same `rm_state` should be visible on every participant's replica, not only your own.
