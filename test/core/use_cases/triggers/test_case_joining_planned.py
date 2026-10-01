@@ -509,7 +509,10 @@ def test_reinvite_reuses_the_invitee_record_with_a_new_deadline(
 ) -> None:
     """Re-inviting an unanswered invitee adds no second record.
 
-    Today the re-invite goes out without a deadline.
+    Today no re-invite goes out at all: the CASE_MANAGER's recommend-actor
+    tree finds the invitee already on the roster and answers the owner's
+    Offer from its already-participant branch, ahead of the owner-direct
+    branch that emits the Invite (#3821).
     """
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
@@ -539,7 +542,9 @@ def test_reinvite_reuses_the_invitee_record_with_a_new_deadline(
 def test_reinvite_to_closed_participant_is_refused(actor_store) -> None:
     """``CLOSED`` is terminal with no rejoin; the trigger refuses the Invite.
 
-    Today the Invite is sent and queued.
+    Today the trigger accepts the request and queues the owner's Offer; the
+    CASE_MANAGER then answers it from its already-participant branch and
+    sends no Invite (#3821), so nothing refuses it.
     """
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")

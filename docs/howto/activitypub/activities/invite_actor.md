@@ -59,7 +59,7 @@ sequenceDiagram
 ## Send the invitation
 
 1. Trigger the invitation as Case Owner.
-   Your container sends your own `Offer(Actor, Case)` to the CASE_MANAGER, with the roles you offer in `suggestedRoles` (CM-17-007).
+   Your container sends your own `Offer(Actor)` to the CASE_MANAGER, with the invited actor as its `object`, the case as its `target`, and the roles you offer in `suggestedRoles` (CM-17-007).
    With no roles given, the CASE_MANAGER offers the default role (CM-16-003).
 2. The CASE_MANAGER commits and sends `Invite(Actor)` to the actor's inbox, with itself as the ActivityStreams `actor` and your identity in `attributedTo` (PCR-08-007, PCR-08-008).
    The trigger's `202` response means only that your `Offer` was queued, so watch for the `Invite` on the CASE_MANAGER's ledger, not in the response.

@@ -235,7 +235,7 @@ issue #4006 move it.
 
 ```text
 Case Owner triggers SvcInviteActorToCaseUseCase
-  → Case Owner sends its own Offer(CaseParticipant, suggestedRoles)
+  → Case Owner sends its own Offer(Actor, Case, suggestedRoles)
     → CASE_MANAGER's inbox (CM-17-007, ADR-0109)
   → CASE_MANAGER's recommend-actor tree takes the owner-direct branch, since
     the recommender holds CVDRole.CASE_OWNER (it does not forward the Offer)

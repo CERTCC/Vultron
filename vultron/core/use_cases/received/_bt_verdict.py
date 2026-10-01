@@ -229,13 +229,16 @@ def intake_verdict(
     *,
     label: str,
 ) -> HandlerResult:
-    """The ``HandlerResult`` for a tree whose only work is intake.
+    """The ``HandlerResult`` for a tree whose state change is intake.
 
-    Intake archives what arrived and nothing else, so a run that archived
-    the activity is ``APPLIED`` and a run that found it already archived is
-    the benign no-op of a redelivery, ``SKIPPED`` (HP-01-003).  The
-    intake node reports which it was, so the handler does not inspect the
-    DataLayer (ADR-0111).  A refused or failed run reads as
+    Intake archives what arrived, so a run that archived the activity is
+    ``APPLIED`` and a run that found it already archived is the benign no-op
+    of a redelivery, ``SKIPPED`` (HP-01-003).  A tree may also carry effect
+    nodes, but only ones that are idempotent on a redelivery — a narrative
+    log line, or a write that keeps an existing record (the invitee's trust
+    anchor) — because they run again and the verdict still reads
+    ``SKIPPED``.  The intake node reports which it was, so the handler does
+    not inspect the DataLayer (ADR-0111).  A refused or failed run reads as
     :func:`verdict_from_bt` reads it.
     """
     from vultron.core.behaviors.case.nodes.intake import (

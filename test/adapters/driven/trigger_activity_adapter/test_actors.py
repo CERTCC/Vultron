@@ -316,6 +316,31 @@ class TestAcceptCaseInvite:
                 invite_id="urn:uuid:held-without-case-id", actor=_INVITEE
             )
 
+    def test_a_held_record_that_does_not_validate_as_an_invite_is_refused(
+        self, adapter, monkeypatch
+    ):
+        """The adapter validates the held record into ``as_Invite`` at its
+        edge (ADR-0032), so a malformed one is refused there."""
+        from pydantic import BaseModel
+
+        from vultron.adapters.driven.trigger_activity_adapter import actors
+
+        class _Held(BaseModel):
+            type: str = "Invite"
+            actor: int = 42
+            target: str = _CASE_ID
+
+        monkeypatch.setattr(
+            actors, "read_received_activity", lambda *_args: _Held()
+        )
+
+        with pytest.raises(
+            VultronValidationError, match="does not validate as an Invite"
+        ):
+            adapter.accept_case_invite(
+                invite_id="urn:uuid:held-malformed", actor=_INVITEE
+            )
+
     def test_an_archived_activity_that_is_not_an_invite_is_refused(
         self, adapter, dl
     ):

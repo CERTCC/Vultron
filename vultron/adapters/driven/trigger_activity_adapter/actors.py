@@ -19,11 +19,12 @@ Covers actor invitations, recommendations, participant management, and
 Case Actor / CASE_MANAGER delegation activities.
 """
 
+import json
 import logging
 from collections.abc import Mapping
 from typing import Any, cast
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -57,6 +58,9 @@ from vultron.wire.as2.factories.case import (
     reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Invite,
+)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 
@@ -83,7 +87,7 @@ def _active_embargo_of(
 
 def _stored_invite_by_case_uri(
     dl: CaseOutboxPersistence, invite_id: str
-) -> BaseModel:
+) -> as_Invite:
     """Read the received Invite with its ``target`` reduced to the case URI.
 
     The Invite is read as this invitee holds it (``read_received_activity``):
@@ -93,10 +97,15 @@ def _stored_invite_by_case_uri(
     case, so the embedded Invite addresses it by URI (AKM-02-003) rather than
     carrying the stub or a reconstruction of it (VM-08-003).
 
+    The held record is validated into ``as_Invite`` here, at the adapter
+    edge (ADR-0032): intake archives the activity as the event carried it,
+    a core activity the wire factories cannot name (ARCH-22-001).
+
     Raises:
         VultronNotFoundError: when no activity with *invite_id* was received.
-        VultronValidationError: when the stored record is not a model, or
-            its inline ``target`` carries no id.
+        VultronValidationError: when the stored record is not a model, its
+            inline ``target`` carries no id, or it does not validate as an
+            Invite.
     """
     held = read_received_activity(dl, invite_id, "RmInviteToCaseActivity")
     if not isinstance(held, BaseModel):
@@ -120,7 +129,18 @@ def _stored_invite_by_case_uri(
                 " cannot address the reply to the case"
             )
         invite = invite.model_copy(update={"target": target_id})
-    return invite
+    if isinstance(invite, as_Invite):
+        return invite
+    try:
+        return as_Invite.model_validate(
+            json.loads(
+                invite.model_dump_json(by_alias=True, serialize_as_any=True)
+            )
+        )
+    except ValidationError as exc:
+        raise VultronValidationError(
+            f"invite '{invite_id}' does not validate as an Invite"
+        ) from exc
 
 
 class _ActorsMixin:

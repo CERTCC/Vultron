@@ -26,7 +26,7 @@ import json
 import logging
 from typing import Any, cast
 
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import (
@@ -738,14 +738,15 @@ def rm_invite_to_case_activity(
         ) from exc
 
 
-def _as_case_invite(invite: BaseModel) -> _RmInviteToCaseActivity:
+def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:
     """Return *invite* as the case-Invite class the reply activities embed.
 
     An Invite the invitee holds came through intake, which archives the
     activity as the event carried it (CLP-10-017, ADR-0111) — not as this
-    class.  Anything else is validated into it from its JSON form.  The class
-    sets its own ``type`` rather than checking the input's, so the input's
-    ``type`` is checked first.
+    class.  The caller validates that record into ``as_Invite`` at its edge
+    (ADR-0032); this function validates it on into the case-Invite class from
+    its JSON form.  Neither class checks the input's ``type`` (both set their
+    own), so it is checked here first.
 
     Raises:
         VultronActivityConstructionError: when *invite* is not an Invite, or
@@ -770,7 +771,7 @@ def _as_case_invite(invite: BaseModel) -> _RmInviteToCaseActivity:
 
 
 def rm_accept_invite_to_case_activity(
-    invite: as_Invite | BaseModel,
+    invite: as_Invite,
     **kwargs,
 ) -> as_Accept:
     """Build an Accept(_RmInviteToCaseActivity) — the RV message.
@@ -778,8 +779,9 @@ def rm_accept_invite_to_case_activity(
     Accepts a case invitation.  The internal class automatically sets
     ``in_reply_to`` to the invite's ``id_`` if not provided.
     The ``invite`` is the value :func:`rm_invite_to_case_activity`
-    returned, or a received Invite as intake archived it, which is validated
-    into the case-Invite class; anything that is not a case Invite fails.
+    returned, or a received Invite the caller has validated into
+    ``as_Invite``; it is validated on into the case-Invite class, and
+    anything that is not a case Invite fails.
 
     Args:
         invite: The ``_RmInviteToCaseActivity`` being accepted.
@@ -807,7 +809,7 @@ def rm_accept_invite_to_case_activity(
 
 
 def rm_reject_invite_to_case_activity(
-    invite: as_Invite | BaseModel,
+    invite: as_Invite,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(_RmInviteToCaseActivity) — the RI message.
@@ -815,8 +817,9 @@ def rm_reject_invite_to_case_activity(
     Rejects a case invitation.  The internal class automatically sets
     ``in_reply_to`` to the invite's ``id_`` if not provided.
     The ``invite`` is the value :func:`rm_invite_to_case_activity`
-    returned, or a received Invite as intake archived it, which is validated
-    into the case-Invite class; anything that is not a case Invite fails.
+    returned, or a received Invite the caller has validated into
+    ``as_Invite``; it is validated on into the case-Invite class, and
+    anything that is not a case Invite fails.
 
     Args:
         invite: The ``_RmInviteToCaseActivity`` being rejected.
