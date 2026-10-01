@@ -8,6 +8,8 @@ description: >
 related_specs:
   - specs/case-management.yaml
   - specs/participant-role-management.yaml
+  - specs/rm-behavior.yaml
+  - specs/vultron-as2-mapping.yaml
   - specs/participant-case-replica.yaml
   - specs/sync-ledger-replication.yaml
 related_notes:
@@ -28,8 +30,8 @@ relevant_packages:
 # Joining a Case — Stub Invite, Inert Participant, Full-Case Invite
 
 The decisions are ADR-0114 (joining, inert participants, the stub type, the
-`R → C` transition) and ADR-0070 (judging the case). This note keeps the flow in one place
-and records what the earlier model got wrong, because each piece of that model
+`R → C` transition) and ADR-0070 (judging the case). This note keeps the flow in
+one place and records what the earlier model got wrong, because each piece of that model
 was internally consistent and the error only showed once all of them were laid
 side by side.
 
@@ -51,15 +53,18 @@ side by side.
 A stub Invite has two replies, not three: there is no `TentativeReject` of a
 stub, because accepting a stub is not a judgement of the case.
 
-**Active** means: accepted the stub Invite, and — only when an embargo is
-active — `SIGNATORY` to it. "Inert until SIGNATORY" is wrong, because many cases
+**Active** means: seated by the case initialization sequence (the Case Owner,
+the CASE_MANAGER and the reporter, who are never sent a stub) or accepted the
+stub Invite, and — only when an embargo is active — `SIGNATORY` to it. "Inert until SIGNATORY" is wrong, because many cases
 have no active embargo: one not yet established, or one already exited.
 
 ## Edge cases
 
 - **Unanswered stub Invite.** It carries a reply deadline; on expiry the
   *Invite* closes as an expired ask and the record stays inert at `RECEIVED`
-  (CM-11-014). The CASE_MANAGER never closes an invitee's RM for it.
+  (CM-11-014). The CASE_MANAGER never closes an invitee's RM for it, and consent
+  stays `INVITED`: the lapse-to-`DECLINED` rule (CM-28-004) is for an expired
+  `Invite(EmbargoEvent)`, not for the terms a stub carries.
   "All participants closed" counts only participants that joined.
 - **Re-invite.** Same record, fresh stub Invite, new deadline. Refused for a
   participant at `CLOSED` — terminal, no rejoin (CM-11-015, ADR-0085).

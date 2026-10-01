@@ -14,6 +14,7 @@ related_notes:
   - notes/case-state-model.md
   - notes/message-type-reference.md
   - notes/testing-pitfalls.md
+  - notes/case-joining.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/wire/as2

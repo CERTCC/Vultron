@@ -17,6 +17,7 @@ related_notes:
   - notes/case-communication-model.md
   - notes/message-type-reference.md
   - notes/protocol-asks.md
+  - notes/case-joining.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -90,6 +91,13 @@ participant's consent state is `SIGNATORY`; `False` for all other states.
 | `LAPSED` | Direct `Accept` of revised terms | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
 | `DECLINED` | Case owner re-extends invitation | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
 | Any | Shared EM exits (`EXITED`) | `UNBOUND` | Cascade: `ET` side-effect; no outbound PEC message |
+
+The stub Invite that brings an actor into a case (ADR-0114) drives the same
+states when an embargo is active: sending it records the new participant at
+`INVITED` (CM-11-006), `Accept(Invite(stub))` moves it to `SIGNATORY`
+(CM-11-001), and `Reject(Invite(stub))` to `DECLINED` (CM-11-007). An expired
+stub Invite changes no participant state (CM-11-014). See
+[case-joining.md](case-joining.md).
 
 Normative: `specs/case-management.yaml` CM-18-003. Decision: ADR-0048.
 MSM coupling: `specs/message-semantics-mapping.yaml` MSM-07.

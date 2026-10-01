@@ -78,7 +78,7 @@ without letting the Case Actor fabricate state it cannot observe.
 - **`v→V` (vendor aware) MAY be asserted on behalf of a Vendor-role
   participant** by a Case Manager or Case Owner, because the notification event
   is itself observable evidence. Any acknowledgement from the vendor of any
-  message sent to it — even a `Read(Invite(Case))` — is sufficient evidence.
+  message sent to it — even a `Read(Invite(stub))` — is sufficient evidence.
   The bump changes VF only, never RM.
 - **`d→D` (fix deployed) MAY be asserted on behalf of a Deployer-role
   participant** by a Case Manager or Case Owner under the same

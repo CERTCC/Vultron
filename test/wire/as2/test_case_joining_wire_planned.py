@@ -224,3 +224,23 @@ def test_full_case_invite_reject_is_not_the_stub_reject() -> None:
 
     assert full not in _UNKNOWN
     assert full != _semantics_of("reject", _stub_invite())
+
+
+@pytest.mark.spec("VAM-04-006")
+def test_reject_of_stub_invite_is_reject_invite_actor_to_case() -> None:
+    """``Reject(Invite(Actor)[target=VulnerabilityCaseStub])`` is the stub Reject.
+
+    Passing marker: the stub Invite's target is already the stub object, and
+    its ``Reject`` already classifies as ``REJECT_INVITE_ACTOR_TO_CASE``.
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseStub,
+    )
+
+    stub_invite = _stub_invite()
+
+    assert isinstance(stub_invite.target, as_VulnerabilityCaseStub)
+    assert (
+        _semantics_of("reject", stub_invite)
+        is MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE
+    )

@@ -110,7 +110,9 @@ change. It is the one place a vendor participant carries `v`.
 
 A participant is **active** when both hold:
 
-1. it has accepted the stub Invite, and
+1. it was seated by the case initialization sequence (CM-14-001) — the Case
+   Owner, the CASE_MANAGER and the reporter, none of whom is sent a stub — or it
+   has accepted the stub Invite, and
 2. no embargo is active, or its embargo consent is `SIGNATORY`.
 
 Every other participant is **inert**. An inert participant exists in the case
@@ -151,7 +153,10 @@ the deadline passes unanswered, the **Invite** expires as an unanswered ask; the
 participant's state does not change. The record stays inert at `RECEIVED`,
 which records the truth: told, never answered. The CASE_MANAGER cannot close the
 invitee's RM for it — RM is the participant's own judgement (ADR-0084) — so a
-timeout never stands in for one.
+timeout never stands in for one. That includes embargo consent: it stays
+`INVITED`. An expired embargo Invite lapses to `DECLINED` (CM-28-004), but an
+unanswered stub is not a refusal to join, and the invitee may be re-invited on
+the same record.
 
 Case-wide closure checks ("have all participants closed?") count only
 participants that joined. An invitee that never answered does not block
@@ -182,6 +187,12 @@ replacement. A `Reject` of a superseded stub Invite is still honoured: declining
 to join does not depend on the terms. The invitee's single `Accept` therefore
 always answers a stub that shows the current embargo state, and nobody joins at
 `LAPSED`.
+
+A revision *proposal* is not such a change: it is relayed to the invitee as an
+embargo Invite (EP-09-002) like any other non-closed participant. Answering that
+Invite records the invitee's consent to the proposed terms and does not join the
+case — only an `Accept` of the stub does. If the revision is then activated, the
+stub is re-issued as above.
 
 The superseded Invite is **not** retracted with an `Undo`. Correctness does not
 depend on a retraction — the refusal already prevents joining on stale terms —

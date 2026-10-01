@@ -17,6 +17,7 @@ related_notes:
   - notes/message-type-reference.md
   - notes/embargo-lifecycle.md
   - notes/protocol-asks.md
+  - notes/case-joining.md
 relevant_packages:
   - pydantic
   - vultron/wire/as2
@@ -200,19 +201,26 @@ actor. Each activity hits the inbox of a **different** actor:
 
 | Activity | Sender | Recipient inbox | Handler |
 |----------|--------|-----------------|---------|
-| `Invite(object=Actor, target=Case)` | Case Owner | Target Actor | `invite_actor_to_case` — stores invite for local consideration |
-| `Accept(object=Invite)` | Target Actor | Case Owner | `accept_invite_actor_to_case` — creates `CaseParticipant` |
-| `Reject(object=Invite)` | Target Actor | Case Owner | `reject_invite_actor_to_case` — logs rejection |
+| `Invite(object=Actor, target=VulnerabilityCaseStub)` | CASE_MANAGER | Target Actor | `invite_actor_to_case` — stores invite for local consideration |
+| `Accept(object=Invite)` | Target Actor | CASE_MANAGER | `accept_invite_actor_to_case` — activates the existing `CaseParticipant` |
+| `Reject(object=Invite)` | Target Actor | CASE_MANAGER | `reject_invite_actor_to_case` — closes the kept record (`R → C`) |
 
-**Consequence for implementation**: The `CaseParticipant` creation logic
-belongs in `accept_invite_actor_to_case` (the case owner's inbox handler),
-**not** in `invite_actor_to_case` (the target actor's inbox handler). Each
-actor only processes their own inbox.
+**Consequence for implementation**: the target model (ADR-0114, CM-11-006)
+creates the invitee's `CaseParticipant` on the *sending* side, when the
+CASE_MANAGER issues the stub Invite — inert, at `RM.RECEIVED` — and the
+CASE_MANAGER's reply handlers update that record. The target actor's
+`invite_actor_to_case` handler never creates it: each actor only processes its
+own inbox, and the invitee does not own the case's roster. (The code still
+creates the participant in `accept_invite_actor_to_case`; the #4006
+implementation issues move it.)
 
 This asymmetry is easy to miss. It reflects the ActivityPub convention that
 responses are addressed to the original sender, and the work triggered by the
-response (creating a participant record) is the responsibility of the party
-who initiated the flow (the case owner).
+response is the responsibility of the party that initiated the flow (the
+CASE_MANAGER). After a stub `Accept`, the CASE_MANAGER also sends a second,
+full-case `Invite(Actor, VulnerabilityCase)`, whose reply is the participant's
+judgement of the case (ADR-0070, CM-11-010/011); see
+[case-joining.md](case-joining.md).
 
 The same pattern applies to embargo Invite/Accept/Reject flows:
 `invite_to_embargo_on_case` hits the invitee's inbox, while
@@ -420,16 +428,18 @@ Re-engagement is correctly implemented as a second `RmEngageCase` (`as:Join`) ac
 
 > See also: [activitystreams-state-update.md](activitystreams-state-update.md) for the continuation of these design notes.
 
-## `Reject(Invite(actor, case))` Carries the Case in `inner_target`
+## `Reject(Invite(actor, stub))` Carries the Stub in `inner_target`
 
-`extract_event` does NOT populate `request.target` for the Reject; the case
-reference is on the nested Invite's `target` field, exposed as
-`request.inner_target_id`. Always read `request.inner_target_id or
-request.target_id` (or use a typed `case_id` property on the event class) when
-resolving `case_id` for `RejectInviteActorToCaseReceivedUseCase`. The same
-nesting applies to `Accept(Invite(actor, case))` —
-`AcceptInviteActorToCaseReceivedEvent.case_id` already follows this pattern.
-See CM-11-003.
+`extract_event` does NOT populate `request.target` for the Reject; the stub is
+on the nested Invite's `target` field, exposed as `request.inner_target_id`.
+Always read `request.inner_target_id or request.target_id` (or use a typed
+`case_id` property on the event class) when resolving `case_id` for
+`RejectInviteActorToCaseReceivedUseCase`. The same nesting applies to
+`Accept(Invite(actor, stub))` — `AcceptInviteActorToCaseReceivedEvent.case_id`
+already follows this pattern. Under ADR-0114 the stub has its own ID
+(`<case-id>/stub`) and names the case in a field of its own: resolve `case_id`
+from the case the stub names, never by parsing the stub's ID (CM-11-003,
+CM-11-013).
 
 Source: ISSUE-1747
 

@@ -4,9 +4,12 @@ status: active
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
+  - specs/case-management.yaml
+  - specs/rm-behavior.yaml
 related_notes:
   - notes/ci-workflow-authoring.md
   - notes/demo-scenario-registry.md
+  - notes/case-joining.md
 ---
 
 # Demo CI: Scenario Coverage Matrix and Minimum PR Validation Set
@@ -67,15 +70,18 @@ generate-vs-check split".
   approves a suggested participant. It fires only in scenarios that include the
   ADR-0026 suggest-actor flow: `fvcv-extension`, `fccv-extension`, and `fcvcv`.
 - `reject_invite_actor_to_case` is emitted by `RejectInviteActorToCaseReceivedUseCase`
-  on the CaseActor when an invitee sends `Reject(Invite(actor, case))` — an
-  **invitation-layer** rejection (not an RM-state RI/RC message). It fires only in
-  `fcv-reject` (IDEA-1218): the Vendor receives the case invitation and sends
-  `Reject(Invite(actor, case))` to decline it, which triggers
-  `RejectInviteActorToCaseReceivedUseCase` on the CaseActor. Because the Vendor
-  rejects rather than accepts, `accept_invite_actor_to_case` does NOT appear in
-  this scenario. No other current scenario exercises this ledger entry.
-  **Invariant 15 note**: because the Vendor never participates, no actor advances
-  the VFD state machine and the `VFd` CS state (vf_state=VF, d_state=d) is structurally unreachable.
+  on the CaseActor when an invitee sends `Reject(Invite(actor, stub))` to
+  decline the stub Invite. It fires only in `fcv-reject` (IDEA-1218): the Vendor
+  receives the case invitation and sends `Reject(Invite(actor, stub))`, which
+  triggers `RejectInviteActorToCaseReceivedUseCase` on the CaseActor. Because
+  the Vendor rejects rather than accepts, `accept_invite_actor_to_case` does
+  NOT appear in this scenario. No other current scenario exercises this ledger
+  entry. Under the target model (ADR-0114) a stub Reject **is** an RM message:
+  it closes the Vendor's kept, inert participant record, `R → C` (CM-11-007,
+  RMB-14-004); today's code records it as an invitation-layer rejection only.
+  **Invariant 15 note**: because the Vendor never joins the case, no actor
+  advances the VFD state machine past `V`, and the `VFd` CS state
+  (vf_state=VF, d_state=d) is structurally unreachable.
   However, `check_cs_state_transitions_observed()` in
   `test/ci/invariants/common.py` no longer accepts a `check_fix_ready` parameter
   — the VFd assertion is unconditional as of PR #2152. `test_invariant_15` in
@@ -85,7 +91,8 @@ generate-vs-check split".
   parameter no longer exists (DEMOCI-06-001, ISSUE-2121, PR #2152).
 - `add_case_participant` is emitted by `AcceptInviteNode`
   (`vultron/core/behaviors/case/nodes/accept_invite.py:181`) on the CaseActor
-  received-side when processing Accept(Invite). This event records the internal
+  received-side when processing Accept(Invite). (The target model moves
+  participant creation to the stub Invite, CM-11-006.) This event records the internal
   participant-list bookkeeping rather than a protocol-visible coordination action.
   It fires in every scenario with invite/accept flows but is intentionally
   excluded from `_EXPECTED_EVENT_TYPES` lists: it is a `CaseActor`-internal
@@ -117,7 +124,7 @@ advance the CVD protocol state and are recorded in the replicated case ledger.
 | `offer_case_participant` | Suggest-actor flow (ADR-0026) |
 | `accept_invite_actor_to_case` | Invitation acceptance |
 | `accept_actor_recommendation` | Recommendation approval (ADR-0026) |
-| `reject_invite_actor_to_case` | Invitation-layer rejection (`Reject(Invite(actor, case))`) |
+| `reject_invite_actor_to_case` | Stub Invite declined (`Reject(Invite(actor, stub))`; `R → C` under ADR-0114) |
 
 ### Dimensions covered outside Invariant 5
 
@@ -164,7 +171,7 @@ canonical order, everywhere".
 | fccv-extension | covered by fcvcv | Same offer+invite+accept coverage; no additional phases |
 | fccv-handoff | covered by fvcv-handoff | Same invite+accept+ownership-transfer; no additional phases |
 | fcv | covered by fvcv-handoff | Same invite+accept coverage; no additional phases |
-| fcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(actor, case))` (invitation-layer rejection) |
+| fcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(actor, stub))` (declines the stub Invite) |
 | fcvcv | ✓ (member) | Adds `offer_case_participant` + `accept_actor_recommendation` + ≥3-actor invite/accept chains |
 | fv | ✓ (member) | 2-actor baseline; covers all universal event types (DEMOMA-16-001) with no invitation phases |
 | fvcv-extension | covered by fcvcv | Same offer+invite+accept coverage; no additional phases |
@@ -258,6 +265,7 @@ do not appear in any scenario unless explicitly scripted.
 | D → A (resumed after deferral) | non-linear | `fcvcv` (Var B, planned) |
 | I → C (closed from invalid) | non-linear | not yet exercised by any scenario |
 | V → D (deferred without accepting) | non-linear | not yet exercised by any scenario |
+| R → C (stub Invite rejected) | non-linear | `fcv-reject` once RMB-14-004 lands |
 
 **Notes:**
 

@@ -7,6 +7,9 @@ description: >
   property). Source: IDEA-26050401.
 related_specs:
   - specs/participant-role-management.yaml
+  - specs/case-management.yaml
+related_notes:
+  - notes/case-joining.md
 relevant_packages:
   - vultron/core/models/case_participant.py
   - vultron/wire/as2/vocab/objects/case_participant.py
@@ -58,11 +61,22 @@ Participant status is self-declaratory by default (PRM-06-001, ADR-0084). Two
 narrow on-behalf exceptions exist:
 
 - **v→V** (`CS_vf.Vf`): a Case Manager or Case Owner MAY assert vendor awareness
-  on behalf of a notified-but-not-joined vendor (PRM-06-003).
+  on behalf of a vendor participant whose notification is evidenced — typically
+  an inert invitee that has not yet replied to its stub Invite (PRM-06-003).
 - **d→D** (`CS_d.D`): the same asserting actors MAY assert deployer deployment
-  under externally-evidenced exceptional circumstances (PRM-06-004).
+  under externally-evidenced exceptional circumstances (PRM-06-004). The
+  RM↔D entailment still applies, so it succeeds only for a deployer whose RM
+  state is consistent with deployment.
 - **f→F** (`CS_vf.VF`) is always Vendor-only and cannot be asserted on behalf
   of another actor (PRM-06-005).
+
+The two on-behalf exceptions target an **existing** participant only. An
+on-behalf assertion for an actor that is not a participant is refused before
+any write and never creates one (PRM-06-006, ADR-0084): a status update is
+never a way into a case — joining is the Invite flow ([case-joining.md](case-joining.md), ADR-0114). The
+current code still mints a participant for an absent target
+(`EnsureOnBehalfParticipantExistsNode`); #4006's implementation issues remove
+that.
 
 The **Vendor-implies-V invariant** (PRM-06-002): a participant holding
 `CVDRole.VENDOR` cannot assert `CS_vf.vf` (vendor-unaware) — a vendor that

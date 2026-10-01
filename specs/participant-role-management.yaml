@@ -331,7 +331,7 @@ groups:
     statement: >-
       A Case Manager or Case Owner MAY assert ``v→V`` (``CS_vf.Vf``) on behalf
       of a Vendor-role participant when the notification or invite is evidenced
-      (any vendor acknowledgement — including ``Read(Invite(Case))`` —
+      (any vendor acknowledgement — including ``Read(Invite(stub))`` —
       suffices).  The target MUST already be a participant in the case —
       typically an inert invitee that has not yet replied — and the write MUST
       NOT change its RM state (ADR-0084).

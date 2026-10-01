@@ -21,7 +21,12 @@ case: the invitee already holds an *inert* participant record at RM
 - CM-11-008 — ``Accept`` of the stub Invite seeds the case, then replays.
 - CM-11-009 — any stub reply from a vendor sets VF ``V``.
 - CM-11-010 — the CASE_MANAGER follows up with the full-case Invite.
-- CM-11-012 — a full-case reply without the floor position is refused.
+- CM-11-003 — a stub-Invite reply resolves the case the stub names.
+- CM-11-011 — the three full-case replies are R → V, R → I and R → C.
+- CM-11-012 — a full-case reply is checked against the Invite's floor.
+- CM-11-002, CM-11-004 — ``Join``/``Ignore`` engage or defer; joining alone
+  is not RM.ACCEPTED (passing markers: already true today).
+- RMB-14-005 — ``Leave`` from RM.VALID is recorded as V → D → C.
 
 Replies are routed the way the inbox routes them — semantic extraction then
 ``use_case_map()`` — so a test keeps working when the implementation adds new
@@ -424,3 +429,298 @@ def test_full_case_invite_reply_without_floor_position_is_refused(
     assert result.disposition is HandlerDisposition.REFUSED
     latest = joining_case.participant().participant_statuses[-1]
     assert participant_status_rm_state(latest) == RM.RECEIVED
+
+
+def _ledger_tail(joining: _JoiningCase) -> list[Any]:
+    """The CASE_MANAGER's ledger entries for the case, in ``log_index`` order."""
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+    return sorted(
+        (
+            entry
+            for entry in joining.dl.list_objects("CaseLedgerEntry")
+            if isinstance(entry, CaseLedgerEntry)
+            and entry.case_id == joining.case.id_
+        ),
+        key=lambda entry: entry.log_index,
+    )
+
+
+def _position(log_index: int, entry_hash: str) -> dict[str, Any]:
+    """The wire fields carrying a ledger position (CM-11-010, CM-11-011).
+
+    The implementation fixes their names; ``log_index``/``entry_hash`` are the
+    names the requirements use.  This is the one place that spells them.
+    """
+    return {"log_index": log_index, "entry_hash": entry_hash}
+
+
+def _full_case_invite_at(
+    joining: _JoiningCase, *, log_index: int, entry_hash: str
+) -> as_Invite:
+    """Store a full-case Invite whose ledger-position floor is the given entry."""
+    invite = as_Invite(
+        id_=f"{joining.case.id_}/invitations/full-floor-{log_index}",
+        actor=joining.case_actor_id,
+        object_=as_Organization(id_=joining.invitee_id),
+        target=joining.case,
+        to=[joining.invitee_id],
+        **_position(log_index, entry_hash),
+    )
+    joining.dl.create(invite)
+    return invite
+
+
+def _full_case_reply_at(
+    kind: str, joining: _JoiningCase, invite: as_Invite, *, position: Any
+) -> as_Activity:
+    """A reply to *invite* carrying the replier's ledger position (CM-11-011)."""
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Reject,
+        as_TentativeReject,
+    )
+
+    reply_class = {
+        "accept": as_Accept,
+        "tentative_reject": as_TentativeReject,
+        "reject": as_Reject,
+    }[kind]
+    return reply_class(
+        actor=joining.invitee_id,
+        object_=invite,
+        in_reply_to=invite.id_,
+        **_position(position.log_index, position.entry_hash),
+    )
+
+
+def _rm_history(joining: _JoiningCase) -> list[RM]:
+    return [
+        participant_status_rm_state(status)
+        for status in joining.participant().participant_statuses
+    ]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-11-011: the CASE_MANAGER records RV/RI/RC replies to the full-case"
+        f" Invite as R → V / R → I / R → C. {_REASON_SUFFIX}"
+    ),
+)
+@pytest.mark.spec("CM-11-011")
+@pytest.mark.parametrize(
+    ("reply", "expected"),
+    [
+        ("accept", RM.VALID),
+        ("tentative_reject", RM.INVALID),
+        ("reject", RM.CLOSED),
+    ],
+)
+def test_full_case_invite_reply_moves_rm_from_received(
+    joining_case, reply: str, expected: RM
+) -> None:
+    """Each full-case reply at the Invite's floor is one RM transition.
+
+    Today ``Accept`` is handled as a stub-Invite Accept (RM stays
+    ``RECEIVED``), ``TentativeReject`` matches no pattern, and ``Reject``
+    commits a ledger entry without moving RM.
+    """
+    tail = _ledger_tail(joining_case)[-1]
+    invite = _full_case_invite_at(
+        joining_case, log_index=tail.log_index, entry_hash=tail.entry_hash
+    )
+    activity = _full_case_reply_at(reply, joining_case, invite, position=tail)
+    semantics = find_matching_semantics(activity)
+    assert semantics.name not in {"UNKNOWN", "UNKNOWN_UNRESOLVABLE_OBJECT"}, (
+        f"{reply} of the full-case Invite matches no pattern"
+    )
+
+    result = joining_case.route(activity)
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert _rm_history(joining_case)[-2:] == [RM.RECEIVED, expected]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-11-012: a full-case Invite reply behind the floor, or naming an"
+        " entry the ledger does not hold, is refused; one beyond the floor is"
+        f" accepted. {_REASON_SUFFIX}"
+    ),
+)
+@pytest.mark.spec("CM-11-012")
+@pytest.mark.parametrize(
+    ("floor", "reply_at", "forge_hash", "refused"),
+    [
+        (1, 0, False, True),
+        (1, 1, True, True),
+        (0, 1, False, False),
+    ],
+    ids=["behind-the-floor", "unknown-entry", "beyond-the-floor"],
+)
+def test_full_case_invite_reply_position_is_checked_against_the_floor(
+    joining_case, floor: int, reply_at: int, forge_hash: bool, refused: bool
+) -> None:
+    """The Invite's position is a floor, not a pin (ADR-0070).
+
+    A reply behind it is refused, as is one naming a hash the CASE_MANAGER's
+    ledger does not hold at that index; a reply beyond it is better informed
+    and accepted (RM ``RECEIVED → VALID``).  Today the position is ignored
+    and the Accept is handled as a stub-Invite Accept.
+    """
+    entries = _ledger_tail(joining_case)
+    assert [e.log_index for e in entries][:2] == [0, 1]
+    invite = _full_case_invite_at(
+        joining_case,
+        log_index=entries[floor].log_index,
+        entry_hash=entries[floor].entry_hash,
+    )
+    position = entries[reply_at]
+    if forge_hash:
+        position = position.model_copy(update={"entry_hash": "0" * 64})
+
+    result = joining_case.route(
+        _full_case_reply_at("accept", joining_case, invite, position=position)
+    )
+
+    if refused:
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert _rm_history(joining_case)[-1] == RM.RECEIVED
+    else:
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
+        assert _rm_history(joining_case)[-1] == RM.VALID
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-11-003: a stub-Invite reply resolves its case from the case the"
+        f" stub names, not from the stub's own ID. {_REASON_SUFFIX}"
+    ),
+)
+@pytest.mark.spec("CM-11-003")
+def test_stub_invite_reply_resolves_case_from_the_case_the_stub_names(
+    joining_case,
+) -> None:
+    """The stub has its own ID (CM-11-013), so the case cannot come from it.
+
+    The reply's top-level ``target`` is unset; the case is the one the nested
+    Invite's stub names.  Today the stub carries the case's own ID, so
+    "derive the case from the stub's ID" and "resolve the named case" cannot
+    be told apart.
+    """
+    accept = rm_accept_invite_to_case_activity(
+        joining_case.stub_invite, actor=joining_case.invitee_id
+    )
+    stub = joining_case.stub_invite.target
+    assert accept.target is None
+
+    assert getattr(stub, "id_", stub) != joining_case.case.id_, (
+        "the stub must carry its own ID for this requirement to be observable"
+    )
+    assert getattr(extract_event(accept), "case_id", None) == (
+        joining_case.case.id_
+    )
+    result = joining_case.route(accept)
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+
+
+def _advance_invitee_to(joining: _JoiningCase, state: RM) -> None:
+    """Record *state* on the invitee's participant, as a full-case reply would."""
+    participant = joining.participant()
+    participant.participant_statuses.append(
+        ParticipantStatus(
+            context=joining.case.id_,
+            attributed_to=joining.invitee_id,
+            rm=RmDimension(state=state),
+            vf=VfDimension(state=CS_vf.Vf),
+            cvd_role=[CVDRole.VENDOR],
+        )
+    )
+    joining.dl.save(participant)
+
+
+@pytest.mark.spec("CM-11-004")
+def test_joined_participant_is_not_accepted_until_it_sends_join(
+    joining_case,
+) -> None:
+    """Joining is not committing: only ``Join(VulnerabilityCase)`` is RM.ACCEPTED.
+
+    The stub Accept leaves the record at ``RECEIVED``; once the participant
+    has judged the case valid, its ``Join`` moves it to ``ACCEPTED``.
+    """
+    from vultron.wire.as2.factories import rm_engage_case_activity
+
+    joining_case.route(
+        rm_accept_invite_to_case_activity(
+            joining_case.stub_invite, actor=joining_case.invitee_id
+        )
+    )
+    assert RM.ACCEPTED not in _rm_history(joining_case)
+
+    _advance_invitee_to(joining_case, RM.VALID)
+    result = joining_case.route(
+        rm_engage_case_activity(
+            joining_case.case, actor=joining_case.invitee_id
+        )
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert _rm_history(joining_case)[-1] == RM.ACCEPTED
+
+
+@pytest.mark.spec("CM-11-002")
+@pytest.mark.parametrize(
+    ("decision", "expected"),
+    [("join", RM.ACCEPTED), ("ignore", RM.DEFERRED)],
+)
+def test_valid_participant_engages_or_defers_with_join_or_ignore(
+    joining_case, decision: str, expected: RM
+) -> None:
+    """After judging the case valid, ``Join`` engages and ``Ignore`` defers."""
+    from vultron.wire.as2.factories import (
+        rm_defer_case_activity,
+        rm_engage_case_activity,
+    )
+
+    build = {"join": rm_engage_case_activity, "ignore": rm_defer_case_activity}
+    _advance_invitee_to(joining_case, RM.VALID)
+
+    result = joining_case.route(
+        build[decision](joining_case.case, actor=joining_case.invitee_id)
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert _rm_history(joining_case)[-2:] == [RM.VALID, expected]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "RMB-14-005: a participant at RM VALID that sends Leave is recorded"
+        f" as V → D → C. {_REASON_SUFFIX}"
+    ),
+)
+@pytest.mark.spec("RMB-14-005")
+def test_leave_from_valid_is_recorded_through_deferred(joining_case) -> None:
+    """``V → C`` is not in the RM table, so Leave from VALID passes through D.
+
+    Today the closure is forced straight from ``VALID`` to ``CLOSED``.
+    """
+    from vultron.wire.as2.factories import rm_close_case_activity
+
+    _advance_invitee_to(joining_case, RM.VALID)
+
+    result = joining_case.route(
+        rm_close_case_activity(
+            joining_case.case, actor=joining_case.invitee_id
+        )
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert _rm_history(joining_case)[-3:] == [
+        RM.VALID,
+        RM.DEFERRED,
+        RM.CLOSED,
+    ]

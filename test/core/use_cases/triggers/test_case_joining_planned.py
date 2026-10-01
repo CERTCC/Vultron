@@ -18,10 +18,13 @@ Strict-``xfail`` tests for the case-joining requirements tracked by #4006:
 - CM-11-005 — a joined participant never answers the original report Offer.
 - PRM-06-006 — an on-behalf status assertion never creates a participant.
 - CM-11-014 — a stub Invite carries a deadline; an unanswered invitee does
-  not hold up case closure.
+  not hold up case closure, but a joined one still at RECEIVED does.
 - CM-11-015 — a re-invite reuses the record; a re-invite to ``CLOSED`` is
   refused.
-- CM-11-016 — an embargo change re-issues an outstanding stub Invite.
+- CM-11-016 — an embargo change re-issues an outstanding stub Invite; a
+  ``Reject`` of the superseded one is still honoured.
+- CM-10-005 — the stub Invite reaches the inert invitee (passing marker).
+- PRM-06-001 — the CASE_MANAGER writes only the invitee's birth status.
 
 Each test asserts observable behaviour and flips to passing once the
 implementation lands.  See ``notes/case-joining.md``.
@@ -87,6 +90,7 @@ from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Invite,
+    as_Reject,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -561,3 +565,190 @@ def test_embargo_change_reissues_outstanding_stub_invite(actor_store) -> None:
     assert result.disposition is HandlerDisposition.REFUSED
     assert result.reason is not None
     assert any(r.id_ in result.reason for r in replacements), result.reason
+
+
+def _accept_stub_invite(
+    dl: SqliteDataLayer, manager_id: str, invitee_id: str, invite_id: str
+) -> None:
+    """Deliver the invitee's ``Accept`` of the stub Invite to the CASE_MANAGER."""
+    invite = dl.read(invite_id)
+    assert isinstance(invite, as_Invite)
+    result = route_received(
+        dl,
+        as_Accept(actor=invitee_id, object_=invite, in_reply_to=invite_id),
+        receiving_actor_id=manager_id,
+    )
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-11-014: all-participants-closed counts a participant that joined"
+        " and is still at RM RECEIVED, and every directly seated participant;"
+        f" only an unanswered invitee is skipped. {_REASON_SUFFIX}"
+    ),
+)
+@pytest.mark.spec("CM-11-014")
+def test_closure_check_skips_only_participants_that_never_joined(
+    actor_store,
+) -> None:
+    """``RECEIVED`` is not the test — having joined is.
+
+    Two vendors are invited; one accepts its stub Invite and is still at
+    ``RECEIVED``, the other never answers.  Only the unanswered one is left
+    out of the closure check, so the joined vendor keeps the case open.  A
+    directly seated participant that has not closed keeps it open too.  This
+    is what tells "count only joined participants" apart from "skip every
+    ``RECEIVED`` participant".  Today the stub Invite creates no record.
+    """
+    manager, dl = actor_store("CaseManager")
+    silent, _ = actor_store("Silent Vendor")
+    joiner, _ = actor_store("Joining Vendor")
+    for invitee in (silent, joiner):
+        dl.create(invitee)
+    case = VulnerabilityCase(
+        attributed_to=manager.id_, name="Closure", content="Content"
+    )
+    manager_record = seed_store_owner_as_case_manager(dl, case)
+    dl.create(case)
+
+    _send_stub_invite(dl, manager.id_, case.id_, silent.id_)
+    joiner_invite = _send_stub_invite(dl, manager.id_, case.id_, joiner.id_)
+    unanswered = _participant_of(dl, case.id_, silent.id_)
+    _accept_stub_invite(dl, manager.id_, joiner.id_, joiner_invite["id"])
+    joined = _participant_of(dl, case.id_, joiner.id_)
+    assert (
+        participant_status_rm_state(joined.participant_statuses[-1])
+        == RM.RECEIVED
+    )
+
+    closed_manager = manager_record.model_copy(
+        update={
+            "participant_statuses": [
+                ParticipantStatus(
+                    context=case.id_,
+                    attributed_to=manager.id_,
+                    rm=RmDimension(state=RM.CLOSED),
+                    cvd_role=[CVDRole.CASE_MANAGER],
+                )
+            ]
+        }
+    )
+    seated_open = _vendor_participant(
+        case.id_, "https://example.org/actors/seated", RM.ACCEPTED
+    )
+    assert all_participants_rm_closed([closed_manager, unanswered])
+    assert not all_participants_rm_closed([closed_manager, unanswered, joined])
+    assert not all_participants_rm_closed(
+        [closed_manager, unanswered, seated_open]
+    )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-11-016: a Reject of a superseded stub Invite is honoured — the"
+        f" record closes. {_REASON_SUFFIX}"
+    ),
+)
+@pytest.mark.spec("CM-11-016")
+def test_reject_of_superseded_stub_invite_is_honoured(actor_store) -> None:
+    """A hard no does not depend on which version of the ask it answers.
+
+    After an embargo change re-issues the stub Invite, the invitee rejects
+    the *original*.  The CASE_MANAGER honours it: the record moves to RM
+    ``CLOSED`` (CM-11-007) rather than being refused as stale.  Today no
+    replacement is issued and the Reject leaves no record to close.
+    """
+    owner, dl = actor_store("Vendor Owner")
+    finder, _ = actor_store("Finder")
+    invitee, _ = actor_store("Vendor Two")
+    dl.create(finder)
+    dl.create(invitee)
+    case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
+    original_id = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)["id"]
+
+    SvcTerminateEmbargoUseCase(
+        dl,
+        TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+    assert [
+        invite
+        for invite in _invites_to(dl, invitee.id_)
+        if invite.id_ != original_id
+    ], "the embargo change must have superseded the original stub Invite"
+
+    original = dl.read(original_id)
+    assert isinstance(original, as_Invite)
+    result = route_received(
+        dl,
+        as_Reject(
+            actor=invitee.id_, object_=original, in_reply_to=original_id
+        ),
+        receiving_actor_id=owner.id_,
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    record = _participant_of(dl, case.id_, invitee.id_)
+    assert (
+        participant_status_rm_state(record.participant_statuses[-1])
+        == RM.CLOSED
+    )
+
+
+@pytest.mark.spec("CM-10-005")
+def test_stub_invite_is_addressed_to_the_inert_invitee(actor_store) -> None:
+    """An Invite asking an actor to join is not case content.
+
+    The active-participant filter (CM-10-004) must not swallow it: the stub
+    Invite reaches the invitee even though, with an embargo active and no
+    consent yet, the invitee is inert.
+    """
+    owner, dl = actor_store("Vendor Owner")
+    finder, _ = actor_store("Finder")
+    invitee, _ = actor_store("Vendor Two")
+    dl.create(finder)
+    dl.create(invitee)
+    case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
+
+    invite = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
+
+    to = invite.get("to")
+    recipients = [to] if isinstance(to, str) else list(to or [])
+    assert invitee.id_ in recipients
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "PRM-06-001: the participant's birth — one status at RM RECEIVED —"
+        " is the only write about it the CASE_MANAGER makes. "
+        f"{_REASON_SUFFIX}"
+    ),
+)
+@pytest.mark.spec("PRM-06-001")
+def test_stub_invite_writes_only_the_invitee_birth_status(
+    actor_store,
+) -> None:
+    """Status is self-declared; the CASE_MANAGER writes only the record's birth.
+
+    Straight after the stub Invite the invitee's record holds exactly one
+    participant status, at RM ``RECEIVED``; every later status is the
+    participant's own.  Today the stub Invite creates no record at all.
+    """
+    manager, dl = actor_store("CaseManager")
+    invitee, _ = actor_store("Vendor")
+    dl.create(invitee)
+    case = VulnerabilityCase(
+        attributed_to=manager.id_, name="Birth", content="Content"
+    )
+    seed_store_owner_as_case_manager(dl, case)
+    dl.create(case)
+
+    _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
+
+    statuses = _participant_of(dl, case.id_, invitee.id_).participant_statuses
+    assert [participant_status_rm_state(s) for s in statuses] == [RM.RECEIVED]

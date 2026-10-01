@@ -7,12 +7,14 @@ related_specs:
   - specs/case-management.yaml
   - specs/cs-behavior.yaml
   - specs/received-status-handling.yaml
+  - specs/rm-behavior.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/message-type-reference.md
   - notes/protocol-event-cascades.md
   - notes/received-status-authorization.md
   - notes/domain-validation.md
+  - notes/case-joining.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -557,58 +559,71 @@ Work genuinely happens in both stages, and participants exist in both.
 
 > **Source**: CONCERN-1756. Corrects CM-11-001 and `CreateInviteeParticipantAtAcceptedNode`.
 
-Participants who join a case via the invite-accept path enter at **RM.RECEIVED**,
-not RM.ACCEPTED. This is a protocol-correctness requirement, not merely a
-demo-visibility gap.
+Participants who join a case via the invite path sit at **RM.RECEIVED** until
+they judge the case, never RM.ACCEPTED. This is a protocol-correctness
+requirement, not merely a demo-visibility gap. ADR-0114 and ADR-0070 refine it
+into two Invites; the full flow is in [case-joining.md](case-joining.md).
 
-### Why Accept(Invite) ≠ RM.ACCEPTED
+### Why Accept(Invite(stub)) ≠ RM.ACCEPTED
 
-When an actor sends `Accept(Invite(actor, case))`, they have seen only a redacted
-or stub view of the `VulnerabilityCase` — enough to agree to join and consent to
-the embargo, but not the full vulnerability details (report, description, affected
+When an actor sends `Accept(Invite(actor, VulnerabilityCaseStub))`, they have
+seen only the case stub — enough to agree to join and consent to the embargo,
+but not the full vulnerability details (report, description, affected
 versions, etc.). The full case is replicated to them *after* the CASE_MANAGER
 processes their Accept. Therefore:
 
-- `Accept(Invite)` = "I am willing to join this case and accept its embargo terms."
-- It does NOT mean "I have validated the vulnerability and committed to remediation."
+- `Accept(Invite(stub))` = "I am joining this case and accept its embargo
+  terms."
+- It does NOT mean "I have validated the vulnerability" (RV) or "I have
+  committed to remediation" (RA).
 
-Recording the invitee at RM.ACCEPTED on Accept is incorrect because RM.ACCEPTED
-means the participant has validated the report and chosen to engage. An actor
-cannot be in that state before seeing the report.
+Recording the participant at RM.ACCEPTED — or RM.VALID — on the stub Accept is
+incorrect, because both are judgements of a case the actor has not yet seen.
 
 ### Correct Lifecycle for Invited Participants
 
-After the CASE_MANAGER processes `Accept(Invite)`:
-
-1. CASE_MANAGER records invitee at **RM.RECEIVED**.
-2. CASE_MANAGER replicates the full `VulnerabilityCase` to the invitee via
-   `Announce(VulnerabilityCase)` and join-time ledger backfill.
-3. Invitee reviews the full case, runs their own validation:
-   - Transitions to **RM.VALID** or **RM.INVALID** and notifies the CASE_MANAGER.
-4. If valid, invitee decides to engage or defer:
-   - Transitions to **RM.ACCEPTED** or **RM.DEFERRED** and notifies the CASE_MANAGER.
-5. CASE_MANAGER updates its representation of the invitee's RM state based on
-   the received status messages (CM-11-002).
+1. CASE_MANAGER sends the stub Invite and, in the same step, creates the
+   invitee's participant record, inert, at **RM.RECEIVED** (CM-11-006).
+   `Reject(Invite(stub))` closes that kept record, `R → C` (CM-11-007,
+   RMB-14-004).
+2. On `Accept(Invite(stub))` RM stays at RECEIVED (CM-11-001). The CASE_MANAGER
+   replicates the full `VulnerabilityCase` via `Announce(VulnerabilityCase)`
+   and ledger replay (CM-11-008).
+3. CASE_MANAGER sends the **full-case Invite** `Invite(Actor,
+   VulnerabilityCase)`, queued after the last replayed entry, carrying its
+   ledger position (CM-11-010).
+4. The participant reviews the full case and replies to the full-case Invite:
+   `Accept` → **RM.VALID**, `TentativeReject` → **RM.INVALID**, `Reject` →
+   **RM.CLOSED**; the reply carries its own ledger position (CM-11-011,
+   CM-11-012). It never answers the original `Offer(VulnerabilityReport)`
+   (CM-11-005).
+5. If valid, the participant decides to engage or defer with
+   `Join(VulnerabilityCase)` (**RM.ACCEPTED**) or `Ignore(VulnerabilityCase)`
+   (**RM.DEFERRED**) (CM-11-002, CM-11-004).
 
 ### Scope Boundary
 
 This rule applies to **post-initialization invitees** only — participants added
-to an existing case via `Invite(actor, case)`. It does not apply to the initial
-reporter and receiver participants created during case initialization (CM-12,
-CM-13), whose RM states are set as part of the case creation sequence.
+to an existing case via an Invite. It does not apply to the initial reporter
+and receiver participants created during case initialization (CM-12, CM-13),
+whose RM states are set as part of the case creation sequence.
 
 ### Implementation
 
+Current code (before the #4006 implementation issues land):
+
 - **`CreateInviteeParticipantNode`** constructs the invitee participant at
-  `RM.START`; **`AdvanceInviteeToReceivedNode`** then records `RM.RECEIVED` for
-  the invitee through the sole writer (`CreateParticipantStatusNode`) in the
-  CASE_MANAGER's DataLayer, after the participant is attached (ADR-0089 birth:
-  construct → attach → advance).
-- The invitee's subsequent V/A transitions are driven by received RM status
-  messages from the invitee themselves.
+  `RM.START` on the stub Accept; **`AdvanceInviteeToReceivedNode`** then
+  records `RM.RECEIVED` for the invitee through the sole writer
+  (`CreateParticipantStatusNode`) in the CASE_MANAGER's DataLayer, after the
+  participant is attached (ADR-0089 birth: construct → attach → advance). The
+  target model moves this birth to the stub Invite (CM-11-006).
+- The participant's subsequent RM transitions are driven by messages from the
+  participant itself — under the target model, its full-case Invite reply and
+  then `Join`/`Ignore`.
 
 **Normative requirements**: `specs/case-management.yaml` CM-11-001 through
-CM-11-004.
+CM-11-016.
 
 ---
 
