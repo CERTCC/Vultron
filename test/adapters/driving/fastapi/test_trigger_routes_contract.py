@@ -397,6 +397,45 @@ def test_nothing_is_flushed_when_the_dispatcher_raises(
     flush.assert_not_awaited()
 
 
+@pytest.mark.spec("TRIG-07-001")
+@pytest.mark.spec("TRIG-01-004")
+def test_two_run_route_flushes_nothing_when_its_second_run_raises(
+    app, route_paths, store, flush: AsyncMock
+) -> None:
+    """``notify-fix-ready`` dispatches twice; if the second hop raises, the
+    first hop's queued flush never runs either.
+
+    ``BackgroundTasks`` are attached to the response only when the endpoint
+    returns, so an error response carries none — the activity hop 1 queued
+    stays in the outbox until the actor's next drain, exactly as it did when
+    the route scheduled one flush after both hops.  This pins that the two-call
+    body did not change the failure path.
+    """
+    from vultron.errors import VultronNotFoundError
+
+    class _SecondCallRaises:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def trigger(self, request, dl):
+            self.calls += 1
+            if self.calls == 2:
+                raise VultronNotFoundError("Case", request.case_id)
+            return _CANNED[result_type_of(type(request))]
+
+    dispatcher = _SecondCallRaises()
+    app.dependency_overrides[get_trigger_dl] = lambda: store
+    app.dependency_overrides[get_trigger_dispatcher] = lambda: dispatcher
+    try:
+        row = next(r for r in _rows() if r.verb == "notify-fix-ready")
+        resp = _post(TestClient(app), route_paths, row)
+    finally:
+        app.dependency_overrides = {}
+    assert dispatcher.calls == 2
+    assert resp.status_code == 404
+    flush.assert_not_awaited()
+
+
 def test_canned_dispatcher_conforms_to_the_port(store) -> None:
     """The stub is a ``TriggerDispatcher``: the annotated assignment is the
     static check (mypy, pyright), and a call through the port-typed name
