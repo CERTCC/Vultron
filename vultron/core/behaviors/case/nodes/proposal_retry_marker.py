@@ -40,6 +40,7 @@ from vultron.core.models.pending_create_case_activity import (
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.wire_keys import wire_key
+from vultron.core.participants.recipients import case_content_recipients
 from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -136,7 +137,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             self._accept_activity_id_bb = None
 
     def _collect_reporter_uris(self, raw_case: VulnerabilityCase) -> list[str]:
-        """Return URIs of REPORTER/FINDER participants in *raw_case*, excluding vendor.
+        """Return URIs of active REPORTER/FINDER participants, excluding vendor.
 
         CaseActor bootstraps non-vendor participants (ADR-0041 AC-5) by including
         them as direct ``to`` recipients of ``Create(VulnerabilityCase)`` so their
@@ -145,18 +146,16 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         ``Offer(CaseManagerRole)`` round-trip (which ADR-0041 removes).
         """
         assert self.datalayer is not None
+        # Only active participants are sent case content (CM-10-004); the
+        # reporter is seeded SIGNATORY before this node runs (CM-14-005).
         uris: list[str] = []
-        for p_id in raw_case.actor_participant_index.values():
-            p = self.datalayer.read(p_id)
+        for uri in case_content_recipients(
+            raw_case, self.datalayer, excluding={self._vendor_uri}
+        ):
+            p = self.datalayer.read(raw_case.actor_participant_index[uri])
             if not isinstance(p, CaseParticipant):
                 continue
-            if (
-                CVDRole.REPORTER not in p.roles
-                and CVDRole.FINDER not in p.roles
-            ):
-                continue
-            uri = getattr(p, "attributed_to", None)
-            if isinstance(uri, str) and uri and uri != self._vendor_uri:
+            if CVDRole.REPORTER in p.roles or CVDRole.FINDER in p.roles:
                 uris.append(uri)
         return uris
 
