@@ -325,8 +325,9 @@ def test_case_manager_moves_first_proposal_to_proposed(make_payload):
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "CM-28-012: no relayed Invite exists yet, so none carries the "
-        "CASE_MANAGER-stamped end_time. Tracked by #3961. " + _TRACKING_3918
+        "CM-28-012: the CASE_MANAGER relays the Invites without stamping "
+        "end_time, so none carries an RSVP deadline. Tracked by #3961. "
+        + _TRACKING_3918
     ),
 )
 @pytest.mark.spec("CM-28-012")
