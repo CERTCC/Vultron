@@ -547,7 +547,7 @@ notes with sensitive information) is gated on `embargo_adherence=True`.
 
 ### Ledger Fan-Out Is Case Content (CM-10-005, CM-10-006)
 
-*Source: Concern #3917 (2026-10-01). Not yet implemented; tracked in #4042.*
+*Source: Concern #3917 (2026-10-01); implemented in #4042.*
 
 The gate (`find_excluded_actor_ids`, CM-10-004) was first applied only to
 `Announce(VulnerabilityCase)`. The `Announce(CaseLedgerEntry)` fan-out, which
@@ -569,6 +569,13 @@ participant **stream**, not per entry:
   pause began. When the gate admits it — it accepts, or the embargo ends — the
   CASE_MANAGER sends the withheld suffix in log order, starting with the first
   entry withheld, so the catch-up gate (SYNC-10-004) never sees a gap.
+
+The predicate is `embargo_withheld_actor_ids()`
+(`vultron/core/participants/embargo_gate.py`), shared by the case-update
+broadcast and the ledger fan-out. Where the pause is recorded and the two
+points that catch admission are in
+[sync-ledger-replication.md](sync-ledger-replication.md) § "Fan-Out Recipients
+and the Embargo Gate".
 
 The embargo meta-protocol above is unaffected: Invites and their responses
 are addressed to the participant directly, not fanned out from the ledger, so

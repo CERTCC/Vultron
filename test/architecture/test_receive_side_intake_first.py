@@ -219,6 +219,11 @@ KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
         "create_reject_log_entry_tree",
         # inbox
         "create_store_dead_letter_tree",
+        # embargo — a CM-10-006 follow-on, not a receive-activity tree: it is
+        # given no activity and runs after the EMB-17 honored late Accept, a
+        # tree-less path in AcceptInviteToEmbargoOnCaseReceivedUseCase whose
+        # writes predate it. Leaves with that path's move onto a tree (#3871).
+        "embargo_admission_backfill_tree",
     }
 )
 

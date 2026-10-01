@@ -129,7 +129,7 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         "EmitCloseCaseNode",
         # status/nodes/rm_anomaly.py
         "EmitRMGapNoteNode",
-        # sync/nodes/replay.py
+        # sync/nodes/genesis_announce.py
         "AnnounceCaseOnGenesisRejectNode",
     }
 )

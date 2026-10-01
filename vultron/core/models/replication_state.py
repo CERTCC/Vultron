@@ -36,7 +36,7 @@ class VultronReplicationState(CoreRecord):
     ``{case_id}/replication/{url_encoded_peer_id}`` so that the same
     peer always resolves to a stable key in the DataLayer.
 
-    Spec: SYNC-04-001, SYNC-04-002.
+    Spec: SYNC-04-001, SYNC-04-002; the embargo pause is CM-10-005/006.
     """
 
     type_: Literal["ReplicationState"] = Field(  # type: ignore[assignment]
@@ -114,6 +114,18 @@ class VultronReplicationState(CoreRecord):
         ),
         validation_alias="joinBackfillComplete",
         serialization_alias="joinBackfillComplete",
+    )
+    embargo_paused_from_index: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "log_index of the first canonical entry the embargo content gate"
+            " withheld from this peer (CM-10-005); the backfill that admits"
+            " the peer starts here (CM-10-006). None means the peer's stream"
+            " is not paused"
+        ),
+        validation_alias="embargoPausedFromIndex",
+        serialization_alias="embargoPausedFromIndex",
     )
 
     @model_validator(mode="before")

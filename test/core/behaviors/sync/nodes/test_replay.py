@@ -78,7 +78,7 @@ def test_replay_missing_entries_node_is_sequence_with_named_leaf_nodes():
 
 @pytest.mark.spec("SYNC-03-002")
 def test_send_missing_entries_node_replays_entries_after_divergence(
-    bridge, case_actor
+    bridge, case_actor, case_obj
 ):
     first_entry = _make_entry(0)
     second_entry = _make_entry(1, first_entry.entry_hash)
@@ -289,7 +289,7 @@ def test_fanout_log_entry_node_is_sequence_with_named_leaf_nodes():
 
 @pytest.mark.spec("SYNC-03-002")
 def test_replay_missing_entries_node_replays_from_divergence(
-    bridge, datalayer, case_actor
+    bridge, datalayer, case_actor, case_obj
 ):
     first_entry = _make_entry(0)
     second_entry = _make_entry(1, first_entry.entry_hash)
@@ -381,7 +381,7 @@ def _replay(bridge, case_actor, sync_port, entries, *, from_index: int):
 
 @pytest.mark.spec("SYNC-15-012")
 def test_replay_skips_entries_whose_announce_to_this_peer_is_still_queued(
-    bridge, datalayer, case_actor
+    bridge, datalayer, case_actor, case_obj
 ):
     """Only the entries not already pending for the peer are queued again.
 
@@ -417,7 +417,7 @@ def test_replay_skips_entries_whose_announce_to_this_peer_is_still_queued(
 @pytest.mark.spec("SYNC-15-012")
 @pytest.mark.spec("SYNC-15-011")
 def test_replay_that_is_wholly_pending_queues_nothing_and_records_no_position(
-    bridge, datalayer, case_actor
+    bridge, datalayer, case_actor, case_obj
 ):
     """When every entry is already queued, nothing is queued and no cooldown starts."""
     from vultron.core.behaviors.sync.nodes.replay_guard import _read_state

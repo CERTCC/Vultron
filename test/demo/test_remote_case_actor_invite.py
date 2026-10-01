@@ -216,20 +216,24 @@ def _seed_case(
     fresh timestamp is used — callers seeding multiple replicas MUST pass the
     same value to all calls or they risk divergent genesis hashes (#2727).
     """
-    manager = CaseParticipant(
-        id_=f"{case_id}/participants/case-actor",
-        attributed_to=topo.ca_actor_id,
-        case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
-    )
-    owner_participant = CaseParticipant(
-        id_=f"{case_id}/participants/owner",
-        attributed_to=topo.owner_actor_id,
-        case_roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER],
-    )
     embargo = EmbargoEvent(
         id_=f"{case_id}/embargoes/e0",
         context=case_id,
         end_time=days_from_now_utc(45),
+    )
+    manager = CaseParticipant(
+        id_=f"{case_id}/participants/case-actor",
+        attributed_to=topo.ca_actor_id,
+        case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
+        accepted_embargo_ids=[str(embargo.id_)],
+    )
+    # The owner is a signatory of the active embargo; otherwise the CM-10-005
+    # gate rightly withholds every ledger entry from it.
+    owner_participant = CaseParticipant(
+        id_=f"{case_id}/participants/owner",
+        attributed_to=topo.owner_actor_id,
+        case_roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER],
+        accepted_embargo_ids=[str(embargo.id_)],
     )
     case_kwargs: dict = dict(
         id_=case_id,

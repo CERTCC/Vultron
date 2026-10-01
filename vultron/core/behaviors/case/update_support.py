@@ -20,9 +20,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
+from vultron.core.participants.embargo_gate import embargo_withheld_actor_ids
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -48,37 +48,26 @@ def apply_update_case_fields(
     return True
 
 
-def find_excluded_actor_ids(case: Any, dl: CasePersistence) -> set[str]:
-    """Return actor IDs excluded from case-update broadcast by active embargo."""
-    excluded: set[str] = set()
-    active_embargo = getattr(case, "active_embargo", None)
-    if active_embargo is None:
-        return excluded
+def find_excluded_actor_ids(
+    case: VulnerabilityCase, dl: CasePersistence
+) -> set[str]:
+    """Return actor IDs excluded from case-update broadcast by active embargo.
 
-    embargo_id = _as_id(active_embargo)
-    for actor_id, participant_id in getattr(
-        case, "actor_participant_index", {}
-    ).items():
-        participant = dl.read(participant_id)
-        if participant is None:
-            logger.warning(
-                "update_case: could not read participant '%s' for embargo acceptance check",
-                participant_id,
-            )
-            continue
-        if not isinstance(participant, CaseParticipant):
-            continue
-        accepted_ids = getattr(participant, "accepted_embargo_ids", []) or []
-        if embargo_id not in accepted_ids:
-            logger.warning(
-                "update_case: participant '%s' (actor '%s') has not accepted the active "
-                "embargo '%s' — case update will not be broadcast to this participant "
-                "(CM-10-004)",
-                participant_id,
-                actor_id,
-                embargo_id,
-            )
-            excluded.add(actor_id)
+    The rule is the shared CM-10-004 content gate
+    (:func:`~vultron.core.participants.embargo_gate.embargo_withheld_actor_ids`),
+    which the ledger fan-out uses too (CM-10-007). This wrapper adds the
+    per-participant WARNING the case-update path has always logged.
+    """
+    excluded = embargo_withheld_actor_ids(case, dl)
+    for actor_id in sorted(excluded):
+        logger.warning(
+            "update_case: participant '%s' (actor '%s') has not accepted the active "
+            "embargo '%s' — case update will not be broadcast to this participant "
+            "(CM-10-004)",
+            case.actor_participant_index.get(actor_id),
+            actor_id,
+            case.active_embargo_id,
+        )
     return excluded
 
 

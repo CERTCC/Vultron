@@ -40,7 +40,8 @@ activity (protocol ET message).  Sequence:
        └─ ActiveTeardown (Sequence)       # its FAILURE is the tree's FAILURE
           ├─ ClearActiveEmbargoNode       # ACTIVE/REVISE→EXITED + clear active_embargo
           ├─ ResetParticipantConsentNode  # reset all participant PEC to UNBOUND
-          └─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
+          ├─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
+          └─ EmbargoAdmissionBackfill     # CASE_MANAGER: backfill paused peers (CM-10-006)
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
@@ -77,11 +78,31 @@ from vultron.core.behaviors.embargo.nodes import (
     ValidateCaseExistsNode,
     case_manager_admits_proposal_guard,
 )
+from vultron.core.behaviors.sync.nodes.embargo_backfill import (
+    BackfillAdmittedParticipantsNode,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.services.embargo_lifecycle import TransitionMode
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
 logger = logging.getLogger(__name__)
+
+
+def embargo_admission_backfill_tree(
+    case_id: str,
+) -> py_trees.behaviour.Behaviour:
+    """Backfill the participants an embargo effect just admitted (CM-10-006).
+
+    The admitting entry was committed and fanned out before the effect ran, so
+    the fan-out withheld it; this sends it, and everything else withheld, once
+    the gate admits the participant. CASE_MANAGER only (BT-17-001): the pause
+    records and the canonical ledger live in its store.
+    """
+    return create_case_manager_gated_tree(
+        name="EmbargoAdmissionBackfill",
+        case_id=case_id,
+        children=[BackfillAdmittedParticipantsNode(case_id=case_id)],
+    )
 
 
 def remove_embargo_from_case_tree(
@@ -138,6 +159,7 @@ def remove_embargo_from_case_tree(
                     SendAnnounceEmbargoEventNode(
                         case_id=case_id, embargo_id=embargo_id
                     ),
+                    embargo_admission_backfill_tree(case_id),
                 ],
             ),
         ],
@@ -367,6 +389,7 @@ def accept_invite_to_embargo_tree(
                 embargo_id=embargo_id,
                 accepting_actor_id=accepting_actor_id,
             ),
+            embargo_admission_backfill_tree(case_id),
         ],
     )
     logger.info(
