@@ -614,3 +614,25 @@ def test_resolve_ledger_entry_id_returns_none_on_read_error():
     mock_dl.read.side_effect = RuntimeError("db error")
 
     assert oh._resolve_ledger_entry_id("urn:uuid:bad", mock_dl) is None
+
+
+# ---------------------------------------------------------------------------
+# Default emitter slot (#3985)
+# ---------------------------------------------------------------------------
+
+
+def test_configure_default_emitter_installs_the_emitter(monkeypatch):
+    """The configured emitter is what ``get_default_emitter()`` returns."""
+    monkeypatch.setattr(oh._DEFAULT_EMITTER_SLOT, "value", None)
+    emitter = MagicMock()
+
+    oh.configure_default_emitter(emitter)
+
+    assert oh.get_default_emitter() is emitter
+
+
+def test_get_default_emitter_falls_back_to_http_delivery(monkeypatch):
+    """With nothing configured, a fresh ``HttpDeliveryAdapter`` is returned."""
+    monkeypatch.setattr(oh._DEFAULT_EMITTER_SLOT, "value", None)
+
+    assert isinstance(oh.get_default_emitter(), oh.HttpDeliveryAdapter)

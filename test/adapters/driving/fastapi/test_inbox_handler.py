@@ -65,7 +65,7 @@ def test_handle_inbox_item_dispatches(monkeypatch):
     )
 
     mock_dispatcher = Mock()
-    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
 
     ih.handle_inbox_item(
         actor_id="https://example.org/actors/actor1",
@@ -241,7 +241,7 @@ def test_process_inbox_item_transient_error_requeues(monkeypatch):
 
 def test_dispatch_uses_explicit_dispatcher(monkeypatch):
     """dispatch() should use the provided dispatcher, not the global."""
-    monkeypatch.setattr(ih, "_DISPATCHER", None)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", None)
     explicit_dispatcher = Mock()
     fake_event = cast(
         VultronEvent, SimpleNamespace(activity_id="x", semantic_type="y")
@@ -325,15 +325,15 @@ def test_make_dispatcher_overlapping_semantics_raises(monkeypatch):
 
 
 def test_make_dispatcher_does_not_mutate_global(monkeypatch):
-    """make_dispatcher() must not touch the module-level _DISPATCHER."""
+    """make_dispatcher() must not touch the module-level _DISPATCHER_SLOT."""
     sentinel = object()
-    monkeypatch.setattr(ih, "_DISPATCHER", sentinel)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", sentinel)
 
     result = ih.make_dispatcher()
 
-    assert ih._DISPATCHER is sentinel
+    assert ih._DISPATCHER_SLOT.value is sentinel
     assert result is not sentinel
-    monkeypatch.setattr(ih, "_DISPATCHER", None)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", None)
     fake_event = cast(
         VultronEvent, SimpleNamespace(activity_id="x", semantic_type="y")
     )
@@ -344,7 +344,7 @@ def test_make_dispatcher_does_not_mutate_global(monkeypatch):
 
 def test_init_dispatcher_sets_dispatcher(monkeypatch):
     mock_dispatcher = Mock()
-    monkeypatch.setattr(ih, "_DISPATCHER", None)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", None)
     monkeypatch.setattr(
         ih,
         "get_dispatcher",
@@ -352,7 +352,7 @@ def test_init_dispatcher_sets_dispatcher(monkeypatch):
     )
 
     ih.init_dispatcher()
-    assert ih._DISPATCHER is mock_dispatcher
+    assert ih._DISPATCHER_SLOT.value is mock_dispatcher
 
 
 def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
@@ -381,7 +381,7 @@ def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
         ih, "prepare_for_dispatch", lambda activity: fake_event
     )
     mock_dispatcher = Mock()
-    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
 
     result = ih._dispatch_or_defer_inbox_item(
         actor_id=actor_id,
@@ -467,7 +467,7 @@ def test_inbox_handler_replays_deferred_items_after_case_announce(
 
     mock_dispatcher = Mock()
     mock_dispatcher.dispatch.side_effect = fake_dispatch
-    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
     monkeypatch.setattr(ih, "prepare_for_dispatch", fake_prepare)
     monkeypatch.setattr(
         ih, "rehydrate", lambda item_id, dl=None: items[item_id]
@@ -521,7 +521,7 @@ def test_pre_bootstrap_activity_queued_not_dispatched(monkeypatch):
         ih, "prepare_for_dispatch", lambda activity: fake_event
     )
     mock_dispatcher = Mock()
-    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
 
     result = ih._dispatch_or_defer_inbox_item(
         actor_id=actor_id,
@@ -632,7 +632,7 @@ def test_inbox_handler_uses_actor_dl_for_queue_pop_and_shared_dl_for_dispatch(
     )
 
     mock_dispatcher = Mock()
-    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
 
     async def fake_outbox_handler(*args, **kwargs):
         return None

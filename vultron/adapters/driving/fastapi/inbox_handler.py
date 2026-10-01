@@ -61,6 +61,7 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (
     _trigger_activity_port_factory,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.adapters.driving.fastapi.startup_slot import StartupSlot
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent, is_case_bootstrap
@@ -109,7 +110,8 @@ def prepare_for_dispatch(activity: as_Activity) -> VultronEvent:
     return event
 
 
-_DISPATCHER: ActivityDispatcher | None = None
+#: The module-level dispatcher, installed by :func:`init_dispatcher`.
+_DISPATCHER_SLOT: StartupSlot[ActivityDispatcher] = StartupSlot()
 
 
 def make_dispatcher() -> ActivityDispatcher:
@@ -117,7 +119,7 @@ def make_dispatcher() -> ActivityDispatcher:
 
     Use this in :func:`create_app` lifespans to build a per-app dispatcher
     that is stored on ``app.state.dispatcher`` instead of the module-level
-    ``_DISPATCHER``.  Production code (``app_v2``) continues to call
+    ``_DISPATCHER_SLOT``.  Production code (``app_v2``) continues to call
     :func:`init_dispatcher` so the global is set for backward-compatible
     callers such as the CLI.
     """
@@ -216,9 +218,9 @@ def init_dispatcher() -> None:
     and its one remaining caller reached for the unscoped ``get_datalayer()``
     to satisfy it — which ADR-0073 removes.
     """
-    global _DISPATCHER  # noqa: PLW0603  # ruff-baseline #3985
-    _DISPATCHER = make_dispatcher()
-    logger.info("Initialised inbox dispatcher: %s", type(_DISPATCHER).__name__)
+    dispatcher = make_dispatcher()
+    _DISPATCHER_SLOT.install(dispatcher)
+    logger.info("Initialised inbox dispatcher: %s", type(dispatcher).__name__)
 
 
 def dispatch(
@@ -229,7 +231,7 @@ def dispatch(
     """Dispatch the given domain event and return the handler's verdict.
 
     Uses *dispatcher* when provided; otherwise falls back to the module-level
-    ``_DISPATCHER`` (set by :func:`init_dispatcher`).  Passing an explicit
+    ``_DISPATCHER_SLOT`` (set by :func:`init_dispatcher`).  Passing an explicit
     dispatcher enables per-app isolation when multiple :func:`create_app`
     instances coexist in the same process (issue #534).
 
@@ -237,16 +239,16 @@ def dispatch(
         event: The domain event to dispatch.
         dl: The DataLayer instance scoped to the current actor.
         dispatcher: Optional per-app dispatcher.  When ``None`` the
-            module-level ``_DISPATCHER`` is used (backward-compatible).
+            module-level ``_DISPATCHER_SLOT`` is used (backward-compatible).
 
     Returns:
         The ``HandlerResult`` of the routed use case (UCORG-05-010).
 
     Raises:
         RuntimeError: If no dispatcher is available (neither *dispatcher*
-            nor the module-level ``_DISPATCHER`` has been initialised).
+            nor the module-level ``_DISPATCHER_SLOT`` has been initialised).
     """
-    _d = dispatcher or _DISPATCHER
+    _d = dispatcher or _DISPATCHER_SLOT.value
     if _d is None:
         raise RuntimeError(
             "Inbox dispatcher not initialised. "
@@ -273,7 +275,7 @@ def handle_inbox_item(
         obj: The Activity item to process.
         dl: The DataLayer instance used for reads and dispatch.
         dispatcher: Optional per-app dispatcher.  When ``None`` the
-            module-level ``_DISPATCHER`` is used (backward-compatible).
+            module-level ``_DISPATCHER_SLOT`` is used (backward-compatible).
     """
     logger.info("Processing item '%s' for actor '%s'", obj.name, actor_id)
     logger.debug(
@@ -490,7 +492,7 @@ async def inbox_handler(
         dispatcher: Optional per-app dispatcher (from
             ``request.app.state.dispatcher``).  When provided, inbox items
             are routed through this dispatcher instead of the module-level
-            ``_DISPATCHER``, giving each :func:`create_app` instance its
+            ``_DISPATCHER_SLOT``, giving each :func:`create_app` instance its
             own fully isolated routing table (issue #534).
     """
     queue_dl: DataLayer = cast(
