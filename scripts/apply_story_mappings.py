@@ -6,9 +6,9 @@ and for each non-no_match spec:
   - Removes the ``- missing_story_reference`` line from ``lint_suppress:``
   - If ``lint_suppress:`` only had that one item, removes the whole block
 
-Text-manipulation approach: items are sliced by ``_spec_yaml_items.iter_blocks``,
-shared with ``relabel_spec_kinds.py``. No YAML load/dump round-trip — preserves
-all formatting.
+Text-manipulation approach: items are sliced by the shared
+``vultron.metadata.specs.yaml_items.iter_blocks``. No YAML load/dump
+round-trip — preserves all formatting.
 
 Usage:
     uv run python scripts/apply_story_mappings.py mappings.json [--dry-run]
@@ -19,8 +19,7 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _spec_yaml_items import iter_blocks
+from vultron.metadata.specs.yaml_items import iter_blocks
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 

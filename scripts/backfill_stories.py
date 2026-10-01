@@ -20,6 +20,7 @@ from pathlib import Path
 
 from vultron.metadata.specs.lint import sr_11_003_gate_applies
 from vultron.metadata.specs.schema import RFC2119Priority, SpecKind
+from vultron.metadata.specs.yaml_items import iter_blocks
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _TRACEABILITY_PATH = _REPO_ROOT / "docs/reference/user_stories/traceability.md"
@@ -92,29 +93,6 @@ def get_protocol_spec_ids(specs_dir: Path) -> set[str]:
 # Text-based insertion of stories: into a YAML file
 # ---------------------------------------------------------------------------
 
-# Matches the start of a spec item: "  - id: SPEC-01-001" (2-space indent)
-_ITEM_START_RE = re.compile(r"^(\s+)- id: ([A-Z]{2,8}-\d{2}-\d{3}[a-z]?)\s*$")
-
-
-def _collect_item_lines(
-    lines: list[str], i: int, item_indent: str
-) -> tuple[list[str], int]:
-    """Collect the spec item starting at lines[i].
-
-    The item ends at the next sibling item at the same indent level or at a
-    shallower level.  Returns (item_lines, next_index).
-    """
-    item_lines: list[str] = [lines[i]]
-    i += 1
-    while i < len(lines):
-        nxt = lines[i]
-        stripped = nxt.rstrip("\n\r")
-        if stripped and not stripped.startswith(" " * (len(item_indent) + 1)):
-            break
-        item_lines.append(nxt)
-        i += 1
-    return item_lines, i
-
 
 def insert_stories_in_yaml(
     yaml_path: Path, spec_to_stories: dict[str, list[str]]
@@ -123,42 +101,26 @@ def insert_stories_in_yaml(
 
     Returns the number of specs updated.
     """
-    text = yaml_path.read_text(encoding="utf-8")
-    lines = text.splitlines(keepends=True)
+    lines = yaml_path.read_text(encoding="utf-8").splitlines(keepends=True)
 
     result: list[str] = []
-    i = 0
     updated = 0
 
-    while i < len(lines):
-        line = lines[i]
-        m = _ITEM_START_RE.match(line)
-        if m:
-            item_indent = m.group(1)  # e.g. "  "
-            spec_id = m.group(2)
-            field_indent = item_indent + "  "  # 2 more spaces
-
-            # Collect all lines belonging to this spec item
-            item_lines, i = _collect_item_lines(lines, i, item_indent)
-
-            # Insert stories: if this spec needs it and doesn't already have one
-            if spec_id in spec_to_stories:
-                has_stories = any(
-                    re.match(r"^\s+stories:", line) for line in item_lines
-                )
-                if not has_stories:
-                    stories = spec_to_stories[spec_id]
-                    stories_lines: list[str] = [f"{field_indent}stories:\n"]
-                    for story in stories:
-                        stories_lines.append(f"{field_indent}- {story}\n")
-                    item_lines.extend(stories_lines)
-                    updated += 1
-
-            result.extend(item_lines)
+    for block in iter_blocks(lines):
+        if isinstance(block, str):
+            result.append(block)
             continue
-
-        result.append(line)
-        i += 1
+        # Insert stories: if this spec needs it and doesn't already have one
+        if block.spec_id in spec_to_stories and not any(
+            re.match(r"^\s+stories:", line) for line in block.lines
+        ):
+            block.lines.append(f"{block.field_indent}stories:\n")
+            block.lines.extend(
+                f"{block.field_indent}- {story}\n"
+                for story in spec_to_stories[block.spec_id]
+            )
+            updated += 1
+        result.extend(block.lines)
 
     if updated > 0:
         yaml_path.write_text("".join(result), encoding="utf-8")
@@ -259,31 +221,22 @@ def insert_suppress_in_yaml(yaml_path: Path, to_suppress: set[str]) -> int:
 
     Returns count of specs updated.
     """
-    text = yaml_path.read_text(encoding="utf-8")
-    lines = text.splitlines(keepends=True)
+    lines = yaml_path.read_text(encoding="utf-8").splitlines(keepends=True)
 
     result: list[str] = []
-    i = 0
     updated = 0
 
-    while i < len(lines):
-        m = _ITEM_START_RE.match(lines[i])
-        if not m:
-            result.append(lines[i])
-            i += 1
+    for block in iter_blocks(lines):
+        if isinstance(block, str):
+            result.append(block)
             continue
-
-        item_indent = m.group(1)
-        item_lines, i = _collect_item_lines(lines, i, item_indent)
-
         already_suppressed = any(
-            _SUPPRESS_ITEM_RE.match(line) for line in item_lines
+            _SUPPRESS_ITEM_RE.match(line) for line in block.lines
         )
-        if m.group(2) in to_suppress and not already_suppressed:
-            _add_suppress_item(item_lines, item_indent + "  ")
+        if block.spec_id in to_suppress and not already_suppressed:
+            _add_suppress_item(block.lines, block.field_indent)
             updated += 1
-
-        result.extend(item_lines)
+        result.extend(block.lines)
 
     if updated > 0:
         yaml_path.write_text("".join(result), encoding="utf-8")

@@ -1,20 +1,20 @@
 """Line-level slicing of spec YAML into items, shared by the one-shot spec scripts.
 
-The relabel and story-mapping scripts edit ``specs/*.yaml`` as text rather than
-through a YAML load/dump round-trip, so every untouched line survives byte for
-byte. Each of them needs the same first step: walk a file and hand back every
-``- id: XX-NN-NNN`` item together with the lines that belong to it. That state
-machine lives here once (CS-22-001) instead of once per script;
-``backfill_stories.py`` still carries an older copy (#4016).
+The one-shot spec scripts under ``scripts/`` edit ``specs/*.yaml`` as text
+rather than through a YAML load/dump round-trip, so every untouched line
+survives byte for byte. Each of them needs the same first step: walk a file and
+hand back every ``- id: XX-NN-NNN`` item together with the lines that belong to
+it. That state machine lives here once (CS-22-001, #4016) instead of once per
+script.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 
-# "  - id: SPEC-01-001" at any indent (items sit at 0, 2 or 6 spaces).
+# "  - id: CS-22-001" at any indent (items sit at 0, 2 or 6 spaces).
 ITEM_START_RE = re.compile(r"^(\s*)- id: ([A-Z]{2,8}-\d{2}-\d{3}[a-z]?)\s*$")
 
 
@@ -32,7 +32,7 @@ class SpecItem:
         return self.indent + "  "
 
 
-def iter_blocks(lines: list[str]) -> Iterator[str | SpecItem]:
+def iter_blocks(lines: Sequence[str]) -> Iterator[str | SpecItem]:
     """Yield each line outside an item as ``str`` and each item as :class:`SpecItem`.
 
     An item runs from its ``- id:`` line until the next non-blank line that is
