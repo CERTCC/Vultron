@@ -110,11 +110,32 @@ The received-side nodes name their own no-ops and gaps, and the handler keys on
 that rather than on the store: `RecordParticipantRejectionNode` prefixes a
 repeat of a recorded Reject with `ALREADY_DECLINED_PREFIX` (the handler reports
 `SKIPPED`; a `DECLINED` actor's Reject of an *unknown* embargo stays `REFUSED`,
-HP-01-003), and `RecordParticipantAcceptanceNode` prefixes a FAILURE caused by
-the *replaced* embargo being unreplicated here with
-`REPLACED_EMBARGO_UNREPLICATED_PREFIX` (the handler reports `DEFERRED` — parked
-for replay, not refused). A replica lacking the record the EP-05-001 comparison
-needs is a partial-replica gap; the catch-up path is tracked in #4004.
+HP-01-003).
+
+### A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
+
+The EP-05-001 comparison reads both the revised embargo B and the embargo A it
+replaces, and fails closed on an unreadable one. That is safe only because no
+store holds a case whose `active_embargo` names a record it lacks, and the
+invariant is made to hold by construction rather than repaired after the fact:
+
+- **Seeding** — every outbound case goes through `_case_for_wire`, which carries
+  `active_embargo` inline, and `_store_embedded_embargo` stores it as its own
+  record on receipt. A replica seeded mid-embargo holds A.
+- **Ledger replay** — the hash chain applies A's proposal entry before any
+  activation that replaces it (SYNC-14-003), and each embargo apply node stores
+  the `EmbargoEvent` its entry carries before calling `EmbargoLifecycle`.
+- **The writers** — `accept_embargo_invite()` and `activate_embargo()`, the only
+  writers of `active_embargo`, read the embargo they activate as well as the
+  one it replaces, so a bare id from an inbox (which stores only the first
+  level of nesting: `Accept(Invite(A))` keeps the Invite, not A) cannot land.
+
+So "a replica lacking the replaced embargo" is a broken invariant, not a
+replication lag. It is refused and logged at ERROR, never parked as `DEFERRED`:
+nothing would re-drive the parked item, so a deferral would wait forever behind
+a WARNING. No catch-up fetch, replay-on-store trigger, or `end_time`-in-snapshot
+mechanism is built for it (CONCERN-4004). The `DEFERRED` arm PR #4002 added
+(`REPLACED_EMBARGO_UNREPLICATED_PREFIX`) is retired by #4032.
 
 **`TransitionMode`**: `STRICT` enforces valid transitions and precondition
 guards (used by trigger-side BT behaviors).  `OBSERVED` syncs local state
