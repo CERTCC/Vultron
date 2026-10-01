@@ -39,10 +39,11 @@ a non-optional note field.
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from vultron.core.models._helpers import require_future_aware
 from vultron.core.models.base import NonEmptyString, UriString
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.enums.roles import CVDRole
@@ -138,11 +139,7 @@ class ProposeEmbargoRequest(CaseTriggerRequest):
     @field_validator("end_time")
     @classmethod
     def end_time_must_be_tz_aware_and_future(cls, v: datetime) -> datetime:
-        if v.tzinfo is None or v.utcoffset() is None:
-            raise ValueError("end_time must be timezone-aware")
-        if v <= datetime.now(tz=UTC):
-            raise ValueError("end_time must be in the future")
-        return v
+        return require_future_aware(v)
 
 
 class AcceptEmbargoRequest(CaseTriggerRequest):
@@ -209,6 +206,17 @@ class SubmitReportRequest(BaseModel):
     report_name: NonEmptyString
     report_content: NonEmptyString
     recipient_id: UriString
+    #: The Reporter's proposed embargo end for this report (EP-04-004).  When
+    #: present the Offer carries a ``proposedEmbargo`` ending then; absent
+    #: means no terms are stated and the receiver's default applies.
+    proposed_embargo_end_time: datetime | None = None
+
+    @field_validator("proposed_embargo_end_time")
+    @classmethod
+    def proposed_end_must_be_tz_aware_and_future(
+        cls, v: datetime | None
+    ) -> datetime | None:
+        return require_future_aware(v, "proposed_embargo_end_time")
 
 
 class AddObjectToCaseRequest(CaseTriggerRequest):

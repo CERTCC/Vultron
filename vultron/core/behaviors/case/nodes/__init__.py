@@ -79,7 +79,7 @@ from vultron.core.behaviors.case.nodes.conditions import (
     CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
     CheckIsCaseManagerNode,
-    CheckPendingProposalExistsForReport,
+    CheckProposalAlreadySentForReport,
     WritePendingReportCaseLinkNode,
 )
 from vultron.core.behaviors.case.nodes.delegation import (
@@ -93,6 +93,7 @@ from vultron.core.behaviors.case.nodes.embargo import (
     SeedOwnerAsSignatoryNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
+    CaseEmbargoAlreadyInitializedNode,
     CaseNotEmbargoEligibleNode,
     ResolveEmbargoDurationNode,
 )
@@ -229,7 +230,7 @@ __all__ = [
     "CheckCaseExistsForReport",
     "CheckIsCaseManagerNode",
     "CheckIsCaseOwnerNode",
-    "CheckPendingProposalExistsForReport",
+    "CheckProposalAlreadySentForReport",
     "RequireCaseForReport",
     "WritePendingReportCaseLinkNode",
     # case_setup (leaf nodes)
@@ -251,6 +252,7 @@ __all__ = [
     # embargo (leaf nodes)
     "AdvanceEMStateToActiveNode",
     "AttachEmbargoToCaseNode",
+    "CaseEmbargoAlreadyInitializedNode",
     "CaseNotEmbargoEligibleNode",
     "CreateEmbargoEventNode",
     "RegisterLongerProposalAsRevisionNode",

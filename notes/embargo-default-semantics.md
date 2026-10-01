@@ -93,15 +93,21 @@ reached with no visible `ProposeEmbargo` or `AcceptEmbargo` activity. This is
 | Neither party has a default or proposal, and P/X/A is set | No embargo | `EM.NONE` remains (EP-04-008) |
 
 The **default path** is the common happy-path scenario. No EP or EA message
-is emitted; no per-participant acceptance round-trip occurs. The demo
-scenarios all use this path because the reporter-side embargo proposal
-mechanism is specified but not yet built — see
-"Resolved: Reporter Embargo Proposal Mechanism" below.
+is emitted; no per-participant acceptance round-trip occurs. Every
+multi-actor scenario uses this path: `reporter_submits_report()` states no
+terms unless a caller passes `proposed_embargo_end_time`.
 
-The **negotiated path** requires that mechanism. EP-04-004 now specifies it
-(a proposed `EmbargoEvent` embedded on the report offer), which makes
-EP-04-003's shortest-wins comparison reachable; until the Tasks land, only
-EP-04-001 and EP-04-005 apply at case creation.
+The **negotiated path** is EP-04-004's mechanism — a proposed `EmbargoEvent`
+embedded on the report Offer (#3392) — which makes EP-04-003's shortest-wins
+comparison reachable. Its demonstration is the `report-with-embargo` exchange
+demo (`vultron/demo/exchange/report_with_embargo_demo.py`, #3393): the
+Reporter's `submit-report` trigger carries `proposed_embargo_end_time`, the
+Receiver publishes its actor default through `PUT
+/actors/{actor_id}/embargo-policy` (EP-02, #3972), and three runs show the
+Reporter's shorter terms winning, the Receiver's shorter default winning, and
+a Receiver with no default at all. Still no EP/EA message appears on the wire:
+the negotiation is settled at case creation, so a reader distinguishes the
+two paths by whether terms were stated on the Offer, not by the messages.
 
 **EP-04-003 is the two-party instance of a general rule.** Shortest-wins at case
 creation is the same comparison **EP-08-001** states for *N* simultaneously open
@@ -130,8 +136,9 @@ Earliest-Expiration First (EP-08)".
   intervening embargo-negotiation steps is exercising the default path
   correctly. The absence of `ProposeEmbargo` / `AcceptEmbargo` activities is
   **not a gap** in the demo — it reflects the protocol rule.
-- Future demos that implement the negotiated path MUST document clearly that
-  they are doing so, so readers can distinguish the two paths.
+- A demo that implements the negotiated path MUST document clearly that it is
+  doing so, so readers can distinguish the two paths. `report-with-embargo`
+  does, in its module docstring and in the how-to page's "Try it" block.
 - Implementers who add a UI or agent integration at the `EvaluateEmbargoProposal`
   call-out point are adding the *negotiated path* seam. The default path will
   still apply when that seam is not triggered.
@@ -236,6 +243,28 @@ fetches it, and keeps it for no other case, so a stale copy can never win a
 later shortest-wins. The protocol also permits a profile reference that the
 CASE_MANAGER dereferences (CP-01-009); this prototype requires the inline form.
 A profile with no policy means no actor default.
+
+**Until #4026 and #4027 land, the prototype diverges from this.** Under
+ADR-0041 as built, `case.attributed_to` is the **CaseActor** that created the
+case (`CreateCaseFromProposalNode`), not the vendor that received the report —
+the vendor holds `CASE_OWNER` as a role, not as the case's `attributed_to` — and
+`ResolveEmbargoDurationNode` reads `owner_embargo_policies` on that field. So a
+policy the vendor publishes on itself never reaches the comparison, because
+nothing carries it to the CaseActor. The `report-with-embargo` demo therefore
+publishes the Receiver's default on the CaseActor its node hosts, and marks that
+step as a workaround in its narration and docstring, so #4027 can move the
+publish onto the Receiver's own profile (planned in #3979, PR #4025).
+
+**Initialization runs once per case.** `InitializeDefaultEmbargoNode`'s first
+arm (`CaseEmbargoAlreadyInitializedNode`) succeeds when the case already
+carries an active embargo. Without it a second `Create(CaseProposal)` for the
+same report — which the CaseActor answers by reusing the case (CP-05-006) —
+re-ran the creation arm: the default path stored an orphan `EmbargoEvent`, and
+the contested path registered the losing candidate as a *second* pending
+revision, one per delivery. The vendor side stopped feeding it duplicates at
+the same time: `CheckProposalAlreadySentForReport` now treats an *answered*
+`ReportCaseLink` (case linked) as "already proposed", not only a pending one,
+so a re-delivered Offer no longer re-proposes (#3393).
 
 The refusal arm is a *negative* condition — SUCCESS means "not eligible, stop" —
 rather than a Success fallback after the creation sequence. A fallback would turn

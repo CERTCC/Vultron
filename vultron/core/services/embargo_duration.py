@@ -73,20 +73,34 @@ def owner_embargo_policies(
     ]
 
 
-def select_actor_default(
+def select_actor_default_policy(
     policies: Iterable[EmbargoPolicy],
-) -> timedelta | None:
-    """Return the actor default from *policies*, or ``None`` when none exist.
+) -> EmbargoPolicy | None:
+    """Return the policy that supplies the actor default, or ``None``.
 
     Selection is deterministic regardless of store iteration order
     (EP-04-010): the shortest ``preferred_duration`` wins, per
     ``em/principles.md``'s "shortest duration possible", and ties fall to the
-    lowest policy id.
+    lowest policy id.  The embargo-policy endpoint shows this record, so what
+    it shows is what shortest-wins uses.
     """
     ordered = sorted(policies, key=lambda p: (p.preferred_duration, p.id_))
     if not ordered:
         return None
-    return ordered[0].preferred_duration
+    return ordered[0]
+
+
+def select_actor_default(
+    policies: Iterable[EmbargoPolicy],
+) -> timedelta | None:
+    """Return the actor default duration from *policies*, or ``None``.
+
+    The duration of :func:`select_actor_default_policy`'s choice.
+    """
+    policy = select_actor_default_policy(policies)
+    if policy is None:
+        return None
+    return policy.preferred_duration
 
 
 def resolve_initial_embargo_duration(

@@ -781,6 +781,18 @@
       "SubmitReportRequest": {
         "description": "Request body for the submit-report trigger endpoint.\n\nThe finder uses this to create a VulnerabilityReport and offer it to a\nrecipient.  The actor_id is taken from the URL path; report_name,\nreport_content, and recipient_id must be supplied in the request body.\n\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
+          "proposed_embargo_end_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed Embargo End Time"
+          },
           "recipient_id": {
             "title": "Recipient Id",
             "type": "string"
@@ -2485,7 +2497,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/submit-report": {
       "post": {
-        "description": "Creates a VulnerabilityReport in the actor's DataLayer and queues an RmSubmitReportActivity (Offer) to the specified recipient. Returns the serialised offer so the caller can deliver it to the recipient's inbox.",
+        "description": "Creates a VulnerabilityReport in the actor's DataLayer and queues an RmSubmitReportActivity (Offer) to the specified recipient. An optional proposed_embargo_end_time states the Reporter's embargo terms for the report; the Offer then carries them as proposedEmbargo (EP-04-004). Returns the serialised offer so the caller can deliver it to the recipient's inbox.",
         "operationId": "actors_trigger_submit_report",
         "parameters": [
           {

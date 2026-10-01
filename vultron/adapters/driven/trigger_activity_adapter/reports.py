@@ -28,6 +28,7 @@ from vultron.wire.as2.factories import (
     rm_validate_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Read
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -97,11 +98,29 @@ class _ReportsMixin:
         actor: str,
         to: str,
         target: str,
+        proposed_embargo_id: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Offer(as_VulnerabilityReport)`` activity."""
+        """Create and persist an ``Offer(as_VulnerabilityReport)`` activity.
+
+        *proposed_embargo_id* names the Reporter's stored ``EmbargoEvent`` for
+        the report; the factory carries it as ``proposedEmbargo`` and refuses
+        one whose ``context`` is not the report (EP-04-009).  A name that
+        resolves to nothing raises ``VultronNotFoundError``: the use case
+        stored the event a moment ago, so its absence is a fault, not a
+        proposal to drop quietly.
+        """
         report = _to_wire(self._dl.read(report_id), as_VulnerabilityReport)
+        proposed_embargo = (
+            _to_wire(self._dl.read(proposed_embargo_id), as_EmbargoEvent)
+            if proposed_embargo_id is not None
+            else None
+        )
         activity = rm_submit_report_activity(
-            report=report, to=to, actor=actor, target=target
+            report=report,
+            to=to,
+            actor=actor,
+            target=target,
+            proposed_embargo=proposed_embargo,
         )
         try:
             self._dl.create(activity)

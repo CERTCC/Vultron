@@ -2513,6 +2513,8 @@ class TestEP04SenderProposalAtCaseCreation:
         *,
         sender_days: int,
         terms_context: str = _REPORT_URI,
+        proposal_id: str = _PROPOSAL_URI,
+        terms: Any = None,
     ):
         from datetime import datetime
 
@@ -2528,11 +2530,12 @@ class TestEP04SenderProposalAtCaseCreation:
         report = as_VulnerabilityReport(
             id_=_REPORT_URI, attributed_to=_REPORTER_URI, content="x"
         )
-        terms = EmbargoEvent(
-            id_=f"{_REPORT_URI}/embargo_proposals/1",
-            context=terms_context,
-            end_time=datetime.now(tz=UTC) + timedelta(days=sender_days),
-        )
+        if terms is None:
+            terms = EmbargoEvent(
+                id_=f"{_REPORT_URI}/embargo_proposals/1",
+                context=terms_context,
+                end_time=datetime.now(tz=UTC) + timedelta(days=sender_days),
+            )
         if terms_context == _REPORT_URI:
             offer = rm_submit_report_activity(
                 report,
@@ -2547,7 +2550,7 @@ class TestEP04SenderProposalAtCaseCreation:
                 report, to=_VENDOR_URI, actor=_REPORTER_URI
             ).model_copy(update={"proposed_embargo": terms})
         proposal = as_CaseProposal(
-            id_=_PROPOSAL_URI,
+            id_=proposal_id,
             attributed_to=_VENDOR_URI,
             object_=report,
             target=_CASE_ACTOR_URI,
@@ -2675,6 +2678,44 @@ class TestEP04SenderProposalAtCaseCreation:
         assert isinstance(revision, EmbargoEvent)
         assert revision.context == case.id_
         assert revision.end_time == terms.end_time
+
+    @pytest.mark.spec("EP-04-003")
+    @pytest.mark.spec("CP-05-006")
+    def test_a_second_proposal_for_the_same_report_registers_no_second_revision(
+        self, make_payload
+    ):
+        """The same Offer re-delivered makes the vendor propose again under a
+        new proposal id; the CaseActor reuses the case and must leave its
+        creation-time embargo alone — one active, one pending, no orphan.
+        The report-with-embargo demo found two revisions here (#3393)."""
+        from vultron.core.models.embargo_event import EmbargoEvent
+
+        dl = self._store()
+        self._publish_owner_policy(dl)
+        case, terms = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS
+        )
+        events_after_first = {e.id_ for e in dl.list_objects("EmbargoEvent")}
+        assert case.current_status.em.state == EM.REVISE
+        assert len(case.proposed_embargoes) == 1
+
+        again, _ = self._run(
+            make_payload,
+            dl,
+            sender_days=self._SENDER_END_DAYS,
+            proposal_id="https://example.org/proposals/p-002",
+            terms=terms,
+        )
+
+        assert again.id_ == case.id_
+        assert again.current_status.em.state == EM.REVISE
+        assert again.active_embargo_id == terms.id_
+        assert again.proposed_embargoes == case.proposed_embargoes
+        assert {
+            e.id_ for e in dl.list_objects("EmbargoEvent")
+        } == events_after_first
+        revision = dl.read(again.proposed_embargoes[0])
+        assert isinstance(revision, EmbargoEvent)
 
     @pytest.mark.spec("EP-04-004")
     def test_an_expired_proposal_is_no_proposal(self, make_payload):
