@@ -32,12 +32,15 @@ into a function that imports).  Then a component is already loaded by the time
 the driver reaches it, which would make its children vacuous.  The driver
 checks for exactly that, and imports such a component's members in brand-new
 interpreters instead, so a missed edge costs time, never coverage.
+It does the same once a module has started a thread, since forking a
+multi-threaded process is unsafe.
 """
 
 import json
 import os
 import subprocess
 import sys
+import threading
 import traceback
 
 #: Third-party packages imported before the walk.  They are outside every
@@ -98,11 +101,17 @@ def _forked_imports(members: list[str]) -> dict[str, str]:
             read_fd, write_fd = os.pipe()
             pid = os.fork()
             if pid == 0:  # child
-                os.close(read_fd)
-                error = _import(module) or ""
-                with os.fdopen(write_fd, "w") as out:
-                    out.write(error)
-                os._exit(0)
+                # A child must never return into the parent's loop, so every
+                # path, including one that raises, ends in ``os._exit``.
+                code = 1
+                try:
+                    os.close(read_fd)
+                    error = _import(module) or ""
+                    with os.fdopen(write_fd, "w") as out:
+                        out.write(error)
+                    code = 0
+                finally:
+                    os._exit(code)
             os.close(write_fd)
             children.append((module, pid, read_fd))
         for module, pid, read_fd in children:
@@ -146,7 +155,13 @@ def main() -> int:
     failures: dict[str, str] = {}
     for component in _components(graph):
         if len(component) > 1:
-            if any(m in sys.modules for m in component):
+            # Forking a process that runs other threads copies only the
+            # forking thread, so a lock another thread held stays held in
+            # the child forever; a module that started a thread on import
+            # sends the rest of the walk to fresh interpreters instead.
+            if threading.active_count() > 1 or any(
+                m in sys.modules for m in component
+            ):
                 failures.update(_fresh_imports(component))
             else:
                 failures.update(_forked_imports(component))

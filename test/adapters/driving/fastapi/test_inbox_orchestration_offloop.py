@@ -44,7 +44,7 @@ def clear_actor_locks():
 def quiet_pipeline(monkeypatch):
     """Stub the pipeline's collaborators so only threading is under test."""
     monkeypatch.setattr(
-        "vultron.adapters.driving.fastapi.outbox_handler.outbox_handler",
+        "vultron.adapters.driving.fastapi.inbox_orchestration.outbox_handler",
         AsyncMock(),
     )
     monkeypatch.setattr(
