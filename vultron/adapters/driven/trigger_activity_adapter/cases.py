@@ -28,6 +28,8 @@ from vultron.errors import (
 )
 from vultron.wire.as2.factories import (
     create_case_activity,
+    reject_close_case_activity,
+    rm_close_case_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
 )
@@ -110,8 +112,6 @@ class _CasesMixin:
         to: list[str] | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Leave(as_VulnerabilityCase)`` close-case activity."""
-        from vultron.wire.as2.factories import rm_close_case_activity
-
         case = _case_for_wire(self._dl, case_id)
         activity = rm_close_case_activity(case=case, actor=actor, to=to)
         try:
@@ -140,11 +140,6 @@ class _CasesMixin:
         later in the tree), so the decline is threaded to it via
         ``in_reply_to`` rather than read back from the DataLayer.
         """
-        from vultron.wire.as2.factories import (
-            reject_close_case_activity,
-            rm_close_case_activity,
-        )
-
         case = _case_for_wire(self._dl, case_id)
         leave = rm_close_case_activity(case=case, actor=close_sender)
         kwargs: dict[str, Any] = {"actor": actor, "to": [close_sender]}

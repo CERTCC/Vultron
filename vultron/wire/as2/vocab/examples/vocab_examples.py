@@ -30,6 +30,7 @@ JSON file list drifts from what this generator produces.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from pathlib import Path
 from typing import cast
 
 from pydantic import BaseModel
@@ -139,8 +140,6 @@ from vultron.wire.as2.vocab.examples.sync import (
 
 
 def main(outdir=None):
-    from pathlib import Path
-
     if outdir is None:
         outdir = Path(__file__).parents[5] / "docs" / "reference" / "examples"
     else:

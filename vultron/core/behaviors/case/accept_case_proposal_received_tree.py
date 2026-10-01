@@ -36,7 +36,7 @@ class RecordCaseActorAcceptanceNode(DataLayerAction):
     """Update the vendor's VultronReportCaseLink with the case-actor URI.
 
     When the case-actor service accepts the proposal, the vendor records
-    the case-actor URI as ``trusted_case_actor_id`` so the subsequent
+    the case-actor URI as ``case_manager_id`` so the subsequent
     ``Create(VulnerabilityCase)`` bootstrap can validate the sender
     (CP-06-003, CBT-01-006).
 
@@ -79,7 +79,7 @@ class RecordCaseActorAcceptanceNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        link.trusted_case_actor_id = self._case_actor_id
+        link.case_manager_id = self._case_actor_id
         self.datalayer.save(link)
         logger.info(
             "%s: Recorded case-actor URI '%s' for report '%s' (CP-06-003)",

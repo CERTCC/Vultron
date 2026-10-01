@@ -42,6 +42,9 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
     read_rm_states,
 )
+from vultron.core.behaviors.sync.nodes.conditions import (
+    _require_log_entry,
+)
 from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
 from vultron.core.models._helpers import (
     _as_id,
@@ -188,9 +191,6 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        from vultron.core.behaviors.sync.nodes.conditions import (
-            _require_log_entry,
-        )
 
         entry = _require_log_entry(self.activity, self.name)
         snapshot = entry.payload_snapshot

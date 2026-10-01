@@ -26,6 +26,10 @@ import logging
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -136,9 +140,6 @@ class AdvanceInviteeToReceivedNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.invitee_id = invitee_id
-        from vultron.core.behaviors.case.nodes.participant.status import (
-            CreateParticipantStatusNode,
-        )
 
         # Pre-built once (BTND-10-004); its own stop() resets the latched actor
         # id after each tick (#3268).
@@ -203,8 +204,6 @@ class AdvanceInviteeToReceivedNode(DataLayerActionWithPorts):
             current_rm = self._current_participant_rm()
             if current_rm is not None and current_rm != RM.START:
                 return Status.SUCCESS
-
-        from vultron.core.behaviors.bridge import BTBridge
 
         result = BTBridge(datalayer=self.datalayer).execute_with_setup(
             self._status_node,

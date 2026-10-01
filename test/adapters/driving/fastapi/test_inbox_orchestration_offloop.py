@@ -44,7 +44,7 @@ def clear_actor_locks():
 def quiet_pipeline(monkeypatch):
     """Stub the pipeline's collaborators so only threading is under test."""
     monkeypatch.setattr(
-        "vultron.adapters.driving.fastapi.outbox_handler.outbox_handler",
+        "vultron.adapters.driving.fastapi.inbox_orchestration.outbox_handler",
         AsyncMock(),
     )
     monkeypatch.setattr(
@@ -58,8 +58,11 @@ def quiet_pipeline(monkeypatch):
 
 
 def _install_process_payload(monkeypatch, fn) -> None:
-    # run_inbox_pipeline imports the symbol from the package at call time.
-    monkeypatch.setattr("vultron.core.behaviors.inbox.process_payload", fn)
+    # run_inbox_pipeline calls the name its module imported at load time.
+    monkeypatch.setattr(
+        "vultron.adapters.driving.fastapi.inbox_orchestration.process_payload",
+        fn,
+    )
 
 
 @pytest.mark.spec("IE-06-003")

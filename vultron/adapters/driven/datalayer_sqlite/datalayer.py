@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 from sqlmodel import Session, SQLModel
 
 from vultron.adapters.outbox_dead_letter import OutboxDeadLetterEntry
+from vultron.core.models.case import VulnerabilityCase as _VC
 from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
@@ -228,8 +229,6 @@ class SqliteDataLayer:
         self, case_id: str, raise_on_missing: bool = False
     ) -> "VulnerabilityCase | None":
         """Read a VulnerabilityCase by ID; returns None when not found."""
-        from vultron.core.models.case import VulnerabilityCase as _VC
-
         result = self.read(case_id, raise_on_missing=raise_on_missing)
         if result is not None and not isinstance(result, _VC):
             if raise_on_missing:
@@ -323,8 +322,6 @@ class SqliteDataLayer:
         self, short_id: str
     ) -> "VulnerabilityCase | None":
         """Find a case by its URL-safe surrogate key."""
-        from vultron.core.models.case import VulnerabilityCase as _VC
-
         result = queries.find_case_by_short_id(self, short_id)
         return result if isinstance(result, _VC) else None
 
@@ -332,8 +329,6 @@ class SqliteDataLayer:
         self, report_id: str
     ) -> "VulnerabilityCase | None":
         """Find a ``VulnerabilityCase`` referencing the given report ID."""
-        from vultron.core.models.case import VulnerabilityCase as _VC
-
         result = queries.find_case_by_report_id(self, report_id)
         return result if isinstance(result, _VC) else None
 

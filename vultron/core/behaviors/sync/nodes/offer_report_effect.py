@@ -32,6 +32,19 @@ from pydantic import ValidationError
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
+from vultron.core.behaviors.sync.nodes.conditions import (
+    _require_log_entry,
+)
+from vultron.core.models._helpers import (
+    project_wire_snapshot_to_core,
+)
+from vultron.core.models.offer_record import (
+    SNAPSHOT_OFFER_ACTOR_ID_KEY,
+    SNAPSHOT_OFFER_ID_KEY,
+    VultronOfferRecord,
+)
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 
 
 class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
@@ -77,15 +90,6 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-
-        from vultron.core.behaviors.sync.nodes.conditions import (
-            _require_log_entry,
-        )
-        from vultron.core.models.offer_record import (
-            SNAPSHOT_OFFER_ACTOR_ID_KEY,
-            SNAPSHOT_OFFER_ID_KEY,
-            VultronOfferRecord,
-        )
 
         entry = _require_log_entry(self.activity, self.name)
 
@@ -163,10 +167,6 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
             and self.datalayer.read(report_id) is None
         ):
             return
-        from vultron.core.models._helpers import (
-            project_wire_snapshot_to_core,
-        )
-        from vultron.core.models.report import VulnerabilityReport
 
         try:
             report = VulnerabilityReport.model_validate(
@@ -202,8 +202,6 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
         offer_to: list,
     ) -> Status:
         assert self.datalayer is not None
-        from vultron.core.models.offer_record import VultronOfferRecord
-        from vultron.core.models.report_case_link import VultronReportCaseLink
 
         try:
             record = VultronOfferRecord(

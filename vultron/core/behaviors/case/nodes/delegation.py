@@ -22,6 +22,7 @@ auto-accepting and explicitly rejecting the delegation.
 See SE-08-003, ADR-0039.
 """
 
+import json
 import logging
 from typing import cast
 
@@ -116,8 +117,6 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
     def _commit_accept_to_ledger(
         self, accept_id: str, payload_snapshot: str
     ) -> bool:
-        import json
-
         assert self.datalayer is not None
         assert self.actor_id is not None
         # Exact blob as snapshot (VM-08-003): the factory sets ``context`` to

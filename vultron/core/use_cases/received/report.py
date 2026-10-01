@@ -4,6 +4,21 @@ import logging
 from typing import TYPE_CHECKING
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case import receive_report_case_tree
+from vultron.core.behaviors.case.nodes import (
+    CheckAutoCaseCreationEnabledNode,
+    CheckProposalAlreadySentForReport,
+)
+from vultron.core.behaviors.report import received_report_trees
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckRMStateValid,
+)
+from vultron.core.behaviors.report.received_report_trees import (
+    create_ack_report_received_tree,
+    create_close_report_received_tree,
+    create_invalidate_report_received_tree,
+    create_validate_report_received_tree,
+)
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
     CloseReportReceivedEvent,
@@ -165,13 +180,6 @@ def _run_submit_report_case_creation(
     are no-ops, and any other failure is this actor's own (a missing port, a
     CaseActor that cannot be hosted), so it raises rather than refuses.
     """
-    from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.case import receive_report_case_tree
-    from vultron.core.behaviors.case.nodes import (
-        CheckAutoCaseCreationEnabledNode,
-        CheckProposalAlreadySentForReport,
-    )
-
     logger.info(
         "Actor '%s' receiving report '%s' — running case-creation BT",
         receiving_actor_id,
@@ -237,9 +245,6 @@ class CreateReportReceivedUseCase:
         self._request: CreateReportReceivedEvent = request
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.report import received_report_trees
-
         request = self._request
         tree = received_report_trees.create_report_received_tree(request)
         bridge = BTBridge(
@@ -385,10 +390,6 @@ class ValidateReportReceivedUseCase:
                 report_id,
             )
 
-        from vultron.core.behaviors.report.received_report_trees import (
-            create_validate_report_received_tree,
-        )
-
         tree = create_validate_report_received_tree(
             report_id=report_id,
             offer_id=offer_id,
@@ -416,9 +417,6 @@ class ValidateReportReceivedUseCase:
                 verdict.reason,
             )
             return verdict
-        from vultron.core.behaviors.report.nodes.conditions import (
-            CheckRMStateValid,
-        )
 
         if node_succeeded(tree, CheckRMStateValid):
             # The Selector's idempotency exit (ID-04-004): already VALID.
@@ -440,10 +438,6 @@ class InvalidateReportReceivedUseCase:
         self._request: InvalidateReportReceivedEvent = request
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.report.received_report_trees import (
-            create_invalidate_report_received_tree,
-        )
-
         request = self._request
         # The *receiving* actor, not the sender (BT-17-005): an inbound
         # activity is applied to the receiver's own replica, so the tree must
@@ -499,10 +493,6 @@ class AckReportReceivedUseCase:
             case = self._dl.find_case_by_report_id(report_id)
             case_id = getattr(case, "id_", None)
 
-        from vultron.core.behaviors.report.received_report_trees import (
-            create_ack_report_received_tree,
-        )
-
         tree = create_ack_report_received_tree(request, case_id=case_id)
         bridge = BTBridge(
             datalayer=self._dl,
@@ -533,10 +523,6 @@ class CloseReportReceivedUseCase:
         self._request: CloseReportReceivedEvent = request
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.report.received_report_trees import (
-            create_close_report_received_tree,
-        )
-
         request = self._request
         # The *receiving* actor, not the sender (BT-17-005): an inbound
         # activity is applied to the receiver's own replica, so the tree must
