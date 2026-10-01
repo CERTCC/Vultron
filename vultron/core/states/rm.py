@@ -175,6 +175,16 @@ def is_valid_rm_transition(source: RM, dest: RM) -> bool:
     )
 
 
+def is_rm_write_permitted(current: RM, target: RM) -> bool:
+    """Return True if an RM write may move *current* to *target*.
+
+    A write that keeps the state (a status confirmation) is permitted, and so
+    is one along an edge of the RM transition function (RMB-15-001).  Every
+    other move is refused, whatever its direction.
+    """
+    return current == target or is_valid_rm_transition(current, target)
+
+
 # The ordinary transitions an RM closure writes, from each source state
 # (RMB-14-005, CM-23-012).  Every closable state closes in one step; RM.VALID
 # has no close edge (VP-02-004), so it closes through RM.DEFERRED; RM.START

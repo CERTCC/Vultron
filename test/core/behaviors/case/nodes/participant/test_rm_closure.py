@@ -91,6 +91,7 @@ def _probe() -> py_trees.behaviour.Behaviour:
         (RM.ACCEPTED, [RM.CLOSED]),
         (RM.DEFERRED, [RM.CLOSED]),
         (RM.VALID, [RM.DEFERRED, RM.CLOSED]),
+        (RM.START, [RM.RECEIVED, RM.CLOSED]),
         (RM.CLOSED, []),
     ],
     ids=lambda v: v.name if isinstance(v, RM) else None,
@@ -103,8 +104,8 @@ def test_close_writes_the_closure_path(
     participant_id = participants[ACTOR_A].id_
     before = _rm_history(bt_scenario, participant_id)
 
-    status = RMClosureWriter(actor_id=ACTOR_A, name="Close").close(
-        _probe(), bt_scenario.dl, participant_id, case.id_
+    status = RMClosureWriter(name="Close").close(
+        _probe(), bt_scenario.dl, participant_id, case.id_, actor_id=ACTOR_A
     )
 
     assert status == Status.SUCCESS
@@ -115,11 +116,11 @@ def test_close_writes_the_closure_path(
 def test_one_writer_closes_each_actor_it_is_given(
     bt_scenario: BTTestScenario,
 ) -> None:
-    """A writer built without an actor closes whichever actor ``close`` names."""
+    """One writer closes whichever actor each ``close`` call names."""
     case, participants = _seed_case(
         bt_scenario, {ACTOR_A: RM.VALID, ACTOR_B: RM.RECEIVED}
     )
-    writer = RMClosureWriter(actor_id="", name="Close")
+    writer = RMClosureWriter(name="Close")
 
     for actor_id in (ACTOR_A, ACTOR_B):
         status = writer.close(
@@ -158,13 +159,52 @@ def test_a_step_off_the_rm_table_is_refused_not_forced(
     monkeypatch.setattr(rm_closure, "rm_closure_path", lambda _s: (RM.CLOSED,))
     probe = _probe()
 
-    status = RMClosureWriter(actor_id=ACTOR_A, name="Close").close(
-        probe, bt_scenario.dl, participant_id, case.id_
+    status = RMClosureWriter(name="Close").close(
+        probe, bt_scenario.dl, participant_id, case.id_, actor_id=ACTOR_A
     )
 
     assert status == Status.FAILURE
     assert "VALID -> CLOSED refused" in probe.feedback_message
     assert _rm_history(bt_scenario, participant_id) == before
+
+
+@pytest.mark.spec("RMB-14-005")
+def test_a_failed_step_keeps_the_rungs_written_and_a_retry_resumes(
+    bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A refused ``D → C`` leaves the actor at DEFERRED; a retry writes only C.
+
+    Each rung is a legal state on its own, so the writer keeps what it wrote
+    rather than rolling back, and the next ``close`` continues the path from
+    the state the actor reached instead of re-walking it.
+    """
+    case, participants = _seed_case(bt_scenario, {ACTOR_A: RM.VALID})
+    participant_id = participants[ACTOR_A].id_
+    before = _rm_history(bt_scenario, participant_id)
+    writer = RMClosureWriter(name="Close")
+    closed_step = writer._writers[RM.CLOSED]
+    probe = _probe()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(closed_step, "update", lambda: Status.FAILURE)
+        status = writer.close(
+            probe, bt_scenario.dl, participant_id, case.id_, actor_id=ACTOR_A
+        )
+
+    assert status == Status.FAILURE
+    assert "DEFERRED -> CLOSED refused" in probe.feedback_message
+    assert _rm_history(bt_scenario, participant_id) == [*before, RM.DEFERRED]
+
+    status = writer.close(
+        _probe(), bt_scenario.dl, participant_id, case.id_, actor_id=ACTOR_A
+    )
+
+    assert status == Status.SUCCESS
+    assert _rm_history(bt_scenario, participant_id) == [
+        *before,
+        RM.DEFERRED,
+        RM.CLOSED,
+    ]
 
 
 @pytest.mark.spec("ARCH-15-001")
@@ -184,8 +224,8 @@ def test_unreadable_status_is_reported_as_failure(
     )
     probe = _probe()
 
-    status = RMClosureWriter(actor_id=ACTOR_A, name="Close").close(
-        probe, bt_scenario.dl, participant_id, case.id_
+    status = RMClosureWriter(name="Close").close(
+        probe, bt_scenario.dl, participant_id, case.id_, actor_id=ACTOR_A
     )
 
     assert status == Status.FAILURE

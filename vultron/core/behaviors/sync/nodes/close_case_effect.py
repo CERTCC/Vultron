@@ -65,11 +65,14 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
         _name = name or self.__class__.__name__
         super().__init__(name=_name)
         # Pre-build the status writers (BTND-10-004: no construction in
-        # update()).  actor_id is "" as a placeholder; update() supplies the
-        # runtime departing actor.  The departing actor's self-declaratory
+        # update()); update() supplies the runtime departing actor to
+        # close().  The departing actor's self-declaratory
         # Leave (ADR-0084) is replicated as ordinary RM transitions, so a Leave
         # from VALID is V -> D -> C on every replica (RMB-14-005, CM-23-012).
-        self._closure = RMClosureWriter(actor_id="", name=_name)
+        # The path starts from this replica's own view of the actor's RM state,
+        # so a lagging replica may write a rung the manager never saw; the
+        # end state is RM.CLOSED either way.
+        self._closure = RMClosureWriter(name=_name)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -129,10 +132,11 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
         if closed != Status.SUCCESS:
             self.logger.warning(
                 "%s: failed to advance departing actor '%s' to RM.CLOSED"
-                " in case '%s'",
+                " in case '%s': %s",
                 self.name,
                 departing_actor_id,
                 case_id,
+                self.feedback_message,
             )
             return Status.FAILURE
 

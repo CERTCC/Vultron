@@ -28,6 +28,7 @@ from vultron.core.states.rm import (
     RM_CLOSABLE,
     RM_CLOSURE_RUNGS,
     create_rm_machine,
+    is_rm_write_permitted,
     is_valid_rm_transition,
     rm_closure_path,
 )
@@ -73,7 +74,7 @@ def test_rm_never_closes_from_valid() -> None:
     assert is_valid_rm_transition(RM.DEFERRED, RM.CLOSED)
 
 
-@pytest.mark.spec("RMB-14-003")
+@pytest.mark.spec("RMB-14-004")
 def test_rm_closable_names_exactly_the_close_edge_sources() -> None:
     """``RM_CLOSABLE`` is the set of states with a close edge: R, I, D, A."""
     machine = create_rm_machine()
@@ -124,3 +125,24 @@ def test_rm_closure_path_from_valid_passes_through_deferred() -> None:
 def test_rm_closure_path_from_closable_state_is_one_step(source: RM) -> None:
     """From R, I, A or D a closure is the single transition to CLOSED."""
     assert rm_closure_path(source) == (RM.CLOSED,)
+
+
+@pytest.mark.spec("RMB-15-001")
+@pytest.mark.parametrize(
+    ("current", "target", "permitted"),
+    [
+        (RM.RECEIVED, RM.CLOSED, True),
+        (RM.CLOSED, RM.CLOSED, True),
+        (RM.VALID, RM.VALID, True),
+        (RM.VALID, RM.DEFERRED, True),
+        (RM.VALID, RM.CLOSED, False),
+        (RM.START, RM.CLOSED, False),
+        (RM.CLOSED, RM.RECEIVED, False),
+    ],
+    ids=lambda v: v.name if isinstance(v, RM) else str(v),
+)
+def test_rm_write_is_permitted_for_a_table_edge_or_a_confirmation(
+    current: RM, target: RM, permitted: bool
+) -> None:
+    """A write keeps the state or follows an edge of the RM table; nothing else."""
+    assert is_rm_write_permitted(current, target) is permitted

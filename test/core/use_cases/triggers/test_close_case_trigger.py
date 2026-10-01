@@ -232,6 +232,30 @@ class TestSvcCloseCaseUseCase:
                 trigger_activity=TriggerActivityAdapter(self.dl),
             ).execute()
 
+    @pytest.mark.spec("RMB-14-004")
+    @pytest.mark.spec("VP-02-004")
+    def test_close_case_from_valid_raises_invalid_transition(self):
+        """VALID has no close edge, so the close is refused as a state fault.
+
+        ``CheckReportClosable`` refuses before the emit and writes the domain
+        error the router answers as 409, as a repeat close does; nothing is
+        queued.
+        """
+        self.dl.create(
+            VultronReportCaseLink(report_id=self.report.id_, rm_state=RM.VALID)
+        )
+        request = CloseReportTriggerRequest(
+            actor_id=self.vendor.id_, offer_id=self.offer.id_
+        )
+        before = set(self.dl.outbox_list())
+        with pytest.raises(VultronInvalidStateTransitionError, match="VALID"):
+            SvcCloseCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+        assert set(self.dl.outbox_list()) == before
+
     def test_close_case_raises_when_no_linked_case(self):
         """VultronNotFoundError raised when report has no linked VulnerabilityCase."""
         vendor2, dl2 = _make_actor_dl("Vendor2 Co")

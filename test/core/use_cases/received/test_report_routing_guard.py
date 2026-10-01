@@ -398,7 +398,13 @@ class TestCloseInvalidateDisposition:
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("RMB-14-004")
     def test_close_from_received_is_applied(self):
-        """RECEIVED → CLOSED is an RM transition (ADR-0114), so it applies."""
+        """RECEIVED → CLOSED is an RM transition (ADR-0114), so it applies.
+
+        The assertion reads the *receiving* actor's RM state because that is
+        the subject the handler writes today.  RSH-08-001 makes the sender the
+        subject; #3812 tracks that fix and will move this assertion to the
+        sender.
+        """
         dl = _make_dl()
         result = CloseReportReceivedUseCase(
             dl=dl, request=_make_close_report_event()

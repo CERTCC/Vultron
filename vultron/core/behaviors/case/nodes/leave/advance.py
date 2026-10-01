@@ -71,7 +71,7 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
         # Pre-build the status writers (BTND-10-004: no construction in
         # update()).  The closure is written as ordinary RM transitions, so a
         # Leave from VALID is V -> D -> C (RMB-14-005, CM-23-012).
-        self._closure = RMClosureWriter(actor_id=leaving_actor_id, name=_name)
+        self._closure = RMClosureWriter(name=_name)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -115,15 +115,19 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
                 return Status.SUCCESS
 
         closed = self._closure.close(
-            self, self.datalayer, participant_id, self._case_id
+            self,
+            self.datalayer,
+            participant_id,
+            self._case_id,
+            actor_id=self._leaving_actor_id,
         )
         if closed != Status.SUCCESS:
             self.logger.warning(
-                "%s: failed to create RM.CLOSED ParticipantStatus for"
-                " actor '%s' in case '%s'",
+                "%s: failed to close RM for actor '%s' in case '%s': %s",
                 self.name,
                 self._leaving_actor_id,
                 self._case_id,
+                self.feedback_message,
             )
             return Status.FAILURE
 
@@ -165,7 +169,7 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
         # Pre-build the status writers (BTND-10-004: no construction in
         # update()).  The closure is written as ordinary RM transitions, so a
         # Leave from VALID is V -> D -> C (RMB-14-005, CM-23-012).
-        self._closure = RMClosureWriter(actor_id=case_actor_id, name=_name)
+        self._closure = RMClosureWriter(name=_name)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -207,15 +211,19 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
                 return Status.SUCCESS
 
         closed = self._closure.close(
-            self, self.datalayer, participant_id, self._case_id
+            self,
+            self.datalayer,
+            participant_id,
+            self._case_id,
+            actor_id=self._case_actor_id,
         )
         if closed != Status.SUCCESS:
             self.logger.warning(
-                "%s: failed to create RM.CLOSED ParticipantStatus for"
-                " case actor '%s' in case '%s'",
+                "%s: failed to close RM for case actor '%s' in case '%s': %s",
                 self.name,
                 self._case_actor_id,
                 self._case_id,
+                self.feedback_message,
             )
             return Status.FAILURE
 

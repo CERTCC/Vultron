@@ -231,12 +231,26 @@ def resolve_transition_context_or_report(
     try:
         return resolve_participant_transition_context(dl, case, participant_id)
     except VultronValidationError as exc:
-        node.feedback_message = (
-            f"Participant '{participant_id}' status is not core-shaped:"
-            f" {exc} (ARCH-15-001)"
-        )
-        node.logger.warning(f"{node.name}: {node.feedback_message}")
-        return Status.FAILURE
+        return report_unshaped_status(node, participant_id, exc)
+
+
+def report_unshaped_status(
+    node: py_trees.behaviour.Behaviour,
+    participant_id: str,
+    exc: VultronValidationError,
+) -> Status:
+    """Report a participant status that is not core-shaped as ``FAILURE``.
+
+    The single wording for ARCH-15-001 shape faults raised by
+    ``resolve_participant_state_from_dl``, shared by every node that reads a
+    participant's state before writing it (CS-22-001).
+    """
+    node.feedback_message = (
+        f"Participant '{participant_id}' status is not core-shaped:"
+        f" {exc} (ARCH-15-001)"
+    )
+    node.logger.warning(f"{node.name}: {node.feedback_message}")
+    return Status.FAILURE
 
 
 def validate_participant_status_write(

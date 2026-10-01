@@ -931,6 +931,44 @@ class TestClosureRMBoundary:
         after = _participant_rm_states(dl, OWNER_ID)
         assert after == [*before, *path], after
 
+    @pytest.mark.spec("CM-23-005")
+    @pytest.mark.spec("RMB-14-005")
+    @pytest.mark.parametrize(
+        ("source", "path"),
+        [
+            (RM.ACCEPTED, [RM.CLOSED]),
+            (RM.VALID, [RM.DEFERRED, RM.CLOSED]),
+        ],
+        ids=lambda v: v.name if isinstance(v, RM) else None,
+    )
+    def test_case_manager_closure_records_every_rung(
+        self, source: RM, path: list[RM]
+    ):
+        """Owner Leave records each CASE_MANAGER closure rung on the ledger.
+
+        CM-23-005 requires every CASE_MANAGER RM transition to be a
+        ``CaseLedgerEntry``.  A CASE_MANAGER at VALID closes ``V → D → C``
+        (RMB-14-005), so both the DEFERRED and the CLOSED status are
+        committed, in that order, and both before ``case_fully_closed``.
+        """
+        dl = _make_full_dl()
+        _seed_rm(dl, CASE_ACTOR_ID, source)
+        before = _case_actor_rm_entry_states(dl)
+
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        after = _case_actor_rm_entry_states(dl)
+        assert after[: len(before)] == before
+        assert after[len(before) :] == path, (
+            f"CASE_MANAGER closure from RM.{source.name} must record"
+            f" {[rm.name for rm in path]} (CM-23-005); got {after}"
+        )
+
     @pytest.mark.spec("CM-23-012")
     def test_owner_leave_leaves_bystander_at_prior_rung(self):
         """Owner Leave must leave a bystander at exactly its prior RM rung.
@@ -1159,6 +1197,29 @@ class TestOwnerLeaveDuringActiveEmbargo:
         assert not _case_fully_closed_present(dl), (
             "No case_fully_closed entry may be written when the decline emit fails"
         )
+
+
+def _case_actor_rm_entry_states(dl: SqliteDataLayer) -> list[RM]:
+    """Return the CaseActor's RM states as recorded on the ledger, in order."""
+    entries = sorted(
+        (
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+            and e.case_id == CASE_ID
+            and e.event_type == "add_participant_status_to_participant"
+            and (e.payload_snapshot or {})
+            .get("object", {})
+            .get("attributedTo")
+            == CASE_ACTOR_ID
+        ),
+        key=lambda e: e.log_index,
+    )
+    return [
+        RM(e.payload_snapshot["object"]["rmState"])
+        for e in entries
+        if e.payload_snapshot["object"].get("rmState")
+    ]
 
 
 def _case_actor_rm_closed_entries(dl: SqliteDataLayer) -> list:

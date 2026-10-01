@@ -348,7 +348,7 @@ class TestRejectReportTriggerTree:
         result = scenario.run(tree)
         scenario.assert_success(result)
         scenario.assert_rm_state(report.id_, RM.CLOSED)
-        assert len(set(scenario.dl.outbox_list()) - before) >= 1
+        assert len(set(scenario.dl.outbox_list()) - before) == 1
 
     @pytest.mark.spec("RMB-14-004")
     @pytest.mark.spec("VP-02-004")

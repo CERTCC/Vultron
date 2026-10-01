@@ -123,6 +123,7 @@ def create_reject_report_trigger_tree(
     report_id: str,
     captured: dict | None = None,
     sender_actor_id: str | None = None,
+    result_out: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the reject-report trigger workflow.
 
@@ -148,6 +149,10 @@ def create_reject_report_trigger_tree(
         report_id: ID of the VulnerabilityReport.
         captured: Optional dict; ``captured["activity"]`` is set to the
             serialised activity dict on success (DL-06-001, AC-1).
+        sender_actor_id: The rejecting actor.
+        result_out: Optional mutable dict; ``result_out["error"]`` is set to a
+            ``VultronInvalidStateTransitionError`` when the report's RM state
+            has no close edge.
 
     Returns:
         Root node of the ``RejectReportTriggerBT`` Sequence.
@@ -156,7 +161,7 @@ def create_reject_report_trigger_tree(
         name="RejectReportTriggerBT",
         memory=False,
         children=[
-            CheckReportClosable(report_id=report_id),
+            CheckReportClosable(report_id=report_id, result_out=result_out),
             EmitCloseReportActivity(
                 offer_id=offer_id,
                 report_id=report_id,
@@ -220,7 +225,7 @@ def create_close_case_trigger_tree(
         result_out: Mutable dict for surfacing domain errors back to the caller.
             ``result_out["error"]`` is set to a
             ``VultronInvalidStateTransitionError`` when the report is already
-            closed.
+            closed, or when its RM state has no close edge.
         captured: Optional dict; ``captured["activity"]`` is set to the
             serialised activity dict on success (DL-06-001, AC-1).
         call_out: Optional :class:`~vultron.core.behaviors.call_out.bundles
@@ -252,7 +257,7 @@ def create_close_case_trigger_tree(
                 report_id=report_id,
                 result_out=result_out,
             ),
-            CheckReportClosable(report_id=report_id),
+            CheckReportClosable(report_id=report_id, result_out=result_out),
             pre_close_node,
             EmitCloseReportActivity(
                 offer_id=offer_id,

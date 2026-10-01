@@ -37,7 +37,7 @@ from vultron.core.models.dimensions import (
 from vultron.core.models.wire_keys import input_keys
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.rm import RM, is_valid_rm_transition
+from vultron.core.states.rm import RM, is_rm_write_permitted
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronProtocolViolationError,
@@ -238,9 +238,7 @@ class ParticipantStatus(CoreObject):
         prev = self.previous_rm_state
         if prev is not None and not self.force_rm_state:
             requested = self.rm.state
-            if requested != prev and not is_valid_rm_transition(
-                prev, requested
-            ):
+            if not is_rm_write_permitted(prev, requested):
                 raise VultronProtocolViolationError(
                     f"Invalid RM transition at construction:"
                     f" {prev!r} → {requested!r} (not adjacent)."
