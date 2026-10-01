@@ -99,6 +99,25 @@ nav:
       - Wiring a Capability: 'howto/wire_capability.md'
   - Reference:
     - 'reference/index.md'
+    - Protocol Specification:
+      - 'reference/vultron-spec/index.md'
+      - Introduction and Overview: 'reference/vultron-spec/introduction.md'
+      - Protocol Layers: 'reference/vultron-spec/layers.md'
+      - Case Tracking Models: 'reference/vultron-spec/tracking-models.md'
+      - Interactions and Lifecycle: 'reference/vultron-spec/interactions.md'
+      - Conformance: 'reference/vultron-spec/conformance.md'
+      - Considerations and References: 'reference/vultron-spec/considerations.md'
+      - Annexes:
+        - 'Annex A Worked Example: Single-Vendor CVD': 'reference/vultron-spec/annex-a-single-vendor.md'
+        - 'Annex B Worked Example: Multi-Party CVD': 'reference/vultron-spec/annex-b-multi-party.md'
+        - Annex C Notation Reference: 'reference/vultron-spec/annex-c-notation.md'
+        - Annex D Possible Case Histories: 'reference/vultron-spec/annex-d-case-histories.md'
+        - Annex E Relationship to ActivityPub: 'reference/vultron-spec/annex-e-activitypub.md'
+        - Annex F Behavior Trees as an Implementation Pattern: 'reference/vultron-spec/annex-f-behavior-trees.md'
+        - Annex G Capability Shapes: 'reference/vultron-spec/annex-g-capability-shapes.md'
+      - Open Questions: 'reference/vultron-spec/open-questions.md'
+    - Protocol Quick Reference: 'reference/quick_reference.md'
+    - Conformance Matrix: 'reference/conformance_matrix.md'
     - Glossary: 'reference/glossary.md'
     - Documentation Conventions: 'reference/conventions.md'
     - Versioning: 'reference/versioning.md'
@@ -112,9 +131,6 @@ nav:
     - Concept Taxonomy: 'reference/vultron-taxonomy.md'
     - Vultron AS Objects: 'reference/activitypub/objects.md'
     - FV Demo Protocol: 'reference/fv-demo-protocol.md'
-    - Protocol Specification: 'reference/vultron-spec/index.md'
-    - Conformance Matrix: 'reference/conformance_matrix.md'
-    - Protocol Quick Reference: 'reference/quick_reference.md'
     - Trigger API: 'reference/trigger-api.md'
     - Notation: 'reference/notation.md'
     - Case Model Fields: 'reference/case_model_fields.md'
@@ -171,6 +187,10 @@ nav:
 not_in_nav: |
   _*.md
   reference/vultron-spec/includes/*
+  # The single-page edition of the Protocol Specification: every fragment in
+  # order, linked from the shared tip on each part page and kept out of search
+  # so a query lands on the part page that owns the section (#4061).
+  reference/vultron-spec/full.md
   # Withheld from the built site entirely; see draft_docs below. Listed here so
   # `mkdocs serve`, which does render drafts, raises no omitted-file warning.
   ns/index.md
