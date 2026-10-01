@@ -20,9 +20,11 @@ outbound protocol handling for one of the report-lifecycle trigger
 operations:
 
 - ``InvalidateReport`` — emit TentativeReject activity + transition RM → INVALID
-- ``RejectReport``     — emit CloseReport activity + transition RM → CLOSED
-- ``CloseCase``        — Case Owner guard + PreCloseAction hook +
-                         guard (not already closed) + emit CloseReport + RM → CLOSED
+- ``RejectReport``     — guard (RM may close) + emit CloseReport activity +
+                         transition RM → CLOSED
+- ``CloseCase``        — Case Owner guard + guard (not already closed) +
+                         guard (RM may close) + PreCloseAction hook +
+                         emit CloseReport + RM → CLOSED
 
 Trees are run via ``BTBridge.execute_with_setup()`` in the corresponding
 trigger use case.
@@ -45,7 +47,12 @@ from vultron.core.behaviors.call_out.bundles.close_report import (
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckIsCaseOwnerNode,
 )
-from vultron.core.behaviors.report.nodes.conditions import CheckReportNotClosed
+from vultron.core.behaviors.report.nodes.close_conditions import (
+    CheckReportClosable,
+)
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckReportNotClosed,
+)
 from vultron.core.behaviors.report.nodes.emit import (
     EmitCloseReportActivity,
     EmitInvalidateReportActivity,
@@ -119,17 +126,24 @@ def create_reject_report_trigger_tree(
     report_id: str,
     captured: dict | None = None,
     sender_actor_id: str | None = None,
+    result_out: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the reject-report trigger workflow.
 
     Emits ``RmCloseReportActivity`` (hard-close/Reject) and records the
     actor's RM state as CLOSED for the report.  Unlike the close-report
-    workflow, this path does NOT check for a prior CLOSED state — callers
-    can hard-reject an offer regardless of its current status.
+    workflow, this path does NOT refuse a prior CLOSED state — a repeat
+    hard-reject is a status confirmation.
+
+    The hard-reject writes ``CLOSED`` only through a transition the RM table
+    permits: from *Received* it is the ``R → C`` transition (RMB-14-004), and
+    from *Valid*, which has no close edge (VP-02-004), it is refused before
+    anything is emitted.
 
     Structure::
 
         RejectReportTriggerBT (Sequence)
+        ├─ CheckReportClosable      # guard: FAILURE if RM has no close edge
         ├─ EmitCloseReportActivity  # emit activity + queue in outbox
         └─ TransitionRMtoClosed     # persist report-phase RM.CLOSED
 
@@ -138,6 +152,10 @@ def create_reject_report_trigger_tree(
         report_id: ID of the VulnerabilityReport.
         captured: Optional dict; ``captured["activity"]`` is set to the
             serialised activity dict on success (DL-06-001, AC-1).
+        sender_actor_id: The rejecting actor.
+        result_out: Optional mutable dict; ``result_out["error"]`` is set to a
+            ``VultronInvalidStateTransitionError`` when the report's RM state
+            has no close edge.
 
     Returns:
         Root node of the ``RejectReportTriggerBT`` Sequence.
@@ -146,6 +164,7 @@ def create_reject_report_trigger_tree(
         name="RejectReportTriggerBT",
         memory=False,
         children=[
+            CheckReportClosable(report_id=report_id, result_out=result_out),
             EmitCloseReportActivity(
                 offer_id=offer_id,
                 report_id=report_id,
@@ -192,6 +211,7 @@ def create_close_case_trigger_tree(
         CloseCaseTriggerBT (Sequence)
         ├─ CheckCaseOwner           # guard: FAILURE if actor is not CASE_OWNER
         ├─ CheckReportNotClosed     # guard: FAILURE + error if already CLOSED
+        ├─ CheckReportClosable      # guard: FAILURE if RM has no close edge
         ├─ PreCloseAction           # Actuator call-out; default = AlwaysSucceed
         ├─ EmitCloseReportActivity  # emit activity + queue in outbox
         └─ TransitionRMtoClosed     # persist report-phase RM.CLOSED
@@ -208,7 +228,7 @@ def create_close_case_trigger_tree(
         result_out: Mutable dict for surfacing domain errors back to the caller.
             ``result_out["error"]`` is set to a
             ``VultronInvalidStateTransitionError`` when the report is already
-            closed.
+            closed, or when its RM state has no close edge.
         captured: Optional dict; ``captured["activity"]`` is set to the
             serialised activity dict on success (DL-06-001, AC-1).
         call_out: Optional :class:`~vultron.core.behaviors.call_out.bundles
@@ -236,6 +256,7 @@ def create_close_case_trigger_tree(
                 report_id=report_id,
                 result_out=result_out,
             ),
+            CheckReportClosable(report_id=report_id, result_out=result_out),
             pre_close_node,
             EmitCloseReportActivity(
                 offer_id=offer_id,

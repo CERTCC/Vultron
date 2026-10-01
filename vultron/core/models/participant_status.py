@@ -37,7 +37,7 @@ from vultron.core.models.dimensions import (
 from vultron.core.models.wire_keys import input_keys
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.rm import RM, is_valid_rm_transition
+from vultron.core.states.rm import RM, is_rm_write_permitted
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronProtocolViolationError,
@@ -164,8 +164,8 @@ class ParticipantStatus(CoreObject):
         exclude=True,
         description=(
             "Suppress the construction-time RM adjacency check. Set only by the"
-            " sanctioned closure call sites (same semantics as"
-            " CreateParticipantStatusNode.force_rm_state). Not serialised."
+            " bootstrap writes of a participant's first status (same semantics"
+            " as CreateParticipantStatusNode.force_rm_state). Not serialised."
         ),
     )
 
@@ -232,20 +232,18 @@ class ParticipantStatus(CoreObject):
         a no-op when that field is ``None`` (most construction sites do not have
         the previous state in scope).  Same-state re-assertions are allowed
         (idempotent), consistent with how ``_rm_violations`` treats them.  Pass
-        ``force_rm_state=True`` to bypass — only the three sanctioned closure
-        call sites should ever do this.
+        ``force_rm_state=True`` to bypass — only the enumerated bootstrap writes
+        should ever do this; closure never does (RMB-14-005).
         """
         prev = self.previous_rm_state
         if prev is not None and not self.force_rm_state:
             requested = self.rm.state
-            if requested != prev and not is_valid_rm_transition(
-                prev, requested
-            ):
+            if not is_rm_write_permitted(prev, requested):
                 raise VultronProtocolViolationError(
                     f"Invalid RM transition at construction:"
                     f" {prev!r} → {requested!r} (not adjacent)."
                     " Pass force_rm_state=True to override"
-                    " (only sanctioned closure sites)."
+                    " (only enumerated bootstrap writes)."
                 )
         return self
 

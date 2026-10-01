@@ -61,7 +61,7 @@ Every message is emitted by the Participant whose state changed; the "Response E
 | `RV` | Report Valid | RM | `{R,I}` $\xrightarrow{v}$ `V` | `RK` |
 | `RD` | Report/Case Deferred | RM | `{V,A}` $\xrightarrow{d}$ `D` | `RK` |
 | `RA` | Report/Case Accepted | RM | `{V,D}` $\xrightarrow{a}$ `A` | `RK` |
-| `RC` | Report Closed | RM | `{I,D,A}` $\xrightarrow{c}$ `C` | `RK` |
+| `RC` | Report Closed | RM | `{R,I,D,A}` $\xrightarrow{c}$ `C` | `RK` |
 | `RK` | Report Acknowledgment | RM | Any valid RM message received | — |
 | `RE` | Report Error | RM | Any unexpected RM message received | `RK` + `GI` |
 | `EP` | Embargo Proposal | EM | `{N,P}` $\xrightarrow{p}$ `P` | `EK` (or `ER` if embargo not viable) |
@@ -109,7 +109,7 @@ are in [Transitions](formal_protocol/transitions.md).
 | `{R,I}` | valid ($v$) | `V` | `RV` |
 | `{V,A}` | defer ($d$) | `D` | `RD` |
 | `{V,D}` | accept ($a$) | `A` | `RA` |
-| `{I,D,A}` | close ($c$) | `C` | `RC` |
+| `{R,I,D,A}` | close ($c$) | `C` | `RC` |
 
 ### EM transitions
 

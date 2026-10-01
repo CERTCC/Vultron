@@ -63,7 +63,10 @@ from vultron.core.use_cases.triggers.requests import (
     ValidateReportTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronNotFoundError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+)
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -596,6 +599,44 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
         ).execute()
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
+
+    @pytest.mark.spec("RMB-14-004")
+    def test_reject_report_from_received_closes_the_report(self):
+        """A hard reject from RECEIVED is the ``R → C`` transition."""
+        request = RejectReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        result = SvcRejectReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        assert activity_of(result).get("type") == "Reject"
+        link = self.dl.read(VultronReportCaseLink.build_id(self.report.id_))
+        assert isinstance(link, VultronReportCaseLink)
+        assert link.rm_state == RM.CLOSED
+
+    @pytest.mark.spec("RMB-14-004")
+    @pytest.mark.spec("VP-02-004")
+    def test_reject_report_from_valid_raises_invalid_transition(self):
+        """VALID has no close edge: no Reject is sent and the error is a 409."""
+        self.dl.save(
+            VultronReportCaseLink(report_id=self.report.id_, rm_state=RM.VALID)
+        )
+        request = RejectReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        before = set(self.dl.outbox_list())
+        with pytest.raises(VultronInvalidStateTransitionError, match="VALID"):
+            SvcRejectReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+        assert set(self.dl.outbox_list()) == before
 
     def test_reject_report_raises_when_actor_not_found(self):
         """Ported from the retired ``TriggerService`` suite (#3833)."""

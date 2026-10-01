@@ -3364,7 +3364,9 @@ groups:
       RM.CLOSED, regardless of which RM rung that actor currently holds (RECEIVED,
       INVALID, VALID, ACCEPTED, or DEFERRED). Each closure is written as transitions
       the RM transition function permits: a Leave from RM.VALID is recorded as
-      V → D → C (RMB-14-005). Case closure MUST NOT
+      V → D → C (RMB-14-005), and a Leave from RM.START, by an actor that has
+      not yet recorded receiving the case it is leaving, is recorded as
+      S → R → C, because S → C is not a transition. Case closure MUST NOT
       advance any non-leaving ("bystander") participant's RM state: on owner
       Leave, only the Case Owner and the CASE_MANAGER advance to RM.CLOSED
       (CM-23-002); every other participant MUST retain its last RM state. The

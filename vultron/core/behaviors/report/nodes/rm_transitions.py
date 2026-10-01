@@ -52,7 +52,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.states.rm import RM, is_valid_rm_transition
+from vultron.core.states.rm import RM, is_rm_write_permitted
 
 
 def _read_report_case_link(
@@ -131,9 +131,7 @@ class _ReportPhaseRMTransition(DataLayerActionWithPorts):
             return Status.FAILURE
 
         current_rm = link.rm_state
-        if current_rm != self._target_rm and not is_valid_rm_transition(
-            current_rm, self._target_rm
-        ):
+        if not is_rm_write_permitted(current_rm, self._target_rm):
             self.feedback_message = (
                 f"Invalid RM transition {current_rm!r} → {self._target_rm!r}"
             )
@@ -296,9 +294,7 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
                 self.report_id,
             )
         current_rm = link.rm_state
-        if current_rm != RM.VALID and not is_valid_rm_transition(
-            current_rm, RM.VALID
-        ):
+        if not is_rm_write_permitted(current_rm, RM.VALID):
             self.feedback_message = (
                 f"Invalid RM transition {current_rm!r} → {RM.VALID!r}"
             )
