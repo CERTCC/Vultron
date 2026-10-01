@@ -84,9 +84,12 @@ class _AnswerOperationsMixin(_PecEffectsMixin):
             :class:`EmbargoLifecycleResult` describing what changed.
 
         Raises:
-            VultronNotFoundError: If *case_id* does not resolve to a case, or
-                (owner path) the embargo being replaced cannot be read for
-                the EP-05-001 comparison.
+            VultronNotFoundError: If *case_id* does not resolve to a case,
+                or (owner path, when the accept activates *embargo_id*) the
+                embargo being activated or the one it replaces cannot be read
+                (EMB-18-003, EP-05-001) — in either mode, before any write.
+            VultronValidationError: If (owner path) either embargo record is
+                not an ``EmbargoEvent``.
             VultronInvalidStateTransitionError: If the EM state does not allow
                 an ACCEPT transition (``STRICT`` mode, owner only), or if the
                 owner would drive EM to ACTIVE but P/X/A is set (``STRICT``
@@ -113,17 +116,17 @@ class _AnswerOperationsMixin(_PecEffectsMixin):
             active_embargo_id is not None and active_embargo_id != embargo_id
         )
 
-        # Does this accept replace an embargo already in force?  Decide the
-        # EP-05-001 arm *before* anything is written, so an unreadable record
-        # fails closed with EM and active_embargo untouched.
+        # The owner's accept activates B: read B (and any embargo A it
+        # replaces) and decide the EP-05-001 arm *before* anything is
+        # written, so an unreadable record fails closed with EM,
+        # active_embargo, the proposal records and consent untouched
+        # (EMB-18-003).
         ends_no_later = (
-            self._revision_ends_no_later(
+            self._activation_arm(
                 previous_embargo_id=active_embargo_id,
-                revised_embargo_id=embargo_id,
+                activated_embargo_id=embargo_id,
             )
-            if is_owner
-            and active_embargo_id is not None
-            and is_revision_of_active
+            if is_owner and not already_active
             else None
         )
 

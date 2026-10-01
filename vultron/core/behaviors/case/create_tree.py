@@ -137,5 +137,7 @@ def create_create_case_tree(
         ],
     )
 
-    logger.info(f"Created CreateCaseBT for case={case_id}, actor={actor_id}")
+    logger.info(
+        "Created CreateCaseBT for case=%s, actor=%s", case_id, actor_id
+    )
     return root

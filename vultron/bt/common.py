@@ -84,7 +84,7 @@ def to_end_state_factory(key: str, state: Enum) -> type[ActionNode]:
             history.append(state)
         setattr(obj.bb, histkey, history)
 
-        logger.debug(f"Transition {before} -> {state}")
+        logger.debug("Transition %s -> %s", before, state)
         return True
 
     node_cls = action_node(

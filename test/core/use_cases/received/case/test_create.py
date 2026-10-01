@@ -442,3 +442,55 @@ def test_each_recipient_of_one_report_can_bootstrap_its_own_case(
     for case_id, case_actor_id in case_for.values():
         assert dl.read(case_id) is not None
         assert _find_case_actor_id(dl, case_id) == case_actor_id
+
+
+# ---------------------------------------------------------------------------
+# EMB-18-003: a received case naming an embargo this store cannot read
+# ---------------------------------------------------------------------------
+
+_UNHELD_EMBARGO_ID = f"{_CASE_ID}/embargo_events/unheld"
+
+
+def _case_naming_unheld_embargo() -> as_VulnerabilityCase:
+    case, _ = _case_with_case_actor_participant()
+    unheld: as_VulnerabilityCase = case.model_copy(
+        update={"active_embargo": _UNHELD_EMBARGO_ID}
+    )
+    return unheld
+
+
+@pytest.mark.spec("EMB-18-003")
+class TestCreateRefusesAnUnheldEmbargo:
+    """A Create naming an embargo this store cannot read seeds nothing."""
+
+    def test_bootstrap_is_refused_and_nothing_is_stored(
+        self, dl, make_payload
+    ):
+        link = _build_link()
+        dl.save(link)
+        event = make_payload(
+            create_case_activity(
+                _case_naming_unheld_embargo(), actor=_CREATOR_ID
+            )
+        )
+
+        result = CreateCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert "EMB-18-003" in (result.reason or "")
+        assert dl.read(_CASE_ID) is None
+        stored_link = dl.read(link.id_)
+        assert isinstance(stored_link, VultronReportCaseLink)
+        assert stored_link.case_id is None
+
+    def test_direct_participant_bootstrap_is_refused(self, dl, make_payload):
+        event = make_payload(
+            create_case_activity(
+                _case_naming_unheld_embargo(), actor=_CASE_ACTOR_ID
+            )
+        )
+
+        result = CreateCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert dl.read(_CASE_ID) is None

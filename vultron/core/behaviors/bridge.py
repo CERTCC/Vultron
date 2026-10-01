@@ -341,7 +341,7 @@ class BTBridge:
             - BT-05-002: Sets up py_trees context with DataLayer access
             - BT-05-003: Populates blackboard with activity and actor state
         """
-        self.logger.debug(f"Setting up BT for actor {actor_id}")
+        self.logger.debug("Setting up BT for actor %s", actor_id)
 
         # Create py_trees BehaviourTree wrapper
         bt = py_trees.trees.BehaviourTree(root=tree)
@@ -408,12 +408,13 @@ class BTBridge:
             )
             setattr(blackboard, key, value)
 
-        self.logger.info(f"BT setup complete for actor {actor_id}")
+        self.logger.info("BT setup complete for actor %s", actor_id)
 
         # BT scaffolding, not protocol story — DEBUG only (SL-04-007).
+        # Guard kept: unicode_tree() is a call, which lazy args do not skip.
         if self.logger.isEnabledFor(logging.DEBUG):
             tree_repr = unicode_tree(tree, show_status=True)
-            self.logger.debug(f"BT structure:\n{tree_repr}")
+            self.logger.debug("BT structure:\n%s", tree_repr)
 
         return bt
 
@@ -474,10 +475,10 @@ class BTBridge:
             error_msg = (
                 f"{prefix} with internal error: {type(e).__name__}: {e}"
             )
-            self.logger.exception(error_msg)
+            self.logger.exception("%s", error_msg)
         else:
             error_msg = f"{prefix}: {type(e).__name__}: {e}"
-            self.logger.warning(error_msg)
+            self.logger.warning("%s", error_msg)
 
         return BTExecutionResult(
             status=Status.FAILURE,
@@ -554,9 +555,10 @@ class BTBridge:
                         detail,
                     )
                     # Tree dump is scaffolding, not story — DEBUG (SL-04-007).
+                    # Guard kept: lazy args do not skip the unicode_tree call.
                     if self.logger.isEnabledFor(logging.DEBUG):
                         tree_repr = unicode_tree(bt.root, show_status=True)
-                        self.logger.debug(f"Final BT state:\n{tree_repr}")
+                        self.logger.debug("Final BT state:\n%s", tree_repr)
 
                     return BTExecutionResult(
                         status=root_status,
@@ -566,7 +568,7 @@ class BTBridge:
 
                 # RUNNING: continue ticking
                 if root_status == Status.RUNNING:
-                    self.logger.debug(f"BT still running (tick {iteration})")
+                    self.logger.debug("BT still running (tick %s)", iteration)
                     continue
 
                 # INVALID: should not happen during execution
@@ -574,7 +576,7 @@ class BTBridge:
                     # Not a protocol outcome — a tree in INVALID mid-execution
                     # is malformed, so retrying it cannot converge.
                     error_msg = f"BT entered INVALID state at tick {iteration}"
-                    self.logger.error(error_msg)
+                    self.logger.error("%s", error_msg)
                     errors.append(error_msg)
                     return BTExecutionResult(
                         status=Status.FAILURE,
@@ -589,7 +591,7 @@ class BTBridge:
             error_msg = (
                 f"BT execution exceeded max iterations ({max_iterations})"
             )
-            self.logger.error(error_msg)
+            self.logger.error("%s", error_msg)
             errors.append(error_msg)
             return BTExecutionResult(
                 status=Status.FAILURE,
@@ -728,7 +730,7 @@ class BTBridge:
                     "BT execution skipped: this node is not the replication"
                     " leader"
                 )
-                self.logger.warning(msg)
+                self.logger.warning("%s", msg)
                 return BTExecutionResult(
                     status=Status.FAILURE,
                     feedback_message=msg,

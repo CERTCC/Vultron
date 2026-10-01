@@ -283,7 +283,7 @@ class EmitCloseCaseNode(DataLayerActionWithPorts):
                 f"EmitCloseCase: case_manager_id not set on blackboard"
                 f" for case '{self.case_id}' — cannot emit"
             )
-            self.logger.warning(self.feedback_message)
+            self.logger.warning("%s", self.feedback_message)
             return Status.SUCCESS
 
         try:
@@ -305,7 +305,7 @@ class EmitCloseCaseNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"EmitCloseCase: failed to emit close_case: {e}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         return Status.SUCCESS

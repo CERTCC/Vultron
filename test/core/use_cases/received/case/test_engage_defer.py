@@ -272,6 +272,36 @@ class TestEngageCaseStoresEmbeddedParticipants:
             "string"
         )
 
+    @pytest.mark.spec("EMB-18-003")
+    def test_case_naming_an_unheld_embargo_is_refused(
+        self, dl, case_with_inline_participant
+    ):
+        """A case naming an embargo this store cannot read stores nothing."""
+        object.__setattr__(
+            case_with_inline_participant,
+            "active_embargo",
+            f"{self._CASE_ID}/embargo_events/unheld",
+        )
+        event = EngageCaseReceivedEvent(
+            activity_id="https://example.org/activities/engage-4032",
+            actor_id=self._ACTOR_ID,
+            object_=case_with_inline_participant,
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+        )
+
+        result = EngageCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert "EMB-18-003" in (result.reason or "")
+        assert dl.read(self._PARTICIPANT_ID) is None
+        assert dl.read(self._CASE_ID) is None
+        assert dl.list_objects("EmbargoEvent") == []
+
 
 class TestEngageCaseLedgerCommit:
     """EngageCaseReceivedUseCase must commit an engage_case ledger entry.

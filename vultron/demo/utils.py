@@ -127,12 +127,12 @@ def _demo_accumulate(
     ``_demo_failures`` as ``"<prefix>: <description> — <exc>"``, and
     suppressed so callers continue after the block.
     """
-    logger.info(f"{start} {description}")
+    logger.info("%s %s", start, description)
     try:
         yield
-        logger.info(f"{on_pass} {description}")
+        logger.info("%s %s", on_pass, description)
     except Exception as exc:
-        logger.exception(f"{on_fail} {description}")
+        logger.exception("%s %s", on_fail, description)
         _demo_failures.append(f"{prefix}: {description} — {exc}")
 
 
@@ -301,26 +301,26 @@ class DataLayerClient(BaseModel):
             raise ValueError(f"Unsupported HTTP method: {method}")
 
         url = f"{self.base_url}{path}"
-        logger.debug(f"Calling {method.upper()} {url}")
+        logger.debug("Calling %s %s", method.upper(), url)
         kwargs.setdefault("timeout", self.timeout)
         response = httpx.request(method, url, **kwargs)
-        logger.debug(f"Response status: {response.status_code}")
+        logger.debug("Response status: %s", response.status_code)
 
         data: Any = {}
         try:
             data = response.json()
-            logger.debug(f"Response JSON: {json.dumps(data, indent=2)}")
+            logger.debug("Response JSON: %s", json.dumps(data, indent=2))
         except ValueError as e:
-            logger.error(f"Exception: {e}")  # noqa: TRY400  # ruff-baseline #3353
-            logger.error(f"Response text: {response.text}")  # noqa: TRY400  # ruff-baseline #3353
+            logger.error("Exception: %s", e)  # noqa: TRY400  # ruff-baseline #3353
+            logger.error("Response text: %s", response.text)  # noqa: TRY400  # ruff-baseline #3353
 
         if response.status_code == 404:
             logger.error(
-                f"HTTP 404 from {response.url} ({method.upper()} {path})"
+                "HTTP 404 from %s (%s %s)", response.url, method.upper(), path
             )
 
         if not response.is_success:
-            logger.error(f"Error response: {response.text}")
+            logger.error("Error response: %s", response.text)
             response.raise_for_status()
 
         return data
@@ -454,7 +454,7 @@ def post_to_inbox_and_wait(
     """
     actor_obj_id = parse_id(actor_id)["object_id"]
     logger.debug(
-        f"Posting activity to {actor_obj_id}'s inbox: {logfmt(activity)}"
+        "Posting activity to %s's inbox: %s", actor_obj_id, logfmt(activity)
     )
     client.post(f"/actors/{actor_obj_id}/inbox/", json=postfmt(activity))
     delay = DEFAULT_WAIT_SECONDS if wait_seconds is None else wait_seconds
@@ -572,7 +572,7 @@ def get_offer_from_datalayer(
         client.dl_path(f"Offers/{offer_obj_id}", actor_id=vendor_id)
     )
     raw = as_Offer(**offer_data)
-    logger.info(f"Retrieved Offer: {logfmt(raw)}")
+    logger.info("Retrieved Offer: %s", logfmt(raw))
     return raw
 
 
@@ -596,13 +596,15 @@ def log_case_state(
         case_data = client.get(client.dl_path(case_id, actor_id=actor_id))
         case = as_VulnerabilityCase(**case_data)
         logger.info(
-            f"Case state [{label}]: reports={len(case.vulnerability_reports)}, "
-            f"participants={len(case.case_participants)}"
+            "Case state [%s]: reports=%s, participants=%s",
+            label,
+            len(case.vulnerability_reports),
+            len(case.case_participants),
         )
-        logger.debug(f"Case detail [{label}]: {logfmt(case)}")
+        logger.debug("Case detail [%s]: %s", label, logfmt(case))
         return case
     except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
-        logger.warning(f"Could not fetch case state [{label}]: {e}")
+        logger.warning("Could not fetch case state [%s]: %s", label, e)
         return None
 
 
@@ -677,7 +679,7 @@ def setup_clean_environment(
     """
     logger.info("Setting up clean environment...")
     reset = reset_datalayer(client=client)
-    logger.info(f"Reset status: {reset}")
+    logger.info("Reset status: %s", reset)
     finder, vendor, coordinator = seed_exchange_actors(client=client)
     logger.info("Clean environment setup complete.")
     return finder, vendor, coordinator
@@ -912,7 +914,10 @@ def check_server_availability(
     for attempt in range(max_retries):
         try:
             logger.debug(
-                f"Checking server at: {url} (attempt {attempt + 1}/{max_retries})"
+                "Checking server at: %s (attempt %s/%s)",
+                url,
+                attempt + 1,
+                max_retries,
             )
             response = httpx.get(url, timeout=2)
             if response.status_code == 200:

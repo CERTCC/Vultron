@@ -13,7 +13,7 @@ from vultron.errors import VultronAlreadyExistsError
 
 from ._helpers import (
     _find_report_case_link,
-    _store_embedded_embargo,
+    _hold_carried_embargo,
     _store_embedded_participants,
 )
 
@@ -141,9 +141,12 @@ class CreateCaseReceivedUseCase:
                 f"untrusted Create of case '{case_id}': no ReportCaseLink and"
                 f" sender '{actor_id}' is not its CASE_MANAGER (ADR-0041 AC-5)"
             )
+        if (
+            refusal := _hold_carried_embargo(case_obj, self._dl, case_id)
+        ) is not None:
+            return refusal
         stored = self._store_replica(case_id, case_obj)
         _store_embedded_participants(case_obj, self._dl, case_id)
-        _store_embedded_embargo(case_obj, self._dl, case_id)
         if not stored:
             return HandlerResult.skipped(f"case '{case_id}' already seeded")
         logger.info(
@@ -215,6 +218,13 @@ class CreateCaseReceivedUseCase:
             actor_id,
         )
 
+        # Hold the embargo the case names before the replica is saved, and
+        # refuse a case naming one this store cannot read (EMB-18-003).
+        if (
+            refusal := _hold_carried_embargo(case_obj, self._dl, case_id)
+        ) is not None:
+            return refusal
+
         # Seed the local case replica
         # Idempotency guard (CBT-01-006, ID-04-004)
         stored = self._store_replica(case_id, case_obj)
@@ -240,7 +250,6 @@ class CreateCaseReceivedUseCase:
         # This must happen regardless of the idempotency guard above because
         # the inbox router may have already seeded the case before dispatch.
         _store_embedded_participants(case_obj, self._dl, case_id)
-        _store_embedded_embargo(case_obj, self._dl, case_id)
         if not stored:
             # The trust anchors and embedded objects above are re-applied
             # idempotently; only the replica itself already existed.

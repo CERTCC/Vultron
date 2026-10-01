@@ -163,9 +163,12 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
             :class:`EmbargoLifecycleResult` describing what changed.
 
         Raises:
-            VultronNotFoundError: If *case_id* does not resolve to a case, or
-                the embargo being replaced cannot be read for the EP-05-001
-                comparison.
+            VultronNotFoundError: If *case_id* does not resolve to a case,
+                or the embargo being activated or the one it replaces cannot
+                be read (EMB-18-003, EP-05-001) — in either mode, before any
+                write.
+            VultronValidationError: If either embargo record is not an
+                ``EmbargoEvent``.
             VultronInvalidStateTransitionError: In ``STRICT`` mode, if the EM
                 state does not allow an ACCEPT trigger (valid sources: PROPOSED,
                 REVISE).
@@ -174,15 +177,11 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
 
         em_before = case.current_status.em.state
         previous_embargo_id = case.active_embargo_id
-        # Decide the EP-05-001 arm before anything is written (fail closed).
-        ends_no_later = (
-            self._revision_ends_no_later(
-                previous_embargo_id=previous_embargo_id,
-                revised_embargo_id=embargo_id,
-            )
-            if previous_embargo_id is not None
-            and previous_embargo_id != embargo_id
-            else None
+        # Read the activated (and any replaced) embargo and decide the
+        # EP-05-001 arm before anything is written (fail closed, EMB-18-003).
+        ends_no_later = self._activation_arm(
+            previous_embargo_id=previous_embargo_id,
+            activated_embargo_id=embargo_id,
         )
 
         em_after = self._drive_em_transition(
