@@ -52,7 +52,10 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -172,10 +175,11 @@ def _make_full_dl(
 def _make_close_case_event(
     sender_actor_id: str,
     receiving_actor_id: str = CASE_ACTOR_ID,
+    activity_id: str = "https://example.org/activities/leave-role-test",
 ) -> CloseCaseReceivedEvent:
     case_obj = as_VulnerabilityCase(id_=CASE_ID)
     activity = VultronActivity(
-        id_="https://example.org/activities/leave-role-test",
+        id_=activity_id,
         type_="Leave",
         actor=sender_actor_id,
         object_=case_obj,
@@ -241,6 +245,18 @@ def _participant_rm_states(dl: SqliteDataLayer, actor_id: str) -> list[RM]:
 # ---------------------------------------------------------------------------
 # Case Actor receive path (create_close_case_received_tree)
 # ---------------------------------------------------------------------------
+
+
+def _case_ledger(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
+    """The case's ledger entries in ``log_index`` order."""
+    return sorted(
+        (
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry) and e.case_id == CASE_ID
+        ),
+        key=lambda e: e.log_index,
+    )
 
 
 class TestOwnerLeaveReceivePath:
@@ -389,7 +405,6 @@ class TestOwnerLeaveReceivePath:
         loopback — that is an outbox background task and could not honour the
         ordering.
         """
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
@@ -399,15 +414,7 @@ class TestOwnerLeaveReceivePath:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        by_index = sorted(
-            (
-                e
-                for e in dl.list_objects("CaseLedgerEntry")
-                if isinstance(e, CaseLedgerEntry)
-                and getattr(e, "case_id", None) == CASE_ID
-            ),
-            key=lambda e: getattr(e, "log_index", -1),
-        )
+        by_index = _case_ledger(dl)
         case_actor_idx = [
             i
             for i, e in enumerate(by_index)
@@ -541,6 +548,137 @@ class TestNonOwnerLeaveReceivePath:
         assert RM.CLOSED not in rm_states, (
             f"CaseActor must NOT be at RM.CLOSED after non-owner Leave;"
             f" rm_states={rm_states}"
+        )
+
+
+def _close(
+    dl: SqliteDataLayer, sender_actor_id: str, activity_id: str
+) -> HandlerResult:
+    return CloseCaseReceivedUseCase(
+        dl=dl,
+        request=_make_close_case_event(
+            sender_actor_id=sender_actor_id, activity_id=activity_id
+        ),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(dl),
+    ).execute()
+
+
+class TestPostCloseBoundary:
+    """CM-23-013/014: nothing a participant does lands after case_fully_closed."""
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="CM-23-013: a bystander Leave after owner close is still"
+        " committed as close_case. Tracked by #4065.",
+    )
+    @pytest.mark.spec("CM-23-013")
+    def test_bystander_leave_after_owner_close_is_refused(self):
+        """A bystander Leave after owner close commits nothing and closes no one.
+
+        Regression for CONCERN-3400: every demo closed the owner first, so a
+        bystander's ``close_case`` landed after ``case_fully_closed``, an
+        external append past the ADR-0085 write boundary.
+        """
+        dl = _make_full_dl()
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+        ledger = _case_ledger(dl)
+        assert ledger and ledger[-1].event_type == "case_fully_closed", (
+            "precondition: the owner close must have committed"
+            f" case_fully_closed; tail={[e.event_type for e in ledger]}"
+        )
+        entries_at_close = len(ledger)
+        rm_before = _participant_rm_states(dl, VENDOR_ID)
+        outbox_before = set(dl.outbox_list())
+
+        result = _close(
+            dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        queued = [i for i in dl.outbox_list() if i not in outbox_before]
+        assert len(queued) == 1, (
+            "exactly one activity (the as:Reject) must be queued for a"
+            f" post-close bystander Leave (CM-23-013); queued={queued}"
+        )
+        reject = dl.read(queued[0])
+        assert getattr(reject, "type_", None) == "Reject", (
+            "a declined post-close Leave must be an as:Reject (MSM-05-001);"
+            f" got type_={getattr(reject, 'type_', None)}"
+        )
+        assert VENDOR_ID in (getattr(reject, "to", None) or [])
+        inner = getattr(reject, "object_", None)
+        assert getattr(inner, "type_", None) == "Leave", (
+            "the as:Reject must decline the Leave activity itself"
+        )
+        assert len(_case_ledger(dl)) == entries_at_close, (
+            "a post-close bystander Leave must commit no ledger entry"
+            f" (CM-23-013); tail={[e.event_type for e in _case_ledger(dl)]}"
+        )
+        assert _participant_rm_states(dl, VENDOR_ID) == rm_before
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="CM-23-014: owner close does not yet lapse pending Invites"
+        " before case_fully_closed. Tracked by #4066.",
+    )
+    @pytest.mark.spec("CM-23-014")
+    def test_owner_close_lapses_pending_invite_before_boundary(self):
+        """An unanswered Invite is lapsed at close, not left waiting on its deadline."""
+        from datetime import UTC, datetime, timedelta
+
+        from vultron.core.states.participant_embargo_consent import PEC
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+
+        dl = _make_full_dl()
+        case = dl.read_case(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        embargo = as_EmbargoEvent(
+            id_=f"{CASE_ID}/embargo_events/proposed",
+            context=CASE_ID,
+            end_time=datetime.now(tz=UTC) + timedelta(days=45),
+        )
+        dl.create(embargo)
+        case.proposed_embargoes = [embargo.id_]
+        case.append_case_status(em_state=EM.PROPOSED)
+        dl.save(case)
+        vendor = dl.read(case.actor_participant_index[VENDOR_ID])
+        assert isinstance(vendor, CaseParticipant)
+        vendor.embargo_consent_state = PEC.INVITED
+        vendor.invite_rsvp_deadline = datetime.now(tz=UTC) + timedelta(
+            days=365
+        )
+        dl.save(vendor)
+
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        vendor = dl.read(case.actor_participant_index[VENDOR_ID])
+        assert isinstance(vendor, CaseParticipant)
+        assert vendor.embargo_consent_state == PEC.DECLINED, (
+            "owner close must lapse a pending Invite immediately (CM-23-014)"
+        )
+        ledger = _case_ledger(dl)
+        types = [e.event_type for e in ledger]
+        rm_closed_ids = {e.id_ for e in _case_actor_rm_closed_entries(dl)}
+        rm_closed_idx = [
+            i for i, e in enumerate(ledger) if e.id_ in rm_closed_ids
+        ]
+        lapse_idx = [
+            i
+            for i, t in enumerate(types)
+            if t == "invite_to_embargo_on_case_lapsed"
+        ]
+        assert types[-1] == "case_fully_closed", types
+        assert rm_closed_idx and lapse_idx, (
+            "owner close must commit the CASE_MANAGER's RM.CLOSED entry and"
+            f" a lapsed-invitation entry (CM-23-014); got {types}"
+        )
+        assert max(rm_closed_idx) < min(lapse_idx), (
+            "the lapsed-invitation entry must follow the CASE_MANAGER's"
+            f" RM.CLOSED entry (CM-23-014); got {types}"
         )
 
 
