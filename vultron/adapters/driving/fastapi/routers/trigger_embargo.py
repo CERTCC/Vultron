@@ -16,27 +16,35 @@
 """
 Trigger router for embargo-management behaviors.
 
-Thin wrapper: validates request → calls adapter → returns response.
+Thin wrapper: validates the HTTP body, builds the verb's core request and hands
+it to :func:`~vultron.adapters.driving.fastapi.trigger_runner.run_trigger`.
 All domain logic lives in vultron.core.use_cases.triggers.embargo.
 """
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
-    get_trigger_service,
+    get_trigger_dispatcher,
+    get_trigger_dl,
 )
-from vultron.adapters.driving.fastapi.errors import domain_error_translation
-from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-from vultron.adapters.driving.fastapi.trigger_models import (
+from vultron.adapters.driving.fastapi.trigger_runner import run_trigger
+from vultron.core.models.use_case_result import ActivityResult
+from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
+from vultron.core.use_cases.triggers.request_bodies import (
     AcceptEmbargoRequest,
     ProposeEmbargoRequest,
     ProposeEmbargoRevisionRequest,
     RejectEmbargoRequest,
     TerminateEmbargoRequest,
 )
-from vultron.core.ports.datalayer import DataLayer
-from vultron.core.ports.trigger_service import TriggerServicePort
+from vultron.core.use_cases.triggers.requests import (
+    AcceptEmbargoTriggerRequest,
+    ProposeEmbargoRevisionTriggerRequest,
+    ProposeEmbargoTriggerRequest,
+    RejectEmbargoTriggerRequest,
+    TerminateEmbargoTriggerRequest,
+)
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
 
@@ -53,27 +61,33 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_propose_embargo",
+    response_model=ActivityResult,
 )
 def trigger_propose_embargo(
     actor_id: str,
     body: ProposeEmbargoRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the propose-embargo behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-002, TRIG-03-001, TRIG-03-002,
-        TRIG-03-003, TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
+        TRIG-03-003, TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.propose_embargo(
-            actor_id, body.case_id, body.end_time, body.note
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+    return run_trigger(
+        ProposeEmbargoTriggerRequest(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            end_time=body.end_time,
+            note=body.note,
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -88,25 +102,32 @@ def trigger_propose_embargo(
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_accept_embargo",
+    response_model=ActivityResult,
 )
 def trigger_accept_embargo(
     actor_id: str,
     body: AcceptEmbargoRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the accept-embargo behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-002, TRIG-03-001, TRIG-03-002,
-        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
+        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.accept_embargo(actor_id, body.case_id, body.proposal_id)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+    return run_trigger(
+        AcceptEmbargoTriggerRequest(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            proposal_id=body.proposal_id,
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -121,25 +142,32 @@ def trigger_accept_embargo(
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_reject_embargo",
+    response_model=ActivityResult,
 )
 def trigger_reject_embargo(
     actor_id: str,
     body: RejectEmbargoRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the reject-embargo behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-002, TRIG-03-001, TRIG-03-002,
-        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
+        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.reject_embargo(actor_id, body.case_id, body.proposal_id)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+    return run_trigger(
+        RejectEmbargoTriggerRequest(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            proposal_id=body.proposal_id,
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -156,27 +184,33 @@ def trigger_reject_embargo(
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_propose_embargo_revision",
+    response_model=ActivityResult,
 )
 def trigger_propose_embargo_revision(
     actor_id: str,
     body: ProposeEmbargoRevisionRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the propose-embargo-revision behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-002, TRIG-03-001, TRIG-03-002,
-        TRIG-03-003, TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
+        TRIG-03-003, TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.propose_embargo_revision(
-            actor_id, body.case_id, body.end_time, body.note
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+    return run_trigger(
+        ProposeEmbargoRevisionTriggerRequest(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            end_time=body.end_time,
+            note=body.note,
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -192,22 +226,27 @@ def trigger_propose_embargo_revision(
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_terminate_embargo",
+    response_model=ActivityResult,
 )
 def trigger_terminate_embargo(
     actor_id: str,
     body: TerminateEmbargoRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the terminate-embargo behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-002, TRIG-03-001, TRIG-03-002,
-        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
+        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.terminate_embargo(actor_id, body.case_id)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+    return run_trigger(
+        TerminateEmbargoTriggerRequest(
+            actor_id=actor_id, case_id=body.case_id
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )

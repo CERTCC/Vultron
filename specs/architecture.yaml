@@ -630,9 +630,10 @@ groups:
     - rel_type: refines
       spec_id: DL-07-006
     verification: >-
-      `test/adapters/driving/fastapi/test_deps.py` asserts that `get_canonical_actor_dl` resolves a
-      short path segment to the canonical URI and that the resulting store can read the outbox entries
-      that actor's own writes went to.
+      `test/adapters/driving/fastapi/test_deps.py` asserts that `get_actor_dl` resolves a short path
+      segment to the canonical URI and that the resulting store can read the outbox entries that
+      actor's own writes went to; `test/adapters/driving/fastapi/routers/test_trigger_case.py` asserts
+      the same through the trigger routes' `get_trigger_dl` chain.
     adr:
     - ADR-0073
   - id: ARCH-13-004

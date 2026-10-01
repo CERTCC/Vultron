@@ -134,7 +134,8 @@ The actor URI used to open a store must be the canonical URI — `actor.id_` —
 a short ID or a bare URL path segment (ARCH-13-003). The URI *selects the store*,
 so a short id opens a different and empty one. Where a request carries a path
 segment, resolve it with `canonical_actor_uri()` before opening anything; that is
-what `get_canonical_actor_dl` does.
+what `get_actor_dl` does (and `get_trigger_dl`, the trigger routes' override
+seam, delegates to it).
 
 ### Crossing to another actor's store
 

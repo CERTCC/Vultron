@@ -16,21 +16,26 @@
 """
 Trigger router for actor-level participant behaviors.
 
-Thin wrapper: validates request → calls adapter → returns response.
+Thin wrapper: validates the HTTP body, builds the verb's core request and hands
+it to :func:`~vultron.adapters.driving.fastapi.trigger_runner.run_trigger`,
+which drains the *emitting* actor's outbox for a delegated emit (CM-24-001).
 All domain logic lives in vultron.core.use_cases.triggers.actor.
 """
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
+    get_trigger_dispatcher,
     get_trigger_dl,
-    get_trigger_service,
 )
-from vultron.adapters.driving.fastapi.errors import domain_error_translation
-from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-from vultron.adapters.driving.fastapi.trigger_runner import emitting_outbox
-from vultron.adapters.driving.fastapi.trigger_models import (
+from vultron.adapters.driving.fastapi.trigger_runner import run_trigger
+from vultron.core.models.use_case_result import (
+    ActivityResult,
+    RoleOfferResult,
+)
+from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
+from vultron.core.use_cases.triggers.request_bodies import (
     AcceptActorRecommendationRequest,
     AcceptCaseInviteRequest,
     AcceptCaseOwnershipTransferRequest,
@@ -40,8 +45,16 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     RejectCaseInviteRequest,
     SuggestActorToCaseRequest,
 )
-from vultron.core.ports.datalayer import DataLayer
-from vultron.core.ports.trigger_service import TriggerServicePort
+from vultron.core.use_cases.triggers.requests import (
+    AcceptActorRecommendationTriggerRequest,
+    AcceptCaseInviteTriggerRequest,
+    AcceptCaseOwnershipTransferTriggerRequest,
+    InviteActorToCaseTriggerRequest,
+    OfferCaseOwnershipTransferTriggerRequest,
+    OfferCaseParticipantRoleTriggerRequest,
+    RejectCaseInviteTriggerRequest,
+    SuggestActorToCaseTriggerRequest,
+)
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
 
@@ -56,36 +69,33 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "invites the suggested actor via RmInviteToCaseActivity."
     ),
     operation_id="actors_trigger_suggest_actor_to_case",
+    response_model=ActivityResult,
 )
 def trigger_suggest_actor_to_case(
     actor_id: str,
     body: SuggestActorToCaseRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the suggest-actor-to-case behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
-        TRIG-04-001
+        TRIG-04-001, TRIG-12-001; CM-24-001
     """
-    with domain_error_translation():
-        result = svc.suggest_actor_to_case(
+    return run_trigger(
+        SuggestActorToCaseTriggerRequest(
             actor_id=actor_id,
             case_id=body.case_id,
             suggested_actor_id=body.suggested_actor_id,
             roles=body.roles,
-        )
-    # Delegated emit (CM-24-001): drain the CaseActor's outbox, where the
-    # activity was queued, not the requesting actor's.
-    emitting_id, emitting_dl = emitting_outbox(
-        result.emitting_actor_id, actor_id, dl, actor_dl
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
     )
-    background_tasks.add_task(outbox_handler, emitting_id, emitting_dl)
-    return result.model_dump()
 
 
 @router.post(
@@ -98,28 +108,30 @@ def trigger_suggest_actor_to_case(
         "delivery to the case owner."
     ),
     operation_id="actors_trigger_accept_case_invite",
+    response_model=ActivityResult,
 )
 def trigger_accept_case_invite(
     actor_id: str,
     body: AcceptCaseInviteRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the accept-case-invite behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
-        TRIG-04-001
+        TRIG-04-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.accept_case_invite(
-            actor_id=actor_id,
-            invite_id=body.invite_id,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+    return run_trigger(
+        AcceptCaseInviteTriggerRequest(
+            actor_id=actor_id, invite_id=body.invite_id
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -132,28 +144,30 @@ def trigger_accept_case_invite(
         "delivery to the case owner."
     ),
     operation_id="actors_trigger_reject_case_invite",
+    response_model=ActivityResult,
 )
 def trigger_reject_case_invite(
     actor_id: str,
     body: RejectCaseInviteRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the reject-case-invite behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
-        TRIG-04-001
+        TRIG-04-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.reject_case_invite(
-            actor_id=actor_id,
-            invite_id=body.invite_id,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+    return run_trigger(
+        RejectCaseInviteTriggerRequest(
+            actor_id=actor_id, invite_id=body.invite_id
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -165,34 +179,33 @@ def trigger_reject_case_invite(
         "specified invitee.  The case must exist in the actor's DataLayer."
     ),
     operation_id="actors_trigger_invite_actor_to_case",
+    response_model=ActivityResult,
 )
 def trigger_invite_actor_to_case(
     actor_id: str,
     body: InviteActorToCaseRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the invite-actor-to-case behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
-        TRIG-04-001
+        TRIG-04-001, TRIG-12-001; CM-24-001
     """
-    with domain_error_translation():
-        result = svc.invite_actor_to_case(
+    return run_trigger(
+        InviteActorToCaseTriggerRequest(
             actor_id=actor_id,
             case_id=body.case_id,
             invitee_id=body.invitee_id,
             roles=body.roles,
-        )
-    emitting_id, emitting_dl = emitting_outbox(
-        result.emitting_actor_id, actor_id, dl, actor_dl
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
     )
-    background_tasks.add_task(outbox_handler, emitting_id, emitting_dl)
-    return result.model_dump()
 
 
 @router.post(
@@ -206,28 +219,31 @@ def trigger_invite_actor_to_case(
         "DataLayer (delivered by the CaseActor)."
     ),
     operation_id="actors_trigger_accept_actor_recommendation",
+    response_model=ActivityResult,
 )
 def trigger_accept_actor_recommendation(
     actor_id: str,
     body: AcceptActorRecommendationRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the accept-actor-recommendation behavior for the given actor.
 
     Implements: ADR-0026 (CM-16-006); TRIG-01-001, TRIG-01-002, HTTP-03-005,
-        TRIG-02-005, TRIG-03-001, TRIG-03-002, TRIG-04-001
+        TRIG-02-005, TRIG-03-001, TRIG-03-002, TRIG-04-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.accept_actor_recommendation(
+    return run_trigger(
+        AcceptActorRecommendationTriggerRequest(
             actor_id=actor_id,
             cp_offer_id=body.cp_offer_id,
             case_actor_id=body.case_actor_id,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -242,34 +258,33 @@ def trigger_accept_actor_recommendation(
         "``CASE_MANAGER`` for backward-compatibility.  See SE-08-003."
     ),
     operation_id="actors_trigger_offer_case_participant_role",
+    response_model=RoleOfferResult,
 )
 def trigger_offer_case_participant_role(
     actor_id: str,
     body: OfferCaseParticipantRoleRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> RoleOfferResult:
     """
     Trigger Offer(CaseParticipantRole) from the requesting actor (ADR-0039).
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-007, TRIG-03-001,
-        TRIG-03-002, TRIG-04-001
+        TRIG-03-002, TRIG-04-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.offer_case_participant_role(
+    return run_trigger(
+        OfferCaseParticipantRoleTriggerRequest(
             actor_id=actor_id,
             case_id=body.case_id,
             target_actor_id=body.target_actor_id,
             role=body.role,
-        )
-    # ``actor_dl`` is already this actor's own store, so the former
-    # ``dl.clone_for_actor(actor_id)`` was a no-op clone of the same scope —
-    # left over from when the injected DataLayer was unscoped.  Every sibling
-    # route in this module drains its outbox the same way.
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -283,36 +298,33 @@ def trigger_offer_case_participant_role(
         "(TRIG-11-001)."
     ),
     operation_id="actors_trigger_offer_case_ownership_transfer",
+    response_model=ActivityResult,
 )
 def trigger_offer_case_ownership_transfer(
     actor_id: str,
     body: OfferCaseOwnershipTransferRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the offer-case-ownership-transfer behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-007, TRIG-03-001,
-        TRIG-03-002, TRIG-04-001; TRIG-11-001
+        TRIG-03-002, TRIG-04-001, TRIG-12-001; TRIG-11-001; CM-24-001
     """
-    with domain_error_translation():
-        result = svc.offer_case_ownership_transfer(
+    return run_trigger(
+        OfferCaseOwnershipTransferTriggerRequest(
             actor_id=actor_id,
             case_id=body.case_id,
             transferee_id=body.transferee_id,
             content=body.content,
-        )
-    # Delegated emit (CM-24-001): drain the CaseActor's outbox, where the
-    # activity was queued, not the requesting actor's.
-    emitting_id, emitting_dl = emitting_outbox(
-        result.emitting_actor_id, actor_id, dl, actor_dl
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
     )
-    background_tasks.add_task(outbox_handler, emitting_id, emitting_dl)
-    return result.model_dump()
 
 
 @router.post(
@@ -325,25 +337,27 @@ def trigger_offer_case_ownership_transfer(
         "already exist in the actor's DataLayer (TRIG-11-002)."
     ),
     operation_id="actors_trigger_accept_case_ownership_transfer",
+    response_model=ActivityResult,
 )
 def trigger_accept_case_ownership_transfer(
     actor_id: str,
     body: AcceptCaseOwnershipTransferRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the accept-case-ownership-transfer behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-007, TRIG-03-001,
-        TRIG-03-002, TRIG-04-001; TRIG-11-002
+        TRIG-03-002, TRIG-04-001, TRIG-12-001; TRIG-11-002
     """
-    with domain_error_translation():
-        result = svc.accept_case_ownership_transfer(
-            actor_id=actor_id,
-            offer_id=body.offer_id,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+    return run_trigger(
+        AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id=actor_id, offer_id=body.offer_id
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )

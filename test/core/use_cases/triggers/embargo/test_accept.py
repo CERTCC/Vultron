@@ -1,5 +1,6 @@
 """Tests for SvcAcceptEmbargoUseCase."""
 
+import pytest
 from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -16,6 +17,7 @@ from vultron.core.use_cases.triggers.embargo import (
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
 )
+from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -25,6 +27,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from .conftest import (
     _build_active_embargo_case,
     _build_proposed_embargo_case_no_owner_attribution,
+    _build_unbound_case_with_case_manager,
     _persist_actor,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -126,3 +129,108 @@ def test_accept_embargo_when_attributed_to_is_none_does_not_activate_em(
 
     assert updated_case.current_status.em.state == EM.PROPOSED
     assert updated_participant.embargo_consent_state == PEC.SIGNATORY.value
+
+
+# ---------------------------------------------------------------------------
+# Ported from the retired ``TriggerService`` suite (#3833): the owner-side
+# accept activates the embargo, and the proposal lookups fail closed.
+# ---------------------------------------------------------------------------
+
+
+def _owner_accept(dl: SqliteDataLayer, request: AcceptEmbargoTriggerRequest):
+    return SvcAcceptEmbargoUseCase(
+        dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+
+def _case_with_open_proposal(
+    dl: SqliteDataLayer, owner_id: str
+) -> tuple[VulnerabilityCase, str]:
+    """A case at EM.PROPOSED whose only open proposal is the owner's."""
+    from vultron.core.models._helpers import days_from_now_utc
+    from vultron.wire.as2.factories import em_propose_embargo_activity
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    case = _build_unbound_case_with_case_manager(dl, owner_id)
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
+    proposal = em_propose_embargo_activity(
+        embargo, context=case.id_, actor=owner_id
+    )
+    dl.create(embargo)
+    dl.create(proposal)
+    case.append_case_status(em_state=EM.PROPOSED)
+    case.proposed_embargoes.append(embargo.id_)
+    case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
+    dl.save(case)
+    return case, proposal.id_
+
+
+@pytest.mark.spec("EP-08-002")
+def test_accept_embargo_activates_the_proposed_embargo(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """PROPOSED → ACTIVE, and the case now names the embargo as active."""
+    owner, dl = owner_actor_and_dl
+    case, proposal_id = _case_with_open_proposal(dl, owner.id_)
+
+    result = _owner_accept(
+        dl,
+        AcceptEmbargoTriggerRequest(
+            actor_id=owner.id_, case_id=case.id_, proposal_id=proposal_id
+        ),
+    )
+
+    assert result.activity is not None
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.current_status.em.state == EM.ACTIVE
+    assert updated.active_embargo is not None
+
+
+@pytest.mark.spec("EP-08-002")
+def test_accept_embargo_without_proposal_id_resolves_the_open_proposal(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """``proposal_id`` omitted: the one open proposal is the one accepted."""
+    owner, dl = owner_actor_and_dl
+    case, _ = _case_with_open_proposal(dl, owner.id_)
+
+    result = _owner_accept(
+        dl, AcceptEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_)
+    )
+
+    assert result.activity is not None
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.current_status.em.state == EM.ACTIVE
+
+
+def test_accept_embargo_with_no_open_proposal_raises_not_found(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_actor_and_dl
+    case = _build_unbound_case_with_case_manager(dl, owner.id_)
+
+    with pytest.raises(VultronNotFoundError):
+        _owner_accept(
+            dl,
+            AcceptEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
+        )
+
+
+def test_accept_embargo_with_unknown_proposal_id_raises_not_found(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_actor_and_dl
+    case = _build_unbound_case_with_case_manager(dl, owner.id_)
+
+    with pytest.raises(VultronNotFoundError):
+        _owner_accept(
+            dl,
+            AcceptEmbargoTriggerRequest(
+                actor_id=owner.id_,
+                case_id=case.id_,
+                proposal_id="urn:uuid:no-such-proposal",
+            ),
+        )

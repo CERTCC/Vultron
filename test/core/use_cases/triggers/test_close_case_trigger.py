@@ -48,7 +48,10 @@ from vultron.core.use_cases.triggers.report import (
 from vultron.core.use_cases.triggers.requests import CloseReportTriggerRequest
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronNotFoundError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+)
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -210,6 +213,24 @@ class TestSvcCloseCaseUseCase:
     def test_backward_compat_alias_works(self):
         """SvcCloseReportUseCase alias delegates to SvcCloseCaseUseCase."""
         assert SvcCloseReportUseCase is SvcCloseCaseUseCase
+
+    def test_close_case_already_closed_raises_invalid_transition(self):
+        """CLOSED → CLOSED is refused (ported from the retired ``TriggerService``
+        suite, #3833); the router answers it as 409."""
+        self.dl.create(
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.CLOSED
+            )
+        )
+        request = CloseReportTriggerRequest(
+            actor_id=self.vendor.id_, offer_id=self.offer.id_
+        )
+        with pytest.raises(VultronInvalidStateTransitionError):
+            SvcCloseCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
 
     def test_close_case_raises_when_no_linked_case(self):
         """VultronNotFoundError raised when report has no linked VulnerabilityCase."""

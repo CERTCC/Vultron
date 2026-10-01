@@ -19,9 +19,11 @@ Why resolution alone is not enough
 Every spec ID cited in a ``vultron/`` docstring resolves to *some* requirement,
 so an existence-only traceability check cannot see a wrong-topic citation.
 The trigger spec once carried the ``TB`` prefix; when it became ``TRIG`` the
-Testability topic kept ``TB``, and the five trigger routers plus
-``trigger_models.py`` went on citing ``TB-01-001`` ("the system MUST use
-pytest") 236 times as the requirement they implement. Every one of those IDs
+Testability topic kept ``TB``, and the five trigger routers plus the request
+body models (then ``trigger_models.py``, now
+``vultron/core/use_cases/triggers/request_bodies.py``) went on citing
+``TB-01-001`` ("the system MUST use pytest") 236 times as the requirement they
+implement. Every one of those IDs
 resolved, so a resolution check reported all 236 as green (#3354, #3829; see
 ``notes/spec-authoring-rules.md`` § "A Resolving Citation Is Not a Correct
 Citation").
@@ -37,7 +39,7 @@ Two checks, both over the shared corpus (TB-13-001, TB-13-002):
    quietly replace a wrong ``TB`` one. Check 1 without check 2 would let a
    repoint land on nothing. ``spec-lint`` (SR-04-008) already rejects an
    unknown spec-ID-shaped token anywhere under ``vultron/`` or ``test/``,
-   which is what covers ``trigger_models.py`` (it has no ``Implements:``
+   which is what covers ``request_bodies.py`` (it has no ``Implements:``
    blocks); check 2 is the narrower, always-on guard over the routers'
    ``Implements:`` blocks, and it also fails when it finds no block at all.
 

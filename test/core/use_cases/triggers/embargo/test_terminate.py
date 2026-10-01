@@ -14,7 +14,10 @@ from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
 )
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
@@ -128,3 +131,47 @@ def test_terminate_embargo_forgets_every_open_revision_via_bt_path(
     assert updated_case.current_status.em.state == EM.EXITED
     assert updated_case.proposed_embargoes == []
     assert updated_case.pending_embargo_proposal_index == {}
+
+
+# ---------------------------------------------------------------------------
+# Ported from the retired ``TriggerService`` suite (#3833)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("TRIG-07-001")
+def test_terminate_embargo_queues_the_announce_in_the_outbox(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_actor_and_dl
+    case, _, _ = _build_active_embargo_case(
+        dl, owner.id_, _persist_actor(dl, "Finder Co").id_
+    )
+    before = set(dl.outbox_list())
+
+    SvcTerminateEmbargoUseCase(
+        dl,
+        TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert len(set(dl.outbox_list()) - before) >= 1
+
+
+def test_terminate_embargo_unknown_actor_raises_not_found(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_actor_and_dl
+    case, _, _ = _build_active_embargo_case(
+        dl, owner.id_, _persist_actor(dl, "Finder Co").id_
+    )
+
+    with pytest.raises(VultronNotFoundError):
+        SvcTerminateEmbargoUseCase(
+            dl,
+            TerminateEmbargoTriggerRequest(
+                actor_id="urn:uuid:no-such-actor", case_id=case.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()

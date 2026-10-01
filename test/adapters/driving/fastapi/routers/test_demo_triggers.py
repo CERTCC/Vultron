@@ -26,20 +26,12 @@ from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
 from vultron.adapters.utils import strip_id_prefix
-from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
-    get_trigger_dl,
-    get_trigger_service,
-)
+from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     demo_triggers as demo_triggers_router,
 )
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
-)
-from vultron.core.use_cases.triggers.service import TriggerService
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -115,19 +107,9 @@ def client_demo(dl):
     """
     from unittest.mock import AsyncMock, patch
 
-    from vultron.adapters.driven.sync_activity_adapter import (
-        SyncActivityAdapter,
-    )
-
     app = FastAPI()
     app.include_router(demo_triggers_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-    )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     mock_emitter = AsyncMock()
     with patch(
         "vultron.adapters.driving.fastapi.outbox_handler.get_default_emitter",
@@ -142,11 +124,7 @@ def client_trigger_only(dl):
     """Test client with only general trigger router — no demo routes."""
     app = FastAPI()
     app.include_router(trigger_case_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
-    )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     yield TestClient(app)
     app.dependency_overrides = {}
 

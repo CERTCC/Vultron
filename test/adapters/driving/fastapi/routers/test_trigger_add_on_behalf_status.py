@@ -16,8 +16,8 @@
 The on-behalf assertions of ADR-0084 become reachable: a Case Manager records
 a vendor's awareness (v→V, PRM-06-003) or a deployer's deployment (d→D,
 PRM-06-004), and fix readiness (f→F) is refused with a structured error
-(PRM-06-005).  The route is the first consumer of ``run_trigger`` over the
-registry-backed ``TriggerDispatcher``: these tests run the real dispatcher
+(PRM-06-005).  The route runs through ``run_trigger`` over the registry-backed
+``TriggerDispatcher``: these tests run the real dispatcher
 over an in-memory store and reach it through the ``get_trigger_dl`` override
 seam (TRIG-06-002), exactly as deployment resolves it.
 """
@@ -29,10 +29,7 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
-    get_trigger_dl,
-)
+from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
 )
@@ -72,7 +69,6 @@ def client(dl) -> Iterator[TestClient]:
     app = FastAPI()
     app.include_router(trigger_case_router.router)
     app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     yield TestClient(app)
     app.dependency_overrides = {}
 

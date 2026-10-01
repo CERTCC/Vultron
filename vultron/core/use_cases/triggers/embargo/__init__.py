@@ -35,7 +35,7 @@ from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
 )
 
-from .accept import SvcAcceptEmbargoUseCase, SvcEvaluateEmbargoUseCase
+from .accept import SvcAcceptEmbargoUseCase
 from .propose import SvcProposeEmbargoUseCase
 from .reject import SvcRejectEmbargoUseCase
 from .revise import SvcProposeEmbargoRevisionUseCase
@@ -51,7 +51,6 @@ __all__ = [
     "SvcActivityTriggerBase",
     "SvcBTTriggerBase",
     "SvcEmbargoTriggerBase",
-    "SvcEvaluateEmbargoUseCase",
     "SvcProposeEmbargoRevisionUseCase",
     "SvcProposeEmbargoUseCase",
     "SvcRejectEmbargoUseCase",

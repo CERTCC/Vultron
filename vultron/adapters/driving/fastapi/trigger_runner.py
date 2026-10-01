@@ -36,9 +36,11 @@ The route keeps its own ``Depends(get_trigger_dl)`` → ``Depends(get_actor_dl)`
 chain and passes the resolved store in: a helper that called ``get_actor_dl``
 itself would bypass ``app.dependency_overrides`` (TRIG-06-002).
 
-The first consumers are ``add-on-behalf-status`` and the demo
-``sync-log-entry``; the remaining routes move here when ``TriggerService`` is
-retired.
+Every route under ``/actors/{actor_id}/trigger/`` and ``/actors/{actor_id}/demo/``
+is a consumer; the registry-parametrized contract tests
+(``test/adapters/driving/fastapi/test_trigger_routes_contract.py``) assert the
+202, the store the dispatcher is handed and the queued flush once for all of
+them, so no route carries its own copy of those checks.
 """
 
 from fastapi import BackgroundTasks
