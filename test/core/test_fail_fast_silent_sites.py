@@ -38,16 +38,16 @@ from vultron.core.behaviors.case.nodes.communication import (
     CreateAndPersistCaseActivityNode,
 )
 from vultron.core.dispatcher import DirectActivityDispatcher
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.events import (
     AddNoteToCaseReceivedEvent,
     MessageSemantics,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.models.case_actor import CaseActor
-from vultron.core.models.case import VulnerabilityCase
 from vultron.errors import UnroutableActivityError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase as as_VulnerabilityCase,
+    as_VulnerabilityCase,
 )
 
 _FACTORY_PATH = (
@@ -106,9 +106,10 @@ class TestCommitCaseLedgerEntryNodeFailFast:
     def test_no_case_id_on_blackboard_returns_failure(self, bridge):
         """No case_id in blackboard → FAILURE, inner tree never built."""
         node = CommitCaseLedgerEntryNode()
-        with patch(_FACTORY_PATH) as mock_factory, patch(
-            _INNER_BRIDGE_PATH
-        ) as mock_bridge:
+        with (
+            patch(_FACTORY_PATH) as mock_factory,
+            patch(_INNER_BRIDGE_PATH) as mock_bridge,
+        ):
             result = bridge.execute_with_setup(
                 tree=node, actor_id=ACTOR_ID, activity=None
             )

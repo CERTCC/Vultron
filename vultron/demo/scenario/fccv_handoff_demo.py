@@ -33,35 +33,8 @@ import sys
 
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Offer,
-    as_TransitiveActivity,
-)
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,  # noqa: F401 — used in type annotation
-)
-
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
-from vultron.enums.roles import CVDRole
-from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
-    DataLayerClient,
-    assert_demo_success,
-    case_actor_id_on,
-    check_server_availability,
-    demo_check,
-    demo_gate,
-    demo_step,
-    ref_id,
-    reset_datalayer,
-    reset_demo_failures,
-    setup_demo_logging,
-)
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
@@ -105,6 +78,32 @@ from vultron.demo.helpers.workflow import (
     run_invite_path_rm_triage,
 )
 from vultron.demo.scenario.registry import scenario
+from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
+    DataLayerClient,
+    assert_demo_success,
+    case_actor_id_on,
+    check_server_availability,
+    demo_check,
+    demo_gate,
+    demo_step,
+    ref_id,
+    reset_datalayer,
+    reset_demo_failures,
+    setup_demo_logging,
+)
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
+    as_TransitiveActivity,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,  # used in type annotation
+)
 
 logger = logging.getLogger(__name__)
 
@@ -408,8 +407,7 @@ def _phase_ownership_handoff(
                 .offer_case_ownership_transfer(
                     transferee_id=c2.id_,
                     content=(
-                        "Transferring case ownership to C2 for CVD"
-                        " management."
+                        "Transferring case ownership to C2 for CVD management."
                     ),
                 )
             ).activity

@@ -49,18 +49,11 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.behaviors.case.case_setup_tree import (
     RecordCaseCreationEvents,
 )
 from vultron.core.behaviors.case.communication_tree import (
     EmitCreateCaseActivity,
-)
-from vultron.core.behaviors.case.participant_tree import (
-    CreateCaseOwnerParticipant,
-)
-from vultron.core.behaviors.case.nodes.case_setup import (
-    PublishCaseActorIdentityNode,
 )
 from vultron.core.behaviors.case.nodes import (
     CheckCaseAlreadyExists,
@@ -69,9 +62,16 @@ from vultron.core.behaviors.case.nodes import (
     SetCaseAttributedTo,
     UpdateActorOutbox,
 )
+from vultron.core.behaviors.case.nodes.case_setup import (
+    PublishCaseActorIdentityNode,
+)
+from vultron.core.behaviors.case.participant_tree import (
+    CreateCaseOwnerParticipant,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.models.case import VulnerabilityCase
 
 logger = logging.getLogger(__name__)
 

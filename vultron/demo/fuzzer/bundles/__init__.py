@@ -27,15 +27,15 @@ individual modules for stable import paths::
     )
 """
 
-from vultron.demo.fuzzer.bundles.actor_discovery import (
-    ACTOR_DISCOVERY_DETERMINISTIC,
-    ACTOR_DISCOVERY_STOCHASTIC,
-    ActorDiscoveryCallOutBundle,
-)
 from vultron.demo.fuzzer.bundles.acquire_exploit import (
     ACQUIRE_EXPLOIT_DETERMINISTIC,
     ACQUIRE_EXPLOIT_STOCHASTIC,
     AcquireExploitCallOutBundle,
+)
+from vultron.demo.fuzzer.bundles.actor_discovery import (
+    ACTOR_DISCOVERY_DETERMINISTIC,
+    ACTOR_DISCOVERY_STOCHASTIC,
+    ActorDiscoveryCallOutBundle,
 )
 from vultron.demo.fuzzer.bundles.assign_cve_id import (
     ASSIGN_CVE_ID_DETERMINISTIC,

@@ -28,11 +28,11 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.receive_activity_tree import (
-    create_receive_activity_tree,
-)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
+)
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
 )
 from vultron.core.behaviors.note.nodes.storage import AttachNoteToCaseNode
 

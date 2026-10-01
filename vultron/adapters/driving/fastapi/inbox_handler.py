@@ -30,10 +30,40 @@ are provided by the focused submodules:
 import logging
 from typing import Any, cast
 
-from vultron.wire.as2.rehydration import rehydrate
+# Re-export port factories and semantics sets so existing callers that
+# import them from this module continue to work (backward compat).
+from vultron.adapters.driving.fastapi import inbox_port_factories
+
+# Re-export pending-queue helpers so existing callers and tests that
+# reference them via this module continue to work (backward compat).
+from vultron.adapters.driving.fastapi.inbox_pending_queue import (
+    _activity_context_id,
+    _expire_pending_case_activities,
+    _queue_pending_case_activity,
+    _replay_pending_case_activities,
+)
+from vultron.adapters.driving.fastapi.inbox_port_factories import (
+    _CASE_PROPOSAL_SEMANTICS,
+    _CLOSE_CASE_SEMANTICS,
+    _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS,
+    _STATUS_AUTH_TRIGGER_SEMANTICS,
+    _SUBMIT_REPORT_SEMANTICS,
+    _SYNC_AND_TRIGGER_PORT_SEMANTICS,
+    _SYNC_PORT_SEMANTICS,
+    _TRIGGER_ACTIVITY_PORT_SEMANTICS,
+    _case_proposal_port_factory,
+    _close_case_port_factory,
+    _status_auth_sync_trigger_port_factory,
+    _status_auth_trigger_port_factory,
+    _submit_report_port_factory,
+    _sync_and_trigger_port_factory,
+    _sync_port_factory,
+    _trigger_activity_port_factory,
+)
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.dispatcher import get_dispatcher
-from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
@@ -43,39 +73,8 @@ from vultron.semantic_registry import (
     extract_event,
     use_case_map as _use_case_map,
 )
+from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-
-# Re-export port factories and semantics sets so existing callers that
-# import them from this module continue to work (backward compat).
-from vultron.adapters.driving.fastapi import inbox_port_factories
-from vultron.adapters.driving.fastapi.inbox_port_factories import (  # noqa: F401
-    _sync_port_factory,
-    _trigger_activity_port_factory,
-    _sync_and_trigger_port_factory,
-    _submit_report_port_factory,
-    _case_proposal_port_factory,
-    _close_case_port_factory,
-    _status_auth_trigger_port_factory,
-    _status_auth_sync_trigger_port_factory,
-    _SYNC_PORT_SEMANTICS,
-    _TRIGGER_ACTIVITY_PORT_SEMANTICS,
-    _SYNC_AND_TRIGGER_PORT_SEMANTICS,
-    _SUBMIT_REPORT_SEMANTICS,
-    _CASE_PROPOSAL_SEMANTICS,
-    _CLOSE_CASE_SEMANTICS,
-    _STATUS_AUTH_TRIGGER_SEMANTICS,
-    _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS,
-)
-
-# Re-export pending-queue helpers so existing callers and tests that
-# reference them via this module continue to work (backward compat).
-from vultron.adapters.driving.fastapi.inbox_pending_queue import (  # noqa: F401
-    _activity_context_id,
-    _queue_pending_case_activity,
-    _expire_pending_case_activities,
-    _replay_pending_case_activities,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -217,7 +216,7 @@ def init_dispatcher() -> None:
     and its one remaining caller reached for the unscoped ``get_datalayer()``
     to satisfy it — which ADR-0073 removes.
     """
-    global _DISPATCHER
+    global _DISPATCHER  # noqa: PLW0603  # ruff-baseline #3985
     _DISPATCHER = make_dispatcher()
     logger.info("Initialised inbox dispatcher: %s", type(_DISPATCHER).__name__)
 
@@ -379,18 +378,16 @@ def _rehydrate_inbox_item(
     try:
         obj = rehydrate(item_id, dl=dl)
     except VultronProtocolViolationError:
-        logger.error(
+        logger.exception(
             "Protocol violation rehydrating inbox item %s"
             " — skipping (permanent failure)",
             item_id,
-            exc_info=True,
         )
         return None
     except Exception:
-        logger.error(
+        logger.exception(
             "Error rehydrating inbox item %s — re-queuing for retry",
             item_id,
-            exc_info=True,
         )
         queue_dl.inbox_append(item_id)
         return None
@@ -436,16 +433,15 @@ def _process_inbox_item(
                 )
         return True
     except VultronProtocolViolationError:
-        logger.error(
+        logger.exception(
             "Protocol violation processing inbox item %s for actor %s"
             " — skipping (permanent failure)",
             item_id,
             actor_id,
-            exc_info=True,
         )
         return False
-    except Exception as e:
-        logger.error(
+    except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        logger.error(  # noqa: TRY400  # ruff-baseline #3353
             "Error processing inbox item %s for actor %s: %s"
             " — re-queuing for retry",
             item_id,

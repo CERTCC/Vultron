@@ -22,7 +22,7 @@ from typing import Any, cast
 
 import pandas as pd
 
-from vultron.bt.behaviors import CvdProtocolBt, CvdProtocolRoot, STATELOG
+from vultron.bt.behaviors import STATELOG, CvdProtocolBt, CvdProtocolRoot
 from vultron.bt.common import show_graph
 from vultron.bt.messaging.behaviors import incoming_message
 from vultron.bt.messaging.inbound.fuzzer import generate_inbound_message
@@ -92,8 +92,7 @@ def _run_simulation() -> bool:
             CVDRolesFlag.FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
         )
 
-        for tick in range(1000):
-            tick += 1
+        for tick in range(1, 1001):
             logger.debug(f"# tick {tick} #")
             tree.tick()
 
@@ -148,7 +147,7 @@ def _print_sim_result():
 
 def _setup_logger(args):
     """Configure the root logger using the log level from parsed arguments."""
-    global logger
+    global logger  # noqa: PLW0603  # ruff-baseline #3985
     logger = logging.getLogger()
     logger.setLevel(args.log_level)
     hdlr = logging.StreamHandler()

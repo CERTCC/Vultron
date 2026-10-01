@@ -13,12 +13,16 @@
 """Tests for CaseActor lazy invite-expiry lapse (#2212) and late-Accept
 compatibility (#2213)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
 
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -44,19 +48,15 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 CoreCase = VulnerabilityCase
 
-_NOW = datetime.now(tz=timezone.utc).replace(microsecond=0)
+_NOW = datetime.now(tz=UTC).replace(microsecond=0)
 _PAST = _NOW - timedelta(days=1)
 # _FUTURE must stay above the EP-07-002 minimum window floor (~3 days from
 # datetime.now()).  The original hardcoded date (2026-09-03) has since fallen
 # within the floor; use a rolling offset instead.
-_FUTURE = datetime.now(tz=timezone.utc) + timedelta(days=7)
+_FUTURE = datetime.now(tz=UTC) + timedelta(days=7)
 
 _COORD = "https://example.org/actors/coordinator"
 _INVITEE = "https://example.org/actors/invitee"
@@ -612,7 +612,7 @@ class TestInviteeIsTheAddressee:
         dl = _make_dl(actor_id=_INVITEE)
         case_id = "https://example.org/cases/addressee-slash"
         embargo_id = "https://example.org/cases/addressee-slash/embargos/e"
-        case, embargo, coord_p_id, invitee_p_id = self._seed_case(
+        case, embargo, _coord_p_id, invitee_p_id = self._seed_case(
             dl, case_id, embargo_id, extra_actors=(_OTHER,)
         )
 
@@ -765,9 +765,9 @@ class TestInviteeIsTheAddressee:
             for node in tree.iterate()
             if isinstance(node, RecordParticipantRejectionNode)
         ]
-        assert (
-            recorders
-        ), "no RecordParticipantRejectionNode in the reject tree"
+        assert recorders, (
+            "no RecordParticipantRejectionNode in the reject tree"
+        )
         assert all(node.rejecting_actor_id == _INVITEE for node in recorders)
 
     @pytest.mark.spec("MSM-07-004")
@@ -836,7 +836,7 @@ class TestInviteeIsTheAddressee:
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee10"
         active_id = f"{case_id}/embargos/active"
-        case, active, coord_p_id, invitee_p_id = self._seed_case(
+        _case, _active, _coord_p_id, invitee_p_id = self._seed_case(
             dl,
             case_id,
             active_id,
@@ -894,7 +894,7 @@ class TestInviteeIsTheAddressee:
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee11"
         active_id = f"{case_id}/embargos/active"
-        case, active, coord_p_id, invitee_p_id = self._seed_case(
+        _case, _active, coord_p_id, invitee_p_id = self._seed_case(
             dl,
             case_id,
             active_id,
@@ -957,7 +957,7 @@ class TestInviteeIsTheAddressee:
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee12"
         embargo_id = f"{case_id}/embargos/stranger"
-        case, embargo, _coord_p_id, invitee_p_id = self._seed_case(
+        _case, embargo, _coord_p_id, invitee_p_id = self._seed_case(
             dl,
             case_id,
             embargo_id,
@@ -999,7 +999,7 @@ class TestInviteeIsTheAddressee:
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee13"
         embargo_id = f"{case_id}/embargos/stranger"
-        case, embargo, _coord_p_id, invitee_p_id = self._seed_case(
+        _case, embargo, _coord_p_id, invitee_p_id = self._seed_case(
             dl,
             case_id,
             embargo_id,
@@ -1269,7 +1269,7 @@ class TestLateAcceptHandling:
         stale_embargo_id = "https://example.org/cases/ea2/embargos/stale"
 
         # Case has current_embargo active, not stale_embargo
-        case, current_embargo, _ = _make_active_embargo_case(
+        case, _current_embargo, _ = _make_active_embargo_case(
             dl,
             case_id,
             current_embargo_id,
@@ -1331,7 +1331,7 @@ class TestLateAcceptHandling:
         case_id = "https://example.org/cases/ea3"
         embargo_id = "https://example.org/cases/ea3/embargos/e3"
 
-        case, embargo, participant_id = _make_active_embargo_case(
+        case, embargo, _participant_id = _make_active_embargo_case(
             dl,
             case_id,
             embargo_id,
@@ -1634,7 +1634,7 @@ class TestLateAcceptHandling:
         )
 
         # Participant is SIGNATORY on the current embargo.
-        case, current_embargo, _ = _make_active_embargo_case(
+        case, _current_embargo, _ = _make_active_embargo_case(
             dl,
             case_id,
             current_embargo_id,

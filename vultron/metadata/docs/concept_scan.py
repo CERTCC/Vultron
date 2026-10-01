@@ -221,6 +221,78 @@ def _position(text: str, offset: int) -> Position:
     return Position(text.count("\n", 0, offset) + 1, offset - line_start + 1)
 
 
+@dataclass(frozen=True, slots=True)
+class _LinkRecorder:
+    """Collects the ``docs/`` pages a scanned page links to."""
+
+    text: str
+    source_dir: PurePosixPath
+    links: list[Link]
+
+    def record(self, target: str, match: re.Match[str]) -> None:
+        page = _resolve(target, self.source_dir)
+        if page is not None:
+            position = _position(self.text, match.start())
+            self.links.append(Link(page, position, *match.span("text")))
+
+
+def _mask_code(text: str) -> list[str]:
+    """Blank line-shaped structure, then code spans, comments and directives."""
+    chars = _mask_structure(text)
+    for match in _BLOCK_RE.finditer("".join(chars)):
+        _blank(chars, match.start(), match.end())
+    return chars
+
+
+def _read_definitions(masked: str, chars: list[str]) -> dict[str, str]:
+    """Blank reference-link definitions and map each label to its target."""
+    definitions: dict[str, str] = {}
+    for match in _REFERENCE_DEF_RE.finditer(masked):
+        definitions.setdefault(_label_key(match["label"]), match["target"])
+        _blank(chars, match.start(), match.end())
+    return definitions
+
+
+def _mask_inline_links(
+    masked: str, chars: list[str], recorder: _LinkRecorder
+) -> None:
+    """Record inline links and blank their brackets and targets."""
+    # A second pass finds the image or link nested in an outer link's text,
+    # once the outer link's brackets and target are blanked.
+    while matches := list(_INLINE_LINK_RE.finditer(masked)):
+        for match in matches:
+            recorder.record(match["target"], match)
+            _blank(chars, match.start(), match.start() + 1)
+            _blank(chars, *match.span("rest"))
+            _blank(chars, match.end("text"), match.end("text") + 1)
+        masked = "".join(chars)
+
+
+def _mask_reference_uses(
+    chars: list[str], definitions: dict[str, str], recorder: _LinkRecorder
+) -> None:
+    """Record reference links to a defined label and blank their brackets."""
+    for match in _REFERENCE_USE_RE.finditer("".join(chars)):
+        label = _label_key(match["label"] or match["text"])
+        if label in definitions:
+            recorder.record(definitions[label], match)
+            _blank(chars, match.start(), match.start() + 1)
+            _blank(chars, match.end("text"), match.end())
+
+
+def _mask_html(chars: list[str], recorder: _LinkRecorder) -> None:
+    """Record ``<a href>`` links, then blank HTML tags and bare URLs."""
+    masked = "".join(chars)
+    for match in _ANCHOR_RE.finditer(masked):
+        href = _HREF_RE.search(match["open"])
+        if href:
+            recorder.record(href["dq"] or href["sq"] or "", match)
+    for match in _TAG_RE.finditer(masked):
+        _blank(chars, match.start(), match.end())
+    for match in _URL_RE.finditer("".join(chars)):
+        _blank(chars, match.start(), match.end())
+
+
 def scan_page(text: str, docs_path: str) -> ScannedPage:
     """Mask *text* to its prose and collect the pages it links to.
 
@@ -230,49 +302,16 @@ def scan_page(text: str, docs_path: str) -> ScannedPage:
             link targets resolve (include-markdown rewrites a fragment's links
             relative to the fragment, so a fragment passes its own path).
     """
-    chars = _mask_structure(text)
-    for match in _BLOCK_RE.finditer("".join(chars)):
-        _blank(chars, match.start(), match.end())
-
-    source_dir = PurePosixPath(docs_path).parent
-    links: list[Link] = []
-
-    def record(target: str, match: re.Match[str]) -> None:
-        page = _resolve(target, source_dir)
-        if page is not None:
-            position = _position(text, match.start())
-            links.append(Link(page, position, *match.span("text")))
-
+    chars = _mask_code(text)
+    recorder = _LinkRecorder(text, PurePosixPath(docs_path).parent, [])
+    # Inline links are read from the text as it stood before the reference
+    # definitions were blanked.
     masked = "".join(chars)
-    definitions: dict[str, str] = {}
-    for match in _REFERENCE_DEF_RE.finditer(masked):
-        definitions.setdefault(_label_key(match["label"]), match["target"])
-        _blank(chars, match.start(), match.end())
-    # A second pass finds the image or link nested in an outer link's text,
-    # once the outer link's brackets and target are blanked.
-    while matches := list(_INLINE_LINK_RE.finditer(masked)):
-        for match in matches:
-            record(match["target"], match)
-            _blank(chars, match.start(), match.start() + 1)
-            _blank(chars, *match.span("rest"))
-            _blank(chars, match.end("text"), match.end("text") + 1)
-        masked = "".join(chars)
-    for match in _REFERENCE_USE_RE.finditer(masked):
-        label = _label_key(match["label"] or match["text"])
-        if label in definitions:
-            record(definitions[label], match)
-            _blank(chars, match.start(), match.start() + 1)
-            _blank(chars, match.end("text"), match.end())
-    masked = "".join(chars)
-    for match in _ANCHOR_RE.finditer(masked):
-        href = _HREF_RE.search(match["open"])
-        if href:
-            record(href["dq"] or href["sq"] or "", match)
-    for match in _TAG_RE.finditer(masked):
-        _blank(chars, match.start(), match.end())
-    for match in _URL_RE.finditer("".join(chars)):
-        _blank(chars, match.start(), match.end())
-    links.sort(key=lambda link: link.start)
+    definitions = _read_definitions(masked, chars)
+    _mask_inline_links(masked, chars, recorder)
+    _mask_reference_uses(chars, definitions, recorder)
+    _mask_html(chars, recorder)
+    links = sorted(recorder.links, key=lambda link: link.start)
     return ScannedPage(prose="".join(chars), links=tuple(links))
 
 

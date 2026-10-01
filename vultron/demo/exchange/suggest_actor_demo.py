@@ -42,10 +42,8 @@ be demonstrated in isolation.
 
 # Standard library imports
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
-# Vultron imports
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import setup_initialized_case
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
@@ -56,8 +54,8 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     log_case_state,
     logfmt,
     post_to_inbox_and_wait,
-    verify_object_stored,
     setup_demo_logging,
+    verify_object_stored,
 )
 from vultron.wire.as2.factories import (
     accept_case_participant_offer_activity,
@@ -65,6 +63,9 @@ from vultron.wire.as2.factories import (
     recommend_actor_activity,
     reject_case_participant_offer_activity,
 )
+
+# Vultron imports
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
 
@@ -261,7 +262,7 @@ def demo_suggest_actor_reject(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     ("Demo: Suggest Actor — Accept Path", demo_suggest_actor_accept),
     ("Demo: Suggest Actor — Reject Path", demo_suggest_actor_reject),
 ]
@@ -269,7 +270,7 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ) -> None:
     """Main entry point for the suggest_actor demo script."""
     run_exchange_demos(

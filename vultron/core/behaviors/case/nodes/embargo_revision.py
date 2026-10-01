@@ -173,7 +173,7 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
                 f"{self.name}: could not register the longer proposal as a"
                 f" revision on case '{case_id}': {exc}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         self.logger.info(

@@ -19,7 +19,7 @@ until the trigger-side write gate lands (#3962; Concern #3918, ADR-0113 as
 rewritten 2026-09-30).
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pytest
@@ -96,7 +96,7 @@ def test_non_manager_trigger_asks_and_writes_no_em_state(
     request = ProposeEmbargoTriggerRequest(
         actor_id=finder.id_,
         case_id=case.id_,
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=7),
+        end_time=datetime.now(tz=UTC) + timedelta(days=7),
     )
 
     result = SvcProposeEmbargoUseCase(

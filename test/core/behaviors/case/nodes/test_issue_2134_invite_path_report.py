@@ -16,7 +16,7 @@ Three failing conditions are tested:
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import cast
 
 import pytest
@@ -49,7 +49,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-_FIXED_CREATED_AT = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+_FIXED_CREATED_AT = datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC)
 
 CASE_OWNER_ACTOR_ID = "https://example.org/actors/case-owner"
 INVITED_ACTOR_ID = "https://example.org/actors/invited-vendor"

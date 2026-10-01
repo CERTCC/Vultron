@@ -42,8 +42,8 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
     CheckProposalAlreadySentForReport,
-    ProposeReportCaseToActorNode,
     EnsureCaseActorHostedNode,
+    ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
 )
 from vultron.core.behaviors.case.receive_report_case_tree import (
@@ -207,9 +207,9 @@ class TestTreeStructure:
                 yield from _collect(child)
 
         node_types = [type(n) for n in _collect(tree)]
-        assert (
-            CreateCaseNode not in node_types
-        ), "CreateCaseNode must not appear in the slimmed vendor tree (AC-1)"
+        assert CreateCaseNode not in node_types, (
+            "CreateCaseNode must not appear in the slimmed vendor tree (AC-1)"
+        )
 
     def test_no_embargo_node(self, report, offer, reporter_actor_id):
         """Tree does NOT contain InitializeDefaultEmbargoNode (AC-1)."""
@@ -229,9 +229,9 @@ class TestTreeStructure:
                 yield from _collect(child)
 
         node_types = [type(n) for n in _collect(tree)]
-        assert (
-            InitializeDefaultEmbargoNode not in node_types
-        ), "InitializeDefaultEmbargoNode must not appear in the vendor tree (AC-1)"
+        assert InitializeDefaultEmbargoNode not in node_types, (
+            "InitializeDefaultEmbargoNode must not appear in the vendor tree (AC-1)"
+        )
 
 
 # ============================================================================
@@ -287,9 +287,9 @@ class TestPolicyGate:
         assert result.status == Status.FAILURE
 
         link = datalayer.read(VultronReportCaseLink.build_id(report.id_))
-        assert (
-            link is None
-        ), "No ReportCaseLink should be written when gate disabled"
+        assert link is None, (
+            "No ReportCaseLink should be written when gate disabled"
+        )
 
     def test_enabled_gate_succeeds(
         self,
@@ -364,9 +364,9 @@ class TestHappyPath:
 
         link_id = VultronReportCaseLink.build_id(report.id_)
         link = datalayer.read(link_id)
-        assert isinstance(
-            link, VultronReportCaseLink
-        ), "VultronReportCaseLink must exist after tree execution (AC-2)"
+        assert isinstance(link, VultronReportCaseLink), (
+            "VultronReportCaseLink must exist after tree execution (AC-2)"
+        )
         assert link.report_id == report.id_
         assert link.case_id is None, "Link must be pending (case_id=None)"
         assert not link.proposal_rejected
@@ -429,9 +429,9 @@ class TestHappyPath:
         )
 
         outbox = datalayer.clone_for_actor(actor.id_).outbox_list()
-        assert (
-            len(outbox) >= 1
-        ), "At least one outbox item expected (the proposal)"
+        assert len(outbox) >= 1, (
+            "At least one outbox item expected (the proposal)"
+        )
 
     def test_no_vulnerability_case_created(
         self,
@@ -453,9 +453,9 @@ class TestHappyPath:
         )
 
         case = datalayer.find_case_by_report_id(report.id_)
-        assert (
-            case is None
-        ), "Vendor tree must NOT create a VulnerabilityCase (ADR-0041 AC-1)"
+        assert case is None, (
+            "Vendor tree must NOT create a VulnerabilityCase (ADR-0041 AC-1)"
+        )
 
 
 # ============================================================================
@@ -550,9 +550,9 @@ class TestIdempotency:
         count_after_second = len(
             datalayer.clone_for_actor(actor.id_).outbox_list()
         )
-        assert (
-            count_after_second == count_after_first
-        ), "Second run must not enqueue additional outbox items"
+        assert count_after_second == count_after_first, (
+            "Second run must not enqueue additional outbox items"
+        )
 
     def test_second_run_after_case_linked_does_not_repropose(
         self,
@@ -652,9 +652,9 @@ class TestIdempotency:
         count_after_retry = len(
             datalayer.clone_for_actor(actor.id_).outbox_list()
         )
-        assert (
-            count_after_retry > count_before_retry
-        ), "Re-triggering after proposal_rejected=True must enqueue a new proposal"
+        assert count_after_retry > count_before_retry, (
+            "Re-triggering after proposal_rejected=True must enqueue a new proposal"
+        )
 
 
 # ============================================================================
@@ -730,7 +730,7 @@ class TestConcurrentExecution:
                 )
                 with _lock:
                     results[key] = result.status
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
                 with _lock:
                     errors.append(f"{key}: {exc}")
 
@@ -744,9 +744,9 @@ class TestConcurrentExecution:
             t.join(timeout=10)
 
         for i, t in enumerate(threads):
-            assert (
-                not t.is_alive()
-            ), f"Thread {i} timed out — possible deadlock"
+            assert not t.is_alive(), (
+                f"Thread {i} timed out — possible deadlock"
+            )
         assert not errors, f"Thread errors: {errors}"
         return results
 
@@ -779,12 +779,12 @@ class TestConcurrentExecution:
             reporter_actor_id,
             [(report_a, offer_a, "a"), (report_b, offer_b, "b")],
         )
-        assert (
-            results.get("a") == Status.SUCCESS
-        ), f"Thread A status: {results.get('a')}"
-        assert (
-            results.get("b") == Status.SUCCESS
-        ), f"Thread B status: {results.get('b')}"
+        assert results.get("a") == Status.SUCCESS, (
+            f"Thread A status: {results.get('a')}"
+        )
+        assert results.get("b") == Status.SUCCESS, (
+            f"Thread B status: {results.get('b')}"
+        )
 
     def test_two_threads_produce_distinct_links(
         self,
@@ -819,12 +819,12 @@ class TestConcurrentExecution:
         link_a = datalayer.read(VultronReportCaseLink.build_id(report_a.id_))
         link_b = datalayer.read(VultronReportCaseLink.build_id(report_b.id_))
 
-        assert isinstance(
-            link_a, VultronReportCaseLink
-        ), "VultronReportCaseLink for report A must exist"
-        assert isinstance(
-            link_b, VultronReportCaseLink
-        ), "VultronReportCaseLink for report B must exist"
+        assert isinstance(link_a, VultronReportCaseLink), (
+            "VultronReportCaseLink for report A must exist"
+        )
+        assert isinstance(link_b, VultronReportCaseLink), (
+            "VultronReportCaseLink for report B must exist"
+        )
         assert link_a.report_id == report_a.id_
         assert link_b.report_id == report_b.id_
         assert link_a.id_ != link_b.id_, "Links must be distinct records"

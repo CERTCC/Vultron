@@ -29,6 +29,7 @@ import pytest
 from pydantic import ValidationError
 
 from vultron.adapters.driving.fastapi import outbox_handler as oh
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.errors import VultronOutboxObjectIntegrityError
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -45,7 +46,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-from vultron.core.models._helpers import days_from_now_utc
 
 _STR_URI = "https://example.org/objects/123"
 _LINK = as_Link(href="https://example.org/objects/123")

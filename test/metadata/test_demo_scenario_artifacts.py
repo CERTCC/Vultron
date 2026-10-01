@@ -52,7 +52,6 @@ from vultron.metadata.demo_scenarios.render import (
     render_page,
     scenario_matrix_json,
 )
-from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.demo_scenarios.sync import (
     ARTIFACTS,
     BEGIN_MARKER,
@@ -66,6 +65,7 @@ from vultron.metadata.demo_scenarios.sync import (
     stale_artifacts,
     write_artifacts,
 )
+from vultron.metadata.specs.registry import load_registry
 
 _REPO_ROOT = Path(__file__).parents[2]
 
@@ -172,7 +172,7 @@ def test_check_detects_every_artifact_when_the_registry_changes(
     The registry is passed explicitly: the point is that a *registry* change,
     not a file edit, is what the gate exists to propagate.
     """
-    specs = discover_scenarios() + (_EXTRA_SPEC,)
+    specs = (*discover_scenarios(), _EXTRA_SPEC)
     assert stale_artifacts(artifact_root, specs) == [
         artifact.path for artifact in ARTIFACTS
     ]
@@ -180,7 +180,7 @@ def test_check_detects_every_artifact_when_the_registry_changes(
 
 def test_write_then_check_round_trips(artifact_root: Path) -> None:
     """``--write`` makes ``--check`` clean, and is idempotent afterwards."""
-    specs = discover_scenarios() + (_EXTRA_SPEC,)
+    specs = (*discover_scenarios(), _EXTRA_SPEC)
     written = write_artifacts(artifact_root, specs)
     assert written == [artifact.path for artifact in ARTIFACTS]
     assert stale_artifacts(artifact_root, specs) == []
@@ -200,7 +200,7 @@ def test_write_preserves_hand_written_prose(artifact_root: Path) -> None:
     sentinel = "## Adding a New Invariant"
     assert sentinel in before
 
-    write_artifacts(artifact_root, discover_scenarios() + (_EXTRA_SPEC,))
+    write_artifacts(artifact_root, (*discover_scenarios(), _EXTRA_SPEC))
     after = target.read_text(encoding="utf-8")
 
     assert sentinel in after
@@ -499,9 +499,10 @@ def test_mkdocs_keeps_directory_urls() -> None:
     renders would break — silently, since nothing validates those links. Pinned
     here because the assumption lives in a renderer, far from ``mkdocs.yml``.
     """
+    # mkdocs.yml carries !!python/name tags; the file is the repository's own.
     config = yaml.load(
         (_REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8"),
-        Loader=MkDocsYamlLoader,
+        Loader=MkDocsYamlLoader,  # noqa: S506
     )
     assert config.get("use_directory_urls", True) is True, (
         "use_directory_urls is disabled, so built pages are '<name>.html' and "
@@ -536,8 +537,7 @@ def test_splice_rejects_duplicated_markers(label: str) -> None:
     """
     doubled = BEGIN_MARKER if label == "begin" else END_MARKER
     current = (
-        f"{BEGIN_MARKER}\n\n| old |\n\n{END_MARKER}\n\n"
-        f"prose\n\n{doubled}\n"
+        f"{BEGIN_MARKER}\n\n| old |\n\n{END_MARKER}\n\nprose\n\n{doubled}\n"
     )
     with pytest.raises(
         ValueError, match=f"found 2 generated-block {label} markers"

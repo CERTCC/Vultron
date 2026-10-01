@@ -89,7 +89,7 @@ __all__ = [
 # TYPE_CHECKING stubs so mypy resolves composite names to their actual types.
 # At runtime these imports are skipped; the lazy __getattr__ below handles them.
 if TYPE_CHECKING:
-    from vultron.core.behaviors.case.participant_tree import (  # noqa: F401
+    from vultron.core.behaviors.case.participant_tree import (
         CreateCaseOwnerParticipant,
         CreateCaseParticipantNode,
         SeedParticipantAsSignatoryIfEmbargoActiveNode,

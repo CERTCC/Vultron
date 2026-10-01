@@ -20,6 +20,7 @@ from typing import Any, cast
 
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.factories import (
     rm_close_report_activity,
     rm_invalidate_report_activity,
@@ -33,7 +34,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 from ._base import _seal, _to_wire
-from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ def _reconstitute_offer(
             actor=offer_record.offer_actor_id,
             id_=offer_id,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
         logger.warning(
             "_reconstitute_offer: failed to reconstitute offer '%s': %s",
             offer_id,

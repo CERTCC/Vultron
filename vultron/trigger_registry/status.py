@@ -77,8 +77,8 @@ ENTRIES: list[TriggerEntry] = [
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
         # Its body carries ids, not an activity, so TRIG-04-001 is not its.
-        spec_ids=tuple(s for s in GENERAL_TRIGGER_SPECS if s != "TRIG-04-001")
-        + (
+        spec_ids=(
+            *tuple(s for s in GENERAL_TRIGGER_SPECS if s != "TRIG-04-001"),
             "TRIG-06-001",
             "TRIG-06-002",
             "TRIG-07-001",

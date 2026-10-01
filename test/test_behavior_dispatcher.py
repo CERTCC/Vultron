@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from vultron.core.dispatcher import DirectActivityDispatcher, get_dispatcher
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.events import (
@@ -29,7 +30,6 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.core.models._helpers import days_from_now_utc
 
 
 @dataclass

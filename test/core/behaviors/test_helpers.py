@@ -16,26 +16,26 @@
 """Unit tests for DataLayer-aware BT helper nodes."""
 
 import json
-from typing import Callable, Optional
+from collections.abc import Callable
 
-import pytest
 import py_trees
+import pytest
 from py_trees.common import Status
 
+from test.support.participant_status import advance_participant_rm
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import (
-    FindParticipantByActorIdNode,
-    DataLayerCondition,
+    CreateObject,
     DataLayerAction,
+    DataLayerCondition,
+    FindParticipantByActorIdNode,
     ReadObject,
     UpdateObject,
-    CreateObject,
     _EmitSingleActivityBase,
 )
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from test.support.participant_status import advance_participant_rm
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -402,9 +402,9 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
     assert result.status == Status.SUCCESS
     assert len(captured) == 1
     found_participant = captured[0]
-    assert (
-        found_participant.participant_statuses[-1].rm.state == RM.VALID
-    ), "Expected live RM.VALID from DL, not stale RM.RECEIVED from inline copy"
+    assert found_participant.participant_statuses[-1].rm.state == RM.VALID, (
+        "Expected live RM.VALID from DL, not stale RM.RECEIVED from inline copy"
+    )
 
 
 def test_read_object_success(bridge, datalayer, sample_record):
@@ -691,13 +691,13 @@ def test_condition_logger_is_managed_not_orphaned():
     import logging
 
     node = AlwaysTrueCondition(name="TestLogger")
-    assert isinstance(
-        node.logger, logging.Logger
-    ), "self.logger must be the stdlib logging.Logger, not py_trees.logging.Logger"
+    assert isinstance(node.logger, logging.Logger), (
+        "self.logger must be the stdlib logging.Logger, not py_trees.logging.Logger"
+    )
     # A managed logger always has a parent (at minimum the root logger).
-    assert (
-        node.logger.parent is not None
-    ), "self.logger.parent is None — logger is orphaned and log calls will be silently dropped"
+    assert node.logger.parent is not None, (
+        "self.logger.parent is None — logger is orphaned and log calls will be silently dropped"
+    )
 
 
 def test_action_logger_is_managed_not_orphaned():
@@ -707,9 +707,9 @@ def test_action_logger_is_managed_not_orphaned():
 
     node = NoOpAction(name="TestLogger")
     assert isinstance(node.logger, logging.Logger)
-    assert (
-        node.logger.parent is not None
-    ), "self.logger.parent is None — logger is orphaned and log calls will be silently dropped"
+    assert node.logger.parent is not None, (
+        "self.logger.parent is None — logger is orphaned and log calls will be silently dropped"
+    )
 
 
 def test_condition_logger_name_includes_class(bridge, datalayer):
@@ -823,6 +823,7 @@ def test_action_require_factory_returns_failure_when_none():
 def test_action_require_factory_returns_none_when_set():
     """DataLayerAction._require_factory() returns None when factory is set."""
     from unittest.mock import MagicMock
+
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
     node = NoOpAction(name="GuardTest")
@@ -861,8 +862,8 @@ _ACTOR_URI = "https://example.org/actors/emit-test-actor"
 class _StubEmitNode(_EmitSingleActivityBase):
     """Concrete stub — delegates to injected callables set before use."""
 
-    factory_fn: Optional[Callable[["_StubEmitNode"], tuple[str, str]]] = None
-    on_success_fn: Optional[Callable[["_StubEmitNode", str, str], None]] = None
+    factory_fn: Callable[["_StubEmitNode"], tuple[str, str]] | None = None
+    on_success_fn: Callable[["_StubEmitNode", str, str], None] | None = None
 
     def _call_factory(self) -> tuple[str, str]:
         if self.factory_fn is None:
@@ -909,6 +910,7 @@ class TestEmitSingleActivityBase:
     def test_update_succeeds_and_queues_outbox(self, datalayer):
         """SUCCESS path: calls factory, queues outbox, returns SUCCESS."""
         from unittest.mock import MagicMock
+
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -929,6 +931,7 @@ class TestEmitSingleActivityBase:
     def test_update_stores_activity_in_captured(self, datalayer):
         """When _captured is provided, sets captured['activity'] on success."""
         from unittest.mock import MagicMock
+
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -950,6 +953,7 @@ class TestEmitSingleActivityBase:
     def test_update_calls_on_success_hook(self, datalayer):
         """_on_success() is called with activity_id and activity_dict on SUCCESS."""
         from unittest.mock import MagicMock
+
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -973,6 +977,7 @@ class TestEmitSingleActivityBase:
     def test_update_returns_failure_on_factory_exception(self, datalayer):
         """Returns FAILURE and sets feedback_message when factory raises."""
         from unittest.mock import MagicMock
+
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -1003,6 +1008,7 @@ class TestEmitSingleActivityBase:
         Tracks DEFER from code-review of #2582 / issue #2609.
         """
         from unittest.mock import MagicMock
+
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.ports.trigger_activity import TriggerActivityPort
 

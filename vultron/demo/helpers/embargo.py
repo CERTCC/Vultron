@@ -15,7 +15,6 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
 
 import isodate  # type: ignore[import-untyped]
 
@@ -73,7 +72,7 @@ def publish_embargo_policy(
 def make_embargo_event(
     case: as_VulnerabilityCase,
     days: int = 90,
-    seq: Optional[int] = None,
+    seq: int | None = None,
 ) -> as_EmbargoEvent:
     """Create a deterministic :class:`as_EmbargoEvent` for *case*.
 

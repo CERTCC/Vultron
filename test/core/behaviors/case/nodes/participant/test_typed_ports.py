@@ -38,13 +38,13 @@ import py_trees
 import pytest
 
 import vultron.core.behaviors.case.nodes.participant as participant_pkg
-from vultron.core.models.case import VulnerabilityCase
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.core.behaviors.port_contract import (
     PortDecl,
     decl_id,
     discover_port_declarations,
 )
+from vultron.core.models.case import VulnerabilityCase
 
 PORT = "participant_case"
 #: Physical blackboard key the nodes bind ``participant_case`` to when
@@ -187,9 +187,9 @@ class TestParticipantCaseTickLevelEnforcement:
             result, reason="not of type", allow_internal=True
         )
         errors = result.errors or []
-        assert any(
-            "not of type" in err for err in errors
-        ), f"expected a port type-mismatch error, got {errors}"
+        assert any("not of type" in err for err in errors), (
+            f"expected a port type-mismatch error, got {errors}"
+        )
 
 
 @pytest.mark.spec("BTND-03-012")

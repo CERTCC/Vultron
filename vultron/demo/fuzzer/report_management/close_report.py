@@ -32,6 +32,8 @@ References
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from vultron.demo.fuzzer.base import AlwaysSucceed, UsuallyFail
 from vultron.demo.fuzzer.call_out_point import (
     ActuatorCallOutPoint,
@@ -66,7 +68,9 @@ class OtherCloseCriteriaMet(EvaluatorCallOutPoint, UsuallyFail):
     final closure decision usually benefits from human confirmation.
     """
 
-    output_keys = {"other_close_criteria_met_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "other_close_criteria_met_verdict": str
+    }
 
 
 class PreCloseAction(ActuatorCallOutPoint, AlwaysSucceed):

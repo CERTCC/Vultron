@@ -75,7 +75,7 @@ def test_session_on_another_thread_cannot_roll_back_an_open_transaction():
             with dl._session() as session:
                 session.exec(select(DBRecord)).all()
             # On the unguarded shared connection this checkin rolled A back.
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:  # noqa: BLE001  # ruff-baseline #3989
             errors.append(exc)
         finally:
             b_done.set()

@@ -6,12 +6,11 @@
 (CS-08-002).
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from test.support.blank_strings import BLANKS
-
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
 _TIMESTAMP_FIELDS = ("start_time", "end_time", "published", "updated")
@@ -56,9 +55,7 @@ def test_supplied_timestamp_survives_verbatim(field: str):
         {"type": "Object", **{field: "2026-03-04T05:06:07+00:00"}}
     )
 
-    assert getattr(obj, field) == datetime(
-        2026, 3, 4, 5, 6, 7, tzinfo=timezone.utc
-    )
+    assert getattr(obj, field) == datetime(2026, 3, 4, 5, 6, 7, tzinfo=UTC)
 
 
 @pytest.mark.spec("CS-08-001")

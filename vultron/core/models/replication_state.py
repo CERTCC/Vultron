@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import urllib.parse
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -83,7 +83,7 @@ class VultronReplicationState(CoreRecord):
         validation_alias="joinBackfillLastSentIndex",
         serialization_alias="joinBackfillLastSentIndex",
     )
-    last_replayed_from_hash: Optional[str] = Field(
+    last_replayed_from_hash: str | None = Field(
         default=None,
         description=(
             "entry_hash the most recent Reject-triggered replay started from,"
@@ -95,7 +95,7 @@ class VultronReplicationState(CoreRecord):
         validation_alias="lastReplayedFromHash",
         serialization_alias="lastReplayedFromHash",
     )
-    last_replayed_at: Optional[datetime] = Field(
+    last_replayed_at: datetime | None = Field(
         default=None,
         description=(
             "When the most recent Reject-triggered replay was sent to this"

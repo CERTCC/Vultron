@@ -5,6 +5,7 @@ import inspect
 
 import pytest
 
+from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.base import VultronEvent
 from vultron.errors import RegistryOrderError
@@ -18,7 +19,6 @@ from vultron.semantic_registry import (
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import ActivityPattern
-from vultron.core.models.enums import VultronObjectType as VOtype
 
 
 @pytest.mark.spec("SE-03-001")
@@ -280,9 +280,9 @@ def test_phrase_format_map_with_defaults_returns_non_empty(entry):
 
     slots: dict[str, str] = defaultdict(lambda: "X")
     result = entry.phrase.format_map(slots)
-    assert (
-        result
-    ), f"{entry.semantics.name} phrase produced empty string after format_map"
+    assert result, (
+        f"{entry.semantics.name} phrase produced empty string after format_map"
+    )
 
 
 def test_create_case_proposal_phrase_has_no_target_slot():
@@ -404,9 +404,9 @@ def test_event_phrase_render_no_dangling_output(entry):
 
     _slot_re = re.compile(r"\{(\w+)\}")
     result = event_phrase(entry.semantics.value)
-    assert not result.endswith(
-        "—"
-    ), f"{entry.semantics.name}: event_phrase() ends with '—': {result!r}"
-    assert not _slot_re.search(
-        result
-    ), f"{entry.semantics.name}: event_phrase() left un-substituted slot: {result!r}"
+    assert not result.endswith("—"), (
+        f"{entry.semantics.name}: event_phrase() ends with '—': {result!r}"
+    )
+    assert not _slot_re.search(result), (
+        f"{entry.semantics.name}: event_phrase() left un-substituted slot: {result!r}"
+    )

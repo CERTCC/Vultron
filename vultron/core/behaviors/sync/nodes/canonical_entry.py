@@ -29,7 +29,7 @@ Spec: CLP-07, CLP-12.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from vultron.core.models._helpers import as_utc, parse_published
@@ -310,7 +310,7 @@ def _validate_entry_timestamps(
             "within" if regression <= skew_tolerance else "outside",
             skew_tolerance,
         )
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     if (
         future_tolerance is not None
         and entry_published > now + future_tolerance

@@ -24,11 +24,11 @@ import logging
 
 import pytest
 
-from vultron.core.models.report import VulnerabilityReport
 from vultron.core.behaviors.report.policy import (
     AlwaysAcceptPolicy,
     ValidationPolicy,
 )
+from vultron.core.models.report import VulnerabilityReport
 
 
 class TestValidationPolicy:
@@ -186,9 +186,9 @@ class TestAlwaysAcceptPolicy:
         ]
 
         for report in reports:
-            assert (
-                policy.is_credible(report) is True
-            ), f"Failed for {report.id_}"
+            assert policy.is_credible(report) is True, (
+                f"Failed for {report.id_}"
+            )
             assert policy.is_valid(report) is True, f"Failed for {report.id_}"
 
     def test_policy_reusable_across_reports(self):

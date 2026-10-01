@@ -24,8 +24,8 @@ from _pytest.outcomes import Failed
 
 from test.ci.invariants import common
 from vultron.demo.helpers.ledger_dump import (
-    DUMP_MANIFEST_FILENAME,
     _PRERUN_SENTINEL_REASON,
+    DUMP_MANIFEST_FILENAME,
     write_prerun_sentinel,
 )
 
@@ -51,9 +51,9 @@ class TestWritePrerunSentinel:
         manifest_path = write_prerun_sentinel(
             self.DEMO_NAME, output_root=tmp_path
         )
-        assert (
-            manifest_path.is_file()
-        ), f"Expected sentinel manifest at {manifest_path}"
+        assert manifest_path.is_file(), (
+            f"Expected sentinel manifest at {manifest_path}"
+        )
         assert (
             manifest_path == tmp_path / self.DEMO_NAME / DUMP_MANIFEST_FILENAME
         )

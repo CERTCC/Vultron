@@ -22,13 +22,13 @@ before the local case replica exists (CBT-03-003, CBT-03-004).
 #  in the U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from datetime import timezone
+from datetime import UTC
 
 from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.config import get_config
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent, resolve_case_context_id
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.factories.case import bootstrap_replay_question_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -125,10 +125,10 @@ def _expire_pending_case_activities(
     if not isinstance(pending, VultronPendingCaseInbox):
         return False
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     queued_at = pending.queued_at
     if queued_at.tzinfo is None:
-        queued_at = queued_at.replace(tzinfo=timezone.utc)
+        queued_at = queued_at.replace(tzinfo=UTC)
     age_seconds = (now - queued_at).total_seconds()
     if age_seconds < timeout_seconds:
         return False

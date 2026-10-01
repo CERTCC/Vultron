@@ -35,31 +35,31 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import (
     _reset_stores,
     get_pending_assertion_store,
 )
-from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
 )
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
     FinderParticipant,
+    as_CaseParticipant,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -267,9 +267,9 @@ class TestSvcAddNoteToCaseUseCase:
         self._execute()
         after = set(_outbox_activity_ids(self.vendor.id_, self.dl))
         new_ids = after - before
-        assert (
-            len(new_ids) == 2
-        ), f"Expected 2 new outbox entries, got {len(new_ids)}"
+        assert len(new_ids) == 2, (
+            f"Expected 2 new outbox entries, got {len(new_ids)}"
+        )
 
     def test_activities_stored_in_datalayer(self):
         """Both queued activities are readable from the DataLayer."""
@@ -315,9 +315,9 @@ class TestSvcAddNoteToCaseUseCase:
             "Finder must not be directly addressed — routing goes through"
             " Case Actor"
         )
-        assert (
-            self.vendor.id_ not in recipients
-        ), "Actor must not address themselves"
+        assert self.vendor.id_ not in recipients, (
+            "Actor must not address themselves"
+        )
 
     def test_raises_when_no_case_manager(self):
         """SvcAddNoteToCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
@@ -456,8 +456,8 @@ class TestSvcAddNoteToCaseUseCase:
         """When the store has zero timeout, is_suppressed always returns False
         even after execute() adds the entry (SYNC-11-001)."""
         from vultron.core.models.pending_assertion import (
-            PendingAssertionStore,
             _STORES,
+            PendingAssertionStore,
         )
 
         zero_store = PendingAssertionStore(timeout_seconds=0)

@@ -31,12 +31,12 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.services.embargo_ordering import (
-    earliest_expiring_embargo_id,
-)
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
+)
+from vultron.core.services.embargo_ordering import (
+    earliest_expiring_embargo_id,
 )
 from vultron.core.states.em import EM
 from vultron.errors import VultronError
@@ -173,7 +173,7 @@ class ReadProposedEmbargoIdNode(DataLayerActionWithPorts):
                 f"Cannot order the proposed embargoes of case"
                 f" '{self._case_id}': {exc}"
             )
-            self.logger.error("%s: %s", self.name, self.feedback_message)
+            self.logger.error("%s: %s", self.name, self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         self._set_output("embargo_id", embargo_id)

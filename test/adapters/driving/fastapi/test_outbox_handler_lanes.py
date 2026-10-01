@@ -85,7 +85,7 @@ def _mock_dl(
     dl.find_actor_by_short_id.return_value = actor
     dl.outbox_list.side_effect = lambda: list(queue)
     dl.outbox_pop.side_effect = lambda: queue.pop(0) if queue else None
-    dl.outbox_append.side_effect = lambda x: queue.append(x)
+    dl.outbox_append.side_effect = queue.append
     dl.get_outbox_attempt_count.return_value = 0
     return dl
 

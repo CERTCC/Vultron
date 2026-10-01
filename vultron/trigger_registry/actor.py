@@ -43,8 +43,8 @@ from vultron.trigger_registry._entry import (
     TriggerExposure,
 )
 
-_PARTICIPANT = GENERAL_TRIGGER_SPECS + ("TRIG-02-005",)
-_ROLE = GENERAL_TRIGGER_SPECS + ("TRIG-02-007",)
+_PARTICIPANT = (*GENERAL_TRIGGER_SPECS, "TRIG-02-005")
+_ROLE = (*GENERAL_TRIGGER_SPECS, "TRIG-02-007")
 
 ENTRIES: list[TriggerEntry] = [
     TriggerEntry(
@@ -90,7 +90,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_PARTICIPANT + ("CM-16-006",),
+        spec_ids=(*_PARTICIPANT, "CM-16-006"),
     ),
     # The one verb not backed by ``SvcBTTriggerBase`` (ADR-0110 § Named
     # exceptions): its body carries no ``emitting_actor_id``.
@@ -110,7 +110,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_ROLE + ("TRIG-11-001",),
+        spec_ids=(*_ROLE, "TRIG-11-001"),
     ),
     TriggerEntry(
         verb="accept-case-ownership-transfer",
@@ -119,6 +119,6 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_ROLE + ("TRIG-11-002",),
+        spec_ids=(*_ROLE, "TRIG-11-002"),
     ),
 ]

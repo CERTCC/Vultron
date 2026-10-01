@@ -10,16 +10,6 @@ import json
 import logging
 from typing import Any, cast
 
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.utils import is_blank
-from vultron.wire.as2.unknown_keys import (
-    OPAQUE_PAYLOAD_KEYS,
-    SetAsideKey,
-    partition_unknown_keys,
-    resolve_inline_class,
-)
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingPublishedError,
@@ -27,6 +17,16 @@ from vultron.wire.as2.errors import (
     VultronParseUnknownTypeError,
     VultronParseValidationError,
 )
+from vultron.wire.as2.unknown_keys import (
+    OPAQUE_PAYLOAD_KEYS,
+    SetAsideKey,
+    partition_unknown_keys,
+    resolve_inline_class,
+)
+from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.utils import is_blank
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +155,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     try:
         cls = find_in_vocabulary(type_)
     except KeyError:
-        raise VultronParseUnknownTypeError(
+        raise VultronParseUnknownTypeError(  # noqa: B904  # ruff-baseline #3353
             f"Unrecognized activity type: {type_!r}."
         )
 

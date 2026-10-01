@@ -245,8 +245,8 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
             self.wire_render_port,
         )
 
-        from vultron.core.behaviors.bridge import BTBridge  # noqa: PLC0415
-        from vultron.core.behaviors.sync.commit_tree import (  # noqa: PLC0415
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.sync.commit_tree import (
             create_commit_log_entry_tree,
         )
 

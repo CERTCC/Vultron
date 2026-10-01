@@ -26,14 +26,13 @@ prove nothing (vultron/demo/AGENTS.md § causal gating, rule 8).
 """
 
 import inspect
+from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 import vultron.demo.helpers.sync as sync_module
 import vultron.demo.utils as demo_utils
-from contextlib import ExitStack
-
 from vultron.demo.helpers.polling import (
     CROSS_CONTAINER_TIMEOUT,
     LATE_JOINER_COVERAGE_TIMEOUT,

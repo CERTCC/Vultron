@@ -23,15 +23,15 @@ package runs.
 
 import pytest
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.models.activity import VultronOffer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from test.core.behaviors.bt_harness import BTTestScenario
 
-# noqa: F401 — imported for vocabulary registration side-effect
+# imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase as _WireVulnerabilityCase,
 )

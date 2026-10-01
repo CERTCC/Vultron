@@ -11,9 +11,9 @@ from pydantic import BaseModel
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import (
+    CoreObject,
     NonEmptyString,
     ValidatedAssignmentMixin,
-    CoreObject,
 )
 
 

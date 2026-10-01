@@ -43,15 +43,15 @@ from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import ValidationError
 
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-    _EmitSingleActivityBase,
-)
 from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
     EmitAcceptCaseInviteNode,
     EmitRejectCaseInviteNode,
 )
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
+)
 from vultron.core.behaviors.sync.commit_tree import (
     commit_emitted_activity,
 )
@@ -382,7 +382,7 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
         self._injected_roles = self._coerce_injected_roles(injected_roles)
-        _seg = recommendation_id.split("/")[-1]
+        _seg = recommendation_id.rsplit("/", maxsplit=1)[-1]
         self._roles_key = f"suggested_roles_{_seg}"
 
     def _coerce_injected_roles(

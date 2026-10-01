@@ -64,8 +64,8 @@ report" and the semantics in ``notes/embargo-default-semantics.md``.
 """
 
 import logging
+from collections.abc import Callable, Sequence
 from datetime import timedelta
-from typing import Callable, Optional, Sequence, Tuple
 
 from vultron.core.models._helpers import from_now_utc
 from vultron.demo.helpers.embargo import publish_embargo_policy
@@ -134,7 +134,7 @@ def _run_negotiated_submission(
     vendor: as_Actor,
     *,
     reporter_days: int,
-    receiver_default_days: Optional[int],
+    receiver_default_days: int | None,
 ) -> None:
     """Submit a report with proposed terms and verify the creation-time outcome.
 
@@ -179,7 +179,7 @@ def _run_negotiated_submission(
         proposal = offer.proposed_embargo
         with demo_check("Offer carries the Reporter's proposed terms"):
             if not isinstance(proposal, as_EmbargoEvent):
-                raise AssertionError(
+                raise AssertionError(  # noqa: TRY004 — demo_check assertion, not a type error
                     "Offer carries no proposedEmbargo; the Reporter's terms"
                     " did not leave the trigger (EP-04-004)"
                 )
@@ -263,7 +263,7 @@ def demo_reporter_proposes_shorter(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ) -> None:
     """Reporter's shorter terms win; the Receiver's default is the revision."""
     logger.info("=" * 80)
@@ -292,7 +292,7 @@ def demo_reporter_proposes_longer(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ) -> None:
     """Receiver's shorter default wins; the Reporter's terms are the revision."""
     logger.info("=" * 80)
@@ -321,7 +321,7 @@ def demo_receiver_has_no_default(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ) -> None:
     """No actor default: the Reporter's terms win outright, at their length."""
     logger.info("=" * 80)
@@ -345,7 +345,7 @@ def demo_receiver_has_no_default(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     (
         "Demo: Report with Embargo — Reporter proposes shorter",
         demo_reporter_proposes_shorter,
@@ -363,7 +363,7 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ) -> None:
     """Main entry point for the report-with-embargo demo script."""
     run_exchange_demos(

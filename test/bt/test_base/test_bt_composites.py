@@ -14,8 +14,8 @@
 
 import unittest
 
-import vultron.bt.base.composites as composites
 import vultron.bt.base.fuzzer as btz
+from vultron.bt.base import composites
 from vultron.bt.base.node_status import NodeStatus
 
 fail = btz.AlwaysFail

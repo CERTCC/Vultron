@@ -54,7 +54,7 @@ Issue: #2484
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -63,6 +63,7 @@ from test.demo.conftest import (
     _TestClientRouter,
     create_isolated_actor_app,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -71,7 +72,6 @@ from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
-from vultron.core.models._helpers import days_from_now_utc
 
 #: Characters that cannot appear in a hostname label.
 _UNSAFE_IN_HOST = re.compile(r"[^a-z0-9-]+")
@@ -286,7 +286,7 @@ def _bootstrap(topo: _Topology, case_id: str):
     # if a wall-clock second ticks between the two _seed_case calls the two
     # replicas diverge, and CheckHashOrRejectOnMismatchNode fires when ca_host
     # fans out Announce(CaseLedgerEntry) to owner (#2727).
-    case_published = datetime.now(timezone.utc).replace(microsecond=0)
+    case_published = datetime.now(UTC).replace(microsecond=0)
 
     owner_dl = topo.owner.store_for(topo.owner_actor_id)
     ca_dl = topo.ca_host.store_for(topo.ca_actor_id)
@@ -301,9 +301,9 @@ def _invite(topo: _Topology, case_id: str) -> dict:
         "/api/v2/actors/owner/trigger/invite-actor-to-case",
         json={"case_id": case_id, "invitee_id": topo.invitee_actor_id},
     )
-    assert (
-        resp.status_code == 202
-    ), f"invite-actor-to-case failed ({resp.status_code}): {resp.text}"
+    assert resp.status_code == 202, (
+        f"invite-actor-to-case failed ({resp.status_code}): {resp.text}"
+    )
     body: dict = resp.json()
     return body
 
@@ -469,9 +469,9 @@ class TestInviteWithARemoteCaseActor:
             f" {topology.ca_host.base_url}; the CaseActor's real ledger never"
             " sees it (ADR-0021)"
         )
-        assert (
-            phantom.get_all("Invite") == []
-        ), "the Invite activity itself was persisted into the phantom store"
+        assert phantom.get_all("Invite") == [], (
+            "the Invite activity itself was persisted into the phantom store"
+        )
 
     def test_the_owners_own_store_records_the_invite(self, topology):
         """The owner must be able to account for an Invite it caused.

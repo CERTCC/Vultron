@@ -27,6 +27,10 @@ from typing import cast
 import py_trees
 import pytest
 
+from test.core.behaviors.embargo.nodes.conftest import (
+    make_case_and_embargo,
+    setup_blackboard,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.proposal import (
     ALREADY_DECLINED_PREFIX,
@@ -36,18 +40,13 @@ from vultron.core.behaviors.embargo.nodes.proposal import (
     UpdateParticipantEmbargoPecNode,
 )
 from vultron.core.models._helpers import days_from_now_utc
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-
-from test.core.behaviors.embargo.nodes.conftest import (
-    make_case_and_embargo,
-    setup_blackboard,
-)
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 REJECTER = "https://example.org/actors/rejecter"
 OWNER = "https://example.org/actors/owner"

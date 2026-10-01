@@ -22,8 +22,8 @@ from vultron.adapters.driving.fastapi.inbox_handler import (
     handle_inbox_item,
     init_dispatcher,
 )
-from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ def deliver(actor_id: str, activity_json) -> None:
 
     try:
         activity = parse_activity(raw)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
         click.echo(f"Parse error: {e}", err=True)
         sys.exit(1)
 

@@ -13,14 +13,14 @@ from typing import cast
 
 import pytest
 
-# noqa: F401 — imported for vocabulary registration side-effect
+# imported for vocabulary registration side-effect
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
@@ -109,9 +109,9 @@ def seed_store_owner_as_case_manager(
 
 
 @pytest.fixture
-def seed_case_manager() -> (
-    Callable[[SqliteDataLayer, as_VulnerabilityCase, str], CaseParticipant]
-):
+def seed_case_manager() -> Callable[
+    [SqliteDataLayer, as_VulnerabilityCase, str], CaseParticipant
+]:
     """Fixture form of :func:`seed_case_manager_participant`."""
     return seed_case_manager_participant
 

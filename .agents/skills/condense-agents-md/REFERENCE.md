@@ -95,7 +95,7 @@ Use these questions to classify a section:
 | Common Pitfalls: CaseEvent Trusted Timestamps | REF:notes/case-state-model.md |
 | Common Pitfalls: ActivityStreams as Wire Format | REF:notes/activitystreams-semantics.md |
 | Common Pitfalls: Preserve Subclass Identity | REF:notes/activitystreams-semantics.md |
-| Common Pitfalls: Black + pyright suppressions | NEW-NOTE:notes/codebase-structure.md |
+| Common Pitfalls: formatter + type-checker suppressions | NEW-NOTE:notes/codebase-structure.md |
 | Common Pitfalls: filterwarnings | MOVE:test/AGENTS.md |
 | Common Pitfalls: Pytest Helper Enums | MOVE:test/AGENTS.md |
 | Common Pitfalls: Avoid BaseModel in Ports | REF:vultron/core/ports/AGENTS.md |

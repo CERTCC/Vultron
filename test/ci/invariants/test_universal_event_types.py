@@ -88,9 +88,9 @@ def _expected_event_types_constant(
     event_types = []
     for entry in getattr(module, name):
         value = entry if isinstance(entry, str) else entry.values[0]
-        assert isinstance(
-            value, str
-        ), f"{name} entry {entry!r} does not wrap an eventType string"
+        assert isinstance(value, str), (
+            f"{name} entry {entry!r} does not wrap an eventType string"
+        )
         event_types.append(value)
     return name, event_types
 

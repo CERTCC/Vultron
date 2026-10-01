@@ -175,9 +175,12 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         if pec_trigger == PEC_Trigger.ACCEPT and embargo_id is not None:
             if participant.add_accepted_embargo(embargo_id):
                 changed = True
-        elif pec_trigger == PEC_Trigger.DECLINE and embargo_id is not None:
-            if participant.remove_accepted_embargo(embargo_id):
-                changed = True
+        elif (
+            pec_trigger == PEC_Trigger.DECLINE
+            and embargo_id is not None
+            and participant.remove_accepted_embargo(embargo_id)
+        ):
+            changed = True
 
         if changed:
             self._persistence.save(participant)

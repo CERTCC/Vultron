@@ -126,9 +126,9 @@ def test_outbox_handler_drains_inside_the_busy_slot() -> None:
         f" found {len(drains)}"
     )
     handler = _function(tree, "outbox_handler")
-    assert _calls_named(
-        handler, _SLOT_FACTORY
-    ), f"outbox_handler() must obtain its drain slot via {_SLOT_FACTORY}()"
+    assert _calls_named(handler, _SLOT_FACTORY), (
+        f"outbox_handler() must obtain its drain slot via {_SLOT_FACTORY}()"
+    )
     enclosing_try = [
         node
         for node in ast.walk(handler)

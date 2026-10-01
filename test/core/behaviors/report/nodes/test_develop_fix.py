@@ -17,19 +17,19 @@
 
 import pytest
 
-from vultron.core.behaviors.report.nodes.deploy_fix import RMinStateDeferred
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.report.nodes.conditions import (
-    _CheckParticipantRMStateBase,
     CheckRMStateAccepted,
+    _CheckParticipantRMStateBase,
 )
+from vultron.core.behaviors.report.nodes.deploy_fix import RMinStateDeferred
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
-from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.rm import RM
-from test.core.behaviors.bt_harness import BTTestScenario
 
 # ---------------------------------------------------------------------------
 # AC-3: _CheckParticipantRMStateBase base-class contract

@@ -50,9 +50,6 @@ from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
 )
-from vultron.core.behaviors.case.receive_activity_tree import (
-    create_receive_activity_tree,
-)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
@@ -65,6 +62,9 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
     RecordRecommendationRecommenderNode,
+)
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
 )
 
 logger = logging.getLogger(__name__)

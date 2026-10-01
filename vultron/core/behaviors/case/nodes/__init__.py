@@ -60,25 +60,8 @@ from vultron.core.behaviors.case.nodes.actor import (
     EvaluateDefaultRolesNode,
     ProposeCaseToActorNode,
 )
-from vultron.core.behaviors.case.nodes.invite_response import (
-    EmitAcceptCaseInviteNode,
-    EmitRejectCaseInviteNode,
-)
-from vultron.core.behaviors.case.nodes.proposal import (
-    ProposeReportCaseToActorNode,
-)
-from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
-    EmitRejectCaseProposalNode,
-    RecordProposalAdmissionNode,
-    RecordProposalDeclineNode,
-)
-from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
-    CheckDeclineRecordExistsNode,
-    CheckNoDeclineRecordNode,
-    CheckProposalAlreadyAnsweredNode,
-    CheckRejectAlreadyAnsweredNode,
-    activity_names_proposal,
-    find_activity_for_proposal,
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    RequireCaseForReport,
 )
 from vultron.core.behaviors.case.nodes.case_setup import (
     EnsureCaseActorHostedNode,
@@ -91,10 +74,6 @@ from vultron.core.behaviors.case.nodes.communication import (
     CollectCaseAddresseesNode,
     CreateAndPersistCaseActivityNode,
 )
-from vultron.core.behaviors.case.nodes.delegation import (
-    AutoAcceptCaseParticipantRoleNode,
-    EmitRejectCaseParticipantRoleNode,
-)
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckAutoCaseCreationEnabledNode,
     CheckCaseAlreadyExists,
@@ -103,8 +82,9 @@ from vultron.core.behaviors.case.nodes.conditions import (
     CheckProposalAlreadySentForReport,
     WritePendingReportCaseLinkNode,
 )
-from vultron.core.behaviors.case.nodes.case_lookup import (
-    RequireCaseForReport,
+from vultron.core.behaviors.case.nodes.delegation import (
+    AutoAcceptCaseParticipantRoleNode,
+    EmitRejectCaseParticipantRoleNode,
 )
 from vultron.core.behaviors.case.nodes.embargo import (
     AdvanceEMStateToActiveNode,
@@ -123,14 +103,88 @@ from vultron.core.behaviors.case.nodes.embargo_revision import (
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
+from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
+    BackfillCanonicalLedgerToInviteeNode,
+    CapturePreCommitBackfillTargetNode,
+    EmitAnnounceCaseToInviteeNode,
+)
+from vultron.core.behaviors.case.nodes.invite_participant import (
+    CheckInviteeNotAlreadyParticipantNode,
+    CreateInviteeParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.invite_participant_persist import (
+    AdvanceInviteeToReceivedNode,
+    PersistInviteeParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.invite_response import (
+    EmitAcceptCaseInviteNode,
+    EmitRejectCaseInviteNode,
+)
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
+)
+from vultron.core.behaviors.case.nodes.on_behalf_guards import (
+    CheckOnBehalfAuthorizedNode,
+    EnsureOnBehalfParticipantExistsNode,
+)
+from vultron.core.behaviors.case.nodes.ownership_transfer import (
+    EmitAcceptCaseOwnershipTransferNode,
+    EmitOfferCaseOwnershipTransferNode,
+    ForwardOfferToTransfereeNode,
 )
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
     RecordOwnerJoinedEventNode,
     _create_and_attach_participant,
     resolve_participant_state_from_dl,
+)
+from vultron.core.behaviors.case.nodes.proposal import (
+    ProposeReportCaseToActorNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
+    EmitRejectCaseProposalNode,
+    RecordProposalAdmissionNode,
+    RecordProposalDeclineNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
+    CheckDeclineRecordExistsNode,
+    CheckNoDeclineRecordNode,
+    CheckProposalAlreadyAnsweredNode,
+    CheckRejectAlreadyAnsweredNode,
+    activity_names_proposal,
+    find_activity_for_proposal,
+)
+from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
+    CreateCaseFromProposalNode,
+    LoadExistingCaseNode,
+    StoreProposalReportNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_consent import (
+    SeedReporterSignatoryNode,
+    SeedVendorOwnerSignatoryNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_emits import (
+    EmitAcceptCaseProposalNode,
+    EmitCreateVulnerabilityCaseNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_ledger import (
+    CommitNativeLedgerEntriesNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_participants import (
+    AddCaseActorParticipantNode,
+    AddVendorOwnerParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_reporter import (
+    AddReporterParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
+    CheckMarkerExistsNode,
+    ClearCreateCaseMarkerNode,
+    WriteCreateCaseMarkerNode,
+)
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+    create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     ActorAlreadyParticipantNode,
@@ -142,71 +196,17 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
 )
-from vultron.core.behaviors.case.nodes.ownership_transfer import (
-    EmitAcceptCaseOwnershipTransferNode,
-    EmitOfferCaseOwnershipTransferNode,
-    ForwardOfferToTransfereeNode,
-)
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-    create_participant_replica_gated_tree,
-)
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckIsCaseOwnerNode,
-    CheckNotSoleObserverVfdNode,
-)
-from vultron.core.behaviors.case.nodes.on_behalf_guards import (
-    CheckOnBehalfAuthorizedNode,
-    EnsureOnBehalfParticipantExistsNode,
-)
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
     BroadcastCaseUpdateNode,
     CaptureCaseUpdateBroadcastExclusionsNode,
     CheckCaseUpdateOwnerNode,
 )
-from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
-    CreateCaseFromProposalNode,
-    LoadExistingCaseNode,
-    StoreProposalReportNode,
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckIsCaseOwnerNode,
+    CheckNotSoleObserverVfdNode,
 )
-from vultron.core.behaviors.case.nodes.proposal_participants import (
-    AddCaseActorParticipantNode,
-    AddVendorOwnerParticipantNode,
-)
-from vultron.core.behaviors.case.nodes.proposal_reporter import (
-    AddReporterParticipantNode,
-)
-from vultron.core.behaviors.case.nodes.proposal_consent import (
-    SeedReporterSignatoryNode,
-    SeedVendorOwnerSignatoryNode,
-)
-from vultron.core.behaviors.case.nodes.proposal_ledger import (
-    CommitNativeLedgerEntriesNode,
-)
-from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
-    CheckMarkerExistsNode,
-    ClearCreateCaseMarkerNode,
-    WriteCreateCaseMarkerNode,
-)
-from vultron.core.behaviors.case.nodes.proposal_emits import (
-    EmitAcceptCaseProposalNode,
-    EmitCreateVulnerabilityCaseNode,
-)
-from vultron.core.behaviors.case.nodes.invite_participant import (
-    CheckInviteeNotAlreadyParticipantNode,
-    CreateInviteeParticipantNode,
-)
-from vultron.core.behaviors.case.nodes.invite_participant_persist import (
-    AdvanceInviteeToReceivedNode,
-    PersistInviteeParticipantNode,
-)
-from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
-    BackfillCanonicalLedgerToInviteeNode,
-    CapturePreCommitBackfillTargetNode,
-    EmitAnnounceCaseToInviteeNode,
-)
-from vultron.core.behaviors.helpers import UpdateActorOutbox  # noqa: F401
+from vultron.core.behaviors.helpers import UpdateActorOutbox
 
 __all__ = [
     "CheckDeclineRecordExistsNode",
@@ -334,16 +334,16 @@ __all__ = [
 # TYPE_CHECKING stubs so mypy resolves composite names to their actual types.
 # At runtime these imports are skipped; the lazy __getattr__ below handles them.
 if TYPE_CHECKING:
-    from vultron.core.behaviors.case.case_setup_tree import (  # noqa: F401
+    from vultron.core.behaviors.case.case_setup_tree import (
         RecordCaseCreationEvents,
     )
-    from vultron.core.behaviors.case.communication_tree import (  # noqa: F401
+    from vultron.core.behaviors.case.communication_tree import (
         EmitCreateCaseActivity,
     )
-    from vultron.core.behaviors.case.embargo_tree import (  # noqa: F401
+    from vultron.core.behaviors.case.embargo_tree import (
         InitializeDefaultEmbargoNode,
     )
-    from vultron.core.behaviors.case.participant_tree import (  # noqa: F401
+    from vultron.core.behaviors.case.participant_tree import (
         CreateCaseOwnerParticipant,
         CreateCaseParticipantNode,
     )

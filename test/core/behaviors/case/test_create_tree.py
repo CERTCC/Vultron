@@ -30,15 +30,15 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.create_tree import create_create_case_tree
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.create_tree import create_create_case_tree
 
 # The URL used by tests as the CaseActor service base URL (CP-08-001).
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
@@ -187,9 +187,9 @@ def test_propose_case_to_actor_node_wired_after_the_identity_publisher(
     effect_seq = tree.children[1]
     node_types = [type(c) for c in effect_seq.children]
 
-    assert (
-        ProposeCaseToActorNode in node_types
-    ), "ProposeCaseToActorNode must be present in create_create_case_tree"
+    assert ProposeCaseToActorNode in node_types, (
+        "ProposeCaseToActorNode must be present in create_create_case_tree"
+    )
     propose_idx = node_types.index(ProposeCaseToActorNode)
     publish_idx = next(
         i
@@ -413,9 +413,9 @@ def test_create_case_tree_vendor_participant_seeded_with_rm_valid(
         latest_rm = (
             statuses[-1].rm.state if hasattr(statuses[-1], "rm") else None
         )
-        assert (
-            latest_rm == RM.VALID
-        ), f"Expected initial rm_state=RM.VALID, got {latest_rm}"
+        assert latest_rm == RM.VALID, (
+            f"Expected initial rm_state=RM.VALID, got {latest_rm}"
+        )
         found_valid = True
 
     assert found_valid, "No vendor participant found for actor in case"

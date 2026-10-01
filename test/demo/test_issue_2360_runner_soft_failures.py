@@ -71,9 +71,9 @@ class TestRunnerSoftFailuresOnException:
 
         exc_value = hard_exc_records[0].exc_info[1]
         notes = getattr(exc_value, "__notes__", [])
-        assert any(
-            soft_msg in note for note in notes
-        ), f"Expected '{soft_msg}' in exception notes {notes!r}"
+        assert any(soft_msg in note for note in notes), (
+            f"Expected '{soft_msg}' in exception notes {notes!r}"
+        )
 
     def test_no_notes_when_no_soft_failures_occurred(self, caplog) -> None:
         """A hard exception without prior soft failures has no extra notes."""
@@ -98,9 +98,9 @@ class TestRunnerSoftFailuresOnException:
         assert hard_exc_records
         exc_value = hard_exc_records[0].exc_info[1]
         notes = getattr(exc_value, "__notes__", [])
-        assert (
-            not notes
-        ), f"Expected no notes on a clean hard exception, got {notes!r}"
+        assert not notes, (
+            f"Expected no notes on a clean hard exception, got {notes!r}"
+        )
 
     def test_second_demo_runs_after_first_fails(self) -> None:
         """A failed demo does not prevent subsequent demos from running."""

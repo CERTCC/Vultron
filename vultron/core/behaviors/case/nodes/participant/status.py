@@ -29,25 +29,20 @@ from typing import NamedTuple
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.case_lookup import CaseIdInputPortMixin
 from vultron.core.behaviors.case.nodes.participant.common import (
     ParticipantTransitionContext,
     resolve_transition_context_or_report,
     validate_participant_status_write,
 )
-from vultron.core.behaviors.case.nodes.case_lookup import CaseIdInputPortMixin
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.narrative_log import (
     log_cs_transition,
     log_rm_transition,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.participant_status import (
-    ParticipantStatus,
-    coerce_cvd_roles,
-    coerce_em_consent_state,
-)
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
@@ -55,6 +50,11 @@ from vultron.core.models.dimensions import (
     PxaDimension,
     RmDimension,
     VfDimension,
+)
+from vultron.core.models.participant_status import (
+    ParticipantStatus,
+    coerce_cvd_roles,
+    coerce_em_consent_state,
 )
 from vultron.core.states.cs import (
     CS_d,

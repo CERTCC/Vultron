@@ -19,7 +19,6 @@ the naming aligned with the ActivityStreams wire format.
 """
 
 import logging
-from typing import Optional
 
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import wait_for_note_in_case
@@ -45,8 +44,8 @@ def participant_adds_note_to_case(
     case: as_VulnerabilityCase,
     note_name: str,
     note_content: str,
-    in_reply_to: Optional[str] = None,
-) -> Optional[as_Note]:
+    in_reply_to: str | None = None,
+) -> as_Note | None:
     """Participant adds a note to a case via the ``add-note-to-case`` trigger.
 
     Models the AS2 ``Add(Note)`` action: the posting actor uses their own
@@ -87,7 +86,7 @@ def participant_adds_note_to_case(
     if note_id is None:
         return None
 
-    note: Optional[as_Note] = None
+    note: as_Note | None = None
     with demo_gate("Note delivered to watching container"):
         wait_for_note_in_case(watching_client, case.id_, note_id)
         verify_object_stored(watching_client, note_id)

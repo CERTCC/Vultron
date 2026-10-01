@@ -26,8 +26,8 @@ import logging
 from py_trees.common import Status
 
 from vultron.core.behaviors.sync.nodes._helpers import (
-    _LedgerEffectNode,
     _extract_id_from_field,
+    _LedgerEffectNode,
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import validate_roles

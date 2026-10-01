@@ -12,8 +12,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for CreateReportReceivedUseCase: creation, no-standalone-status, duplicate handling."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -168,9 +169,9 @@ class TestCreateReportNoStandaloneParticipantStatus:
         CreateReportReceivedUseCase(dl, event).execute()
 
         stored_report = dl.read("https://example.org/reports/r-store-1")
-        assert (
-            stored_report is not None
-        ), "as_VulnerabilityReport should be stored"
+        assert stored_report is not None, (
+            "as_VulnerabilityReport should be stored"
+        )
 
 
 class TestDuplicateReportHandling:

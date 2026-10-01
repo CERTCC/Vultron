@@ -14,7 +14,6 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 from datetime import datetime
 from typing import TypeAlias
 

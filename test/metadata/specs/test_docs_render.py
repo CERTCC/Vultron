@@ -7,13 +7,13 @@ and SpecTag.BEHAVIORAL detection.
 
 import re
 
-import yaml
 import pytest
+import yaml
 
 from vultron.metadata.docs.anchor_ids import anchor_ids_in
+from vultron.metadata.specs.docs_render import render_for_kind
 from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.schema import SpecKind, SpecTag
-from vultron.metadata.specs.docs_render import render_for_kind
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -429,7 +429,7 @@ def test_behavioral_spec_empty_scope_raises():
     """BehavioralSpec must still reject scope=[] (parent validator not shadowed)."""
     from vultron.metadata.specs.schema import BehavioralSpec, RFC2119Priority
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         BehavioralSpec(
             id="BHV-01-001",
             priority=RFC2119Priority.MUST,
@@ -447,7 +447,7 @@ def test_behavioral_spec_empty_preconditions_raises():
         Scope,
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         BehavioralSpec(
             id="BHV-01-001",
             priority=RFC2119Priority.MUST,
@@ -605,9 +605,9 @@ def test_render_for_kind_real_registry_produces_output(
     # At minimum one spec ID pattern should appear
     import re
 
-    assert re.search(
-        r"[A-Z]{2,8}-\d{2}-\d{3}", md
-    ), f"No spec IDs found in rendered output for kind={kind.value!r}"
+    assert re.search(r"[A-Z]{2,8}-\d{2}-\d{3}", md), (
+        f"No spec IDs found in rendered output for kind={kind.value!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -724,7 +724,7 @@ def test_group_kind_override_appears_on_overridden_kind_page(
     project page even though its file has kind=general."""
     md = render_for_kind("project", mixed_kind_file_registry)
     assert "MIX-02-001" in md, (
-        "Item from group with kind=project should appear on " "project page"
+        "Item from group with kind=project should appear on project page"
     )
 
 
@@ -735,8 +735,7 @@ def test_group_kind_override_absent_from_wrong_kind_page(
     general page."""
     md = render_for_kind("protocol", mixed_kind_file_registry)
     assert "MIX-02-001" not in md, (
-        "Item from group with kind=project should NOT appear on "
-        "general page"
+        "Item from group with kind=project should NOT appear on general page"
     )
 
 
@@ -746,9 +745,9 @@ def test_inherited_kind_group_appears_on_file_kind_page(
     """SR-09-001: a group that inherits file kind=general appears on the
     general page."""
     md = render_for_kind("protocol", mixed_kind_file_registry)
-    assert (
-        "MIX-01-001" in md
-    ), "Item inheriting file kind=general should appear on general page"
+    assert "MIX-01-001" in md, (
+        "Item inheriting file kind=general should appear on general page"
+    )
 
 
 def test_item_kind_override_appears_on_overridden_page(
@@ -757,9 +756,9 @@ def test_item_kind_override_appears_on_overridden_page(
     """SR-09-001: an item with kind=project appears on the
     project page even though its group and file have kind=general."""
     md = render_for_kind("project", mixed_kind_group_registry)
-    assert (
-        "MGR-01-002" in md
-    ), "Item with kind=project should appear on project page"
+    assert "MGR-01-002" in md, (
+        "Item with kind=project should appear on project page"
+    )
 
 
 def test_item_kind_override_suppressed_on_wrong_page(
@@ -768,12 +767,12 @@ def test_item_kind_override_suppressed_on_wrong_page(
     """SR-09-002: an item with kind=project is suppressed on the
     general page while the rest of the group still renders."""
     md = render_for_kind("protocol", mixed_kind_group_registry)
-    assert (
-        "MGR-01-001" in md
-    ), "General item should still appear on general page"
-    assert (
-        "MGR-01-002" not in md
-    ), "Implementation item must be suppressed on the general page"
+    assert "MGR-01-001" in md, (
+        "General item should still appear on general page"
+    )
+    assert "MGR-01-002" not in md, (
+        "Implementation item must be suppressed on the general page"
+    )
 
 
 def test_mixed_group_appears_on_both_kind_pages(mixed_kind_group_registry):

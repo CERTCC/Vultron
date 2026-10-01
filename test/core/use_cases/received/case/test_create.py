@@ -35,9 +35,9 @@ from collections.abc import Callable
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.events import CreateCaseReceivedEvent, VultronEvent
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.models.events import CreateCaseReceivedEvent, VultronEvent
 from vultron.core.use_cases.received.actor import _find_case_actor_id
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
@@ -47,11 +47,11 @@ from vultron.core.use_cases.received.case.create import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronAlreadyExistsError
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     create_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
 )
@@ -163,9 +163,9 @@ class TestBootstrapCreateAccepted:
         result = CreateCaseReceivedUseCase(dl, create_event).execute()
 
         stored = dl.read(_CASE_ID)
-        assert (
-            stored is not None
-        ), "Case should be seeded after valid bootstrap"
+        assert stored is not None, (
+            "Case should be seeded after valid bootstrap"
+        )
         assert result.disposition == HandlerDisposition.APPLIED
 
     @pytest.mark.spec("HP-01-003")
@@ -233,9 +233,9 @@ class TestBootstrapCreateRejectedBadSender:
         result = CreateCaseReceivedUseCase(dl, imposter_event).execute()
 
         stored = dl.read(_CASE_ID)
-        assert (
-            stored is None
-        ), "Case must not be seeded when sender is not trusted creator"
+        assert stored is None, (
+            "Case must not be seeded when sender is not trusted creator"
+        )
         # HP-01-003: an untrusted sender is refused, not "processed".
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and _IMPOSTER_ID in result.reason
@@ -270,9 +270,9 @@ class TestBootstrapCreateNoLink:
         result = CreateCaseReceivedUseCase(dl, create_event).execute()
 
         stored = dl.read(_CASE_ID)
-        assert (
-            stored is None
-        ), "Case should not be seeded when receiver has no matching ReportCaseLink"
+        assert stored is None, (
+            "Case should not be seeded when receiver has no matching ReportCaseLink"
+        )
         # The sender is not this case's CASE_MANAGER either, so nothing
         # vouches for it: an untrusted sender is REFUSED (HP-01-003).
         assert result.disposition == HandlerDisposition.REFUSED
@@ -325,9 +325,9 @@ class TestAnnounceValidatedByTrustedCaseActorId:
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(_CASE_ID)
-        assert (
-            stored is not None
-        ), "Announce from trusted CaseActor must seed the case"
+        assert stored is not None, (
+            "Announce from trusted CaseActor must seed the case"
+        )
 
     def test_imposter_announce_rejected(
         self, dl, make_payload, case_obj, announce_from_imposter

@@ -115,7 +115,7 @@ def _field_rows(
 
 def _render_endpoint(path: str, op: dict, all_schemas: dict) -> list[str]:
     """Render one trigger endpoint as a Markdown subsection."""
-    behavior = path.split("/trigger/")[-1]
+    behavior = path.rsplit("/trigger/", maxsplit=1)[-1]
     lines: list[str] = []
 
     lines.append(f"### `{behavior}`")
@@ -165,7 +165,7 @@ def render() -> str:
     """Return the full Markdown for the trigger API reference page."""
     from vultron.adapters.driving.fastapi.app import (
         create_app,
-    )  # noqa: PLC0415
+    )
 
     app = create_app()
     schema = app.openapi()

@@ -117,7 +117,7 @@ def _string_elements(value: ast.expr) -> set[str]:
     skipped — those keys are covered by the nested-execution tests.
     """
     if not isinstance(value, ast.List):
-        raise AssertionError(
+        raise AssertionError(  # noqa: TRY004  # ruff-baseline #3353
             "managed_keys is no longer built from list literals;"
             " update this ratchet"
         )

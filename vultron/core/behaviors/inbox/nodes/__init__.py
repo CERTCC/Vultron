@@ -24,7 +24,14 @@ exposed as the public API of the ``vultron.core.behaviors.inbox`` package
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.core.behaviors.inbox.nodes.pipeline import (  # noqa: F401
+from vultron.core.behaviors.inbox.nodes.dead_letter import (
+    StoreDeadLetterRecordNode,
+)
+from vultron.core.behaviors.inbox.nodes.dispatch import (
+    BuildOutcomeNode,
+    DispatchNode,
+)
+from vultron.core.behaviors.inbox.nodes.pipeline import (
     ALL_INBOX_KEYS,
     KEY_ACTIVITY,
     KEY_CONTEXT_ID,
@@ -39,11 +46,4 @@ from vultron.core.behaviors.inbox.nodes.pipeline import (  # noqa: F401
     ExtractSemanticsNode,
     ParsePayloadNode,
     RehydrateActivityNode,
-)
-from vultron.core.behaviors.inbox.nodes.dispatch import (  # noqa: F401
-    BuildOutcomeNode,
-    DispatchNode,
-)
-from vultron.core.behaviors.inbox.nodes.dead_letter import (  # noqa: F401
-    StoreDeadLetterRecordNode,
 )

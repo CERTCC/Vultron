@@ -35,8 +35,8 @@ from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.nodes.relay import (
     EMBARGO_INVITE_EVENT_TYPE,
     CollectEmbargoInviteRecipientsNode,
-    EmStateAdmitsProposalNode,
     EmbargoProposalNotYetRecordedNode,
+    EmStateAdmitsProposalNode,
     RelayEmbargoInviteToEachNode,
     case_manager_admits_proposal_guard,
 )

@@ -29,8 +29,8 @@ from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.sync.nodes._helpers import (
-    _LedgerEffectNode,
     _extract_id_from_field,
+    _LedgerEffectNode,
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import participant_status_rm_state

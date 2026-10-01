@@ -130,9 +130,9 @@ def _post_to_inbox(client, actor_slug: str, activity) -> None:
         content=activity.model_dump_json(by_alias=True, exclude_none=True),
         headers={"Content-Type": "application/json"},
     )
-    assert (
-        resp.status_code == 202
-    ), f"Inbox POST returned {resp.status_code}: {resp.text}"
+    assert resp.status_code == 202, (
+        f"Inbox POST returned {resp.status_code}: {resp.text}"
+    )
 
 
 def _actor_slug(actor_id: str) -> str:
@@ -224,7 +224,7 @@ class TestCaseProposalRoundTrip:
         whose ``object_`` is an ``as_CaseProposal`` must exist in the
         DataLayer (CP-04-001, CP-04-002).
         """
-        vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
+        vendor_iso, _reporter_iso, vendor_tc, reporter_tc = two_app_setup
 
         vendor_base_api = f"{_VENDOR_BASE}/api/v2"
         reporter_base_api = f"{_REPORTER_BASE}/api/v2"
@@ -286,7 +286,7 @@ class TestCaseProposalRoundTrip:
         case-actor inbox, the case-actor service must emit Accept and
         Create(VulnerabilityCase) back to the vendor (CP-05-003).
         """
-        vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
+        vendor_iso, _reporter_iso, vendor_tc, reporter_tc = two_app_setup
 
         vendor_base_api = f"{_VENDOR_BASE}/api/v2"
         reporter_base_api = f"{_REPORTER_BASE}/api/v2"
@@ -386,12 +386,12 @@ class TestCaseProposalRejectRoundTrip:
         )
         from vultron.core.behaviors.call_out.nodes import AlwaysFail
 
-        vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
+        vendor_iso, _reporter_iso, vendor_tc, reporter_tc = two_app_setup
 
         # The deployment's admission policy: refuse.  Patched on the adapter
         # module, which is where a real deployment substitutes its own bundle.
         declining = CaseProposalCallOutBundle(
-            evaluate_proposal_factory=lambda name: AlwaysFail(name),  # type: ignore[arg-type]
+            evaluate_proposal_factory=AlwaysFail,  # type: ignore[arg-type]
         )
         monkeypatch.setattr(
             importlib.import_module(
@@ -443,9 +443,9 @@ class TestCaseProposalRejectRoundTrip:
             "the vendor's store, so the refusal never left the case actor."
         )
 
-        assert not vendor_iso.dl.by_type(
-            "Accept"
-        ), "the service refused, so it must not also acknowledge the proposal"
+        assert not vendor_iso.dl.by_type("Accept"), (
+            "the service refused, so it must not also acknowledge the proposal"
+        )
         assert not vendor_iso.dl.by_type("VulnerabilityCase"), (
             "a refusal creates nothing: no case may be delivered to the "
             "proposer (CLP-10-009)"

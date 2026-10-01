@@ -12,9 +12,8 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
-
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
 from ._helpers import (
     _store_embedded_embargo,
@@ -22,9 +21,9 @@ from ._helpers import (
 )
 
 if TYPE_CHECKING:
-    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 

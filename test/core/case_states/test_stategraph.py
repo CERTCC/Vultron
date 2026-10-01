@@ -16,9 +16,9 @@ import unittest
 
 import networkx as nx
 
-import vultron.errors as err
 import vultron.core.case_states.hypercube as sg
 import vultron.core.case_states.validations as val
+import vultron.errors as err
 
 
 class TestStategraph(unittest.TestCase):
@@ -222,8 +222,7 @@ class TestStategraph(unittest.TestCase):
             for i, c in enumerate(k.pattern):
                 if c == ".":
                     continue
-                else:
-                    self.assertEqual(i, m.idx[c])
+                self.assertEqual(i, m.idx[c])
 
             # values are 0 < v <= 1
             self.assertGreater(v, 0)
@@ -244,8 +243,7 @@ class TestStategraph(unittest.TestCase):
             for i, c in enumerate(k.pattern):
                 if c == ".":
                     continue
-                else:
-                    self.assertEqual(i, m.idx[c])
+                self.assertEqual(i, m.idx[c])
 
             # values are 0 < v <= 1
             self.assertGreater(v, 0)

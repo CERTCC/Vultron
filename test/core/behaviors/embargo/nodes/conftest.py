@@ -19,6 +19,7 @@ import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
@@ -27,7 +28,6 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
-from vultron.core.models._helpers import days_from_now_utc
 
 CASE_MANAGER_ACTOR = "https://example.org/actors/case-manager"
 #: A non-manager participant. The teardown announce is addressed to the case's

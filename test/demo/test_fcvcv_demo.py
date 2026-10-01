@@ -31,10 +31,9 @@ import pytest
 import vultron.demo.helpers.sync as sync_module
 import vultron.demo.scenario.fcvcv_demo as demo
 import vultron.demo.utils as demo_utils
+from test.demo._helpers import patched_report_submission
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.utils import reset_demo_failures
-
-from test.demo._helpers import patched_report_submission
 
 
 class _Helpers:
@@ -169,12 +168,12 @@ class TestFinderCaseReplicaWaitBeforeV1Triage(_Helpers):
             )
 
         # finder_wait must appear before the first triage call
-        assert (
-            "finder_wait" in call_order
-        ), "wait_for_case_on_container(finder_client) was never called before V1 triage"
-        assert (
-            "triage" in call_order
-        ), "run_invite_path_rm_triage was never called"
+        assert "finder_wait" in call_order, (
+            "wait_for_case_on_container(finder_client) was never called before V1 triage"
+        )
+        assert "triage" in call_order, (
+            "run_invite_path_rm_triage was never called"
+        )
         finder_idx = next(
             i for i, v in enumerate(call_order) if v == "finder_wait"
         )
@@ -295,12 +294,12 @@ class TestFinderCaseReplicaWaitBeforeV2Triage(_Helpers):
                 v1=self._actor("urn:test:v1"),
             )
 
-        assert (
-            "finder_wait" in call_order
-        ), "wait_for_case_on_container(finder_client) was never called before V2 triage"
-        assert (
-            "triage" in call_order
-        ), "run_invite_path_rm_triage was never called"
+        assert "finder_wait" in call_order, (
+            "wait_for_case_on_container(finder_client) was never called before V2 triage"
+        )
+        assert "triage" in call_order, (
+            "run_invite_path_rm_triage was never called"
+        )
         finder_idx = next(
             i for i, v in enumerate(call_order) if v == "finder_wait"
         )

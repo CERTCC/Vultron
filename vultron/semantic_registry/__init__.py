@@ -64,6 +64,7 @@ from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.errors import RegistryOrderError
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+
 from . import (
     actor,
     case,
@@ -138,7 +139,7 @@ def _check_group_order(
                 entry.pattern.model_dump(exclude_none=True)
             )
             enriched.append((idx, entry, dump))
-        except Exception:
+        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3326
             continue
 
     for (idx_a, entry_a, dump_a), (idx_b, entry_b, dump_b) in combinations(

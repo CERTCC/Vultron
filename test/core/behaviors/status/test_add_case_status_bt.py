@@ -37,6 +37,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_PERMISSIVE,
@@ -58,27 +59,26 @@ from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
 from vultron.core.behaviors.status.nodes.lifecycle import (
     ThreatTerminationBranchNode,
 )
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import (
+    EmDimension,
+    PxaDimension,
+)
+from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
 from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import add_status_to_case_activity
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.core.models.dimensions import (
-    EmDimension,
-    PxaDimension,
-)
-from vultron.core.models._helpers import days_from_now_utc
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -428,8 +428,8 @@ class TestFilterCsPxaDimensionNodeBug2706:
 
     def _build_dl(self):
         """Return a DataLayer with pxa=Pxa current state and a pxa=pxa regression asserted."""
-        from vultron.enums.roles import CVDRole
         from vultron.core.states.em import EM
+        from vultron.enums.roles import CVDRole
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=CASE_MANAGER_ID_2706
@@ -985,12 +985,12 @@ class TestAddCaseStatusToCaseReceivedUseCase:
             r.message for r in caplog.records if r.levelno == logging.WARNING
         ]
 
-        assert any(
-            "idempotent" in m.lower() for m in info_msgs
-        ), "Expected INFO log for idempotent duplicate"
-        assert not any(
-            "idempotent" in m.lower() for m in warn_msgs
-        ), "Should not WARNING for idempotent duplicate"
+        assert any("idempotent" in m.lower() for m in info_msgs), (
+            "Expected INFO log for idempotent duplicate"
+        )
+        assert not any("idempotent" in m.lower() for m in warn_msgs), (
+            "Should not WARNING for idempotent duplicate"
+        )
 
     def test_use_case_invalid_em_logs_warning(self, make_payload, caplog):
         """Invalid EM transition → no append; use case ledgers at WARNING."""
@@ -1512,9 +1512,9 @@ class TestRegressionCSPTeardownPath:
             f"New pipeline EM={new_em_state}, old path EM={old_em_state};"
             " both must be EXITED for CS.P teardown (AC #8, issue #1844)"
         )
-        assert (
-            new_embargo is None and old_embargo is None
-        ), "Both paths must clear active_embargo after CS.P teardown"
+        assert new_embargo is None and old_embargo is None, (
+            "Both paths must clear active_embargo after CS.P teardown"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1618,6 +1618,7 @@ class TestCaseLedgerEntryCreation:
             em=EmDimension(state=EM.NONE),
         )
         from typing import cast as c
+
         from vultron.core.models.case import VulnerabilityCase
 
         case_obj = c(VulnerabilityCase, dl.read(CASE_ID))
@@ -1896,9 +1897,7 @@ class TestPxaEmInvariantDiagnosticNode:
         event = self._make_event(dl, status_obj)
 
         call_out = StatusAuthorizationCallOutBundle(
-            embargo_teardown_authorization_gate_factory=lambda name: AlwaysFail(
-                name
-            )
+            embargo_teardown_authorization_gate_factory=AlwaysFail
         )
         tree = add_case_status_tree(request=event, call_out=call_out)
         bridge = BTBridge(

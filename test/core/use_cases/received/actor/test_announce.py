@@ -22,15 +22,15 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
 from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -271,9 +271,9 @@ class TestAnnounceFirstContactTrustGap:
         with caplog.at_level(logging.WARNING):
             AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
-        assert (
-            dl.read(_CASE_ID) is None
-        ), "Case MUST NOT be seeded when no trust anchor exists (PCR-03-004)"
+        assert dl.read(_CASE_ID) is None, (
+            "Case MUST NOT be seeded when no trust anchor exists (PCR-03-004)"
+        )
         assert any(
             "PCR-03-004" in r.getMessage() or "PCR-07-010" in r.getMessage()
             for r in caplog.records
@@ -321,9 +321,9 @@ class TestAnnounceFirstContactTrustGap:
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         result = dl.read(_CASE_ID)
-        assert (
-            result is not None
-        ), "Case MUST be seeded when an invite trust anchor for the sender exists"
+        assert result is not None, (
+            "Case MUST be seeded when an invite trust anchor for the sender exists"
+        )
 
     def test_rejects_announce_when_pending_record_has_no_case_actor_id(
         self, dl, event
@@ -343,9 +343,9 @@ class TestAnnounceFirstContactTrustGap:
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
-        assert (
-            dl.read(_CASE_ID) is None
-        ), "A pending record with case_actor_id=None must NOT admit any Announce"
+        assert dl.read(_CASE_ID) is None, (
+            "A pending record with case_actor_id=None must NOT admit any Announce"
+        )
 
     def test_rejects_announce_from_wrong_actor_with_trust_anchor(
         self, dl, make_payload, case
@@ -365,9 +365,9 @@ class TestAnnounceFirstContactTrustGap:
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
-        assert (
-            dl.read(_CASE_ID) is None
-        ), "Case MUST NOT be seeded when the sender does not match the trust anchor"
+        assert dl.read(_CASE_ID) is None, (
+            "Case MUST NOT be seeded when the sender does not match the trust anchor"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -579,9 +579,9 @@ class TestAnnounceStoresEmbeddedParticipants:
 
         # The bare string ref must NOT cause a spurious record to appear
         stored = dl.read(_VENDOR_PARTICIPANT_ID)
-        assert (
-            stored is None
-        ), "String participant refs must not create spurious DataLayer records"
+        assert stored is None, (
+            "String participant refs must not create spurious DataLayer records"
+        )
 
     def test_embedded_participants_stored_when_case_already_exists(
         self,

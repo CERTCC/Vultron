@@ -1,5 +1,5 @@
-from typing import Any, Dict, cast
 import itertools
+from typing import Any, cast
 
 import pytest
 
@@ -71,7 +71,7 @@ def test_all_patterns_discriminate_on_activity_and_object():
     )
 
 
-def _pattern_dump(pattern: Any) -> Dict[str, Any]:
+def _pattern_dump(pattern: Any) -> dict[str, Any]:
     """
     Return a top-level dict representation of the given pattern.
 
@@ -83,7 +83,7 @@ def _pattern_dump(pattern: Any) -> Dict[str, Any]:
             if callable(pattern) and not hasattr(pattern, "model_dump")
             else pattern
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # ruff-baseline #3989
         obj = pattern
 
     if hasattr(obj, "model_dump"):
@@ -118,7 +118,7 @@ def _elem_matches(a: Any, b: Any) -> bool:
     return bool(a == b)
 
 
-def _is_subset(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+def _is_subset(a: dict[str, Any], b: dict[str, Any]) -> bool:
     """
     Return True if dict 'a' is a top-level subset of dict 'b', comparing nested dicts/lists recursively.
     Only checks keys present in 'a' (assumes exclude_none was used).
@@ -198,7 +198,7 @@ def test_non_overlapping_activity_patterns():
         for pat in group_patterns:
             try:
                 dumped = _pattern_dump(pat)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001  # ruff-baseline #3989
                 problems.append(
                     {
                         "group": group_name,
@@ -215,7 +215,9 @@ def test_non_overlapping_activity_patterns():
         ):
             assert getattr(pat_a, "activity_", None) == getattr(
                 pat_b, "activity_", None
-            ), f"Patterns {pat_a!r} and {pat_b!r} should share activity_ to be grouped"
+            ), (
+                f"Patterns {pat_a!r} and {pat_b!r} should share activity_ to be grouped"
+            )
             idx_a = registry_order.get(id(pat_a), -1)
             idx_b = registry_order.get(id(pat_b), -1)
             if not _subset_safe(dump_a, dump_b, idx_a, idx_b):
@@ -425,9 +427,9 @@ def test_announce_vulnerability_case_pattern_matches():
         actor="https://example.org/actors/owner",
     )
     result = find_matching_semantics(announce)
-    assert (
-        result == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
-    ), f"Expected ANNOUNCE_VULNERABILITY_CASE, got {result}"
+    assert result == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE, (
+        f"Expected ANNOUNCE_VULNERABILITY_CASE, got {result}"
+    )
 
 
 @pytest.mark.spec("VM-07-001")
@@ -477,9 +479,9 @@ def test_rm_invite_projects_full_vulnerability_case_to_stub():
         target=cast(Any, full_case),
         actor=actor.id_,
     )
-    assert isinstance(
-        activity.target, as_VulnerabilityCaseStub
-    ), "DR-10: wire activity target must be as_VulnerabilityCaseStub, not full as_VulnerabilityCase"
+    assert isinstance(activity.target, as_VulnerabilityCaseStub), (
+        "DR-10: wire activity target must be as_VulnerabilityCaseStub, not full as_VulnerabilityCase"
+    )
     assert activity.target.id_ == full_case.id_
 
 
@@ -510,9 +512,9 @@ def test_offer_case_manager_role_not_confused_with_ownership_transfer():
         actor=_VENDOR_URI,
     )
     result = find_matching_semantics(offer)
-    assert (
-        result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
-    ), f"Expected OFFER_CASE_OWNERSHIP_TRANSFER, got {result}"
+    assert result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER, (
+        f"Expected OFFER_CASE_OWNERSHIP_TRANSFER, got {result}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -543,9 +545,9 @@ def test_offer_case_participant_role_dispatches_correctly():
         actor=_VENDOR_URI,
     )
     result = find_matching_semantics(offer)
-    assert (
-        result == MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE
-    ), f"Expected OFFER_CASE_PARTICIPANT_ROLE, got {result}"
+    assert result == MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE, (
+        f"Expected OFFER_CASE_PARTICIPANT_ROLE, got {result}"
+    )
 
 
 @pytest.mark.spec("SE-08-003")
@@ -567,9 +569,9 @@ def test_offer_case_participant_role_not_confused_with_ownership_transfer():
         actor=_VENDOR_URI,
     )
     result = find_matching_semantics(offer)
-    assert (
-        result != MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
-    ), "OFFER_CASE_PARTICIPANT_ROLE misclassified as OFFER_CASE_OWNERSHIP_TRANSFER"
+    assert result != MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER, (
+        "OFFER_CASE_PARTICIPANT_ROLE misclassified as OFFER_CASE_OWNERSHIP_TRANSFER"
+    )
 
 
 @pytest.mark.spec("SE-08-003")
@@ -626,9 +628,9 @@ def test_create_case_proposal_dispatches_correctly():
         to=[_CASE_ACTOR_URI],
     )
     result = find_matching_semantics(activity)
-    assert (
-        result == MessageSemantics.CREATE_CASE_PROPOSAL
-    ), f"Expected CREATE_CASE_PROPOSAL, got {result}"
+    assert result == MessageSemantics.CREATE_CASE_PROPOSAL, (
+        f"Expected CREATE_CASE_PROPOSAL, got {result}"
+    )
 
 
 @pytest.mark.spec("SE-02-001")
@@ -649,9 +651,9 @@ def test_accept_case_proposal_dispatches_correctly():
         to=[_VENDOR_URI],
     )
     result = find_matching_semantics(activity)
-    assert (
-        result == MessageSemantics.ACCEPT_CASE_PROPOSAL
-    ), f"Expected ACCEPT_CASE_PROPOSAL, got {result}"
+    assert result == MessageSemantics.ACCEPT_CASE_PROPOSAL, (
+        f"Expected ACCEPT_CASE_PROPOSAL, got {result}"
+    )
 
 
 @pytest.mark.spec("SE-02-001")
@@ -672,9 +674,9 @@ def test_reject_case_proposal_dispatches_correctly():
         to=[_VENDOR_URI],
     )
     result = find_matching_semantics(activity)
-    assert (
-        result == MessageSemantics.REJECT_CASE_PROPOSAL
-    ), f"Expected REJECT_CASE_PROPOSAL, got {result}"
+    assert result == MessageSemantics.REJECT_CASE_PROPOSAL, (
+        f"Expected REJECT_CASE_PROPOSAL, got {result}"
+    )
 
 
 @pytest.mark.spec("SE-03-002")
@@ -696,9 +698,9 @@ def test_create_case_proposal_not_confused_with_create_case():
         to=[_CASE_ACTOR_URI],
     )
     result = find_matching_semantics(activity)
-    assert (
-        result != MessageSemantics.CREATE_CASE
-    ), "CREATE_CASE_PROPOSAL must not be misrouted as CREATE_CASE"
+    assert result != MessageSemantics.CREATE_CASE, (
+        "CREATE_CASE_PROPOSAL must not be misrouted as CREATE_CASE"
+    )
 
 
 @pytest.mark.spec("SE-03-002")
@@ -745,9 +747,9 @@ def test_case_proposal_with_string_object_returns_unresolvable():
         to=[_VENDOR_URI],
     )
     result = find_matching_semantics(activity)
-    assert (
-        result == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
-    ), f"Expected UNKNOWN_UNRESOLVABLE_OBJECT for bare URI, got {result}"
+    assert result == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT, (
+        f"Expected UNKNOWN_UNRESOLVABLE_OBJECT for bare URI, got {result}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -764,9 +766,11 @@ def test_strict_target_rejects_bare_string_uri():
     that bare URI strings do not satisfy a typed target_ constraint when the
     pattern is in strict mode.
     """
-    from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
     from vultron.core.models.enums import VultronObjectType as VOtype
-    from vultron.wire.as2.enums import as_ObjectType as AOtype
+    from vultron.wire.as2.enums import (
+        as_ObjectType as AOtype,
+        as_TransitiveActivityType as TAtype,
+    )
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Offer,
     )
@@ -788,9 +792,9 @@ def test_strict_target_rejects_bare_string_uri():
         object_=case,
         target="https://example.org/actors/alice",
     )
-    assert not strict_pattern.match(
-        activity_string_target
-    ), "strict=True pattern must not match when target is a bare string URI"
+    assert not strict_pattern.match(activity_string_target), (
+        "strict=True pattern must not match when target is a bare string URI"
+    )
 
 
 @pytest.mark.spec("VAM-01-006")
@@ -801,9 +805,11 @@ def test_strict_target_matches_typed_actor():
     Complement of test_strict_target_rejects_bare_string_uri — confirms that
     the fix only blocks bare strings, not properly typed target values.
     """
-    from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
     from vultron.core.models.enums import VultronObjectType as VOtype
-    from vultron.wire.as2.enums import as_ObjectType as AOtype
+    from vultron.wire.as2.enums import (
+        as_ObjectType as AOtype,
+        as_TransitiveActivityType as TAtype,
+    )
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Offer,
     )
@@ -825,9 +831,9 @@ def test_strict_target_matches_typed_actor():
         object_=case,
         target=actor,
     )
-    assert strict_pattern.match(
-        activity_typed_target
-    ), "strict=True pattern must match when target is a typed Actor object"
+    assert strict_pattern.match(activity_typed_target), (
+        "strict=True pattern must match when target is a typed Actor object"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -862,9 +868,9 @@ def test_accept_case_participant_role_dispatches_correctly():
         offer, actor=_CASE_ACTOR_URI
     )
     result = find_matching_semantics(accept)
-    assert (
-        result == MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE
-    ), f"Expected ACCEPT_CASE_PARTICIPANT_ROLE, got {result}"
+    assert result == MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE, (
+        f"Expected ACCEPT_CASE_PARTICIPANT_ROLE, got {result}"
+    )
 
 
 @pytest.mark.spec("SE-08-003")
@@ -880,9 +886,9 @@ def test_reject_case_participant_role_dispatches_correctly():
         offer, actor=_CASE_ACTOR_URI
     )
     result = find_matching_semantics(reject)
-    assert (
-        result == MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE
-    ), f"Expected REJECT_CASE_PARTICIPANT_ROLE, got {result}"
+    assert result == MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE, (
+        f"Expected REJECT_CASE_PARTICIPANT_ROLE, got {result}"
+    )
 
 
 @pytest.mark.spec("SE-08-003")

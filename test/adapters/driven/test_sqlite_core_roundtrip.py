@@ -23,9 +23,9 @@ AC-2: reconstruction uses CORE_VOCABULARY, not the wire VOCABULARY.
 AC-3: AS2 Activity types (no core counterpart) still reconstruct via wire path.
 """
 
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlmodel import Session
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -34,21 +34,24 @@ from vultron.adapters.driven.datalayer_sqlite.hydration import (
 )
 from vultron.adapters.driven.datalayer_sqlite.schema import VultronObjectRecord
 from vultron.core.models.actor import VultronService
-from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.core.models.note import VultronNote
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     participant_status_rm_state,
 )
+from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
-from vultron.core.models.note import VultronNote
 from vultron.wire.as2.vocab.base.objects.object_types import (
     as_Article,
     as_Note,
@@ -58,12 +61,9 @@ from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.core.models.dimensions import (
-    RmDimension,
-)
 
 _CASE_CONTEXT = "urn:uuid:case-context-fixture"
-_NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
+_NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def _make_instance(core_cls):
@@ -122,9 +122,9 @@ def test_read_returns_core_type(dl, core_cls):
     dl.save(obj)
     result = dl.read(obj.id_)
     assert result is not None
-    assert isinstance(
-        result, core_cls
-    ), f"Expected {core_cls.__name__}, got {type(result).__name__}"
+    assert isinstance(result, core_cls), (
+        f"Expected {core_cls.__name__}, got {type(result).__name__}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -144,9 +144,9 @@ def test_list_objects_returns_core_type(dl, core_cls):
     results = dl.list_objects(core_cls.__name__)
     assert len(results) == 2
     for item in results:
-        assert isinstance(
-            item, core_cls
-        ), f"Expected {core_cls.__name__}, got {type(item).__name__}"
+        assert isinstance(item, core_cls), (
+            f"Expected {core_cls.__name__}, got {type(item).__name__}"
+        )
 
 
 def test_read_preserves_core_object_id(dl):
@@ -169,12 +169,12 @@ def test_read_returns_core_type_for_core_entity(dl):
     dl.save(case)
     result = dl.read(case.id_)
     assert result is not None
-    assert isinstance(
-        result, VulnerabilityCase
-    ), "dl.read() must return a VulnerabilityCase instance."
-    assert (
-        type(result) is VulnerabilityCase
-    ), "dl.read() must return the exact VulnerabilityCase class, not a subclass."
+    assert isinstance(result, VulnerabilityCase), (
+        "dl.read() must return a VulnerabilityCase instance."
+    )
+    assert type(result) is VulnerabilityCase, (
+        "dl.read() must return the exact VulnerabilityCase class, not a subclass."
+    )
 
 
 def test_list_objects_returns_core_type_for_core_entity(dl):
@@ -186,12 +186,12 @@ def test_list_objects_returns_core_type_for_core_entity(dl):
     dl.save(report)
     results = dl.list_objects("VulnerabilityReport")
     assert len(results) == 1
-    assert isinstance(
-        results[0], VulnerabilityReport
-    ), "dl.list_objects() must return a VulnerabilityReport instance."
-    assert (
-        type(results[0]) is VulnerabilityReport
-    ), "dl.list_objects() must return the exact VulnerabilityReport class."
+    assert isinstance(results[0], VulnerabilityReport), (
+        "dl.list_objects() must return a VulnerabilityReport instance."
+    )
+    assert type(results[0]) is VulnerabilityReport, (
+        "dl.list_objects() must return the exact VulnerabilityReport class."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -358,9 +358,9 @@ def test_mixed_spelling_row_now_validates_directly():
 
     assert len(case.case_participants) == 1
     participant = case.case_participants[0]
-    assert isinstance(
-        participant, CaseParticipant
-    ), "the camelCase participant was not read as a core CaseParticipant"
+    assert isinstance(participant, CaseParticipant), (
+        "the camelCase participant was not read as a core CaseParticipant"
+    )
     assert participant.case_roles == [CVDRole.FINDER]
     assert [s.rm.state.name for s in participant.participant_statuses] == [
         "ACCEPTED"

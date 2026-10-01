@@ -20,7 +20,6 @@ Per specs/configuration.yaml CFG-06-001 through CFG-06-005.
 
 import pytest
 
-from vultron.enums.roles import CVDRole
 from vultron.config import (
     RunMode,
     ServerConfig,
@@ -28,6 +27,7 @@ from vultron.config import (
     get_config,
     reload_config,
 )
+from vultron.enums.roles import CVDRole
 
 
 @pytest.fixture(autouse=True)
@@ -218,7 +218,7 @@ def test_no_config_file_no_env_uses_defaults():
 
 
 def test_server_config_rejects_invalid_base_url():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         ServerConfig(base_url="not-a-url")
 
 
@@ -228,7 +228,7 @@ def test_server_config_normalises_log_level_to_uppercase():
 
 
 def test_server_config_rejects_invalid_log_level():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         ServerConfig(log_level="VERBOSE")  # type: ignore[arg-type]
 
 
@@ -322,7 +322,7 @@ def test_config_override_restores_on_exception():
     os.environ.pop("VULTRON_SERVER__BASE_URL", None)
     try:
         with config_override(VULTRON_SERVER__BASE_URL="http://exc.test"):
-            raise RuntimeError("deliberate failure")
+            raise RuntimeError("deliberate failure")  # noqa: TRY301  # ruff-baseline #3353
     except RuntimeError:
         pass
     assert "VULTRON_SERVER__BASE_URL" not in os.environ

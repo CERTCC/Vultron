@@ -15,15 +15,15 @@
 
 """Shared fixtures for append subpackage tests."""
 
-import pytest
 import py_trees
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )

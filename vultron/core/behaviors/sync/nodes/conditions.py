@@ -116,7 +116,7 @@ class VerifySenderIsCaseActorNode(DataLayerConditionWithPorts):
         try:
             entry = _require_log_entry(self.activity, self.name)
         except VultronError as exc:
-            self.logger.error("%s: %s", self.name, exc)
+            self.logger.error("%s: %s", self.name, exc)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         case_id = entry.case_id

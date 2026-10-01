@@ -215,7 +215,7 @@ def test_shared_helpers_exist_in_sync_module():
         for node in ast.walk(tree)
         if isinstance(node, ast.FunctionDef)
     }
-    assert _SHARED_HELPERS <= defined, (
+    assert defined >= _SHARED_HELPERS, (
         f"{_SYNC} must define {sorted(_SHARED_HELPERS)} (DEMOMA-23-005, "
         f"DEMOMA-23-007); found {sorted(defined & _SHARED_HELPERS)}"
     )

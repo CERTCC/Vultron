@@ -242,7 +242,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             object_=case_object,
             context=case_id,
             in_reply_to=accept_activity_id,
-            to=[self._vendor_uri] + reporter_uris,
+            to=[self._vendor_uri, *reporter_uris],
         )
         # The marker's payload is the AS2 document the retry runner re-sends
         # over HTTP (#1139), and ``create_activity`` is a core-branch object, so
@@ -258,7 +258,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
 
         try:
             self.datalayer.save(marker)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"Failed to write marker: {exc}"
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

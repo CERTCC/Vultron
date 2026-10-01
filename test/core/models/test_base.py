@@ -1,6 +1,6 @@
 """Tests for CoreObject base class and domain model inheritance."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -14,10 +14,10 @@ from vultron.core.models.activity import (
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.note import VultronNote
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 
@@ -35,7 +35,7 @@ DOMAIN_OBJECT_CLASSES = [
     VultronCreateCaseActivity,
 ]
 
-_FUTURE_DT = datetime(2030, 1, 1, tzinfo=timezone.utc)
+_FUTURE_DT = datetime(2030, 1, 1, tzinfo=UTC)
 
 REQUIRED_KWARGS: dict[type, dict] = {
     VultronNote: {"content": "test content"},
@@ -154,7 +154,7 @@ def test_domain_object_expected_as_types():
 
 
 def test_vultron_note_content_required():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         VultronNote()
     note = VultronNote(content="test content")
     assert note.content == "test content"
@@ -178,7 +178,7 @@ def test_vultron_participant_required_fields():
 
 
 def test_vultron_case_status_required_fields():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         CaseStatus()
     # attributed_to is optional; context alone is sufficient
     cs_no_attr = CaseStatus(context="urn:uuid:case-123")
@@ -193,11 +193,11 @@ def test_vultron_case_status_required_fields():
 
 def test_vultron_embargo_event_required_fields():
     # context is required; omitting it must raise
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         EmbargoEvent(end_time=_FUTURE_DT)
     # end_time is required too — no implicit default duration (EP-04-010,
     # #3404); context alone is not sufficient
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         EmbargoEvent(context="urn:uuid:case-123")
     # both supplied is the only valid construction
     em = EmbargoEvent(context="urn:uuid:case-123", end_time=_FUTURE_DT)

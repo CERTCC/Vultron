@@ -31,23 +31,23 @@ Per GitHub issue #401 and specs/behavior-tree-node-design.yaml.
 
 import pytest
 
-from vultron.core.behaviors.report.nodes.case_creation import (
-    _collect_create_case_addressees,
-)
-from vultron.core.behaviors.report.nodes.emit import _compute_report_addressees
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
-from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.activity import VultronOffer
-from vultron.core.models.report import VulnerabilityReport
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.report.nodes import (
     TransitionRMtoClosed,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
 )
+from vultron.core.behaviors.report.nodes.case_creation import (
+    _collect_create_case_addressees,
+)
+from vultron.core.behaviors.report.nodes.emit import _compute_report_addressees
+from vultron.core.models.activity import VultronOffer
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from test.core.behaviors.bt_harness import BTTestScenario
 
 # ============================================================================
 # Fixtures
@@ -389,6 +389,7 @@ class TestComputeReportAddresseesFallback:
     ) -> None:
         """Fallback path returns offer_actor_id from VultronOfferRecord."""
         from typing import cast
+
         from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
         actor_id = "urn:test:actor:1"
@@ -412,6 +413,7 @@ class TestComputeReportAddresseesFallback:
     ) -> None:
         """Fallback path returns None when offer_record is None."""
         from typing import cast
+
         from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
         result = _compute_report_addressees(
@@ -427,6 +429,7 @@ class TestComputeReportAddresseesFallback:
     ) -> None:
         """Fallback path excludes actor_id (self) from addressees."""
         from typing import cast
+
         from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
         actor_id = "urn:test:actor:self"

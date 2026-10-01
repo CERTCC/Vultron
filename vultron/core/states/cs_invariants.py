@@ -211,7 +211,9 @@ def cs_transition_event(src: CS, dst: CS) -> CSEvent | None:
     """
     changed = [
         event
-        for event, before, after in zip(CS_EVENTS, src.name, dst.name)
+        for event, before, after in zip(
+            CS_EVENTS, src.name, dst.name, strict=False
+        )
         if before != after
     ]
     if len(changed) != 1:
@@ -557,7 +559,7 @@ def valid_cs_histories() -> tuple[tuple[CSEvent, ...], ...]:
         for candidate in next_cs_states(state):
             event = cs_transition_event(state, candidate)
             assert event is not None  # guaranteed by is_valid_cs_transition
-            walk(candidate, acc + (event,))
+            walk(candidate, (*acc, event))
 
     walk(CS.vfdpxa, ())
     return tuple(histories)

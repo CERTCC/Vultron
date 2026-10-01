@@ -45,7 +45,6 @@ Environment variables
 """
 
 from vultron.config.actor import ActorConfig
-from vultron.config.ledger import LedgerConfig
 from vultron.config.app import (
     AppConfig,
     DatabaseConfig,
@@ -57,6 +56,7 @@ from vultron.config.app import (
     load_actor_config,
     reload_config,
 )
+from vultron.config.ledger import LedgerConfig
 
 __all__ = [
     "ActorConfig",

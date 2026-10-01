@@ -40,9 +40,9 @@ import logging
 from typing import TYPE_CHECKING, Any, cast, overload
 
 import py_trees
-from pydantic import BaseModel
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
+from pydantic import BaseModel
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -50,8 +50,8 @@ from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
 from vultron.core.ports.case_persistence import (
-    CasePersistence,
     CaseOutboxPersistence,
+    CasePersistence,
 )
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.states.rm import RM
@@ -143,7 +143,7 @@ def read_rm_states(
             "Non-canonical ParticipantStatus shape for participant"
             f" '{participant_id}': {exc}"
         )
-        node.logger.error(f"{node.name}: {node.feedback_message}")
+        node.logger.error(f"{node.name}: {node.feedback_message}")  # noqa: TRY400  # ruff-baseline #3353
         return None
 
 
@@ -289,7 +289,7 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
         )
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
-        self.wire_render_port: "WireRenderPort | None" = None
+        self.wire_render_port: WireRenderPort | None = None
 
     def setup(self, **kwargs: Any) -> None:
         """Set up blackboard access for DataLayer and actor_id."""
@@ -393,8 +393,8 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         )
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
-        self.trigger_activity_factory: "TriggerActivityPort | None" = None
-        self.wire_render_port: "WireRenderPort | None" = None
+        self.trigger_activity_factory: TriggerActivityPort | None = None
+        self.wire_render_port: WireRenderPort | None = None
 
     def setup(self, **kwargs: Any) -> None:
         """Set up blackboard access for DataLayer, actor_id, and trigger_activity_factory."""
@@ -621,8 +621,8 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         )
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
-        self.trigger_activity_factory: "TriggerActivityPort | None" = None
-        self.wire_render_port: "WireRenderPort | None" = None
+        self.trigger_activity_factory: TriggerActivityPort | None = None
+        self.wire_render_port: WireRenderPort | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         "datalayer": PortInformation(data_type=object, required=True),
@@ -810,9 +810,9 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts):
         try:
             activity_id, activity_blob = self._call_factory()
             self._emit_through_seam(activity_id, activity_blob)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"{self.__class__.__name__} failed: {e}"
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
         self._on_success(activity_id, activity_blob)
         return Status.SUCCESS
@@ -852,8 +852,8 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
             }
         )
 
-    def _participant_actor_id(self, participant: object) -> str:
-        actor_ref = getattr(participant, "attributed_to")
+    def _participant_actor_id(self, participant: CaseParticipant) -> str:
+        actor_ref = participant.attributed_to
         return (
             actor_ref
             if isinstance(actor_ref, str)
@@ -990,8 +990,11 @@ class ReadObject(DataLayerConditionWithPorts):
             name: Optional custom name (defaults to "ReadObject_{table}_{last_segment}")
         """
         # Use last part of ID for blackboard key (URL-safe)
-        self.blackboard_key = f"object_{object_id.split('/')[-1]}"
-        display_name = name or f"ReadObject_{table}_{object_id.split('/')[-1]}"
+        self.blackboard_key = f"object_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        display_name = (
+            name
+            or f"ReadObject_{table}_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        )
         super().__init__(name=display_name)
         self.table = table
         self.object_id = object_id
@@ -1035,11 +1038,11 @@ class ReadObject(DataLayerConditionWithPorts):
             self.logger.debug(self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Error reading {self.table}/{self.object_id}: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1066,8 +1069,10 @@ class UpdateObject(DataLayerActionWithPorts):
             name: Optional custom name (defaults to "UpdateObject_{last_segment}")
         """
         # Use last part of ID for blackboard key (URL-safe)
-        self.blackboard_key = f"object_{object_id.split('/')[-1]}"
-        display_name = name or f"UpdateObject_{object_id.split('/')[-1]}"
+        self.blackboard_key = f"object_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        display_name = (
+            name or f"UpdateObject_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        )
         super().__init__(name=display_name)
         self.object_id = object_id
         self.updates = updates
@@ -1154,9 +1159,9 @@ class UpdateObject(DataLayerActionWithPorts):
             self.logger.info(self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"Error updating {self.object_id}: {e}"
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1225,11 +1230,11 @@ class CreateObject(DataLayerAction):
             self.logger.info(self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Error creating object in {self.table}: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1312,6 +1317,6 @@ class UpdateActorOutbox(DataLayerActionWithPorts):
 
             return Status.SUCCESS
 
-        except Exception as e:
-            self.logger.error(f"{self.name}: Error updating actor outbox: {e}")
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(f"{self.name}: Error updating actor outbox: {e}")  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE

@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import py_trees
 
-from vultron.core.behaviors.call_out.bundles.close_report import (  # noqa: F401
+from vultron.core.behaviors.call_out.bundles.close_report import (
     CLOSE_REPORT_DETERMINISTIC,
     CloseReportCallOutBundle,
 )

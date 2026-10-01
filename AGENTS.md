@@ -50,7 +50,7 @@ before merging. See `docs/adr/_adr-template.md`.
 
 Runtime: Python **3.12+** (CI: 3.13), **FastAPI** (BackgroundTasks for long
 ops), **Pydantic v2**, **pytest**, **mkdocs** (Material). Dev tools: **uv**,
-**black**, **flake8**, **mypy**, **pyright**, **markdownlint-cli2** (`mdlint.sh`).
+**ruff** (lint + format), **mypy**, **pyright**, **markdownlint-cli2** (`mdlint.sh`).
 No other frameworks/package managers without approval (`ui/` Node/React: ADR-0104).
 
 ---
@@ -182,7 +182,7 @@ entry vs. both.
 
 **Before committing**, run skills in order:
 
-1. `run-linters` — all four linters (Black, flake8, mypy, pyright) must pass.
+1. `run-linters` — ruff (lint + format), mypy and pyright must all pass.
    Supersedes `format-code`, so run it alone — no separate `format-code` step.
 2. `run-tests` — unit suite once; read the `exit:` line. If `vultron/demo/` or
    `test/demo/` touched, also run the full suite (`-m ""`, same redirect form).
@@ -195,12 +195,12 @@ entry vs. both.
 **`append-history`**: stage the new entry file (`git add plan/history/`).
 The monthly `README.md` under `plan/history/YYMM/` is gitignored — do not stage it.
 
-Pre-commit hooks are fail-only. If a hook fails, run `run-linters` (black,
-flake8, mypy, pyright) or `format-code` (markdown), re-stage, then commit.
+Pre-commit hooks are fail-only. If a hook fails, run `run-linters` (ruff, mypy,
+pyright) or `format-code` (ruff fixes + format), re-stage, then commit.
 
-**Lint memoization**: linters run through `run-if-changed.sh`, which skips a
-tool when its inputs are unchanged since the last success (a `... skipping`
-line is expected, not an error). Details in the `run-linters` skill.
+**Lint memoization**: mypy and pyright run through `run-if-changed.sh`, which
+skips a tool when its inputs are unchanged since the last success (a `... skipping`
+line is expected, not an error); ruff is fast enough to run bare. See `run-linters`.
 
 **After a PR merges** in a named worktree slot:
 `bash "$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh" reset <slot-name>`
@@ -275,7 +275,7 @@ linked file before touching that area. New pitfalls MUST be routed per
 | Persistence / stores | [datalayer-design](notes/datalayer-design.md) | `dl.read()` returns core objects (ADR-0034); core must not re-read wire activities for semantics (ADR-0035); an actor id **is** a store name (DL-07-004); `_dehydrate_data` deliberately keeps inline Activity sub-fields as snapshots; a wire default minted from the clock cannot round-trip through a core field that keeps only the URI — a derived endpoint is an address and carries no stamp, and a round-trip test pins the clock across a second boundary (#3732) |
 | Embargo / consent | [embargo-lifecycle](notes/embargo-lifecycle.md), [participant-embargo-consent](notes/participant-embargo-consent.md) | delegate to `EmbargoLifecycle`, never inline `EMAdapter`; consent only via `apply_pec_transition()` (CM-18-005/006); `embargo_adherence` is a `@computed_field` (ADR-0056); don't downgrade consent on retries; a revision *proposal* changes no consent — lapse fires only when the owner activates longer terms a signatory has not accepted, and a shorter revision carries everyone over (ADR-0093); test `REVISE → REVISE` separately; a revision Invite to a `SIGNATORY` changes no consent — `INVITE` is legal only from UNBOUND/LAPSED/DECLINED, so never apply it unconditionally (EP-09-004); termination clears *every* open proposal, because one active embargo makes every open proposal a revision of it (EP-08-004); **creation-time initialization runs once per case** — `InitializeDefaultEmbargoNode`'s first arm succeeds on an attached active embargo, so a repeated `CaseProposal` for the same report re-registers no revision and mints no orphan event, and the vendor treats an *answered* `ReportCaseLink` as already proposed ([embargo-default-semantics](notes/embargo-default-semantics.md), #3393) |
 | Participant records | [participant-role-management](notes/participant-role-management.md) | `actor_participant_index` is the fast path, and RM mutation MUST use it (CM-19-003); RM terminal guard runs before the same-state shortcut |
-| Devcontainer / tooling | [devcontainer-tooling](notes/devcontainer-tooling.md) | always `uv run`; clear `PYTHONPATH` first; `UV_NO_SYNC=1` on sync failures; give `git commit` a 10-min timeout (whole-tree flake8 hook — usually a fast no-op if `run-linters` just ran, but ~35s cold or after source edits); `SKIP=actionlint` when not touching workflows (hook hangs, no Go); push with `git push -u origin HEAD`, never a token URL (no upstream, #3893), and if a push sits silent after `Writing objects` retry with `-c http.version=HTTP/1.1` (#3905); `.claude/skills` is a **symlink** to `.agents/skills` — edit only `.agents/`, and a new file there needs no second link |
+| Devcontainer / tooling | [devcontainer-tooling](notes/devcontainer-tooling.md) | always `uv run`; clear `PYTHONPATH` first; `UV_NO_SYNC=1` on sync failures; ruff runs bare — scope lives in `[tool.ruff]` (IMPLTS-07-021), and its hook checks only staged files, so a commit needs no long timeout; `SKIP=actionlint` when not touching workflows (hook hangs, no Go); push with `git push -u origin HEAD`, never a token URL (no upstream, #3893), and if a push sits silent after `Writing objects` retry with `-c http.version=HTTP/1.1` (#3905); `.claude/skills` is a **symlink** to `.agents/skills` — edit only `.agents/`, and a new file there needs no second link |
 | Spec/notes/ADR/history tooling | [`vultron/metadata/AGENTS.md`](vultron/metadata/AGENTS.md), [agentic-workflow](notes/agentic-workflow.md) | an incoming learning is `YYYYMMDD-<issue>-<phrase>.md` — the slug describes the observation and is never derived from `source`, which several files may share (BW-01-003, BW-02-002, #1857); a loader that walks files names every failing file as `path:line:col` via the shared `file_loading.py` helper (MS-17) — a YAML error is not a `ValueError` and escapes `except (ValidationError, ValueError)` as a traceback; `read_text()` costs you the filename (`<unicode string>`); a Pydantic error names the model, not the file; a spec written before its code needs `lint_suppress: [phantom_path_ref]` |
 | git / branches / PRs | [git-workflow-pitfalls](notes/git-workflow-pitfalls.md) | rebase "local changes" can be a false positive; conflict-free ≠ working merge; related fix PRs need an integration branch (`create-pr` can't target one); `claim-issue.sh` needs a synced branch; re-check ADR numbers before merge; verify every AC against `origin/main` and always add `Closes #N` — the `build` pre-claim gate reads only `- [ ] AC-N:` lines, so an issue with prose ACs skips it and must be checked by hand (#1907); scan peer files before closing |
 | GH Actions / CI YAML | [ci-workflow-authoring](notes/ci-workflow-authoring.md) | a red job may never have run its assertions (and an all-skipped run is green); `notify-failure` is mandatory on `main`/`schedule` (CISEC-05); PyYAML reads bare `on:` as `True`; matrix booleans differ job- vs. step-level; `python3 -c` blocks break `actionlint`; single-quoted YAML needs doubled apostrophes |
@@ -353,7 +353,7 @@ SHOULD be discussed via Issue or PR. Include rationale in the commit message.
 
 ## Miscellaneous tips
 
-- Use `markdownlint-cli2` for markdown; `black` is Python-only. Default config
+- Use `markdownlint-cli2` for markdown; `ruff format` skips it. Default config
   ignores only `wip_notes/**`; all other dirs are linted.
 - **Notes frontmatter** (NF-06-001, NF-06-002): every `notes/*.md` (except
   `README.md`) needs `title` + `status`. **Maintenance rule:** when you modify a

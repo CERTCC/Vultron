@@ -142,7 +142,7 @@ def outbox_append(
     if dl._enqueue_callback is not None:
         try:
             dl._enqueue_callback(dl._actor_id)
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001  # ruff-baseline #3326
             logger.warning(
                 "outbox_append: enqueue_callback raised for actor '%s'",
                 dl._actor_id,
@@ -327,7 +327,7 @@ def dead_letter_list(
     for data in raw.values():
         try:
             entries.append(OutboxDeadLetterEntry.model_validate(data))
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001  # ruff-baseline #3326
             logger.warning(
                 "dead_letter_list: could not reconstruct OutboxDeadLetterEntry"
                 " from stored data: %r",

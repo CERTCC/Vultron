@@ -72,7 +72,7 @@ def _qualifying_workflow_files() -> list[Path]:
     for wf in sorted(WORKFLOWS_DIR.glob("*.yml")):
         try:
             data = _load_workflow(wf)
-        except Exception:  # pragma: no cover
+        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3989  # pragma: no cover
             continue
         if _is_qualifying(data):
             files.append(wf)

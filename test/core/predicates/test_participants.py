@@ -16,8 +16,8 @@
 """Tests for vultron.core.predicates.participants."""
 
 from vultron.core.models.case_participant import (
-    CaseParticipant,
     CaseActorParticipant,
+    CaseParticipant,
 )
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus

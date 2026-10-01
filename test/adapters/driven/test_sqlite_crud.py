@@ -22,9 +22,9 @@ import os
 
 import pytest
 
-from vultron.adapters.driven.db_record import Record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.engine import actor_db_url
+from vultron.adapters.driven.db_record import Record
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.rm import RM
 

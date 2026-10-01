@@ -11,6 +11,22 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories import (
+    accept_case_ownership_transfer_activity,
+    accept_case_participant_role_activity,
+    add_report_to_case_activity,
+    announce_vulnerability_case_activity,
+    create_case_activity,
+    offer_case_ownership_transfer_activity,
+    offer_case_participant_role_activity,
+    reject_case_ownership_transfer_activity,
+    reject_case_participant_role_activity,
+    rm_close_case_activity,
+    rm_defer_case_activity,
+    rm_engage_case_activity,
+    update_case_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -38,22 +54,6 @@ from vultron.wire.as2.vocab.examples.participant import (
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.factories import (
-    accept_case_ownership_transfer_activity,
-    accept_case_participant_role_activity,
-    add_report_to_case_activity,
-    announce_vulnerability_case_activity,
-    create_case_activity,
-    offer_case_ownership_transfer_activity,
-    offer_case_participant_role_activity,
-    reject_case_ownership_transfer_activity,
-    reject_case_participant_role_activity,
-    rm_close_case_activity,
-    rm_defer_case_activity,
-    rm_engage_case_activity,
-    update_case_activity,
 )
 
 

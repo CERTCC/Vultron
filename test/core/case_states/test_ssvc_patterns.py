@@ -14,6 +14,10 @@
 
 import unittest
 
+from vultron.core.case_states.hypercube import CVDmodel
+from vultron.core.case_states.patterns.ssvc import (
+    ssvc,
+)
 from vultron.core.scoring.ssvc_2 import (
     SSVC_2_Enum,
     SSVC_2_Exploitation,
@@ -21,10 +25,6 @@ from vultron.core.scoring.ssvc_2 import (
     SSVC_2_Supplier_Contacted,
 )
 from vultron.core.scoring.utils import enum_item_in_list
-from vultron.core.case_states.hypercube import CVDmodel
-from vultron.core.case_states.patterns.ssvc import (
-    ssvc,
-)
 
 
 class MyTestCase(unittest.TestCase):

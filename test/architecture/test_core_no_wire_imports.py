@@ -171,9 +171,9 @@ def test_vultron_event_activity_is_the_core_activity_type():
     hint = typing.get_type_hints(VultronEvent)["activity"]
 
     assert _member_types(hint) == {VultronActivity}, hint
-    assert VultronActivity.__module__.startswith(
-        "vultron.core."
-    ), VultronActivity.__module__
+    assert VultronActivity.__module__.startswith("vultron.core."), (
+        VultronActivity.__module__
+    )
     assert not VultronActivity.__name__.startswith("as_")
 
 

@@ -22,12 +22,13 @@ Case Actor / CASE_MANAGER delegation activities.
 import logging
 from typing import Any, cast
 
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.models._helpers import _as_id
+from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronAlreadyExistsError,
     VultronNotFoundError,
@@ -44,10 +45,9 @@ from vultron.wire.as2.factories import (
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
 )
-from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories.case import (
-    accept_case_participant_role_activity,
     accept_case_ownership_transfer_activity,
+    accept_case_participant_role_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
     reject_case_participant_role_activity,
@@ -241,7 +241,7 @@ class _ActorsMixin:
         The ``to:`` list should contain the CaseActor URI so the Accept routes
         back to CaseActor for processing.
         """
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (  # noqa: PLC0415
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Offer,
         )
 
@@ -572,7 +572,7 @@ class _ActorsMixin:
         """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
         from vultron.wire.as2.vocab.base.objects.actors import (
             as_Actor,
-        )  # noqa: PLC0415
+        )
 
         target = as_Actor(id_=target_actor_id)
         case = _case_for_wire(self._dl, case_id)
@@ -609,7 +609,7 @@ class _ActorsMixin:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
         from vultron.wire.as2.vocab.base.objects.actors import (
             as_Actor,
-        )  # noqa: PLC0415
+        )
 
         target = as_Actor(id_=target_actor_id)
         case = _case_for_wire(self._dl, case_id)
@@ -692,7 +692,7 @@ class _ActorsMixin:
         imports are allowed, so both delivery paths converge on the same Accept
         (#2225, ADR-0035 DL-06-002).
         """
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (  # noqa: PLC0415
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Offer,
         )
 
@@ -731,7 +731,7 @@ class _ActorsMixin:
         replica (the SYNC path seeds it before the offer entry is applied), so
         read it and project it to its wire form.
         """
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: PLC0415
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
         )
 

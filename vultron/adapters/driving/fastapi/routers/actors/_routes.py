@@ -37,8 +37,8 @@ from fastapi import (
 from pydantic import BaseModel, Field
 
 from vultron.adapters.driven import actor_hosts
-from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
     node_base_url,
@@ -49,6 +49,19 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
+from vultron.adapters.driving.fastapi.routers.actors import _embargo_policy
+from vultron.adapters.driving.fastapi.routers.actors._inbox import (
+    _activity_addressed_to,
+    parse_activity,
+)
+from vultron.adapters.driving.fastapi.routers.actors._lookup import (
+    _ACTOR_RECORD_TYPES,
+    _ACTOR_TYPE_MAP,
+    _actor_class_for_record,
+    _find_actor_record,
+    _find_actor_record_by_id,
+    _resolve_actor_or_404,
+)
 from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.actor import (
@@ -65,20 +78,6 @@ from vultron.core.use_cases.query.action_rules import (
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-
-from vultron.adapters.driving.fastapi.routers.actors import _embargo_policy
-from vultron.adapters.driving.fastapi.routers.actors._inbox import (
-    _activity_addressed_to,
-    parse_activity,
-)
-from vultron.adapters.driving.fastapi.routers.actors._lookup import (
-    _ACTOR_RECORD_TYPES,
-    _ACTOR_TYPE_MAP,
-    _actor_class_for_record,
-    _find_actor_record,
-    _find_actor_record_by_id,
-    _resolve_actor_or_404,
-)
 
 AnyActor = CoreActor
 
@@ -233,7 +232,7 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
         # A client-supplied id that names no actor (``"/"``, ``"//"``) is a bad
         # request, not a server fault: it must not become a 500, and it must not
         # be allowed to mint a store for a phantom actor.
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         )
@@ -438,7 +437,7 @@ def get_action_rules(
         if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
             case_obj = dl.find_case_by_short_id(case_id)
         if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
-            raise VultronNotFoundError("VulnerabilityCase", case_id)
+            raise VultronNotFoundError("VulnerabilityCase", case_id)  # noqa: TRY301  # ruff-baseline #3353
         canonical_actor_id = canonical
         if actor_obj is not None and hasattr(actor_obj, "id_"):
             canonical_actor_id = actor_obj.id_
@@ -466,12 +465,12 @@ def get_action_rules(
             .model_dump(mode="json")
         )
     except VultronNotFoundError as exc:
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         )
     except VultronValidationError as exc:
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         )
@@ -566,7 +565,6 @@ def post_actor_inbox(
         dispatcher,
         emitter,
     )
-    return None
 
 
 @router.post(
@@ -631,8 +629,6 @@ def post_actor_outbox(
     background_tasks.add_task(
         outbox_handler, canonical_actor_id, actor_dl, emitter=emitter
     )
-
-    return None
 
 
 # Included ahead of the catch-all below on purpose: FastAPI matches routes in

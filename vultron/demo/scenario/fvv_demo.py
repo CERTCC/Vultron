@@ -29,35 +29,8 @@ import sys
 
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Offer,
-)
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
-
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
-from vultron.enums.roles import CVDRole
-from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
-    BASE_URL,
-    DataLayerClient,
-    assert_demo_success,
-    check_server_availability,
-    demo_check,
-    demo_gate,
-    demo_step,
-    ref_id,
-    reset_datalayer,
-    reset_demo_failures,
-    setup_demo_logging,
-    verify_object_stored,
-)
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
@@ -71,6 +44,7 @@ from vultron.demo.helpers.milestones import (
     verify_fix_ready,
     verify_publicly_disclosed,
 )
+from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     find_case_invite_for_actor,
     wait_for_all_participants_rm_closed,
@@ -87,7 +61,6 @@ from vultron.demo.helpers.seeding import (
     reset_containers as _reset_containers,
     seed_containers_fvv,
 )
-from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.sync import (
     run_sync_verification_phase,
     wait_for_replica_ledger_coverage,
@@ -98,6 +71,32 @@ from vultron.demo.helpers.workflow import (
     run_invite_path_rm_triage,
 )
 from vultron.demo.scenario.registry import scenario
+from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
+    BASE_URL,
+    DataLayerClient,
+    assert_demo_success,
+    check_server_availability,
+    demo_check,
+    demo_gate,
+    demo_step,
+    ref_id,
+    reset_datalayer,
+    reset_demo_failures,
+    setup_demo_logging,
+    verify_object_stored,
+)
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -771,7 +770,7 @@ def run_fvv_demo(
     logger.info("Vendor2 container: %s", vendor2_client.base_url)
 
     with scenario_harness("fvv") as harness:
-        finder, vendor, vendor_in_vendor, vendor2, report, offer, case = (
+        finder, vendor, vendor_in_vendor, vendor2, _report, _offer, case = (
             _phase_report_submission(
                 finder_client,
                 vendor_client,

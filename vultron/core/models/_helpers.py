@@ -18,7 +18,7 @@
 import types
 import uuid
 from collections.abc import Iterable, Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import (
     Annotated,
     Any,
@@ -43,7 +43,7 @@ _datetime_type = datetime
 
 
 def now_utc() -> datetime:
-    return datetime.now(timezone.utc).replace(microsecond=0)
+    return datetime.now(UTC).replace(microsecond=0)
 
 
 def from_now_utc(delta: timedelta) -> datetime:
@@ -89,7 +89,7 @@ def require_future_aware(
         return None
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{field} must be timezone-aware")
-    if value <= datetime.now(tz=timezone.utc):
+    if value <= datetime.now(tz=UTC):
         raise ValueError(f"{field} must be in the future")
     return value
 
@@ -98,7 +98,7 @@ def require_future_aware(
 #: bottom. ``id_`` MUST NOT be used as a recency tiebreaker (CM-29-001) — its
 #: scheme (``urn:uuid`` vs ``https``) is an implementation artefact, not a
 #: time proxy.
-_MIN_UTC = datetime.min.replace(tzinfo=timezone.utc)
+_MIN_UTC = datetime.min.replace(tzinfo=UTC)
 
 
 def as_utc(value: datetime | None) -> datetime | None:
@@ -112,7 +112,7 @@ def as_utc(value: datetime | None) -> datetime | None:
     if value is None:
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
+        return value.replace(tzinfo=UTC)
     return value
 
 
@@ -148,7 +148,7 @@ def parse_published(value: Any) -> datetime | None:
     assert (
         aware is not None
     )  # parsed is a datetime here; as_utc only returns None for None input
-    return aware.astimezone(timezone.utc)
+    return aware.astimezone(UTC)
 
 
 def claimed_published_iso(activity_obj: Any) -> str:
@@ -407,7 +407,7 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
         return absent_times_as_none(cls, dict(data))
     # A snapshot carrying *both* spellings would collapse onto one key and lose
     # a value by iteration order, so reject a disagreement before remapping.
-    data = collapse_duplicate_spellings(
+    collapsed = collapse_duplicate_spellings(
         data,
         ((name, camel) for camel, name in remap.items()),
         owner=f"{cls.__name__} wire snapshot",
@@ -417,8 +417,7 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
     # not an alias the field itself declares, so reading first would take a
     # present ``receivedAt`` for an absent ``received_at``.
     projected: dict[str, Any] = {
-        remap[key] if key in remap else key: value
-        for key, value in data.items()
+        remap.get(key, key): value for key, value in collapsed.items()
     }
     return absent_times_as_none(cls, projected)
 

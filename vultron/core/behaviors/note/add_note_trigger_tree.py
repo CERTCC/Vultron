@@ -32,7 +32,7 @@ This refactoring satisfies #712 AC-2: all protocol-significant domain work
 it is visible to BT analysis and auditing tools.
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 import py_trees
 

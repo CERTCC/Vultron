@@ -184,9 +184,9 @@ def test_fcv_vendor_vfd_transition_observed(
         fix_ready, _, _ = cs_observations_from_snap(payload(e))
         saw_fix_ready |= fix_ready
 
-    assert (
-        saw_fix_ready
-    ), "Vendor: vfd_state == 'VFd' (fix_ready) never observed"
+    assert saw_fix_ready, (
+        "Vendor: vfd_state == 'VFd' (fix_ready) never observed"
+    )
 
 
 @pytest.mark.case_ledger_invariants

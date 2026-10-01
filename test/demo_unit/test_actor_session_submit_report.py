@@ -19,7 +19,7 @@ when nothing was proposed.  The kwargs ratchet pins the spelling; this pins
 the presence rule and the wire form of the instant.  #3971.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -63,7 +63,7 @@ def test_no_terms_sends_no_proposed_end_key(posted):
 
 
 def test_terms_are_sent_as_an_iso_instant(posted):
-    end = datetime(2030, 1, 2, 3, 4, 5, tzinfo=timezone.utc) + timedelta(0)
+    end = datetime(2030, 1, 2, 3, 4, 5, tzinfo=UTC) + timedelta(0)
 
     _session().submit_report(
         report_name="n",

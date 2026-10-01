@@ -19,18 +19,16 @@ from unittest.mock import MagicMock, patch
 
 import py_trees
 import pytest
-
 from py_trees.common import Status
-
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
-from vultron.core.states.em import EM
 
 from test.core.behaviors.embargo.nodes.conftest import (
     CASE_MANAGER_ACTOR,
     make_case_with_manager,
     setup_blackboard,
 )
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
+from vultron.core.states.em import EM
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case_emit1"

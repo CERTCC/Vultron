@@ -19,6 +19,7 @@ import logging
 from typing import Any, cast
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.factories import (
     announce_embargo_activity,
     em_accept_embargo_activity,
@@ -29,7 +30,6 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from ._base import _seal, _to_wire
-from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 

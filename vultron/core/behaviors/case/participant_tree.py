@@ -40,6 +40,7 @@ specs/behavior-tree-node-design.yaml BTND-07-003.
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.participant.owner import (
     AttachOwnerParticipantToCaseNode,
     CreateOwnerInitialStatusNode,
@@ -57,7 +58,6 @@ from vultron.core.behaviors.case.nodes.participant.participant_add import (
     RecordParticipantAddedEventNode,
     SeedParticipantAsSignatoryNode,
 )
-from vultron.config.actor import ActorConfig
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole

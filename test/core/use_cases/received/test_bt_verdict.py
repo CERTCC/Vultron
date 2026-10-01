@@ -29,11 +29,11 @@ from vultron.core.behaviors.case.nodes.intake import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received._bt_verdict import (
-    intake_verdict,
     applied_or_raise,
     failure_reason,
     find_named,
     find_node,
+    intake_verdict,
     node_failed,
     node_succeeded,
     not_case_manager_refusal,

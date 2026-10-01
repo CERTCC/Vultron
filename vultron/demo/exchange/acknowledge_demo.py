@@ -44,17 +44,12 @@ When run as a script, this module will:
 
 # Standard library imports
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
-# Vultron imports
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import (
     verify_activity_in_inbox,
-)  # noqa: F401
+)
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -62,14 +57,20 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     demo_step,
     logfmt,
     post_to_inbox_and_wait,
-    verify_object_stored,
     setup_demo_logging,
+    verify_object_stored,
 )
 from vultron.wire.as2.factories import (
     rm_invalidate_report_activity,
     rm_read_report_activity,
     rm_submit_report_activity,
     rm_validate_report_activity,
+)
+
+# Vultron imports
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,7 +80,7 @@ def demo_acknowledge_only(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates a bare acknowledgement: the vendor reads the report without
@@ -146,7 +147,7 @@ def demo_acknowledge_then_validate(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates acknowledge followed by validation.
@@ -228,7 +229,7 @@ def demo_acknowledge_then_invalidate(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates acknowledge followed by invalidation.
@@ -312,7 +313,7 @@ def demo_acknowledge_then_invalidate(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     ("Demo 1: Acknowledge Only", demo_acknowledge_only),
     ("Demo 2: Acknowledge then Validate", demo_acknowledge_then_validate),
     ("Demo 3: Acknowledge then Invalidate", demo_acknowledge_then_invalidate),
@@ -321,7 +322,7 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ):
     """Main entry point for the acknowledge demo script."""
     run_exchange_demos(

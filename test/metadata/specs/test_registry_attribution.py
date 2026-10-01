@@ -119,6 +119,7 @@ def test_spec_lint_reports_a_syntax_fault_without_a_traceback(tmp_path):
         capture_output=True,
         text=True,
         timeout=60,
+        check=False,
     )
 
     assert result.returncode == 1

@@ -44,12 +44,12 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.errors import VultronBTInternalError
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.use_cases.received.embargo import (
     InviteToEmbargoOnCaseReceivedUseCase,
     resolve_proposer_id,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 

@@ -31,12 +31,12 @@ from vultron.core.use_cases.received._bt_verdict import (
 )
 
 if TYPE_CHECKING:
-    from vultron.core.ports.wire_render import WireRenderPort
     from vultron.core.behaviors.call_out.bundles.status_authorization import (
         StatusAuthorizationCallOutBundle,
     )
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 

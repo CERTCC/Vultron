@@ -44,9 +44,9 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict
 
 from vultron.core.behaviors.store_scope import same_authority
-from vultron.primitives import NonEmptyString
 from vultron.demo.utils import DataLayerClient, post_to_trigger, ref_id
 from vultron.enums.roles import CVDRole
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )

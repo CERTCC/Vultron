@@ -37,13 +37,12 @@ These tests pin both halves of the fix:
   repair a leak if any fixture gets the order wrong again (defense in depth).
 """
 
-import anyio
 import logging
 
+import anyio
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
-from vultron.config.app import reload_config
 from test.demo.conftest import (
     _CASE_ACTOR_SERVICE_URL,
     _KNOWN_FICTIONAL_HOSTS,
@@ -53,6 +52,7 @@ from test.demo.conftest import (
     config_url_snapshot,
     restore_config_if_leaked,
 )
+from vultron.config.app import reload_config
 
 _FAKE_HOST = "http://leaky-host.invalid/api/v2"
 

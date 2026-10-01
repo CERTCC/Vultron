@@ -92,7 +92,7 @@ class CollectCaseAddresseesNode(DataLayerActionWithPorts):
         if case_obj is not None:
             addressees = [
                 actor_id
-                for actor_id in case_obj.actor_participant_index.keys()
+                for actor_id in case_obj.actor_participant_index
                 if actor_id != self.actor_id
             ]
         else:

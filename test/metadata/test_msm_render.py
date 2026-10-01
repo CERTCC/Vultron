@@ -23,6 +23,7 @@ Covers the AC-6 acceptance criteria:
 
 import pytest
 
+from vultron.core.models.events.base import MessageSemantics
 from vultron.metadata.msm import (
     PAGE_SLUGS,
     MappingStatus,
@@ -34,7 +35,6 @@ from vultron.metadata.msm.render import (
     _render_table_row,
     _wire_form,
 )
-from vultron.core.models.events.base import MessageSemantics
 from vultron.semantic_registry import lookup_entry
 
 # ---------------------------------------------------------------------------

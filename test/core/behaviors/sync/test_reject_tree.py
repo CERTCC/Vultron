@@ -10,6 +10,7 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
@@ -18,7 +19,6 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -400,9 +400,9 @@ def test_unknown_case_reject_leaves_replication_state_unchanged(
         peer_id=PEER_ID,
         last_acknowledged_hash="",
     ).id_
-    assert (
-        datalayer.read(state_id) is None
-    ), "UpdateReplicationStateNode must not write state before FindCaseActorNode validates the case"
+    assert datalayer.read(state_id) is None, (
+        "UpdateReplicationStateNode must not write state before FindCaseActorNode validates the case"
+    )
 
 
 @pytest.mark.spec("SYNC-15-011")

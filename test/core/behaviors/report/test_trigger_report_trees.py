@@ -33,6 +33,7 @@ from vultron.core.behaviors.report.trigger_report_trees import (
     create_reject_report_trigger_tree,
 )
 from vultron.core.models.activity import VultronOffer
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.offer_record import VultronOfferRecord
@@ -44,7 +45,6 @@ from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
-from vultron.core.models.case import VulnerabilityCase
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -545,6 +545,6 @@ class TestCloseCaseTriggerTree:
         )
         result = scenario.run(tree, case_id=case_with_owner.id_)
         scenario.assert_success(result)
-        assert invoked == [
-            "PreCloseAction"
-        ], "Custom pre_close_action_factory was not called"
+        assert invoked == ["PreCloseAction"], (
+            "Custom pre_close_action_factory was not called"
+        )

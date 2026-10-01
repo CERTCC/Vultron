@@ -16,8 +16,10 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
 from test.demo._helpers import make_testclient_call
-from vultron.demo.exchange import invite_actor_demo as demo
-from vultron.demo.exchange import initialize_case_demo as init_demo
+from vultron.demo.exchange import (
+    initialize_case_demo as init_demo,
+    invite_actor_demo as demo,
+)
 
 
 @pytest.fixture(scope="module")
@@ -43,9 +45,9 @@ def demo_env(client):
         demo.DataLayerClient.model_rebuild(force=True)
         yield
     finally:
-        demo.DataLayerClient.model_fields["base_url"].default = (
-            _original_base_url_default
-        )
+        demo.DataLayerClient.model_fields[
+            "base_url"
+        ].default = _original_base_url_default
         demo.DataLayerClient.model_rebuild(force=True)
         mp.undo()
         importlib.reload(demo)
@@ -97,7 +99,7 @@ def test_setup_initialized_case_registers_case_manager(demo_env, client):
     base = str(client.base_url).rstrip("/") + "/api/v2"
     dl_client = DataLayerClient(base_url=base, actor_id=None)
     seed_exchange_actors(dl_client)
-    finder, vendor, coordinator = discover_actors(dl_client)
+    finder, vendor, _coordinator = discover_actors(dl_client)
 
     case = setup_initialized_case(dl_client, finder, vendor)
 
@@ -106,6 +108,6 @@ def test_setup_initialized_case_registers_case_manager(demo_env, client):
     assert stored_case is not None, "Case should be stored in vendor DataLayer"
 
     manager_id = resolve_case_manager_id(stored_case, vendor_dl)
-    assert (
-        manager_id is not None
-    ), "CASE_MANAGER must be registered at case creation (CM-02-014, CM-02-015)"
+    assert manager_id is not None, (
+        "CASE_MANAGER must be registered at case creation (CM-02-014, CM-02-015)"
+    )

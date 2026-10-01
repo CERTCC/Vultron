@@ -8,11 +8,16 @@ convenience wrapper) rather than calling these builders directly.
 """
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
@@ -21,19 +26,17 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.enums import VultronObjectType as VOtype
-from vultron.core.models.participant_status import coerce_cvd_roles
+from vultron.core.models.note import VultronNote
+from vultron.core.models.participant_status import (
+    ParticipantStatus,
+    coerce_cvd_roles,
+)
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.activity import VultronActivity
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.note import VultronNote
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.enums import as_ObjectType as AOtype
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event

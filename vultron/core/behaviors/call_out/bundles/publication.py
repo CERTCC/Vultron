@@ -38,7 +38,7 @@ Ceiling/floor mapping (BT-23-002):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 import py_trees
 from py_trees.common import Access, Status
@@ -75,7 +75,7 @@ class _DeterministicPrioritizePublicationIntents(AlwaysSucceed):
     """
 
     #: BT-18-001: declared output keys written on SUCCESS (mirrors PrioritizePublicationIntents).
-    output_keys: dict[str, type] = {
+    output_keys: ClassVar[dict[str, type]] = {
         INTENT_DECISION_KEY: PublicationIntentDecision
     }
 

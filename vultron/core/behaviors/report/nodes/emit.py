@@ -22,8 +22,8 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _find_case_actor_id
 
 
@@ -124,7 +124,10 @@ class _EmitCaseActorReportActivityBase(DataLayerActionWithPorts):
             addressees = self._compute_addressees()
             if not addressees:
                 return Status.FAILURE
-            activity_id, activity_dict = self._call_factory(self.actor_id, addressees)  # type: ignore[arg-type]
+            activity_id, activity_dict = self._call_factory(
+                self.actor_id,  # type: ignore[arg-type]
+                addressees,
+            )
             cast(CaseOutboxPersistence, self.datalayer).outbox_append(
                 activity_id
             )
@@ -137,8 +140,8 @@ class _EmitCaseActorReportActivityBase(DataLayerActionWithPorts):
                 self.offer_id,
             )
             return Status.SUCCESS
-        except Exception as e:
-            self.logger.error("%s: Error emitting activity: %s", self.name, e)
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error("%s: Error emitting activity: %s", self.name, e)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -421,8 +424,8 @@ class EmitSubmitReportActivity(DataLayerActionWithPorts):
                 self.recipient_id,
             )
             return Status.SUCCESS
-        except Exception as e:
-            self.logger.error(
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: Error emitting submit-report offer: %s", self.name, e
             )
             return Status.FAILURE

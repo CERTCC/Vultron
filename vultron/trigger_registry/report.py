@@ -34,7 +34,8 @@ from vultron.trigger_registry._entry import (
     TriggerExposure,
 )
 
-_COMMON = GENERAL_TRIGGER_SPECS + (
+_COMMON = (
+    *GENERAL_TRIGGER_SPECS,
     "TRIG-02-001",
     "TRIG-06-001",
     "TRIG-06-002",
@@ -49,7 +50,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_COMMON + ("TRIG-03-003", "TRIG-05-001", "TRIG-05-002"),
+        spec_ids=(*_COMMON, "TRIG-03-003", "TRIG-05-001", "TRIG-05-002"),
     ),
     TriggerEntry(
         verb="invalidate-report",
@@ -58,7 +59,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_COMMON + ("TRIG-03-003",),
+        spec_ids=(*_COMMON, "TRIG-03-003"),
     ),
     TriggerEntry(
         verb="reject-report",
@@ -67,7 +68,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_COMMON + ("TRIG-03-004",),
+        spec_ids=(*_COMMON, "TRIG-03-004"),
     ),
     # ``close-report`` closes the *report* behind an offer; the use case kept
     # its historical name (ADR-0110 § Named exceptions and cleanups).
@@ -78,7 +79,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_COMMON + ("TRIG-03-003",),
+        spec_ids=(*_COMMON, "TRIG-03-003"),
     ),
     TriggerEntry(
         verb="submit-report",

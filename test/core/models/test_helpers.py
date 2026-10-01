@@ -22,6 +22,7 @@ use_cases/.
 """
 
 import ast
+from datetime import UTC
 
 # --- Architecture ratchet ------------------------------------------------
 
@@ -33,11 +34,14 @@ def _imports_from_use_cases(path: str) -> list[str]:
     tree = ast.parse(src)
     violations = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            if node.module and "use_cases" in node.module:
-                violations.append(
-                    f"line {node.lineno}: from {node.module} import ..."
-                )
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and "use_cases" in node.module
+        ):
+            violations.append(
+                f"line {node.lineno}: from {node.module} import ..."
+            )
     return violations
 
 
@@ -45,9 +49,9 @@ def test_common_py_no_use_cases_import():
     """common.py must not import _as_id from use_cases._helpers (BT-IDM-02 violation)."""
     path = "vultron/core/behaviors/case/nodes/participant/common.py"
     violations = _imports_from_use_cases(path)
-    assert (
-        violations == []
-    ), f"{path} still imports from use_cases:\n" + "\n".join(violations)
+    assert violations == [], (
+        f"{path} still imports from use_cases:\n" + "\n".join(violations)
+    )
 
 
 # --- Behavioural correctness -------------------------------------------
@@ -88,32 +92,32 @@ def test_as_id_object_without_id_():
 
 
 def test_status_recency_key_prefers_updated_over_published():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from vultron.core.models._helpers import status_recency_key
 
-    updated = datetime(2026, 6, 1, tzinfo=timezone.utc)
-    published = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    updated = datetime(2026, 6, 1, tzinfo=UTC)
+    published = datetime(2026, 1, 1, tzinfo=UTC)
     assert status_recency_key(updated, published) == updated
 
 
 def test_status_recency_key_falls_back_to_published():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from vultron.core.models._helpers import status_recency_key
 
-    published = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    published = datetime(2026, 1, 1, tzinfo=UTC)
     assert status_recency_key(None, published) == published
 
 
 def test_status_recency_key_timestampless_sorts_to_bottom():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from vultron.core.models._helpers import status_recency_key
 
     key = status_recency_key(None, None)
-    assert key == datetime.min.replace(tzinfo=timezone.utc)
-    assert key.tzinfo is timezone.utc
+    assert key == datetime.min.replace(tzinfo=UTC)
+    assert key.tzinfo is UTC
 
 
 def test_status_recency_key_normalises_naive_to_utc():
@@ -122,13 +126,13 @@ def test_status_recency_key_normalises_naive_to_utc():
     Regression for #2979: a naive ``updated`` compared against the aware
     ``datetime.min`` floor would otherwise raise ``TypeError`` in ``max()``.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from vultron.core.models._helpers import status_recency_key
 
-    naive = datetime(2026, 1, 1)  # no tzinfo
+    naive = datetime(2026, 1, 1)  # noqa: DTZ001 — deliberately naive
     key = status_recency_key(naive, None)
-    assert key == datetime(2026, 1, 1, tzinfo=timezone.utc)
+    assert key == datetime(2026, 1, 1, tzinfo=UTC)
     # Comparable against the timestampless floor without raising.
     assert key > status_recency_key(None, None)
 
@@ -143,22 +147,22 @@ def test_as_utc_with_none_returns_none():
 
 
 def test_as_utc_with_naive_datetime_returns_utc_aware():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from vultron.core.models._helpers import as_utc
 
-    naive = datetime(2026, 1, 1, 12, 0, 0)
+    naive = datetime(2026, 1, 1, 12, 0, 0)  # noqa: DTZ001 — deliberately naive
     result = as_utc(naive)
     assert result is not None
-    assert result.tzinfo is timezone.utc
+    assert result.tzinfo is UTC
 
 
 def test_as_utc_with_aware_datetime_returns_same():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from vultron.core.models._helpers import as_utc
 
-    aware = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    aware = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
     result = as_utc(aware)
     assert result is not None
     assert result == aware
@@ -166,12 +170,12 @@ def test_as_utc_with_aware_datetime_returns_same():
 
 def test_as_utc_with_datetime_never_returns_none():
     """as_utc(datetime) MUST NOT return None — parse_published relies on this invariant."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from vultron.core.models._helpers import as_utc
 
-    naive = datetime(2026, 6, 15)
-    aware = datetime(2026, 6, 15, tzinfo=timezone.utc)
+    naive = datetime(2026, 6, 15)  # noqa: DTZ001 — deliberately naive
+    aware = datetime(2026, 6, 15, tzinfo=UTC)
     assert as_utc(naive) is not None
     assert as_utc(aware) is not None
 
@@ -206,32 +210,32 @@ def test_parse_published_with_datetime_never_returns_none():
     that ``parse_published`` could return ``None`` from a ``datetime`` input,
     causing callers to over-guard.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from vultron.core.models._helpers import parse_published
 
-    naive = datetime(2026, 6, 15, 12, 0, 0)
-    aware_utc = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    naive = datetime(2026, 6, 15, 12, 0, 0)  # noqa: DTZ001 — deliberately naive
+    aware_utc = datetime(2026, 6, 15, 12, 0, 0, tzinfo=UTC)
     assert parse_published(naive) is not None
     assert parse_published(aware_utc) is not None
 
 
 def test_parse_published_with_naive_datetime_returns_utc():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from vultron.core.models._helpers import parse_published
 
-    naive = datetime(2026, 6, 15, 12, 0, 0)
+    naive = datetime(2026, 6, 15, 12, 0, 0)  # noqa: DTZ001 — deliberately naive
     result = parse_published(naive)
     assert result is not None
-    assert result.tzinfo is timezone.utc
+    assert result.tzinfo is UTC
     assert result.year == 2026
     assert result.month == 6
     assert result.day == 15
 
 
 def test_parse_published_with_aware_non_utc_converts_to_utc():
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
 
     from vultron.core.models._helpers import parse_published
 
@@ -239,38 +243,37 @@ def test_parse_published_with_aware_non_utc_converts_to_utc():
     aware_plus5 = datetime(2026, 6, 15, 17, 0, 0, tzinfo=plus5)
     result = parse_published(aware_plus5)
     assert result is not None
-    assert result.tzinfo is timezone.utc
+    assert result.tzinfo is UTC
     assert result.hour == 12  # 17:00+05:00 → 12:00 UTC
 
 
 def test_parse_published_with_valid_iso_string_returns_datetime():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from vultron.core.models._helpers import parse_published
 
     result = parse_published("2026-06-15T12:00:00+00:00")
     assert result is not None
     assert isinstance(result, datetime)
-    assert result.tzinfo is timezone.utc
+    assert result.tzinfo is UTC
 
 
 def test_parse_published_with_naive_iso_string_returns_utc():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from vultron.core.models._helpers import parse_published
 
     result = parse_published("2026-06-15T12:00:00")
     assert result is not None
     assert isinstance(result, datetime)
-    assert result.tzinfo is timezone.utc
+    assert result.tzinfo is UTC
 
 
 # --- has_case_statuses ----------------------------------------------------
 
 
 def test_has_case_statuses_true_when_non_empty():
-    from vultron.core.models.case import has_case_statuses
-    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case import VulnerabilityCase, has_case_statuses
     from vultron.core.models.case_status import CaseStatus
 
     case = VulnerabilityCase(
@@ -281,8 +284,7 @@ def test_has_case_statuses_true_when_non_empty():
 
 
 def test_has_case_statuses_false_when_empty():
-    from vultron.core.models.case import has_case_statuses
-    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 
     # No attributed_to → _init_case_statuses skips seeding → stays empty
     case = VulnerabilityCase(
@@ -294,8 +296,7 @@ def test_has_case_statuses_false_when_empty():
 
 def test_has_case_statuses_false_when_default():
     """VulnerabilityCase without attributed_to keeps case_statuses empty."""
-    from vultron.core.models.case import has_case_statuses
-    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 
     case = VulnerabilityCase(id_="https://example.org/cases/x3")
     assert has_case_statuses(case) is False
@@ -312,27 +313,27 @@ def test_parse_published_returns_utc_datetime_for_valid_datetime_input():
     input, prompting unnecessary None-guards in callers.  This test pins the
     non-None contract for the datetime path (Bug #3221).
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from vultron.core.models._helpers import parse_published
 
-    dt = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+    dt = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
     result = parse_published(dt)
     assert result is not None
-    assert result.tzinfo == timezone.utc
+    assert result.tzinfo == UTC
     assert result == dt
 
 
 def test_parse_published_returns_utc_datetime_for_valid_iso_string():
     """parse_published(str) must return a UTC datetime for a valid ISO string."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from vultron.core.models._helpers import parse_published
 
     result = parse_published("2026-01-15T12:00:00+05:30")
     assert result is not None
-    assert result.tzinfo == timezone.utc
-    assert result == datetime(2026, 1, 15, 6, 30, 0, tzinfo=timezone.utc)
+    assert result.tzinfo == UTC
+    assert result == datetime(2026, 1, 15, 6, 30, 0, tzinfo=UTC)
 
 
 def test_parse_published_returns_none_for_invalid_string():

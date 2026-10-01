@@ -29,6 +29,7 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
+from test.support.trigger_results import recipient_ids
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
@@ -45,7 +46,6 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from test.support.trigger_results import recipient_ids
 
 _VENDOR_ID = "https://example.org/actors/vendor-co"
 _DEPLOYER_ID = "https://example.org/actors/deployer-inc"
@@ -320,9 +320,9 @@ def test_neither_dimension_is_refused(client, actor, managed_case):
         json={"case_id": managed_case.id_, "target_actor_id": _VENDOR_ID},
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-    assert any(
-        "at least one" in d["msg"] for d in resp.json()["detail"]
-    ), resp.text
+    assert any("at least one" in d["msg"] for d in resp.json()["detail"]), (
+        resp.text
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -28,7 +28,7 @@ Per specs/behavior-tree-integration.yaml BT-15-001, BT-15-002.
 """
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 import py_trees
 

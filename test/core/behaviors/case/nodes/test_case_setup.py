@@ -31,6 +31,7 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes import (
     RecordCaseCreatedEventNode,
     RecordCaseCreationEvents,
@@ -46,7 +47,6 @@ from vultron.core.behaviors.report.nodes import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
-from test.core.behaviors.bt_harness import BTTestScenario
 
 # The URL used by tests as the CaseActor service base URL (CP-08-001).
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
@@ -410,9 +410,9 @@ class TestProposeCaseToActorNode:
         bt_scenario.assert_success(result)
 
         outbox_after = list(bt_scenario.dl.outbox_list() or [])
-        assert len(outbox_after) > len(
-            outbox_before
-        ), "ProposeCaseToActorNode must enqueue an activity to the outbox"
+        assert len(outbox_after) > len(outbox_before), (
+            "ProposeCaseToActorNode must enqueue an activity to the outbox"
+        )
 
     def test_persists_create_activity_in_datalayer(
         self,
@@ -436,9 +436,9 @@ class TestProposeCaseToActorNode:
         )
 
         create_activities_after = bt_scenario.dl.list_objects("Create")
-        assert len(create_activities_after) > len(
-            create_activities_before
-        ), "At least one new Create activity should be in the DataLayer"
+        assert len(create_activities_after) > len(create_activities_before), (
+            "At least one new Create activity should be in the DataLayer"
+        )
 
     def test_fails_without_case_id(
         self,

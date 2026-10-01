@@ -18,7 +18,7 @@ from unittest.mock import patch
 
 import pytest
 
-_UTC = datetime.timezone.utc
+_UTC = datetime.UTC
 
 # Body-only content (no frontmatter) — the tool now builds frontmatter.
 _IDEA_BODY = "This is a test idea body.\n"
@@ -933,7 +933,7 @@ class TestGitHubCommentMode:
             )
 
         assert mock_run.called
-        _, kwargs = mock_run.call_args
+        _, _kwargs = mock_run.call_args
         args_passed = mock_run.call_args[0][0]
         body_idx = args_passed.index("--body") + 1
         posted_body = args_passed[body_idx]

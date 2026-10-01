@@ -19,7 +19,7 @@ in-memory arm builds the ``EmbargoEvent`` itself, about the report
 stubbed: what is under test is the Offer the helper produces, not delivery.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -31,7 +31,7 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 _NODE = "http://vendor:7999/api/v2"
 _REPORTER = as_Actor(id_=f"{_NODE}/actors/finndervul", name="Finn")
 _RECEIVER = as_Actor(id_=f"{_NODE}/actors/vendorco", name="VendorCo")
-_END = datetime(2030, 6, 1, tzinfo=timezone.utc)
+_END = datetime(2030, 6, 1, tzinfo=UTC)
 
 
 @pytest.fixture(autouse=True)

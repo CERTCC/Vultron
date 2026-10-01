@@ -33,6 +33,7 @@ import py_trees
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
@@ -40,7 +41,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
-from vultron.config.actor import ActorConfig
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
 
@@ -145,8 +145,8 @@ class CheckCaseAlreadyExists(DataLayerConditionWithPorts):
             )
             return Status.SUCCESS
 
-        except Exception as e:
-            self.logger.error(
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 f"{self.name}: Error checking case existence: {e}"
             )
             return Status.FAILURE
@@ -199,8 +199,8 @@ class CheckCaseExistsForReport(DataLayerConditionWithPorts):
             )
             return Status.SUCCESS
 
-        except Exception as e:
-            self.logger.error(
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 f"{self.name}: Error checking case existence: {e}"
             )
             return Status.FAILURE
@@ -366,8 +366,8 @@ class CheckProposalAlreadySentForReport(DataLayerConditionWithPorts):
                 link.case_id,
             )
             return Status.FAILURE
-        except Exception as e:
-            self.logger.error(
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: error checking whether a proposal was sent for report '%s': %s",
                 self.name,
                 self.report_id,

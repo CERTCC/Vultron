@@ -30,7 +30,7 @@ def compile_patterns(
         information as values
     """
     # check that all the patterns are valid
-    for pattern in dict_of_patterns.keys():
+    for pattern in dict_of_patterns:
         is_valid_pattern(pattern)
 
     return {re.compile(k): v for k, v in dict_of_patterns.items()}

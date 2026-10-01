@@ -17,7 +17,7 @@
 
 """Provides a Record model for document database storage."""
 
-from functools import lru_cache
+from functools import cache, lru_cache
 from typing import Any, get_args
 
 from pydantic import BaseModel, ValidationError
@@ -89,7 +89,7 @@ def _activity_object_ref_properties() -> frozenset[str]:
     )
 
 
-@lru_cache(maxsize=None)
+@cache
 def object_ref_fields(cls: type[BaseModel]) -> frozenset[str]:
     """The generic AS2 object-reference fields *cls* actually declares.
 
@@ -421,7 +421,7 @@ class Record(StorableRecord):
             # records keyed only in CORE_TYPE_MAP (VM-06-008).
             cls = find_in_vocabulary(self.type_, include_core=True)
         except KeyError:
-            raise ValueError(
+            raise ValueError(  # noqa: B904  # ruff-baseline #3353
                 f"Type '{self.type_}' not found in vocabulary for Record conversion"
             )
         obj = cls.model_validate(self.data_)

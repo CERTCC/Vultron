@@ -628,9 +628,9 @@ class TestRejectCaseProposal:
         )
 
         stored = dl.read(activity_id)
-        assert not isinstance(
-            stored.object_, str
-        ), "a bare URI is unreadable to the vendor (AKM-03-001)"
+        assert not isinstance(stored.object_, str), (
+            "a bare URI is unreadable to the vendor (AKM-03-001)"
+        )
         assert stored.object_.id_ == proposal["id"]
 
     def test_addresses_the_proposer_when_no_recipients_given(self, adapter):

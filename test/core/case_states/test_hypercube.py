@@ -15,8 +15,8 @@ import unittest
 from itertools import product
 
 import vultron.core.case_states.hypercube as hc
-from vultron.errors import TransitionValidationError
 from vultron.core.case_states.validations import is_valid_transition
+from vultron.errors import TransitionValidationError
 
 
 class MyTestCase(unittest.TestCase):
@@ -34,8 +34,8 @@ class MyTestCase(unittest.TestCase):
         for p, x, a in product("pP", "xX", "aA"):
             s = "".join([p, x, a])
             for allowed in ["vfd", "Vfd", "VFd", "VFD"]:
-                a = f"{allowed}{s}"
-                self.assertIn(a, states)
+                state = f"{allowed}{s}"
+                self.assertIn(state, states)
                 count += 1
             for disallowed in ["vFd", "vfD", "vFD", "VfD"]:
                 d = f"{disallowed}{s}"
@@ -59,7 +59,7 @@ class MyTestCase(unittest.TestCase):
 
             # only one character should be different
             self.assertNotEqual(s1, s2)
-            diff = [x for x in zip(s1, s2) if x[0] != x[1]]
+            diff = [x for x in zip(s1, s2, strict=False) if x[0] != x[1]]
             self.assertEqual(len(diff), 1)
 
             # and it should be a lower to upper case transition

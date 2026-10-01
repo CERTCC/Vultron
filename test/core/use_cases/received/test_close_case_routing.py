@@ -27,10 +27,10 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
-from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.case.lifecycle import (
     CloseCaseReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,

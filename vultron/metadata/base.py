@@ -73,6 +73,7 @@ def parse_mkdocs_config(text: str) -> dict[str, object]:
     For a config that is not a file in this checkout, such as the
     ``mkdocs.yml`` on another git ref.
     """
+    # mkdocs.yml carries !!python/name tags; the text is the repository's own.
     config = yaml.load(text, Loader=MkDocsYamlLoader)  # noqa: S506
     return config if isinstance(config, dict) else {}
 

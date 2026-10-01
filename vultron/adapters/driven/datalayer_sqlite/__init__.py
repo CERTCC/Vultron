@@ -30,7 +30,7 @@ import logging
 
 from .datalayer import SqliteDataLayer
 from .engine import dispose_actor_engines, reset_store_claimants
-from .schema import VultronObjectRecord, QueueEntry
+from .schema import QueueEntry, VultronObjectRecord
 
 __all__ = [
     "SqliteDataLayer",
@@ -149,7 +149,7 @@ def reset_datalayer(actor_id: str | None = None) -> None:
         actor_id: If provided, resets only the instance for that actor.
             If ``None``, resets every per-actor instance.
     """
-    global _actor_instances
+    global _actor_instances  # noqa: PLW0603  # ruff-baseline #3985
 
     instances_to_close: list[SqliteDataLayer] = []
 

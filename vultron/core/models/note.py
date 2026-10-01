@@ -17,7 +17,7 @@
 
 from pydantic import Field
 
-from vultron.core.models.base import NonEmptyString, CoreObject
+from vultron.core.models.base import CoreObject, NonEmptyString
 
 
 class VultronNote(CoreObject):

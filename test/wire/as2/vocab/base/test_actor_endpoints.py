@@ -25,7 +25,7 @@ form must not change as a side effect of registering the collection types
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -95,7 +95,7 @@ def _arrival_shapes(field_name: str) -> dict[str, dict[str, Any]]:
 
 
 _SHAPES = list(_arrival_shapes("inbox"))
-_ARRIVED_AT = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+_ARRIVED_AT = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
 
 @pytest.mark.parametrize("actor_cls", _ACTOR_CLASSES)

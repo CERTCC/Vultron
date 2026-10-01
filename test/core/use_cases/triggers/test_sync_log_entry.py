@@ -28,6 +28,7 @@ Covers, against a real in-memory store (``notes/triggers-test-coverage.md``):
 import py_trees
 import pytest
 
+from test.support.trigger_results import recipient_ids
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -42,7 +43,6 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.core.use_cases.triggers.sync_log_entry import (
     SvcSyncLogEntryUseCase,
 )
-from test.support.trigger_results import recipient_ids
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronCanonicalEntryError, VultronNotFoundError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -232,9 +232,9 @@ def test_single_container_commit_lands_in_the_case_managers_store(
         assert result.emitting_actor_id == cm_actor.id_
         assert isinstance(cm_dl.read(result.log_entry_id), CaseLedgerEntry)
         assert dl.read(result.log_entry_id) is None
-        assert (
-            set(cm_dl.outbox_list()) - cm_before
-        ), "fan-out must be queued in the CASE_MANAGER's outbox"
+        assert set(cm_dl.outbox_list()) - cm_before, (
+            "fan-out must be queued in the CASE_MANAGER's outbox"
+        )
         assert not dl.outbox_list()
     finally:
         cm_dl.clear_all()

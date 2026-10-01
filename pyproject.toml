@@ -121,9 +121,148 @@ git_describe_command = "git describe --dirty --tags --long --match v[0-9]*"
 
 #[tools.setuptools.dynamic]
 
-[tool.black]
-line-length = 79
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312', 'py313' ]
+[tool.ruff]
+# Scope is declared here, never in a command line (IMPLTS-07-021): every caller
+# runs a bare `ruff check` / `ruff format`. Lint covers the whole tracked Python
+# surface; gitignored paths are skipped by ruff's `respect-gitignore` default.
+# See ADR-0094 and notes/lint-tooling.md.
+line-length = 79                 # the retired [tool.black] value
+target-version = "py312"         # IMPLTS-01-001
+# Pre-commit passes staged filenames; without this ruff would lint a file named
+# on the command line even when the config excludes it, and the hook and the CI
+# job would disagree about scope.
+force-exclude = true
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "C90",  # mccabe complexity (IMPLTS-07-008)
+    "I",    # import sorting (CS-02-001)
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules, including RUF100 (IMPLTS-07-020)
+    "PL",   # pylint
+    "TRY",  # tryceratops
+    "DTZ",  # flake8-datetimez (CS-13-001)
+    "BLE",  # flake8-blind-except (CS-23-001)
+    "S",    # flake8-bandit
+    "TC",   # flake8-type-checking
+    "RET",  # flake8-return
+    "G",    # flake8-logging-format
+    "PYI",  # flake8-pyi
+]
+# Every entry states what the rule reports and why it is not enforced
+# (IMPLTS-07-019). Tighten by deleting one line — see notes/lint-tooling.md.
+ignore = [
+    # import-outside-top-level. Provisional: #3949 deletes this entry, hoists the
+    # habit sites and baselines the genuine cycle breaks (CS-05-002).
+    "PLC0415",
+    # runtime-cast-value: would quote the type argument of every cast(). Churn.
+    "TC006",
+    # raise-vanilla-args: would require one exception class per message string.
+    "TRY003",
+    # magic-value-comparison: overwhelmingly test literals, where a named
+    # constant reduces clarity.
+    "PLR2004",
+    # too-many-public-methods / -return-statements / -branches / -arguments /
+    # -locals / -statements / -boolean-expressions / -positional-arguments.
+    # C901 at max-complexity = 10 is the one complexity gate (IMPLTS-07-008); a
+    # second, differently-calibrated gate would compete with it.
+    "PLR0904",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0914",
+    "PLR0915",
+    "PLR0916",
+    "PLR0917",
+    # logging-f-string. Provisional: #3378 settled the rewrite target (a literal
+    # template with lazy args, SL-01-005); #3991 rewrites every site and deletes
+    # this entry. Tracked as #3991.
+    "G004",
+    # typing-only-{first,third}-party / standard-library import: would force
+    # `if TYPE_CHECKING:` blocks across the tree for no stated requirement.
+    "TC001",
+    "TC002",
+    "TC003",
+    # unnecessary-assign: assign-then-return is the more readable form at the
+    # sites where it appears.
+    "RET504",
+    # ambiguous-unicode-character in strings, docstrings and comments: fires on
+    # prose (dashes, arrows), not code.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # try-consider-else, suppressible-exception, multiple-with-statements:
+    # style preferences; nested `with` is frequently the clearer form.
+    "TRY300",
+    "SIM105",
+    "SIM117",
+    # non-pep695-type-alias / -generic-function: PEP 695 syntax modernization
+    # with no requirement behind it.
+    "UP040",
+    "UP047",
+    # snake-case-type-alias: snake_case type aliases are house style.
+    "PYI042",
+    # unsorted-dunder-all: package `__all__` lists are grouped by submodule
+    # under section comments; sorting them alphabetically scatters the groups
+    # and strands the comments.
+    "RUF022",
+    # mutable-class-default: false positives on the two dominant shapes. A
+    # py_trees node's INPUT_PORTS/OUTPUT_PORTS must stay unannotated-ClassVar
+    # (py_trees' PortsMixin declares them as instance attributes, so a ClassVar
+    # override is a mypy error), and ruff cannot see a pydantic model through
+    # an indirect base (as_Object), where ClassVar would delete a field. Our
+    # own class-level tables carry ClassVar explicitly.
+    "RUF012",
+    # line-too-long, whitespace-before-punctuation: owned by the formatter.
+    # Carried over from the retired .flake8 extend-ignore.
+    "E501",
+    "E203",
+    # assert: `assert` is pytest's assertion idiom in test/, and in vultron/ it
+    # narrows types and states invariants; the -O stripping hazard it guards
+    # against does not apply to how this project is run.
+    "S101",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10              # IMPLTS-07-008
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dependency injection is declared as a `Depends()` default; B008 stays
+# selected for every other call in an argument default.
+extend-immutable-calls = ["fastapi.Depends"]
+
+[tool.ruff.lint.isort]
+# Keep `from m import (A as B, c)` one statement. Splitting it strands a
+# statement-level `# noqa: F401` on one half, and F401 then deletes the
+# re-exports in the other.
+combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]         # re-exports, carried from the retired .flake8
+# Permanent, justified exemptions — not a baseline store (notes/lint-tooling.md).
+# suspicious-non-cryptographic-random-usage: the bt/ simulator and the demo
+# fuzzers draw random outcomes by design, and tests draw random fixtures; none
+# of it is a secret. Elsewhere each `random` call carries its own noqa.
+"vultron/bt/**" = ["S311"]
+"vultron/demo/fuzzer/**" = ["S311"]
+# subprocess-without-shell / start-process-with-partial-path: dev tooling
+# shells out to git, gh and uv with argv lists (never shell=True), resolved on
+# the developer's PATH on purpose.
+"vultron/metadata/**" = ["S603", "S607"]
+"scripts/**" = ["S603", "S607"]
+".agents/**" = ["S603", "S607"]
+"test/**" = ["S311", "S603", "S607"]
+
+[tool.ruff.format]
+# ruff formats Python fenced inside Markdown; black never did. Excluding it
+# keeps append-only plan/history/ (HM-01-005, bug #2952), docs/ (DF-09-001)
+# and the skill trees untouched.
+exclude = ["**/*.md"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -193,16 +332,10 @@ members = [
     "help",
 ]
 
-[tool.isort]
-profile = "black"
-
 [dependency-groups]
 dev = [
-    "black>=26.5.1",
     "codespell>=2.4.3",
-    "flake8>=7.3.0",
     "graphifyy>=0.9.43",
-    "isort>=7.0.0",
     "mypy>=2.3.0",
     "pandas-stubs>=3.0.5.260730",
     "pre-commit>=4.6.2",
@@ -210,6 +343,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-timeout>=0.5",
     "pytest-xdist>=3.8.0",
+    "ruff>=0.16.9",
     "types-networkx>=3.6.1.20260728",
     "types-pyyaml>=6.0.12.20260724",
 ]

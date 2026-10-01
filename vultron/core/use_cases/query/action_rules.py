@@ -17,8 +17,9 @@
 Implements CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
 """
 
-from pydantic import BaseModel
 from typing import cast
+
+from pydantic import BaseModel
 
 from vultron.core.case_states.patterns.potential_actions import (
     action as get_actions,
@@ -31,10 +32,10 @@ from vultron.core.scoring.utils import enum2title
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.use_cases.triggers._helpers import resolve_case
 from vultron.core.use_cases._helpers import (
     resolve_case_participant_id_for_actor,
 )
+from vultron.core.use_cases.triggers._helpers import resolve_case
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 

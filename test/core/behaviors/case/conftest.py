@@ -13,15 +13,15 @@ that multiple tree test files can reuse them without redefinition.
 
 import pytest
 
-# noqa: F401 — imported for vocabulary registration side-effect
-from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    as_VulnerabilityCase,
-)
-
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_actor import CaseActor
 from vultron.wire.as2.factories import rm_submit_report_activity
+
+# imported for vocabulary registration side-effect
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )

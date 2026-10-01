@@ -12,14 +12,14 @@ from __future__ import annotations
 
 import re
 from enum import StrEnum
-from typing import Annotated, Union
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
 
-from vultron.metadata.base import NonEmptyStr
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.metadata.base import NonEmptyStr
 
 #: A fully-qualified requirement ID as it appears in prose — ``PREFIX-NN-NNN``
 #: (MS-04-001): 2–8 uppercase letters, two-digit group, three-digit index.
@@ -378,7 +378,7 @@ class BehavioralSpec(StatementSpec):
         return v
 
 
-Spec = Union[BehavioralSpec, StatementSpec]
+Spec = BehavioralSpec | StatementSpec
 
 
 class SpecGroup(BaseModel):

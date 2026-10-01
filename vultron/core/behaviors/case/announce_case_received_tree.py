@@ -20,23 +20,22 @@ Wraps ``SeedAnnouncedCaseNode`` for use with
 """
 
 import logging
+from typing import Any
 
 import py_trees
 
-from typing import Any, Union
-
 from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.case import VulnerabilityCase
 
 logger = logging.getLogger(__name__)
 
 
 def create_announce_vulnerability_case_received_tree(
     case_id: str,
-    case_obj: Union[VulnerabilityCase, Any],
+    case_obj: VulnerabilityCase | Any,
     request: AnnounceVulnerabilityCaseReceivedEvent,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``AnnounceVulnerabilityCaseReceivedUseCase``.

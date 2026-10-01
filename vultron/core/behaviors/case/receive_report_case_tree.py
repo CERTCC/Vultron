@@ -47,6 +47,7 @@ import logging
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
     CheckProposalAlreadySentForReport,
@@ -54,7 +55,6 @@ from vultron.core.behaviors.case.nodes import (
     ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
 )
-from vultron.config.actor import ActorConfig
 
 logger = logging.getLogger(__name__)
 

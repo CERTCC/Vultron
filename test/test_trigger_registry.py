@@ -32,12 +32,12 @@ from vultron.core.models.use_case_result import (
     RoleOfferResult,
     StatusResult,
 )
+from vultron.core.use_cases.triggers.actor import (
+    SvcOfferCaseParticipantRoleUseCase,
+)
 from vultron.core.use_cases.triggers.case import (
     SvcAddParticipantStatusUseCase,
     SvcEngageCaseUseCase,
-)
-from vultron.core.use_cases.triggers.actor import (
-    SvcOfferCaseParticipantRoleUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
     AddParticipantStatusTriggerRequest,

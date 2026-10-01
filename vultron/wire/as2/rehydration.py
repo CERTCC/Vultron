@@ -342,7 +342,7 @@ def _resolve_string_id(obj_id: str, dl: DataLayer) -> as_Object:
     if resolved is None:
         raise ValueError(f"Object '{obj_id}' not found in data layer")
     if not isinstance(resolved, (as_Object, CoreObject)):
-        raise ValueError(
+        raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
             f"Object '{obj_id}' resolved to unsupported type "
             f"{type(resolved).__name__}"
         )
@@ -424,7 +424,7 @@ def _cast_to_vocabulary_type(obj: as_Object, dl: DataLayer) -> as_Object:
     try:
         cls = find_in_vocabulary(obj.type_)
     except KeyError:
-        logger.error("Unknown object type: %s.", obj.type_)
+        logger.error("Unknown object type: %s.", obj.type_)  # noqa: TRY400  # ruff-baseline #3353
         raise
     if isinstance(obj, cls):
         logger.debug(
@@ -442,10 +442,10 @@ def _cast_to_vocabulary_type(obj: as_Object, dl: DataLayer) -> as_Object:
     try:
         rehydrated = cls.model_validate(data)
     except ValidationError:
-        logger.error("%s validation failed on %s.", cls.__name__, obj)
+        logger.error("%s validation failed on %s.", cls.__name__, obj)  # noqa: TRY400  # ruff-baseline #3353
         raise
     if not isinstance(rehydrated, (as_Object, CoreObject)):
-        raise ValueError(
+        raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
             f"Rehydration of {obj.type_} produced unsupported type "
             f"{type(rehydrated).__name__}"
         )
