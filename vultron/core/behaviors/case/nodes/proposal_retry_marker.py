@@ -39,7 +39,10 @@ from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.wire_keys import wire_key
+from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +198,20 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             else:
                 inlined_reports.append(report_ref)
         case_dict["vulnerability_reports"] = inlined_reports
+        # Carry the active embargo inline too: a recipient refuses a case
+        # naming an embargo its own store cannot read (EMB-18-003), and the
+        # CASE_MANAGER minted this one, so no recipient holds it yet.  Raises
+        # when this store cannot read it — sending the bare id would only
+        # hand every recipient a case it must refuse.
+        if isinstance(raw_case.active_embargo, str):
+            embargo = read_embargo_event(
+                self.datalayer, raw_case.active_embargo
+            )
+            embargo_dict = port.render(embargo)
+            embargo_dict.setdefault("type", "EmbargoEvent")
+            case_dict[wire_key("active_embargo", VulnerabilityCase)] = (
+                embargo_dict
+            )
         return case_dict
 
     def update(self) -> Status:
@@ -228,7 +245,15 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         # can reconstruct the exact same activity without re-running the BT.
         # AC-5 (ADR-0041): embed full inline case object with materialised
         # participants so _store_embedded_participants seeds the vendor replica.
-        case_object = self._build_case_object(case)
+        try:
+            case_object = self._build_case_object(case)
+        except (VultronNotFoundError, VultronValidationError) as exc:
+            self.feedback_message = (
+                f"Invariant violation (EMB-18-003): case '{case_id}' names an"
+                f" active embargo this store cannot read: {exc}"
+            )
+            logger.exception("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
         # ADR-0041 AC-5: bootstrap all known participants directly.
         # Include REPORTER/FINDER URIs so their DataLayers receive the case

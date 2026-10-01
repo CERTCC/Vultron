@@ -12,8 +12,11 @@ from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.carried_embargo import store_carried_embargo
 from vultron.core.states.rm import RM, is_monotonic_rm_forward
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -76,30 +79,33 @@ def _check_participant_embargo_acceptance(
     return find_excluded_actor_ids(case, dl)
 
 
-def _store_embedded_embargo(
+def _hold_carried_embargo(
     case_obj: VulnerabilityCase, dl: CasePersistence, case_id: str
-) -> None:
-    """Store the ``EmbargoEvent`` a received case carried inline, if any.
+) -> HandlerResult | None:
+    """Hold the ``EmbargoEvent`` a received case names, before it is saved.
 
-    Delegates to the BT-node helper of the same name so there is one
-    implementation; this wrapper exists so the received-side use cases can reach
-    it alongside :func:`_store_embedded_participants` rather than importing from
-    a behaviours module.
+    Delegates to :func:`~vultron.core.services.carried_embargo.store_carried_embargo`
+    so there is one implementation with the announce seed and the inbox
+    pre-store.  The sender carries the embargo rather than referencing it
+    because a receiver cannot dereference a URI it does not hold
+    (AKM-03-001) — see ``_case_for_wire``; storing it is what makes this
+    actor's own ``case.active_embargo`` resolve.
 
-    The sender carries the embargo rather than referencing it because a receiver
-    cannot dereference a URI it does not hold (AKM-03-001) — see
-    ``_case_for_wire``. Storing it is what makes this actor's own
-    ``case.active_embargo`` resolve.
+    Call it *before* saving the case.  Returns ``None`` when the named
+    embargo (if any) is now held, or a ``REFUSED`` result when the case names
+    one this store cannot read — the caller returns it and saves nothing
+    (EMB-18-003).
     """
-    from vultron.core.behaviors.case.nodes.announce import (
-        _store_embedded_embargo as _store,
-    )
-
-    _store(case_obj, dl)
-    logger.debug(
-        "_store_embedded_embargo: checked inline embargo for case '%s'",
-        case_id,
-    )
+    try:
+        store_carried_embargo(case_obj, dl)
+    except (VultronNotFoundError, VultronValidationError) as exc:
+        reason = (
+            f"case '{case_id}' names an active embargo this store cannot"
+            f" read (EMB-18-003): {exc}"
+        )
+        logger.warning("Refusing received case: %s", reason)
+        return HandlerResult.refused(reason)
+    return None
 
 
 def _store_embedded_participants(

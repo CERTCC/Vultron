@@ -72,8 +72,29 @@ one-line comment saying why (#3991 AC-3). Likewise an argument expression that
 raises (`case.id` on `None`) raises in the caller under either form; only faults
 in rendering move into logging.
 
+**A plain `py_trees` node's `self.logger` cannot take lazy arguments.** It is
+`py_trees.logging.Logger`, whose level methods accept one pre-rendered message,
+so `self.logger.debug("tick %s", n)` raises `TypeError` inside `update()`; and
+ruff's `G` rules recognize a logger by its receiver name (`logger`, `log`,
+`self.logger`), not its type, so pre-rendering into an f-string fails the gate.
+Log through the stdlib logger that `vultron/core/behaviors/node_logger.py`'s
+`node_logger(node)` returns: the `DataLayer*` bases and the other Vultron node
+bases rebind `self.logger` to it, and a module-level helper that logs on a
+node's behalf binds `log = node_logger(node)` first and calls `log.error(...)`.
+Bind before calling: ruff cannot see a call on a call result, so
+`node_logger(node).error(f"...")` would pass `G004` and `TRY400` unchecked.
+mypy reports the original mistake as `Too many arguments for "debug" of
+"Logger"` where the receiver is typed.
+
+**A message built once for two consumers is passed as one `%s` argument.** A
+node that composes a `feedback_message` (or a result or error string) and also
+logs it logs `self.logger.warning("%s", self.feedback_message)`, not the bare
+variable and not a second copy of the template: the text has one source, and
+the log call still has a literal template. Banner lines such as `"=" * 80`
+format no values and are left as they are.
+
 The rule is decided in SL-01-005 and enforced by ruff rules `G001`–`G004`. The
-shape was decided under #3378; #3991 enables the rules by deleting the
+shape was decided under #3378; #3991 enabled the rules by deleting the
 provisional `G004` `ignore` entry ADR-0094 had recorded and rewriting every site.
 The `G004` finding count at the time is in ADR-0094, not here (MS-16-001).
 

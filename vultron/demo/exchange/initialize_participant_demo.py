@@ -139,7 +139,8 @@ def demo_initialize_participant(
         if initial_case is None:
             raise ValueError("Could not fetch initial case state")
         logger.info(
-            f"Initial participant count: {len(initial_case.case_participants)}"
+            "Initial participant count: %s",
+            len(initial_case.case_participants),
         )
 
     initial_count = len(initial_case.case_participants) if initial_case else 0
@@ -154,7 +155,8 @@ def demo_initialize_participant(
             context=case.id_,
         )
         logger.info(
-            f"Created coordinator participant: {logfmt(coordinator_participant)}"
+            "Created coordinator participant: %s",
+            logfmt(coordinator_participant),
         )
         create_coordinator_participant = create_participant_activity(
             coordinator_participant, actor=vendor.id_, context=case.id_
@@ -198,8 +200,9 @@ def demo_initialize_participant(
                 f" got {participant_count}"
             )
         logger.info(
-            f"Final participant count: {participant_count} ✓"
-            f" (initial {initial_count} + coordinator)"
+            "Final participant count: %s ✓ (initial %s + coordinator)",
+            participant_count,
+            initial_count,
         )
 
     logger.info("✅ DEMO COMPLETE: Coordinator added as participant to case.")

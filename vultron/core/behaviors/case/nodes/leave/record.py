@@ -128,7 +128,7 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
         """
         self.feedback_message = f"{self.name}: {reason}"
         logger.warning("%s", self.feedback_message)
-        self.logger.warning(self.feedback_message)
+        self.logger.warning("%s", self.feedback_message)
         return Status.SUCCESS
 
     def _latest_rm_closed_status(

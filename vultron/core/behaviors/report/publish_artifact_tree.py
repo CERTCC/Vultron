@@ -71,6 +71,7 @@ from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import BaseModel
 
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
+from vultron.core.behaviors.node_logger import node_logger
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.publication import (
@@ -132,9 +133,7 @@ class _NeedsRevisionGate(BehaviourWithPorts):
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.logger = logging.getLogger(  # type: ignore[assignment]
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)  # type: ignore[assignment]
 
     # data_type=object: accept any value; isinstance check in update()
     # handles the type contract (avoid TypeError from get_input).

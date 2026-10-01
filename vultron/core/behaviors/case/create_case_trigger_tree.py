@@ -170,7 +170,7 @@ class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"CreateCase activity construction failed: {exc}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         self._set_output("activity_id", activity_id)

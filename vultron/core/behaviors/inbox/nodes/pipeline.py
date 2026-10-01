@@ -52,6 +52,7 @@ from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.inbox.models import InboxOutcomeStatus
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.models.events import (
     is_case_bootstrap,
     resolve_case_context_id,
@@ -101,9 +102,7 @@ class _InboxNodeWithPorts(BehaviourWithPorts):
 
     def __init__(self, name: str) -> None:
         super().__init__(name=name)
-        self.logger = logging.getLogger(  # type: ignore[assignment]
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)  # type: ignore[assignment]
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
