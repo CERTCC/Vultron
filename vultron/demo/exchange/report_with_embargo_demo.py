@@ -64,17 +64,23 @@ report" and the semantics in ``notes/embargo-default-semantics.md``.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Callable, Optional, Sequence, Tuple
 
 from vultron.core.models._helpers import from_now_utc
-from vultron.core.states.em import EM
 from vultron.demo.helpers.embargo import publish_embargo_policy
+from vultron.demo.helpers.embargo_outcome import (
+    assert_window_is,
+    verify_pending_revision,
+    verify_receiver_default_active,
+    verify_receiver_replica_agrees,
+    verify_reporter_terms_active,
+    verify_uncontested,
+)
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     reporter_submits_report,
     wait_for_case_by_report,
-    wait_for_case_for_offer,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -87,9 +93,6 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -102,17 +105,9 @@ REPORTER_SHORTER_DAYS = 10
 #: A Reporter proposal longer than the Receiver's default.
 REPORTER_LONGER_DAYS = 60
 
-#: How far the actor default's realised window may drift from the published
-#: duration: the CaseActor stamps ``start_time`` and ``end_time`` on two
-#: consecutive clock reads at second precision.
-_DEFAULT_WINDOW_TOLERANCE = timedelta(minutes=1)
-#: The protocol default may be configured no longer than this (EP-04-005).
-_PROTOCOL_DEFAULT_CEILING = timedelta(days=5)
-
 
 # ---------------------------------------------------------------------------
-# Reads against the CaseActor's store
-# ---------------------------------------------------------------------------
+# Provisioning
 
 
 def _provision_receivers_case_actor(client: DataLayerClient) -> as_Actor:
@@ -126,213 +121,6 @@ def _provision_receivers_case_actor(client: DataLayerClient) -> as_Actor:
     :func:`reporter_submits_report` returns this same actor.
     """
     return seed_case_actor_for_report(client, report_id="(pending)")
-
-
-def _read_embargo(
-    client: DataLayerClient, case_actor_id: str, embargo_id: str
-) -> as_EmbargoEvent:
-    """Read an ``EmbargoEvent`` from the CaseActor's own store."""
-    data = client.get(client.dl_path(embargo_id, actor_id=case_actor_id))
-    return as_EmbargoEvent.model_validate(data)
-
-
-def _window(embargo: as_EmbargoEvent) -> timedelta:
-    """The embargo's realised duration, start to end."""
-    if embargo.start_time is None:
-        raise AssertionError(
-            f"Embargo {embargo.id_} carries no start_time, so its window"
-            " cannot be measured"
-        )
-    return embargo.end_time - embargo.start_time
-
-
-def _assert_about_the_case(
-    embargo: as_EmbargoEvent, case: as_VulnerabilityCase
-) -> None:
-    """EP-04-009: on the case-actor's side every embargo names the case."""
-    if embargo.context != case.id_:
-        raise AssertionError(
-            f"Embargo {embargo.id_} is about {embargo.context!r}, expected"
-            f" the case {case.id_!r} (EP-04-009)"
-        )
-
-
-def _assert_window_is(
-    embargo: as_EmbargoEvent, expected: timedelta, label: str
-) -> None:
-    """The embargo's window matches *expected* within the clock tolerance."""
-    window = _window(embargo)
-    if abs(window - expected) > _DEFAULT_WINDOW_TOLERANCE:
-        raise AssertionError(
-            f"{label} embargo {embargo.id_} runs {window}, expected"
-            f" {expected} (±{_DEFAULT_WINDOW_TOLERANCE})"
-        )
-
-
-# ---------------------------------------------------------------------------
-# Verification of the creation-time outcome
-# ---------------------------------------------------------------------------
-
-
-def _verify_reporter_terms_active(
-    client: DataLayerClient,
-    case_actor_id: str,
-    case: as_VulnerabilityCase,
-    proposal_id: str,
-    proposed_end: datetime,
-) -> as_EmbargoEvent:
-    """The Reporter's own event is the active embargo, identity kept."""
-    active_id = case.active_embargo_id
-    with demo_check("Active embargo is the Reporter's proposed event"):
-        if active_id != proposal_id:
-            raise AssertionError(
-                f"Expected the Reporter's proposal {proposal_id!r} to be the"
-                f" active embargo, found {active_id!r}"
-            )
-    active = _read_embargo(client, case_actor_id, proposal_id)
-    with demo_check("Active embargo ends when the Reporter proposed"):
-        if active.end_time != proposed_end:
-            raise AssertionError(
-                f"Active embargo ends {active.end_time.isoformat()}, the"
-                f" Reporter proposed {proposed_end.isoformat()}"
-            )
-    with demo_check("Active embargo is now about the case (EP-04-009)"):
-        _assert_about_the_case(active, case)
-    logger.info(
-        "Reporter's terms are the active embargo: %s ends %s",
-        active.id_,
-        active.end_time.isoformat(),
-    )
-    return active
-
-
-def _verify_receiver_default_active(
-    client: DataLayerClient,
-    case_actor_id: str,
-    case: as_VulnerabilityCase,
-    proposal_id: str,
-) -> as_EmbargoEvent:
-    """The Receiver's default, not the Reporter's event, is the active embargo."""
-    active_id = case.active_embargo_id
-    with demo_check("Active embargo is not the Reporter's proposed event"):
-        if active_id is None or active_id == proposal_id:
-            raise AssertionError(
-                f"Expected the Receiver's default to be active, found"
-                f" active_embargo={active_id!r} (proposal {proposal_id!r})"
-            )
-    assert active_id is not None
-    active = _read_embargo(client, case_actor_id, active_id)
-    with demo_check(
-        f"Active embargo runs the Receiver's {RECEIVER_DEFAULT_DAYS}-day default"
-    ):
-        _assert_window_is(
-            active, timedelta(days=RECEIVER_DEFAULT_DAYS), "Active"
-        )
-    logger.info(
-        "Receiver's default is the active embargo: %s ends %s",
-        active.id_,
-        active.end_time.isoformat(),
-    )
-    return active
-
-
-def _verify_pending_revision(
-    client: DataLayerClient,
-    case_actor_id: str,
-    case: as_VulnerabilityCase,
-    active: as_EmbargoEvent,
-) -> as_EmbargoEvent:
-    """Exactly one longer proposal is pending and the case sits at REVISE."""
-    with demo_check("Case is at EM.REVISE — the longer terms are pending"):
-        if case.current_status.em_state != EM.REVISE:
-            raise AssertionError(
-                f"Expected EM.REVISE with a revision pending, found"
-                f" {case.current_status.em_state}"
-            )
-    with demo_check("Exactly one revision is registered on the case"):
-        if len(case.proposed_embargo_ids) != 1:
-            raise AssertionError(
-                "Expected exactly one pending revision, found"
-                f" {case.proposed_embargo_ids}"
-            )
-    revision = _read_embargo(
-        client, case_actor_id, case.proposed_embargo_ids[0]
-    )
-    with demo_check("Pending revision is about the case and ends later"):
-        _assert_about_the_case(revision, case)
-        if revision.end_time <= active.end_time:
-            raise AssertionError(
-                f"Revision {revision.id_} ends {revision.end_time.isoformat()},"
-                " not after the active embargo's"
-                f" {active.end_time.isoformat()} — shortest-wins would have"
-                " activated it instead (EP-04-003)"
-            )
-    logger.info(
-        "Shortest-wins: active %s ends %s; revision %s ends %s",
-        active.id_,
-        active.end_time.isoformat(),
-        revision.id_,
-        revision.end_time.isoformat(),
-    )
-    return revision
-
-
-def _verify_uncontested(
-    case: as_VulnerabilityCase, active: as_EmbargoEvent
-) -> None:
-    """No default competed: ACTIVE, nothing pending, and not the fallback."""
-    with demo_check("Case is at EM.ACTIVE with nothing pending"):
-        if case.current_status.em_state != EM.ACTIVE:
-            raise AssertionError(
-                f"Expected EM.ACTIVE, found {case.current_status.em_state}"
-            )
-        if case.proposed_embargo_ids:
-            raise AssertionError(
-                "Expected no pending revision with no actor default, found"
-                f" {case.proposed_embargo_ids}"
-            )
-    with demo_check(
-        "Active window exceeds the protocol default ceiling — the proposal"
-        " was honored (EP-04-006, EP-04-007)"
-    ):
-        if _window(active) <= _PROTOCOL_DEFAULT_CEILING:
-            raise AssertionError(
-                f"Active embargo runs {_window(active)}, within the protocol"
-                f" default ceiling {_PROTOCOL_DEFAULT_CEILING}: the fallback"
-                " may have been applied instead of the Reporter's terms"
-            )
-    logger.info(
-        "No actor default competed: %s runs %s, nothing pending",
-        active.id_,
-        _window(active),
-    )
-
-
-def _verify_receiver_replica_agrees(
-    client: DataLayerClient,
-    vendor: as_Actor,
-    offer_id: str,
-    canonical: as_VulnerabilityCase,
-) -> None:
-    """The Receiver's replica shows the same EM outcome as the canonical case.
-
-    The replica's arrival is a causal effect of the CaseActor's
-    ``Create(VulnerabilityCase)`` fan-out (ADR-0058), observed here rather
-    than gated: nothing downstream depends on it, so a replica that has not
-    landed is a recorded check, not a skipped run (EDF-06-005).
-    """
-    with demo_check(
-        "Receiver's replica carries the same EM state (observed, not gated)"
-    ):
-        replica = wait_for_case_for_offer(client, offer_id)
-        if (
-            replica.current_status.em_state
-            != canonical.current_status.em_state
-        ):
-            raise AssertionError(
-                f"Receiver {vendor.id_} sees {replica.current_status.em_state},"
-                f" the CaseActor holds {canonical.current_status.em_state}"
-            )
 
 
 # ---------------------------------------------------------------------------
@@ -416,31 +204,35 @@ def _run_negotiated_submission(
             )
 
             if receiver_default_days is None:
-                active = _verify_reporter_terms_active(
+                active = verify_reporter_terms_active(
                     client, case_actor.id_, case, proposal_id, proposed_end
                 )
-                _verify_uncontested(case, active)
+                verify_uncontested(case, active)
             elif reporter_days < receiver_default_days:
-                active = _verify_reporter_terms_active(
+                active = verify_reporter_terms_active(
                     client, case_actor.id_, case, proposal_id, proposed_end
                 )
-                revision = _verify_pending_revision(
+                revision = verify_pending_revision(
                     client, case_actor.id_, case, active
                 )
                 with demo_check(
                     f"Pending revision runs the Receiver's"
                     f" {receiver_default_days}-day default"
                 ):
-                    _assert_window_is(
+                    assert_window_is(
                         revision,
                         timedelta(days=receiver_default_days),
                         "Pending",
                     )
             else:
-                active = _verify_receiver_default_active(
-                    client, case_actor.id_, case, proposal_id
+                active = verify_receiver_default_active(
+                    client,
+                    case_actor.id_,
+                    case,
+                    proposal_id,
+                    receiver_default_days,
                 )
-                revision = _verify_pending_revision(
+                revision = verify_pending_revision(
                     client, case_actor.id_, case, active
                 )
                 with demo_check(
@@ -459,7 +251,7 @@ def _run_negotiated_submission(
                             f" the Reporter proposed {proposed_end.isoformat()}"
                         )
 
-            _verify_receiver_replica_agrees(client, vendor, offer.id_, case)
+            verify_receiver_replica_agrees(client, vendor, offer.id_, case)
 
 
 # ---------------------------------------------------------------------------

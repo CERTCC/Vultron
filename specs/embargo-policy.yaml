@@ -176,7 +176,12 @@ groups:
       (`TestPutEmbargoPolicy`) confirms 201 on first publish and 200 on replace with one
       record remaining, `actor_id`/`inbox` derived from the actor record, 404 for an actor
       this node does not host, 422 for a malformed or calendar-unit duration or a body that
-      names an actor, and that `owner_embargo_policies` returns the published record.
+      names an actor, and that `owner_embargo_policies` returns the published record. The
+      published record's id is the endpoint URL (`EmbargoPolicy.build_id`), so a replace is an
+      overwrite of one record: `test_two_publishes_that_both_see_no_prior_policy_leave_one_record`
+      confirms two publishes that each read "nothing published" still leave exactly one, and
+      `test_a_publish_sweeps_policies_seeded_under_other_ids` that a record under any other id
+      is removed.
     scope:
     - production
     relationships:

@@ -26,7 +26,12 @@ Sub-modules
   ``find_case_actor_participant_id``, ``find_ownership_transfer_offer_for_actor``,
   ``resolve_case_actor_store_id``, ``wait_for_object_stored``, and all
   ``wait_for_*`` helpers.
-- :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory.
+- :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory and
+  ``publish_embargo_policy`` (``PUT /actors/{slug}/embargo-policy``, EP-02).
+- :mod:`~vultron.demo.helpers.embargo_outcome` — creation-time embargo outcome
+  checks for the negotiated path (``verify_reporter_terms_active``,
+  ``verify_receiver_default_active``, ``verify_pending_revision``,
+  ``verify_uncontested``, ``verify_receiver_replica_agrees``).
 - :mod:`~vultron.demo.helpers.runner` — ``run_exchange_demos`` and
   ``check_all_containers``.
 - :mod:`~vultron.demo.helpers.seeding` — ``_dl_key``, ``get_actor_by_id``,
@@ -58,6 +63,20 @@ from vultron.demo.helpers.actor_roles import (  # noqa: F401
 )
 from vultron.demo.helpers.embargo import (  # noqa: F401
     make_embargo_event,
+    publish_embargo_policy,
+)
+from vultron.demo.helpers.embargo_outcome import (  # noqa: F401
+    PROTOCOL_DEFAULT_CEILING,
+    WINDOW_TOLERANCE,
+    assert_about_the_case,
+    assert_window_is,
+    embargo_window,
+    read_embargo,
+    verify_pending_revision,
+    verify_receiver_default_active,
+    verify_receiver_replica_agrees,
+    verify_reporter_terms_active,
+    verify_uncontested,
 )
 from vultron.demo.helpers.runner import (  # noqa: F401
     check_all_containers,

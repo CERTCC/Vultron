@@ -42,7 +42,11 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
 )
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import NonEmptyString
-from vultron.core.models.embargo_policy import EmbargoPolicy, parse_duration
+from vultron.core.models.embargo_policy import (
+    EMBARGO_POLICY_PATH_SUFFIX,
+    EmbargoPolicy,
+    parse_duration,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.services.embargo_duration import (
@@ -55,12 +59,14 @@ logger = logging.getLogger("uvicorn.error")
 
 router = APIRouter()
 
-EMBARGO_POLICY_PATH_SUFFIX = "embargo-policy"
-
 
 def embargo_policy_url(actor_id: str) -> str:
-    """The URL an actor's profile lists for its embargo policy (EP-02-002)."""
-    return f"{actor_id}/{EMBARGO_POLICY_PATH_SUFFIX}"
+    """The URL an actor's profile lists for its embargo policy (EP-02-002).
+
+    The same string is the published policy's id (``EmbargoPolicy.build_id``):
+    the profile points at the record by name.
+    """
+    return EmbargoPolicy.build_id(actor_id)
 
 
 def _duration(value: Any) -> timedelta | None:
@@ -111,18 +117,28 @@ def publish_embargo_policy(
 
     ``actor_id`` and ``inbox`` come from the actor's record (EP-01-005); the
     record's own validator has already derived a blank ``inbox`` from its id,
-    so nothing is manufactured here.  Exactly one policy remains for the
-    actor: the new record is written first, then every earlier one is
-    deleted, so a failure between the two leaves the actor with a policy
-    rather than none, and ``owner_embargo_policies`` cannot hand shortest-wins
-    a superseded default (EP-04-010).  The actor record then lists the
-    endpoint URL under ``embargo_policy`` (EP-02-002).
+    so nothing is manufactured here.
+
+    The published policy has one well-known id, ``EmbargoPolicy.build_id``
+    (the endpoint URL), and is written with ``save()``: a second publish —
+    the next request or a concurrent one — overwrites that record rather than
+    adding a sibling, so exactly one *published* policy exists for the actor
+    without a delete that could fail half-way (EP-02-003).  Records written
+    under any other id (a seeded store) are then removed so that
+    ``owner_embargo_policies`` sees only the published one; that sweep runs
+    after the write, so a failure in it leaves the actor with its new policy
+    beside a stale one, never with none — and ``select_actor_default_policy``
+    would then pick whichever of the two is shorter (EP-04-010), which is why
+    the sweep is cleanup, not what the exactly-one guarantee rests on.  The
+    actor record then lists the endpoint URL under ``embargo_policy``
+    (EP-02-002).
 
     Returns:
         The stored policy and whether it *replaced* an earlier one.
     """
     previous = owner_embargo_policies(_case_store(dl), actor.id_)
     policy = EmbargoPolicy(
+        id_=EmbargoPolicy.build_id(actor.id_),
         actor_id=actor.id_,
         inbox=actor.inbox,
         preferred_duration=terms.preferred_duration,
@@ -130,7 +146,7 @@ def publish_embargo_policy(
         maximum_duration=terms.maximum_duration,
         notes=terms.notes,
     )
-    dl.create(policy)
+    dl.save(policy)
     for stale in previous:
         if stale.id_ != policy.id_:
             dl.delete(VultronObjectType.EMBARGO_POLICY.value, stale.id_)

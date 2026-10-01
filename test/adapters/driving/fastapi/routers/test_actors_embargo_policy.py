@@ -85,6 +85,7 @@ class TestPutEmbargoPolicy:
             owner_embargo_policies(store, hosted_actor)
         ) == timedelta(days=21)
 
+    @pytest.mark.spec("EP-02-003")
     @pytest.mark.spec("HTTP-03-001")
     def test_replace_returns_200_and_leaves_exactly_one_policy(
         self, client_actors, hosted_actor
@@ -100,7 +101,70 @@ class TestPutEmbargoPolicy:
         assert second.json()["notes"] == "revised"
         stored = owner_embargo_policies(_store_for(hosted_actor), hosted_actor)
         assert [p.preferred_duration for p in stored] == [timedelta(days=45)]
-        assert second.json()["id"] != first.json()["id"]
+        # One well-known record, overwritten — not a new one beside the old.
+        assert second.json()["id"] == first.json()["id"]
+
+    @pytest.mark.spec("EP-02-001")
+    @pytest.mark.spec("EP-02-003")
+    def test_the_published_policy_is_the_record_at_the_endpoint_url(
+        self, client_actors, hosted_actor
+    ):
+        """The policy's id is the URL the profile lists for it."""
+        resp = client_actors.put(_PATH, json={"preferred_duration": "P30D"})
+
+        assert resp.json()["id"] == f"{hosted_actor}/embargo-policy"
+        assert resp.json()["id"] == EmbargoPolicy.build_id(hosted_actor)
+        profile = client_actors.get(f"/actors/{_SLUG}/profile").json()
+        assert profile["embargoPolicy"] == resp.json()["id"]
+
+    @pytest.mark.spec("EP-02-003")
+    def test_two_publishes_that_both_see_no_prior_policy_leave_one_record(
+        self, client_actors, hosted_actor, monkeypatch
+    ):
+        """Two overlapping first publishes must not leave two policies.
+
+        The race: both requests read the store before either writes, so each
+        believes it is the first publish.  Simulated by pinning that read to
+        "nothing published" for both calls; the deterministic record id makes
+        the second write an overwrite, so the interleaving cannot matter.
+        """
+        from vultron.adapters.driving.fastapi.routers.actors import (
+            _embargo_policy,
+        )
+
+        monkeypatch.setattr(
+            _embargo_policy, "owner_embargo_policies", lambda store, aid: []
+        )
+        first = client_actors.put(_PATH, json={"preferred_duration": "P30D"})
+        second = client_actors.put(_PATH, json={"preferred_duration": "P45D"})
+        monkeypatch.undo()
+
+        # Each believed itself first (201); the store still holds one record.
+        assert first.status_code == status.HTTP_201_CREATED
+        assert second.status_code == status.HTTP_201_CREATED
+        stored = owner_embargo_policies(_store_for(hosted_actor), hosted_actor)
+        assert [p.preferred_duration for p in stored] == [timedelta(days=45)]
+
+    @pytest.mark.spec("EP-02-003")
+    def test_a_publish_sweeps_policies_seeded_under_other_ids(
+        self, client_actors, hosted_actor
+    ):
+        """A record seeded under some other id is removed by the publish, so
+        shortest-wins cannot read a withdrawn default beside the published one.
+        """
+        _store_for(hosted_actor).create(
+            EmbargoPolicy(
+                actor_id=hosted_actor,
+                inbox=f"{hosted_actor}/inbox",
+                preferred_duration=timedelta(days=7),
+            )
+        )
+
+        resp = client_actors.put(_PATH, json={"preferred_duration": "P30D"})
+
+        assert resp.status_code == status.HTTP_200_OK  # it replaced a record
+        stored = owner_embargo_policies(_store_for(hosted_actor), hosted_actor)
+        assert [p.preferred_duration for p in stored] == [timedelta(days=30)]
 
     @pytest.mark.spec("EP-01-003")
     def test_optional_bounds_are_carried(self, client_actors, hosted_actor):
@@ -169,6 +233,7 @@ class TestPutEmbargoPolicy:
         )
 
     @pytest.mark.spec("EP-01-005")
+    @pytest.mark.spec("EP-02-003")
     def test_a_body_cannot_publish_in_another_actors_name(
         self, client_actors, hosted_actor
     ):

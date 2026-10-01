@@ -59,6 +59,12 @@ def parse_duration(value: Any) -> timedelta | None:
     raise TypeError(f"Unsupported duration value: {value!r}")
 
 
+#: Path segment under an actor's id at which its policy is published
+#: (EP-02-001); also the tail of the policy's own id, see
+#: :meth:`EmbargoPolicy.build_id`.
+EMBARGO_POLICY_PATH_SUFFIX = "embargo-policy"
+
+
 class EmbargoPolicy(CoreObject):
     """Domain representation of an EmbargoPolicy.
 
@@ -116,6 +122,22 @@ class EmbargoPolicy(CoreObject):
         default=None,
         description="Free-text description of the Actor's embargo preferences",
     )
+
+    @classmethod
+    def build_id(cls, actor_id: str) -> str:
+        """Return the id of the policy *actor_id* publishes: its endpoint URL.
+
+        An actor publishes one policy, at ``GET /actors/{actor_id}/embargo-policy``
+        (EP-02-001), so the record carries that URL as its id.  A publish is
+        then an overwrite of one well-known record rather than a new record
+        beside the old: two publishes — sequential or concurrent — leave
+        exactly one policy for the actor (EP-02-003) without a delete step
+        that could fail half-way.  A policy constructed without an explicit
+        id (a seeded store, a test fixture) still takes a fresh URN, so
+        several records for one actor remain representable and
+        ``select_actor_default_policy`` still chooses among them.
+        """
+        return f"{actor_id}/{EMBARGO_POLICY_PATH_SUFFIX}"
 
     @field_validator(
         "preferred_duration",
