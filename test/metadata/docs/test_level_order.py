@@ -277,6 +277,26 @@ class TestTargetSet:
 
         assert_passes(root)
 
+    def test_link_cut_by_an_end_option_does_not_count(self, tmp_path):
+        """An ``end=`` include renders only what precedes the marker."""
+        host = (
+            '# H\n\n{% include-markdown "./_see.md" end="<!--e-->" %}\n\n'
+            "Each case ledger entry is signed.\n"
+        )
+        root = make_repo(
+            tmp_path,
+            {
+                "howto/_see.md": (
+                    "Intro.\n<!--e-->\nSee [the ledger](../topics/ledger.md).\n"
+                ),
+                "howto/low.md": leveled_page(300, host),
+            },
+            nav=["howto/low.md", "topics/ledger.md"],
+        )
+
+        (failure,) = failures(root)
+        assert failure.location == "docs/howto/low.md:9:6"
+
     def test_link_in_a_fragment_included_below_the_use_does_not(
         self, tmp_path
     ):

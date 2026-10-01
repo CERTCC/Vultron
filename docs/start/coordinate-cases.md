@@ -10,6 +10,7 @@ level: 100
 
 You receive vulnerability reports, work them with vendors and coordinators, and publish when the case is ready.
 You might be a security researcher, a vendor's product security team, or a coordinator at a national Computer Security Incident Response Team (CSIRT).
+You might also lead a Product Security Incident Response Team (PSIRT) or a CSIRT and need to decide whether to adopt Vultron; the first section below is written for that decision, and *Prepare your program* covers what adopting it asks of you.
 This page is a reading path through the parts of this site that describe how a Coordinated Vulnerability Disclosure (CVD) case works under Vultron.
 Each step builds on the one before it.
 
