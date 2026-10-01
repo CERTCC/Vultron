@@ -783,8 +783,8 @@ pre-commit.
 Pitfalls when writing or reading GitHub Actions workflows: PyYAML resolving bare
 `on:` to `True`, matrix booleans failing differently at job- vs. step-level
 `if:`, `actionlint` and block-scalar indentation, single-quoted apostrophes, the
-mandatory `notify-failure` wiring, and how to read a red job that never ran its
-assertions.
+mandatory `notify-failure` wiring, why a `GITHUB_TOKEN`-raised event never triggers
+another workflow, and how to read a red job that never ran its assertions.
 **Load when**: adding or editing a `.github/workflows/` file, or diagnosing a CI
 failure whose logs do not match the test it blames.
 

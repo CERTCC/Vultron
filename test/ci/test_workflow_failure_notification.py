@@ -15,6 +15,7 @@ and at least one step uses it in ``close`` mode (CISEC-05-002).
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -292,15 +293,8 @@ def _notify_action_run_scripts() -> list[str]:
     return [str(step["run"]) for step in steps if "run" in step]
 
 
-def test_notify_action_sets_bug_issue_type() -> None:
-    """CISEC-05-007: a freshly filed failure issue must carry the Bug type.
-
-    ``gh issue create`` cannot set an issue type, and a ``bug`` label applied
-    with ``GITHUB_TOKEN`` never fires the label-to-issue-type workflow, so the
-    action has to resolve the repository's ``Bug`` type by name and apply it
-    through the ``updateIssue`` mutation itself. The resolution is by *name*:
-    a hardcoded node ID would break silently if the type were re-created.
-    """
+def _notify_action_create_script() -> str:
+    """Return the one composite-action step script that runs ``gh issue create``."""
     scripts = _notify_action_run_scripts()
     assert scripts, f"{NOTIFY_FAILURE_ACTION} has no run: steps"
     creating = [s for s in scripts if "gh issue create" in s]
@@ -308,7 +302,21 @@ def test_notify_action_sets_bug_issue_type() -> None:
         "Expected exactly one step in notify-failure/action.yml to run "
         f"`gh issue create`; found {len(creating)} (CISEC-05-007)."
     )
-    script = creating[0]
+    return creating[0]
+
+
+def test_notify_action_sets_bug_issue_type() -> None:
+    """CISEC-05-007: a failure issue must carry the Bug type, in both arms.
+
+    ``gh issue create`` cannot set an issue type, and a ``bug`` label applied
+    with ``GITHUB_TOKEN`` never fires the label-to-issue-type workflow, so the
+    action has to resolve the repository's ``Bug`` type by name and apply it
+    through the ``updateIssue`` mutation itself. The resolution is by *name*:
+    a hardcoded node ID would break silently if the type were re-created. The
+    same helper runs on the comment-on-existing arm so an issue left untyped
+    by a failed assignment is repaired on the next notify run.
+    """
+    script = _notify_action_create_script()
     assert "issueTypes" in script and 'select(.name == "Bug")' in script, (
         "The notify-failure action must resolve the repository's `Bug` issue "
         "type by name via the `issueTypes` GraphQL field (CISEC-05-007)."
@@ -320,5 +328,38 @@ def test_notify_action_sets_bug_issue_type() -> None:
     assert '--label "bug"' not in script and "--label bug" not in script, (
         "The notify-failure action must not rely on a `bug` label for the "
         "label-to-issue-type workflow: GITHUB_TOKEN events never trigger it "
+        "(CISEC-05-007)."
+    )
+    calls = re.findall(r"^\s*ensure_bug_type \"", script, flags=re.MULTILINE)
+    assert len(calls) == 2, (
+        "ensure_bug_type must run once on the create arm and once on the "
+        "comment-on-existing arm, so an issue left untyped by a transient "
+        f"mutation failure is repaired on the next run; found {len(calls)} "
+        "call(s) (CISEC-05-007)."
+    )
+
+
+def test_notify_action_fails_visibly_without_bug_type() -> None:
+    """CISEC-05-007: no ``Bug`` type in the repository is a loud step failure.
+
+    The guard has to come *after* a jq expression that tolerates a null
+    ``issueTypes`` connection (an owner with no issue types at all); otherwise
+    ``set -e`` kills the step before the ``::error::`` line can name the issue.
+    """
+    script = _notify_action_create_script()
+    assert "(.data.repository.issueTypes.nodes // [])" in script, (
+        "The Bug-type lookup must default a null `issueTypes` connection to "
+        "an empty list, or jq aborts the step before the guard runs "
+        "(CISEC-05-007)."
+    )
+    assert 'if [ -z "$bug_type_id" ]' in script, (
+        "The notify-failure action must guard on an empty Bug type ID "
+        "(CISEC-05-007)."
+    )
+    guard = script.index('if [ -z "$bug_type_id" ]')
+    guard_body = script[guard : script.index("fi", guard)]
+    assert "::error::" in guard_body and "exit 1" in guard_body, (
+        "A missing `Bug` issue type must fail the step with an `::error::` "
+        "annotation, not leave the filed issue silently untyped "
         "(CISEC-05-007)."
     )

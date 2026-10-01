@@ -65,12 +65,57 @@ runs:
           --json number \
           --jq '.[].number')
 
+        # `gh issue create` cannot set an issue type, and a label applied
+        # with GITHUB_TOKEN never fires the label-to-issue-type workflow,
+        # so the action sets the Bug type itself (CISEC-05-007). The type
+        # ID is resolved by name so it survives a type being re-created.
+        # Idempotent: an issue that already carries a type is left alone,
+        # which also repairs an issue a failed assignment left untyped.
+        ensure_bug_type() {
+          local num="$1" bug_type_id issue_node_id current_type
+          # `issueTypes` is null when the owner has no issue types at all
+          # (user-owned forks); `// []` keeps jq from aborting before the
+          # error below can name the issue.
+          bug_type_id=$(gh api graphql \
+            -f owner="${REPO%%/*}" \
+            -f name="${REPO##*/}" \
+            -f query='query($owner: String!, $name: String!) {
+              repository(owner: $owner, name: $name) {
+                issueTypes(first: 100) { nodes { id name } }
+              }
+            }' \
+            --jq '(.data.repository.issueTypes.nodes // [])[]
+                  | select(.name == "Bug") | .id')
+          if [ -z "$bug_type_id" ]; then
+            echo "::error::No 'Bug' issue type found in $REPO; issue #$num is untyped." >&2
+            exit 1
+          fi
+          mapfile -t issue_fields < <(gh issue view "$num" \
+            --repo "$REPO" --json id,issueType \
+            --jq '.id, (.issueType.name // "")')
+          issue_node_id="${issue_fields[0]}"
+          current_type="${issue_fields[1]:-}"
+          if [ -n "$current_type" ]; then
+            echo "Issue #$num already has type '$current_type'"
+            return 0
+          fi
+          gh api graphql \
+            -f id="$issue_node_id" \
+            -f typeId="$bug_type_id" \
+            -f query='mutation($id: ID!, $typeId: ID!) {
+              updateIssue(input: {id: $id, issueTypeId: $typeId}) {
+                issue { number issueType { name } }
+              }
+            }' --jq '"Set issue #\(.data.updateIssue.issue.number) type: \(.data.updateIssue.issue.issueType.name)"'
+        }
+
         if [ "$MODE" = "notify" ]; then
           if [ "${#ISSUE_NUMS[@]}" -gt 0 ]; then
             # Add a comment to the first open failure issue.
             gh issue comment "${ISSUE_NUMS[0]}" \
               --repo "$REPO" \
               --body "CI still failing — [run]($RUN_URL)"
+            ensure_bug_type "${ISSUE_NUMS[0]}"
           else
             # Create a new failure issue.
             BODY=$(printf \
@@ -83,35 +128,7 @@ runs:
               --label "ci:main-failure" \
               --label "$WORKFLOW_LABEL")
             echo "Filed $ISSUE_URL"
-
-            # `gh issue create` cannot set an issue type, and a label applied
-            # with GITHUB_TOKEN never fires the label-to-issue-type workflow,
-            # so set the Bug type directly (CISEC-05-007). The type ID is
-            # resolved by name so it survives a type being re-created.
-            BUG_TYPE_ID=$(gh api graphql \
-              -f owner="${REPO%%/*}" \
-              -f name="${REPO##*/}" \
-              -f query='query($owner: String!, $name: String!) {
-                repository(owner: $owner, name: $name) {
-                  issueTypes(first: 20) { nodes { id name } }
-                }
-              }' \
-              --jq '.data.repository.issueTypes.nodes[]
-                    | select(.name == "Bug") | .id')
-            if [ -z "$BUG_TYPE_ID" ]; then
-              echo "::error::No 'Bug' issue type found in $REPO; filed $ISSUE_URL untyped." >&2
-              exit 1
-            fi
-            ISSUE_NODE_ID=$(gh issue view "${ISSUE_URL##*/}" \
-              --repo "$REPO" --json id --jq '.id')
-            gh api graphql \
-              -f id="$ISSUE_NODE_ID" \
-              -f typeId="$BUG_TYPE_ID" \
-              -f query='mutation($id: ID!, $typeId: ID!) {
-                updateIssue(input: {id: $id, issueTypeId: $typeId}) {
-                  issue { number issueType { name } }
-                }
-              }' --jq '"Set issue type: \(.data.updateIssue.issue.issueType.name)"'
+            ensure_bug_type "${ISSUE_URL##*/}"
           fi
         elif [ "$MODE" = "close" ]; then
           for NUM in "${ISSUE_NUMS[@]}"; do

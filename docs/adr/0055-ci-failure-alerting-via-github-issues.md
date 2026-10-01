@@ -108,10 +108,8 @@ asserts each includes the `notify-failure` step.
 ## More Information
 
 - CONCERN-2132 — the motivating concern
-- `specs/ci-security.yaml` CISEC-05-001 through CISEC-05-005 — generated spec
-  requirements
+- `specs/ci-security.yaml` group CISEC-05 — generated spec requirements
 - `.github/actions/notify-failure/` — implementation (to be added)
 - `test/ci/test_workflow_failure_notification.py` — enforcement test (to be added)
 
-Generated spec requirements: `specs/ci-security.yaml` CISEC-05-001 through
-CISEC-05-005.
+Generated spec requirements: `specs/ci-security.yaml` group CISEC-05.
