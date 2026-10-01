@@ -4,7 +4,9 @@ status: active
 description: >
   How an actor goes from invited to participating, what the case records at
   each step, what an inert participant may receive, and what the old model got
-  wrong. Source: CONCERN-4006 planning session (2026-10-01).
+  wrong; how removal and reinstatement withdraw and restore entitlement without
+  touching membership (ADR-0115). Sources: CONCERN-4006 and CONCERN-2257
+  planning sessions (2026-10-01).
 related_specs:
   - specs/case-management.yaml
   - specs/participant-role-management.yaml
@@ -12,6 +14,7 @@ related_specs:
   - specs/vultron-as2-mapping.yaml
   - specs/participant-case-replica.yaml
   - specs/sync-ledger-replication.yaml
+  - specs/received-status-handling.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/participant-embargo-consent.md
@@ -21,6 +24,8 @@ relevant_packages:
   - vultron/core/behaviors/case/nodes/invite_participant.py
   - vultron/core/behaviors/case/nodes/invite_ledger_backfill.py
   - vultron/core/behaviors/case/nodes/on_behalf_guards.py
+  - vultron/core/behaviors/case/nodes/case_participant_received.py
+  - vultron/core/behaviors/case/nodes/accept_invite.py
   - vultron/core/models/case.py
   - vultron/core/states/rm.py
   - vultron/wire/as2/vocab/objects/vulnerability_case.py
@@ -30,7 +35,8 @@ relevant_packages:
 # Joining a Case — Stub Invite, Inert Participant, Full-Case Invite
 
 The decisions are ADR-0114 (joining, inert participants, the stub type, the
-`R → C` transition) and ADR-0070 (judging the case). This note keeps the flow in
+`R → C` transition), ADR-0070 (judging the case) and ADR-0115 (removal and
+reinstatement). This note keeps the flow in
 one place and records what the earlier model got wrong, because each piece of that model
 was internally consistent and the error only showed once all of them were laid
 side by side.
@@ -55,8 +61,21 @@ stub, because accepting a stub is not a judgement of the case.
 
 **Active** means: seated by the case initialization sequence (the Case Owner,
 the CASE_MANAGER and the reporter, who are never sent a stub) or accepted the
-stub Invite, and — only when an embargo is active — `SIGNATORY` to it. "Inert until SIGNATORY" is wrong, because many cases
-have no active embargo: one not yet established, or one already exited.
+stub Invite, not removed, RM not `CLOSED`, and — only when an embargo is active —
+`SIGNATORY` to it. "Inert until SIGNATORY" is wrong, because many cases have no
+active embargo: one not yet established, or one already exited.
+
+Being active is computed by one case-level check from stored facts, and never
+stored (CM-30-002). It is a case method, not a participant property: whether an
+embargo is active is case state the record cannot see, and a participant-level
+"joined" property would read as "active" at a send site.
+
+**Authority to act on a case requires being active.** No situation calls for an
+actor to act on a case whose content it may not see. An inert participant's
+only messages are its replies to the Invites addressed to it, and those answer
+the Invite rather than act on the case. Sender-authority checks (suggesting an
+actor, adding a note, rejecting a ledger entry, changing the roster) read the
+active check, not roster membership.
 
 ## Edge cases
 
@@ -80,6 +99,33 @@ have no active embargo: one not yet established, or one already exited.
 - **Visibility.** The birth of an invitee's record is a ledger entry, so active
   participants see invitees — including ones that declined or never answered —
   in their replica of the roster.
+
+## Removal and reinstatement
+
+Removal withdraws entitlement; it does not delete the record (ADR-0115, CM-30).
+
+| Step | Message | Ledger | Effect |
+|---|---|---|---|
+| 1 | Case Owner sends `Remove(CaseParticipant, target=Case)` to the CASE_MANAGER | the received `Remove` is the one entry | removal fact set; participant leaves `activeParticipants` |
+| 2 | CASE_MANAGER sends the removed party a direct `Remove(CaseParticipant)` naming it | not ledgered | notice only |
+| 3 | Removal entry fans out, the removed party included | — | each replica applies the fact by replay; it is the removed party's last entry |
+| 4 | Embargo terminated or shortened while it is removed | not sent to it | direct `Remove(EmbargoEvent)` or `Announce(EmbargoEvent)`; its paused replica applies it |
+| 5 | Case Owner sends `Add(CaseParticipant, target=Case)` | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006) |
+
+- **Only the Case Owner asks.** The CASE_MANAGER refuses a request from anyone
+  else, and a removal of itself or of the Case Owner. It never removes on its
+  own initiative. Self-removal is `Leave(VulnerabilityCase)`.
+- **Consent is untouched.** A removed `SIGNATORY` stays bound. So does a
+  participant that left the case: both get the direct embargo-ending notices
+  (CM-30-009), the only messages a removed participant receives besides the
+  removal itself.
+- **`Add(CaseParticipant)` only reinstates.** It is refused for a participant
+  that is not removed or never joined. The CASE_MANAGER no longer emits `Add`
+  after a stub-Invite acceptance; replicas learn of a new member from the
+  `Accept(Invite)` entry (CM-30-012).
+- **Catch-up follows the active check.** A participant reinstated into a case
+  whose embargo it has not accepted stays inert; it is sent that embargo's
+  Invite, and its backfill waits for its consent.
 
 ## What the old model got wrong
 
@@ -138,6 +184,10 @@ message is designed: we accept offers and invitations, never bare objects.
 
 - **Roster membership is not "accepted" and not "entitled to content."** Ask
   whether the participant is active.
+- **Removal is not deletion and not a consent state.** Do not drop a removed
+  participant from `case_participants`, and do not model removal as a PEC
+  value: an embargo reset would erase it, and with no embargo the content gate
+  ignores consent entirely.
 - **Do not hold the ledger replay until the full-case Invite is accepted.** A
   participant is active once it accepts the stub; the history is part of what
   it judges, and a participant that finds the case `INVALID` keeps receiving

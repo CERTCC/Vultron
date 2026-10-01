@@ -583,9 +583,12 @@ inert participant record, `Accept`/`Reject` of the stub decides whether it
 joins, and a joined participant judges the case by replying to a full-case
 Invite that carries a ledger-position floor. Defines *active* versus *inert*,
 the `Offer` ("take this") versus `Invite` ("take part in this") distinction,
-and records what the earlier join model got wrong.
+records what the earlier join model got wrong, and how removal and
+reinstatement withdraw and restore entitlement without deleting the record
+(ADR-0115).
 **Load when**: touching invitations, participant creation, recipient
-selection for case content, the accept-invite trees, or invitee RM triage.
+selection for case content, the accept-invite trees, invitee RM triage, or
+`Add`/`Remove(CaseParticipant)`.
 
 **`case-ledger-authority.md`**
 Assertion recording model for report / proto-case / case flows: implicit
