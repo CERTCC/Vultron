@@ -23,10 +23,12 @@ import py_trees
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.behaviors.case.communication_tree import (
+    EmitCreateCaseActivity,
+)
 from vultron.core.behaviors.case.nodes import (
     CollectCaseAddresseesNode,
     CreateAndPersistCaseActivityNode,
-    EmitCreateCaseActivity,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
