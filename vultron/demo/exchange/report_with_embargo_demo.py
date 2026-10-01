@@ -45,13 +45,19 @@ Three runs:
    active 10-day embargo shows the proposal was honored (EP-04-007) and the
    protocol default did not compete (EP-04-006).
 
-Whose default is "the Receiver's".  Under ADR-0041 the Receiver does not create
-the case: its node's CaseActor does, and the case is attributed to that
-CaseActor, so the actor default the comparison reads is the ``EmbargoPolicy``
-published by the CaseActor the Receiver's node hosts (``owner_embargo_policies``
-on ``case.attributed_to``, EP-04-010).  The demo therefore publishes the
-Receiver's policy on that CaseActor, which in single-container mode lives on
-the same node as the Receiver.
+Whose default is "the Receiver's".  The actor default is the policy on the
+CASE_OWNER's own actor profile — the Receiver, the actor that received the
+report (EP-04-003, CP-09-001, CP-01-010; planned in #3979).  The prototype
+does not read it from there yet: the case-actor path still attributes the
+case to the CaseActor that created it, and ``ResolveEmbargoDurationNode``
+reads ``owner_embargo_policies`` on ``case.attributed_to`` (EP-04-010), so a
+policy the Receiver publishes on itself never reaches the comparison.  Step 1
+therefore publishes the Receiver's default on the CaseActor its node hosts.
+**That step is a workaround**, not the design: #4026 attributes the case to
+the CASE_OWNER and #4027 carries the CASE_OWNER's profile, policy included,
+inline on ``Create(CaseProposal)``.  Once #4027 lands, publish on the
+Receiver (``vendor``) instead of ``case_actor`` and drop the aside from the
+Step 1 narration; nothing else in this demo depends on where the policy sits.
 
 Puppeteering.  The Reporter is driven through its ``submit-report`` trigger
 (``proposed_embargo_end_time``), the Receiver through the embargo-policy
@@ -158,8 +164,20 @@ def _run_negotiated_submission(
     else:
         with demo_step(
             f"Step 1: Receiver publishes a {receiver_default_days}-day"
-            " embargo policy (actor default)"
+            " embargo policy (actor default) — on its CaseActor, a workaround"
+            " until #4026/#4027 read it from the Receiver's own profile"
         ):
+            # WORKAROUND(#4026, #4027): the actor default belongs on the
+            # Receiver's own profile (EP-04-003, CP-01-010), but creation still
+            # reads it from ``case.attributed_to``, which names the CaseActor.
+            # When #4027 lands, pass ``vendor`` here and drop the aside above.
+            logger.info(
+                "Receiver %s publishes its default on CaseActor %s: a"
+                " workaround until #4026/#4027 read the CASE_OWNER's own"
+                " profile policy",
+                vendor.id_,
+                case_actor.id_,
+            )
             publish_embargo_policy(
                 client, case_actor, timedelta(days=receiver_default_days)
             )

@@ -244,16 +244,16 @@ later shortest-wins. The protocol also permits a profile reference that the
 CASE_MANAGER dereferences (CP-01-009); this prototype requires the inline form.
 A profile with no policy means no actor default.
 
-Concretely, "the owner" is `case.attributed_to`, and under ADR-0041 that is
-the **CaseActor** that created the case (`CreateCaseFromProposalNode`), not the
-vendor that received the report — the vendor holds `CASE_OWNER` as a role, not
-as the case's `attributed_to`. So the policy that competes is the one published
-on the CaseActor, in the CaseActor's store; a policy the vendor publishes on
-itself never reaches the comparison, because nothing carries it to the
-CaseActor. The `report-with-embargo` demo therefore publishes the Receiver's
-default on the CaseActor its node hosts. Whether the vendor's own policy ought
-to travel to the CaseActor (or the CaseActor's policy is the right one to
-consult) is a design question this note records, not decides.
+**Until #4026 and #4027 land, the prototype diverges from this.** Under
+ADR-0041 as built, `case.attributed_to` is the **CaseActor** that created the
+case (`CreateCaseFromProposalNode`), not the vendor that received the report —
+the vendor holds `CASE_OWNER` as a role, not as the case's `attributed_to` — and
+`ResolveEmbargoDurationNode` reads `owner_embargo_policies` on that field. So a
+policy the vendor publishes on itself never reaches the comparison, because
+nothing carries it to the CaseActor. The `report-with-embargo` demo therefore
+publishes the Receiver's default on the CaseActor its node hosts, and marks that
+step as a workaround in its narration and docstring, so #4027 can move the
+publish onto the Receiver's own profile (planned in #3979, PR #4025).
 
 **Initialization runs once per case.** `InitializeDefaultEmbargoNode`'s first
 arm (`CaseEmbargoAlreadyInitializedNode`) succeeds when the case already
