@@ -428,7 +428,8 @@ class TestOwnerDirectInviteAtCaseManager:
         assert len(outbox) == 1, f"expected one Invite, got {outbox!r}"
         sealed = read_sealed_body(dl, outbox[0])
         assert sealed is not None
-        return json.loads(sealed.body)
+        body: dict = json.loads(sealed.body)
+        return body
 
     @pytest.mark.spec("CM-17-007")
     def test_case_manager_emits_the_invite_itself(

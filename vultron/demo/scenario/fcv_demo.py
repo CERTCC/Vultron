@@ -329,7 +329,7 @@ def _phase_invite_vendor(
     # needs, so a failed trigger or lookup skips its dependents instead of
     # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
     with demo_step("Coordinator invites Vendor with CVDRole.VENDOR"):
-        offer = (
+        invite_offer = (
             ActorSession(
                 client=coordinator_client, actor=coordinator_in_coordinator
             )
@@ -341,7 +341,7 @@ def _phase_invite_vendor(
         ).activity
         logger.info(
             "Coordinator asked the CASE_MANAGER to invite Vendor: %s",
-            offer.id_,
+            invite_offer.id_,
         )
 
         # The delivered Invite is the causal precondition for the accept: a

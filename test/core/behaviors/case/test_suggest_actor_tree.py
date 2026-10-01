@@ -817,8 +817,10 @@ class TestDuplicateDetectionTreeStructure:
             EmitInviteActorToCaseNode,
         ]
         check = owner.children[0]
+        assert isinstance(check, CheckIsCaseOwnerNode)
         assert check._sender_actor_id == _RECOMMENDER
         emit = owner.children[2]
+        assert isinstance(emit, EmitInviteActorToCaseNode)
         assert emit.invitee_id == _RECOMMENDED
         assert emit.attributed_to == _RECOMMENDER
 
@@ -827,8 +829,9 @@ class TestDuplicateDetectionTreeStructure:
         fresh = self._duplicate_selector().children[4]
         assert isinstance(fresh, py_trees.composites.Sequence)
         child_types = [type(c) for c in fresh.children]
-        assert child_types[0] is py_trees.decorators.Inverter
-        assert isinstance(fresh.children[0].decorated, CheckIsCaseOwnerNode)
+        guard = fresh.children[0]
+        assert isinstance(guard, py_trees.decorators.Inverter)
+        assert isinstance(guard.decorated, CheckIsCaseOwnerNode)
         assert EvaluateDefaultRolesNode in child_types
         assert EmitOfferCaseParticipantToOwnerNode in child_types
 

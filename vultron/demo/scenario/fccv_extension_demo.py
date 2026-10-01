@@ -308,7 +308,7 @@ def _phase_report_submission(
         # needs, so a failed trigger or lookup skips its dependents instead of
         # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
         with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
-            offer = (
+            invite_offer = (
                 ActorSession(client=c1_client, actor=c1_in_c1)
                 .with_case(case)
                 .quiet()
@@ -316,7 +316,9 @@ def _phase_report_submission(
                     invitee_id=c2.id_, roles=[CVDRole.COORDINATOR]
                 )
             ).activity
-            logger.info("Asked the CASE_MANAGER to invite C2: %s", offer.id_)
+            logger.info(
+                "Asked the CASE_MANAGER to invite C2: %s", invite_offer.id_
+            )
 
             # Wait for the CaseActor-routed Invite to appear in C2's DataLayer.
             with demo_gate(

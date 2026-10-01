@@ -35,8 +35,9 @@ def archive_received(dl: Any, activity: Any) -> ReceivedActivityRecord:
     to the event intake receives and the event's activity is archived, exactly
     the object intake stores.
     """
-    record = ReceivedActivityRecord.for_activity(
-        extract_event(activity).activity
-    )
+    received = extract_event(activity).activity
+    if received is None:
+        raise ValueError(f"{activity!r} extracts to an event with no activity")
+    record = ReceivedActivityRecord.for_activity(received)
     dl.create(record)
     return record

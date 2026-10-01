@@ -62,6 +62,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.events.actor import OfferActorToCaseReceivedEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.participant_status import (
     ParticipantStatus,
@@ -94,6 +95,7 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import rm_submit_report_activity
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Invite,
@@ -189,10 +191,11 @@ def _send_stub_invite(
     )
     already_queued = set(dl.outbox_list())
     stored_offer = dl.read(offer["id"])
-    assert stored_offer is not None
+    assert isinstance(stored_offer, as_Activity)
     event = extract_event(stored_offer).model_copy(
         update={"receiving_actor_id": actor_id}
     )
+    assert isinstance(event, OfferActorToCaseReceivedEvent)
     result = OfferActorToCaseReceivedUseCase(
         dl,
         event,
@@ -204,8 +207,11 @@ def _send_stub_invite(
         if item in already_queued:
             continue
         sealed = read_sealed_body(dl, item)
-        if sealed is not None and json.loads(sealed.body)["type"] == "Invite":
-            return json.loads(sealed.body)
+        if sealed is None:
+            continue
+        body: dict[str, Any] = json.loads(sealed.body)
+        if body["type"] == "Invite":
+            return body
     raise AssertionError("the CASE_MANAGER emitted no Invite")
 
 

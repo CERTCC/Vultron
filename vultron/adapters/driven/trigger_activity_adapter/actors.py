@@ -23,12 +23,13 @@ import logging
 from collections.abc import Mapping
 from typing import Any, cast
 
+from pydantic import BaseModel
+
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
-from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import read_received_activity
 from vultron.enums.roles import CVDRole
@@ -82,7 +83,7 @@ def _active_embargo_of(
 
 def _stored_invite_by_case_uri(
     dl: CaseOutboxPersistence, invite_id: str
-) -> PersistableModel:
+) -> BaseModel:
     """Read the received Invite with its ``target`` reduced to the case URI.
 
     The Invite is read as this invitee holds it (``read_received_activity``):
@@ -94,8 +95,16 @@ def _stored_invite_by_case_uri(
 
     Raises:
         VultronNotFoundError: when no activity with *invite_id* was received.
+        VultronValidationError: when the stored record is not a model.
     """
-    invite = read_received_activity(dl, invite_id, "RmInviteToCaseActivity")
+    held = read_received_activity(dl, invite_id, "RmInviteToCaseActivity")
+    if not isinstance(held, BaseModel):
+        raise VultronValidationError(
+            f"invite '{invite_id}' is held as {type(held).__name__},"
+            " not as an activity model"
+        )
+    # The protocol's ``model_copy`` returns the protocol; read it as the model.
+    invite = cast(BaseModel, held)
     target = getattr(invite, "target", None)
     # Read back from the archive, an inline target may be a plain mapping
     # rather than a model, so its id is taken from either form.

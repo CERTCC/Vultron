@@ -269,10 +269,9 @@ class BTBridge:
         "not found in DataLayer for actor …", skips delivery, and the invitee is
         never told it was invited (ISSUE-2548).
 
-        This is the delegated-emit path the class docstring on
-        ``SvcInviteActorToCaseUseCase`` describes: a trigger addressed to the case
-        owner runs with ``actor_id`` set to the CaseActor, so the two references
-        disagree by construction rather than by mistake.
+        A delegated emit has this shape: a trigger addressed to the requesting
+        participant runs with ``actor_id`` set to the CaseActor, so the two
+        references disagree by construction rather than by mistake.
 
         A port this bridge was not given is *inherited* from the blackboard
         rather than left alone, because the blackboard is process-global

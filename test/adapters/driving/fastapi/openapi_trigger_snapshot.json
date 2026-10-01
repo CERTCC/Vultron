@@ -2073,7 +2073,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/invite-actor-to-case": {
       "post": {
-        "description": "Emits an RmInviteToCaseActivity from the case owner to the specified invitee.  The case must exist in the actor's DataLayer.",
+        "description": "Sends the case owner's Offer of the invitee, with the offered roles, to the case's CASE_MANAGER, which emits and commits the Invite (ADR-0109).  The case must exist in the actor's DataLayer.",
         "operationId": "actors_trigger_invite_actor_to_case",
         "parameters": [
           {

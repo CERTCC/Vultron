@@ -343,7 +343,7 @@ def _phase_ownership_handoff(
     # needs, so a failed trigger or lookup skips its dependents instead of
     # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
     with demo_step("Vendor1 invites Coordinator with CVDRole.COORDINATOR"):
-        offer = (
+        invite_offer = (
             ActorSession(client=vendor_client, actor=vendor_in_vendor)
             .with_case(case)
             .quiet()
@@ -353,7 +353,7 @@ def _phase_ownership_handoff(
         ).activity
         logger.info(
             "Vendor1 asked the CASE_MANAGER to invite Coordinator: %s",
-            offer.id_,
+            invite_offer.id_,
         )
 
         # The delivered Invite is the causal precondition for the accept: a
@@ -584,7 +584,7 @@ def _phase_coordinator_invites_vendor2(
     # needs, so a failed trigger or lookup skips its dependents instead of
     # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
     with demo_step("Coordinator invites Vendor2 to the case"):
-        offer = (
+        invite_offer = (
             ActorSession(
                 client=coordinator_client, actor=coordinator_in_coordinator
             )
@@ -595,7 +595,8 @@ def _phase_coordinator_invites_vendor2(
             )
         ).activity
         logger.info(
-            "Coordinator asked the CaseActor to invite Vendor2: %s", offer.id_
+            "Coordinator asked the CASE_MANAGER to invite Vendor2: %s",
+            invite_offer.id_,
         )
 
         # The delivered Invite is the causal precondition for the accept: a

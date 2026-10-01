@@ -510,7 +510,7 @@ class TestEmitInviteActorToCaseNodeCommitsBeforeQueuing:
                 and e.event_type == "invite_actor_to_case"
             ]
 
-        ledger_at_append: list[list[str]] = []
+        ledger_at_append: list[list[str | None]] = []
         original_append = SqliteDataLayer.outbox_append
 
         def _spy(self_dl, activity_id):

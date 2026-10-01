@@ -65,6 +65,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.em import EM
 from vultron.core.use_cases._helpers import read_received_activity
 from vultron.enums.roles import CVDRole
@@ -315,7 +316,7 @@ def _invite(topo: _Topology, case_id: str) -> dict:
 _OFFERED_ROLES = ["coordinator", "deployer"]
 
 
-def _case_actor_invite(topo: _Topology, ca_dl) -> object:
+def _case_actor_invite(topo: _Topology, ca_dl) -> PersistableModel:
     """The one Invite the CaseActor emitted as itself."""
     invites = [
         invite
@@ -326,7 +327,8 @@ def _case_actor_invite(topo: _Topology, ca_dl) -> object:
         "the CaseActor's store must hold exactly one Invite emitted as the"
         f" CaseActor after the owner's trigger; found {invites!r}"
     )
-    return invites[0]
+    found: PersistableModel = invites[0]
+    return found
 
 
 def _ledger_entries(dl, case_id: str) -> list:
@@ -484,7 +486,7 @@ class TestOwnerInviteThroughARemoteCaseActor:
         received = read_received_activity(
             invitee_dl, str(invite.id_), "Invite"
         )
-        assert received.actor == topology.ca_actor_id
+        assert getattr(received, "actor", None) == topology.ca_actor_id
 
     def test_the_owner_mints_no_ledger_entry_for_the_invite(self, topology):
         """The owner is not the Invite's emitter, so it commits nothing.

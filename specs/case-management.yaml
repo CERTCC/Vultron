@@ -2168,9 +2168,14 @@ groups:
       CM-16-018 applies to the CASE_MANAGER's own outgoing Offer on `Accept`.
     verification: >-
       `test/core/use_cases/triggers/test_actor_triggers.py` asserts the trigger enqueues an
-      `Offer(CaseParticipant)` addressed to the CASE_MANAGER with the offered roles and runs no
-      tree as the CASE_MANAGER; `test/core/behaviors/case/test_suggest_actor_tree.py` asserts
-      the CASE_OWNER branch emits the Invite with those roles and does not forward the Offer.
+      `Offer(CaseParticipant)` addressed to the CASE_MANAGER with the offered roles, from the
+      owner's outbox only, and runs no tree as the CASE_MANAGER;
+      `test/core/behaviors/case/test_suggest_actor_tree.py` asserts the CASE_OWNER branch sits
+      behind the duplicate branches and ahead of the fresh path;
+      `test/core/use_cases/received/actor/test_suggest.py` asserts the CASE_MANAGER emits the
+      Invite with those roles, commits it, and does not forward the Offer; and
+      `test/demo/test_remote_case_actor_invite.py` runs the flow on three containers and
+      asserts the Invite is emitted and committed on the CASE_MANAGER's container with no `cc`.
     adr:
     - ADR-0109
   - id: CM-17-008
@@ -3486,7 +3491,8 @@ groups:
     Requirements for how trigger use cases assign `actor` and `attributed_to`
     when the CASE_MANAGER emits an Activity on behalf of a requesting participant
     (delegated message).  The reference implementation is
-    SvcInviteActorToCaseUseCase._prepare().  Codified from CONCERN-2170.
+    `_prepare_delegated_context()` (`vultron/core/use_cases/triggers/_helpers.py`).
+    Codified from CONCERN-2170.
   specs:
   - id: CM-24-001
     priority: MUST

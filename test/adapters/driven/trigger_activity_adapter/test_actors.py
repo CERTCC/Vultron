@@ -282,6 +282,20 @@ class TestAcceptCaseInvite:
                 invite_id="urn:uuid:never-received", actor=_INVITEE
             )
 
+    def test_a_held_record_that_is_not_a_model_is_refused(
+        self, adapter, dl, monkeypatch
+    ):
+        from vultron.adapters.driven.trigger_activity_adapter import actors
+
+        monkeypatch.setattr(
+            actors, "read_received_activity", lambda *_args: object()
+        )
+
+        with pytest.raises(VultronValidationError, match="not as an activity"):
+            adapter.accept_case_invite(
+                invite_id="urn:uuid:held-oddly", actor=_INVITEE
+            )
+
     def test_an_archived_activity_that_is_not_an_invite_is_refused(
         self, adapter, dl
     ):
