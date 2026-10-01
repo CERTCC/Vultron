@@ -8,6 +8,7 @@ description: >
 related_specs:
   - specs/case-proposal.yaml
   - specs/case-management.yaml
+  - specs/embargo-policy.yaml
   - specs/semantic-extraction.yaml
 related_notes:
   - notes/activitystreams-semantics.md
@@ -197,7 +198,7 @@ the emit in `.../proposal_admission_actions.py` (BTND-07-003).
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `id_` | URI | Yes | Auto-generated unique proposal identifier |
-| `attributed_to` | Actor URI | Yes | The vendor/proposer actor URI |
+| `attributed_to` | Actor URI | Yes | The proposing actor (report receiver, future CASE_OWNER) |
 | `object_` | `as_VulnerabilityReport` or URI | Yes | The report for the case |
 | `target` | URI | Yes | The prospective case-actor service URI |
 | `summary` | str | No | Human-readable proposal description |
@@ -208,6 +209,16 @@ the emit in `.../proposal_admission_actions.py` (BTND-07-003).
 the Offer, EP-04-004) reach the case-actor, which never saw the Offer; see
 `notes/embargo-default-semantics.md` for the shortest-wins comparison they enter
 at case creation (#3392, ADR-0096 amendment).
+
+The CASE_OWNER's own terms travel the same way, on the envelope rather than the
+proposal: this implementation requires the `actor` of `Create(as_CaseProposal)`
+to be the proposing actor's full profile inline, carrying its `embargoPolicy`
+when it has published one (CP-01-010). The protocol also permits a profile
+reference the CASE_MANAGER dereferences (CP-01-009); this prototype requires the
+inline form so case creation never fetches. A bare-URI `actor`, or a profile
+whose `id` is not the proposal's `attributed_to`, is to be refused at the parse
+edge. None of this is built yet: the sender still puts a bare actor URI on the
+`Create` (#4027).
 
 All classes in `vultron/wire/as2/vocab/objects/` use the `as_` prefix
 (ARCH-14-001). The new type is `as_CaseProposal`; the bare name `CaseProposal`
@@ -235,8 +246,11 @@ more-general patterns that share the same outer Activity type (SE-03-002).
 When the CASE_MANAGER accepts a proposal, `case_proposal_received_tree.py` MUST
 perform the following natively — no back-fill, no prologue:
 
-1. Create `VulnerabilityCase` with `attributed_to=CaseActor` (already implemented)
-2. Add receiver (vendor) as `CASE_OWNER` participant at `RM.RECEIVED`
+1. Create `VulnerabilityCase` with `attributed_to` = the proposing actor (the
+   report receiver, who is the case owner; CP-09-001). The CASE_MANAGER records
+   that it *created* the case as the `actor` of `Create(VulnerabilityCase)`, not
+   in `attributed_to`
+2. Add the report receiver as `CASE_OWNER` participant at `RM.RECEIVED`
 3. Add reporter as participant at `RM.ACCEPTED`
 4. Initialize default embargo
 5. Commit canonical ledger entries (`create_case`, `add_report_to_case`,
@@ -500,6 +514,21 @@ the duplicate too — `CheckProposalAlreadySentForReport` treats an answered
 does not re-propose. What the case-actor *answers* a same-report duplicate
 with — a fresh `Accept`, as this section describes, or the stored original
 CP-05-006 now requires — is open in #3977.
+
+**What "duplicate" means here.** An exact redelivery of the same proposal —
+at-least-once delivery, or the vendor asking again because the `Accept` was lost
+(CP-05-006's rationale, ADR-0080; note that CP-05-006's *statement* still keys
+the duplicate on "a proposal for the same report", so amending that key is part
+of #3977, not something the spec already says). It does *not* mean a second report that
+describes the same vulnerability; that is a report-management question
+(RMB-11-002: duplicate reports are not invalid) and never reaches this tree as a
+"duplicate". Two consequences follow. The reuse branch must leave the existing
+case's state alone, including its embargo whatever EM state it is in (EP-04-012;
+`notes/embargo-default-semantics.md` § "Initialization Runs Once Per Case").
+And `LoadExistingCaseNode` keys on the *report*, which is the wrong key for both
+of the branch's real jobs (answer the same proposal again; finish the same
+proposal's half-built case) and collides with CBT-06-002, under which a second
+recipient proposing the same report gets its own case — see #3977.
 
 ### Implementation: `VultronAccept.result`
 

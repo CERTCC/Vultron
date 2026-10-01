@@ -133,7 +133,7 @@ groups:
     - missing_story_reference
   - id: MV-03-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       A receiver MUST treat a required field that is present but blank as absent,
       and MUST report it with the same error as an omitted field. A blank value is
@@ -161,8 +161,6 @@ groups:
       spec_id: MV-03-001
     adr:
     - ADR-0090
-    lint_suppress:
-    - missing_story_reference
 - id: MV-04
   title: Object Type Validation
   specs:
@@ -184,7 +182,7 @@ groups:
       actor, created object ID, and context (case ID)
   - id: MV-04-003
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: >-
       When an inline object's `type` resolves to a known wire vocabulary class, a
       receiver MUST NOT substitute a less specific type for it if validation
@@ -210,8 +208,6 @@ groups:
       spec_id: MV-04-001
     adr:
     - ADR-0090
-    lint_suppress:
-    - missing_story_reference
 - id: MV-05
   title: URI Validation
   specs:
@@ -228,14 +224,12 @@ groups:
     - story_2022_030
   - id: MV-05-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The system MUST treat ActivityStreams object IDs as opaque URIs
     verification: >-
       Inspection of `vultron/core/` confirms that no code parses or deconstructs
       object IDs beyond URI validation; IDs are stored and compared as opaque
       strings.
-    lint_suppress:
-    - missing_story_reference
 - id: MV-09
   title: Outbound Activity Object Integrity
   specs:
@@ -271,7 +265,7 @@ groups:
     - missing_story_reference
   - id: MV-09-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Vultron activity classes where semantic dispatch depends on the `object_` type MUST
       require `object_` at construction time — no `None` default is permitted.  An omitted
@@ -282,8 +276,6 @@ groups:
       Inspection of activity class definitions in `vultron/wire/` confirms that classes
       whose dispatch logic inspects `object_.type` declare `object_` as a required field
       with no `None` default.
-    lint_suppress:
-    - missing_story_reference
 - id: MV-10
   title: Stub Objects
   specs:
@@ -401,7 +393,7 @@ groups:
   specs:
   - id: MV-11-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The parse edge (`parse_activity` in `vultron/wire/as2/parser.py`) MUST decide what
       happens to an unrecognised key on inbound data for every object at every depth — the
@@ -433,11 +425,9 @@ groups:
     adr:
     - ADR-0099
     - ADR-0032
-    lint_suppress:
-    - missing_story_reference
   - id: MV-11-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       A receiver MUST refuse the whole activity, with the schema-fault response MV-02-002
       requires, when an unrecognised inbound key is a near miss for a declared spelling of the
@@ -493,11 +483,9 @@ groups:
       spec_id: MV-01-001
     adr:
     - ADR-0099
-    lint_suppress:
-    - missing_story_reference
   - id: MV-11-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       An unrecognised inbound key that is not a near miss and not a retired name MUST be set
       aside and reported, not refused: the activity proceeds on its declared fields, and the
@@ -528,8 +516,6 @@ groups:
     adr:
     - ADR-0099
     - ADR-0086
-    lint_suppress:
-    - missing_story_reference
   - id: MV-11-004
     priority: MUST
     kind: architecture

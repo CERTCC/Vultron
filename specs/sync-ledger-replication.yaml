@@ -158,7 +158,7 @@ groups:
     - story_2022_088
   - id: SYNC-02-004
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: Each `Announce(CaseLedgerEntry)` activity MUST embed the full inline `CaseLedgerEntry` object in its `object` field;
       a URI-only reference MUST NOT be used, because the recipient needs all entry fields (including `prev_log_hash` and `entry_hash`)
       to validate the hash chain without an additional round-trip to the sender's DataLayer
@@ -195,7 +195,7 @@ groups:
     - story_2022_088
   - id: SYNC-03-003
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: 'Replication MUST be idempotent: repeated delivery of the same log entry MUST NOT produce duplicate entries
       in the receiver''s log'
     verification: >-
@@ -208,7 +208,7 @@ groups:
       note: idempotency.md
   - id: SYNC-03-004
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       When a Participant Actor sends any message to the CASE_MANAGER, it SHOULD include the
       hash of its last accepted canonical recorded log entry as a parameter in the activity's
@@ -248,7 +248,7 @@ groups:
   specs:
   - id: SYNC-05-001
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: The replication sender SHOULD implement retry with exponential backoff on delivery failure
     verification: >-
       Integration tests in `test/demo/` confirm that the replication sender retries
@@ -415,26 +415,22 @@ groups:
     - missing_story_reference
   - id: SYNC-07-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Integration tests MUST cover the full single-peer replication cycle: leader appends an entry, sends an `Announce`
       activity, and the receiver validates the predecessor hash and appends the entry'
     verification: >-
       Integration tests in `test/demo/` confirm the full single-peer replication
       cycle: leader appends an entry, sends an Announce, and the receiver
       validates the predecessor hash and appends the entry.
-    lint_suppress:
-    - missing_story_reference
   - id: SYNC-07-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Tests MUST cover conflict and idempotency scenarios: mismatched predecessor hash, duplicate delivery, and
       leader retry after rejection'
     verification: >-
       Integration tests in `test/demo/` confirm conflict and idempotency scenarios:
       mismatched predecessor hash is rejected, duplicate delivery produces no
       duplicates, and the leader retries after rejection.
-    lint_suppress:
-    - missing_story_reference
   - id: SYNC-07-004
     priority: MUST
     kind: protocol
@@ -491,7 +487,7 @@ groups:
       duplicate entries, produces the same resulting state as a single-pass replay.
   - id: SYNC-08-004
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: 'Monotonic visibility: participants MUST NOT regress their acknowledged log position'
     verification: >-
       Integration tests in `test/demo/` confirm that participants never acknowledge a
@@ -1089,7 +1085,7 @@ groups:
     - story_2022_088
   - id: SYNC-15-012
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: >-
       The CASE_MANAGER MUST NOT enqueue a replay `Announce(CaseLedgerEntry)` for an
       (entry, peer) pair while an earlier `Announce` of that same entry to that same peer

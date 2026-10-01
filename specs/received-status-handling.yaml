@@ -75,7 +75,7 @@ groups:
     - story_2022_088
   - id: RSH-01-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       Embargo teardown and other canonical-state side-effects in
       `add_participant_status_tree` MUST run only after the canonical
@@ -92,8 +92,6 @@ groups:
     adr:
     - ADR-0046
     - ADR-0108
-    lint_suppress:
-    - missing_story_reference
 
 - id: RSH-02
   title: EmbargoTeardownAuthorizationGate
@@ -118,7 +116,7 @@ groups:
     - story_2022_026
   - id: RSH-02-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       The default backend for `EmbargoTeardownAuthorizationGate` MUST be
       `RequireCaseOwnerApproval` — an Evaluator that performs an
@@ -137,8 +135,6 @@ groups:
     verification: Inspection of `vultron/core/behaviors/status/` confirms the default backend for
       `EmbargoTeardownAuthorizationGate` is `RequireCaseOwnerApproval`, not `AlwaysSucceed`.
 
-    lint_suppress:
-    - missing_story_reference
 - id: RSH-03
   title: ThreatTerminationBranchNode
   description: >
@@ -472,7 +468,7 @@ groups:
     - story_2022_106
   - id: RSH-05-010
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       A producer of `ledger_payload_object_override` MUST write `None` to the
       key unconditionally at the start of every tick — before any early return
@@ -492,8 +488,6 @@ groups:
       the producer node is migrated to the typed-Ports base class (ISSUE-1808),
       the base class SHOULD auto-clear declared output ports in `initialise()`,
       making this obligation structural.
-    lint_suppress:
-    - missing_story_reference
   - id: RSH-05-011
     priority: MUST
     kind: protocol
@@ -633,7 +627,7 @@ groups:
     - missing_story_reference
   - id: RSH-05-018
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       When adjudicating the EM dimension of a received `Add(CaseStatus)`, the
       receiver MUST accept the asserted EM state if and only if it is identical
@@ -659,11 +653,9 @@ groups:
       is applied as `asserted_em != current_em and not is_valid_em_transition(current_em, asserted_em)`;
       an identity assertion (`asserted == current`) is always accepted without
       invoking `is_valid_em_transition()`.
-    lint_suppress:
-    - missing_story_reference
   - id: RSH-05-019
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       When adjudicating the PXA dimension of a received `Add(CaseStatus)`, the
       receiver MUST accept the asserted PXA state if and only if it is identical
@@ -693,11 +685,9 @@ groups:
       is `asserted_pxa != current_pxa and not is_monotonic_pxa_forward(current_pxa, asserted_pxa)`;
       CSB-16-002 strict single-step adjacency applies only to local write nodes,
       not to the received-side filter.
-    lint_suppress:
-    - missing_story_reference
   - id: RSH-05-020
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       After adjudicating each dimension of a received
       `Add(ParticipantStatus, CaseParticipant)` independently, the receiver MUST
@@ -791,8 +781,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: RSH-05-001
-    lint_suppress:
-    - missing_story_reference
   - id: RSH-05-021
     priority: MUST
     kind: protocol
@@ -1000,7 +988,7 @@ groups:
 
   - id: RSH-06-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       The RM acceptance rule of RSH-06-001 through RSH-06-005 (accept a forward
       move including a non-adjacent one, refuse a backward move and carry the
@@ -1027,8 +1015,6 @@ groups:
       emits the RSH-06-004 note, matching the `Add(ParticipantStatus)` behaviour.
     adr:
     - ADR-0108
-    lint_suppress:
-    - missing_story_reference
 - id: RSH-07
   title: Conservative Default Authorization Policy for Status Gates
   description: >
@@ -1126,7 +1112,7 @@ groups:
     - missing_story_reference
   - id: RSH-07-003
     priority: MAY
-    kind: protocol
+    kind: project
     statement: >
       An implementation MAY configure a permissive backend (e.g.,
       `AlwaysSucceed`) for `CaseOwnerApprovesStatusUpdate` or
@@ -1141,8 +1127,6 @@ groups:
       consequences. Other valid alternative backends include role-differentiated
       policy, probabilistic approval, and any `CallOutBackendFactory`-conformant
       implementation. See ADR-0076.
-    lint_suppress:
-    - missing_story_reference
 - id: RSH-08
   title: One Move, One Mover — Received-Side Write Subject and Pipeline
   description: >
@@ -1204,7 +1188,7 @@ groups:
     - missing_story_reference
   - id: RSH-08-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       Every received-side tree that writes participant or case state as an
       effect of an inbound activity MUST perform that write only when the
@@ -1226,11 +1210,9 @@ groups:
       bidirectional equality (TB-10-002).
     adr:
     - ADR-0108
-    lint_suppress:
-    - missing_story_reference
   - id: RSH-08-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       Every ledger `event_type` the CASE_MANAGER commits MUST have a replica
       apply node reachable from `create_announce_log_entry_tree`, or a recorded
@@ -1249,5 +1231,3 @@ groups:
       `event_conditions.py`) or listed in a declared-no-effect set held to bidirectional equality (TB-10-002).
     adr:
     - ADR-0108
-    lint_suppress:
-    - missing_story_reference

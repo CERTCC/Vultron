@@ -9,8 +9,8 @@ stakeholder_type: [project-contributor]
 The behavioral requirements for this tree are specified in the
 [Protocol Specifications](../../reference/specs/protocol.md):
 
-- [CSB-09](../../reference/specs/protocol.md#csb-09) — Enter CS V (Vendor Aware)
-- [CSB-10](../../reference/specs/protocol.md#csb-10) — Enter CS F (Fix Ready)
+- [CSB-09](../../reference/specs/project.md#csb-09) — Enter CS V (Vendor Aware)
+- [CSB-10](../../reference/specs/project.md#csb-10) — Enter CS F (Fix Ready)
 - [CSB-15](../../reference/specs/protocol.md#csb-15) — Trigger-Side VFD Role Preconditions
 
 !!! note "Implementation approach"

@@ -538,3 +538,43 @@ def test_creation_time_revision_is_indexed_for_the_owners_default_selection(
     assert isinstance(case, VulnerabilityCase)
     (loser_id,) = case.proposed_embargoes
     assert loser_id in case.pending_embargo_proposal_index
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "EP-04-012: the once-per-case guard reads the active-embargo "
+        "reference, which termination clears, so a redelivered proposal "
+        "after EM.EXITED re-runs the creation arm — an orphan EmbargoEvent "
+        "and a failed tree. Tracked by #4019 (Concern #3986)."
+    ),
+)
+@pytest.mark.spec("EP-04-012")
+def test_a_rerun_after_the_embargo_exited_initializes_nothing(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """Creation-time initialization runs once per case (EP-04-012).
+
+    First run: the protocol default becomes active.  The owner then ends the
+    embargo, which clears ``active_embargo`` and leaves EM at ``EXITED``.  A
+    second run — a redelivered ``Create(CaseProposal)`` reusing the case — must
+    recognise that initialization already happened: SUCCESS, the EM state
+    untouched, no embargo attached, and no new ``EmbargoEvent`` stored.
+    """
+    status, _, _ = _run(bt_scenario)
+    assert status == Status.SUCCESS
+    assert _em_state(bt_scenario) == EM.ACTIVE
+
+    EmbargoLifecycle(persistence=bt_scenario.dl).terminate_active_embargo(
+        case_id=CASE_ID, actor_id=ACTOR_ID
+    )
+    assert _em_state(bt_scenario) == EM.EXITED
+    events_before = len(list(bt_scenario.dl.list_objects("EmbargoEvent")))
+
+    status, _, _ = _run(bt_scenario)
+
+    assert status == Status.SUCCESS
+    assert _em_state(bt_scenario) == EM.EXITED
+    assert _active_embargo(bt_scenario) is None
+    events_after = len(list(bt_scenario.dl.list_objects("EmbargoEvent")))
+    assert events_after == events_before

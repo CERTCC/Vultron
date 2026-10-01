@@ -10,8 +10,12 @@ description: >
   pre-case embargo phase; why an RSVP deadline may not outlive its embargo; and
   how EP-04-003's two-party shortest-wins relates to EP-08's general
   earliest-expiration ordering for N open proposals; why the creation-time
-  revision's registration order no longer touches consent (ADR-0093); and how
-  the creation-time revision is relayed to the other party (EP-04-011, ADR-0113).
+  revision's registration order no longer touches consent (ADR-0093); how
+  the creation-time revision is relayed to the other party (EP-04-011, ADR-0113);
+  why creation-time initialization runs once per case with the EM state, not
+  the active-embargo reference, as the evidence (EP-04-012); and why the actor
+  default is the CASE_OWNER's profile policy, carried inline on the case proposal
+  (CP-01-009, CP-01-010).
 related_specs:
   - specs/case-management.yaml
   - specs/case-proposal.yaml
@@ -214,19 +218,31 @@ What replaced it:
 |---|---|
 | Configured fallback, refused outside `[72h, 5d]` (EP-04-005) | `ActorConfig.protocol_default_embargo_duration` (`vultron/config/actor.py`) |
 | Shortest-wins over candidates only, fallback when none (EP-04-006/007) | `resolve_initial_embargo_duration()` (`vultron/core/services/embargo_duration.py`) |
-| Deterministic actor default: shortest, ties by policy id (EP-04-010) | `select_actor_default()` (same module) |
-| Actor default is the case owner's own policy (EP-04-010) | `ResolveEmbargoDurationNode` filters on `EmbargoPolicy.actor_id == case.attributed_to` |
+| Deterministic actor default: shortest, ties by policy id (EP-04-010) | `select_actor_default()` (same module); once the policy is read from the CASE_OWNER's profile (#4027) there is at most one candidate (EP-01-001) |
+| Actor default is the CASE_OWNER's own policy (EP-04-003, EP-04-010) | `ResolveEmbargoDurationNode` keys on `case.attributed_to`; on the case-actor path that field still names the case actor until #4026 sets it to the CASE_OWNER (CM-02-008) |
 | Distinct blackboard names (EP-04-010) | `actor_default_embargo_duration`, `protocol_default_embargo_duration`, and the resolved `initial_embargo_duration` (duration plus source) |
 | P/X/A refusal before anything is created (EP-04-008) | `CaseNotEmbargoEligibleNode`, the first arm of the `InitializeDefaultEmbargoNode` Selector |
 
-**Whose policy is the actor default.** At creation the case has two actors:
-the case owner and the reporter. The reporter's terms arrive as the sender
-proposal, so the actor default is the case owner's published policy and no one
-else's. The creation tree runs as the CASE_MANAGER, but that is not a third
-opinion: the CASE_MANAGER acts as the case owner's proxy here, so "what the
-owner's policy says" and "what the CASE_MANAGER applies" are the same thing. A
-policy some other actor published and that happens to be in the store is never
-a candidate.
+**Whose policy is the actor default.** At creation the case has two actors with
+terms: the CASE_OWNER and the reporter. The CASE_OWNER is the actor that received
+the `Offer(VulnerabilityReport)` and caused the case to be created, whatever
+other roles it holds, and `case.attributed_to` names it on every creation path
+(CM-02-008, CP-09-001). The reporter's terms arrive as the sender proposal, so the
+actor default is the policy on the CASE_OWNER's actor profile and no one else's.
+The creation tree runs as the CASE_MANAGER, but the CASE_MANAGER contributes no
+terms of its own: a policy the CASE_MANAGER, or anyone else, published is never a
+candidate.
+
+**How the CASE_OWNER's policy reaches creation.** When the CASE_MANAGER creates
+the case, the CASE_OWNER's profile lives in the CASE_OWNER's own store, which the
+CASE_MANAGER cannot read (PCR-01-003). So the policy travels the way the
+reporter's terms do (CP-01-008): the proposing actor sends its full profile
+inline as the `actor` of `Create(as_CaseProposal)`, carrying its `embargoPolicy`
+(CP-01-010). The CASE_MANAGER reads the default from that profile only, never
+fetches it, and keeps it for no other case, so a stale copy can never win a
+later shortest-wins. The protocol also permits a profile reference that the
+CASE_MANAGER dereferences (CP-01-009); this prototype requires the inline form.
+A profile with no policy means no actor default.
 
 Concretely, "the owner" is `case.attributed_to`, and under ADR-0041 that is
 the **CaseActor** that created the case (`CreateCaseFromProposalNode`), not the
@@ -324,6 +340,68 @@ required `end_time` on their requests, so the only production site that leaned o
 the default was the demo's replica seeding, which now resolves its duration the way
 `InitializeDefaultEmbargoNode` does. Test builders state `days_from_now_utc(45)`
 explicitly — the same window, now visible at every site.
+
+## Initialization Runs Once Per Case — the EM State Is the Evidence
+
+`InitializeDefaultEmbargoNode` is reached from the case-proposal tree on *both*
+branches of `ResolveCaseIdSelector`: after `CreateCaseFromProposalNode` on a
+fresh case, and after `LoadExistingCaseNode` when a redelivered
+`Create(CaseProposal)` reuses a case (CP-05-006). The reuse branch is a
+lost-reply recovery: it answers an exact redelivery of the same proposal and lets
+a redelivery *finish* a case whose first attempt died between creation and the
+`Accept`. "Duplicate" here means the same proposal arriving twice, never a second
+report that describes the same vulnerability — that is report management
+(RMB-11-002), not case creation. CP-05-006's *statement* still keys the duplicate
+on the report ("a proposal for the same report"); the rationale is the lost-reply
+recovery, and amending the statement's key is #3977's question.
+
+So the subtree needs a guard that answers "did creation-time initialization
+already run on this case?", and EP-04-012 fixes what the evidence is:
+
+| Evidence | Reads an exited embargo as | Reads a half-built case as |
+|---|---|---|
+| `case.active_embargo` is set | **uninitialized** (termination clears it) | uninitialized ✓ |
+| EM state has left `NONE` | initialized ✓ | uninitialized ✓ |
+
+The reference is wrong in the first column. After `terminate_active_embargo`
+the reference is `None` and the state is `EXITED`; a guard keyed on the
+reference falls through to the creation arm, which stores a fresh `EmbargoEvent`
+*before* `AdvanceEMStateToActiveNode` asks the EM machine for a `PROPOSE` it has
+no transition for from `EXITED` — an orphan write, a failed tree, and a proposal
+that is never answered (#3986). The EM state is right in both columns because
+the machine never returns to `NONE` once it has left it and `PROPOSED` is never
+persisted at creation (EP-04-002), so "has left `NONE`" is exactly
+"initialization has run".
+
+Consequences for the guard arm:
+
+- It reads the state through `ReadEmStateNode`
+  (`vultron/core/behaviors/AGENTS.md` § "EM State Reads Must Use
+  ReadEmStateNode"), not from the case field.
+- It is a refusal arm ahead of a write, so an unreadable case or store *raises*
+  (`bt-pitfalls.md` § "A Refusal Arm in a Selector Fails Toward 'Admit'").
+  The two rules do not compose for free: `ReadEmStateNode` never raises — it
+  returns FAILURE, with the cause in `result_out["error"]` (or nothing at all
+  when the datalayer is missing) — and a bare FAILURE as the arm's first child
+  falls through the Selector into the creation arm, which is admit. The arm must
+  therefore convert the read's FAILURE into a raise itself: after the read, a
+  missing `result_out["em_before"]` is an error to raise (carrying
+  `result_out["error"]` when present), never a status to return. Only the
+  `em_before == EM.NONE` outcome may return FAILURE, because that is the one
+  case where falling through to the creation arm is the correct answer.
+- Skipping the whole creation arm is what makes the proposal's embargo terms
+  irrelevant on a reused case: shortest-wins and the pending-revision
+  registration both live inside it. The embargo is the case's, not the
+  report's; terms on a redelivered proposal that conflict with the case lose
+  to the case.
+- The per-node skips in `AdvanceEMStateToActiveNode` and
+  `AttachEmbargoToCaseNode` stay. They are each node validating its own
+  transition (CSB-16), not the idempotency guard.
+
+The report-keyed `LoadExistingCaseNode` itself is suspect for a different
+reason — CBT-06-002 expects a second recipient of the same report to get its own
+case, and the proposal id is the key both of the reuse branch's jobs actually
+need — but that is #3977's question, not this section's.
 
 ## Resolved: Reporter Embargo Proposal Mechanism (EP-04-004)
 

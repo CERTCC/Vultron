@@ -1607,8 +1607,6 @@ groups:
           that omits the declaration fails.
         adr:
           - ADR-0098
-        lint_suppress:
-          - missing_story_reference
 
       - id: DEMOCI-11-002
         priority: MUST
@@ -1632,8 +1630,6 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-001
-        lint_suppress:
-          - missing_story_reference
 
       - id: DEMOCI-11-003
         priority: MUST
@@ -1659,8 +1655,6 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-001
-        lint_suppress:
-          - missing_story_reference
 
       - id: DEMOCI-11-004
         priority: MUST
@@ -1689,8 +1683,6 @@ groups:
             spec_id: DEMOCI-06-007
           - rel_type: refines
             spec_id: DEMOCI-06-004
-        lint_suppress:
-          - missing_story_reference
 
       - id: DEMOCI-11-005
         priority: MUST
@@ -1711,8 +1703,6 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-004
-        lint_suppress:
-          - missing_story_reference
 
       - id: DEMOCI-11-006
         priority: MUST_NOT
@@ -1735,8 +1725,6 @@ groups:
           include-markdown directive for a scenario table.
         adr:
           - ADR-0098
-        lint_suppress:
-          - missing_story_reference
 
       - id: DEMOCI-11-007
         priority: MUST
@@ -1771,8 +1759,6 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-001
-        lint_suppress:
-          - missing_story_reference
 
       - id: DEMOCI-11-008
         priority: MUST_NOT
@@ -1797,8 +1783,6 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-007
-        lint_suppress:
-          - missing_story_reference
 
       - id: DEMOCI-11-009
         priority: MUST
@@ -1824,8 +1808,6 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-001
-        lint_suppress:
-          - missing_story_reference
 
       - id: DEMOCI-11-010
         priority: MUST
@@ -1862,8 +1844,6 @@ groups:
             spec_id: DEMOCI-11-001
           - rel_type: refines
             spec_id: DEMOCI-11-007
-        lint_suppress:
-          - missing_story_reference
 
       - id: DEMOCI-11-011
         priority: MUST
@@ -1905,8 +1885,6 @@ groups:
             spec_id: DEMOCI-11-001
           - rel_type: refines
             spec_id: DC-01-002
-        lint_suppress:
-          - missing_story_reference
 
       - id: DEMOCI-11-012
         priority: MUST
@@ -1943,5 +1921,3 @@ groups:
             spec_id: DEMOCI-11-007
           - rel_type: derives_from
             spec_id: MS-16-002
-        lint_suppress:
-          - missing_story_reference

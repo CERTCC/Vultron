@@ -852,7 +852,7 @@ groups:
     - ADR-0022
   - id: CLP-10-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Any operation that is procedural code in `execute()` (including the
       use case's main operation) MUST be expressed as a node in the single BT tree
       built by the tree-factory function.
@@ -863,11 +863,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-10-008
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The guarded-commit subtree MUST be composed as a child of the tree-factory
       function, not invoked as a separate `execute_with_setup()` call.
     verification: '`test/architecture/test_single_bt_execution_received_side.py` confirms
@@ -879,8 +877,6 @@ groups:
       spec_id: CLP-10-005
     - rel_type: refines
       spec_id: CLP-10-002
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-10-006
     priority: MUST
     kind: project
@@ -1044,7 +1040,7 @@ groups:
     - ADR-0109
   - id: CLP-10-015
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       When a received-side use case must identify a *subject* that the incoming
       message names — the invitee of an embargo invitation, the actor whose
@@ -1076,11 +1072,9 @@ groups:
     - protocol
     adr:
     - ADR-0022
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-10-016
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Subject-identity resolution (CLP-10-015) MUST be by **addressee
       membership**, not by position in the `to:` list. When the receiving actor
@@ -1112,8 +1106,6 @@ groups:
     - protocol
     adr:
     - ADR-0022
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-10-017
     priority: MUST
     kind: project
@@ -1431,7 +1423,7 @@ groups:
     - missing_story_reference
   - id: CLP-14-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The envelope `published` timestamps (the CASE_MANAGER's commit stamps) on
       consecutive recorded entries MUST be monotonically non-decreasing in log_index
       order. An entry with a higher log_index MUST NOT carry an envelope `published`
@@ -1454,8 +1446,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-14-001
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-14-004
     priority: MUST
     kind: protocol
@@ -1485,7 +1475,7 @@ groups:
     - missing_story_reference
   - id: CLP-14-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Every CaseLedgerEntry's envelope `published` timestamp MUST be on or
       after the parent VulnerabilityCase's own published timestamp. A ledger entry
       MUST NOT be stamped with a time that precedes the case's creation. The CASE_MANAGER
@@ -1507,8 +1497,6 @@ groups:
       `test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py`.
     adr:
     - ADR-0079
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-14-007
     priority: SHOULD
     kind: protocol
@@ -1544,7 +1532,7 @@ groups:
       spec_id: CLP-14-001
   - id: CLP-14-009
     priority: MAY
-    kind: protocol
+    kind: project
     statement: Implementations MAY expose the future tolerance (CLP-14-007), the
       staleness window (CLP-14-008) and the clock-skew tolerance applied to the
       claimed-timestamp checks (CLP-14-006, CLP-15-003) as configurable parameters
@@ -1561,7 +1549,7 @@ groups:
     - ADR-0079
   - id: CLP-14-010
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The log_index values of a case ledger MUST form a gapless sequence
       starting at 0. The genesis entry MUST carry log_index 0, and every later entry
       MUST carry the log_index of its immediate predecessor plus one. The CASE_MANAGER
@@ -1581,8 +1569,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SYNC-01-002
-    lint_suppress:
-    - missing_story_reference
 - id: CLP-15
   title: Participant Assertion Timestamp Obligations
   description: Normative requirements on what well-behaved participants MUST do when
@@ -1592,7 +1578,7 @@ groups:
   specs:
   - id: CLP-15-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A participant MUST emit protocol activities for a given case in causal
       order. If activity A causally precedes activity B in the participant's own event
       stream, A MUST be emitted to the CASE_MANAGER before B.
@@ -1612,8 +1598,6 @@ groups:
       `test/core/models/test_clp_14_15_invariants.py::test_clp_15_001_002_out_of_order_emission_detected_at_ledger_order`.'
     adr:
     - ADR-0079
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-15-002
     priority: MUST_NOT
     kind: protocol
@@ -1634,7 +1618,7 @@ groups:
       spec_id: CLP-15-001
   - id: CLP-15-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: For causally related activities within the same participant's event
       stream, the published timestamp on activity B MUST be greater than or equal
       to the published timestamp on activity A, where A causally precedes B. A participant
@@ -1662,8 +1646,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-15-001
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-15-004
     priority: SHOULD
     kind: protocol
@@ -1678,7 +1660,7 @@ groups:
     - ADR-0079
   - id: CLP-15-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A participant MUST include a `published` timestamp on every protocol
       activity it emits. A receiver MUST treat an inbound activity that carries no
       `published` as malformed and reject it at message validation, and MUST NOT
@@ -1701,8 +1683,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-15-004
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-15-005
     priority: MUST
     kind: protocol
@@ -1727,7 +1707,7 @@ groups:
     - missing_story_reference
   - id: CLP-15-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A receiver MUST carry the `published` and `updated` timestamps of every
       object nested in an inbound activity as received. A timestamp the sender omitted
       MUST remain absent; the receiver MUST NOT substitute its own clock for it, whether
@@ -1751,5 +1731,3 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-15-006
-    lint_suppress:
-    - missing_story_reference

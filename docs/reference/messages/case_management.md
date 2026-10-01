@@ -152,7 +152,7 @@ from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_participa
 print(json2md(reject_case_participant_role()))
 ```
 
-The dedicated object type is preferred over a `target`-field discriminator ([SE-08-003](../specs/protocol.md#se-08-003)), and the earlier wire format `Offer(VulnerabilityCase, target=CaseParticipant)` for offering a role has been removed ([SE-08-005](../specs/protocol.md#se-08-005)).
+The dedicated object type is preferred over a `target`-field discriminator ([SE-08-003](../specs/protocol.md#se-08-003)), and the earlier wire format `Offer(VulnerabilityCase, target=CaseParticipant)` for offering a role has been removed ([SE-08-005](../specs/project.md#se-08-005)).
 
 ---
 

@@ -252,6 +252,7 @@ class LintWarningCode(StrEnum):
     PHANTOM_SYMBOL_REF = "phantom_symbol_ref"
     MUST_WITHOUT_VERIFICATION = "must_without_verification"
     MISSING_STORY_REFERENCE = "missing_story_reference"
+    PROTOCOL_KIND_WITH_CODE_REFERENCE = "protocol_kind_with_code_reference"
 
 
 class Relationship(BaseModel):

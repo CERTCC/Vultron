@@ -344,7 +344,7 @@ groups:
       replica has been established.
   - id: PCR-06-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The pending-activity queue for unknown case contexts MUST be actor-scoped: deferred
       activities for a given case ID MUST be keyed by both the receiving actor's ID and the
@@ -357,8 +357,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-06-002
-    lint_suppress:
-    - missing_story_reference
 - id: PCR-08
   title: Outbound Participant Message Routing
   specs:
@@ -446,7 +444,7 @@ groups:
     - story_2022_039
   - id: PCR-08-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Unit and integration tests MUST verify that a participant's outbound activity is addressed
       only to the CASE_MANAGER, and that no direct peer-to-peer delivery is attempted.
@@ -454,8 +452,6 @@ groups:
       Integration tests in `test/demo/test_pcr_engage_case.py` assert that
       every outbound participant activity has exactly one entry in `to` and
       that recipient is the CASE_MANAGER's ID.
-    lint_suppress:
-    - missing_story_reference
   - id: PCR-08-007
     priority: MUST
     kind: protocol
@@ -620,7 +616,7 @@ groups:
   specs:
   - id: PCR-07-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Unit tests MUST verify that `Announce(VulnerabilityCase)` from the CASE_MANAGER creates
       a local replica when none exists.
@@ -628,11 +624,9 @@ groups:
       Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
       asserts that `Announce(VulnerabilityCase)` from the CASE_MANAGER creates a
       new local replica when no prior replica exists for that case ID.
-    lint_suppress:
-    - missing_story_reference
   - id: PCR-07-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Unit tests MUST verify that `Announce(VulnerabilityCase)` from the CASE_MANAGER updates
       the local replica when one exists.
@@ -640,11 +634,9 @@ groups:
       Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
       asserts that `Announce(VulnerabilityCase)` from the CASE_MANAGER replaces
       the existing local replica with the received state.
-    lint_suppress:
-    - missing_story_reference
   - id: PCR-07-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Unit tests MUST verify that `Announce(VulnerabilityCase)` from an actor that is NOT
       the CASE_MANAGER is rejected and logged at WARNING.
@@ -652,11 +644,9 @@ groups:
       Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
       asserts that `Announce(VulnerabilityCase)` from a non-CASE_MANAGER sender
       is rejected and produces a WARNING-level log entry.
-    lint_suppress:
-    - missing_story_reference
   - id: PCR-07-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Unit tests MUST verify that the `context` field is used to route incoming activities
       to the correct case handler.
@@ -664,11 +654,9 @@ groups:
       Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
       asserts that the `context` field of an incoming activity is used to
       dispatch to the matching case-handler instance.
-    lint_suppress:
-    - missing_story_reference
   - id: PCR-07-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Unit tests MUST verify that activities with an unknown case context are queued, a resync
       request is emitted, and the activity is dropped after timeout without updating any state.
@@ -677,11 +665,9 @@ groups:
       asserts that an activity with an unknown context ID is queued, triggers
       a resync request, and is discarded after timeout without modifying any
       local state.
-    lint_suppress:
-    - missing_story_reference
   - id: PCR-07-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Integration tests MUST verify the full bootstrap sequence: case creation → CASE_MANAGER
       sends `Announce(VulnerabilityCase)` → participant creates local replica → subsequent
@@ -691,11 +677,9 @@ groups:
       walks the complete bootstrap sequence: case creation, CASE_MANAGER sending
       `Announce(VulnerabilityCase)`, participant replica creation, and correct
       routing of subsequent case-scoped activities.
-    lint_suppress:
-    - missing_story_reference
   - id: PCR-07-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Integration tests MUST verify the late-joiner sequence: `Invite` → `Accept` → CASE_MANAGER
       sends `Announce(VulnerabilityCase)` to new participant → new participant creates local
@@ -705,11 +689,9 @@ groups:
       walks the complete late-joiner sequence: Invite → Accept → CASE_MANAGER
       sending `Announce(VulnerabilityCase)` → new participant creating its
       local replica.
-    lint_suppress:
-    - missing_story_reference
   - id: PCR-07-008
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Integration tests MUST verify that `RmInviteToCaseActivity` carries `actor` set to
       the CASE_MANAGER's ID, and that the invitee's `RmAcceptInviteToCaseActivity` is
@@ -724,11 +706,9 @@ groups:
       spec_id: PCR-08-007
     - rel_type: verifies
       spec_id: PCR-08-008
-    lint_suppress:
-    - missing_story_reference
   - id: PCR-07-009
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Integration tests MUST assert that no RM state-change activity is emitted with
       `actor` set to the invitee's ID from the case owner's context.
@@ -741,11 +721,9 @@ groups:
       spec_id: PCR-08-009
     - rel_type: verifies
       spec_id: PCR-08-010
-    lint_suppress:
-    - missing_story_reference
   - id: PCR-07-010
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Unit tests MUST verify that `Announce(VulnerabilityCase)` from an actor with no
       prior local trust record — no matching `VultronReportCaseLink.trusted_case_actor_id`
@@ -759,5 +737,3 @@ groups:
     relationships:
     - rel_type: verifies
       spec_id: PCR-03-004
-    lint_suppress:
-    - missing_story_reference
