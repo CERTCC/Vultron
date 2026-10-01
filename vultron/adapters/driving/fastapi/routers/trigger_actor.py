@@ -29,6 +29,7 @@ from vultron.adapters.driving.fastapi.deps import (
 )
 from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.adapters.driving.fastapi.trigger_runner import emitting_outbox
 from vultron.adapters.driving.fastapi.trigger_models import (
     AcceptActorRecommendationRequest,
     AcceptCaseInviteRequest,
@@ -39,45 +40,10 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     RejectCaseInviteRequest,
     SuggestActorToCaseRequest,
 )
-from vultron.core.behaviors.store_scope import store_for_actor
-from vultron.core.models.use_case_result import ActivityResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
-
-
-def _emitting_outbox(
-    result: ActivityResult,
-    actor_id: str,
-    dl: DataLayer,
-    actor_dl: DataLayer,
-) -> tuple[str, DataLayer]:
-    """Return the ``(actor_id, store)`` whose outbox the trigger just wrote to.
-
-    A delegated emit (CM-24-001, PCR-08-007) is authored as the CaseActor and
-    queued in the *CaseActor's* outbox, not the requesting actor's, so the
-    drain scheduled after the trigger has to target that queue.  Draining the
-    requesting actor's queue instead leaves the row until the CaseActor next
-    happens to drain — in CI run 36643399281 an ownership-transfer Offer sat
-    unpopped for 111 s while the 90 s gate on its forwarding expired (#3602;
-    invite-actor-to-case had the same fault fixed in #2484).
-
-    Unless the CaseActor is on another container, which it is after a handoff
-    (CP-08-003).  A node cannot reach a foreign authority's store, so
-    ``BTBridge._store_for_actor`` keeps the emit in the requesting actor's own
-    store and the activity is queued *there*; resolving the queue any other way
-    would drain an empty store minted for a foreign slug and deliver nothing.
-    ``store_for_actor`` is the same guard the bridge applies, so the two cannot
-    disagree about which queue holds the activity.
-    """
-    emitting_id = result.emitting_actor_id
-    if emitting_id == actor_id:
-        return actor_id, actor_dl
-    emitting_dl = store_for_actor(dl, emitting_id, require_same_authority=True)
-    if emitting_dl is None:
-        return actor_id, actor_dl
-    return emitting_id, emitting_dl
 
 
 @router.post(
@@ -115,7 +81,9 @@ def trigger_suggest_actor_to_case(
         )
     # Delegated emit (CM-24-001): drain the CaseActor's outbox, where the
     # activity was queued, not the requesting actor's.
-    emitting_id, emitting_dl = _emitting_outbox(result, actor_id, dl, actor_dl)
+    emitting_id, emitting_dl = emitting_outbox(
+        result.emitting_actor_id, actor_id, dl, actor_dl
+    )
     background_tasks.add_task(outbox_handler, emitting_id, emitting_dl)
     return result.model_dump()
 
@@ -220,7 +188,9 @@ def trigger_invite_actor_to_case(
             invitee_id=body.invitee_id,
             roles=body.roles,
         )
-    emitting_id, emitting_dl = _emitting_outbox(result, actor_id, dl, actor_dl)
+    emitting_id, emitting_dl = emitting_outbox(
+        result.emitting_actor_id, actor_id, dl, actor_dl
+    )
     background_tasks.add_task(outbox_handler, emitting_id, emitting_dl)
     return result.model_dump()
 
@@ -338,7 +308,9 @@ def trigger_offer_case_ownership_transfer(
         )
     # Delegated emit (CM-24-001): drain the CaseActor's outbox, where the
     # activity was queued, not the requesting actor's.
-    emitting_id, emitting_dl = _emitting_outbox(result, actor_id, dl, actor_dl)
+    emitting_id, emitting_dl = emitting_outbox(
+        result.emitting_actor_id, actor_id, dl, actor_dl
+    )
     background_tasks.add_task(outbox_handler, emitting_id, emitting_dl)
     return result.model_dump()
 

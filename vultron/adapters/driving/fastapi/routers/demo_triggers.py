@@ -28,7 +28,7 @@ Spec: TRIG-08-004, TRIG-09-001 through TRIG-09-005, TRIG-10-003, TRIG-10-004.
 """
 
 import json
-from typing import Any, cast
+from typing import Any
 
 from fastapi import (
     APIRouter,
@@ -44,11 +44,13 @@ from fastapi.responses import JSONResponse, Response
 
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
+    get_trigger_dispatcher,
     get_trigger_dl,
     get_trigger_service,
 )
 from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.adapters.driving.fastapi.trigger_runner import run_trigger
 from vultron.adapters.driving.fastapi.trigger_models import (
     AddNoteToCaseRequest,
     CloseCaseRequest,
@@ -57,11 +59,15 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     NotifyPublishedRequest,
     SyncLogEntryRequest,
 )
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.ports.trigger_service import TriggerServicePort
+from vultron.core.use_cases.triggers.requests import (
+    SyncLogEntryTriggerRequest,
+)
+from vultron.errors import VultronCanonicalEntryError
 
 router = APIRouter(prefix="/actors", tags=["Demo Triggers"])
 
@@ -293,94 +299,38 @@ def demo_sync_log_entry(
     body: SyncLogEntryRequest,
     background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
 ) -> JSONResponse:
     """Commit a case ledger entry and fan it out (demo scaffold, BT-06-006 compliant).
 
-    Uses BTBridge + create_commit_log_entry_tree via a canonical
-    Announce(VulnerabilityCase) payload so the entry passes canonical
-    validation (CLP-07).  The caller-supplied event_type is stored verbatim.
+    Runs :class:`~vultron.core.use_cases.triggers.sync_log_entry.SvcSyncLogEntryUseCase`
+    through the trigger dispatcher: the commit tree executes as the case's
+    CASE_MANAGER with a canonical ``Announce(VulnerabilityCase)`` payload so the
+    entry passes canonical validation (CLP-07), and the caller-supplied
+    ``event_type`` is stored verbatim.
 
-    Spec: TRIG-09-001, SYNC-02-002, SYNC-02-003.
+    Implements:
+        TRIG-09-001, TRIG-09-004, TRIG-02-006, TRIG-10-004, TRIG-06-001,
+        TRIG-06-002, SYNC-02-002, SYNC-02-003
     """
-    from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.sync.commit_tree import (
-        create_commit_log_entry_tree,
-    )
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
-    from vultron.core.sync_helpers import _find_equivalent_recorded_entry
-    from vultron.core.use_cases._helpers import _find_case_actor_id
-
-    case_id = body.case_id
-    object_id = body.object_id
-    event_type = body.event_type
-
-    # The dependency is typed as the narrow `DataLayer` port, but everything
-    # below wants case-aware reads and an outbox.  `SqliteDataLayer` satisfies
-    # both protocols structurally; a bare `DataLayer` does not, because
-    # `CasePersistence.clone_for_actor` is declared to return a
-    # `CasePersistence`.  Cast once here rather than at each use — the same
-    # pattern `deps.get_trigger_service` uses.
-    cop = cast(CaseOutboxPersistence, dl)
-
-    # Resolve canonical actor URI (slug from path param → full ID).
-    _actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
-    canonical_actor_id = (
-        _actor.id_ if _actor and hasattr(_actor, "id_") else actor_id
-    )
-    case_actor_id = _find_case_actor_id(cop, case_id) or canonical_actor_id
-    payload_snapshot = {
-        "type": "Announce",
-        "object": {"type": "VulnerabilityCase", "id": case_id},
-        "actor": case_actor_id,
-        # CLP-07-011: a recorded snapshot must be the verbatim AS2 activity, and
-        # an AS2 activity always carries ``published``.  The commit boundary
-        # rejects a snapshot without one (ISSUE-2824).
-        "published": now_utc().isoformat(),
-        "context": case_id,
-    }
-
-    with domain_error_translation():
-        from vultron.adapters.driven.sync_activity_adapter import (
-            SyncActivityAdapter,
-        )
-
-        sync_port = SyncActivityAdapter(cop)
-        bridge = BTBridge(datalayer=cop)
-        bridge.execute_with_setup(
-            tree=create_commit_log_entry_tree(
-                case_id=case_id,
-                object_id=object_id,
-                event_type=event_type,
-                payload_snapshot=payload_snapshot,
+    try:
+        result = run_trigger(
+            SyncLogEntryTriggerRequest(
+                actor_id=actor_id,
+                case_id=body.case_id,
+                object_id=body.object_id,
+                event_type=body.event_type,
             ),
-            actor_id=case_actor_id,
-            sync_port=sync_port,
+            dispatcher=dispatcher,
+            dl=dl,
+            background_tasks=background_tasks,
         )
-
-    # Read back from the store the commit ran *in*, not the requester's.  The
-    # tree executes as the case actor (only the CASE_MANAGER may append to the
-    # canonical log, CLP-09), and a BT's store follows its executing actor
-    # (BT-05-005) — so the entry was written to the case actor's store.  Looking
-    # for it in `cop` finds nothing whenever the requester is not itself the case
-    # actor, and the route then reports a successful commit as a 500.
-    commit_dl = cop
-    if case_actor_id and case_actor_id != getattr(cop, "actor_id", None):
-        commit_dl = cast(
-            CaseOutboxPersistence, cop.clone_for_actor(case_actor_id)
-        )
-
-    entry = _find_equivalent_recorded_entry(
-        case_id=case_id,
-        object_id=object_id,
-        event_type=event_type,
-        payload_snapshot=payload_snapshot,
-        dl=commit_dl,
-    )
-
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-
-    if entry is None:
+    except VultronCanonicalEntryError:
+        # The tree ran but this store does not hold the canonical log, so the
+        # ledger-authority guard declined the mint (ADR-0073).  Kept as the
+        # 500 this route has always answered; ``domain_error_translation()``
+        # has no mapping for it because it is neither a client fault nor a
+        # state conflict.
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"detail": "Log entry commit did not persist."},
@@ -388,11 +338,7 @@ def demo_sync_log_entry(
 
     return JSONResponse(
         status_code=status.HTTP_202_ACCEPTED,
-        content={
-            "log_entry_id": entry.id_,
-            "entry_hash": entry.entry_hash,
-            "log_index": entry.log_index,
-        },
+        content=result.model_dump(),
     )
 
 

@@ -24,18 +24,27 @@ from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
+    get_trigger_dispatcher,
+    get_trigger_dl,
     get_trigger_service,
 )
 from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import (
     AddObjectToCaseRequest,
+    AddOnBehalfStatusRequest,
     AddReportToCaseRequest,
     CaseTriggerRequest,
     CreateCaseRequest,
 )
+from vultron.adapters.driving.fastapi.trigger_runner import run_trigger
+from vultron.core.models.use_case_result import StatusResult
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.ports.trigger_service import TriggerServicePort
+from vultron.core.use_cases.triggers.requests import (
+    AddOnBehalfStatusTriggerRequest,
+)
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
 
@@ -211,3 +220,53 @@ def trigger_add_report_to_case(
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result.model_dump()
+
+
+@router.post(
+    "/{actor_id}/trigger/add-on-behalf-status",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Record a vendor's awareness or a deployer's deployment on their behalf.",
+    description=(
+        "A Case Manager or Case Owner records, on behalf of an actor that was "
+        "notified or invited but has not joined the case, the vendor's "
+        'awareness (``vf_state="Vf"``, v→V; PRM-06-003) or the deployer\'s '
+        'deployment (``d_state="D"``, d→D; PRM-06-004), creating a minimal '
+        "CaseParticipant for the target when none exists (ADR-0084). Writes a "
+        "ParticipantStatus for the target and queues an "
+        "Add(ParticipantStatus, target=CaseParticipant) activity to the Case "
+        'Manager. Fix readiness (``vf_state="VF"``, f→F) is refused: it is '
+        "only ever self-declared by the Vendor (PRM-06-005). Returns the ids "
+        "of the queued activity and the stored status."
+    ),
+    operation_id="actors_trigger_add_on_behalf_status",
+    response_model=StatusResult,
+)
+def trigger_add_on_behalf_status(
+    actor_id: str,
+    body: AddOnBehalfStatusRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> StatusResult:
+    """Assert v→V or d→D on behalf of a notified-but-not-joined actor.
+
+    Implements:
+        TRIG-01-001, TRIG-01-002, TRIG-01-003, HTTP-03-005, TRIG-03-001,
+        TRIG-03-002, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001,
+        PRM-06-003, PRM-06-004, PRM-06-005
+    """
+    # Field by field, not ``**body.model_dump()``: the parsed body is the
+    # authority for what arrived (MV-11-005); the core request adds only the
+    # path's ``actor_id`` (TRIG-06-001).
+    return run_trigger(
+        AddOnBehalfStatusTriggerRequest(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            target_actor_id=body.target_actor_id,
+            vf_state=body.vf_state,
+            d_state=body.d_state,
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )

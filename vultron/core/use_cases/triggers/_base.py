@@ -46,6 +46,7 @@ from pydantic import ValidationError
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.use_case_result import ActivityResult, TriggerResult
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycleResult
@@ -84,6 +85,7 @@ class SvcBTTriggerBase(ABC, Generic[TriggerResultT]):
         request: object,
         trigger_activity: TriggerActivityPort | None = None,
         wire_render_port: WireRenderPort | None = None,
+        sync_port: SyncActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request = request
@@ -92,6 +94,9 @@ class SvcBTTriggerBase(ABC, Generic[TriggerResultT]):
         # through this port; core cannot produce the AS2 shape itself
         # (ARCH-20-001, CLP-07-009).
         self._wire_render_port = wire_render_port
+        # A tree that commits a ledger entry fans it out through this port
+        # (SYNC-02-002); only the ``sync-log-entry`` verb's tree reads it.
+        self._sync_port = sync_port
 
     def execute(self) -> TriggerResultT:
         """Template method: prepare → gate → run BT → handle result."""
@@ -111,6 +116,7 @@ class SvcBTTriggerBase(ABC, Generic[TriggerResultT]):
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
         )
         tree = self._build_tree()

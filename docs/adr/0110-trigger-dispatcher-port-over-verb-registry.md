@@ -118,10 +118,13 @@ TriggerResult          (no fields)
   StatusResult         activity_id, status_id
   OfferResult          offer
   RoleOfferResult      activity_id, activity
+  SyncLogEntryResult   log_entry_id, entry_hash, log_index, emitting_actor_id
 ```
 
 Four verbs return bodies with no `emitting_actor_id` and one with no `activity`; a base requiring both could not be satisfied without changing live bodies.
 `CaseResult` was added when #3831 measured the live bodies: `create-case` returns the activity body plus the created case's id, which the demo layer reads.
+`SyncLogEntryResult` was added when #3832 built the registry: the demo `sync-log-entry` route had run its commit tree inline with no use case, so it could not have a row; it gained `SvcSyncLogEntryUseCase` and this subtype for the three keys its body already carried plus `emitting_actor_id`.
+That fourth key is the one deliberate body change of the migration: the commit tree runs as the case's CASE_MANAGER, so once the use case went through `BTBridge`'s store-scoped ports (DL-07-009) the fan-out landed in the CASE_MANAGER's outbox — where the inline route, which had smuggled `sync_port` past that scoping, had queued it in the requester's — and the router needs the emitter's name to drain the right queue, exactly as it does for a delegated `ActivityResult`.
 Every subtype forbids extra keys, so a use case whose return dict gains a key fails loudly rather than being filtered out of the response.
 
 `activity`, `offer`, and `note` are `dict[str, Any]`, not wire models.
@@ -216,22 +219,25 @@ Only the final step, switching the routes and deleting the service, port, and du
 Two steps are built.
 The gating step is the golden OpenAPI snapshot test at `test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py`, which covers the trigger and demo paths; its first commit (#3828) predates the route rewrite.
 The additive step (#3831) landed behind it with the snapshot unchanged: `TriggerResult` and its subtypes exist in `vultron/core/models/use_case_result.py`, every trigger `execute()` returns one, the two request families are one (`request_bodies.py` owns the bodies, `requests.py` derives the generic `TriggerRequest[ResultT_co]` requests from them), and `TriggerService` still delegates.
+The third step (#3832) landed the registry and the port beside the still-delegating `TriggerService`: `vultron/trigger_registry/` (one row per verb, a lookup and an enumeration, no per-verb behavior), `TriggerDispatcher` in `vultron/core/ports/trigger_dispatcher.py` with `RegistryTriggerDispatcher` in `vultron/core/trigger_dispatcher.py`, the shared `run_trigger(...)` route body in `vultron/adapters/driving/fastapi/trigger_runner.py`, and the first two routes on it — the new `add-on-behalf-status` and the demo `sync-log-entry`, whose inline commit became `SvcSyncLogEntryUseCase` so the use-case-to-row bijection could hold.
 Built and passing:
 
 - `test/architecture/test_use_case_execute_returns_result.py` scans `triggers/` with no exclusion.
 - `test/core/models/test_use_case_result.py` constructs each result subtype, asserts its exact field set, and asserts an unknown key raises.
 - `test/core/use_cases/triggers/test_requests.py` resolves each verb's result through one `trigger(request) -> ResultT_co` signature under mypy and pyright, and pins the `end_time` validator to one declaration.
+- `test/architecture/test_trigger_registry_ratchets.py` asserts the use-case-to-row bijection as an exact set equality, exactly one non-BT-backed row (`SvcOfferCaseParticipantRoleUseCase`) whose result declares no `emitting_actor_id`, that every row's request model binds the row's result type, and that no registry module defines behavior beyond the row type's own validation.
+- `test/adapters/driving/fastapi/test_trigger_registry_routes.py` asserts the route-to-registry bijection and the exposure axis as exact set equalities over the mounted `/trigger/` and `/demo/` routes.
+- `test/adapters/driving/fastapi/test_trigger_runner.py` asserts the outbox flush is queued only after `trigger()` returns and not at all when it raises.
+- `test/core/test_trigger_dispatcher.py` resolves the row from the request type, injects the BT port bundle for `bt_backed` rows and `trigger_activity` alone for the non-BT row, and returns the request's bound result with no cast.
+- A topic-scoped citation ratchet (`test/architecture/test_implements_citations_topic_scoped.py`) fails on any `TB-` citation under `vultron/`.
 
 The rest is not yet built.
 This ADR is provisional until the trigger side's port collapses and the remaining tests named here exist.
 
 Expected, once built:
 
-- A trigger-registry test module asserts the route-to-registry and use-case-to-row bijections as exact set equalities, exactly one non-BT-backed row, and that row declaring no `emitting_actor_id`.
 - An exact-response-key test parametrized over the registry asserts `set(response.json()) == expected_keys` per verb.
-- A `response_model` coverage test fails on any trigger route without one.
-- A topic-scoped citation ratchet fails on any `TB-` citation under `vultron/`.
-- One outbox-ordering test asserts the flush is queued only after `trigger()` returns and not when it raises.
+- A `response_model` coverage test fails on any trigger route without one (today only `add-on-behalf-status` declares one, pinned by the route test).
 
 Per ADR-0095's own rule: no entry here asserts a test exists until it does.
 

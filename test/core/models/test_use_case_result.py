@@ -28,6 +28,7 @@ from vultron.core.models.use_case_result import (
     OfferResult,
     RoleOfferResult,
     StatusResult,
+    SyncLogEntryResult,
     TriggerResult,
     UseCaseResult,
 )
@@ -225,6 +226,16 @@ _TRIGGER_RESULTS: list[
         RoleOfferResult,
         {"activity_id": "urn:uuid:7", "activity": _ACTIVITY},
         {"activity_id", "activity"},
+    ),
+    (
+        SyncLogEntryResult,
+        {
+            "log_entry_id": "urn:uuid:8",
+            "entry_hash": "ab" * 32,
+            "log_index": 0,
+            "emitting_actor_id": _ACTOR,
+        },
+        {"log_entry_id", "entry_hash", "log_index", "emitting_actor_id"},
     ),
 ]
 

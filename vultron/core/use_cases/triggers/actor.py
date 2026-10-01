@@ -43,6 +43,9 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
@@ -81,8 +84,9 @@ class SvcSuggestActorToCaseUseCase(SvcActivityTriggerBase):
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
         wire_render_port: "WireRenderPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port)  # type: ignore[arg-type]
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port, sync_port=sync_port)  # type: ignore[arg-type]
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
@@ -275,8 +279,9 @@ class SvcInviteActorToCaseUseCase(SvcActivityTriggerBase):
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
         wire_render_port: "WireRenderPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port)  # type: ignore[arg-type]
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port, sync_port=sync_port)  # type: ignore[arg-type]
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
@@ -417,8 +422,9 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
         wire_render_port: "WireRenderPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port)  # type: ignore[arg-type]
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port, sync_port=sync_port)  # type: ignore[arg-type]
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
@@ -527,23 +533,21 @@ class SvcOfferCaseParticipantRoleUseCase:
 
     def __init__(
         self,
-        dl: object,
-        request: object,
-        trigger_activity: object = None,
+        dl: CaseOutboxPersistence,
+        request: OfferCaseParticipantRoleTriggerRequest,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request = request
         self._trigger_activity = trigger_activity
 
     def execute(self) -> RoleOfferResult:
-        from vultron.core.ports.trigger_activity import TriggerActivityPort
-
         if self._trigger_activity is None:
             raise RuntimeError(
                 "SvcOfferCaseParticipantRoleUseCase requires a TriggerActivityPort"
             )
-        req = cast(OfferCaseParticipantRoleTriggerRequest, self._request)
-        factory = cast(TriggerActivityPort, self._trigger_activity)
+        req = self._request
+        factory = self._trigger_activity
         activity_id, activity_dict = factory.offer_case_participant_role(
             case_id=req.case_id,
             role=req.role,
