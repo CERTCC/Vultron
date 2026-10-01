@@ -599,6 +599,33 @@ groups:
     tags:
     - documentation
     - tooling
+  - id: MS-12-008
+    priority: MUST
+    kind: process
+    statement: >-
+      A ratchet test MUST hold the number of specs carrying
+      `lint_suppress: [protocol_kind_with_code_reference]` to a pinned ceiling under the
+      same two conditions MS-12-007 places on `missing_story_reference`: the live count
+      stays at or below the ceiling, and the ceiling is no higher than the live count.
+    rationale: >-
+      MS-12-006 adds a second escape hatch next to the one MS-12-007 ratchets. If only one
+      of the two is counted, a pass can swap suppressions from the counted code to the
+      uncounted one: one total falls, the other grows, and every gate stays green.
+    verification: The ratchet in `test/architecture/test_spec_kind_ratchet.py` asserts both
+      conditions for `protocol_kind_with_code_reference` through the same parametrized tests
+      that assert them for `missing_story_reference`.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-12-007
+      note: applies MS-12-007's ceiling to MS-12-006's suppression code
+    - rel_type: constrains
+      spec_id: MS-12-006
+      note: ratchets the suppression escape hatch MS-12-006 provides
+    adr:
+    - ADR-0038
+    tags:
+    - documentation
+    - tooling
 - id: MS-13
   title: Spec Item Format Selection (StatementSpec vs BehavioralSpec)
   specs:

@@ -95,7 +95,10 @@ story-traceability gate is almost never the right response to it firing; a spec
 that cannot be traced to a user story is usually mis-classified, not story-less.
 MS-12-006 now makes the unambiguous cases a hard error, and MS-12-007 ratchets
 the suppression count downward, but neither detects a misclassification whose
-statement names no code.
+statement names no code. MS-12-008 gives MS-12-006's own escape hatch,
+`protocol_kind_with_code_reference`, a ceiling of its own
+(`MAX_CODE_REFERENCE_SUPPRESSIONS`, 0 at introduction), so a suppression cannot
+move from one code to the other unseen.
 
 #### Why MS-12-006 is scoped the way it is
 

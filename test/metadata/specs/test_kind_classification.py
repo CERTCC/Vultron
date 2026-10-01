@@ -1,9 +1,9 @@
-"""Tests for vultron.metadata.specs.kind_classification (MS-12-006, MS-12-007).
+"""Tests for vultron.metadata.specs.kind_classification (MS-12-006/007/008).
 
 The lint-path behaviour — exit code, story-bearing exemption, suppression — is
 covered in ``test_lint.py``. This module pins the detector itself: the closed
 token set MS-12-006 names, the domain-English shapes it must leave alone, and
-the carrier count MS-12-007's ratchet reads.
+the carrier counts the MS-12-007 and MS-12-008 ratchets read.
 """
 
 import pytest
@@ -11,9 +11,10 @@ import pytest
 from vultron.metadata.specs.kind_classification import (
     code_reference_in,
     count_missing_story_suppressions,
+    count_suppressions,
 )
 from vultron.metadata.specs.registry import load_registry
-from vultron.metadata.specs.schema import StatementSpec
+from vultron.metadata.specs.schema import LintWarningCode, StatementSpec
 from test.metadata.specs._helpers import write_yaml
 
 
@@ -145,6 +146,16 @@ def _registry_with_carriers(tmp_path):
                         stories=["story_2022_001"],
                         lint_suppress=["phantom_path_ref"],
                     ),
+                    # MS-12-006's own escape hatch, ratcheted by MS-12-008
+                    item(
+                        "TST-01-005",
+                        "protocol",
+                        "MUST",
+                        lint_suppress=[
+                            "protocol_kind_with_code_reference",
+                            "missing_story_reference",
+                        ],
+                    ),
                 ],
             }
         ],
@@ -157,5 +168,22 @@ def test_count_missing_story_suppressions_counts_every_carrier(tmp_path):
     """MS-12-007 counts carriers whether or not SR-11-003 would fire on them."""
     assert (
         count_missing_story_suppressions(_registry_with_carriers(tmp_path))
-        == 3
+        == 4
+    )
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        (LintWarningCode.MISSING_STORY_REFERENCE, 4),
+        (LintWarningCode.PROTOCOL_KIND_WITH_CODE_REFERENCE, 1),
+        (LintWarningCode.PHANTOM_PATH_REF, 2),
+    ],
+)
+def test_count_suppressions_counts_only_the_named_code(
+    tmp_path, code, expected
+):
+    """MS-12-007 and MS-12-008 each count their own code's carriers."""
+    assert (
+        count_suppressions(_registry_with_carriers(tmp_path), code) == expected
     )

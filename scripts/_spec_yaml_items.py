@@ -4,7 +4,9 @@ The relabel and story-mapping scripts edit ``specs/*.yaml`` as text rather than
 through a YAML load/dump round-trip, so every untouched line survives byte for
 byte. Each of them needs the same first step: walk a file and hand back every
 ``- id: XX-NN-NNN`` item together with the lines that belong to it. That state
-machine lives here once (CS-22-001) instead of once per script.
+machine lives here once (CS-22-001) instead of once per script;
+``backfill_stories.py`` and ``migrate_spec_kinds.py`` still carry older copies
+(#4024).
 """
 
 from __future__ import annotations

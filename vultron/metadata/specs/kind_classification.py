@@ -8,8 +8,11 @@ carrying a corrected kind. Two mechanical checks close that gap:
 - :func:`check_protocol_kind_code_references` — MS-12-006. A ``kind: protocol``
   spec that traces to no user story and whose ``statement`` or ``verification``
   names an unambiguous codebase construct is a hard error.
-- :func:`count_missing_story_suppressions` — the live count behind MS-12-007's
-  ratchet in ``test/architecture/test_spec_kind_ratchet.py``.
+- :func:`count_suppressions` — the live per-code carrier count behind the
+  MS-12-007 (``missing_story_reference``) and MS-12-008
+  (``protocol_kind_with_code_reference``) ratchets in
+  ``test/architecture/test_spec_kind_ratchet.py``;
+  :func:`count_missing_story_suppressions` is the MS-12-007 shorthand.
 
 The module sits beside ``lint.py`` rather than inside it so the ratchet can
 import the very check the linter runs — one detector, two gates — and because
@@ -128,6 +131,20 @@ def check_protocol_kind_code_references(registry: SpecRegistry) -> list[str]:
     return errors
 
 
+def count_suppressions(registry: SpecRegistry, code: LintWarningCode) -> int:
+    """Number of specs whose ``lint_suppress:`` carries *code*.
+
+    Counts every carrier, whether or not the suppressed check would fire on
+    it, so a suppression left behind on a spec that no longer needs it still
+    shows up as debt rather than vanishing (MS-12-007, MS-12-008).
+    """
+    return sum(
+        1
+        for spec in registry.all_specs.values()
+        if code in set(spec.lint_suppress or [])
+    )
+
+
 def count_missing_story_suppressions(registry: SpecRegistry) -> int:
     """Number of specs carrying ``lint_suppress: [missing_story_reference]``.
 
@@ -135,11 +152,8 @@ def count_missing_story_suppressions(registry: SpecRegistry) -> int:
     (MS-12-007), so a suppression left behind on a spec that is no longer a
     ``kind: protocol`` MUST still shows up as debt rather than vanishing.
     """
-    return sum(
-        1
-        for spec in registry.all_specs.values()
-        if LintWarningCode.MISSING_STORY_REFERENCE
-        in set(spec.lint_suppress or [])
+    return count_suppressions(
+        registry, LintWarningCode.MISSING_STORY_REFERENCE
     )
 
 
@@ -147,4 +161,5 @@ __all__ = [
     "check_protocol_kind_code_references",
     "code_reference_in",
     "count_missing_story_suppressions",
+    "count_suppressions",
 ]

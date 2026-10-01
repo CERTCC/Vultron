@@ -6,8 +6,9 @@ and for each non-no_match spec:
   - Removes the ``- missing_story_reference`` line from ``lint_suppress:``
   - If ``lint_suppress:`` only had that one item, removes the whole block
 
-Text-manipulation approach: same line-by-line state machine as backfill_stories.py.
-No YAML load/dump round-trip — preserves all formatting.
+Text-manipulation approach: items are sliced by ``_spec_yaml_items.iter_blocks``,
+shared with ``relabel_spec_kinds.py``. No YAML load/dump round-trip — preserves
+all formatting.
 
 Usage:
     uv run python scripts/apply_story_mappings.py mappings.json [--dry-run]
@@ -18,10 +19,11 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _spec_yaml_items import iter_blocks  # noqa: E402
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Matches the start of a spec item: "  - id: SPEC-01-001"
-_ITEM_START_RE = re.compile(r"^(\s+)- id: ([A-Z]{2,8}-\d{2}-\d{3}[a-z]?)\s*$")
 # Matches lint_suppress: line
 _LINT_SUPPRESS_RE = re.compile(r"^(\s+)lint_suppress:\s*$")
 # Matches "- missing_story_reference"
@@ -52,34 +54,17 @@ def apply_file_mappings(
     lines = text.splitlines(keepends=True)
 
     result: list[str] = []
-    i = 0
     applied = 0
     skipped = 0
 
-    while i < len(lines):
-        line = lines[i]
-        m = _ITEM_START_RE.match(line)
-        if not m:
-            result.append(line)
-            i += 1
+    for block in iter_blocks(lines):
+        if isinstance(block, str):
+            result.append(block)
             continue
 
-        item_indent = m.group(1)  # e.g. "  "
-        spec_id = m.group(2)
-        field_indent = item_indent + "  "  # 2 more spaces for fields
-
-        # Collect all lines for this spec item
-        item_lines: list[str] = [line]
-        i += 1
-        while i < len(lines):
-            nxt = lines[i]
-            stripped = nxt.rstrip("\n\r")
-            if stripped and not stripped.startswith(
-                " " * (len(item_indent) + 1)
-            ):
-                break
-            item_lines.append(nxt)
-            i += 1
+        spec_id = block.spec_id
+        field_indent = block.field_indent
+        item_lines = block.lines
 
         # Check if this spec needs story mapping
         story_ids = story_map.get(spec_id)
@@ -88,7 +73,7 @@ def apply_file_mappings(
             continue
 
         # Check it doesn't already have stories: (shouldn't, but guard)
-        if any(re.match(r"^\s+stories:", l) for l in item_lines):
+        if any(re.match(r"^\s+stories:", ln) for ln in item_lines):
             result.extend(item_lines)
             skipped += 1
             continue

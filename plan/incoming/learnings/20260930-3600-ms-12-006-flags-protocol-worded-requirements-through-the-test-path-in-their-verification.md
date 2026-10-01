@@ -1,5 +1,5 @@
 ---
-title: "MS-12-006's 'references a file path' question is answered by the verification clause, not the requirement — 207 of 212 hits were protocol-worded statements whose only code reference was the `test/` path MS-10-003 obliges them to carry"
+title: "MS-12-006's 'references a file path' question is answered by the verification clause, not the requirement — 206 of 214 hits matched only through the `test/` path MS-10-003 obliges them to carry"
 type: learning
 timestamp: "2026-09-30T14:30:00Z"
 source: ISSUE-3600
@@ -8,7 +8,7 @@ signal: spec-ambiguity
 
 MS-12-006 scans `statement` **or** `verification` for a codebase construct on a
 story-less `kind: protocol` spec. Against the live corpus the detector flagged
-212 specs. Only 5 named code in their `statement`; the other 207 matched solely
+214 specs. Only 8 named code in their `statement`; the other 206 matched solely
 because their `verification:` clause names a `test/…` or `vultron/…` path — and
 it names one because MS-10-003 requires every MUST to carry a `verification:`
 and MS-15-001 requires the path it names to resolve. The corpus convention for
@@ -22,7 +22,7 @@ the unqualified wording and chose the stories gate rather than a statement-only
 scan), and `notes/spec-authoring-rules.md` records the gate as confining the
 check to "the population where a codebase reference actually indicates
 misclassification". What neither quantified is how much of the remaining
-population is protocol-worded. Reading the 212, roughly 90 are wire or
+population is protocol-worded. Reading the 214, roughly 90 are wire or
 state-machine obligations an independent implementer would have to satisfy —
 `CSB-12-002` ("A Participant entering CS Public Aware MUST NOT seek new
 embargoes"), `CLP-14-010` (gapless `log_index`), `SYNC-03-003` (idempotent
@@ -42,7 +42,7 @@ readings are coherent:
   codebase, so a protocol `verification:` should read like a conformance test,
   not a pytest path. Then MS-10-003's convention needs a protocol-tier variant.
 - **No**: MS-12-006 should scan `statement` only for the protocol population,
-  and the 207 return to `protocol` with their suppressions — which is the
+  and the 206 return to `protocol` with their suppressions — which is the
   wrong-way ratchet the issue set out to stop, unless stories arrive first.
 
 Either way, issue #3601 and the stories epic (#2717) should look first at the

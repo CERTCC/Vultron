@@ -36,7 +36,9 @@ _SUPPRESSION = "missing_story_reference"
 # A trailing ``# comment`` on a scalar line is kept and re-emitted verbatim.
 _KIND_RE = re.compile(r"^(\s+)kind:\s*(\S+)(\s+#.*)?\s*$")
 _LINT_SUPPRESS_BLOCK_RE = re.compile(r"^(\s+)lint_suppress:\s*$")
-_LINT_SUPPRESS_FLOW_RE = re.compile(r"^(\s+)lint_suppress:\s*\[(.*)\]\s*$")
+_LINT_SUPPRESS_FLOW_RE = re.compile(
+    r"^(\s+)lint_suppress:\s*\[([^\]]*)\](\s+#.*?)?\s*$"
+)
 # A list entry: a code, optionally quoted, optionally followed by a comment.
 _LIST_ITEM_RE = re.compile(r"^\s+-\s+['\"]?(\w+)['\"]?\s*(?:#.*)?$")
 _COMMENT_RE = re.compile(r"^\s*#")
@@ -137,13 +139,17 @@ def _rewrite_item(
 
         fm = _LINT_SUPPRESS_FLOW_RE.match(line)
         if fm and fm.group(1) == field_indent:
+            # Entries keep their spelling (quotes included); the match unquotes.
             codes = [c.strip() for c in fm.group(2).split(",") if c.strip()]
-            if _SUPPRESSION in codes:
+            remaining = [c for c in codes if c.strip("'\"") != _SUPPRESSION]
+            if len(remaining) != len(codes):
                 stripped_here = True
-                codes = [c for c in codes if c != _SUPPRESSION]
-                if codes:
+                # The trailing comment stays with a surviving list and leaves
+                # with an emptied one, as a block-style entry's comment does.
+                if remaining:
                     out.append(
-                        f"{field_indent}lint_suppress: [{', '.join(codes)}]\n"
+                        f"{field_indent}lint_suppress: [{', '.join(remaining)}]"
+                        f"{fm.group(3) or ''}\n"
                     )
             else:
                 out.append(line)

@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Corpus ratchets for the MS-12 SpecKind decision tree (MS-12-006, MS-12-007).
+"""Corpus ratchets for the MS-12 SpecKind decision tree (MS-12-006/007/008).
 
 Three layers enforce MS-12 and no single one is sufficient (issue #3600):
 
@@ -23,14 +23,15 @@ Three layers enforce MS-12 and no single one is sufficient (issue #3600):
 3. this module, which runs against the **live** corpus on every local pytest
    run regardless of what is staged.
 
-:data:`MAX_MISSING_STORY_SUPPRESSIONS` is pinned to the live count and may only
-be **lowered**. :func:`test_missing_story_suppression_ceiling_is_tight` fails
+:data:`MAX_MISSING_STORY_SUPPRESSIONS` (MS-12-007) and
+:data:`MAX_CODE_REFERENCE_SUPPRESSIONS` (MS-12-008) are pinned to their live
+counts and may only be **lowered**. :func:`test_suppression_ceiling_is_tight` fails
 when the constant sits above the live count, mirroring
 ``test/metadata/test_agents_md_size_ratchet.py::test_known_overage_ceilings_are_tight``:
 a test cannot otherwise notice its own constant being edited upward, and slack
 is headroom the corpus regrows into.
 
-Spec: MS-12-006, MS-12-007.
+Spec: MS-12-006, MS-12-007, MS-12-008.
 """
 
 import pytest
@@ -38,9 +39,10 @@ import pytest
 from test.architecture import _corpus
 from vultron.metadata.specs.kind_classification import (
     check_protocol_kind_code_references,
-    count_missing_story_suppressions,
+    count_suppressions,
 )
 from vultron.metadata.specs.registry import load_registry
+from vultron.metadata.specs.schema import LintWarningCode
 
 _SPEC_DIR = _corpus.REPO_ROOT / "specs"
 
@@ -60,6 +62,33 @@ _SPEC_DIR = _corpus.REPO_ROOT / "specs"
 # (``specs/AGENTS.md``).
 # ---------------------------------------------------------------------------
 MAX_MISSING_STORY_SUPPRESSIONS = 109
+
+# ---------------------------------------------------------------------------
+# Specs carrying ``lint_suppress: [protocol_kind_with_code_reference]`` —
+# MS-12-006's own escape hatch (MS-12-008, #4023). Without a ceiling of its
+# own, a pass could trade ``missing_story_reference`` suppressions for this
+# code: the MS-12-007 count would fall while this one grew unnoticed.
+#
+# 0 when the code was introduced (#3600). Same rule: lower it, never raise it.
+# ---------------------------------------------------------------------------
+MAX_CODE_REFERENCE_SUPPRESSIONS = 0
+
+_CEILINGS = [
+    pytest.param(
+        LintWarningCode.MISSING_STORY_REFERENCE,
+        MAX_MISSING_STORY_SUPPRESSIONS,
+        "MAX_MISSING_STORY_SUPPRESSIONS",
+        marks=pytest.mark.spec("MS-12-007"),
+        id="missing_story_reference",
+    ),
+    pytest.param(
+        LintWarningCode.PROTOCOL_KIND_WITH_CODE_REFERENCE,
+        MAX_CODE_REFERENCE_SUPPRESSIONS,
+        "MAX_CODE_REFERENCE_SUPPRESSIONS",
+        marks=pytest.mark.spec("MS-12-008"),
+        id="protocol_kind_with_code_reference",
+    ),
+]
 
 
 @pytest.mark.spec_corpus
@@ -81,30 +110,30 @@ def test_live_corpus_has_no_unsuppressed_protocol_kind_code_references():
 
 
 @pytest.mark.spec_corpus
-@pytest.mark.spec("MS-12-007")
-def test_missing_story_suppressions_within_ceiling():
-    """The suppression count MUST NOT exceed :data:`MAX_MISSING_STORY_SUPPRESSIONS`."""
-    live = count_missing_story_suppressions(load_registry(_SPEC_DIR))
-    assert live <= MAX_MISSING_STORY_SUPPRESSIONS, (
-        f"{live} specs carry lint_suppress: [missing_story_reference], over "
-        f"the ceiling of {MAX_MISSING_STORY_SUPPRESSIONS} (MS-12-007). Do not "
-        f"raise the ceiling: a new suppression is almost always a "
-        f"misclassified kind — apply the MS-12-001 → MS-12-005 tree instead."
+@pytest.mark.parametrize(("code", "ceiling", "constant"), _CEILINGS)
+def test_suppressions_within_ceiling(code, ceiling, constant):
+    """A suppression code's carrier count MUST NOT exceed its ceiling."""
+    live = count_suppressions(load_registry(_SPEC_DIR), code)
+    assert live <= ceiling, (
+        f"{live} specs carry lint_suppress: [{code.value}], over the "
+        f"ceiling of {ceiling} ({constant}). Do not raise the ceiling: a new "
+        f"suppression is almost always a misclassified kind — apply the "
+        f"MS-12-001 → MS-12-005 tree instead."
     )
 
 
 @pytest.mark.spec_corpus
-@pytest.mark.spec("MS-12-007")
-def test_missing_story_suppression_ceiling_is_tight():
-    """The ceiling MUST NOT sit above the live count.
+@pytest.mark.parametrize(("code", "ceiling", "constant"), _CEILINGS)
+def test_suppression_ceiling_is_tight(code, ceiling, constant):
+    """A ceiling MUST NOT sit above the live count.
 
     Without this, the "may only be lowered" rule is unenforced between the
     live count and the constant: a pass that removes 40 suppressions and
     leaves the constant alone hands the corpus 40 suppressions of headroom.
     Lowering the constant alongside the cleanup is the whole ratchet.
     """
-    live = count_missing_story_suppressions(load_registry(_SPEC_DIR))
-    assert live >= MAX_MISSING_STORY_SUPPRESSIONS, (
-        f"MAX_MISSING_STORY_SUPPRESSIONS ({MAX_MISSING_STORY_SUPPRESSIONS}) is "
-        f"above the live count ({live}); lower it to {live}."
+    live = count_suppressions(load_registry(_SPEC_DIR), code)
+    assert live >= ceiling, (
+        f"{constant} ({ceiling}) is above the live count ({live}); "
+        f"lower it to {live}."
     )

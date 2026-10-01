@@ -239,6 +239,37 @@ def test_quoted_and_commented_list_entries_are_parsed(tmp_path):
     assert "missing_story_reference" not in out
 
 
+@pytest.mark.parametrize(
+    ("flow", "expected"),
+    [
+        ("['missing_story_reference']", None),
+        ('["missing_story_reference"]', None),
+        ("[missing_story_reference]  # no story yet", None),
+        (
+            "['phantom_path_ref', 'missing_story_reference']  # path is a sketch",
+            "    lint_suppress: ['phantom_path_ref']  # path is a sketch\n",
+        ),
+    ],
+)
+def test_quoted_and_commented_flow_entries_are_stripped(
+    tmp_path, flow, expected
+):
+    text = _HEADER + (
+        "  - id: TST-01-001\n"
+        "    priority: MUST\n"
+        "    kind: protocol\n"
+        "    statement: TST-01-001 MUST do the thing\n"
+        f"    lint_suppress: {flow}\n"
+    )
+    rc, out = _run(tmp_path, {"TST-01-001": "project"}, text=text)
+    assert rc == 0
+    assert "missing_story_reference" not in out
+    if expected is None:
+        assert "lint_suppress" not in out
+    else:
+        assert out.endswith(expected)
+
+
 def test_null_lint_suppress_header_is_left_alone(tmp_path):
     text = _HEADER + (
         "  - id: TST-01-001\n"
