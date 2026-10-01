@@ -66,6 +66,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driving.fastapi.deps import (
     get_trigger_dispatcher,
     get_trigger_dl,
+    outbox_store,
 )
 from vultron.core.models.use_case_result import (
     ActivityResult,
@@ -79,7 +80,9 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
+from vultron.core.states.cs import CS_vf
 from vultron.core.use_cases.triggers.requests import (
+    AddOnBehalfStatusTriggerRequest,
     ResultT_co,
     TriggerRequest,
     result_type_of,
@@ -394,6 +397,19 @@ def test_nothing_is_flushed_when_the_dispatcher_raises(
     flush.assert_not_awaited()
 
 
-def test_canned_dispatcher_conforms_to_the_port() -> None:
+def test_canned_dispatcher_conforms_to_the_port(store) -> None:
+    """The stub is a ``TriggerDispatcher``: the annotated assignment is the
+    static check (mypy, pyright), and a call through the port-typed name
+    returns the request's bound result, so the contract tests above exercise
+    the same seam the real dispatcher fills."""
     dispatcher: TriggerDispatcher = _CannedDispatcher()
-    assert isinstance(dispatcher, _CannedDispatcher)
+    result = dispatcher.trigger(
+        AddOnBehalfStatusTriggerRequest(
+            actor_id=_ACTOR,
+            case_id=_CASE,
+            target_actor_id=_OTHER,
+            vf_state=CS_vf.Vf,
+        ),
+        outbox_store(store),
+    )
+    assert result == _CANNED[StatusResult]

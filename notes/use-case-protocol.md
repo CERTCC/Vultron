@@ -167,9 +167,8 @@ Each `TriggerRequest` binds the subtype its verb returns
 covariant), so one `trigger(request) -> ResultT_co` signature resolves the
 verb's result statically; `result_type_of()` recovers it at runtime. The
 request models are one family: `request_bodies.py` owns each verb's body
-model (the OpenAPI component, re-exported by the FastAPI adapter's
-`trigger_models.py`) and `requests.py` derives the core request from it,
-adding `actor_id`.
+model (the OpenAPI component, which the FastAPI routers import by name) and
+`requests.py` derives the core request from it, adding `actor_id`.
 
 ---
 

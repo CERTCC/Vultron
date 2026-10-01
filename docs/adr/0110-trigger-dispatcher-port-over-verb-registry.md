@@ -166,6 +166,7 @@ def trigger_propose_embargo(actor_id, body, background_tasks, ctx, actor_dl) -> 
     return run_trigger(PROPOSE_EMBARGO, actor_id, body, ctx, background_tasks, actor_dl)
 ```
 
+One route body is two calls: the demo `notify-fix-ready` is the two-hop VF ratchet (vf→Vf→VF), each hop its own `AddParticipantStatusTriggerRequest` validated by the tree, so it dispatches and flushes twice and answers with the second hop's status; a single call cannot express the verb without the tree accepting a two-step jump.
 No `__signature__` synthesis: that would couple every endpoint to a FastAPI internal, and a break would take all of them at once.
 The `Depends(get_trigger_dl)` → `Depends(get_actor_dl)` chain is preserved because `app.dependency_overrides` keys on it (TRIG-06-002).
 The outbox flush is scheduled via `BackgroundTasks` after `trigger()` returns and not at all when it raises (TRIG-07-001).
@@ -236,6 +237,7 @@ Realized:
 - A topic-scoped citation ratchet (`test/architecture/test_implements_citations_topic_scoped.py`) fails on any `TB-` citation under `vultron/`.
 
 Per ADR-0095's own rule: no entry here asserts a test exists until it does; every test above exists.
+The condition this ADR set for leaving `accepted-provisional` — the port collapsed and every named test in place — is met; the status flip to `accepted` is the reviewer's decision on the cutover PR, not the author's, so the frontmatter still reads `accepted-provisional` until it is taken.
 
 ## More Information
 

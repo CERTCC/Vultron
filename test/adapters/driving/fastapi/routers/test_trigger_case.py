@@ -452,7 +452,7 @@ class TestTriggerCaseOutboxCanonicalId:
     the same silent drop by a different route.
     """
 
-    def test_engage_case_canonical_actor_dl_resolves_full_uri(
+    def test_engage_case_short_segment_drains_the_canonical_store(
         self, dl, actor, case_with_participant
     ):
         """``outbox_handler`` receives the canonical-URI-keyed DataLayer.

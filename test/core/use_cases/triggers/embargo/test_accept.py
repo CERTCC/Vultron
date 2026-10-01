@@ -1,7 +1,8 @@
 """Tests for SvcAcceptEmbargoUseCase."""
 
-import pytest
 from typing import cast
+
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -9,6 +10,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.wire.as2.factories import em_propose_embargo_activity
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
@@ -150,10 +154,6 @@ def _case_with_open_proposal(
     dl: SqliteDataLayer, owner_id: str
 ) -> tuple[VulnerabilityCase, str]:
     """A case at EM.PROPOSED whose only open proposal is the owner's."""
-    from vultron.core.models._helpers import days_from_now_utc
-    from vultron.wire.as2.factories import em_propose_embargo_activity
-    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-
     case = _build_unbound_case_with_case_manager(dl, owner_id)
     embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
     proposal = em_propose_embargo_activity(

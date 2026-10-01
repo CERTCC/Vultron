@@ -107,6 +107,16 @@ def test_no_per_verb_trigger_facade_under_core() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _only_method(tree: ast.AST) -> ast.FunctionDef:
+    """The single method of the single class in an inline fixture."""
+    assert isinstance(tree, ast.Module)
+    (klass,) = tree.body
+    assert isinstance(klass, ast.ClassDef)
+    (method,) = klass.body
+    assert isinstance(method, ast.FunctionDef)
+    return method
+
+
 def test_detector_sees_a_facade_method() -> None:
     tree = _corpus.parse_inline(
         "class Facade:\n"
@@ -114,8 +124,7 @@ def test_detector_sees_a_facade_method() -> None:
         "        req = EngageCaseTriggerRequest(actor_id=actor_id)\n"
         "        return SvcEngageCaseUseCase(self._dl, req).execute()\n"
     )
-    assert isinstance(tree, ast.Module)
-    method = tree.body[0].body[0]  # type: ignore[attr-defined]
+    method = _only_method(tree)
     assert _constructs_and_executes_a_use_case(method)
 
 
@@ -127,6 +136,5 @@ def test_detector_ignores_a_row_driven_dispatcher() -> None:
         "        use_case = entry.use_case_class(dl, request)\n"
         "        return use_case.execute()\n"
     )
-    assert isinstance(tree, ast.Module)
-    method = tree.body[0].body[0]  # type: ignore[attr-defined]
+    method = _only_method(tree)
     assert not _constructs_and_executes_a_use_case(method)

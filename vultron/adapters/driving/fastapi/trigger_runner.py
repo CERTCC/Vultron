@@ -59,7 +59,6 @@ def emitting_outbox(
     emitting_actor_id: str,
     actor_id: str,
     dl: DataLayer,
-    actor_dl: DataLayer,
 ) -> tuple[str, DataLayer]:
     """Return the ``(actor_id, store)`` whose outbox the trigger just wrote to.
 
@@ -83,17 +82,16 @@ def emitting_outbox(
         emitting_actor_id: ``result.emitting_actor_id`` — who the activity
             was emitted as.
         actor_id: The path's ``actor_id``, the requesting actor.
-        dl: The requesting actor's store, used to reach the emitter's.
-        actor_dl: The store to drain when the requester is the emitter (the
-            same object as *dl* unless a test overrides the two seams apart).
+        dl: The requesting actor's store — drained when the requester is the
+            emitter, and used to reach the emitter's store otherwise.
     """
     if emitting_actor_id == actor_id:
-        return actor_id, actor_dl
+        return actor_id, dl
     emitting_dl = store_for_actor(
         dl, emitting_actor_id, require_same_authority=True
     )
     if emitting_dl is None:
-        return actor_id, actor_dl
+        return actor_id, dl
     return emitting_actor_id, emitting_dl
 
 
@@ -129,7 +127,7 @@ def run_trigger(
     flush_id, flush_dl = request.actor_id, dl
     if isinstance(result, EmittingResult):
         flush_id, flush_dl = emitting_outbox(
-            result.emitting_actor_id, request.actor_id, dl, dl
+            result.emitting_actor_id, request.actor_id, dl
         )
     background_tasks.add_task(outbox_handler, flush_id, flush_dl)
     return result
