@@ -126,7 +126,7 @@ no-op.
 
 | Term | What it is | Competes under shortest-wins |
 |---|---|---|
-| **Actor default** | A duration from a published `EmbargoPolicy`; what `defaults.md` calls a *standing proposal* | **Yes** |
+| **Actor default** | A duration from the `EmbargoPolicy` on the Case Owner's actor profile; what `defaults.md` calls a *standing proposal* | **Yes** |
 | **Protocol default** | The fallback applied when no proposal and no actor default applies | **No** |
 
 The protocol default is **the value when the candidate set is empty, never a

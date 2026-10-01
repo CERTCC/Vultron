@@ -18,8 +18,12 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      An Actor profile MAY include a `embargo_policy` field containing a structured embargo
-      policy record
+      An Actor profile MAY include an `embargo_policy` field containing the Actor's structured
+      embargo policy record inline. The policy is part of the profile: an Actor has at most one,
+      and it is published, read and replaced as a field of the profile, not as a separate object.
+    rationale: >-
+      Whoever holds an Actor's profile then holds its embargo terms, so carrying the profile
+      (CP-01-010) carries the policy, and no lookup has to choose among several records.
     stories:
     - story_2022_001
     - story_2022_003
@@ -75,11 +79,11 @@ groups:
     kind: protocol
     statement: >-
       The embargo policy record MUST be serializable as a Pydantic model and persisted in
-      the DataLayer
+      the DataLayer as part of the Actor's profile record (EP-01-001)
     verification: >-
-      A unit test confirms that an `EmbargoPolicy` instance round-trips through
-      Pydantic serialization and that the DataLayer `save()` and `get()` operations
-      accept and return the model without data loss.
+      A unit test confirms that an actor profile carrying an `EmbargoPolicy` round-trips
+      through Pydantic serialization and through the DataLayer `save()` and `get()`
+      operations without data loss.
     stories:
     - story_2022_004
   - id: EP-01-005
@@ -136,12 +140,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The policy endpoint MUST be machine-readable (returns JSON) and MUST be listed in the
-      Actor's ActivityPub profile under a well-known key (e.g., `vultron:embargoPolicy`)
+      The policy endpoint MUST be machine-readable (returns JSON) and MUST return the same
+      record the Actor's profile carries inline under `embargo_policy` (EP-01-001)
     verification: >-
-      Inspection of the Actor profile endpoint handler confirms the response uses
-      `Content-Type: application/json` and the profile document includes a
-      `vultron:embargoPolicy` key whose value is the embargo-policy endpoint URL.
+      A test confirms the endpoint responds with `Content-Type: application/json` and a body
+      equal to the `embargoPolicy` value of the Actor's profile document.
     scope:
     - production
     stories:
@@ -201,10 +204,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a receiver applies their **actor default** embargo at case creation and the sender
+      When the CASE_OWNER's **actor default** embargo applies at case creation and the sender
       submitted no explicit embargo proposal, the initial `CaseStatus.em_state` MUST be set
       to `EM.ACTIVE`, not `EM.PROPOSED`. The sender's report submission without a counter-proposal
-      constitutes tacit acceptance of the receiver's actor default embargo.
+      constitutes tacit acceptance of the CASE_OWNER's actor default embargo.
     note: >-
       "Actor default" is the duration carried by a published `EmbargoPolicy`, as distinguished
       from the "protocol default" of EP-04-005. Only the actor default participates in the
@@ -233,8 +236,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When both the sender and receiver have an applicable embargo proposal at case creation
-      (sender proposes a duration and receiver has a default), the shorter of the two MUST
+      When both the sender and the CASE_OWNER have an applicable embargo proposal at case
+      creation (the sender proposes a duration and the CASE_OWNER's profile carries an embargo
+      policy, its actor default — CP-01-009), the shorter of the two MUST
       be made active immediately (`em_state = EM.ACTIVE`) and the longer SHOULD be registered
       as a pending revision (`em_state = EM.REVISE`).
     rationale: >-
@@ -274,7 +278,7 @@ groups:
       This discharges the contingency this requirement previously recorded. Until ADR-0096 no
       sender-proposal mechanism existed, so EP-04-003 was unreachable and only the
       no-sender-proposal path applied. Implemented by #3392: the Offer carries the proposal as
-      `proposedEmbargo`; the vendor's `CaseProposal` carries the Offer whole (CP-01-008); the
+      `proposedEmbargo`; the report receiver's `CaseProposal` carries the Offer whole (CP-01-008); the
       case-actor's `CreateEmbargoEventNode` keeps the Reporter's event and rewrites its context.
     note: >-
       Embedding the proposal on the report offer was chosen over two alternatives. An
@@ -438,8 +442,8 @@ groups:
     kind: project
     statement: >-
       Implementations MUST NOT conflate the actor default with the protocol default. The two
-      MUST be carried under distinct names, so that a consumer can distinguish "the receiver
-      published this duration" from "the receiver published nothing". The protocol default MUST
+      MUST be carried under distinct names, so that a consumer can distinguish "the CASE_OWNER
+      published this duration" from "the CASE_OWNER published nothing". The protocol default MUST
       be the single source of the fallback duration: no other implicit default embargo duration
       may be carried anywhere in the implementation.
     rationale: >-
@@ -453,7 +457,8 @@ groups:
       The 90-day constant and the shared blackboard key are gone (#3390): the fallback is
       `ActorConfig.protocol_default_embargo_duration`, published as
       `protocol_default_embargo_duration` beside `actor_default_embargo_duration`, and the
-      actor default is the shortest published policy, ties broken by policy id. The third
+      actor default is the one policy the CASE_OWNER's profile carries (EP-01-001,
+      CP-01-010). The third
       implicit duration — `EmbargoEvent.end_time`'s 45-day `default_factory` in
       `vultron/core/models/embargo_event.py` — is gone too (#3404): `end_time` is required
       with no default, so every construction site states the end it means, and the protocol

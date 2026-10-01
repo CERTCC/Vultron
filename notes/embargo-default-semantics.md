@@ -10,8 +10,10 @@ description: >
   pre-case embargo phase; why an RSVP deadline may not outlive its embargo; and
   how EP-04-003's two-party shortest-wins relates to EP-08's general
   earliest-expiration ordering for N open proposals; why the creation-time
-  revision's registration order no longer touches consent (ADR-0093); and how
-  the creation-time revision is relayed to the other party (EP-04-011, ADR-0113).
+  revision's registration order no longer touches consent (ADR-0093); how
+  the creation-time revision is relayed to the other party (EP-04-011, ADR-0113);
+  and why the actor default is the CASE_OWNER's profile policy, carried inline on
+  the case proposal (CP-01-009, CP-01-010).
 related_specs:
   - specs/case-management.yaml
   - specs/case-proposal.yaml
@@ -208,18 +210,30 @@ What replaced it:
 | Configured fallback, refused outside `[72h, 5d]` (EP-04-005) | `ActorConfig.protocol_default_embargo_duration` (`vultron/config/actor.py`) |
 | Shortest-wins over candidates only, fallback when none (EP-04-006/007) | `resolve_initial_embargo_duration()` (`vultron/core/services/embargo_duration.py`) |
 | Deterministic actor default: shortest, ties by policy id (EP-04-010) | `select_actor_default()` (same module) |
-| Actor default is the case owner's own policy (EP-04-010) | `ResolveEmbargoDurationNode` filters on `EmbargoPolicy.actor_id == case.attributed_to` |
+| Actor default is the CASE_OWNER's own policy (EP-04-003, EP-04-010) | `ResolveEmbargoDurationNode` keys on `case.attributed_to`, the CASE_OWNER (CM-02-008) |
 | Distinct blackboard names (EP-04-010) | `actor_default_embargo_duration`, `protocol_default_embargo_duration`, and the resolved `initial_embargo_duration` (duration plus source) |
 | P/X/A refusal before anything is created (EP-04-008) | `CaseNotEmbargoEligibleNode`, the first arm of the `InitializeDefaultEmbargoNode` Selector |
 
-**Whose policy is the actor default.** At creation the case has two actors:
-the case owner and the reporter. The reporter's terms arrive as the sender
-proposal, so the actor default is the case owner's published policy and no one
-else's. The creation tree runs as the CASE_MANAGER, but that is not a third
-opinion: the CASE_MANAGER acts as the case owner's proxy here, so "what the
-owner's policy says" and "what the CASE_MANAGER applies" are the same thing. A
-policy some other actor published and that happens to be in the store is never
-a candidate.
+**Whose policy is the actor default.** At creation the case has two actors with
+terms: the CASE_OWNER and the reporter. The CASE_OWNER is the actor that received
+the `Offer(VulnerabilityReport)` and caused the case to be created, whatever
+other roles it holds, and `case.attributed_to` names it on every creation path
+(CM-02-008, CP-09-001). The reporter's terms arrive as the sender proposal, so the
+actor default is the policy on the CASE_OWNER's actor profile and no one else's.
+The creation tree runs as the CASE_MANAGER, but the CASE_MANAGER contributes no
+terms of its own: a policy the CASE_MANAGER, or anyone else, published is never a
+candidate.
+
+**How the CASE_OWNER's policy reaches creation.** When the CASE_MANAGER creates
+the case, the CASE_OWNER's profile lives in the CASE_OWNER's own store, which the
+CASE_MANAGER cannot read (PCR-01-003). So the policy travels the way the
+reporter's terms do (CP-01-008): the proposing actor sends its full profile
+inline as the `actor` of `Create(as_CaseProposal)`, carrying its `embargoPolicy`
+(CP-01-010). The CASE_MANAGER reads the default from that profile only, never
+fetches it, and keeps it for no other case, so a stale copy can never win a
+later shortest-wins. The protocol also permits a profile reference that the
+CASE_MANAGER dereferences (CP-01-009); this prototype requires the inline form.
+A profile with no policy means no actor default.
 
 The refusal arm is a *negative* condition — SUCCESS means "not eligible, stop" —
 rather than a Success fallback after the creation sequence. A fallback would turn

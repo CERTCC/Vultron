@@ -118,11 +118,18 @@ groups:
   - id: CM-02-008
     priority: MUST
     kind: protocol
-    statement: When a `VulnerabilityCase` is created from an originating `VulnerabilityReport` Offer, the vendor (case recipient
-      / owner) MUST be recorded as the initial primary participant
-    verification: Integration tests in `test/demo/` confirm that the vendor actor is recorded as
-      the initial primary participant when a `VulnerabilityCase` is created from an
-      `Offer(Report)`.
+    statement: >-
+      When a `VulnerabilityCase` is created from an originating `VulnerabilityReport` Offer, the actor
+      that received the Offer (the CASE_OWNER) MUST be recorded as the initial primary participant,
+      and `VulnerabilityCase.attributed_to` MUST be set to that actor's ID on every creation path,
+      including when the CASE_MANAGER creates the case (CP-09-001).
+    rationale: >-
+      `attributed_to` is the case's owner field: ownership checks read it (CM-13-001) and ownership
+      transfer rewrites it alongside the `CASE_OWNER` role (CM-21-002). Who *created* the case is
+      carried by the `actor` of `Create(VulnerabilityCase)`, not by `attributed_to`.
+    verification: Integration tests in `test/demo/` confirm that the report-receiving actor is recorded as
+      the initial primary participant, and is the case's `attributed_to`, when a `VulnerabilityCase` is
+      created from an `Offer(Report)`.
     stories:
     - story_2022_012
     - story_2022_013
@@ -1192,9 +1199,9 @@ groups:
     note: >-
       Superseded by CM-22 (ADR-0041) for multi-actor deployments: in the
       CASE_MANAGER-authoritative model the `VulnerabilityCase` is created by the
-      CASE_MANAGER (not the receiving vendor), so `attributed_to` is the CASE_MANAGER's
-      actor ID, not the receiving actor's.  CM-14-001 applies only in single-actor
-      deployments where the vendor IS the CASE_MANAGER.
+      CASE_MANAGER (not the receiving actor), which remains the case's
+      `attributed_to` (CM-14-008, CP-09-001).  CM-14-001 applies only in
+      single-actor deployments where the receiving actor IS the CASE_MANAGER.
     relationships:
     - rel_type: depends_on
       spec_id: CM-12-001
@@ -1204,7 +1211,7 @@ groups:
       spec_id: CM-12-004
     - rel_type: supersedes
       spec_id: CM-22-001
-      note: CM-22-001 (ADR-0041) replaces the attributed_to=receiving_actor semantics for multi-actor deployments
+      note: CM-22-001 (ADR-0041) moves case creation to the CASE_MANAGER for multi-actor deployments
     stories:
     - story_2022_012
     - story_2022_046
@@ -1283,8 +1290,8 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: If the reporter included an embargo proposal with their `Offer(Report)`, the case initialization SHOULD reconcile
-      the reporter's proposed duration against the receiver's default embargo policy and initialize the embargo at the shorter
-      of the two durations
+      the reporter's proposed duration against the CASE_OWNER's published embargo policy (its actor default, EP-04-003) and
+      initialize the embargo at the shorter of the two durations
     note: >-
       EP-04-004 now specifies the mechanism: the reporter embeds a proposed `EmbargoEvent` in the
       `Offer(VulnerabilityReport)` activity. This requirement is therefore reachable, and the
@@ -2642,15 +2649,17 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST create the `VulnerabilityCase` object in its own
-      DataLayer with `attributed_to` equal to the CASE_MANAGER's own actor ID when
-      accepting a `Create(as_CaseProposal)`.
+      DataLayer when accepting a `Create(as_CaseProposal)`, with `attributed_to`
+      equal to the proposing actor's ID (the CASE_OWNER, CM-02-008), and MUST be
+      the `actor` of the `Create(VulnerabilityCase)` it emits.
     rationale: >-
-      ADR-0041 supersedes ADR-0015.  `attributed_to` names the authoritative
-      creator of the case; only the CASE_MANAGER is the authoritative creator
-      (ADR-0023).  Assigning `attributed_to` to the vendor violates AS2
-      semantics and the chain-of-custody model in `chain.py`.
+      ADR-0041 supersedes ADR-0015.  The CASE_MANAGER is the case's authoritative
+      creator, which AS2 records as the `actor` of `Create(VulnerabilityCase)`
+      (ADR-0023); `attributed_to` records the case owner, which ownership checks
+      read and ownership transfer rewrites (CM-13-001, CM-21-002).
     verification: Integration tests in `test/demo/` confirm that the `VulnerabilityCase` created
-      by the CASE_MANAGER has `attributed_to` equal to the CASE_MANAGER's own actor ID.
+      by the CASE_MANAGER has `attributed_to` equal to the proposing actor's ID and that the
+      emitted `Create(VulnerabilityCase)` has the CASE_MANAGER as `actor`.
     relationships:
     - rel_type: implements
       spec_id: CP-09-001
@@ -2720,8 +2729,9 @@ groups:
       Embargo state is protocol-significant.  Deferring initialization to the
       vendor or to a later message would produce a window in which
       embargo-gated operations are undefined (ADR-0041, CP-09-003).  The
-      CASE_MANAGER holds the default embargo policy and is the only actor that
-      can initialize it authoritatively at case creation.
+      CASE_MANAGER is the only actor that can initialize it authoritatively at
+      case creation; the actor default it applies is the CASE_OWNER's policy,
+      carried on the proposal (CP-01-009, CP-01-010).
     verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER initializes the
       default embargo before emitting `Create(VulnerabilityCase)` to the vendor.
     relationships:
