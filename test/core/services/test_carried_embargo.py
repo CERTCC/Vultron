@@ -72,6 +72,25 @@ def test_an_inline_embargo_is_stored_as_its_own_record(
 
 
 @pytest.mark.spec("EMB-18-003")
+def test_an_inline_embargo_of_another_case_is_refused_unstored(
+    dl: SqliteDataLayer,
+) -> None:
+    """A sender cannot plant another case's embargo under its id."""
+    other_case = "https://example.org/cases/other"
+    foreign = EmbargoEvent(
+        id_=f"{other_case}/embargo_events/e1",
+        context=other_case,
+        end_time=days_from_now_utc(45),
+    )
+    case = VulnerabilityCase(id_=_CASE, name="c", active_embargo=foreign)
+
+    with pytest.raises(VultronValidationError, match=other_case):
+        store_carried_embargo(case, dl)
+
+    assert dl.read(foreign.id_) is None
+
+
+@pytest.mark.spec("EMB-18-003")
 def test_a_bare_reference_the_store_holds_passes(dl: SqliteDataLayer) -> None:
     embargo = _embargo()
     dl.create(embargo)

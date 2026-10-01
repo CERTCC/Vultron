@@ -28,14 +28,16 @@ could not read: the manager's teardown then failed to announce
 participant kept an embargo already torn down, with EM stuck at ACTIVE.
 """
 
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.services.embargo_ordering import read_embargo_event
+from vultron.errors import VultronValidationError
 
 
 def store_carried_embargo(
-    case_obj: object, store: CasePersistence | DataLayer
+    case_obj: VulnerabilityCase, store: CasePersistence | DataLayer
 ) -> None:
     """Make the embargo *case_obj* names readable in *store*, or raise.
 
@@ -45,17 +47,27 @@ def store_carried_embargo(
     caller that saves the case afterwards never writes a dangling
     ``active_embargo``.  A case with no active embargo needs nothing.
 
+    An inline embargo whose ``context`` is not *case_obj* is refused before
+    anything is written: the inbox pre-store runs ahead of the handler's
+    trust checks, and a first write wins, so a sender must not be able to
+    plant another case's embargo under an id that case will later name.
+
     Raises:
         VultronNotFoundError: If the case names, by bare reference, an
             embargo *store* does not hold.
         VultronValidationError: If the named record is not an
-            ``EmbargoEvent``.
+            ``EmbargoEvent``, or an inline embargo belongs to another case.
     """
-    embargo_ref = getattr(case_obj, "active_embargo", None)
+    embargo_ref = case_obj.active_embargo
     if embargo_ref is None:
         return
     if isinstance(embargo_ref, EmbargoEvent):
         embargo_id = embargo_ref.id_
+        if embargo_ref.context != case_obj.id_:
+            raise VultronValidationError(
+                f"Case '{case_obj.id_}' carries embargo '{embargo_id}' whose"
+                f" context is '{embargo_ref.context}', not this case."
+            )
         if store.read(embargo_id) is None:
             store.save(embargo_ref)
     else:

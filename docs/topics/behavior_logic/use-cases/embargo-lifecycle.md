@@ -61,6 +61,7 @@ It has to be validated against the state machine, and a failed validation must s
 A case also never names an embargo whose record its store does not hold (EMB-18-003).
 Activating an embargo reads both the record being activated and the one it replaces, and refuses before any write if either cannot be read.
 A sender carries the embargo record inline with the case, and a receiver stores that record before the case that names it, so a case naming an embargo the receiver lacks is refused rather than stored.
+A receiver refuses an inline embargo record whose context is a different case, so a sender cannot plant one case's embargo under another's id.
 
 The transitions themselves are small and fixed:
 

@@ -31,13 +31,11 @@ from collections.abc import Callable, Iterator
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.services.embargo_lifecycle.base import _LifecycleBase
+from vultron.core.services.embargo_lifecycle.activation_arm import (
+    _ActivationArmMixin,
+)
 from vultron.core.services.embargo_lifecycle.results import (
     ParticipantPECChange,
-)
-from vultron.core.services.embargo_ordering import (
-    earliest_expiring_embargo_id,
-    read_embargo_event,
 )
 from vultron.core.states.participant_embargo_consent import (
     PEC,
@@ -65,7 +63,7 @@ def _pec_change(
     )
 
 
-class _PecEffectsMixin(_LifecycleBase):
+class _PecEffectsMixin(_ActivationArmMixin):
     """PEC bookkeeping shared by the EM transition operations."""
 
     def _participant_for_actor(
@@ -360,61 +358,6 @@ class _PecEffectsMixin(_LifecycleBase):
                 continue
             if participant.add_accepted_embargo(revised_embargo_id):
                 self._persistence.save(participant)
-
-    def _revision_ends_no_later(
-        self, *, previous_embargo_id: str, revised_embargo_id: str
-    ) -> bool:
-        """True when revision B ends no later than the embargo A it replaces.
-
-        The A-vs-B comparison shares :func:`earliest_expiring_embargo_id`'s
-        read path (EP-08), so an unreadable record fails closed rather than
-        silently deciding the arm; a tie keeps B, the first candidate, so
-        equal terms carry everyone over.  Call it *before* the case is
-        mutated, so a failure leaves EM and ``active_embargo`` untouched.
-
-        Raises:
-            VultronNotFoundError: If either embargo does not resolve.
-            VultronValidationError: If either record is not an ``EmbargoEvent``.
-        """
-        return (
-            earliest_expiring_embargo_id(
-                self._persistence, [revised_embargo_id, previous_embargo_id]
-            )
-            == revised_embargo_id
-        )
-
-    def _activation_arm(
-        self, *, previous_embargo_id: str | None, activated_embargo_id: str
-    ) -> bool | None:
-        """Read what an activation needs and decide its EP-05-001 arm.
-
-        The one fail-closed read of an activation writer (EMB-18-003): the
-        record of the embargo being activated is read on every activation,
-        first or replacement, so a case never names an embargo its store
-        cannot read; on a replacement the embargo it replaces is read too, by
-        :meth:`_revision_ends_no_later`.  Call it *before* the case is
-        mutated, so a failure leaves EM, ``active_embargo``, the proposal
-        records and every participant's consent untouched.
-
-        Returns:
-            ``None`` when nothing is replaced (a first activation, or
-            *activated_embargo_id* is already the case's active embargo);
-            otherwise :meth:`_revision_ends_no_later`'s answer.
-
-        Raises:
-            VultronNotFoundError: If either embargo does not resolve.
-            VultronValidationError: If either record is not an ``EmbargoEvent``.
-        """
-        read_embargo_event(self._persistence, activated_embargo_id)
-        if (
-            previous_embargo_id is None
-            or previous_embargo_id == activated_embargo_id
-        ):
-            return None
-        return self._revision_ends_no_later(
-            previous_embargo_id=previous_embargo_id,
-            revised_embargo_id=activated_embargo_id,
-        )
 
     def _reevaluate_consent_at_activation(
         self,

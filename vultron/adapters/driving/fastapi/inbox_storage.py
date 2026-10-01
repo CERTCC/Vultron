@@ -30,6 +30,7 @@ from typing import cast
 from pydantic import ValidationError
 
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.services.carried_embargo import store_carried_embargo
@@ -93,7 +94,7 @@ def _store_nested_inbox_object(dl: DataLayer, activity: as_Activity) -> None:
 
     typed_nested = cast(PersistableModel, nested)
 
-    if nested.type_ == "VulnerabilityCase":
+    if isinstance(nested, VulnerabilityCase):
         # EMB-18-003: hold the embargo the case names before the case row is
         # written, and never pre-store a case naming one this store cannot
         # read — the dispatched handler then refuses it with nothing saved.

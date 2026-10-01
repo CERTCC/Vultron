@@ -137,9 +137,12 @@ first:
   stores an inline `EmbargoEvent` as its own record, then reads the named
   embargo through `read_embargo_event()`; a case naming one the store cannot
   read is refused — the node fails, the handler reports `REFUSED`, the inbox
-  pre-store skips the case — and nothing is saved. Extraction reduces an
-  inline embargo to its id, so on the received side it is the inbox pre-store
-  that holds the carried record before dispatch.
+  pre-store skips the case — and nothing is saved. An inline embargo whose
+  `context` is not the carrying case is refused unstored: the inbox pre-store
+  runs before the handler's trust checks and a first write wins, so a sender
+  must not plant another case's embargo under an id that case will name.
+  Extraction reduces an inline embargo to its id, so on the received side it
+  is the inbox pre-store that holds the carried record before dispatch.
 - **Ledger replay** — entries are applied in chain order (SYNC-14-003), and the
   CASE_MANAGER commits A's proposal before any activation that replaces it.
   Each embargo apply node will store the `EmbargoEvent` its entry carries
@@ -152,15 +155,19 @@ first:
   activated record, and on a revision the replaced one too, so a bare id from
   an inbox (which stores only the first level of nesting: `Accept(Invite(A))`
   keeps the Invite, not A) raises `VultronNotFoundError` or
-  `VultronValidationError` in either `TransitionMode` and writes nothing.
+  `VultronNotAnEmbargoError` (a `VultronValidationError` that names the
+  embargo id) in either `TransitionMode` and writes nothing. These
+  methods live in `embargo_lifecycle/activation_arm.py`.
 
 So "a replica lacking the replaced embargo" is a broken invariant, not a
 replication lag, and no catch-up fetch, replay-on-store trigger, or
 `end_time`-in-snapshot mechanism is built for it (CONCERN-4004). Nothing would
 re-drive a parked item, so there is no `DEFERRED` arm:
-`RecordParticipantAcceptanceNode` reports an unreadable replaced embargo as an
-invariant violation logged at ERROR, and the handler reports `REFUSED`
-(HP-01-003). An unknown *accepted* embargo stays an ordinary WARNING refusal.
+`RecordParticipantAcceptanceNode` reports an unreadable replaced embargo
+(missing, or not an `EmbargoEvent`) as an invariant violation logged at ERROR,
+and the handler reports `REFUSED` (HP-01-003). A sender-side refusal to build
+an announce during sync replay is logged at ERROR too, not as a recoverable
+WARNING. An unknown *accepted* embargo stays an ordinary WARNING refusal.
 
 **`TransitionMode`**: `STRICT` enforces valid transitions and precondition
 guards (used by trigger-side BT behaviors).  `OBSERVED` syncs local state

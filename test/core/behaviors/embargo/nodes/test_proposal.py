@@ -42,6 +42,7 @@ from vultron.core.behaviors.embargo.nodes.proposal import (
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.note import VultronNote
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.errors import VultronInvalidStateTransitionError
@@ -205,6 +206,36 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
             assert _tick(node) == py_trees.common.Status.FAILURE
         errors = [r for r in caplog.records if r.levelno == logging.ERROR]
         assert len(errors) == 1
+        message = errors[0].getMessage()
+        assert "Invariant violation" in message
+        assert case.id_ in message
+        assert active_id in message
+        untouched = cast(VulnerabilityCase, dl.read(case.id_))
+        assert untouched.current_status.em.state == EM.REVISE
+        assert untouched.active_embargo_id == active_id
+        assert untouched.proposed_embargoes == [revision_id]
+        owner_p = cast(CaseParticipant, dl.read(owner_p_id))
+        assert owner_p.accepted_embargo_ids == [active_id]
+
+    @pytest.mark.spec("EMB-18-003")
+    @pytest.mark.spec("EP-05-001")
+    def test_replaced_embargo_of_another_type_fails_as_an_invariant_violation(
+        self, dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
+    ):
+        """A resolves to a non-embargo record: the same ERROR, no write."""
+        case, active_id, revision_id, owner_p_id = self._revise_case(
+            dl, active_replicated=False
+        )
+        dl.create(VultronNote(id_=active_id, content="not an embargo"))
+        setup_blackboard(dl)
+        node = RecordParticipantAcceptanceNode(
+            case_id=case.id_, embargo_id=revision_id, accepting_actor_id=OWNER
+        )
+
+        with caplog.at_level(logging.WARNING):
+            assert _tick(node) == py_trees.common.Status.FAILURE
+        errors = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert [r.levelno for r in errors] == [logging.ERROR]
         message = errors[0].getMessage()
         assert "Invariant violation" in message
         assert case.id_ in message

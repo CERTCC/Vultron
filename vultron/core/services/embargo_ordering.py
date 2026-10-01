@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, TypeVar
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import VultronNotAnEmbargoError, VultronNotFoundError
 
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
@@ -74,7 +74,7 @@ def earliest_expiring_embargo_id(
 
     Raises:
         VultronNotFoundError: If an id does not resolve in *store*.
-        VultronValidationError: If a record is not an ``EmbargoEvent``.
+        VultronNotAnEmbargoError: If a record is not an ``EmbargoEvent``.
         ValueError: If *embargo_ids* is empty.
     """
     events = [
@@ -95,16 +95,13 @@ def read_embargo_event(
 
     Raises:
         VultronNotFoundError: If *embargo_id* does not resolve in *store*.
-        VultronValidationError: If the record is not an ``EmbargoEvent``.
+        VultronNotAnEmbargoError: If the record is not an ``EmbargoEvent``.
     """
     record = store.read(embargo_id)
     if record is None:
         raise VultronNotFoundError("EmbargoEvent", embargo_id)
     if not isinstance(record, EmbargoEvent):
-        raise VultronValidationError(
-            f"Embargo '{embargo_id}' is not an"
-            f" EmbargoEvent (got {type(record).__name__})."
-        )
+        raise VultronNotAnEmbargoError(embargo_id, type(record).__name__)
     return record
 
 
