@@ -159,7 +159,7 @@ def _report_id(report: Any) -> str:
 
 @pytest.mark.xfail(
     strict=True,
-    reason="CM-21-011: ownership Accept from a non-transferee is applied. Tracked by #3733.",
+    reason="CM-21-011: ownership Accept from a non-transferee is applied. Tracked by #4070.",
 )
 @pytest.mark.spec("CM-21-011")
 @pytest.mark.spec("HP-01-006")
@@ -192,7 +192,7 @@ def test_ownership_accept_from_non_transferee_is_refused(
 
 @pytest.mark.xfail(
     strict=True,
-    reason="CM-11-017: Accept of an Invite never recorded admits the sender. Tracked by #3733.",
+    reason="CM-11-017: Accept of an Invite never recorded admits the sender. Tracked by #4071.",
 )
 @pytest.mark.spec("CM-11-017")
 def test_accept_of_unrecorded_invite_is_refused(
@@ -224,7 +224,7 @@ def test_accept_of_unrecorded_invite_is_refused(
 
 @pytest.mark.xfail(
     strict=True,
-    reason="CM-16-019: Accept(Offer(CaseParticipant)) from a non-owner invites. Tracked by #3733.",
+    reason="CM-16-019: Accept(Offer(CaseParticipant)) from a non-owner invites. Tracked by #4073.",
 )
 @pytest.mark.spec("CM-16-019")
 def test_recommendation_accept_from_non_owner_is_refused():
@@ -253,7 +253,7 @@ def test_recommendation_accept_from_non_owner_is_refused():
 
 @pytest.mark.xfail(
     strict=True,
-    reason="CP-06-005: Accept(CaseProposal) from a non-addressee is recorded. Tracked by #3733.",
+    reason="CP-06-005: Accept(CaseProposal) from a non-addressee is recorded. Tracked by #4072.",
 )
 @pytest.mark.spec("CP-06-005")
 def test_case_proposal_accept_from_non_addressee_is_refused(make_payload):
@@ -279,7 +279,7 @@ def test_case_proposal_accept_from_non_addressee_is_refused(make_payload):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="CM-30-001: Remove(Note) from neither author nor owner is applied. Tracked by #3733.",
+    reason="CM-30-001: Remove(Note) from neither author nor owner is applied. Tracked by #4074.",
 )
 @pytest.mark.spec("CM-30-001")
 def test_note_removal_by_stranger_is_refused(
@@ -309,7 +309,7 @@ def test_note_removal_by_stranger_is_refused(
 
 @pytest.mark.xfail(
     strict=True,
-    reason="CM-30-002: Add(VulnerabilityReport) from a non-owner is applied. Tracked by #3733.",
+    reason="CM-30-002: Add(VulnerabilityReport) from a non-owner is applied. Tracked by #4074.",
 )
 @pytest.mark.spec("CM-30-002")
 def test_report_addition_by_non_owner_is_refused(
@@ -333,7 +333,7 @@ def test_report_addition_by_non_owner_is_refused(
 
 @pytest.mark.xfail(
     strict=True,
-    reason="SYNC-03-005: Reject(CaseLedgerEntry) from a non-participant replays. Tracked by #3733.",
+    reason="SYNC-03-005: Reject(CaseLedgerEntry) from a non-participant replays. Tracked by #4075.",
 )
 @pytest.mark.spec("SYNC-03-005")
 def test_ledger_reject_from_non_participant_is_refused():
