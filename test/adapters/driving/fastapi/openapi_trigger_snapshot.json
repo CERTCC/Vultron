@@ -1808,7 +1808,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/close-report": {
       "post": {
-        "description": "Triggers the close-report behavior for the given actor. Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) representing the RM \u2192 C (CLOSED) transition, and returns it in the response body (TRIG-04-001). Persists a ParticipantStatus record with RM.CLOSED for the actor and report. Unlike reject-report (which hard-rejects before validation), this endpoint closes a report that has already progressed through the RM lifecycle. Returns HTTP 409 if the report is already CLOSED.",
+        "description": "Triggers the close-report behavior for the given actor. Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) representing the RM \u2192 C (CLOSED) transition, and returns it in the response body (TRIG-04-001). Persists a ParticipantStatus record with RM.CLOSED for the actor and report. Unlike reject-report (a hard-reject, which also accepts a repeat close as a confirmation), this endpoint closes a report that has progressed through the RM lifecycle. Returns HTTP 409 if the report is already CLOSED, or if its RM state has no close edge (e.g. VALID; VP-02-004).",
         "operationId": "actors_trigger_close_report",
         "parameters": [
           {
@@ -2073,7 +2073,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/invite-actor-to-case": {
       "post": {
-        "description": "Emits an RmInviteToCaseActivity from the case owner to the specified invitee.  The case must exist in the actor's DataLayer.",
+        "description": "Sends the case owner's Offer of the invitee, with the offered roles, to the case's CASE_MANAGER, which emits and commits the Invite (ADR-0109).  The case must exist in the actor's DataLayer.",
         "operationId": "actors_trigger_invite_actor_to_case",
         "parameters": [
           {
@@ -2444,7 +2444,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/reject-report": {
       "post": {
-        "description": "Triggers the reject-report behavior for the given actor. Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) and returns it in the response body (TRIG-04-001). A non-empty note is required (TRIG-03-004). Persists a ParticipantStatus record with RM.CLOSED for the actor and report.",
+        "description": "Triggers the reject-report behavior for the given actor. Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) and returns it in the response body (TRIG-04-001). A non-empty note is required (TRIG-03-004). Persists a ParticipantStatus record with RM.CLOSED for the actor and report. Returns HTTP 409 if the report's RM state has no close edge (e.g. VALID; VP-02-004): nothing is emitted.",
         "operationId": "actors_trigger_reject_report",
         "parameters": [
           {

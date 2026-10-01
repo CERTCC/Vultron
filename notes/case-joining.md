@@ -124,7 +124,8 @@ about the stub as distinct from the case.
 two paths already closed from other rungs by bypassing the transition table:
 `Leave(Case)` through `force_rm_state`, and the report hard-reject. ADR-0114
 adds `R → C` only. `V → C` stays out: VP-02-004 forbids closing from *Valid*,
-so a `Leave` from `VALID` is recorded as `V → D → C`.
+so a `Leave` from `VALID` is recorded as `V → D → C`. Both landed in #4044, which
+also retired the closure uses of `force_rm_state` and guarded the hard-reject.
 
 ## Vocabulary: `Offer` versus `Invite`
 

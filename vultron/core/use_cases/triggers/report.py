@@ -174,6 +174,7 @@ class SvcRejectReportUseCase(SvcActivityTriggerBase):
             report_id=self._report.id_,
             captured=self._captured,
             sender_actor_id=self._actor_id,
+            result_out=self._result_out,
         )
 
     def _handle_result(self) -> None:
@@ -283,7 +284,7 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
             self._dl.create(
                 VultronReportCaseLink(
                     report_id=report.id_,
-                    trusted_case_creator_id=request.recipient_id,
+                    case_creator_id=request.recipient_id,
                 )
             )
         except VultronAlreadyExistsError:

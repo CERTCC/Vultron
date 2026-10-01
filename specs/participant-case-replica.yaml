@@ -735,7 +735,7 @@ groups:
     kind: project
     statement: >-
       Unit tests MUST verify that `Announce(VulnerabilityCase)` from an actor with no
-      prior local trust record — no matching `VultronReportCaseLink.trusted_case_actor_id`
+      prior local trust record — no matching `VultronReportCaseLink.case_manager_id`
       and no invite trust anchor for the announced case ID — is rejected with a WARNING
       log entry and the case is NOT seeded in the receiver's DataLayer.
     verification: >-

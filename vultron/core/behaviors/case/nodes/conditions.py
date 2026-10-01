@@ -230,13 +230,25 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
     1. Constructor arg ``case_id``.
     2. Blackboard key ``/case_id``.
     3. ``activity.log_entry.case_id`` (or ``activity.object_.case_id``).
+
+    A case missing from the executing actor's store is a Regime 1 anomaly by
+    default and fails at ``error`` level (ADR-0087).  Pass
+    ``case_may_be_absent=True`` where the actor legitimately holds no replica
+    yet — an invitee holds only the Invite's case stub until the case is
+    announced (MV-10-004) — and the node then reads that absence as "not the
+    CASE_MANAGER" at ``debug`` level: the manager always holds the case it
+    manages, so an actor without it cannot be the manager (ADR-0087 Regime 3).
     """
 
     def __init__(
-        self, case_id: str | None = None, name: str | None = None
+        self,
+        case_id: str | None = None,
+        name: str | None = None,
+        case_may_be_absent: bool = False,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
+        self._case_may_be_absent = case_may_be_absent
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
@@ -287,6 +299,19 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
             self.logger.debug(
                 "%s: no case_id available — cannot check CASE_MANAGER role",
                 self.name,
+            )
+            return Status.FAILURE
+
+        if (
+            self._case_may_be_absent
+            and self.datalayer.read_case(case_id) is None
+        ):
+            # Regime 3: no replica yet, so this actor is not the manager.
+            self.logger.debug(
+                "%s: case '%s' not held by '%s' — not the CASE_MANAGER",
+                self.name,
+                case_id,
+                self.actor_id,
             )
             return Status.FAILURE
 
@@ -390,7 +415,7 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
     """Write a pending ``VultronReportCaseLink`` for the given report (ADR-0041).
 
     Creates or updates the link with ``case_id=None`` and sets
-    ``trusted_case_creator_id`` to the deterministically derived CaseActor ID
+    ``case_creator_id`` to the deterministically derived CaseActor ID
     so that ``_find_report_case_link`` can match the incoming
     ``Create(VulnerabilityCase)`` sender when the CaseActor responds.
 
@@ -426,7 +451,7 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
         if case_actor_id is None:
             self.feedback_message = (
                 f"{self.name}: case_actor_service_url not configured"
-                " — cannot resolve trusted_case_creator_id"
+                " — cannot resolve case_creator_id"
             )
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
@@ -456,12 +481,12 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
 
         link = VultronReportCaseLink(
             report_id=self.report_id,
-            trusted_case_creator_id=case_actor_id,
+            case_creator_id=case_actor_id,
         )
         self.datalayer.create(link)
         self.logger.info(
             "%s: wrote pending ReportCaseLink for report '%s'"
-            " (trusted_case_creator_id='%s')",
+            " (case_creator_id='%s')",
             self.name,
             self.report_id,
             case_actor_id,

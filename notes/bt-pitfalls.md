@@ -10,6 +10,7 @@ description: >
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
+  - specs/case-management.yaml
   - specs/case-proposal.yaml
   - specs/code-style.yaml
   - specs/received-status-handling.yaml
@@ -328,9 +329,9 @@ there is an explicit opt-in, described in the section below.
 
 Note the discriminator, because it is easy to get backwards: a key the *caller*
 passes as a `context_data` kwarg **is** managed and restored, even when a node
-also writes it. Flat `/suggested_roles` is that case — `SvcInviteActorToCaseUseCase`
-puts it in `_extra_execute_kwargs()`, so it arrives as `context_data` — and it is
-therefore not an example of this rule.
+also writes it. The flat `/suggested_roles` key was that case until #3821 deleted the
+trigger tree that took it as a `context_data` kwarg; the roles now travel in the
+owner's Offer (CM-17-007).
 
 The same noun covers both cases, so name the key form and not the noun: the
 *namespaced* `/suggested_roles_{id_segment}` written by `EvaluateDefaultRolesNode`

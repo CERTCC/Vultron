@@ -19,8 +19,12 @@ Covers actor invitations, recommendations, participant management, and
 Case Actor / CASE_MANAGER delegation activities.
 """
 
+import json
 import logging
+from collections.abc import Mapping
 from typing import Any, cast
+
+from pydantic import BaseModel, ValidationError
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -28,6 +32,7 @@ from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.use_cases._helpers import read_received_activity
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronAlreadyExistsError,
@@ -54,6 +59,7 @@ from vultron.wire.as2.factories.case import (
     rm_reject_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Invite,
     as_Offer,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -86,19 +92,60 @@ def _active_embargo_of(
 
 def _stored_invite_by_case_uri(
     dl: CaseOutboxPersistence, invite_id: str
-) -> Any:
-    """Read the stored Invite with its ``target`` reduced to the case URI.
+) -> as_Invite:
+    """Read the received Invite with its ``target`` reduced to the case URI.
 
-    Read-back rehydrates the Invite's ``target`` into whatever case this store
-    holds.  The Accept or Reject that embeds the Invite goes to the
-    CASE_MANAGER, which holds the case, so the embedded Invite addresses it by
-    URI (AKM-02-003) rather than carrying a reconstruction of it (VM-08-003).
+    The Invite is read as this invitee holds it (``read_received_activity``):
+    archived by intake, or held by the inbox while it waits for the case
+    bootstrap.  The reply factory checks that it is a case Invite.  The Accept
+    or Reject that embeds the Invite goes to the CASE_MANAGER, which holds the
+    case, so the embedded Invite addresses it by URI (AKM-02-003) rather than
+    carrying the stub or a reconstruction of it (VM-08-003).
+
+    The held record is validated into ``as_Invite`` here, at the adapter
+    edge (ADR-0032): intake archives the activity as the event carried it,
+    a core activity the wire factories cannot name (ARCH-22-001).
+
+    Raises:
+        VultronNotFoundError: when no activity with *invite_id* was received.
+        VultronValidationError: when the stored record is not a model, its
+            inline ``target`` carries no id, or it does not validate as an
+            Invite.
     """
-    invite = cast(Any, dl.read(invite_id))
+    held = read_received_activity(dl, invite_id, "RmInviteToCaseActivity")
+    if not isinstance(held, BaseModel):
+        raise VultronValidationError(
+            f"invite '{invite_id}' is held as {type(held).__name__},"
+            " not as an activity model"
+        )
+    # The protocol's ``model_copy`` returns the protocol; read it as the model.
+    invite = cast(BaseModel, held)
     target = getattr(invite, "target", None)
+    # Read back from the archive, an inline target may be a plain mapping
+    # rather than a model, so its id is taken from either form.
+    if isinstance(target, Mapping):
+        target_id = target.get("id")
+    else:
+        target_id = _as_id(target)
     if target is not None and not isinstance(target, str):
-        invite = invite.model_copy(update={"target": _as_id(target)})
-    return invite
+        if not target_id:
+            raise VultronValidationError(
+                f"invite '{invite_id}' names its case with no id;"
+                " cannot address the reply to the case"
+            )
+        invite = invite.model_copy(update={"target": target_id})
+    if isinstance(invite, as_Invite):
+        return invite
+    try:
+        return as_Invite.model_validate(
+            json.loads(
+                invite.model_dump_json(by_alias=True, serialize_as_any=True)
+            )
+        )
+    except ValidationError as exc:
+        raise VultronValidationError(
+            f"invite '{invite_id}' does not validate as an Invite"
+        ) from exc
 
 
 class _ActorsMixin:
@@ -114,7 +161,6 @@ class _ActorsMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-        cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
@@ -122,9 +168,9 @@ class _ActorsMixin:
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
-        ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
-        MAY carry the case owner's ID for attribution.  ``cc`` MAY carry the
-        Case Actor's own ID for self-archival (CLP-10-001).
+        ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
+        MAY carry the case owner's ID for attribution.  The Invite carries no
+        ``cc`` (CM-17-006, ADR-0109).
 
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``as_VulnerabilityCase`` (projected to an enriched
@@ -134,8 +180,6 @@ class _ActorsMixin:
         CM-17-002 enrichment.
         """
         extra: dict[str, Any] = {"actor": actor, "to": to}
-        if cc is not None:
-            extra["cc"] = cc
         if id_ is not None:
             extra["id_"] = id_
         if attributed_to is not None:

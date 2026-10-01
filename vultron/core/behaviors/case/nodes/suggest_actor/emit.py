@@ -37,6 +37,7 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.roles import (
     resolve_case_owner_id,
+    suggested_roles_key,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -178,13 +179,12 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
     }
 
     def setup(self, **kwargs) -> None:
-        id_segment = self.recommendation_id.split("/")[-1]
         self.setup_ports(
             port_remappings={
                 "datalayer": "/datalayer",
                 "actor_id": "/actor_id",
                 "trigger_activity_factory": "/trigger_activity_factory",
-                "suggested_roles": f"/suggested_roles_{id_segment}",
+                "suggested_roles": f"/{suggested_roles_key(self.recommendation_id)}",
             }
         )
 

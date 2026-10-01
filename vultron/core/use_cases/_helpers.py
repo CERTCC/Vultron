@@ -15,6 +15,10 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
+from vultron.core.models.protocols import PersistableModel
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -48,7 +52,7 @@ from vultron.core.use_cases._snapshot_helpers import (  # noqa: E402,F401
 def _established_link_actor_id(
     dl: CasePersistence, case_id: str
 ) -> str | None:
-    """Return the ``trusted_case_actor_id`` recorded for *case_id*, if any.
+    """Return the ``case_manager_id`` recorded for *case_id*, if any.
 
     A completed ``VultronReportCaseLink`` records the address the authority was
     reached at during bootstrap (CBT-01-006).  That recorded address answers
@@ -58,8 +62,8 @@ def _established_link_actor_id(
     for link in dl.list_objects("ReportCaseLink"):
         if not isinstance(link, VultronReportCaseLink):
             continue
-        if link.case_id == case_id and link.trusted_case_actor_id:
-            return str(link.trusted_case_actor_id)
+        if link.case_id == case_id and link.case_manager_id:
+            return str(link.case_manager_id)
     return None
 
 
@@ -76,7 +80,7 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
 
     Resolution order:
 
-    1. The ``trusted_case_actor_id`` recorded on a completed
+    1. The ``case_manager_id`` recorded on a completed
        ``VultronReportCaseLink`` (CBT-01-006).
     2. The actor enacting ``CVDRole.CASE_MANAGER`` on the case replica.
 
@@ -253,6 +257,38 @@ def resolve_case(case_id: str, dl: CasePersistence):
     if case_raw is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
     return case_raw
+
+
+def read_received_activity(
+    dl: CasePersistence, activity_id: str, resource_type: str = "Activity"
+) -> PersistableModel:
+    """Return the activity *activity_id* as this receiver holds it.
+
+    A received activity that reached its use case is archived by intake as a
+    ``ReceivedActivityRecord`` under the receiver's own key (CLP-10-017,
+    ADR-0111), so that record is read first.
+
+    An activity the inbox deferred until its case is known has not reached
+    intake yet.  An Invite to a case is usually in that state: the invitee
+    holds no case until its Accept brings the bootstrap Announce (MV-10-003).
+    The inbox holds such an activity under the sender's id for replay, and
+    that copy is then the only one the receiver has, so it is read next.
+
+    Args:
+        dl: The receiver's DataLayer.
+        activity_id: The sender's id for the activity.
+        resource_type: Label for the error when nothing is held.
+
+    Raises:
+        VultronNotFoundError: When this store holds no such activity.
+    """
+    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
+    if isinstance(record, ReceivedActivityRecord):
+        return record.activity
+    deferred = dl.read(activity_id)
+    if deferred is None:
+        raise VultronNotFoundError(resource_type, activity_id)
+    return deferred
 
 
 def current_participant_rm_state(

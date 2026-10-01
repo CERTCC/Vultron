@@ -41,7 +41,8 @@ _to_A = RmTransition(
     start_states=[RM.VALID, RM.DEFERRED], end_state=RM.ACCEPTED
 )
 _to_C = RmTransition(
-    start_states=[RM.INVALID, RM.DEFERRED, RM.ACCEPTED], end_state=RM.CLOSED
+    start_states=[RM.RECEIVED, RM.INVALID, RM.DEFERRED, RM.ACCEPTED],
+    end_state=RM.CLOSED,
 )
 
 # Create the state change functions

@@ -28,10 +28,10 @@ class CreateCaseReceivedUseCase:
 
     Bootstrap trust path (CBT-01-005 / CBT-01-006):
     1. Locate the ``VultronReportCaseLink`` for any report listed in the case.
-    2. Validate that the sender matches ``link.trusted_case_creator_id``.
+    2. Validate that the sender matches ``link.case_creator_id``.
     3. Extract the ``CaseActor`` ID from the ``CASE_MANAGER`` participant.
     4. Seed a local replica of the case via the case-replica BT.
-    5. Update the link with ``case_id`` and ``trusted_case_actor_id``.
+    5. Update the link with ``case_id`` and ``case_manager_id``.
     """
 
     def __init__(
@@ -88,7 +88,7 @@ class CreateCaseReceivedUseCase:
         return any(
             isinstance(obj, VultronReportCaseLink)
             and obj.case_id == case_id
-            and obj.trusted_case_creator_id == actor_id
+            and obj.case_creator_id == actor_id
             for obj in self._dl.list_objects("ReportCaseLink")
         )
 
@@ -166,8 +166,8 @@ class CreateCaseReceivedUseCase:
     ) -> HandlerResult:
         """Validate trust and seed the case replica."""
         # CBT-01-005: sender must match the actor we sent the report to
-        if link.trusted_case_creator_id is not None:
-            if actor_id != link.trusted_case_creator_id:
+        if link.case_creator_id is not None:
+            if actor_id != link.case_creator_id:
                 logger.warning(
                     "create_case_received: bootstrap rejected for case '%s' — "
                     "sender does not match trusted case creator "
@@ -181,7 +181,7 @@ class CreateCaseReceivedUseCase:
                 )
         else:
             logger.warning(
-                "create_case_received: no trusted_case_creator_id in link "
+                "create_case_received: no case_creator_id in link "
                 "for case '%s'; accepting bootstrap unchecked",
                 case_id,
             )
@@ -235,11 +235,11 @@ class CreateCaseReceivedUseCase:
 
         # CBT-01-006: persist trust anchors in the link
         link.case_id = case_id
-        link.trusted_case_actor_id = case_actor_id
+        link.case_manager_id = case_actor_id
         self._dl.save(link)
         logger.info(
             "create_case_received: ReportCaseLink updated with case_id='%s' "
-            "and trusted_case_actor_id='%s' (CBT-01-006)",
+            "and case_manager_id='%s' (CBT-01-006)",
             case_id,
             case_actor_id,
         )

@@ -255,6 +255,9 @@ hooks:
   # Registers ids found in rendered HTML (exec-block output included) as link
   # targets for the anchors check above. See the module docstring.
   - vultron/metadata/docs/anchor_ids.py
+  # Rewrites the Protocol Specification's cross-page section links to in-page
+  # anchors on its single-page edition, full.md. See the module docstring.
+  - vultron/metadata/docs/full_page_links.py
 draft_docs: |
   draft-*.md
   # Patterns are relative to docs_dir; `docs/developer/` was mis-anchored
