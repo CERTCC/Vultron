@@ -5,9 +5,9 @@ deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
 # The decision itself is accepted, not provisional. The word appears because two
-# of the *rule exclusions* it records are provisional and cite tracking issues
-# (#3350, #3378) — which IMPLTS-07-019 requires them to say. Suppress the
-# MS-14-002 match on that vocabulary.
+# of the *rule exclusions* it records were provisional and cited tracking issues
+# (#3350, #3378) — which IMPLTS-07-019 requires them to say; both are resolved
+# and the rows record how. Suppress the MS-14-002 match on that vocabulary.
 lint_suppress: [status_prose_contradiction]
 stakeholder_type: [project-contributor]
 ---
@@ -312,7 +312,7 @@ deliberately not restated in `specs/` or `notes/` (MS-16-001).
 | `TRY003` raise-vanilla-args | 567 | Would require one exception class per distinct message string. |
 | `PLR2004` magic-value-comparison | 412 | Overwhelmingly test literals, where a named constant reduces clarity. |
 | `PLR0904`, `PLR0911`–`PLR0917` | 495 | Argument, return, branch and statement counts. `C901` at `max-complexity = 10` is this project's chosen complexity gate (IMPLTS-07-008); a second, differently-calibrated one would compete with it. |
-| `G004` logging-f-string | 194 | A legitimate rule — f-strings defeat logging's lazy formatting — but the rewrite has no agreed target, because the choice between lazy `%`-args and structured `extra=` fields belongs to the structured-logging requirements (`specs/structured-logging.yaml`). Provisional, tracked as #3378. |
+| `G004` logging-f-string | 194 | A legitimate rule — f-strings defeat logging's lazy formatting — but the rewrite has no agreed target, because the choice between lazy `%`-args and structured `extra=` fields belongs to the structured-logging requirements (`specs/structured-logging.yaml`). Provisional, tracked as #3378. *Resolved 2026-09-30*: #3378 found the two were never alternatives — the template-plus-lazy-args shape governs the message (SL-01-005) and record fields are the correlation mechanism, set by a boundary filter (SL-02-003) — so the rule is enabled: #3991 deletes this entry and rewrites every site, and #3992 builds the correlation filter. |
 | `TC001`, `TC002`, `TC003` | 113 | Would force `if TYPE_CHECKING:` blocks across the tree. |
 | `RET504` unnecessary-assign | 86 | Assign-then-return is more readable at the sites where it appears. |
 | `RUF001`–`RUF003` ambiguous-unicode | 47 | Fires on prose and docstrings, not code. |
@@ -477,7 +477,10 @@ the wrong class, `pytest.raises(Exception)` as a vacuous assertion, missing
 - Follow-on questions deliberately left open, each cited as the reason for a
   provisional exclusion: #3350 (`PLC0415` vs CS-05-002; resolved 2026-09-30 by
   CS-05-005/006, implemented by #3949 and #3950) and #3378 (`G004` vs the
-  structured-logging requirements).
+  structured-logging requirements; resolved 2026-09-30 by SL-01-005 and
+  SL-02-003/004, implemented by #3991 and #3992). Once #3949 and #3991 land,
+  both provisional entries are gone and the `ignore` list carries only standing
+  rationales.
 - Exception-handling findings are owned by epic #3329, not by this decision:
   #3325 (closed via PR #3338), #3326.
 - Policy write-up for future maintainers: `notes/lint-tooling.md`.

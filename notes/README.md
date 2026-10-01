@@ -184,14 +184,17 @@ AKM-08).
 trust or awareness logic, or working on AKM spec requirements.
 
 **`structured-logging.md`**
-Narrative log template (SL-04-006), infrastructure demotion list (SL-04-007),
-and per-module guidance for keeping actor INFO logs readable as a CVD protocol
-story. Documents the approved verb–template inventory (`Actor '<id>' RM: A → B
-for case '<id>'`), the ~10 infrastructure patterns that MUST be at DEBUG, and
-the ~8 missing INFO messages required by SL-04-001. Source: CONCERN-1968.
-**Load when**: adding a new BT node that writes RM/CS/EM state (must add INFO
-log), auditing logging levels in actor container output, or implementing
-CONCERN-1968 logging remediation.
+Log-call shape (SL-01-005: a literal template with lazy positional args, never
+an f-string — why the split matters and why `extra=` was never the alternative;
+CONCERN-3378), narrative log template (SL-04-006), infrastructure demotion list
+(SL-04-007), and per-module guidance for keeping actor INFO logs readable as a
+CVD protocol story. Documents the approved verb–template inventory (`Actor
+'<id>' RM: A → B for case '<id>'`), the infrastructure patterns that MUST be at
+DEBUG, and how correlation fields reach the record (SL-02-003: boundary filter,
+not per-call `extra=`). Source: CONCERN-1968, CONCERN-3378.
+**Load when**: writing or rewriting any log call, adding a new BT node that
+writes RM/CS/EM state (must add INFO log), auditing logging levels in actor
+container output, or implementing correlation fields on log records.
 
 **`configuration.md`**
 Design decisions for YAML-backed Pydantic configuration loading in Vultron:
@@ -769,7 +772,8 @@ what makes an acceptable exclusion reason (IMPLTS-07-019), and why `RUF100`
 rather than a bespoke test is the ratchet for baselined findings
 (IMPLTS-07-020). Records the `PLC0415` policy (CS-05-005/006: enabled by #3949
 after #3352, with `test/**` exempted and each genuine cycle break marked until
-its removal in #3950), the one remaining provisional exclusion `G004` (#3378),
+its removal in #3950), the `G004` resolution (SL-01-005: enabled by #3991, which
+rewrites every f-string log call and leaves no provisional entry in `ignore`),
 and the commit-loop habits that changed when the flake8 hook was retired.
 **Load when**: editing `[tool.ruff]`, adding or removing an `ignore` entry,
 baselining a new rule, tightening the ruleset, or wiring a lint step into CI or

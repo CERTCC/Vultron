@@ -179,9 +179,9 @@ ignore = [
     "PLR0915",
     "PLR0916",
     "PLR0917",
-    # logging-f-string. Provisional: the rewrite target (lazy %-args or
-    # structured extra= fields) is undecided in specs/structured-logging.yaml.
-    # Tracked as #3378.
+    # logging-f-string. Provisional: #3378 settled the rewrite target (a literal
+    # template with lazy args, SL-01-005); #3991 rewrites every site and deletes
+    # this entry. Tracked as #3991.
     "G004",
     # typing-only-{first,third}-party / standard-library import: would force
     # `if TYPE_CHECKING:` blocks across the tree for no stated requirement.
