@@ -13,12 +13,64 @@
 
 """Embargo object factory helpers shared across demo scenarios."""
 
+import logging
 from datetime import datetime, timedelta
 
+import isodate  # type: ignore[import-untyped]
+
+from vultron.adapters.utils import parse_id
+from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.demo.utils import DataLayerClient
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def publish_embargo_policy(
+    client: DataLayerClient,
+    actor: as_Actor,
+    preferred_duration: timedelta,
+) -> EmbargoPolicy:
+    """Publish *actor*'s embargo policy — its actor default — on *client*.
+
+    ``PUT /actors/{slug}/embargo-policy`` (EP-02) writes the policy into the
+    actor's own store.  The actor default is the CASE_OWNER's own profile
+    policy (EP-04-003, CP-01-010), but the case-creation tree still reads it
+    through ``owner_embargo_policies`` on ``case.attributed_to`` (EP-04-010),
+    which the case-actor path sets to the CaseActor until #4026; so the
+    ``report-with-embargo`` demo passes its CaseActor here as a workaround
+    until #4027 carries the CASE_OWNER's profile to creation.  The actor must
+    be hosted by the container *client* addresses.
+
+    Args:
+        client: Client connected to the container hosting *actor*.
+        actor: The hosted actor publishing the policy.
+        preferred_duration: The default embargo length the actor proposes to
+            every Reporter (EP-01-002).
+
+    Returns:
+        The published policy, as the endpoint returned it.
+    """
+    slug = parse_id(actor.id_)["object_id"]
+    data = client.put(
+        f"/actors/{slug}/embargo-policy",
+        json={
+            "preferred_duration": isodate.duration_isoformat(
+                preferred_duration
+            )
+        },
+    )
+    policy = EmbargoPolicy.model_validate(data)
+    logger.info(
+        "Actor %s published embargo policy: preferred %s",
+        actor.id_,
+        policy.preferred_duration,
+    )
+    return policy
 
 
 def make_embargo_event(

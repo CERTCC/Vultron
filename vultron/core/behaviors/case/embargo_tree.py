@@ -47,6 +47,7 @@ from vultron.core.behaviors.case.nodes.embargo import (
     SeedOwnerAsSignatoryNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
+    CaseEmbargoAlreadyInitializedNode,
     CaseNotEmbargoEligibleNode,
     ResolveEmbargoDurationNode,
 )
@@ -58,9 +59,13 @@ from vultron.core.behaviors.case.nodes.embargo_revision import (
 class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
     """Composed subtree for initial embargo set-up on case creation.
 
-    The first arm succeeds, creating nothing, when the case is not embargo
-    eligible (EP-04-008).  Otherwise the creation arm runs, and its failure is
-    the subtree's failure — the ineligible arm never masks it.
+    The first arm succeeds, doing nothing, when the case already carries an
+    active embargo: initialization ran when the case was created, and a
+    repeated proposal for the same report must not run it again (CP-05-006;
+    it once registered a second pending revision per delivery).  The second
+    arm succeeds, creating nothing, when the case is not embargo eligible
+    (EP-04-008).  Otherwise the creation arm runs, and its failure is the
+    subtree's failure — neither guard arm masks it.
 
     Args:
         actor_config: Source of the protocol default embargo duration
@@ -77,6 +82,7 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
             name=name or self.__class__.__name__,
             memory=False,
             children=[
+                CaseEmbargoAlreadyInitializedNode(),
                 CaseNotEmbargoEligibleNode(),
                 py_trees.composites.Sequence(
                     name="CreateInitialEmbargo",

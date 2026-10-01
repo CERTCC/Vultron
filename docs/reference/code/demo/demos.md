@@ -39,6 +39,12 @@ Each script can be run standalone via
     options:
         heading_level: 3
 
+## report-with-embargo
+
+::: vultron.demo.exchange.report_with_embargo_demo
+    options:
+        heading_level: 3
+
 ## acknowledge
 
 ::: vultron.demo.exchange.acknowledge_demo

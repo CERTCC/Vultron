@@ -38,6 +38,7 @@ from vultron.core.behaviors.report.trigger_report_trees import (
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -246,6 +247,13 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
     and queue the Offer activity.  Returns ``{"offer": <offer_dict>}``
     rather than the base-class ``{"activity": ...}`` shape to preserve
     the existing API contract.
+
+    When the request states ``proposed_embargo_end_time``, ``_prepare()``
+    also stores the Reporter's proposed ``EmbargoEvent`` — about the report,
+    since no case exists yet (EP-04-009) — and the tree carries it on the
+    Offer as ``proposedEmbargo`` (EP-04-004).  The Reporter keeps the event
+    under the id the Offer names: the CASE_MANAGER keeps that identity when
+    the terms win, so the Reporter can recognise its own terms on the case.
     """
 
     def _prepare(self) -> None:
@@ -287,12 +295,44 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
 
         self._report_id = report.id_
         self._recipient_id = request.recipient_id
+        self._proposed_embargo_id = self._store_proposed_embargo(
+            report, request
+        )
+
+    def _store_proposed_embargo(
+        self,
+        report: VulnerabilityReport,
+        request: SubmitReportTriggerRequest,
+    ) -> str | None:
+        """Persist the Reporter's proposed terms for *report*, if any stated.
+
+        Returns the stored ``EmbargoEvent`` id, or ``None`` when the request
+        proposes nothing.  The event names the report as its ``context``
+        (EP-04-009); the case does not exist yet.
+        """
+        if request.proposed_embargo_end_time is None:
+            return None
+        proposal = EmbargoEvent(
+            context=report.id_,
+            end_time=request.proposed_embargo_end_time,
+        )
+        self._dl.create(proposal)
+        logger.info(
+            "Reporter '%s' proposes embargo '%s' ending %s for report '%s'"
+            " (EP-04-004)",
+            self._actor_id,
+            proposal.id_,
+            proposal.end_time.isoformat(),
+            report.id_,
+        )
+        return proposal.id_
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return submit_report_trigger_bt(
             report_id=self._report_id,
             recipient_id=self._recipient_id,
             captured=self._captured,
+            proposed_embargo_id=self._proposed_embargo_id,
         )
 
     def _handle_result(self) -> None:
