@@ -16,27 +16,35 @@
 """
 Trigger router for report-management behaviors.
 
-Thin wrapper: validates request → calls adapter → returns response.
+Thin wrapper: validates the HTTP body, builds the verb's core request and hands
+it to :func:`~vultron.adapters.driving.fastapi.trigger_runner.run_trigger`.
 All domain logic lives in vultron.core.use_cases.triggers.report.
 """
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
-    get_trigger_service,
+    get_trigger_dispatcher,
+    get_trigger_dl,
 )
-from vultron.adapters.driving.fastapi.errors import domain_error_translation
-from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-from vultron.adapters.driving.fastapi.trigger_models import (
+from vultron.adapters.driving.fastapi.trigger_runner import run_trigger
+from vultron.core.models.use_case_result import ActivityResult, OfferResult
+from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
+from vultron.core.use_cases.triggers.request_bodies import (
     CloseReportRequest,
     InvalidateReportRequest,
     RejectReportRequest,
     SubmitReportRequest,
     ValidateReportRequest,
 )
-from vultron.core.ports.datalayer import DataLayer
-from vultron.core.ports.trigger_service import TriggerServicePort
+from vultron.core.use_cases.triggers.requests import (
+    CloseReportTriggerRequest,
+    InvalidateReportTriggerRequest,
+    RejectReportTriggerRequest,
+    SubmitReportTriggerRequest,
+    ValidateReportTriggerRequest,
+)
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
 
@@ -51,26 +59,31 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "returns the resulting ActivityStreams activity (TRIG-04-001)."
     ),
     operation_id="actors_trigger_validate_report",
+    response_model=ActivityResult,
 )
 def trigger_validate_report(
     actor_id: str,
     body: ValidateReportRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the validate-report behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-001, TRIG-03-001,
         TRIG-03-002, TRIG-03-003, TRIG-04-001, TRIG-05-001, TRIG-05-002,
-        TRIG-06-001, TRIG-06-002, TRIG-07-001
+        TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.validate_report(actor_id, body.offer_id, body.note)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return run_trigger(
+        ValidateReportTriggerRequest(
+            actor_id=actor_id, offer_id=body.offer_id, note=body.note
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -85,25 +98,30 @@ def trigger_validate_report(
         "and report."
     ),
     operation_id="actors_trigger_invalidate_report",
+    response_model=ActivityResult,
 )
 def trigger_invalidate_report(
     actor_id: str,
     body: InvalidateReportRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the invalidate-report behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-001, TRIG-03-001, TRIG-03-002,
-        TRIG-03-003, TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
+        TRIG-03-003, TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.invalidate_report(actor_id, body.offer_id, body.note)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return run_trigger(
+        InvalidateReportTriggerRequest(
+            actor_id=actor_id, offer_id=body.offer_id, note=body.note
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -119,25 +137,32 @@ def trigger_invalidate_report(
         "and report."
     ),
     operation_id="actors_trigger_reject_report",
+    response_model=ActivityResult,
 )
 def trigger_reject_report(
     actor_id: str,
     body: RejectReportRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the reject-report (hard-close) behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-001, TRIG-03-001, TRIG-03-002,
-        TRIG-03-004, TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
+        TRIG-03-004, TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.reject_report(actor_id, body.offer_id, body.note)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    # The body requires the ``note`` key (TRIG-03-004) but tolerates an empty
+    # string with a warning; the core request takes ``None`` for "no reason".
+    return run_trigger(
+        RejectReportTriggerRequest(
+            actor_id=actor_id, offer_id=body.offer_id, note=body.note or None
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -156,25 +181,30 @@ def trigger_reject_report(
         "lifecycle. Returns HTTP 409 if the report is already CLOSED."
     ),
     operation_id="actors_trigger_close_report",
+    response_model=ActivityResult,
 )
 def trigger_close_report(
     actor_id: str,
     body: CloseReportRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the close-report (RM → CLOSED) behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-001, TRIG-03-001, TRIG-03-002,
-        TRIG-03-003, TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
+        TRIG-03-003, TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.close_case(actor_id, body.offer_id, body.note)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return run_trigger(
+        CloseReportTriggerRequest(
+            actor_id=actor_id, offer_id=body.offer_id, note=body.note
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -188,27 +218,30 @@ def trigger_close_report(
         "recipient's inbox."
     ),
     operation_id="actors_trigger_submit_report",
+    response_model=OfferResult,
 )
 def trigger_submit_report(
     actor_id: str,
     body: SubmitReportRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> OfferResult:
     """
     Create a VulnerabilityReport and offer it to a recipient.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-001, TRIG-03-002,
-        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
+        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.submit_report(
-            actor_id,
-            body.report_name,
-            body.report_content,
-            body.recipient_id,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return run_trigger(
+        SubmitReportTriggerRequest(
+            actor_id=actor_id,
+            report_name=body.report_name,
+            report_content=body.report_content,
+            recipient_id=body.recipient_id,
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )

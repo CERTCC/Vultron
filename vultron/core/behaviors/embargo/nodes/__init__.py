@@ -45,13 +45,21 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import (
 from vultron.core.behaviors.embargo.nodes.proposal import (
     CreateAndStoreInviteNode,
     RecordParticipantAcceptanceNode,
-    RemoveStaleAcceptanceNode,
+    RecordParticipantRejectionNode,
     UpdateParticipantEmbargoPecNode,
 )
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (
     ReadProposedEmbargoIdNode,
     RejectProposedEmbargoLifecycleNode,
     SendRejectEmbargoActivityNode,
+)
+from vultron.core.behaviors.embargo.nodes.relay import (
+    EMBARGO_INVITE_EVENT_TYPE,
+    CollectEmbargoInviteRecipientsNode,
+    EmbargoProposalNotYetRecordedNode,
+    EmStateAdmitsProposalNode,
+    RelayEmbargoInviteToEachNode,
+    case_manager_admits_proposal_guard,
 )
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
@@ -81,11 +89,18 @@ __all__ = [
     "ApplyEmbargoTeardownNode",
     "RemoveFromProposedEmbargoesNode",
     "SendAnnounceEmbargoEventNode",
+    # Relay (EP-09)
+    "EMBARGO_INVITE_EVENT_TYPE",
+    "CollectEmbargoInviteRecipientsNode",
+    "EmStateAdmitsProposalNode",
+    "EmbargoProposalNotYetRecordedNode",
+    "RelayEmbargoInviteToEachNode",
+    "case_manager_admits_proposal_guard",
     # Proposal
     "UpdateParticipantEmbargoPecNode",
     "CreateAndStoreInviteNode",
     "RecordParticipantAcceptanceNode",
-    "RemoveStaleAcceptanceNode",
+    "RecordParticipantRejectionNode",
     # Lifecycle
     "PersistEmbargoEventNode",
     "ValidateEmbargoRevisionStateNode",

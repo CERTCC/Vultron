@@ -26,14 +26,7 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
-from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
-    get_trigger_dl,
-    get_trigger_service,
-)
+from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
 )
@@ -41,7 +34,6 @@ from vultron.core.models.dimensions import (
     RmDimension,
 )
 from vultron.core.states.rm import RM
-from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -55,6 +47,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+#: The route runs through ``run_trigger``, so the flush it schedules is the
+#: helper's ``outbox_handler`` reference, not the router module's.
+_FLUSH = "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler"
 
 
 def _add_case_manager(case: as_VulnerabilityCase, dl) -> as_Service:
@@ -86,14 +82,11 @@ def _no_outbox_delivery():
     per test. Patching to a no-op ``AsyncMock`` eliminates that overhead
     while keeping the scheduler logic testable.
 
-    Tests in ``TestCaseTriggerOutboxScheduling`` that need a trackable mock
-    use ``unittest.mock.patch`` as a context manager inside the test body,
-    which overrides this fixture's patch for the duration of that context.
+    The flush is scheduled by ``run_trigger``, so its ``outbox_handler``
+    reference is the one patched; that it is queued at all is asserted once
+    for every verb in ``test_trigger_routes_contract.py`` (TRIG-07-001).
     """
-    with patch(
-        "vultron.adapters.driving.fastapi.routers.trigger_case.outbox_handler",
-        new_callable=AsyncMock,
-    ):
+    with patch(_FLUSH, new_callable=AsyncMock):
         yield
 
 
@@ -104,13 +97,11 @@ def _no_outbox_delivery():
 
 @pytest.fixture
 def client_triggers(dl):
+    """The case router over the ``dl`` store: one override reaches both the
+    dispatcher and the flush (TRIG-06-002)."""
     app = FastAPI()
     app.include_router(trigger_case_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
-    )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -442,53 +433,6 @@ def test_trigger_defer_case_updates_participant_rm_state(
 
 
 # ===========================================================================
-# Tests for outbox delivery scheduling (D5-6-TRIGDELIV)
-# ===========================================================================
-
-
-class TestTriggerCaseOutboxScheduling:
-    """D5-6-TRIGDELIV: case trigger endpoints must schedule outbox_handler."""
-
-    def test_engage_case_schedules_outbox_handler(
-        self, client_triggers, actor, case_with_participant
-    ):
-        """engage-case schedules outbox delivery after execution."""
-        from unittest.mock import AsyncMock, patch
-
-        with patch(
-            "vultron.adapters.driving.fastapi.routers"
-            ".trigger_case.outbox_handler",
-            new_callable=AsyncMock,
-        ) as mock_outbox:
-            resp = client_triggers.post(
-                f"/actors/{actor.id_}/trigger/engage-case",
-                json={"case_id": case_with_participant.id_},
-            )
-        assert resp.status_code == status.HTTP_202_ACCEPTED
-        mock_outbox.assert_called_once()
-        assert mock_outbox.call_args.args[0] == actor.id_
-
-    def test_defer_case_schedules_outbox_handler(
-        self, client_triggers, actor, case_with_participant
-    ):
-        """defer-case schedules outbox delivery after execution."""
-        from unittest.mock import AsyncMock, patch
-
-        with patch(
-            "vultron.adapters.driving.fastapi.routers"
-            ".trigger_case.outbox_handler",
-            new_callable=AsyncMock,
-        ) as mock_outbox:
-            resp = client_triggers.post(
-                f"/actors/{actor.id_}/trigger/defer-case",
-                json={"case_id": case_with_participant.id_},
-            )
-        assert resp.status_code == status.HTTP_202_ACCEPTED
-        mock_outbox.assert_called_once()
-        assert mock_outbox.call_args.args[0] == actor.id_
-
-
-# ===========================================================================
 # Regression tests for BUG-2026040901 — outbox delivery silently dropped
 # ===========================================================================
 
@@ -502,50 +446,38 @@ class TestTriggerCaseOutboxCanonicalId:
     dropped the ``actor_id`` column, so a queue lives in its owner's store
     rather than in a bucket named by one spelling of an id.
 
-    What still needs pinning is the resolution itself. ``get_canonical_actor_dl``
-    turns a short path segment into the canonical URI, and it is that URI which
-    selects the store ``outbox_handler`` drains. Get it wrong and the handler
-    opens a different — empty — store, which is the same silent drop by a
-    different route.
+    What still needs pinning is the resolution itself. ``get_trigger_dl``
+    (through ``get_actor_dl``) turns a short path segment into the canonical
+    URI, and it is that URI which selects the store ``outbox_handler`` drains.
+    Get it wrong and the handler opens a different — empty — store, which is
+    the same silent drop by a different route.
     """
 
-    def test_engage_case_canonical_actor_dl_resolves_full_uri(
+    def test_engage_case_short_segment_drains_the_canonical_store(
         self, dl, actor, case_with_participant
     ):
-        """outbox_handler receives the canonical-URI-keyed DataLayer.
+        """``outbox_handler`` receives the canonical-URI-keyed DataLayer.
 
-        When the URL uses a short UUID (last path segment of actor.id_),
-        get_canonical_actor_dl must resolve to the full URI, because that URI
-        is what selects the store the handler drains.
+        When the URL uses a short UUID (last path segment of ``actor.id_``),
+        the real ``get_trigger_dl`` → ``get_actor_dl`` chain must resolve to
+        the full URI, because that URI is what selects the store the handler
+        drains.  Nothing on the trigger seam is overridden here: the app is
+        only pointed at the in-memory backing URL, so the chain opens the
+        very store the fixtures seeded (engines are cached per actor).
         """
-        from fastapi import FastAPI
-        from fastapi.testclient import TestClient
-
         short_uuid = actor.id_.rstrip("/").rsplit("/", 1)[-1]
 
-        # Fresh app — override get_trigger_service but NOT
-        # get_canonical_actor_dl, so the real dependency resolves the canonical
-        # URI via the real DataLayer.
         app = FastAPI()
+        app.state.db_url = "sqlite:///:memory:"
         app.include_router(trigger_case_router.router)
-        app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
-        )
-        # get_canonical_actor_dl intentionally NOT overridden.
 
         captured_dl_arg = []
 
         async def capture_outbox(actor_id, actor_dl):
             captured_dl_arg.append((actor_id, actor_dl))
 
-        import pytest
-
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(
-                "vultron.adapters.driving.fastapi.routers"
-                ".trigger_case.outbox_handler",
-                capture_outbox,
-            )
+            mp.setattr(_FLUSH, capture_outbox)
             client = TestClient(app)
             resp = client.post(
                 f"/actors/{short_uuid}/trigger/engage-case",
@@ -554,8 +486,9 @@ class TestTriggerCaseOutboxCanonicalId:
 
         assert resp.status_code == 202, resp.json()
         assert len(captured_dl_arg) == 1, "outbox_handler was not called"
-        _, actor_dl_used = captured_dl_arg[0]
+        actor_id_used, actor_dl_used = captured_dl_arg[0]
         # The actor-scoped DL must be keyed by the FULL canonical URI
+        assert actor_id_used == actor.id_
         assert actor_dl_used._actor_id == actor.id_, (
             f"Expected canonical URI '{actor.id_}', "
             f"got '{actor_dl_used._actor_id}'"
@@ -654,7 +587,6 @@ def short_id_env(report):
     app = FastAPI()
     app.include_router(trigger_case_router.router)
     app.dependency_overrides[get_trigger_dl] = _in_memory_actor_dl
-    app.dependency_overrides[get_canonical_actor_dl] = _in_memory_actor_dl
     client = TestClient(app)
     yield SimpleNamespace(
         client=client,

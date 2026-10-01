@@ -43,9 +43,13 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.use_case_result import RoleOfferResult
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import _find_case_actor_id
-from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
+from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     _prepare_delegated_context,
     resolve_actor,
@@ -66,7 +70,7 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 logger = logging.getLogger(__name__)
 
 
-class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
+class SvcSuggestActorToCaseUseCase(SvcActivityTriggerBase):
     """Recommend another actor for participation in an existing case.
 
     Emits a RecommendActorActivity routed through the Case Manager
@@ -80,12 +84,14 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
         wire_render_port: "WireRenderPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         super().__init__(
             dl=dl,  # type: ignore[arg-type]
             request=request,
             trigger_activity=trigger_activity,  # type: ignore[arg-type]
             wire_render_port=wire_render_port,
+            sync_port=sync_port,
         )
         self._actor_discovery_call_out = call_out
 
@@ -137,7 +143,7 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcAcceptActorRecommendationUseCase(SvcBTTriggerBase):
+class SvcAcceptActorRecommendationUseCase(SvcActivityTriggerBase):
     """Accept an actor recommendation on behalf of the Case Owner.
 
     Emits Accept(Offer(CaseParticipant)) queued in the Case Owner's outbox for
@@ -264,7 +270,7 @@ def _record_named_peer(
     dl.create(CoreActor(id_=actor_id))
 
 
-class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
+class SvcInviteActorToCaseUseCase(SvcActivityTriggerBase):
     """Directly invite an actor to a case (case-owner action).
 
     Emits RmInviteToCaseActivity from the Case Actor's identity
@@ -279,12 +285,14 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
         wire_render_port: "WireRenderPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         super().__init__(
             dl=dl,  # type: ignore[arg-type]
             request=request,
             trigger_activity=trigger_activity,  # type: ignore[arg-type]
             wire_render_port=wire_render_port,
+            sync_port=sync_port,
         )
         self._actor_discovery_call_out = call_out
 
@@ -346,7 +354,7 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcAcceptCaseInviteUseCase(SvcBTTriggerBase):
+class SvcAcceptCaseInviteUseCase(SvcActivityTriggerBase):
     """Accept a case invitation by emitting RmAcceptInviteToCaseActivity.
 
     The invitee actor reads the invite from the DataLayer and queues the
@@ -379,7 +387,7 @@ class SvcAcceptCaseInviteUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcRejectCaseInviteUseCase(SvcBTTriggerBase):
+class SvcRejectCaseInviteUseCase(SvcActivityTriggerBase):
     """Reject a case invitation by emitting RmRejectInviteToCaseActivity.
 
     The invitee actor reads the invite from the DataLayer and queues the
@@ -412,7 +420,7 @@ class SvcRejectCaseInviteUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
+class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
     """Offer case ownership to another actor (trigger-side path).
 
     Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
@@ -426,12 +434,14 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
         wire_render_port: "WireRenderPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         super().__init__(
             dl=dl,  # type: ignore[arg-type]
             request=request,
             trigger_activity=trigger_activity,  # type: ignore[arg-type]
             wire_render_port=wire_render_port,
+            sync_port=sync_port,
         )
         self._actor_discovery_call_out = call_out
 
@@ -478,7 +488,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcAcceptCaseOwnershipTransferUseCase(SvcBTTriggerBase):
+class SvcAcceptCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
     """Accept a case ownership transfer offer (trigger-side path).
 
     Emits ``Accept(Offer(VulnerabilityCase))`` from the accepting actor back
@@ -541,23 +551,21 @@ class SvcOfferCaseParticipantRoleUseCase:
 
     def __init__(
         self,
-        dl: object,
-        request: object,
-        trigger_activity: object = None,
+        dl: CaseOutboxPersistence,
+        request: OfferCaseParticipantRoleTriggerRequest,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request = request
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> dict[str, Any]:
-        from vultron.core.ports.trigger_activity import TriggerActivityPort
-
+    def execute(self) -> RoleOfferResult:
         if self._trigger_activity is None:
             raise RuntimeError(
                 "SvcOfferCaseParticipantRoleUseCase requires a TriggerActivityPort"
             )
-        req = cast(OfferCaseParticipantRoleTriggerRequest, self._request)
-        factory = cast(TriggerActivityPort, self._trigger_activity)
+        req = self._request
+        factory = self._trigger_activity
         activity_id, activity_dict = factory.offer_case_participant_role(
             case_id=req.case_id,
             role=req.role,
@@ -572,7 +580,7 @@ class SvcOfferCaseParticipantRoleUseCase:
             req.role,
             req.target_actor_id,
         )
-        return {
-            "activity_id": activity_id,
-            "activity": json.loads(activity_dict),
-        }
+        return RoleOfferResult(
+            activity_id=activity_id,
+            activity=json.loads(activity_dict),
+        )

@@ -112,6 +112,16 @@ class model.
 **Verification**: Test API serialization completeness, not just database
 storage. Check that all expected fields appear in JSON responses.
 
+**The other case — trigger routes declare `response_model` on purpose.** Every
+route under `/actors/{actor_id}/trigger/` and `/demo/` carries
+`response_model=<TriggerResult subtype>` (TRIG-12-001, ADR-0110). Filtering is
+not a hazard there: each subtype is the verb's exact key set with
+`extra="forbid"`, so there is no subclass field for the filter to drop, and the
+declaration is what puts the body shape into OpenAPI. The exact key set and the
+`null` emission are pinned per registry row by
+`test/adapters/driving/fastapi/test_trigger_routes_contract.py` (TRIG-12-002).
+Do not apply the "remove the annotation" fix above to a trigger route.
+
 See `specs/http-protocol.yaml` HTTP-08-001 (root cause) and HTTP-09-002,
 HTTP-09-003 (AS2 endpoint fix).
 

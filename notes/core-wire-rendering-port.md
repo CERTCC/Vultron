@@ -149,7 +149,9 @@ A driven port, per ARCH-01-004 and the `SyncActivityPort` precedent.
   inbox dispatcher wraps each semantic's port factory with
   `with_wire_render_port()` (`inbox_port_factories.py`), and a use case that is
   not handed one fails closed at its first commit rather than dumping. Trigger
-  use cases get it through `TriggerService` and `SvcBTTriggerBase` (#3930).
+  use cases get it through `RegistryTriggerDispatcher` (built by
+  `get_trigger_dispatcher` with an `As2WireRenderAdapter`) and
+  `SvcBTTriggerBase` (#3930, #3833).
   Before #3930 only `CREATE_CASE_PROPOSAL` and `CLOSE_CASE` were given the port,
   so the snapshot path fell back to a core-side dump everywhere else.
 

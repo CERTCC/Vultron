@@ -41,6 +41,11 @@ from vultron.core.models.dimensions import (
 )
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import (
+    ActivityResult,
+    OfferResult,
+    TriggerResult,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers.case import (
@@ -203,13 +208,13 @@ def _make_two_actor_case(
     return case
 
 
-def _new_outbox_activity(vendor, vendor_dl, result: dict):
+def _new_outbox_activity(vendor, vendor_dl, result: TriggerResult):
     """Return the first new activity added to vendor's outbox during execute()."""
     activity_id = None
-    if result.get("activity"):
-        activity_id = result["activity"].get("id")
-    if activity_id is None and "offer" in result:
-        activity_id = result["offer"].get("id")
+    if isinstance(result, ActivityResult) and result.activity:
+        activity_id = result.activity.get("id")
+    elif isinstance(result, OfferResult) and result.offer:
+        activity_id = result.offer.get("id")
     if activity_id is None:
         return None, None
     obj = vendor_dl.read(activity_id)
@@ -326,7 +331,8 @@ class TestCaseTriggerToField:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        act_obj = self.dl.read(result["activity_id"])
+        assert result.activity_id is not None
+        act_obj = self.dl.read(result.activity_id)
         recipients = _to_field(act_obj)
 
         assert recipients is not None

@@ -14,10 +14,9 @@
   (e.g., `CreateReportReceivedUseCase`). See CS-12-002.
 - **Trigger use cases** (actor-initiated actions): Use `Svc` prefix
   (e.g., `SvcEngageCaseUseCase`). See CS-12-002.
-- **Trigger service functions** in `trigger_services/`: Use a `_trigger`
-  **suffix** (not an `svc_` prefix). For example: `engage_case_trigger`
-  not `svc_engage_case`. The `Svc` prefix is reserved for use-case class
-  names only.
+- **Trigger-side module functions** (e.g. `replay_missing_entries_trigger` in
+  `use_cases/triggers/sync.py`): Use a `_trigger` **suffix** (not an `svc_`
+  prefix). The `Svc` prefix is reserved for use-case class names only.
 - **Domain class names**: Use CVD-domain vocabulary, not wire-format parallels
   (e.g., `CaseTransferOffer` not `VultronOffer`). See CS-12-001.
 
@@ -60,12 +59,10 @@ class CreateReportReceivedUseCase:
    `vultron/semantic_registry/` (e.g., `report.py`, `case.py`, `embargo.py`).
    **Do NOT add it directly to `__init__.py`** — see pitfall below.
    (**Order matters within the sub-module** — specific before general.)
-4. Implement a use-case class in `vultron/core/use_cases/`:
-   - Follow the `UseCase` Protocol (received: `execute() -> HandlerResult`)
-5. Add tests:
-   - Pattern matching in `test/test_semantic_activity_patterns.py`
-   - Routing coverage in `test/test_semantic_registry.py`
-   - Use-case logic in `test/core/use_cases/`
+4. Implement a use-case class in `vultron/core/use_cases/` following the
+   `UseCase` Protocol (received: `execute() -> HandlerResult`)
+5. Add tests: pattern matching (`test/test_semantic_activity_patterns.py`),
+   routing (`test/test_semantic_registry.py`), use-case logic (`test/core/use_cases/`)
 
 ---
 
@@ -73,13 +70,15 @@ class CreateReportReceivedUseCase:
 
 - **Enums**: `vultron/core/models/events/__init__.py` — re-exports
   `MessageSemantics`; defined in `vultron/core/models/events/base.py`
-- **Semantic Registry**: `vultron/semantic_registry/` — domain-split package;
-  `SEMANTIC_REGISTRY` (ordered list), `find_matching_semantics()`,
-  `use_case_map()`
-- **Dispatcher**: `vultron/core/dispatcher.py` — `DirectActivityDispatcher`,
-  `get_dispatcher()`; port: `vultron/core/ports/dispatcher.py`
-- **Data Layer port**: `vultron/core/ports/datalayer.py` — `DataLayer`
-  Protocol
+- **Registries** (domain-split, data + lookups only): `vultron/semantic_registry/`
+  (`SEMANTIC_REGISTRY`, `find_matching_semantics()`, `use_case_map()`) and
+  `vultron/trigger_registry/` (`TriggerEntry` per verb, `entries()`,
+  `lookup_entry(verb)`; a per-verb method there is the facade ADR-0110 removed)
+- **Dispatchers**: `vultron/core/dispatcher.py` (`DirectActivityDispatcher`,
+  port `ports/dispatcher.py`); `vultron/core/trigger_dispatcher.py`
+  (`RegistryTriggerDispatcher`, port `ports/trigger_dispatcher.py`:
+  `trigger(request, dl) -> ResultT_co`, UCORG-05-006)
+- **Data Layer port**: `vultron/core/ports/datalayer.py` — `DataLayer` Protocol
 - **BT Bridge**: `vultron/core/behaviors/bridge.py`
 - **BT nodes/trees**: `vultron/core/behaviors/report/`, `case/`, `helpers.py`
 - **Predicate layer** (`vultron/core/predicates/`): Pure rule layer (ISSUE-3058) — MAY import

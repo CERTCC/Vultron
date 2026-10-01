@@ -20,14 +20,38 @@ module holds the composites that wrap other work in such a gate — the differen
 being that a condition node answers a question, while these decide whether a
 subtree runs at all.
 
-Currently one gate: :func:`create_case_manager_gated_tree`, the single sanctioned
-shape for "only the CASE_MANAGER may do this" (BTND-07-005). Canonical ledger
-commits and the note-attachment path both build on it.
+Two gates: :func:`create_case_manager_gated_tree`, the single sanctioned shape
+for "only the CASE_MANAGER may do this" (BTND-07-005) — canonical ledger commits
+and the note-attachment path both build on it — and its complement
+:func:`create_participant_replica_gated_tree`, for the work a received tree does
+only when the executing actor is *not* the CASE_MANAGER (RSH-08-003).
 """
 
 import py_trees
 
-__all__ = ["create_case_manager_gated_tree"]
+from vultron.core.behaviors.case.nodes.conditions import (
+    CheckIsCaseManagerNode,
+)
+
+__all__ = [
+    "create_case_manager_gated_tree",
+    "create_participant_replica_gated_tree",
+]
+
+
+def _wrap_children(
+    name: str,
+    children: list[py_trees.behaviour.Behaviour],
+    body_name: str | None,
+) -> py_trees.behaviour.Behaviour:
+    """One child runs bare; several become a Sequence so a mid-run FAILURE propagates."""
+    if len(children) == 1:
+        return children[0]
+    return py_trees.composites.Sequence(
+        name=body_name or f"{name}Body",
+        memory=False,
+        children=children,
+    )
 
 
 def create_case_manager_gated_tree(
@@ -75,19 +99,7 @@ def create_case_manager_gated_tree(
     Returns:
         The gated root Selector.
     """
-    from vultron.core.behaviors.case.nodes.conditions import (
-        CheckIsCaseManagerNode,
-    )
-
-    gated: py_trees.behaviour.Behaviour
-    if len(children) == 1:
-        gated = children[0]
-    else:
-        gated = py_trees.composites.Sequence(
-            name=body_name or f"{name}Body",
-            memory=False,
-            children=children,
-        )
+    gated = _wrap_children(name, children, body_name)
 
     return py_trees.composites.Selector(
         name=name,
@@ -103,6 +115,53 @@ def create_case_manager_gated_tree(
                     ),
                 ],
             ),
+            gated,
+        ],
+    )
+
+
+def create_participant_replica_gated_tree(
+    name: str,
+    case_id: str | None,
+    children: list[py_trees.behaviour.Behaviour],
+    body_name: str | None = None,
+) -> py_trees.composites.Selector:
+    """Run *children* only when the executing actor is **not** the CASE_MANAGER.
+
+    The complement of :func:`create_case_manager_gated_tree`, for a received
+    tree whose manager-side and replica-side effects differ (EP-09-001 versus
+    EP-09-003): the manager adjudicates and relays, a participant replica
+    records what arrived.  The two gates placed side by side in one Sequence
+    are mutually exclusive, so exactly one arm runs.
+
+    Structure::
+
+        <name> (Selector)
+        ├── CheckIsCaseManagerNode        # SUCCESS when IS case manager → skip
+        └── <children>                    # only reached when NOT case manager
+
+    No ``Inverter`` is needed here and no failure is masked: the first arm is a
+    pure condition, so a Selector that falls through to *children* reports
+    their FAILURE as its own.
+
+    Args:
+        name: Name for the root Selector.
+        case_id: Case whose CASE_MANAGER role gates the children.
+        children: Nodes to run when the executing actor is not the manager.
+            More than one is wrapped in a Sequence so a mid-sequence failure
+            still propagates.
+        body_name: Name for that wrapping Sequence. Defaults to ``{name}Body``.
+
+    Returns:
+        The gated root Selector.
+    """
+    gated = _wrap_children(name, children, body_name)
+
+    return py_trees.composites.Selector(
+        name=name,
+        memory=False,
+        children=[
+            CheckIsCaseManagerNode(case_id=case_id, name="SkipIfCaseManager"),
             gated,
         ],
     )

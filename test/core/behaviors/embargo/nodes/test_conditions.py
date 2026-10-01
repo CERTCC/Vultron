@@ -28,9 +28,11 @@ from vultron.core.behaviors.embargo.nodes.conditions import (
     IsActiveEmbargoNode,
     IsCloseBlockedByActiveEmbargoNode,
     IsProposedEmbargoNode,
+    OptionalLookupParticipantNode,
     ValidateCaseExistsNode,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.states.em import EM
 from vultron.errors import VultronInvalidStateTransitionError
@@ -391,3 +393,76 @@ class TestIsCloseBlockedByActiveEmbargoNode:
     def test_failure_when_em_before_absent(self):
         """FAILURE: no upstream ReadEmStateNode populated em_before."""
         assert self._tick(True, {}) == py_trees.common.Status.FAILURE
+
+
+class TestOptionalLookupParticipantNodeClearsStaleParticipant:
+    """BT-17-003: every no-op path writes ``None`` to ``participant`` first.
+
+    The py_trees blackboard is process-global, so a key the node leaves
+    unwritten hands the *previous* execution's participant to the PEC node
+    that reads it next (the cross-test failures #3913 surfaced).  Each test
+    seeds a stale value and asserts the node replaced it.
+    """
+
+    _ACTOR = "https://example.org/actors/olp-subject"
+
+    @staticmethod
+    def _stale() -> CaseParticipant:
+        return CaseParticipant(
+            attributed_to="https://example.org/actors/olp-stale",
+            context="https://example.org/cases/olp-stale",
+        )
+
+    def _run(
+        self, dl: SqliteDataLayer, node: OptionalLookupParticipantNode
+    ) -> object:
+        setup_blackboard(dl)
+        py_trees.blackboard.Blackboard.storage["/participant"] = self._stale()
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+        assert node.status == py_trees.common.Status.SUCCESS
+        return py_trees.blackboard.Blackboard.storage["/participant"]
+
+    def test_missing_case_clears_the_key(self, dl: SqliteDataLayer):
+        node = OptionalLookupParticipantNode(
+            case_id="https://example.org/cases/olp-nonexistent",
+            target_actor_id=self._ACTOR,
+        )
+        assert self._run(dl, node) is None
+
+    def test_actor_not_on_the_roster_clears_the_key(self, dl: SqliteDataLayer):
+        case, _ = make_case_and_embargo("olp1")
+        dl.create(case)
+        node = OptionalLookupParticipantNode(
+            case_id=case.id_, target_actor_id=self._ACTOR
+        )
+        assert self._run(dl, node) is None
+
+    def test_dangling_roster_entry_clears_the_key(self, dl: SqliteDataLayer):
+        case, _ = make_case_and_embargo("olp2")
+        case.actor_participant_index[self._ACTOR] = (
+            f"{case.id_}/participants/never-stored"
+        )
+        dl.create(case)
+        node = OptionalLookupParticipantNode(
+            case_id=case.id_, target_actor_id=self._ACTOR
+        )
+        assert self._run(dl, node) is None
+
+    def test_a_found_participant_replaces_the_stale_value(
+        self, dl: SqliteDataLayer
+    ):
+        case, _ = make_case_and_embargo("olp3")
+        participant = CaseParticipant(
+            attributed_to=self._ACTOR, context=case.id_
+        )
+        dl.create(participant)
+        case.actor_participant_index[self._ACTOR] = participant.id_
+        dl.create(case)
+        node = OptionalLookupParticipantNode(
+            case_id=case.id_, target_actor_id=self._ACTOR
+        )
+        found = self._run(dl, node)
+        assert isinstance(found, CaseParticipant)
+        assert found.id_ == participant.id_

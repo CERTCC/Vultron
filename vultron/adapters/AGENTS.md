@@ -80,7 +80,8 @@ for:
 - **DataLayer Identity Contract: Canonical URI Must Match** — the actor_id
   used to construct a DataLayer for queue reads MUST be the actor's canonical
   URI (`actor.id_`), and MUST exactly match the one the writing store was
-  built with. Use `get_canonical_actor_dl()` from `deps.py`; do NOT pass the
+  built with. Resolve it through `get_actor_dl()` / `get_trigger_dl()` from
+  `deps.py`; do NOT pass the
   raw URL path segment. Violating this reads a *different actor's* store, so
   outbound activities are silently dropped (BUG-2026040901).
 

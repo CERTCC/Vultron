@@ -26,6 +26,7 @@ execute() path against a real in-memory DataLayer and asserts:
 
 import pytest
 
+from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -386,7 +387,7 @@ class TestSvcValidateReportUseCase:
 
     @pytest.mark.spec("TRIG-07-001")
     def test_validate_report_returns_activity_dict(self):
-        """execute() returns result['activity'] as Accept(Offer) dict (AC-3, DL-06-001)."""
+        """execute() returns result.activity as Accept(Offer) dict (AC-3, DL-06-001)."""
         request = ValidateReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
@@ -397,8 +398,8 @@ class TestSvcValidateReportUseCase:
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        assert result.get("activity") is not None
-        assert result["activity"].get("type") == "Accept"
+        assert result.activity is not None
+        assert activity_of(result).get("type") == "Accept"
 
     def test_validate_report_idempotent_when_already_valid(self):
         """Second execute() on an already-VALID report does not re-transition RM."""
@@ -489,7 +490,7 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
     @pytest.mark.spec("TRIG-02-001")
     @pytest.mark.spec("TRIG-07-001")
     def test_invalidate_report_returns_activity_dict(self):
-        """execute() returns result['activity'] with type 'TentativeReject' (DL-06-001)."""
+        """execute() returns result.activity with type 'TentativeReject' (DL-06-001)."""
         request = InvalidateReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
@@ -500,8 +501,8 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        assert result.get("activity") is not None
-        assert result["activity"].get("type") == "TentativeReject"
+        assert result.activity is not None
+        assert activity_of(result).get("type") == "TentativeReject"
 
     @pytest.mark.spec("TRIG-02-001")
     @pytest.mark.spec("TRIG-07-001")
@@ -520,6 +521,30 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
 
+    def test_invalidate_report_raises_when_actor_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        request = InvalidateReportTriggerRequest(
+            actor_id="urn:uuid:no-such-actor", offer_id=self.offer.id_
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcInvalidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+    def test_invalidate_report_raises_when_offer_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        request = InvalidateReportTriggerRequest(
+            actor_id=self.vendor.id_, offer_id="urn:uuid:no-such-offer"
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcInvalidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
 
 class TestSvcRejectReportUseCase(_ReportTriggerBase):
     """execute() path tests for SvcRejectReportUseCase."""
@@ -535,7 +560,7 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
     @pytest.mark.spec("TRIG-02-001")
     @pytest.mark.spec("TRIG-07-001")
     def test_reject_report_returns_activity_dict(self):
-        """execute() returns result['activity'] with type 'Reject' (DL-06-001)."""
+        """execute() returns result.activity with type 'Reject' (DL-06-001)."""
         self._seed_invalid()
         request = RejectReportTriggerRequest(
             actor_id=self.vendor.id_,
@@ -547,8 +572,8 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        assert result.get("activity") is not None
-        assert result["activity"].get("type") == "Reject"
+        assert result.activity is not None
+        assert activity_of(result).get("type") == "Reject"
 
     @pytest.mark.spec("TRIG-02-001")
     @pytest.mark.spec("TRIG-07-001")
@@ -567,6 +592,35 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
         ).execute()
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
+
+    def test_reject_report_raises_when_actor_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        self._seed_invalid()
+        request = RejectReportTriggerRequest(
+            actor_id="urn:uuid:no-such-actor",
+            offer_id=self.offer.id_,
+            note="Reason.",
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcRejectReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+    def test_reject_report_raises_when_offer_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        request = RejectReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id="urn:uuid:no-such-offer",
+            note="Reason.",
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcRejectReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
 
 
 # ---------------------------------------------------------------------------
@@ -610,7 +664,7 @@ class TestSvcSubmitReportUseCase:
         ).execute()
 
         # Confirm the report object ID is readable from the DataLayer
-        offer_dict = result.get("offer") or {}
+        offer_dict = result.offer or {}
         report_obj = offer_dict.get("object") or {}
         report_id = report_obj.get("id")
         assert report_id is not None, "offer['object']['id'] is missing"
@@ -635,7 +689,7 @@ class TestSvcSubmitReportUseCase:
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        offer_dict = result.get("offer") or {}
+        offer_dict = result.offer or {}
         report_id = (offer_dict.get("object") or {}).get("id")
         assert report_id is not None
         link_id = VultronReportCaseLink.build_id(report_id)
@@ -660,9 +714,8 @@ class TestSvcSubmitReportUseCase:
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        assert "offer" in result
-        assert result["offer"] is not None
-        assert result["offer"].get("type") == "Offer"
+        assert result.offer is not None
+        assert result.offer.get("type") == "Offer"
 
     # --- AC-2: outbox effect -----------------------------------------------
 
@@ -768,7 +821,7 @@ class TestSvcSubmitReportUseCase:
             self.dl, request, trigger_activity=ta
         ).execute()
         # Both calls return a valid offer
-        assert r1.get("offer") is not None
-        assert r2.get("offer") is not None
-        assert r1["offer"].get("type") == "Offer"
-        assert r2["offer"].get("type") == "Offer"
+        assert r1.offer is not None
+        assert r2.offer is not None
+        assert r1.offer.get("type") == "Offer"
+        assert r2.offer.get("type") == "Offer"

@@ -19,7 +19,7 @@ from vultron.core.use_cases.triggers.case import (
     SvcEngageCaseUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
     FinderParticipant,
@@ -228,6 +228,30 @@ class TestEngageCaseRMTransitionViaBT:
             case_id=case_solo.id_,
         )
         with pytest.raises(VultronValidationError):
+            SvcEngageCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+    def test_engage_case_unknown_actor_raises_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        request = EngageCaseTriggerRequest(
+            actor_id="urn:uuid:no-such-actor", case_id=self.case.id_
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcEngageCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+    def test_engage_case_unknown_case_raises_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        request = EngageCaseTriggerRequest(
+            actor_id=self.vendor.id_, case_id="urn:uuid:no-such-case"
+        )
+        with pytest.raises(VultronNotFoundError):
             SvcEngageCaseUseCase(
                 self.dl,
                 request,

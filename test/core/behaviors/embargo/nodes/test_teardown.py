@@ -160,6 +160,42 @@ class TestClearActiveEmbargoNode:
         assert updated.current_status.em.state == EM.EXITED
         assert updated.active_embargo is None
 
+    @pytest.mark.spec("EP-08-004")
+    def test_teardown_forgets_every_open_revision(self):
+        """The replay path clears both open-proposal records, not one entry.
+
+        ``ClearActiveEmbargoNode`` runs ``terminate_active_embargo`` in
+        OBSERVED mode, so a replica applying an announced teardown forgets
+        every revision of the torn-down embargo — the same rule the trigger
+        side applies (EP-08-004, ADR-0113) with no node of its own.
+        ``RemoveFromProposedEmbargoesNode`` ahead of it in the teardown tree
+        removes the torn-down embargo's own entry; this node removes the rest.
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, _embargo = make_case_and_embargo("caen1r", em_state=EM.REVISE)
+        revision_id = f"{case.id_}/embargo_events/revision"
+        case.proposed_embargoes = [revision_id]
+        case.pending_embargo_proposal_index = {
+            revision_id: f"{case.id_}/embargo_proposals/revision"
+        }
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ClearActiveEmbargoNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.EXITED
+        assert updated.active_embargo is None
+        assert updated.proposed_embargoes == []
+        assert updated.pending_embargo_proposal_index == {}
+
     def test_teardown_logged_in_narrative_form(self, caplog):
         """EM ACTIVE → EXITED is logged at INFO (SL-04-001, AC-16)."""
         dl = SqliteDataLayer(

@@ -26,15 +26,19 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
+    ProposeEmbargoLifecycleNode,
     SetEmbargoActiveNode,
     ValidateEmbargoRevisionStateNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -841,3 +845,82 @@ class TestSetEmbargoActiveNode:
         assert mock_activate.called, (
             "EmbargoLifecycle.activate_embargo() was never called"
         )
+
+
+class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:
+    """``proposer_id`` names whose terms these are when the manager adjudicates."""
+
+    PROPOSER = "https://example.org/actors/proposer"
+
+    def _case(self) -> tuple[SqliteDataLayer, VulnerabilityCase, str]:
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ACTOR)
+        case, embargo = make_case_and_embargo("obo1", em_state=EM.ACTIVE)
+        manager = as_CaseParticipant(
+            id_=f"{case.id_}/participants/cm",
+            attributed_to=CASE_MANAGER_ACTOR,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        proposer = as_CaseParticipant(
+            id_=f"{case.id_}/participants/proposer",
+            attributed_to=self.PROPOSER,
+            context=case.id_,
+        )
+        for p in (manager, proposer):
+            case.case_participants.append(p.id_)
+            case.actor_participant_index[cast(str, p.attributed_to)] = p.id_
+            dl.create(p)
+        dl.create(case)
+        dl.create(embargo)
+        revision = as_EmbargoEvent(
+            id_=f"{case.id_}/embargo_events/revision",
+            context=case.id_,
+            end_time=days_from_now_utc(90),
+        )
+        dl.create(revision)
+        return dl, case, revision.id_
+
+    def _run(
+        self, dl: SqliteDataLayer, node: ProposeEmbargoLifecycleNode
+    ) -> py_trees.common.Status:
+        return (
+            BTBridge(datalayer=dl)
+            .execute_with_setup(tree=node, actor_id=CASE_MANAGER_ACTOR)
+            .status
+        )
+
+    def _accepted(self, dl: SqliteDataLayer, case_id: str, actor: str):
+        case = cast(VulnerabilityCase, dl.read(case_id))
+        participant = dl.read(case.actor_participant_index[actor])
+        assert isinstance(participant, CaseParticipant)
+        return participant.accepted_embargo_ids
+
+    @pytest.mark.spec("EP-09-001")
+    def test_the_proposers_consent_is_recorded_not_the_managers(self):
+        dl, case, revision_id = self._case()
+        result_out: dict[str, object] = {}
+        status = self._run(
+            dl,
+            ProposeEmbargoLifecycleNode(
+                case_id=case.id_,
+                embargo_id=revision_id,
+                result_out=result_out,
+                proposer_id=self.PROPOSER,
+            ),
+        )
+        assert status is py_trees.common.Status.SUCCESS
+        assert result_out["em_after"] is EM.REVISE
+        assert revision_id in self._accepted(dl, case.id_, self.PROPOSER)
+        assert revision_id not in self._accepted(
+            dl, case.id_, CASE_MANAGER_ACTOR
+        )
+
+    def test_without_a_proposer_the_executing_actor_proposes(self):
+        dl, case, revision_id = self._case()
+        status = self._run(
+            dl,
+            ProposeEmbargoLifecycleNode(
+                case_id=case.id_, embargo_id=revision_id, result_out={}
+            ),
+        )
+        assert status is py_trees.common.Status.SUCCESS
+        assert revision_id in self._accepted(dl, case.id_, CASE_MANAGER_ACTOR)

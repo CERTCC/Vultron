@@ -294,6 +294,10 @@ class TestEmbargoLogEntryCascade:
             id_=f"{case_id}/embargo_proposals/1",
         )
         dl.create(proposal)
+        # The Reject names an open proposal of the case.
+        case_obj = cast(VulnerabilityCase, dl.read(case_id))
+        case_obj.proposed_embargoes = [embargo.id_]
+        dl.save(case_obj)
 
         # The vendor rejects; the CASE_MANAGER receives and commits.  See the
         # accept test above for why the asserter must not be the committer.

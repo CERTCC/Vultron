@@ -279,13 +279,14 @@ directly from the latter. It has now bitten the project twice:
    `demo_step`, `demo_check`, or `demo_gate` — use `demo_gate` when dependent
    steps follow inside the block, `demo_check` for an independent bounded check.
 2. **Prefer wrapping inside the shared helper** when one exists, so all callers
-   inherit the fix (DRY). `drain_phase1_ledger` in
-   `vultron/demo/helpers/polling.py` is the reference pattern: it wraps each
-   per-replica poll in a demo context internally (lazy-importing the context
-   manager from `vultron.demo.utils` to avoid a circular import). Note that when
-   the wrap lives in the helper and the dependent steps live in the scenario,
-   `demo_check` and `demo_gate` behave identically — the block contains only the
-   wait, so nothing is skipped either way; pick the label that reads true.
+   inherit the fix (DRY). `wait_for_replica_ledger_coverage` in
+   `vultron/demo/helpers/sync.py` is the reference pattern: it wraps each
+   per-replica poll in a demo context internally, and
+   `wait_for_participants_on_replicas` in `vultron/demo/helpers/polling.py`
+   does the same for the participant-index wait. Note that when the wrap lives
+   in the helper and the dependent steps live in the scenario, `demo_check` and
+   `demo_gate` behave identically — the block contains only the wait, so
+   nothing is skipped either way; pick the label that reads true.
 3. Keep the raising primitive raising for its unit tests — add the accumulation
    wrap in a scenario-facing helper, not in the low-level `_poll_until` /
    `wait_for_case_participants` primitives that tests depend on.
@@ -329,12 +330,16 @@ unit test. The guard was never missing; the single place to fix it was.
    by default, `LATE_JOINER_COVERAGE_TIMEOUT` for a late joiner — the widest
    budgets any copy carried, so sharing the loop tightened nothing) and wraps
    each per-replica wait in a demo context itself, the same way
-   `wait_for_participants_on_replicas` and `drain_phase1_ledger` do. Called
-   with `causal=True` (the default) it is the `demo_gate` before the notes
-   phase; with `causal=False` and `phase_label="close phase"` it is the
-   `demo_check` after case closure, labelled temporal per EDF-06-006. It
-   returns the replicas whose wait passed, so a dependent step can be gated on
-   coverage per replica.
+   `wait_for_participants_on_replicas` does. Called with `causal=True` (the
+   default) it is the `demo_gate` before the notes phase and the Phase 1
+   drain before Phase 2 (`phase_label="Phase 1 drain before Phase 2"`); with
+   `causal=False` and `phase_label="close phase"` it is the `demo_check` after
+   case closure, labelled temporal per EDF-06-006. It returns the replicas
+   whose wait passed, so a dependent step can be gated on coverage per
+   replica. There is no other copy of the loop: `drain_phase1_ledger` in
+   `polling.py` was the last one, invisible to the DEMOMA-23-006 ratchet while
+   that ratchet scanned scenario modules only, so the ratchet now parses every
+   module under `vultron/demo/` except `helpers/sync.py` (#3906).
 2. A scenario's `_phase_sync_verification` is a thin call to
    `run_sync_verification_phase`, declaring only its authority (client, label,
    actor id), the Finder, its replicas, late joiners, expected participant set,

@@ -59,7 +59,10 @@ from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.received.report import (
     ValidateReportReceivedUseCase,
 )
-from vultron.core.use_cases.triggers.service import TriggerService
+from vultron.core.use_cases.triggers.report import SvcValidateReportUseCase
+from vultron.core.use_cases.triggers.requests import (
+    ValidateReportTriggerRequest,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -255,11 +258,14 @@ class TestTriggerEmitsToCaseActorOutbox:
         dl, _case, offer, case_actor_id = self._setup()
 
         before = outbox_ids(self.VENDOR_ID, dl)
-        TriggerService(
+        SvcValidateReportUseCase(
             dl,
+            ValidateReportTriggerRequest(
+                actor_id=self.VENDOR_ID, offer_id=offer.id_
+            ),
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
-        ).validate_report(self.VENDOR_ID, offer.id_, None)
+        ).execute()
         after = outbox_ids(self.VENDOR_ID, dl)
 
         new_ids = after - before
@@ -290,11 +296,14 @@ class TestTriggerEmitsToCaseActorOutbox:
         dl, _case, offer, _case_actor_id = self._setup()
 
         before = outbox_ids(self.VENDOR_ID, dl)
-        TriggerService(
+        SvcValidateReportUseCase(
             dl,
+            ValidateReportTriggerRequest(
+                actor_id=self.VENDOR_ID, offer_id=offer.id_
+            ),
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
-        ).validate_report(self.VENDOR_ID, offer.id_, None)
+        ).execute()
         after = outbox_ids(self.VENDOR_ID, dl)
 
         new_ids = after - before
@@ -576,11 +585,14 @@ class TestFullValidateReportLedgerChain:
 
         # ── Step 2: trigger validate-report on vendor_dl ─────────────────────
         before = outbox_ids(self.VENDOR_ID, vendor_dl)
-        TriggerService(
+        SvcValidateReportUseCase(
             vendor_dl,
+            ValidateReportTriggerRequest(
+                actor_id=self.VENDOR_ID, offer_id=offer.id_
+            ),
             trigger_activity=TriggerActivityAdapter(vendor_dl),
             wire_render_port=As2WireRenderAdapter(),
-        ).validate_report(self.VENDOR_ID, offer.id_, None)
+        ).execute()
         after = outbox_ids(self.VENDOR_ID, vendor_dl)
 
         new_ids = after - before

@@ -377,6 +377,12 @@ class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
     id therefore returns SUCCESS and changes nothing, so a best-effort Sequence
     that carries this node still reaches the nodes after it.  Left ``None``
     (teardown), the prune is unconditional.
+
+    On teardown this node removes the torn-down embargo's own entry ahead of
+    the EM write; ``ClearActiveEmbargoNode`` then runs
+    ``terminate_active_embargo``, which forgets *every* remaining open
+    proposal (EP-08-004) — so after a teardown both records are empty
+    whether or not this node found anything.
     """
 
     def __init__(

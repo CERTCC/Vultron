@@ -20,15 +20,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
-    get_trigger_dl,
-    get_trigger_service,
-)
+from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     actors as actors_router,
     datalayer as datalayer_router,
@@ -38,7 +30,6 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
-from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -229,16 +220,15 @@ def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
 
 @pytest.fixture
 def client_triggers(dl):
-    """TestClient wired to the trigger_embargo router with overridden deps."""
+    """TestClient wired to the trigger_embargo router over the ``dl`` store.
+
+    ``get_trigger_dispatcher`` resolves its store through ``get_trigger_dl``,
+    so overriding that one seam runs the real registry-backed dispatcher over
+    the in-memory store (TRIG-06-002; ``vultron/core/ports/AGENTS.md``).
+    """
     app = FastAPI()
     app.include_router(trigger_embargo_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}

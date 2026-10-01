@@ -327,6 +327,18 @@ class RegistryOrderError(VultronError):
     """
 
 
+class TriggerRegistryError(VultronError):
+    """Raised when the trigger registry cannot be assembled consistently.
+
+    Raised at import time by ``vultron.trigger_registry`` when two rows share
+    a verb, when a row's ``request_model`` binds a result type other than the
+    row's ``result_type``, or when a request model is shared by rows that
+    disagree on the use case or result type — a table that cannot resolve a
+    request to one use case (ADR-0110, TRIG-12-004).  Fails fast so a bad row
+    is impossible to miss, as ``RegistryOrderError`` does for the received side.
+    """
+
+
 class UnroutableActivityError(VultronError):
     """Raised when an inbound activity cannot be routed to a case.
 

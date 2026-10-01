@@ -128,21 +128,6 @@ groups:
       `UseCase` Protocol (the dispatcher routing table holds bare `type` values),
       so mypy alone does not report a non-conforming `execute()`; the ratchet
       catches it at CI time.
-  - id: UCORG-05-004b
-    priority: MAY
-    kind: project
-    statement: >-
-      The UCORG-05-004 ratchet MAY exclude classes under
-      `vultron/core/use_cases/triggers/` until the trigger-side migration lands; any such
-      exclusion MUST name the tracking issue in the test and MUST be removed when that
-      issue closes
-    rationale: >-
-      The received and trigger halves migrate independently (#1769 and #3831), so the
-      ratchet has to be landable while one half still returns `dict`. Naming the issue
-      keeps the carve-out from reading as permanent — an unattributed exclusion list is
-      indistinguishable from a deliberate design choice a year later.
-    adr:
-    - ADR-0095
   - id: UCORG-05-005
     priority: MUST
     kind: project
@@ -154,9 +139,10 @@ groups:
       return key fails loudly instead of being silently dropped from the body.
       `HandlerResult` MUST carry a `disposition` field of type `HandlerDisposition`
       and an optional `reason`. Either MAY carry further domain-specific result
-      fields but MUST NOT carry raw `dict` payloads; the one permitted
-      `dict[str, Any]` value is an emitted activity's JSON object (`activity`,
-      `offer`, `note`), which core captures from the BT blackboard as JSON and
+      fields but MUST NOT carry raw `dict` payloads; the one permitted `dict`
+      value is an emitted activity's JSON object (`activity`, `offer`, `note`),
+      typed `dict[NonEmptyString, Any]` because its keys are JSON member names
+      (CS-08-001), which core captures from the BT blackboard as JSON and
       cannot type without a wire import (UCORG-05-014).
     rationale: >-
       Four trigger verbs return bodies that carry no `emitting_actor_id` (and one
@@ -334,8 +320,9 @@ groups:
     verification: >-
       `WireActivityResult` exists in `vultron/demo/`, its `activity` field is
       `as_TransitiveActivity` (non-optional), no class under `vultron/demo/`
-      shares a name with a class in `vultron/core/use_cases/triggers/results.py`,
-      and mypy passes with no `# type: ignore` in `ActorSession` method bodies.
+      shares a name with a `TriggerResult` subtype in
+      `vultron/core/models/use_case_result.py`, and mypy passes with no
+      `# type: ignore` in `ActorSession` method bodies.
     adr:
     - ADR-0110
     relationships:

@@ -51,7 +51,7 @@ PER_DIRECTORY_TARGET = 200
 # Lower these as the files are condensed; never raise one.  Adding a new entry
 # means the ratchet failed to do its job.
 KNOWN_OVERAGE: dict[str, int] = {
-    "vultron/core/AGENTS.md": 251,
+    "vultron/core/AGENTS.md": 250,
     "vultron/core/behaviors/AGENTS.md": 209,
 }
 

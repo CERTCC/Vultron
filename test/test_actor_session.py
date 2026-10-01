@@ -21,10 +21,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from vultron.demo.actor_session import (
-    ActivityResult,
     ActorSession,
-    NoteResult,
-    SyncLogEntryResult,
+    WireActivityResult,
+    WireNoteResult,
+    WireSyncLogEntryResult,
 )
 from vultron.demo.utils import DataLayerClient
 from vultron.enums.roles import CVDRole
@@ -141,7 +141,7 @@ def test_invite_actor_to_case_returns_typed_activity_result():
             invitee_id="http://v2:7999/api/v2/actors/v2",
             roles=[CVDRole.VENDOR],
         )
-    assert isinstance(result, ActivityResult)
+    assert isinstance(result, WireActivityResult)
     assert result.activity.id_ == "http://case-actor:7999/api/v2/Invites/1"
     # roles serialize to their string values in the posted body.
     assert post.call_args.kwargs["body"]["roles"] == ["vendor"]
@@ -157,7 +157,7 @@ def test_sync_log_entry_returns_entry_hash():
         result = session.quiet().sync_log_entry(
             object_id=_CASE_ID, event_type="close_case"
         )
-    assert isinstance(result, SyncLogEntryResult)
+    assert isinstance(result, WireSyncLogEntryResult)
     assert result.entry_hash == "abcd1234"
     assert result.log_index == 3
 
@@ -169,7 +169,7 @@ def test_add_note_to_case_returns_note_payload():
         result = session.quiet().add_note_to_case(
             note_name="n", note_content="c"
         )
-    assert isinstance(result, NoteResult)
+    assert isinstance(result, WireNoteResult)
     assert result.note == {"id": "http://vendor:7999/api/v2/Notes/1"}
 
 

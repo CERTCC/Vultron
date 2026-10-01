@@ -24,6 +24,7 @@ from typing import cast
 
 import pytest
 
+from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -116,7 +117,8 @@ def test_non_manager_trigger_asks_and_writes_no_em_state(
         a.type_ == "Add" and "CaseStatus" in str(a.object_) for a in queued
     ), "a non-manager must not declare an EM state it has not been given"
 
-    activity_id = result["activity"]["id"]
+    assert result.activity is not None
+    activity_id = activity_of(result)["id"]
     store = get_pending_assertion_store(finder.id_)
     assert store.is_suppressed(
         case.id_, MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value, activity_id

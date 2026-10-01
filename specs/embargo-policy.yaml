@@ -539,15 +539,12 @@ groups:
       activation rather than at proposal because the participant remains bound by `T1`
       for as long as `T1` is the active embargo (ADR-0093).
     verification: >-
-      Unit tests in `test/core/services/embargo_lifecycle/test_proposals.py` assert that
-      the owner's acceptance of a revision ending later than the active embargo moves
-      exactly the signatories lacking the revised id to `LAPSED`, and that acceptance of
-      a revision ending no later than it moves nobody and records the revised id on every
-      signatory.
-    note: >-
-      The verification describes the target state decided by ADR-0093 (revised 2026-09-29). The
-      implementation is tracked in #3891; until it lands, inspection of the named modules shows the
-      superseded lapse-on-propose behaviour.
+      Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` and
+      `test_activation.py` assert that the owner's acceptance of a revision ending later
+      than the active embargo moves exactly the signatories lacking the revised id to
+      `LAPSED`, that acceptance of a revision ending no later than it moves nobody and
+      records the revised id on every signatory, and that on any activation a
+      non-signatory already holding the newly active id advances to `SIGNATORY`.
     relationships:
     - rel_type: implements
       spec_id: CM-18-001
@@ -573,10 +570,6 @@ groups:
       Unit tests in `test/core/services/embargo_lifecycle/test_proposals.py` assert that
       `propose_embargo()` from `ACTIVE` and from `REVISE` reports no participant consent
       changes.
-    note: >-
-      The verification describes the target state decided by ADR-0093 (revised 2026-09-29). The
-      implementation is tracked in #3891; until it lands, inspection of the named modules shows the
-      superseded lapse-on-propose behaviour.
     relationships:
     - rel_type: refines
       spec_id: EP-05-001
@@ -939,14 +932,18 @@ groups:
       Before this rule termination pruned the terminated embargo's own id and left its open
       revisions in both records, where the next default selection after `EXITED → PROPOSED`
       could pick a revision of a dead embargo as the earliest-expiring candidate (#3836). The
-      rule lives in `EmbargoLifecycle.terminate_active_embargo` and applies on every
-      replica without extra work: the teardown replay node runs the same method in `OBSERVED`
-      mode. `VulnerabilityCase.discard_proposed_embargo` is the pruner for both records.
+      rule lives in `EmbargoLifecycle.terminate_active_embargo`, which calls
+      `VulnerabilityCase.discard_all_proposed_embargoes` — the whole-record sibling of the
+      per-proposal pruner `discard_proposed_embargo`, clearing both records together — and
+      applies on every replica without extra work: the teardown replay node
+      (`ClearActiveEmbargoNode`) runs the same method in `OBSERVED` mode (#3914).
     verification: >-
-      A unit test in `test/core/services/embargo_lifecycle/test_activation.py` asserts that
-      terminating an embargo while a revision of it is pending leaves both
-      `proposed_embargoes` and `pending_embargo_proposal_index` empty. Until the
-      implementation lands the test is a strict `xfail` naming its tracking issue.
+      Unit tests in `test/core/services/embargo_lifecycle/test_activation.py` assert that
+      terminating an embargo while revisions of it are pending leaves both
+      `proposed_embargoes` and `pending_embargo_proposal_index` empty, in `STRICT` and in
+      `OBSERVED` mode; `test/core/behaviors/embargo/nodes/test_teardown.py` asserts the same
+      through `ClearActiveEmbargoNode`, and
+      `test/core/use_cases/triggers/embargo/test_terminate.py` through the terminate trigger.
     relationships:
     - rel_type: refines
       spec_id: EP-08-003

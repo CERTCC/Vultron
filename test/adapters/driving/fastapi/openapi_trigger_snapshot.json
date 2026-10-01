@@ -73,6 +73,33 @@
         "title": "AcceptEmbargoRequest",
         "type": "object"
       },
+      "ActivityResult": {
+        "additionalProperties": false,
+        "description": "Result of a BT-backed trigger that emits one activity.\n\n``activity`` is the emitted activity's JSON object as the BT captured\nit, or ``None`` when the tree completed without capturing one (an\nidempotent no-op path); the key is emitted either way.\n``emitting_actor_id`` names the actor whose outbox holds the activity \u2014 on\na delegated emit that is the CASE_MANAGER, not the requesting actor\n(CM-24-001), and the router drains that actor's outbox.",
+        "properties": {
+          "activity": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity"
+          },
+          "emitting_actor_id": {
+            "title": "Emitting Actor Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "emitting_actor_id"
+        ],
+        "title": "ActivityResult",
+        "type": "object"
+      },
       "AddNoteToCaseRequest": {
         "description": "Request body for the add-note-to-case trigger endpoint.\n\nTRIG-03-001: Must include case_id to identify the target case.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
@@ -127,6 +154,45 @@
         "title": "AddObjectToCaseRequest",
         "type": "object"
       },
+      "AddOnBehalfStatusRequest": {
+        "description": "Request body for the add-on-behalf-status trigger.\n\nA Case Manager or Case Owner records a vendor's awareness (``v\u2192V``,\n``vf_state=\"Vf\"``) or a deployer's deployment (``d\u2192D``, ``d_state=\"D\"``)\non behalf of an actor that was notified or invited but has not joined the\ncase (ADR-0084; PRM-06-003, PRM-06-004).  ``target_actor_id`` names that\nactor.  Only the upward rungs are assertable on another actor's behalf:\n``vf_state`` must be ``\"Vf\"`` and ``d_state`` must be ``\"D\"``.\n``vf_state=\"VF\"`` (``f\u2192F``) is refused because fix readiness is not\nexternally knowable and is only ever self-declared by the Vendor-role\nholder (PRM-06-005); the lower rungs (``\"vf\"``, ``\"d\"``) are refused\nbecause recording unawareness or non-deployment on someone's behalf is\nnot an assertion PRM-06 permits.  At least one of ``vf_state`` /\n``d_state`` is required.\n\nTRIG-03-002: Unknown fields are silently ignored.",
+        "properties": {
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "d_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CS_d"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_actor_id": {
+            "title": "Target Actor Id",
+            "type": "string"
+          },
+          "vf_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CS_vf"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "case_id",
+          "target_actor_id"
+        ],
+        "title": "AddOnBehalfStatusRequest",
+        "type": "object"
+      },
       "AddReportToCaseRequest": {
         "description": "Request body for the add-report-to-case trigger endpoint.\n\nTRIG-03-001: Must include case_id and report_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
@@ -146,6 +212,25 @@
         "title": "AddReportToCaseRequest",
         "type": "object"
       },
+      "CS_d": {
+        "description": "Deployer-path sub-machine: fix deployment (2 states).\n\nMonotone ladder: d \u2192 D.",
+        "enum": [
+          "d",
+          "D"
+        ],
+        "title": "CS_d",
+        "type": "string"
+      },
+      "CS_vf": {
+        "description": "Vendor-path sub-machine: vendor awareness + fix readiness (3 states).\n\nMonotone ladder: vf \u2192 Vf \u2192 VF.",
+        "enum": [
+          "vf",
+          "Vf",
+          "VF"
+        ],
+        "title": "CS_vf",
+        "type": "string"
+      },
       "CVDRole": {
         "description": "Individual CVD role values (lowercase string enum).\n\nEach member represents a single, atomic CVD role. Participants may hold\nmultiple roles simultaneously; use ``list[CVDRole]`` at call sites rather\nthan bitmask arithmetic.\n\nValues are lowercase strings (e.g. ``CVDRole.FINDER == 'finder'``).\n\nRoles:\n    FINDER: Entity that discovers the vulnerability.\n    REPORTER: Entity that reports the vulnerability to others.\n    VENDOR: Supplier of the affected product or service.\n    DEPLOYER: Entity that deploys the fix.\n    COORDINATOR: Entity that coordinates the CVD process.\n    OBSERVER: Monitoring participant with no vendor-fix-deployment\n        obligations; the base (lowest non-null privilege) CVD role.\n        Admitted via standard Invite/Accept (CM-25). Formerly ``OTHER``;\n        renamed in ADR-0057.\n    CASE_OWNER: Actor who owns and manages a VulnerabilityCase (BTND-05-001).\n    CASE_MANAGER: The ActivityStreams Actor that performs ongoing case\n        replica synchronisation and manages the case on behalf of the case\n        owner.  A CaseManager participant SHOULD also hold the COORDINATOR\n        role (CBT-01-003); nothing requires it.  While the demo uses a\n        Service actor type, any Actor type (e.g. Person) may hold this\n        role.\n    CVE_NUMBERING_AUTHORITY: Participant that holds CVE Numbering Authority\n        (CNA) status, granting authority to assign CVE IDs.  A CNA is\n        orthogonal to other CVD roles \u2014 a VENDOR, COORDINATOR, or any other\n        participant may independently hold this role.  Used by\n        ``IsIDAssignmentAuthority`` (static capability check) and\n        ``IdAssignable`` (scope-match evaluation) BT nodes to route ID\n        assignment decisions to the correct participant(s).",
         "enum": [
@@ -161,6 +246,44 @@
         ],
         "title": "CVDRole",
         "type": "string"
+      },
+      "CaseResult": {
+        "additionalProperties": false,
+        "description": "``create-case``: the activity plus the id of the case it created.",
+        "properties": {
+          "activity": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity"
+          },
+          "case_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case Id"
+          },
+          "emitting_actor_id": {
+            "title": "Emitting Actor Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "emitting_actor_id"
+        ],
+        "title": "CaseResult",
+        "type": "object"
       },
       "CaseTriggerRequest": {
         "description": "Request body for case-level trigger endpoints.\n\nTRIG-03-001: Must include case_id to identify the target case.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
@@ -330,6 +453,45 @@
         "title": "InviteActorToCaseRequest",
         "type": "object"
       },
+      "NoteResult": {
+        "additionalProperties": false,
+        "description": "``add-note-to-case``: the activity plus the freshly minted note.",
+        "properties": {
+          "activity": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity"
+          },
+          "emitting_actor_id": {
+            "title": "Emitting Actor Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "emitting_actor_id"
+        ],
+        "title": "NoteResult",
+        "type": "object"
+      },
       "NotifyFixDeployedRequest": {
         "description": "Request body for the notify-fix-deployed demo trigger.\n\nSignals that the fix has been deployed (VFd \u2192 VFD).\nTRIG-03-002: Unknown fields are silently ignored.",
         "properties": {
@@ -423,6 +585,26 @@
           "target_actor_id"
         ],
         "title": "OfferCaseParticipantRoleRequest",
+        "type": "object"
+      },
+      "OfferResult": {
+        "additionalProperties": false,
+        "description": "``submit-report``: the ``Offer(VulnerabilityReport)`` JSON object.",
+        "properties": {
+          "offer": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer"
+          }
+        },
+        "title": "OfferResult",
         "type": "object"
       },
       "ProposeEmbargoRequest": {
@@ -545,6 +727,57 @@
         "title": "RejectReportRequest",
         "type": "object"
       },
+      "RoleOfferResult": {
+        "additionalProperties": false,
+        "description": "``offer-case-participant-role``: activity id and activity, no emitter.\n\nThe only trigger verb not backed by ``SvcBTTriggerBase`` (ADR-0110), so\nits body carries no ``emitting_actor_id``.",
+        "properties": {
+          "activity": {
+            "additionalProperties": true,
+            "title": "Activity",
+            "type": "object"
+          },
+          "activity_id": {
+            "title": "Activity Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "activity_id",
+          "activity"
+        ],
+        "title": "RoleOfferResult",
+        "type": "object"
+      },
+      "StatusResult": {
+        "additionalProperties": false,
+        "description": "``add-participant-status`` and the on-behalf variant.\n\nCarries the ids of the ``Add(ParticipantStatus)`` activity and of the\nstored status record; neither the activity body nor an emitting actor is\npart of this verb's response.",
+        "properties": {
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Id"
+          },
+          "status_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Id"
+          }
+        },
+        "title": "StatusResult",
+        "type": "object"
+      },
       "SubmitReportRequest": {
         "description": "Request body for the submit-report trigger endpoint.\n\nThe finder uses this to create a VulnerabilityReport and offer it to a\nrecipient.  The actor_id is taken from the URL path; report_name,\nreport_content, and recipient_id must be supplied in the request body.\n\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
@@ -624,6 +857,36 @@
           "event_type"
         ],
         "title": "SyncLogEntryRequest",
+        "type": "object"
+      },
+      "SyncLogEntryResult": {
+        "additionalProperties": false,
+        "description": "``sync-log-entry``: the committed ledger entry's id, hash and index.\n\nThe demo-only verb that mints a canonical ``CaseLedgerEntry`` and fans it\nout.  ``emitting_actor_id`` names the case's CASE_MANAGER, as whom the\ncommit tree ran and whose outbox holds the ``Announce(CaseLedgerEntry)``\nfan-out (CLP-09, BT-05-005); the router drains that outbox, exactly as it\ndoes for a delegated :class:`ActivityResult`.",
+        "properties": {
+          "emitting_actor_id": {
+            "title": "Emitting Actor Id",
+            "type": "string"
+          },
+          "entry_hash": {
+            "title": "Entry Hash",
+            "type": "string"
+          },
+          "log_entry_id": {
+            "title": "Log Entry Id",
+            "type": "string"
+          },
+          "log_index": {
+            "title": "Log Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "log_entry_id",
+          "entry_hash",
+          "log_index",
+          "emitting_actor_id"
+        ],
+        "title": "SyncLogEntryResult",
         "type": "object"
       },
       "TerminateEmbargoRequest": {
@@ -738,9 +1001,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Demo Add Note To Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/NoteResult"
                 }
               }
             },
@@ -927,9 +1188,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Demo Close Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -982,9 +1241,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Demo Notify Fix Deployed",
-                  "type": "object"
+                  "$ref": "#/components/schemas/StatusResult"
                 }
               }
             },
@@ -1037,9 +1294,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Demo Notify Fix Ready",
-                  "type": "object"
+                  "$ref": "#/components/schemas/StatusResult"
                 }
               }
             },
@@ -1092,9 +1347,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Demo Notify Published",
-                  "type": "object"
+                  "$ref": "#/components/schemas/StatusResult"
                 }
               }
             },
@@ -1146,7 +1399,9 @@
           "202": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SyncLogEntryResult"
+                }
               }
             },
             "description": "Successful Response"
@@ -1198,9 +1453,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Accept Actor Recommendation",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1253,9 +1506,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Accept Case Invite",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1308,9 +1559,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Accept Case Ownership Transfer",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1363,9 +1612,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Accept Embargo",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1418,9 +1665,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Add Object To Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1438,6 +1683,59 @@
           }
         },
         "summary": "Add an existing AS2 object to a case.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
+    "/api/v2/actors/{actor_id}/trigger/add-on-behalf-status": {
+      "post": {
+        "description": "A Case Manager or Case Owner records, on behalf of an actor that was notified or invited but has not joined the case, the vendor's awareness (``vf_state=\"Vf\"``, v\u2192V; PRM-06-003) or the deployer's deployment (``d_state=\"D\"``, d\u2192D; PRM-06-004), creating a minimal CaseParticipant for the target when none exists (ADR-0084). Writes a ParticipantStatus for the target and queues an Add(ParticipantStatus, target=CaseParticipant) activity to the Case Manager. Fix readiness (``vf_state=\"VF\"``, f\u2192F) is refused: it is only ever self-declared by the Vendor (PRM-06-005). Returns the ids of the queued activity and the stored status.",
+        "operationId": "actors_trigger_add_on_behalf_status",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddOnBehalfStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record a vendor's awareness or a deployer's deployment on their behalf.",
         "tags": [
           "Triggers"
         ]
@@ -1473,9 +1771,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Add Report To Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1528,9 +1824,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Close Report",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1583,9 +1877,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Create Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CaseResult"
                 }
               }
             },
@@ -1638,9 +1930,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Defer Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1693,9 +1983,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Engage Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1748,9 +2036,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Invalidate Report",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1803,9 +2089,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Invite Actor To Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1858,9 +2142,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Offer Case Ownership Transfer",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -1913,9 +2195,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Offer Case Participant Role",
-                  "type": "object"
+                  "$ref": "#/components/schemas/RoleOfferResult"
                 }
               }
             },
@@ -1968,9 +2248,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Propose Embargo",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2023,9 +2301,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Propose Embargo Revision",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2078,9 +2354,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Reject Case Invite",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2133,9 +2407,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Reject Embargo",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2188,9 +2460,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Reject Report",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2243,9 +2513,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Submit Report",
-                  "type": "object"
+                  "$ref": "#/components/schemas/OfferResult"
                 }
               }
             },
@@ -2298,9 +2566,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Suggest Actor To Case",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2353,9 +2619,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Terminate Embargo",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },
@@ -2408,9 +2672,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Actors Trigger Validate Report",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActivityResult"
                 }
               }
             },

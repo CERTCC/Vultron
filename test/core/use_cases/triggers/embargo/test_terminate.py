@@ -16,7 +16,10 @@ from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
 )
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
@@ -54,7 +57,7 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
-    assert "activity" in result
+    assert result.activity is not None
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
     updated_participant = cast(
         as_CaseParticipant, owner_dl.read(participant_id)
@@ -84,5 +87,92 @@ def test_terminate_embargo_no_active_embargo_raises_via_bt_node(
             owner_dl,
             request,
             trigger_activity=TriggerActivityAdapter(owner_dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+
+@pytest.mark.spec("EP-08-004")
+def test_terminate_embargo_forgets_every_open_revision_via_bt_path(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Termination through the trigger decides every open revision at once.
+
+    Two revisions of the active embargo are open; after ET both records are
+    empty, so the next default selection after ``EXITED → PROPOSED`` cannot
+    pick a revision of an embargo that no longer exists (EP-08-004).
+    """
+    owner, owner_dl = owner_actor_and_dl
+    finder = _persist_actor(owner_dl, "Finder Co")
+    case, _, _participant_id = _build_active_embargo_case(
+        owner_dl, owner.id_, finder.id_
+    )
+    case_obj = cast(VulnerabilityCase, owner_dl.read(case.id_))
+    revision_a = f"{case.id_}/embargo_events/revision-a"
+    revision_b = f"{case.id_}/embargo_events/revision-b"
+    case_obj.proposed_embargoes = [
+        *case_obj.proposed_embargoes,
+        revision_a,
+        revision_b,
+    ]
+    case_obj.pending_embargo_proposal_index = {
+        **case_obj.pending_embargo_proposal_index,
+        revision_a: f"{case.id_}/embargo_proposals/a",
+        revision_b: f"{case.id_}/embargo_proposals/b",
+    }
+    owner_dl.save(case_obj)
+
+    SvcTerminateEmbargoUseCase(
+        owner_dl,
+        TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
+        trigger_activity=TriggerActivityAdapter(owner_dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
+    assert updated_case.current_status.em.state == EM.EXITED
+    assert updated_case.proposed_embargoes == []
+    assert updated_case.pending_embargo_proposal_index == {}
+
+
+# ---------------------------------------------------------------------------
+# Ported from the retired ``TriggerService`` suite (#3833)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("TRIG-07-001")
+def test_terminate_embargo_queues_the_announce_in_the_outbox(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_actor_and_dl
+    case, _, _ = _build_active_embargo_case(
+        dl, owner.id_, _persist_actor(dl, "Finder Co").id_
+    )
+    before = set(dl.outbox_list())
+
+    SvcTerminateEmbargoUseCase(
+        dl,
+        TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert len(set(dl.outbox_list()) - before) >= 1
+
+
+def test_terminate_embargo_unknown_actor_raises_not_found(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_actor_and_dl
+    case, _, _ = _build_active_embargo_case(
+        dl, owner.id_, _persist_actor(dl, "Finder Co").id_
+    )
+
+    with pytest.raises(VultronNotFoundError):
+        SvcTerminateEmbargoUseCase(
+            dl,
+            TerminateEmbargoTriggerRequest(
+                actor_id="urn:uuid:no-such-actor", case_id=case.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()

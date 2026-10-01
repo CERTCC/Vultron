@@ -45,11 +45,22 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(as_EmbargoEvent, Case)`` proposal."""
+        """Create and persist an ``Invite(as_EmbargoEvent, Case)`` proposal.
+
+        ``attributed_to`` names the proposer of a relayed proposal (CM-24-002);
+        it is forwarded only when given so a participant's own proposal keeps
+        the factory's default of no attribution.
+        """
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
+        attribution: dict[str, Any] = (
+            {"attributed_to": attributed_to}
+            if attributed_to is not None
+            else {}
+        )
         activity = em_propose_embargo_activity(
-            embargo=embargo, context=case_id, actor=actor, to=to
+            embargo=embargo, context=case_id, actor=actor, to=to, **attribution
         )
         try:
             self._dl.create(activity)

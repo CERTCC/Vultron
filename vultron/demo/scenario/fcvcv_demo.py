@@ -60,7 +60,6 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
-    drain_phase1_ledger,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
     find_cp_offer_for_case,
@@ -445,15 +444,19 @@ def _phase_report_submission(
     # queued its ledger fan-out ahead of Create(VulnerabilityCase) and every
     # replica rejected and replayed; that ordering is fixed at the source
     # (CP-09-009, CM-17-009, #2898), so this is now a plain replication check
-    # that also keeps Phase 2's ledger indices deterministic.
-    drain_phase1_ledger(
+    # that also keeps Phase 2's ledger indices deterministic.  It is the same
+    # read-authority-tail-then-poll-each-replica loop as the sync-verification
+    # and closure phases, so it goes through the one shared helper
+    # (DEMOMA-23-005, #3906); each replica wait is a demo_gate inside it.
+    wait_for_replica_ledger_coverage(
         auth_client=c1_client,
-        case_id=case.id_,
-        replica_pairs=[
+        replicas=[
             (finder_client, "Finder"),
             (v1_client, "V1"),
             (c2_client, "C2"),
         ],
+        case_id=case.id_,
+        phase_label="Phase 1 drain before Phase 2",
     )
 
     case = as_VulnerabilityCase.model_validate(

@@ -26,9 +26,8 @@ a short id or path segment:
 - ``node_base_url`` supplies the base for that computation, and is *app*-scoped
   rather than request-derived, so a client cannot change which store is opened by
   changing its ``Host`` header.
-- ``get_canonical_actor_dl`` and ``get_trigger_dl`` are alternate override points
-  that delegate to it through ``Depends``, which is asserted here rather than
-  assumed.
+- ``get_trigger_dl`` is the trigger routes' override point; it delegates to it
+  through ``Depends``, which is asserted here rather than assumed.
 - The resolved store can read the outbox entries the same actor wrote
   (BUG-2026040901 regression).
 
@@ -51,7 +50,6 @@ from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
-    get_canonical_actor_dl,
     get_trigger_dl,
     node_base_url,
 )
@@ -73,7 +71,7 @@ def myactor_dl() -> Generator[SqliteDataLayer, None, None]:
 
     Formerly named for the shared DataLayer and scoped to a generic marker actor
     — a name and a scope that both outlived it.  It has to be *this* actor's
-    store: ``get_canonical_actor_dl`` resolves the path segment to the canonical
+    store: ``get_actor_dl`` resolves the path segment to the canonical
     URI and asks ``get_datalayer`` for that actor, so seeding somewhere else left
     the setup inert and any read-back assertion looking at an empty queue.
 
@@ -330,11 +328,11 @@ def test_get_actor_dl_resolves_into_the_serving_apps_namespace(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("alias", [get_trigger_dl, get_canonical_actor_dl])
+@pytest.mark.parametrize("alias", [get_trigger_dl])
 def test_alias_deps_delegate_through_depends(alias) -> None:
-    """An override of ``get_actor_dl`` must reach the alias dependencies too.
+    """An override of ``get_actor_dl`` must reach the alias dependency too.
 
-    These aliases used to call ``get_actor_dl(actor_id, request)`` as a plain
+    The alias used to call ``get_actor_dl(actor_id, request)`` as a plain
     function.  A plain call bypasses FastAPI's override table, so
     ``app.dependency_overrides[get_actor_dl]`` applied to ``/actors/*`` routes
     and not to ``/actors/{id}/trigger/*`` — one app, one actor, two stores.
@@ -358,21 +356,21 @@ def test_alias_deps_delegate_through_depends(alias) -> None:
 
 @pytest.mark.spec("ARCH-20-001")
 @pytest.mark.spec("ARCH-20-004")
-def test_trigger_service_is_given_a_wire_render_port():
+def test_trigger_dispatcher_is_given_a_wire_render_port():
     """Trigger trees commit ledger entries too, so they need the port.
 
-    ``TriggerService`` hands it to every BT-backed trigger use case, whose
-    ``BTBridge`` publishes it for the snapshot builders (CLP-07-009).
+    ``get_trigger_dispatcher`` hands it to every BT-backed trigger use case,
+    whose ``BTBridge`` publishes it for the snapshot builders (CLP-07-009).
     """
     from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-    from vultron.adapters.driving.fastapi.deps import get_trigger_service
+    from vultron.adapters.driving.fastapi.deps import get_trigger_dispatcher
 
     dl = SqliteDataLayer(
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    service = get_trigger_service(dl)
+    dispatcher = get_trigger_dispatcher(dl)
 
     assert isinstance(
-        getattr(service, "_wire_render_port", None), As2WireRenderAdapter
+        getattr(dispatcher, "_wire_render_port", None), As2WireRenderAdapter
     )

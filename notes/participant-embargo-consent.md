@@ -20,6 +20,8 @@ related_notes:
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
+  - vultron/core/behaviors/embargo
+  - vultron/core/models/case_participant.py
   - vultron/core/use_cases
 ---
 
@@ -161,10 +163,17 @@ terms they are not yet bound by, and it changes **nothing** in the consent state
 changes no consent (EP-05-002). Their answer lands in `accepted_embargo_ids`
 only, exactly as the table above says. A receive tree that applies `INVITE`
 unconditionally therefore faults on precisely the participants a revision most
-concerns. Under EP-09-003 the participant's receive tree writes no consent at
-all; the `INVITE` write belongs to the CASE_MANAGER's commit of the Invite
-emission and to the replay node that reconstructs it, and *that* is where the
-state check lives.
+concerns. The `INVITE` write belongs to the CASE_MANAGER's commit of each Invite
+emission — built in #3913 as `RelayEmbargoInviteToEachNode._invite_where_legal()`
+(`vultron/core/behaviors/embargo/nodes/relay.py`) — and to the replay node that
+reconstructs it on replicas (#3915); *that* is where the state check lives. The
+check is `CaseParticipant.apply_pec_transition_if_legal()`: the one sanctioned
+"apply where legal" shape, which asks `accepts_pec_trigger()` first and then
+routes through `apply_pec_transition()`, so an illegal trigger is a recorded
+no-op rather than a fault and every other caller stays fail-closed.
+`UpdateParticipantEmbargoPecNode(where_legal=True)` — the participant replica's
+on-receipt write, retained until #3915 gates it off (RSH-08-004) — uses the same
+method.
 
 Two further rules from the same decision matter to consent:
 
@@ -273,7 +282,7 @@ removed from `participant_embargo_consent.py` (CONCERN-1871). Use
 `apply_pec_transition()` on `CaseParticipant`, which delegates to
 `PecDimension.transition()` and is fail-closed.
 
-Consent-write sites (all ten route through `apply_pec_transition()`):
+Consent-write sites (every one routes through `apply_pec_transition()`):
 
 | Site | Uses `apply_pec_transition()`? | Syncs status? |
 |---|---|---|
@@ -282,13 +291,42 @@ Consent-write sites (all ten route through `apply_pec_transition()`):
 | `case/nodes/participant/participant_add.py` | yes | yes |
 | `case/nodes/invite_embargo_consent.py` | yes | yes |
 | `embargo/nodes/proposal.py` | yes | yes |
+| `embargo/nodes/relay.py` (via `apply_pec_transition_if_legal()`) | yes | yes |
 | `use_cases/_helpers.py` | yes | yes |
-| `services/embargo_lifecycle/` (6 sites) | yes | yes |
+| `services/embargo_lifecycle/` (`pec.py`, `consent.py`) | yes | yes |
 
-All ten sites now use `apply_pec_transition()` as the single authoritative
+Every site uses `apply_pec_transition()` as the single authoritative
 consent-write path (CM-18-005). `EmbargoLifecycle` is the intended long-term
 owner of all PEC transitions (see [embargo-lifecycle.md](embargo-lifecycle.md)
-and #538), so its five sites remain the most critical to keep correct.
+and #538), so its sites remain the most critical to keep correct. In
+`pec.py` every cascade goes through one `_cascade_pec(trigger, select)` loop —
+the RESET cascade, the activation-time REVISE cascade (signatories lacking the
+revised id) and the activation-time ACCEPT pass (non-signatories holding it) are
+each a `select` predicate, never a loop of their own. The received `Reject(Invite)` tree
+writes consent through `RecordParticipantRejectionNode` →
+`record_embargo_rejection`, so the MSM-07-004 classification lives in the
+service once (`_assert_rejectable`) rather than in a node.
+
+Three rules keep the scalar state and `accepted_embargo_ids` in agreement
+about who is bound by the active embargo (the disagreement Concern #3884
+found; the content gate `find_excluded_actor_ids` reads the *list*):
+
+- **Every activation advances the holders of the new id.**
+  `_consent_at_activation` is the one consent effect of an activation, shared
+  by the owner path of `accept_embargo_invite` and by `activate_embargo`. On a
+  replacement it records the owner's acceptance first and then runs the
+  EP-05-001 arms; on *every* activation, first or replacement, it advances a
+  non-signatory whose list already holds the id (`_advance_holders_of`) —
+  the proposer of a first embargo holds its id list-only until then.
+- **A `DECLINED` participant holds no consent.** `_record_actor_pec_acceptance`
+  records nothing for a `DECLINED` actor, list included: `ACCEPT` is not legal
+  from `DECLINED` (CM-18-003), so an id on its list would admit through the
+  gate an actor whose state says declined. It is re-invited first.
+- **Withdrawal leaves the revisions too.** A `DECLINE` that names the active
+  embargo also drops every open proposal's id from the actor's list (every
+  open proposal is a revision of the one active embargo, ADR-0113). When *no*
+  embargo is in force a Reject of a proposal is withdrawal from any state —
+  there is nothing for a `SIGNATORY` to stay signatory to.
 
 ---
 

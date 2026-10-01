@@ -41,12 +41,14 @@ into :class:`EmbargoLifecycle` in ``service.py``:
 - ``results.py``    — ``TransitionMode``, ``EmbargoLifecycleResult``,
   ``ParticipantPECChange``
 - ``base.py``       — persistence handle, case lookup, P/X/A guard, EM driver
-- ``pec.py``        — participant-consent side effects of EM transitions
-- ``proposals.py``  — ``propose_embargo``, ``accept_embargo_invite``,
-  ``reject_embargo_invite``
+- ``pec.py``        — participant-consent side effects of EM transitions,
+  including the revision-activation cascade (EP-05-001)
+- ``proposals.py``  — ``propose_embargo``
+- ``answers.py``    — ``accept_embargo_invite``, ``reject_embargo_invite``
 - ``activation.py`` — ``terminate_active_embargo``, ``activate_embargo``
 - ``consent.py``    — ``record_participant_consent``,
-  ``detect_and_apply_lapse``, ``assert_embargo_eligible``
+  ``record_embargo_rejection``, ``detect_and_apply_lapse``,
+  ``assert_embargo_eligible``
 
 Tracked in: https://github.com/CERTCC/Vultron/issues/538
 Scaffold (#746); full operations (#747)

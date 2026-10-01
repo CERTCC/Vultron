@@ -447,6 +447,26 @@ class VulnerabilityCase(CoreObject):
             changed = True
         return changed
 
+    def discard_all_proposed_embargoes(self) -> bool:
+        """Forget every open proposal, in both records (EP-08-004).
+
+        Termination decides every open proposal at once: a case has one
+        active embargo (VP-04-002), so every proposal open while EM is
+        ``ACTIVE`` or ``REVISE`` is a revision of it, and a revision of an
+        embargo that no longer exists cannot be accepted (ADR-0113).  The
+        sibling of :meth:`discard_proposed_embargo` for the whole record —
+        the two records leave together, never by assignment to one of them.
+        Idempotent; returns whether anything changed.
+        """
+        changed = bool(self.proposed_embargoes) or bool(
+            self.pending_embargo_proposal_index
+        )
+        if self.proposed_embargoes:
+            self.proposed_embargoes = []
+        if self.pending_embargo_proposal_index:
+            self.pending_embargo_proposal_index = {}
+        return changed
+
     @property
     def proposed_embargo_ids(self) -> list[str]:
         """The ids of the open proposals — the one place they are derived.

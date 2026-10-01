@@ -41,8 +41,12 @@ from vultron.core.behaviors.report.validate_tree import (
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import OfferResult
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
+from vultron.core.use_cases.triggers._base import (
+    SvcActivityTriggerBase,
+    SvcBTTriggerBase,
+)
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
 )
@@ -93,7 +97,7 @@ def _resolve_offer_and_report(
     return offer_record, report
 
 
-class SvcValidateReportUseCase(SvcBTTriggerBase):
+class SvcValidateReportUseCase(SvcActivityTriggerBase):
     """Validate a report offer using the ValidateReportBT behavior tree.
 
     Per ADR-0021 CLP-10-001: the validate trigger tree now emits an
@@ -124,7 +128,7 @@ class SvcValidateReportUseCase(SvcBTTriggerBase):
         pass
 
 
-class SvcInvalidateReportUseCase(SvcBTTriggerBase):
+class SvcInvalidateReportUseCase(SvcActivityTriggerBase):
     """Emit RmInvalidateReportActivity (TentativeReject) for the given offer."""
 
     def _prepare(self) -> None:
@@ -152,7 +156,7 @@ class SvcInvalidateReportUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcRejectReportUseCase(SvcBTTriggerBase):
+class SvcRejectReportUseCase(SvcActivityTriggerBase):
     """Hard-close a report offer by emitting RmCloseReportActivity (Reject)."""
 
     def _prepare(self) -> None:
@@ -182,7 +186,7 @@ class SvcRejectReportUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcCloseCaseUseCase(SvcBTTriggerBase):
+class SvcCloseCaseUseCase(SvcActivityTriggerBase):
     """Close a VulnerabilityCase via the RM lifecycle (RM → C transition).
 
     Only the Case Owner may close the case.  The ``case_id`` is resolved
@@ -234,7 +238,7 @@ class SvcCloseCaseUseCase(SvcBTTriggerBase):
 SvcCloseReportUseCase = SvcCloseCaseUseCase
 
 
-class SvcSubmitReportUseCase(SvcBTTriggerBase):
+class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
     """Create a VulnerabilityReport and offer it to a recipient.
 
     Stores the report and a VultronReportCaseLink in the actor's DataLayer
@@ -298,7 +302,6 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase):
             self._recipient_id,
         )
 
-    def execute(self) -> dict:
-        """Execute and return ``{"offer": <offer_dict>}``."""
-        super().execute()
-        return {"offer": self._captured.get("offer")}
+    def _build_result(self) -> OfferResult:
+        """The body is the captured ``Offer(VulnerabilityReport)`` alone."""
+        return OfferResult(offer=self._captured.get("offer"))

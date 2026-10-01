@@ -29,6 +29,7 @@ CASE_OWNER, causing execute() to raise VultronBTError.
 
 import pytest
 
+from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -47,7 +48,10 @@ from vultron.core.use_cases.triggers.report import (
 )
 from vultron.core.use_cases.triggers.requests import CloseReportTriggerRequest
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronNotFoundError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+)
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -174,7 +178,7 @@ class TestSvcCloseCaseUseCase:
 
     @pytest.mark.spec("TRIG-07-001")
     def test_close_case_returns_activity_dict(self):
-        """execute() returns result['activity'] as Reject(Offer) dict (DL-06-001)."""
+        """execute() returns result.activity as Reject(Offer) dict (DL-06-001)."""
         self._seed_accepted()
         request = CloseReportTriggerRequest(
             actor_id=self.vendor.id_,
@@ -185,8 +189,8 @@ class TestSvcCloseCaseUseCase:
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
-        assert result.get("activity") is not None
-        assert result["activity"].get("type") == "Reject"
+        assert result.activity is not None
+        assert activity_of(result).get("type") == "Reject"
 
     @pytest.mark.spec("TRIG-07-001")
     @pytest.mark.spec("TRIG-02-001")
@@ -209,6 +213,24 @@ class TestSvcCloseCaseUseCase:
     def test_backward_compat_alias_works(self):
         """SvcCloseReportUseCase alias delegates to SvcCloseCaseUseCase."""
         assert SvcCloseReportUseCase is SvcCloseCaseUseCase
+
+    def test_close_case_already_closed_raises_invalid_transition(self):
+        """CLOSED → CLOSED is refused (ported from the retired ``TriggerService``
+        suite, #3833); the router answers it as 409."""
+        self.dl.create(
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.CLOSED
+            )
+        )
+        request = CloseReportTriggerRequest(
+            actor_id=self.vendor.id_, offer_id=self.offer.id_
+        )
+        with pytest.raises(VultronInvalidStateTransitionError):
+            SvcCloseCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
 
     def test_close_case_raises_when_no_linked_case(self):
         """VultronNotFoundError raised when report has no linked VulnerabilityCase."""

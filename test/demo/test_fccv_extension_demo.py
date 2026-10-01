@@ -33,7 +33,12 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fccv_extension_demo as demo
-from test.demo._helpers import make_testclient_call
+from test.demo._helpers import (
+    make_testclient_call,
+    mock_actor,
+    mock_case,
+    patched_report_submission,
+)
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
 
@@ -161,6 +166,7 @@ class TestFccvExtensionMilestoneAssertions:
             ),
             patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 ActorSession,
                 "invite_actor_to_case",
@@ -712,6 +718,7 @@ class TestFccvExtensionRmTriageTimeout:
                 demo, "run_direct_path_rm_triage", return_value=case
             ) as mock_rm_triage,
             patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 ActorSession,
                 "invite_actor_to_case",
@@ -816,6 +823,7 @@ class TestFccvExtensionInviteTriggerFailureSkipsDependents:
             ),
             patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 ActorSession, "invite_actor_to_case", **invite_trigger
             ),
@@ -887,3 +895,82 @@ class TestFccvExtensionInviteTriggerFailureSkipsDependents:
         ], "replica_wait ran for the skipped dependent: " + str(
             replica_wait.call_args_list
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 drain goes through the shared coverage helper (DEMOMA-23-005, #3906)
+# ---------------------------------------------------------------------------
+
+
+class TestFccvExtensionPhase1DrainViaSharedHelper:
+    """AC-1 (#3956): the Phase 1 drain is ``wait_for_replica_ledger_coverage``
+    with the same authority (C1) and replica pairs the deleted
+    ``drain_phase1_ledger`` received."""
+
+    def test_phase1_drain_calls_shared_helper_with_same_authority_and_replicas(
+        self,
+    ):
+        clients = {
+            k: MagicMock(name=k)
+            for k in (
+                "finder_client",
+                "c1_client",
+                "c2_client",
+                "vendor_client",
+            )
+        }
+        case = mock_case()
+        with patched_report_submission(
+            demo,
+            seed_fn="seed_containers_fccv",
+            seeded_actors=(
+                mock_actor("urn:test:finder"),
+                mock_actor("urn:test:c1"),
+                mock_actor("urn:test:c2"),
+                mock_actor("urn:test:vendor"),
+            ),
+            actor_lookups=[
+                mock_actor("urn:test:c1"),
+                mock_actor("urn:test:c2"),
+            ],
+            case=case,
+            demo_patches={
+                name: {}
+                for name in (
+                    "wait_for_case_participants",
+                    "wait_for_replica_ledger_coverage",
+                    "post_to_inbox_and_wait",
+                    "verify_object_stored",
+                    "wait_for_case_on_container",
+                    "find_case_invite_for_actor",
+                    "run_invite_path_rm_triage",
+                    "verify_case_active",
+                )
+            },
+            session_patches=(
+                "accept_case_invite",
+                "suggest_actor_to_case",
+                "accept_actor_recommendation",
+            ),
+        ) as mocks:
+            demo._phase_report_submission(
+                finder_id=None,
+                c1_id=None,
+                c2_id=None,
+                vendor_id=None,
+                **clients,
+            )
+
+        coverage = mocks["wait_for_replica_ledger_coverage"]
+        coverage.assert_called_once()
+        kwargs = coverage.call_args.kwargs
+        assert kwargs["auth_client"] is clients["c1_client"]
+        assert kwargs["replicas"] == [
+            (clients["finder_client"], "Finder"),
+            (clients["c2_client"], "C2"),
+        ]
+        assert kwargs["case_id"] == case.id_
+        assert kwargs["phase_label"] == "Phase 1 drain before Phase 2"
+        # The drain is a causal gate for Phase 2 (EDF-06-005): the helper's
+        # default, so the scenario must not pass causal=False.
+        assert "causal" not in kwargs

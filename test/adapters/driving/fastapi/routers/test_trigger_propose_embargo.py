@@ -43,15 +43,13 @@ def _no_outbox_delivery():
     ``outbox_handler`` uses HTTP with exponential-backoff retries. When
     tests run with non-existent recipient URLs the retry sleeps add ~3.5 s
     per test. Patching to a no-op ``AsyncMock`` eliminates that overhead
-    while keeping the scheduler logic testable.
-
-    The test ``test_propose_embargo_schedules_outbox_handler`` uses
-    ``unittest.mock.patch`` as a context manager inside the test body, which
-    overrides this fixture's patch for the duration of that context.
+    while keeping the scheduler logic testable.  The flush is scheduled by
+    ``run_trigger``, so its ``outbox_handler`` reference is the one patched;
+    that it is queued at all is asserted once for every verb in
+    ``test_trigger_routes_contract.py`` (TRIG-07-001).
     """
     with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
+        "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler",
         new_callable=AsyncMock,
     ):
         yield
@@ -264,30 +262,3 @@ def test_trigger_propose_embargo_exited_returns_409(
     assert resp.status_code == status.HTTP_409_CONFLICT
     data = resp.json()
     assert data["detail"]["error"] == "Conflict"
-
-
-def test_propose_embargo_schedules_outbox_handler(
-    client_triggers, dl, actor, case_without_participant
-):
-    """D5-6-TRIGDELIV: propose-embargo schedules outbox delivery after execution."""
-    with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
-        new_callable=AsyncMock,
-    ) as mock_outbox:
-        resp = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/propose-embargo",
-            json={
-                "case_id": case_without_participant.id_,
-                "end_time": FUTURE_END_TIME,
-            },
-        )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
-    mock_outbox.assert_called_once()
-    assert mock_outbox.call_args.args[0] == actor.id_
-    assert mock_outbox.call_args.args[1] is dl
-    # No third positional: that slot is `emitter` now, and a store
-    # passed there silently becomes the emitter (see the ratchet in
-    # test/architecture/test_outbox_handler_emitter_keyword.py).
-    assert len(mock_outbox.call_args.args) == 2
-    assert "emitter" not in mock_outbox.call_args.kwargs
