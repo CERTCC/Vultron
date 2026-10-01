@@ -2039,16 +2039,19 @@ groups:
       reported as a refusal, not deferred.
     rationale: >-
       The EP-05-001 comparison reads the replaced embargo, so it holds only if
-      no case points at an embargo its store cannot read. Seeding stores the
-      inline active embargo and the hash-chained ledger applies an embargo's
-      proposal before any activation that replaces it, but a writer that
-      accepts a bare id would let a case reference an unreadable record. A
-      deferral would wait for a record no path delivers. Source: CONCERN-4004.
+      no case names an embargo its store cannot read. The ledger applies an
+      embargo's proposal before any activation that replaces it, but any
+      writer that accepts a bare id (an activation writer, or seeding a case
+      whose embargo arrived as a bare reference) lets a case name an
+      unreadable record. A deferral would wait for a record no path delivers.
+      Source: CONCERN-4004.
     verification: >-
       Unit tests of `accept_embargo_invite()` and `activate_embargo()` in
-      `test/core/services/` assert that an unreadable activated or replaced
+      `test/core/services/embargo_lifecycle/` assert that an unreadable activated or replaced
       embargo raises before any write and leaves the stored case unchanged, and
-      a received-Accept test asserts the handler reports `REFUSED`.
+      a received-Accept test asserts the handler reports `REFUSED`; a
+      seeding test asserts a received case whose `active_embargo` is a bare
+      reference the store lacks is refused rather than saved.
     testable: true
     relationships:
     - rel_type: refines
