@@ -39,6 +39,7 @@ package the corpus scanned.
 """
 
 import ast
+import inspect
 import re
 from collections.abc import Iterator
 from pathlib import Path
@@ -181,6 +182,49 @@ def test_every_row_result_type_forbids_unknown_keys(row: TriggerEntry) -> None:
     keys — a use case that grows a return key fails loudly (UCORG-05-005)."""
     assert issubclass(row.result_type, TriggerResult)
     assert row.result_type.model_config.get("extra") == "forbid"
+
+
+#: The keyword ports ``RegistryTriggerDispatcher`` injects, by ``bt_backed``.
+_BT_PORT_KWARGS = frozenset(
+    {"trigger_activity", "wire_render_port", "sync_port"}
+)
+_PLAIN_PORT_KWARGS = frozenset({"trigger_activity"})
+
+
+@pytest.mark.spec("TRIG-12-004")
+@pytest.mark.parametrize("row", _rows(), ids=_row_ids())
+def test_row_constructor_accepts_the_port_bundle_its_flag_earns(
+    row: TriggerEntry,
+) -> None:
+    """``(dl, request, **ports)`` must be a legal call for every row.
+
+    The dispatcher hands a BT-backed use case ``trigger_activity``,
+    ``wire_render_port`` and ``sync_port``, and the non-BT-backed one
+    ``trigger_activity`` alone; a subclass that overrides ``__init__`` and
+    drops a keyword would turn its row into a ``TypeError`` at dispatch.
+    """
+    params = inspect.signature(row.use_case_class).parameters
+    accepts_var_kw = any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+    )
+    wanted = _BT_PORT_KWARGS if row.bt_backed else _PLAIN_PORT_KWARGS
+    missing = (
+        {k for k in wanted if k not in params} if not accepts_var_kw else set()
+    )
+    assert not missing, (
+        f"{row.use_case_class.__name__} (verb {row.verb!r}) does not accept"
+        f" {sorted(missing)}; the dispatcher injects them"
+    )
+    positional = [
+        name
+        for name, p in params.items()
+        if p.kind
+        in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        )
+    ]
+    assert positional[:2] == ["dl", "request"], positional
 
 
 # ---------------------------------------------------------------------------

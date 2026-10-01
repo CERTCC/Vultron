@@ -295,6 +295,29 @@ def test_f_to_F_is_refused_with_a_structured_error(
     _no_outbox_delivery.assert_not_awaited()
 
 
+@pytest.mark.spec("PRM-06-003")
+@pytest.mark.spec("PRM-06-004")
+@pytest.mark.parametrize(
+    ("field", "value", "rule"),
+    [("vf_state", "vf", "PRM-06-003"), ("d_state", "d", "PRM-06-004")],
+)
+def test_lower_rungs_are_refused_at_the_body(
+    client, actor, managed_case, field: str, value: str, rule: str
+):
+    """Only v→V and d→D are assertable on behalf; the lower rungs are 422."""
+    resp = client.post(
+        _PATH.format(actor=actor.id_),
+        json={
+            "case_id": managed_case.id_,
+            "target_actor_id": _VENDOR_ID,
+            field: value,
+        },
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    (violation,) = [d for d in resp.json()["detail"] if field in d["loc"]]
+    assert rule in violation["msg"]
+
+
 def test_neither_dimension_is_refused(client, actor, managed_case):
     resp = client.post(
         _PATH.format(actor=actor.id_),

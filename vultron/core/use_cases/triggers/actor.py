@@ -44,6 +44,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.models.use_case_result import RoleOfferResult
@@ -83,8 +84,9 @@ class SvcSuggestActorToCaseUseCase(SvcActivityTriggerBase):
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
         wire_render_port: "WireRenderPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port)  # type: ignore[arg-type]
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port, sync_port=sync_port)  # type: ignore[arg-type]
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
@@ -277,8 +279,9 @@ class SvcInviteActorToCaseUseCase(SvcActivityTriggerBase):
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
         wire_render_port: "WireRenderPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port)  # type: ignore[arg-type]
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port, sync_port=sync_port)  # type: ignore[arg-type]
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
@@ -419,8 +422,9 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         trigger_activity: object = None,
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
         wire_render_port: "WireRenderPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
-        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port)  # type: ignore[arg-type]
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity, wire_render_port=wire_render_port, sync_port=sync_port)  # type: ignore[arg-type]
         self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:

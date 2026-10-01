@@ -379,10 +379,14 @@ class AddOnBehalfStatusRequest(CaseTriggerRequest):
     ``vf_state="Vf"``) or a deployer's deployment (``d→D``, ``d_state="D"``)
     on behalf of an actor that was notified or invited but has not joined the
     case (ADR-0084; PRM-06-003, PRM-06-004).  ``target_actor_id`` names that
-    actor.  ``vf_state="VF"`` (``f→F``) is refused here: fix readiness is not
+    actor.  Only the upward rungs are assertable on another actor's behalf:
+    ``vf_state`` must be ``"Vf"`` and ``d_state`` must be ``"D"``.
+    ``vf_state="VF"`` (``f→F``) is refused because fix readiness is not
     externally knowable and is only ever self-declared by the Vendor-role
-    holder (PRM-06-005).  At least one of ``vf_state`` / ``d_state`` is
-    required.
+    holder (PRM-06-005); the lower rungs (``"vf"``, ``"d"``) are refused
+    because recording unawareness or non-deployment on someone's behalf is
+    not an assertion PRM-06 permits.  At least one of ``vf_state`` /
+    ``d_state`` is required.
 
     TRIG-03-002: Unknown fields are silently ignored.
     """
@@ -398,6 +402,21 @@ class AddOnBehalfStatusRequest(CaseTriggerRequest):
             raise ValueError(
                 "f→F (CS_vf.VF) cannot be asserted on behalf of another actor"
                 " (ADR-0084, PRM-06-005)"
+            )
+        if v is not None and v != CS_vf.Vf:
+            raise ValueError(
+                "only v→V (CS_vf.Vf) may be asserted on behalf of a vendor"
+                f" (PRM-06-003); got {v!r}"
+            )
+        return v
+
+    @field_validator("d_state")
+    @classmethod
+    def d_state_is_deployed(cls, v: CS_d | None) -> CS_d | None:
+        if v is not None and v != CS_d.D:
+            raise ValueError(
+                "only d→D (CS_d.D) may be asserted on behalf of a deployer"
+                f" (PRM-06-004); got {v!r}"
             )
         return v
 

@@ -189,6 +189,58 @@ def test_unknown_requester_is_not_found(actor_and_dl):
         )
 
 
+@pytest.mark.spec("CM-24-001")
+@pytest.mark.spec("CLP-10-014")
+@pytest.mark.spec("DL-07-009")
+def test_single_container_commit_lands_in_the_case_managers_store(
+    actor_and_dl,
+):
+    """Requester ≠ CASE_MANAGER, both hosted here (the single-server demo).
+
+    The tree runs as the CASE_MANAGER: the entry is minted in *its* store, the
+    fan-out is queued in *its* outbox (the store-scoped ``sync_port``,
+    DL-07-009), and the result names it so the router drains that queue.
+    Nothing is written to the requester's own store.
+    """
+    requester, dl = actor_and_dl
+    cm_actor = as_Service(name="Hosted Case Manager")
+    reset_datalayer(cm_actor.id_)
+    cm_dl = dl.clone_for_actor(cm_actor.id_)
+    cm_dl.clear_all()
+    try:
+        cm_dl.create(cm_actor)
+        case = _seed_case(dl, cm_actor.id_)
+        # The requester's replica and the CASE_MANAGER's canonical copy hold
+        # the same case (same id, same genesis hash); only the latter mints.
+        cm_dl.create(case)
+        for pid in case.case_participants:
+            participant = dl.read(pid)
+            assert participant is not None
+            cm_dl.create(participant)
+        cm_before = set(cm_dl.outbox_list())
+
+        result = _run(
+            dl,
+            SyncLogEntryTriggerRequest(
+                actor_id=requester.id_,
+                case_id=case.id_,
+                object_id=case.id_,
+                event_type="single_container",
+            ),
+        )
+
+        assert result.emitting_actor_id == cm_actor.id_
+        assert isinstance(cm_dl.read(result.log_entry_id), CaseLedgerEntry)
+        assert dl.read(result.log_entry_id) is None
+        assert (
+            set(cm_dl.outbox_list()) - cm_before
+        ), "fan-out must be queued in the CASE_MANAGER's outbox"
+        assert not dl.outbox_list()
+    finally:
+        cm_dl.clear_all()
+        reset_datalayer(cm_actor.id_)
+
+
 @pytest.mark.spec("CLP-10-014")
 def test_store_without_the_canonical_log_declines_and_reports_it(
     actor_and_dl,

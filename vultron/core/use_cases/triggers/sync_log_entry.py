@@ -113,7 +113,11 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
             # The tree reported SUCCESS without a commit: the ledger-authority
             # guard declined because this store does not hold the canonical
             # log (ADR-0073, CLP-10-014).  Not a client fault and not a bug in
-            # a node, so it is neither 4xx nor a ``RuntimeError``.
+            # a node, so it is neither 4xx nor a ``RuntimeError``.  Raising
+            # here means the router queues no flush; had the tree committed
+            # and the lookup still missed (it compares the snapshot the tree
+            # recorded, so that would be a node bug), the fan-out would wait
+            # in the CASE_MANAGER's outbox for its next drain.
             raise VultronCanonicalEntryError(
                 "sync-log-entry: no canonical entry was recorded for case"
                 f" '{self._case_id}' (event_type={self._event_type!r});"

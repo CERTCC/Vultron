@@ -349,6 +349,68 @@ class TestDemoSyncLogEntry:
         )
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
+    @pytest.mark.spec("CM-24-001")
+    @pytest.mark.spec("TRIG-07-001")
+    def test_requester_that_is_not_the_manager_drains_the_managers_outbox(
+        self, client_demo: TestClient, dl, actor
+    ):
+        """Single-server shape: the commit runs as a hosted CASE_MANAGER, so
+        the flush the route schedules drains *that* actor's outbox."""
+        from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
+
+        cm_actor = as_Service(name="Hosted Case Manager")
+        reset_datalayer(cm_actor.id_)
+        cm_dl = dl.clone_for_actor(cm_actor.id_)
+        cm_dl.clear_all()
+        try:
+            cm_dl.create(cm_actor)
+            case = as_VulnerabilityCase(
+                name="Managed Elsewhere", attributed_to=cm_actor.id_
+            )
+            cm = as_CaseParticipant(
+                attributed_to=cm_actor.id_,
+                context=case.id_,
+                case_roles=[CVDRole.CASE_MANAGER],
+            )
+            me = as_CaseParticipant(
+                attributed_to=actor.id_,
+                context=case.id_,
+                case_roles=[CVDRole.REPORTER],
+            )
+            for participant_actor_id, participant in (
+                (cm_actor.id_, cm),
+                (actor.id_, me),
+            ):
+                case.actor_participant_index[participant_actor_id] = (
+                    participant.id_
+                )
+                case.case_participants.append(participant.id_)
+            for store in (dl, cm_dl):
+                store.create(case)
+                store.create(cm)
+                store.create(me)
+
+            resp = client_demo.post(
+                f"/actors/{actor.id_}/demo/sync-log-entry",
+                json={
+                    "case_id": case.id_,
+                    "object_id": case.id_,
+                    "event_type": "single_server",
+                },
+            )
+
+            assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
+            body = resp.json()
+            assert body["emitting_actor_id"] == cm_actor.id_
+            assert cm_dl.read(body["log_entry_id"]) is not None
+            # The background flush ran against the CASE_MANAGER's store: the
+            # fan-out it queued there has been popped for delivery.
+            assert cm_dl.outbox_list() == []
+            assert dl.outbox_list() == []
+        finally:
+            cm_dl.clear_all()
+            reset_datalayer(cm_actor.id_)
+
     def test_store_without_the_canonical_log_answers_500(
         self, client_demo: TestClient, dl, actor
     ):
