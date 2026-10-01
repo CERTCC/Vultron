@@ -180,3 +180,31 @@ groups:
     relationships:
       - rel_type: refines
         spec_id: CISEC-05-001
+  - id: CISEC-05-007
+    priority: MUST
+    kind: process
+    statement: >-
+      A failure notification issue filed by the composite action MUST carry the
+      `Bug` issue type. The action MUST set the type itself, immediately after
+      creating the issue, by resolving the repository's `Bug` issue type by name
+      and applying it through the `updateIssue` GraphQL mutation. It MUST NOT
+      rely on applying a `bug` label for the label-to-issue-type workflow to
+      convert, and it MUST fail visibly if no `Bug` issue type exists.
+    rationale: >-
+      `gh issue create` cannot set an issue type, so a failure issue filed by
+      the action was untyped and fell outside every issue-type query that
+      triage, project views and the `build` pre-claim gate use. The
+      label-to-issue-type workflow cannot repair this: events raised with the
+      workflow's own `GITHUB_TOKEN` never trigger other workflows, so a `bug`
+      label applied by the action is never converted. Resolving the type by
+      name (rather than a hardcoded node ID) keeps the action correct if the
+      type is ever re-created. A failed type assignment is surfaced rather than
+      swallowed so the untyped issue does not silently recur.
+    verification: >-
+      `test_notify_action_sets_bug_issue_type` in
+      `test/ci/test_workflow_failure_notification.py` asserts the action's
+      notify branch resolves the `Bug` issue type by name and applies it via
+      `updateIssue` with `issueTypeId`.
+    relationships:
+      - rel_type: refines
+        spec_id: CISEC-05-001

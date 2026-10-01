@@ -26,6 +26,9 @@ from test.ci._workflows import triggers
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 NOTIFY_FAILURE_USES = "./.github/actions/notify-failure"
+NOTIFY_FAILURE_ACTION = (
+    REPO_ROOT / ".github" / "actions" / "notify-failure" / "action.yml"
+)
 DEMO_WORKFLOW = WORKFLOWS_DIR / "demo-integration.yml"
 
 
@@ -279,4 +282,43 @@ def test_invariant_harness_skipped_when_demo_cancelled() -> None:
         "(needs.demo.result != 'cancelled'), so a concurrency-cancelled "
         "push-to-main run does not cascade into a spurious ci:main-failure "
         f"issue (DEMOCI-04-007, #3249). Current guard: {guard!r}"
+    )
+
+
+def _notify_action_run_scripts() -> list[str]:
+    """Return the ``run:`` script of every step in the composite action."""
+    data = yaml.safe_load(NOTIFY_FAILURE_ACTION.read_text())
+    steps = data.get("runs", {}).get("steps", [])
+    return [str(step["run"]) for step in steps if "run" in step]
+
+
+def test_notify_action_sets_bug_issue_type() -> None:
+    """CISEC-05-007: a freshly filed failure issue must carry the Bug type.
+
+    ``gh issue create`` cannot set an issue type, and a ``bug`` label applied
+    with ``GITHUB_TOKEN`` never fires the label-to-issue-type workflow, so the
+    action has to resolve the repository's ``Bug`` type by name and apply it
+    through the ``updateIssue`` mutation itself. The resolution is by *name*:
+    a hardcoded node ID would break silently if the type were re-created.
+    """
+    scripts = _notify_action_run_scripts()
+    assert scripts, f"{NOTIFY_FAILURE_ACTION} has no run: steps"
+    creating = [s for s in scripts if "gh issue create" in s]
+    assert len(creating) == 1, (
+        "Expected exactly one step in notify-failure/action.yml to run "
+        f"`gh issue create`; found {len(creating)} (CISEC-05-007)."
+    )
+    script = creating[0]
+    assert "issueTypes" in script and 'select(.name == "Bug")' in script, (
+        "The notify-failure action must resolve the repository's `Bug` issue "
+        "type by name via the `issueTypes` GraphQL field (CISEC-05-007)."
+    )
+    assert "updateIssue" in script and "issueTypeId" in script, (
+        "The notify-failure action must apply the Bug type to the new issue "
+        "via the `updateIssue` mutation's `issueTypeId` (CISEC-05-007)."
+    )
+    assert '--label "bug"' not in script and "--label bug" not in script, (
+        "The notify-failure action must not rely on a `bug` label for the "
+        "label-to-issue-type workflow: GITHUB_TOKEN events never trigger it "
+        "(CISEC-05-007)."
     )
