@@ -7,7 +7,8 @@ description: >
   state updates propagate via CaseLedgerEntry broadcast. Captures the routing
   rule, its rationale, common antipatterns, BT implementation guidance, and the
   embargo revision relay (EP-09, ADR-0113): ledger entries carry state to
-  replicas but never set a parse-and-respond expectation.
+  replicas but never set a parse-and-respond expectation. Also records that the
+  CASE_MANAGER gate checks the receiver, never the sender (HP-01-006, ADR-0115).
 related_specs:
   - specs/architecture.yaml
   - specs/embargo-policy.yaml
@@ -482,6 +483,27 @@ A reply to the full-case Invite is the participant's judgement of the case
 (RV/RI/RC, CM-11-011; ADR-0070). The CASE_MANAGER records it as a direct RM
 state update, without emitting a proxy activity on the participant's behalf
 (PCR-08-010). The stub `Accept` moves no RM state at all (CM-11-001).
+
+---
+
+## Antipattern: Reading the CASE_MANAGER Gate as a Sender Check
+
+`create_case_manager_gated_tree` and `not_case_manager_refusal()` ask whether the
+**receiving** actor holds `CVDRole.CASE_MANAGER` (BT-17-001, HP-01-005). They say
+nothing about the sender. A tree whose effects sit behind that gate still applies
+an assertion from *any* sender unless something else checks who sent it. The
+CONCERN-3733 audit found ownership claims, self-admission through an Accept of an
+Invite that was never sent, note removal, and full-ledger replay on a rejected
+ledger entry, all behind a CASE_MANAGER gate.
+
+The sender check is a separate guard (HP-01-006, ADR-0115). Each received use case
+declares its sender entitlement once, the receive-tree factory composes the
+matching guard from the single sender-entitlement module, and a failed guard
+reports `REFUSED`. A reply to an ask is authorized by the ask naming its sender
+(the transferee of a recorded Offer, the invitee of a recorded Invite), never by
+the sender's own copy of the ask: an Accept that embeds an Invite proves nothing
+about the Invite the CASE_MANAGER sent (CM-11-017). A replica accepts
+case-state changes only from the CASE_MANAGER (PCR-03-001).
 
 ---
 
