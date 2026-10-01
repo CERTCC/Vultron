@@ -329,7 +329,7 @@ def _phase_report_submission(
         # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005,
         # #3038).
         with demo_step("C1 invites V1 with CVDRole.VENDOR"):
-            invite_v1 = (
+            invite_offer_v1 = (
                 ActorSession(client=c1_client, actor=c1_in_c1)
                 .with_case(case)
                 .quiet()
@@ -337,7 +337,10 @@ def _phase_report_submission(
                     invitee_id=v1.id_, roles=[CVDRole.VENDOR]
                 )
             ).activity
-            logger.info("V1 invite created: %s", invite_v1.id_)
+            logger.info(
+                "C1 asked the CASE_MANAGER to invite V1: %s",
+                invite_offer_v1.id_,
+            )
 
             with demo_gate(
                 "CaseActor-routed Invite for V1 stored in V1's DataLayer"
@@ -382,7 +385,7 @@ def _phase_report_submission(
 
         # C1 invites C2 with CVDRole.COORDINATOR.  Same nesting as V1 above.
         with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
-            invite_c2 = (
+            invite_offer_c2 = (
                 ActorSession(client=c1_client, actor=c1_in_c1)
                 .with_case(case)
                 .quiet()
@@ -390,7 +393,10 @@ def _phase_report_submission(
                     invitee_id=c2.id_, roles=[CVDRole.COORDINATOR]
                 )
             ).activity
-            logger.info("C2 invite created: %s", invite_c2.id_)
+            logger.info(
+                "C1 asked the CASE_MANAGER to invite C2: %s",
+                invite_offer_c2.id_,
+            )
 
             with demo_gate(
                 "CaseActor-routed Invite for C2 stored in C2's DataLayer"

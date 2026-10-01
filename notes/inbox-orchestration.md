@@ -15,6 +15,7 @@ related_notes:
   - notes/use-case-protocol.md
   - notes/bt-integration.md
   - notes/architecture-adapters.md
+  - notes/case-communication-model.md
 relevant_packages:
   - vultron/core/behaviors/inbox
   - vultron/adapters/driving/fastapi

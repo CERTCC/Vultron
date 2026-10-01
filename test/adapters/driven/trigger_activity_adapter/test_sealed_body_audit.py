@@ -38,6 +38,7 @@ from typing import Any
 
 import pytest
 
+from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -127,9 +128,11 @@ class _World:
         return offer_id
 
     def invite_id(self) -> str:
+        """An Invite as the invitee holds it: archived by intake (CLP-10-017)."""
         invite_id, _ = self.adapter.invite_actor_to_case(
             invitee_id=_PEER, case_id=self.case_id, actor=_ACTOR, to=[_PEER]
         )
+        archive_received(self.dl, self.dl.read(invite_id))
         return invite_id
 
     def recommendation_id(self) -> str:

@@ -22,15 +22,26 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.received import archive_received
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.demo.helpers.polling import (
     CROSS_CONTAINER_TIMEOUT,
     LATE_JOINER_REPLICA_TIMEOUT,
     LATE_JOINER_TIMEOUT,
     PARTICIPANT_JOIN_TIMEOUT,
+    _received_activity,
+    _received_activity_id,
+    assert_received_from,
+    find_case_invite_for_actor,
     wait_for_case_attributed_to,
     wait_for_case_participants,
     wait_for_ledger_event,
     wait_for_pending_inbox_quiescent,
+)
+from vultron.wire.as2.factories.case import rm_invite_to_case_activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
 )
 
 CASE_ID = "http://example.com/cases/case-123"
@@ -528,3 +539,143 @@ def test_shared_budget_hands_out_what_is_left_and_never_goes_negative(
     now[0] += 60.0
     assert budget.remaining() == 0.0
     assert "remaining=0.0s" in repr(budget)
+
+
+# ---------------------------------------------------------------------------
+# find_case_invite_for_actor (#3821): the invitee holds the CASE_MANAGER's
+# Invite as intake's ReceivedActivityRecord (CLP-10-017, ADR-0111), or bare
+# under the sender's id while the inbox defers it until the case bootstrap.
+# ---------------------------------------------------------------------------
+
+_MANAGER = "http://example.com/actors/case-actor"
+_INVITE_ID = "http://example.com/activities/invite-1"
+
+
+def _archived_invite_entry(
+    case_id: str = CASE_ID, invitee_id: str = ACTOR_B
+) -> tuple[str, dict]:
+    """A received Invite as the datalayer router serializes its record."""
+    invite = rm_invite_to_case_activity(
+        as_Service(id_=invitee_id),
+        target=as_VulnerabilityCase(id_=case_id),
+        actor=_MANAGER,
+        id_=_INVITE_ID,
+    )
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=invitee_id)
+    record = archive_received(dl, invite)
+    return record.id_, record.model_dump(
+        mode="json", exclude_none=True, by_alias=True
+    )
+
+
+def _dl_client(entries: dict[str, dict]) -> MagicMock:
+    client = MagicMock()
+    client.base_url = "http://vendor:7999"
+    client.dl_path.return_value = "/actors/vendor/datalayer/"
+    client.get.return_value = entries
+    return client
+
+
+class TestFindCaseInviteForActor:
+    def test_returns_the_senders_id_for_the_archived_invite(self):
+        record_id, record = _archived_invite_entry()
+        client = _dl_client({record_id: record})
+
+        found = find_case_invite_for_actor(
+            client, CASE_ID, ACTOR_B, timeout_seconds=1.0, poll_interval=0.01
+        )
+
+        assert found == _INVITE_ID
+        assert record_id != _INVITE_ID
+
+    def test_finds_the_invite_the_inbox_holds_until_the_case_bootstrap(
+        self,
+    ):
+        """A deferred Invite has not reached intake; the inbox holds it bare."""
+        _, record = _archived_invite_entry()
+        client = _dl_client({_INVITE_ID: record["activity"]})
+
+        found = find_case_invite_for_actor(
+            client, CASE_ID, ACTOR_B, timeout_seconds=1.0, poll_interval=0.01
+        )
+
+        assert found == _INVITE_ID
+
+    @pytest.mark.parametrize(
+        ("case_id", "invitee_id"),
+        [
+            ("http://example.com/cases/other", ACTOR_B),
+            (CASE_ID, ACTOR_A),
+        ],
+    )
+    def test_an_invite_for_another_case_or_invitee_does_not_match(
+        self, case_id, invitee_id
+    ):
+        record_id, record = _archived_invite_entry(case_id, invitee_id)
+        client = _dl_client({record_id: record})
+
+        with pytest.raises(AssertionError):
+            find_case_invite_for_actor(
+                client,
+                CASE_ID,
+                ACTOR_B,
+                timeout_seconds=0.05,
+                poll_interval=0.01,
+            )
+
+
+class TestAssertReceivedFrom:
+    @pytest.mark.parametrize("held", ["archived", "deferred"])
+    def test_passes_when_the_named_actor_sent_it(self, held):
+        record_id, record = _archived_invite_entry()
+        entries = (
+            {record_id: record}
+            if held == "archived"
+            else {_INVITE_ID: record["activity"]}
+        )
+
+        assert_received_from(
+            _dl_client(entries), _INVITE_ID, _MANAGER, "consequence"
+        )
+
+    def test_names_the_actual_sender_when_another_actor_sent_it(self):
+        record_id, record = _archived_invite_entry()
+
+        with pytest.raises(AssertionError, match=f"emitted as '{_MANAGER}'"):
+            assert_received_from(
+                _dl_client({record_id: record}),
+                _INVITE_ID,
+                ACTOR_A,
+                "consequence",
+            )
+
+    def test_fails_when_the_activity_is_not_held(self):
+        with pytest.raises(AssertionError, match="holds no received activity"):
+            assert_received_from(
+                _dl_client({}), _INVITE_ID, _MANAGER, "consequence"
+            )
+
+
+class TestMalformedReceivedRecord:
+    """A record the server returns malformed fails loudly, never matches."""
+
+    def test_a_record_wrapping_no_activity_fails(self):
+        with pytest.raises(AssertionError, match="wraps no activity"):
+            _received_activity(
+                {"type": "ReceivedActivityRecord", "id": "urn:uuid:r"}
+            )
+
+    def test_a_record_whose_activity_has_no_id_fails(self):
+        with pytest.raises(AssertionError, match="activity with no id"):
+            _received_activity_id(
+                "urn:uuid:r",
+                {
+                    "type": "ReceivedActivityRecord",
+                    "activity": {"type": "Invite"},
+                },
+            )
+
+    def test_a_bare_activity_is_known_by_its_storage_id(self):
+        assert _received_activity_id("urn:uuid:a", {"type": "Invite"}) == (
+            "urn:uuid:a"
+        )

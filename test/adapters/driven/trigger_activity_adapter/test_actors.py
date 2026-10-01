@@ -21,9 +21,15 @@ import json
 
 import pytest
 
-from vultron.errors import VultronValidationError
+from test.support.received import archive_received
+from vultron.errors import (
+    VultronActivityConstructionError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 from vultron.wire.as2.factories import (
     offer_case_participant_activity,
+    recommend_actor_activity,
     rm_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -152,7 +158,9 @@ class TestAcceptCaseInvite:
             actor=_ACTOR,
             to=[_INVITEE],
         )
-        dl.create(invite)
+        # A received Invite that reached its use case is archived by intake
+        # (CLP-10-017, ADR-0111).
+        archive_received(dl, invite)
         return invite.id_
 
     def test_returns_id_and_dict(self, adapter, dl):
@@ -229,6 +237,125 @@ class TestAcceptCaseInvite:
             "object_ must be an inline dict, not a URI"
         )
         assert obj.get("id") == invite_id
+
+    @pytest.mark.spec("AKM-02-003")
+    def test_embedded_invite_names_the_case_by_uri(self, adapter, dl):
+        invite_id = self._make_invite(dl)
+
+        _, activity_dict = adapter.accept_case_invite(
+            invite_id=invite_id, actor=_INVITEE
+        )
+
+        assert json.loads(activity_dict)["object"]["target"] == _CASE_ID
+
+    @pytest.mark.spec("AKM-02-003")
+    def test_an_invite_the_inbox_holds_until_the_case_bootstrap_is_answered(
+        self, adapter, dl
+    ):
+        """A deferred Invite has not reached intake; the inbox holds it bare.
+
+        The invitee holds no case before its Accept brings the bootstrap, so
+        the inbox defers the Invite and keeps it under the sender's id.  That
+        copy is the one the invitee answers.
+        """
+        invite = rm_invite_to_case_activity(
+            _INVITEE,
+            target=as_VulnerabilityCaseStub(id_=_CASE_ID),
+            actor=_ACTOR,
+            to=[_INVITEE],
+        )
+        dl.create(invite)
+
+        _, activity_dict = adapter.accept_case_invite(
+            invite_id=invite.id_, actor=_INVITEE
+        )
+
+        accept = json.loads(activity_dict)
+        assert accept["object"]["id"] == invite.id_
+        assert accept["object"]["target"] == _CASE_ID
+
+    def test_an_invite_this_store_never_received_is_not_found(
+        self, adapter, dl
+    ):
+        with pytest.raises(VultronNotFoundError):
+            adapter.accept_case_invite(
+                invite_id="urn:uuid:never-received", actor=_INVITEE
+            )
+
+    def test_a_held_record_that_is_not_a_model_is_refused(
+        self, adapter, dl, monkeypatch
+    ):
+        from vultron.adapters.driven.trigger_activity_adapter import actors
+
+        monkeypatch.setattr(
+            actors, "read_received_activity", lambda *_args: object()
+        )
+
+        with pytest.raises(VultronValidationError, match="not as an activity"):
+            adapter.accept_case_invite(
+                invite_id="urn:uuid:held-oddly", actor=_INVITEE
+            )
+
+    def test_a_held_invite_whose_inline_case_has_no_id_is_refused(
+        self, adapter, monkeypatch
+    ):
+        from pydantic import BaseModel
+
+        from vultron.adapters.driven.trigger_activity_adapter import actors
+
+        class _Held(BaseModel):
+            actor: str = _ACTOR
+            target: dict[str, str] = {"type": "VulnerabilityCase"}
+
+        monkeypatch.setattr(
+            actors, "read_received_activity", lambda *_args: _Held()
+        )
+
+        with pytest.raises(VultronValidationError, match="with no id"):
+            adapter.accept_case_invite(
+                invite_id="urn:uuid:held-without-case-id", actor=_INVITEE
+            )
+
+    def test_a_held_record_that_does_not_validate_as_an_invite_is_refused(
+        self, adapter, monkeypatch
+    ):
+        """The adapter validates the held record into ``as_Invite`` at its
+        edge (ADR-0032), so a malformed one is refused there."""
+        from pydantic import BaseModel
+
+        from vultron.adapters.driven.trigger_activity_adapter import actors
+
+        class _Held(BaseModel):
+            type: str = "Invite"
+            actor: int = 42
+            target: str = _CASE_ID
+
+        monkeypatch.setattr(
+            actors, "read_received_activity", lambda *_args: _Held()
+        )
+
+        with pytest.raises(
+            VultronValidationError, match="does not validate as an Invite"
+        ):
+            adapter.accept_case_invite(
+                invite_id="urn:uuid:held-malformed", actor=_INVITEE
+            )
+
+    def test_an_archived_activity_that_is_not_an_invite_is_refused(
+        self, adapter, dl
+    ):
+        offer = recommend_actor_activity(
+            _INVITEE,
+            target=as_VulnerabilityCase(id_=_CASE_ID, name="Not an Invite"),
+            actor=_ACTOR,
+            to=[_INVITEE],
+        )
+        archive_received(dl, offer)
+
+        with pytest.raises(
+            VultronActivityConstructionError, match="not a case Invite"
+        ):
+            adapter.accept_case_invite(invite_id=offer.id_, actor=_INVITEE)
 
 
 class TestSuggestActorToCase:

@@ -22,6 +22,7 @@ imported here and MUST NOT be imported by callers.
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
+import json
 import logging
 from typing import Any, cast
 
@@ -33,6 +34,7 @@ from vultron.core.models.dimensions import (
 )
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories._context import (
     case_target_ref,
     case_uri_of,
@@ -736,6 +738,38 @@ def rm_invite_to_case_activity(
         ) from exc
 
 
+def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:
+    """Return *invite* as the case-Invite class the reply activities embed.
+
+    An Invite the invitee holds came through intake, which archives the
+    activity as the event carried it (CLP-10-017, ADR-0111) — not as this
+    class.  The caller validates that record into ``as_Invite`` at its edge
+    (ADR-0032); this function validates it on into the case-Invite class from
+    its JSON form.  Neither class checks the input's ``type`` (both set their
+    own), so it is checked here first.
+
+    Raises:
+        VultronActivityConstructionError: when *invite* is not an Invite, or
+            does not validate as a case Invite.
+    """
+    if isinstance(invite, _RmInviteToCaseActivity):
+        return invite
+    data = json.loads(
+        invite.model_dump_json(by_alias=True, serialize_as_any=True)
+    )
+    if data.get("type") != as_TransitiveActivityType.INVITE.value:
+        raise VultronActivityConstructionError(
+            f"activity '{data.get('id')}' is not a case Invite:"
+            f" its type is {data.get('type')!r}"
+        )
+    try:
+        return _RmInviteToCaseActivity.model_validate(data)
+    except ValidationError as exc:
+        raise VultronActivityConstructionError(
+            f"activity '{data.get('id')}' is not a case Invite"
+        ) from exc
+
+
 def rm_accept_invite_to_case_activity(
     invite: as_Invite,
     **kwargs,
@@ -744,9 +778,10 @@ def rm_accept_invite_to_case_activity(
 
     Accepts a case invitation.  The internal class automatically sets
     ``in_reply_to`` to the invite's ``id_`` if not provided.
-    The ``invite`` MUST be the value returned by
-    :func:`rm_invite_to_case_activity`; a plain ``as_Invite`` that does
-    not carry a ``as_VulnerabilityCase`` target will fail validation.
+    The ``invite`` is the value :func:`rm_invite_to_case_activity`
+    returned, or a received Invite the caller has validated into
+    ``as_Invite``; it is validated on into the case-Invite class, and
+    anything that is not a case Invite fails.
 
     Args:
         invite: The ``_RmInviteToCaseActivity`` being accepted.
@@ -761,7 +796,7 @@ def rm_accept_invite_to_case_activity(
     """
     try:
         return _RmAcceptInviteToCaseActivity(
-            object_=cast(_RmInviteToCaseActivity, invite),
+            object_=_as_case_invite(invite),
             **kwargs,
         )
     except ValidationError as exc:
@@ -781,9 +816,10 @@ def rm_reject_invite_to_case_activity(
 
     Rejects a case invitation.  The internal class automatically sets
     ``in_reply_to`` to the invite's ``id_`` if not provided.
-    The ``invite`` MUST be the value returned by
-    :func:`rm_invite_to_case_activity`; a plain ``as_Invite`` will fail
-    validation.
+    The ``invite`` is the value :func:`rm_invite_to_case_activity`
+    returned, or a received Invite the caller has validated into
+    ``as_Invite``; it is validated on into the case-Invite class, and
+    anything that is not a case Invite fails.
 
     Args:
         invite: The ``_RmInviteToCaseActivity`` being rejected.
@@ -798,7 +834,7 @@ def rm_reject_invite_to_case_activity(
     """
     try:
         return _RmRejectInviteToCaseActivity(
-            object_=cast(_RmInviteToCaseActivity, invite),
+            object_=_as_case_invite(invite),
             **kwargs,
         )
     except ValidationError as exc:

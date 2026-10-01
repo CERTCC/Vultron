@@ -69,3 +69,15 @@ def resolve_case_owner_id(
     not by comparing actor IDs against ``attributed_to``".
     """
     return resolve_participant_actor_by_role(case, dl, CVDRole.CASE_OWNER)
+
+
+def suggested_roles_key(recommendation_id: str) -> str:
+    """Return the blackboard key holding the roles offered for a recommendation.
+
+    The recommend-actor tree keeps the roles it evaluated for one received
+    Offer under a key namespaced by the Offer's id segment, so concurrent
+    recommendations do not overwrite each other (CONCERN-1335).  The writer
+    (``EvaluateDefaultRolesNode``) and every reader derive the key here.  The
+    key has no leading slash; a port remapping prefixes one.
+    """
+    return f"suggested_roles_{recommendation_id.rsplit('/', maxsplit=1)[-1]}"

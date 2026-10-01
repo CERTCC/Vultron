@@ -51,6 +51,7 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
+    assert_received_from,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
     find_ownership_transfer_offer_for_actor,
@@ -522,19 +523,18 @@ def _phase_c2_invites_vendor(
     # same defect fvcv-handoff hit in CI; fccv-handoff was simply not among the
     # scenarios CI selected, so it stayed latent here).
     #
-    # Emitting as the CaseActor needs no cross-container hack:
-    # ``SvcInviteActorToCaseUseCase._prepare`` resolves the case's CaseActor and
-    # sets ``self._actor_id`` to it, so the Invite goes out attributed to the
+    # C2's trigger sends C2's own Offer to the CASE_MANAGER, and the CaseActor
+    # emits the Invite (CM-17-007, ADR-0109).  So the Invite goes out as the
     # CaseActor and Vendor's Accept routes back to the CaseActor rather than to
     # C2, letting AcceptInviteActorToCaseBT run (PCR-08-007, PCR-08-008).  The
-    # assertion below is what holds that property honest.
+    # check on the delivered Invite below is what holds that property honest.
     #
     # Every step that depends on the invite — the delivery gate, the accept
     # and the replica wait — is nested inside the block that produces what it
     # needs, so a failed trigger or lookup skips its dependents instead of
     # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
     with demo_step("C2 invites Vendor to the case"):
-        invite = (
+        invite_offer = (
             ActorSession(client=c2_client, actor=c2_in_c2)
             .with_case(case)
             .quiet()
@@ -542,18 +542,9 @@ def _phase_c2_invites_vendor(
                 invitee_id=vendor.id_, roles=[CVDRole.VENDOR]
             )
         ).activity
-        logger.info("Vendor invite created by C2: %s", invite.id_)
-
-        with demo_check(
-            "Vendor invite was emitted as the CaseActor (PCR-08-008)"
-        ):
-            emitting_actor = ref_id(invite.actor)
-            assert emitting_actor == case_actor_id, (
-                f"Invite '{invite.id_}' was emitted as '{emitting_actor}',"
-                f" not as the CaseActor '{case_actor_id}' — Vendor's Accept"
-                " would route to C2 and AcceptInviteActorToCaseBT would not"
-                " run"
-            )
+        logger.info(
+            "C2 asked the CASE_MANAGER to invite Vendor: %s", invite_offer.id_
+        )
 
         # The delivered Invite is the causal precondition for the accept: a
         # demo_gate, with the accept using the ID it found.
@@ -564,6 +555,17 @@ def _phase_c2_invites_vendor(
                 invitee_id=vendor.id_,
                 timeout_seconds=90.0,
             )
+
+            with demo_check(
+                "Vendor invite was emitted as the CaseActor (PCR-08-008)"
+            ):
+                assert_received_from(
+                    vendor_client,
+                    invite_id,
+                    case_actor_id,
+                    "Vendor's Accept would route to C2 and"
+                    " AcceptInviteActorToCaseBT would not run",
+                )
 
             # Vendor accepts the invite.
             with demo_step("Vendor accepts the case invitation"):

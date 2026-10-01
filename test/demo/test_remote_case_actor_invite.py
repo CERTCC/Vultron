@@ -15,41 +15,35 @@
 
 """``invite-actor-to-case`` when the case's CaseActor is on another container.
 
-PCR-08-007 has the Invite go out from the *CaseActor's* identity, so
-``SvcInviteActorToCaseUseCase._prepare`` sets ``self._actor_id`` to whatever
-``_find_case_actor_id`` resolves and the BT then runs as that actor.  Under
-ADR-0073 "runs as that actor" means "in that actor's store", which
-``BTBridge._store_for_actor`` arranges by cloning the handed DataLayer.
+A container emits only as actors it hosts (ADR-0109).  So the Case Owner's
+``invite-actor-to-case`` trigger does not emit the Invite itself: it sends the
+owner's own ``Offer(Actor, Case)`` with the requested roles to the case's
+CASE_MANAGER, and the CASE_MANAGER's recommend-actor tree emits the Invite from
+its own store and commits it there (CM-17-007, CM-17-006).  The Invite carries
+no ``cc:`` copy, because the CASE_MANAGER does not mail itself.
 
-That is sound while the CaseActor is co-hosted with the actor holding the case.
-It is not sound after a handoff.  ``_find_case_actor_id`` path 3 resolves the
-``CVDRole.CASE_MANAGER`` participant whenever its id has the container-level
-CaseActor shape (``.../actors/case-actor``, ADR-0041), and that shape answers
-for *remote* containers just as readily as local ones — which is the point of
-it, since a replica's CASE_MANAGER is normally somewhere else.  So on a
-post-handoff owner the resolved CaseActor is on a different authority, and
-``clone_for_actor`` happily mints a fresh **empty local** store for it: no case,
-no participants, no ledger.  Nothing raises.
+This module runs that flow on three containers: the owner on one, the CaseActor
+on a second, the invitee on a third.  The CaseActor is on a different container
+from the owner, as a case handoff leaves it (CP-09-004).  Only that layout
+shows what the flow must hold:
 
-This module pins down that configuration, because three things have to hold and
-none of them is obvious from reading the emit path:
+* the owner's ``202`` names the owner's Offer, emitted as the owner;
+* the Invite is emitted as the CaseActor and committed in the CaseActor's own
+  ledger, with the case stub's embargo terms (CM-17-002) and the offered roles,
+  and with no ``cc``;
+* the invitee receives the Invite;
+* no store on the owner's container holds a ledger entry the owner minted for
+  the Invite, and no store there is named for the remote CaseActor.
 
-* the Invite still reaches the invitee, from the CaseActor's identity;
-* the emitted Invite carries the case (CM-17-002) rather than a bare id string,
-  which it cannot do if the store the emit reads has no case in it;
-* the ledger entry lands in a store somebody reads.
-
-Only a multi-node setup can show this, and only since each node in this harness
-got its *own* storage deployment: while every node shared one anonymous
-``sqlite:///:memory:``, the cross-authority slug collision that
+Each node in this harness has its *own* storage deployment, which is
+essential: while every node shared one anonymous ``sqlite:///:memory:``, the
+cross-authority slug collision that
 :func:`~vultron.adapters.driven.datalayer_sqlite.engine.actor_slug` produces for
-two ``.../actors/case-actor`` ids resolved to a single shared store, so the
-phantom store *was* the real one and this whole failure mode was invisible
-locally while failing under Docker.  See ``test/demo/conftest.py::node_db_url``.
-After ADR-0081 no legitimate path opens a store for a foreign-authority id, but
-the per-node deployment naming remains essential for a multi-node harness.
+two ``.../actors/case-actor`` ids resolved to a single shared store, so a write
+into the wrong container's store looked correct locally.  See
+``test/demo/conftest.py::node_db_url``.
 
-Issue: #2484
+Issues: #2484, #3821
 """
 
 import re
@@ -63,6 +57,7 @@ from test.demo.conftest import (
     _TestClientRouter,
     create_isolated_actor_app,
 )
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
@@ -70,7 +65,9 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.em import EM
+from vultron.core.use_cases._helpers import read_received_activity
 from vultron.enums.roles import CVDRole
 
 #: Characters that cannot appear in a hostname label.
@@ -81,14 +78,14 @@ _UNSAFE_IN_HOST = re.compile(r"[^a-z0-9-]+")
 class _Topology:
     """Three containers, as ``docker-compose-multi-actor.yml`` arranges them.
 
-    The CaseActor is self-hosted by the container that first received the report
-    (CP-08-003), which after a handoff is *not* the container that owns the case.
-    So ``ca_host`` and ``owner`` are separate nodes, and the CaseActor's actor id
-    is under ``ca_host``'s authority while the case replica lives on ``owner``.
+    After a case handoff the CaseActor is *not* on the container that owns the
+    case (CP-09-004).  So ``ca_host`` and ``owner`` are separate nodes: the
+    CaseActor's actor id is under ``ca_host``'s authority and holds the
+    authoritative case, while ``owner`` holds a replica.
 
     Attributes:
         ca_host: The node hosting the case's CaseActor and the authoritative case.
-        owner: The node holding the case replica and answering the trigger.
+        owner: The node hosting the Case Owner, which holds a case replica.
         invitee: The node hosting the actor being invited.
     """
 
@@ -132,9 +129,8 @@ def topology(request):
 
     Deliberately does *not* patch ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL``: the
     replica is seeded directly with a remote CASE_MANAGER, which is the state a
-    handoff leaves behind, and resolution reads the participant roster's role
-    rather than configuration.  Patching it would only obscure which input the
-    resolver actually reads.
+    handoff leaves behind, and the owner's trigger addresses its Offer to the
+    roster's CASE_MANAGER rather than to configuration.
 
     Yields:
         The :class:`_Topology` for this test, with all three clients entered.
@@ -200,7 +196,10 @@ def _seed_case(
 
     This is the post-handoff shape: the participant wearing
     ``CVDRole.CASE_MANAGER`` is attributed to a CaseActor on a container the
-    node holding this replica does not host (CP-09-004).
+    owner's node does not host (CP-09-004).  The owner holds
+    ``CVDRole.CASE_OWNER``, which is what makes the CASE_MANAGER treat the
+    owner's Offer as a direct invite rather than a recommendation to forward
+    (CM-17-007).
 
     The case is seeded **under an active embargo**, and that is load-bearing
     rather than incidental colour.  ``_project_case_to_stub`` enriches the
@@ -208,8 +207,9 @@ def _seed_case(
     an ``active_embargo`` (CM-17-002); with no embargo it returns a stub
     carrying nothing but an id, which AS2 serialises to a bare URI string —
     exactly what a *failed* case read produces.  Under an active embargo the two
-    outcomes finally differ, so ``test_the_invite_carries_the_case_not_a_bare_id``
-    can tell "read the case" from "read an empty store".
+    outcomes differ, so
+    ``test_the_invite_carries_the_embargo_terms_and_the_roles`` can tell "read
+    the case" from "read an empty store".
 
     *published* pins the VulnerabilityCase timestamp so all replicas share the
     same genesis hash regardless of wall-clock second boundaries.  When None a
@@ -224,7 +224,7 @@ def _seed_case(
     owner_participant = CaseParticipant(
         id_=f"{case_id}/participants/owner",
         attributed_to=topo.owner_actor_id,
-        case_roles=[CVDRole.VENDOR],
+        case_roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER],
     )
     embargo = EmbargoEvent(
         id_=f"{case_id}/embargoes/e0",
@@ -268,8 +268,7 @@ def _bootstrap(topo: _Topology, case_id: str):
     Returns:
         Tuple of (owner_dl, ca_dl, invitee_dl) — each node's store for the actor
         it hosts.  The CaseActor's node gets the authoritative case, the owner's
-        node a replica; which of the two the owner's emit actually touches is
-        what the assertions are about.
+        node a replica.
     """
     _create_actor(
         topo.ca_host.client, topo.ca_actor_id, "Case Actor", "Service"
@@ -299,13 +298,50 @@ def _invite(topo: _Topology, case_id: str) -> dict:
     """POST ``invite-actor-to-case`` to the owner's *own* container."""
     resp = topo.owner.client.post(
         "/api/v2/actors/owner/trigger/invite-actor-to-case",
-        json={"case_id": case_id, "invitee_id": topo.invitee_actor_id},
+        json={
+            "case_id": case_id,
+            "invitee_id": topo.invitee_actor_id,
+            "roles": _OFFERED_ROLES,
+        },
     )
     assert resp.status_code == 202, (
         f"invite-actor-to-case failed ({resp.status_code}): {resp.text}"
     )
     body: dict = resp.json()
     return body
+
+
+#: Roles the owner offers the invitee; not the CASE_MANAGER's VENDOR default
+#: (CM-16-003), so their presence on the Invite shows they were carried.
+_OFFERED_ROLES = ["coordinator", "deployer"]
+
+
+def _case_actor_invite(topo: _Topology, ca_dl) -> PersistableModel:
+    """The one Invite the CaseActor emitted as itself."""
+    invites = [
+        invite
+        for invite in ca_dl.list_objects("Invite")
+        if getattr(invite, "actor", None) == topo.ca_actor_id
+    ]
+    assert len(invites) == 1, (
+        "the CaseActor's store must hold exactly one Invite emitted as the"
+        f" CaseActor after the owner's trigger; found {invites!r}"
+    )
+    found: PersistableModel = invites[0]
+    return found
+
+
+def _ledger_entries(dl, case_id: str) -> list:
+    return [
+        entry
+        for entry in dl.list_objects("CaseLedgerEntry")
+        if getattr(entry, "case_id", None) == case_id
+    ]
+
+
+def _snapshot_id(entry) -> str | None:
+    snapshot = getattr(entry, "payload_snapshot", None) or {}
+    return snapshot.get("id") if isinstance(snapshot, dict) else None
 
 
 # ---------------------------------------------------------------------------
@@ -331,8 +367,7 @@ class TestBootstrapInvariant:
         When ca_host later fans out ``Announce(CaseLedgerEntry)`` with
         ``prev_log_hash`` derived from ca_host's genesis, owner's
         ``CheckHashOrRejectOnMismatchNode`` detects the mismatch and rejects
-        the entry — so ``test_the_owners_own_store_records_the_invite`` finds
-        an empty ledger and fails.
+        the entry, so the owner's replica of the CaseActor's ledger diverges.
 
         The fix: ``_bootstrap`` passes a single shared ``published`` timestamp
         to both ``_seed_case`` calls so both replicas compute the same hash.
@@ -359,103 +394,131 @@ class TestBootstrapInvariant:
         )
 
 
-@pytest.mark.spec("PCR-08-007")
-class TestInviteWithARemoteCaseActor:
-    """The emit resolves a CaseActor this node does not host."""
+@pytest.mark.spec("CM-17-007", "CM-17-006", "PCR-08-007")
+class TestOwnerInviteThroughARemoteCaseActor:
+    """The owner asks; the CaseActor on another container invites (ADR-0109)."""
 
-    def test_the_invite_is_emitted_as_the_remote_case_actor(self, topology):
-        """PCR-08-007 holds regardless of which container answers the trigger.
+    def test_the_owners_trigger_sends_the_owners_own_offer(self, topology):
+        """The owner's ``202`` means its Offer was queued, not an Invite sent.
 
-        This is the premise the rest of the module rests on: posting to the
-        owner's own container is *not* a way of emitting as the owner.  The use
-        case resolves the case's CaseActor and emits as it, so a scenario that
-        posts to the CaseActor's container in order to "emit as the CaseActor"
-        buys nothing and addresses an actor that container may not host.
+        A container emits only as actors it hosts, so the trigger answered on
+        the owner's container emits as the owner and addresses the CASE_MANAGER
+        (CM-17-007).
         """
-        case_id = "urn:uuid:remote-ca-emitting-identity"
+        case_id = "urn:uuid:remote-ca-owner-offer"
         _bootstrap(topology, case_id)
 
         result = _invite(topology, case_id)
 
-        assert result.get("emitting_actor_id") == topology.ca_actor_id, (
-            "the Invite must be emitted from the case's CaseActor identity"
-            f" even though the trigger arrived on {topology.owner.base_url}"
-        )
+        assert result.get("emitting_actor_id") == topology.owner_actor_id
+        activity = result.get("activity") or {}
+        assert activity.get("type") == "Offer"
+        assert activity.get("actor") == topology.owner_actor_id
+        assert activity.get("to") == [topology.ca_actor_id]
+        assert "cc" not in activity
 
-    def test_the_invitee_receives_the_invite(self, topology):
-        """Delivery must survive the cross-container emit.
-
-        The outbox drained by ``trigger_invite_actor_to_case`` is the *emitting*
-        actor's, and the emitting actor is remote — so this asserts that
-        whichever store was chosen, the activity and its queue entry ended up in
-        the same one (ISSUE-2548) and delivery went out.
-        """
-        case_id = "urn:uuid:remote-ca-delivery"
-        _, _, invitee_dl = _bootstrap(topology, case_id)
+    def test_the_case_actor_emits_and_commits_the_invite(self, topology):
+        """CM-17-006: the emitter commits the Invite in its own ledger."""
+        case_id = "urn:uuid:remote-ca-emit-and-commit"
+        _, ca_dl, _ = _bootstrap(topology, case_id)
 
         _invite(topology, case_id)
 
-        invites = invitee_dl.list_objects("Invite")
-        assert len(invites) == 1, (
-            "the invitee's store must hold exactly one Invite after the owner's"
-            " trigger; a cross-container emit that lands the activity and the"
-            " outbox entry in different stores delivers nothing and says so"
-            " only at debug level"
+        invite = _case_actor_invite(topology, ca_dl)
+        assert getattr(invite, "attributed_to", None) == (
+            topology.owner_actor_id
+        ), "the Invite must name the owner who asked for it"
+        committed = [
+            entry
+            for entry in _ledger_entries(ca_dl, case_id)
+            if _snapshot_id(entry) == invite.id_
+        ]
+        assert len(committed) == 1, (
+            "the CaseActor's ledger must hold exactly one entry for the Invite"
+            f" it emitted; found {committed!r}"
         )
-        assert getattr(invites[0], "actor", None) == topology.ca_actor_id
 
-    def test_the_emitted_invite_carries_the_case_not_a_bare_id(self, topology):
-        """CM-17-002: the emit must read a store that actually holds the case.
+    def test_the_invite_carries_the_embargo_terms_and_the_roles(
+        self, topology
+    ):
+        """CM-17-002 and CM-16-018, on the wire form the invitee is sent.
 
-        ``EmitInviteActorToCaseNode._emit`` reads the case from the store the BT
-        runs in and passes ``target=None`` when that read fails; the adapter
-        then re-reads from the same store and falls back to the bare ``case_id``
-        string.  A store minted for a foreign actor is empty, so a remote
-        CaseActor produces exactly that unless the emit stays in a store that
-        holds the case (AKM-03-001).
-
-        The embargo terms are the observable difference, and that is why
-        ``_seed_case`` puts the case at ``EM.ACTIVE`` with an ``active_embargo``
-        rather than leaving it bare.  ``_project_case_to_stub`` enriches the
-        stub only under exactly that condition, so an ``activeEmbargo`` on the
-        emitted target means the case *and* its ``EmbargoEvent`` were both read
-        out of a store that really holds them — which an empty phantom store
-        cannot fake.
-
-        Asserted on the **emitting** side, against the requester's own record of
-        what it sent, because that is the boundary this issue governs.  The
-        invitee's copy is not a usable probe for it: the enrichment does not
-        currently survive the wire hop at all, for reasons that have nothing to
-        do with which store the emit ran in (#2624 — the outbox's stub allowlist
-        collapses any stub richer than ``{id, type, summary}``).  Checking the
-        invitee here would fail on that unrelated defect and say "wrong store"
-        while meaning "the outbox flattened the stub".
+        The sealed body is what the CaseActor's outbox delivers, so it is the
+        boundary that decides what the invitee sees.  An ``activeEmbargo`` on
+        the target means the CaseActor read the case *and* its EmbargoEvent out
+        of a store that holds them.
         """
         case_id = "urn:uuid:remote-ca-target-enrichment"
-        owner_dl, _, _ = _bootstrap(topology, case_id)
+        _, ca_dl, _ = _bootstrap(topology, case_id)
 
         _invite(topology, case_id)
 
-        invites = owner_dl.list_objects("Invite")
-        assert len(invites) == 1
-        target = getattr(invites[0], "target", None)
-        assert not isinstance(target, str), (
+        invite = _case_actor_invite(topology, ca_dl)
+        wire = read_sealed_body_dict(ca_dl, str(invite.id_))
+        assert wire is not None, "the CaseActor sealed no body for its Invite"
+        target = wire.get("target")
+        assert isinstance(target, dict), (
             "the Invite's target degraded to a bare case id, so the emit read a"
             f" store with no case in it. target={target!r}"
         )
-        assert getattr(target, "active_embargo", None) is not None, (
-            "the target is inline but carries no embargo terms, so the invitee"
-            " could not give informed consent (CM-17-002); the case was read but"
-            f" its EmbargoEvent was not. target={target!r}"
+        assert target.get("activeEmbargo"), (
+            "the target carries no embargo terms, so the invitee could not give"
+            f" informed consent (CM-17-002). target={target!r}"
+        )
+        assert wire.get("roles") == _OFFERED_ROLES
+        assert "cc" not in wire, (
+            "the CaseActor mailed itself a cc: copy of its own Invite (ADR-0109)"
+        )
+
+    def test_the_invitee_receives_the_invite(self, topology):
+        """The CaseActor's Invite reaches the invitee's container.
+
+        The invitee holds no case yet, so its inbox defers the Invite until the
+        bootstrap its Accept brings; ``read_received_activity`` reads the Invite
+        however the invitee holds it.
+        """
+        case_id = "urn:uuid:remote-ca-delivery"
+        _, ca_dl, invitee_dl = _bootstrap(topology, case_id)
+
+        _invite(topology, case_id)
+
+        invite = _case_actor_invite(topology, ca_dl)
+        received = read_received_activity(
+            invitee_dl, str(invite.id_), "Invite"
+        )
+        assert getattr(received, "actor", None) == topology.ca_actor_id
+
+    def test_the_owner_mints_no_ledger_entry_for_the_invite(self, topology):
+        """The owner is not the Invite's emitter, so it commits nothing.
+
+        Every ledger entry the owner's store holds for the case must be a copy
+        of one the CaseActor committed: the owner neither commits its Offer nor
+        writes a correlation marker for an Invite it did not send.
+        """
+        case_id = "urn:uuid:remote-ca-owner-ledger"
+        owner_dl, ca_dl, _ = _bootstrap(topology, case_id)
+
+        _invite(topology, case_id)
+
+        canonical = {
+            entry.entry_hash for entry in _ledger_entries(ca_dl, case_id)
+        }
+        self_minted = [
+            entry
+            for entry in _ledger_entries(owner_dl, case_id)
+            if entry.entry_hash not in canonical
+        ]
+        assert self_minted == [], (
+            "the owner's store holds ledger entries the CaseActor never"
+            f" committed: {[_snapshot_id(e) for e in self_minted]!r}"
         )
 
     def test_no_store_is_minted_for_the_remote_case_actor(self, topology):
         """A write into a foreign authority's store reaches nobody.
 
-        ``clone_for_actor`` succeeds for any well-formed id, so the failure is
-        silent: the ledger entry, the activity and the outbox entry all land in
-        a store on the *owner's* node named after an actor the *CaseActor's*
-        node hosts.  Nothing ever reads it.
+        ``clone_for_actor`` succeeds for any well-formed id, so writing as the
+        remote CaseActor from the owner's container would fail silently: the
+        activity and its ledger entry would land in a store nothing reads.
         """
         case_id = "urn:uuid:remote-ca-phantom-store"
         _bootstrap(topology, case_id)
@@ -463,51 +526,5 @@ class TestInviteWithARemoteCaseActor:
         _invite(topology, case_id)
 
         phantom = topology.owner.store_for(topology.ca_actor_id)
-        assert phantom.get_all("CaseLedgerEntry") == [], (
-            "the ledger entry for invite_actor_to_case was committed into a"
-            f" store on {topology.owner.base_url} named for an actor hosted on"
-            f" {topology.ca_host.base_url}; the CaseActor's real ledger never"
-            " sees it (ADR-0021)"
-        )
-        assert phantom.get_all("Invite") == [], (
-            "the Invite activity itself was persisted into the phantom store"
-        )
-
-    def test_the_owners_own_store_records_the_invite(self, topology):
-        """The owner must be able to account for an Invite it caused.
-
-        With the emit kept in a store the node actually hosts, the ledger
-        correlation marker is readable by the actor that asked for the invite.
-        The canonical entry remains the CaseActor's, arriving via the ``cc:``
-        self-delivery (CLP-10-001).
-        """
-        case_id = "urn:uuid:remote-ca-owner-ledger"
-        owner_dl, _, _ = _bootstrap(topology, case_id)
-
-        _invite(topology, case_id)
-
-        events = [
-            str(getattr(entry, "event_type", ""))
-            for entry in owner_dl.list_objects("CaseLedgerEntry")
-        ]
-        assert any("invite_actor_to_case" in e for e in events), (
-            "the owner's own store holds no ledger entry for the invite it"
-            f" emitted; entries seen: {events}"
-        )
-
-    def test_the_remote_case_actor_is_told_about_the_invite(self, topology):
-        """CLP-10-001: ``cc:`` self-delivery is what reaches the real CaseActor.
-
-        A node cannot write into another node's store, so the only way the
-        canonical ledger learns of this invite is over the wire.  That makes the
-        ``cc`` on the emitted Invite load-bearing rather than decorative.
-        """
-        case_id = "urn:uuid:remote-ca-cc-selfdelivery"
-        _, ca_dl, _ = _bootstrap(topology, case_id)
-
-        _invite(topology, case_id)
-
-        assert ca_dl.list_objects("Invite"), (
-            "the CaseActor's own store holds no Invite: the cc: copy never"
-            " arrived, so nothing on that container knows the invite happened"
-        )
+        assert phantom.get_all("CaseLedgerEntry") == []
+        assert phantom.get_all("Invite") == []

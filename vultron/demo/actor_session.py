@@ -307,7 +307,13 @@ class ActorSession:
     def invite_actor_to_case(
         self, *, invitee_id: str, roles: list[CVDRole] | None = None
     ) -> WireActivityResult:
-        """Invite *invitee_id* to the bound case (invite-actor-to-case)."""
+        """Ask the CASE_MANAGER to invite *invitee_id* (invite-actor-to-case).
+
+        The result is the owner's own Offer to the CASE_MANAGER, not the
+        Invite: the CASE_MANAGER emits the Invite (CM-17-007, ADR-0109), so a
+        caller finds it on the invitee's side with
+        :func:`~vultron.demo.helpers.polling.find_case_invite_for_actor`.
+        """
         body: dict[str, Any] = {
             "case_id": self._require_case_id(),
             "invitee_id": invitee_id,

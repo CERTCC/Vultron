@@ -28,6 +28,7 @@ related_notes:
   - notes/participant-case-replica.md
   - notes/fv-demo.md
   - notes/outbox.md
+  - notes/inbox-orchestration.md
   - notes/use-case-protocol.md
   - notes/protocol-asks.md
   - notes/case-joining.md
@@ -237,11 +238,16 @@ issue #4006 move it.
 
 ```text
 Case Owner triggers SvcInviteActorToCaseUseCase
+  → Case Owner sends its own Offer(Actor, Case, suggestedRoles)
+    → CASE_MANAGER's inbox (CM-17-007, ADR-0109)
+  → CASE_MANAGER's recommend-actor tree takes the owner-direct branch, since
+    the recommender holds CVDRole.CASE_OWNER (it does not forward the Offer)
   → CASE_MANAGER creates the invitee's CaseParticipant (inert: RM.RECEIVED,
     VF v for a vendor, consent INVITED if an embargo is active) and commits
     the creation to the ledger (CM-11-006)
   → CASE_MANAGER sends Invite(Actor, VulnerabilityCaseStub,
-    actor=case_actor_id, attributedTo=case_owner_id) → invitee's inbox
+    actor=case_actor_id, attributedTo=case_owner_id), commits it in the
+    emitting tree, no cc: (CM-17-006) → invitee's inbox
 
 Invitee sends Accept(Invite(stub), actor=invitee_id, to=[case_actor_id])
   → CASE_MANAGER's inbox (NOT the case owner's inbox)
@@ -271,7 +277,12 @@ Reject(Invite(stub)) instead of Accept → RM.CLOSED on the kept, inert record
 - `actor` on `RmInviteToCaseActivity` MUST be the **CASE_MANAGER's ID**.
   `attributedTo` MAY carry the case owner's ID (PCR-08-007).
 - The invitee's `Accept` MUST be addressed **to the CASE_MANAGER**,
-  not to the case owner (PCR-08-008).
+  not to the case owner (PCR-08-008). The invitee holds no case yet, so its
+  inbox usually defers the Invite until the bootstrap the Accept brings; the
+  accept and reject triggers read the Invite through `read_received_activity()`
+  (`core/use_cases/_helpers.py`), which takes intake's archive record or that
+  deferred copy (CLP-10-017; see
+  [inbox-orchestration](inbox-orchestration.md)).
 - The CASE_MANAGER (not the case owner) MUST process the Accept and
   record the invitee's RM transition (PCR-08-009). The same handler runs on
   any actor holding a copy, so admitting, announcing and backfilling sit
@@ -453,19 +464,22 @@ self._actor_id, self._attributed_to = _prepare_delegated_context(
 ADR-0109).  A container emits only as actors it hosts, so a trigger on a
 container that does not host the CASE_MANAGER does not run the tree as the
 CASE_MANAGER.  It sends the requesting participant's *own* activity to the
-CASE_MANAGER — the owner's direct invite is the owner's `Offer(CaseParticipant)`
-(CM-17-007) — and the CASE_MANAGER's received tree performs the delegated emit
+CASE_MANAGER — the owner's direct invite is the owner's recommend-actor
+`Offer(Actor, Case)` (CM-17-007) — and the CASE_MANAGER's received tree performs the delegated emit
 and commits the entry in that tree.  The CASE_MANAGER never addresses a `cc:`
 copy of its own emission to itself; the former self-copy compensated for a
 foreign-container emit and committed the same Invite twice when the two were
-co-hosted (#2996).  #3821 and #3822 land the code; until they do, the invite
-and ownership-transfer triggers still run the delegated emit locally.
+co-hosted (#2996).  For the invite, #3821 landed this: `SvcInviteActorToCaseUseCase`
+(`core/use_cases/triggers/actor.py`) sends the owner's Offer, and the owner-direct
+branch of `create_recommend_actor_to_case_received_tree` (`suggest_actor_tree.py`)
+emits and commits the Invite.  #3822 lands the ownership-transfer trigger; until it
+does, that trigger still runs the delegated emit locally.
 
 ### Delegated Flows (Exhaustive)
 
 | Trigger use case | Notes |
 |---|---|
-| `SvcInviteActorToCaseUseCase` | ✅ uses `_prepare_delegated_context()` |
+| `SvcInviteActorToCaseUseCase` | ✅ emits nothing delegated since #3821: it sends the owner's own Offer, and the delegated emit is the CASE_MANAGER's owner-direct branch of `create_recommend_actor_to_case_received_tree`, a received-side emit under `create_case_manager_gated_tree` (CM-17-007) |
 | `SvcOfferCaseOwnershipTransferUseCase` | ✅ fixed in #2173 |
 | `invite_to_embargo_on_case_tree` — CASE_MANAGER arm (EP-09-002) | ✅ built in #3913 (ADR-0113) — a *received*-side delegated emit, as CM-24-004 allows: `RelayEmbargoInviteToEachNode` relays `Invite(EmbargoEvent)` to every participant except the proposer with `actor=CASE_MANAGER`, `attributed_to=proposer`, each emission committed in the emitting tree; the proposer comes from `resolve_proposer_id()` (the Invite's `actor`, or its `attributedTo` when the proposal was itself relayed) |
 | Other trigger use cases | audit complete — no other delegated-emit callsites |
