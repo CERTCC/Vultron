@@ -15,6 +15,7 @@ related_notes:
   - notes/message-type-reference.md
   - notes/testing-pitfalls.md
   - notes/participant-embargo-consent.md
+  - notes/case-joining.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/wire/as2

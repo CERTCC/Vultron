@@ -401,15 +401,20 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      When an actor accepts a case invitation, the system SHOULD automatically record the accepting actor's RM state as
-      RM.RECEIVED via BT or use-case execution. The invitee's subsequent triage (RM.VALID/INVALID → RM.ACCEPTED/DEFERRED)
-      is driven by RM status messages from the invitee after the full case replica has been delivered to them.
-    note: >-
-      Prior text read "advance the accepting actor's RM state to ACCEPTED", which conflated joining the case with validating
-      its vulnerability content. Corrected to align with CM-11-001 (as amended in CONCERN-1756).
+      The system SHOULD record an invitee's RM state as RM.RECEIVED via BT execution
+      when the CASE_MANAGER emits the stub Invite (CM-11-006), and SHOULD leave it at
+      RM.RECEIVED when the invitee accepts the stub (CM-11-001). The invitee's triage is
+      driven by its replies to the full-case Invite (RM.VALID, RM.INVALID or RM.CLOSED,
+      CM-11-011) and then by `Join(VulnerabilityCase)` or `Ignore(VulnerabilityCase)`
+      (RM.ACCEPTED or RM.DEFERRED).
     relationships:
     - rel_type: implements
+      spec_id: CM-11-006
+    - rel_type: implements
       spec_id: CM-11-001
+    adr:
+    - ADR-0114
+    - ADR-0070
 - id: BT-12
   title: VFD/PXA State Machine Usage
   specs:

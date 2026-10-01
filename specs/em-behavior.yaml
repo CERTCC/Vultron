@@ -2072,10 +2072,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `Announce(EmbargoEvent)` emitted after an embargo teardown MUST be authored by the actor
-      holding `CVDRole.CASE_MANAGER` for the case, and MUST be addressed to the case's other
-      participants — every participant except the announcing actor. It MUST NOT be addressed to the
-      Case Manager.
+      The `Announce(EmbargoEvent)` emitted after an embargo teardown MUST be authored by
+      the actor holding `CVDRole.CASE_MANAGER` for the case, and MUST be addressed to
+      every active participant (CM-10-004) except the announcing actor. It MUST NOT be
+      addressed to the Case Manager.
     rationale: >-
       The teardown is canonical case state, so the role holder announces it and the participants are the
       audience. Addressing the Case Manager was correct while the tree ran as an ordinary participant
@@ -2096,10 +2096,12 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-001
     verification: >-
-      `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the announce is authored by
-      the CASE_MANAGER and addressed to the case's other participants.
+      `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the announce
+      is authored by the CASE_MANAGER and addressed to the case's other active
+      participants.
     adr:
     - ADR-0109
+    - ADR-0114
     stories:
     - story_2022_045
     - story_2022_046

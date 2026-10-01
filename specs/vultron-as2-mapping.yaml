@@ -149,7 +149,10 @@ groups:
   - id: VAM-02-004
     priority: MUST
     kind: protocol
-    statement: '`VALIDATE_REPORT` MUST be represented as `Accept(Offer(VulnerabilityReport))`'
+    statement: >-
+      `VALIDATE_REPORT` MUST be represented as `Accept(Offer(VulnerabilityReport))`.
+      This is the direct report recipient's RV; a participant that joined through an
+      Invite sends RV as the full-case Invite reply of VAM-04-012.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `ValidateReportPattern`
       is registered as `Accept(Offer(VulnerabilityReport))`; integration tests in `test/demo/` exercise the
       full report-validation flow.
@@ -157,12 +160,18 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-003
       note: RV shorthand → VALIDATE_REPORT → this wire form
+    adr:
+    - ADR-0070
     stories:
     - story_2022_012
   - id: VAM-02-005
     priority: MUST
     kind: protocol
-    statement: '`INVALIDATE_REPORT` MUST be represented as `TentativeReject(Offer(VulnerabilityReport))`'
+    statement: >-
+      `INVALIDATE_REPORT` MUST be represented as
+      `TentativeReject(Offer(VulnerabilityReport))`. This is the direct report
+      recipient's RI; a participant that joined through an Invite sends RI as the
+      full-case Invite reply of VAM-04-013.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `InvalidateReportPattern`
       is registered as `TentativeReject(Offer(VulnerabilityReport))`; integration tests in `test/demo/` exercise
       the full report-invalidation flow.
@@ -170,13 +179,18 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-002
       note: RI shorthand → INVALIDATE_REPORT → this wire form
+    adr:
+    - ADR-0070
     stories:
     - story_2022_101
     - story_2022_006
   - id: VAM-02-006
     priority: MUST
     kind: protocol
-    statement: '`CLOSE_REPORT` MUST be represented as `Reject(Offer(VulnerabilityReport))`'
+    statement: >-
+      `CLOSE_REPORT` MUST be represented as `Reject(Offer(VulnerabilityReport))`. This
+      is the direct report recipient's RC; a participant that joined through an Invite
+      sends RC as the full-case Invite reply of VAM-04-014.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `CloseReportPattern`
       is registered as `Reject(Offer(VulnerabilityReport))`; integration tests in `test/demo/` exercise the
       full close-report flow.
@@ -184,6 +198,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-006
       note: RC shorthand → CLOSE_REPORT → this wire form
+    adr:
+    - ADR-0070
     stories:
     - story_2022_066
     - story_2022_006
@@ -306,30 +322,45 @@ groups:
   - id: VAM-04-004
     priority: MUST
     kind: protocol
-    statement: '`INVITE_ACTOR_TO_CASE` MUST be represented as `Invite[target=VulnerabilityCase]`'
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `InviteActorToCasePattern`
-      uses `TAtype.INVITE` and `target_=VULNERABILITY_CASE`; integration tests in
+    statement: >-
+      `INVITE_ACTOR_TO_CASE` (the stub Invite) MUST be represented as
+      `Invite(Actor)[target=VulnerabilityCaseStub]`, with the stub shaped as CM-11-013
+      requires.
+    verification: >-
+      Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
+      `InviteActorToCasePattern` uses `TAtype.INVITE`, `object_=ACTOR` and a
+      `VulnerabilityCaseStub` target; integration tests in
       `test/demo/test_invite_actor_demo.py` exercise this flow.
+    adr:
+    - ADR-0114
     stories:
     - story_2022_013
     - story_2022_052
   - id: VAM-04-005
     priority: MUST
     kind: protocol
-    statement: '`ACCEPT_INVITE_ACTOR_TO_CASE` MUST be represented as `Accept(Invite[target=VulnerabilityCase])`'
+    statement: >-
+      `ACCEPT_INVITE_ACTOR_TO_CASE` MUST be represented as
+      `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `AcceptInviteActorToCasePattern`
       wraps `InviteActorToCasePattern` inside an `Accept` outer pattern; integration tests in
       `test/demo/test_invite_actor_demo.py` exercise this flow.
+    adr:
+    - ADR-0114
     stories:
     - story_2022_013
     - story_2022_054
   - id: VAM-04-006
     priority: MUST
     kind: protocol
-    statement: '`REJECT_INVITE_ACTOR_TO_CASE` MUST be represented as `Reject(Invite[target=VulnerabilityCase])`'
+    statement: >-
+      `REJECT_INVITE_ACTOR_TO_CASE` MUST be represented as
+      `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `RejectInviteActorToCasePattern`
       wraps `InviteActorToCasePattern` inside a `Reject` outer pattern; integration tests in
       `test/demo/test_invite_actor_demo.py` exercise this flow.
+    adr:
+    - ADR-0114
     stories:
     - story_2022_006
   - id: VAM-04-007
@@ -377,6 +408,77 @@ groups:
       `target_=VULNERABILITY_CASE`; integration tests in `test/demo/test_suggest_actor_demo.py` exercise this flow.
     stories:
     - story_2022_053
+  - id: VAM-04-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The full-case Invite (CM-11-010) MUST be represented as
+      `Invite(Actor)[target=VulnerabilityCase]`, with the case referenced by its ID and
+      the CASE_MANAGER's ledger position carried on the Invite.
+    rationale: >-
+      The participant already holds the case from the replica, so the Invite references
+      it by ID. Because the stub is its own type (VAM-04-004, CM-11-013), this shape and
+      the stub Invite differ in their target's `type` and are classified without a
+      lookup.
+    verification: >-
+      A unit test confirms that an `Invite` whose `target` is a `VulnerabilityCase`
+      matches the full-case Invite pattern and not the stub Invite pattern, and that one
+      whose `target` is a `VulnerabilityCaseStub` matches only the stub Invite pattern.
+    adr:
+    - ADR-0070
+    - ADR-0114
+    stories:
+    - story_2022_013
+    - story_2022_054
+  - id: VAM-04-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The RV reply to the full-case Invite MUST be represented as
+      `Accept(Invite(Actor)[target=VulnerabilityCase])`, carrying the replier's ledger
+      position (CM-11-011).
+    verification: >-
+      A unit test confirms that `Accept(Invite(Actor)[target=VulnerabilityCase])`
+      matches the full-case Invite's RV pattern and not the stub Invite's `Accept`
+      pattern (VAM-04-005).
+    adr:
+    - ADR-0070
+    stories:
+    - story_2022_012
+    - story_2022_054
+  - id: VAM-04-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The RI reply to the full-case Invite MUST be represented as
+      `TentativeReject(Invite(Actor)[target=VulnerabilityCase])`, carrying the replier's
+      ledger position (CM-11-011).
+    verification: >-
+      A unit test confirms that
+      `TentativeReject(Invite(Actor)[target=VulnerabilityCase])` matches the full-case
+      Invite's RI pattern, and that a `TentativeReject` of a stub Invite matches no
+      pattern (CM-11-007).
+    adr:
+    - ADR-0070
+    stories:
+    - story_2022_101
+    - story_2022_006
+  - id: VAM-04-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The RC reply to the full-case Invite MUST be represented as
+      `Reject(Invite(Actor)[target=VulnerabilityCase])`, carrying the replier's ledger
+      position (CM-11-011).
+    verification: >-
+      A unit test confirms that `Reject(Invite(Actor)[target=VulnerabilityCase])`
+      matches the full-case Invite's RC pattern and not the stub Invite's `Reject`
+      pattern (VAM-04-006).
+    adr:
+    - ADR-0070
+    stories:
+    - story_2022_066
+    - story_2022_006
 - id: VAM-05
   title: Embargo Management Messages
   specs:

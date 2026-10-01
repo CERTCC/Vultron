@@ -1135,10 +1135,11 @@ groups:
     kind: protocol
     statement: >-
       After committing a revision proposal, the CASE_MANAGER MUST emit an
-      `Invite(EmbargoEvent)` for the revision to every case participant except the proposer,
-      with `actor` set to the CASE_MANAGER's ID and `attributedTo` set to the proposer's ID
-      (CM-24-001, CM-24-002), and MUST commit each emission as a ledger entry. The
-      CASE_MANAGER MUST NOT invite the proposer.
+      `Invite(EmbargoEvent)` for the revision to every case participant whose RM state
+      is not `RM.CLOSED`, except the proposer, with `actor` set to the CASE_MANAGER's ID
+      and `attributedTo` set to the proposer's ID (CM-24-001, CM-24-002), and MUST
+      commit each emission as a ledger entry. The CASE_MANAGER MUST NOT invite the
+      proposer.
     rationale: >-
       Participants answer an Invite addressed to them, never a proposal they saw in the
       ledger (EP-09-003), so without the relay nobody but the proposer would ever be asked.
@@ -1147,12 +1148,14 @@ groups:
       answered, and the response call-out could let a proposer decline its own open proposal,
       a state the protocol has no name for.
     note: >-
-      Excluding the proposer costs one filter: the proposer's identity is on the activity
-      just adjudicated. The emit runs on the container that hosts the CASE_MANAGER and is
-      committed in the emitting tree (CM-24-004, ADR-0109). Every participant on the case is a
-      recipient,
-      whatever its consent state; a participant not yet bound is invited into the revised
-      terms, a signatory is asked whether it accepts them (EP-09-004).
+      Excluding the proposer costs one filter: the proposer's identity is on the
+      activity just adjudicated. The emit runs on the container that hosts the
+      CASE_MANAGER and is committed in the emitting tree (CM-24-004, ADR-0109). Every
+      participant on the case whose RM state is not `RM.CLOSED` is a recipient, whatever
+      its consent state and whether or not it has joined: an embargo Invite is not case
+      content and reaches an inert participant (CM-10-007). A participant not yet bound
+      is invited into the revised terms, a signatory is asked whether it accepts them
+      (EP-09-004).
     verification: >-
       A test runs the received Invite path as the CASE_MANAGER on a case with the proposer and
       two other participants and asserts the CASE_MANAGER's outbox holds one Invite per
@@ -1169,6 +1172,7 @@ groups:
       note: The same relay shape as the case Invite.
     adr:
     - ADR-0113
+    - ADR-0114
     stories:
     - story_2022_014
   - id: EP-09-003

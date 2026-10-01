@@ -654,15 +654,19 @@ groups:
     - order: 1
       actor: vendor1
       action: POST invite-actor-to-case trigger for Vendor2
-      expected: CaseActor receives and queues Invite(Actor, Case) for Vendor2
+      expected: >-
+        CaseActor receives and queues Invite(Actor, VulnerabilityCaseStub) for Vendor2
     - order: 2
       actor: demo-script
-      action: Poll Vendor2 DataLayer until Invite(Actor, Case) is visible
+      action: >-
+        Poll Vendor2 DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
       expected: Invite activity present in Vendor2 DataLayer
     - order: 3
       actor: vendor2
       action: POST accept-case-invite trigger
-      expected: Vendor2 becomes SIGNATORY participant; CaseActor seeds Vendor2 case replica
+      expected: >-
+        Vendor2 joins the case and becomes SIGNATORY (active); CaseActor seeds Vendor2
+        case replica
     postconditions:
     - description: Vendor2 is a SIGNATORY participant with EM consent; Vendor2 holds a
         seeded case replica; scenario may advance to fix tracking
@@ -745,16 +749,18 @@ groups:
     - order: 1
       actor: vendor1
       action: POST invite-actor-to-case trigger targeting Coordinator
-      expected: CaseActor queues Invite(Actor, Case) for Coordinator inbox
+      expected: >-
+        CaseActor queues Invite(Actor, VulnerabilityCaseStub) for Coordinator inbox
     - order: 2
       actor: demo-script
-      action: Poll Coordinator DataLayer until Invite(Actor, Case) is visible
+      action: >-
+        Poll Coordinator DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
       expected: Invite activity present in Coordinator DataLayer
     - order: 3
       actor: coordinator
       action: POST accept-case-invite trigger
       expected: >-
-        Coordinator becomes participant with CVDRole.COORDINATOR (not CASE_MANAGER);
+        Coordinator joins the case (active) with CVDRole.COORDINATOR (not CASE_MANAGER);
         CaseActor seeds Coordinator case replica
     postconditions:
     - description: >-
@@ -936,7 +942,8 @@ groups:
       In FVCV-extension, Vendor1 approves a Coordinator suggestion. In FVCV-handoff,
       the Coordinator is the owner and invites directly — no approval step is needed.
       The Vendor2 accept-invite step is mandatory: per MV-10-004 an Invite alone does
-      not seed the replica; the CaseActor's Announce fires only after Accept(Invite).
+      not seed the replica; the CaseActor's Announce fires only after the stub
+      Invite is accepted (CM-11-008).
     preconditions:
     - description: >-
         Coordinator holds CVDRole.CASE_OWNER (DEMOMA-11-002 complete); Vendor2 container
@@ -945,16 +952,17 @@ groups:
     - order: 1
       actor: coordinator
       action: POST invite-actor-to-case trigger for Vendor2
-      expected: CaseActor queues Invite(Actor, Case) for Vendor2
+      expected: CaseActor queues Invite(Actor, VulnerabilityCaseStub) for Vendor2
     - order: 2
       actor: demo-script
-      action: Poll Vendor2 DataLayer until Invite(Actor, Case) is visible
+      action: >-
+        Poll Vendor2 DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
       expected: Invite activity present in Vendor2 DataLayer
     - order: 3
       actor: vendor2
       action: POST accept-case-invite trigger directed to CaseActor
       expected: >-
-        Vendor2 becomes SIGNATORY participant; CaseActor emits
+        Vendor2 joins the case and becomes SIGNATORY (active); CaseActor emits
         Announce(VulnerabilityCase) to seed Vendor2 case replica
     - order: 4
       actor: demo-script
@@ -1051,7 +1059,7 @@ groups:
       actor: demo-script
       action: >-
         After Coordinator invites Vendor2: poll Vendor2's DataLayer until
-        Invite(Actor, Case) is visible
+        Invite(Actor, VulnerabilityCaseStub) is visible
       expected: Invite activity present in Vendor2 DataLayer
     - order: 4
       actor: demo-script
@@ -1227,11 +1235,13 @@ groups:
       actor: coordinator
       action: POST invite-actor-to-case trigger for Finder
       expected: >-
-        Invite(Actor, Case) sent from CaseActor (not Coordinator) to Finder
-        inbox (PCR-08-007); invitation record present in Finder DataLayer
+        Invite(Actor, VulnerabilityCaseStub) sent from CaseActor (not Coordinator)
+        to Finder inbox (PCR-08-007); invitation record present in Finder
+        DataLayer
     - order: 2
       actor: demo_script
-      action: Poll Finder DataLayer until Invite(Actor, Case) is visible
+      action: >-
+        Poll Finder DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
       expected: Invitation record present in Finder replica
     - order: 3
       actor: finder
@@ -1266,10 +1276,11 @@ groups:
     - order: 1
       actor: coordinator
       action: POST invite-actor-to-case trigger for Vendor
-      expected: Invite(Actor, Case) delivered to Vendor inbox
+      expected: Invite(Actor, VulnerabilityCaseStub) delivered to Vendor inbox
     - order: 2
       actor: demo_script
-      action: Poll Vendor DataLayer until Invite(Actor, Case) is visible
+      action: >-
+        Poll Vendor DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
       expected: Invitation record present in Vendor replica
     - order: 3
       actor: vendor
@@ -1528,16 +1539,16 @@ groups:
     - order: 1
       actor: c1
       action: POST invite-actor-to-case trigger targeting C2
-      expected: CaseActor queues Invite(Actor, Case) for C2's inbox
+      expected: CaseActor queues Invite(Actor, VulnerabilityCaseStub) for C2's inbox
     - order: 2
       actor: demo-script
-      action: Poll C2 DataLayer until Invite(Actor, Case) is visible
+      action: Poll C2 DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
       expected: Invite activity present in C2 DataLayer
     - order: 3
       actor: c2
       action: POST accept-case-invite trigger
       expected: >-
-        C2 becomes participant with CVDRole.COORDINATOR (not CASE_MANAGER);
+        C2 joins the case (active) with CVDRole.COORDINATOR (not CASE_MANAGER);
         CaseActor seeds C2 case replica
     postconditions:
     - description: >-
@@ -1610,7 +1621,7 @@ groups:
       actor: vendor
       action: POST accept-case-invite trigger
       expected: >-
-        Vendor becomes participant with CVDRole.VENDOR;
+        Vendor joins the case (active) with CVDRole.VENDOR;
         CaseActor seeds Vendor case replica with full history
     postconditions:
     - description: >-
@@ -1785,7 +1796,7 @@ groups:
     - order: 2
       actor: c2
       action: POST accept-case-invite trigger
-      expected: C2 becomes a participant with CVDRole.COORDINATOR
+      expected: C2 joins the case (active) with CVDRole.COORDINATOR
     postconditions:
     - description: C2 is a participant; CVDRole.COORDINATOR; case attributed_to=C1.
     relationships:
@@ -1840,7 +1851,7 @@ groups:
     - order: 2
       actor: vendor
       action: POST accept-case-invite trigger directed to CaseActor
-      expected: Vendor becomes a participant; Accept delivered to CaseActor inbox
+      expected: Vendor joins the case (active); Accept delivered to CaseActor inbox
     postconditions:
     - description: Vendor is a participant; all five actors have case replicas.
     relationships:
@@ -2235,14 +2246,14 @@ groups:
     kind: project
     statement: >-
       The FCV-reject scenario expected-event-types list MUST include
-      `invite_actor_to_case` and `reject_invite_actor_to_case` in addition to
-      the universal types (DEMOMA-16-001), because the Coordinator invites
-      the Vendor and the Vendor sends `Reject(Invite(actor, case))` (an
+      `invite_actor_to_case` and `reject_invite_actor_to_case` in addition to the
+      universal types (DEMOMA-16-001), because the Coordinator invites the Vendor and
+      the Vendor sends `Reject(Invite(Actor, VulnerabilityCaseStub))` (an
       invitation-layer rejection), which triggers
-      `RejectInviteActorToCaseReceivedUseCase` on the CaseActor and produces
-      the `reject_invite_actor_to_case` ledger entry. The Vendor never sends
-      `Accept(Invite(actor, case))`, so `accept_invite_actor_to_case` does NOT
-      appear in this scenario.
+      `RejectInviteActorToCaseReceivedUseCase` on the CaseActor and produces the
+      `reject_invite_actor_to_case` ledger entry. The Vendor never sends
+      `Accept(Invite(Actor, VulnerabilityCaseStub))`, so `accept_invite_actor_to_case`
+      does NOT appear in this scenario.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -4142,11 +4153,12 @@ groups:
       `invite-actor-to-case` trigger. Coordinator's case role MUST be
       `CVDRole.OBSERVER` only — NOT `CVDRole.COORDINATOR`. Coordinator MUST
       accept the invitation via the `accept-case-invite` trigger and MUST
-      become an embargo SIGNATORY, which is the prerequisite for receiving
-      case-content announcements as an Observer (CM-25, CM-26).
+      become an embargo SIGNATORY, which, because the case has an active
+      embargo, is what makes it an active participant entitled to case-content
+      announcements as an Observer (CM-10-004, CM-25, CM-26).
     rationale: >-
-      An OBSERVER who is not a SIGNATORY receives no case updates per the
-      embargo semantics ("absent embargo participation OBSERVER sees nothing").
+      An OBSERVER that has not joined, or that is not SIGNATORY while an embargo
+      is active, is inert and receives no case updates (CM-10-004).
       The Invite/Accept exchange (CM-25) is the correct admission mechanism
       regardless of role. Coordinator's role is explicitly limited to OBSERVER:
       assigning CVDRole.COORDINATOR here would be semantically incorrect because
@@ -4155,10 +4167,11 @@ groups:
     - order: 1
       actor: vendor
       action: POST invite-actor-to-case trigger for Coordinator with OBSERVER role
-      expected: Invite(Actor, Case) sent to Coordinator inbox
+      expected: Invite(Actor, VulnerabilityCaseStub) sent to Coordinator inbox
     - order: 2
       actor: demo_script
-      action: Poll Coordinator DataLayer until Invite(Actor, Case) is visible
+      action: >-
+        Poll Coordinator DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
       expected: Invitation record present in Coordinator replica
     - order: 3
       actor: coordinator
@@ -4402,15 +4415,15 @@ groups:
       Coordinator, Vendor, and CaseActor — each with its own isolated DataLayer
       and separate container, with the Coordinator holding CVDRole.CASE_OWNER and
       the CaseActor holding CVDRole.CASE_MANAGER throughout. The Vendor MUST be
-      seeded as a full actor identity even though it never becomes a case
-      participant.
+      seeded as a full actor identity even though it never becomes an active
+      participant (CM-10-004).
     rationale: >-
       The topology is DEMOMA-12's (FCV): the scenario exists to isolate one
       divergence — the invitation response — so every other variable is held
       equal. The Vendor needs a real identity and container because the rejection
-      is a protocol message it must author; a stub could not send
-      `Reject(Invite(actor, case))`, and the point of the scenario is that the
-      rejection travels the wire.
+      is a protocol message it must author; a placeholder actor could not send
+      `Reject(Invite(Actor, VulnerabilityCaseStub))`, and the point of the
+      scenario is that the rejection travels the wire.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
@@ -4423,20 +4436,24 @@ groups:
     kind: project
     statement: >-
       The Vendor MUST reject the case invitation by sending
-      `Reject(Invite(actor, case))`, and the CaseActor MUST record a
-      `reject_invite_actor_to_case` ledger entry. The Vendor MUST NOT be added
-      as a CaseParticipant, MUST NOT receive a case ledger replica, and MUST NOT
-      appear in any subsequent participant-status fan-out.
+      `Reject(Invite(Actor, VulnerabilityCaseStub))`, and the CaseActor MUST
+      record a `reject_invite_actor_to_case` ledger entry. The Vendor's
+      participant record, created by the stub Invite, MUST end at `RM.CLOSED`;
+      the Vendor MUST NOT become active, MUST NOT receive a case ledger replica,
+      and MUST NOT appear as a recipient of any subsequent case-content
+      fan-out.
     rationale: >-
       This is the only scenario covering the invitation-layer rejection path, so
-      it is the only place the protocol's "invited but not participating" outcome
-      is exercised end to end. The negative half is the load-bearing half: a
-      rejection that still created a participant, or still shipped a replica,
-      would satisfy a check that only looked for the ledger entry while leaving
-      the case in a state the protocol forbids.
+      it is the only place the protocol's "invited but never participating"
+      outcome is exercised end to end. The negative half is the load-bearing
+      half: a rejection that still made the Vendor active, or still shipped a
+      replica, would satisfy a check that only looked for the ledger entry while
+      leaving the case in a state the protocol forbids (ADR-0114).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-27-001
+    adr:
+    - ADR-0114
     tags:
     - demo
   - id: DEMOMA-27-003
@@ -4474,18 +4491,19 @@ groups:
       actor: coordinator
       action: >-
         invite_vendor_reject phase — Coordinator sends
-        `Invite(actor, case)` to the Vendor with CVDRole.VENDOR
+        `Invite(Actor, VulnerabilityCaseStub)` to the Vendor with CVDRole.VENDOR
       expected: >-
         `invite_actor_to_case` recorded in the case-actor log
         (DEMOMA-16-011)
     - order: 3
       actor: vendor
       action: >-
-        Vendor responds with `Reject(Invite(actor, case))` rather than
+        Vendor responds with `Reject(Invite(Actor, VulnerabilityCaseStub))` rather than
         `Accept(...)`
       expected: >-
-        `reject_invite_actor_to_case` recorded; the Vendor is not added as a
-        CaseParticipant and holds no case ledger replica (DEMOMA-27-002)
+        `reject_invite_actor_to_case` recorded; the Vendor's participant record
+        is at RM.CLOSED, it never becomes active, and it holds no case ledger
+        replica (DEMOMA-27-002)
     - order: 4
       actor: coordinator
       action: >-

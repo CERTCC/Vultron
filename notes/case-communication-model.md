@@ -30,6 +30,7 @@ related_notes:
   - notes/outbox.md
   - notes/use-case-protocol.md
   - notes/protocol-asks.md
+  - notes/case-joining.md
 relevant_packages:
   - vultron/core/use_cases/triggers
   - vultron/core/use_cases/received
@@ -218,30 +219,48 @@ the recipient when building outbound participant activities.
 ## Invite/Accept Handshake Routing
 
 Adding a new participant to an active case uses `RmInviteToCaseActivity` /
-`RmAcceptInviteToCaseActivity`. Because the invitee is not yet a participant,
-the standard CASE_MANAGER → broadcast model cannot be used to deliver the invite.
-However, the CASE_MANAGER MUST still be the authoritative actor in the exchange.
+`RmAcceptInviteToCaseActivity`. The stub Invite creates the invitee's
+participant record, but the record is **inert** — it receives no case content
+(CM-10-004) — so the standard CASE_MANAGER → broadcast model cannot deliver the
+invite. The CASE_MANAGER MUST still be the authoritative actor in the exchange.
+The join model is ADR-0114 and ADR-0070; the full flow is in
+[case-joining.md](case-joining.md).
 
 ### Correct Flow
 
+This is the target model (CM-11, ADR-0114, ADR-0070). The code still creates
+the participant on `Accept(Invite)`; the implementation issues spawned from
+issue #4006 move it.
+
 ```text
 Case Owner triggers SvcInviteActorToCaseUseCase
-  → CASE_MANAGER sends Invite(actor=case_actor_id, attributedTo=case_owner_id)
-    → Invitee's inbox
+  → CASE_MANAGER creates the invitee's CaseParticipant (inert: RM.RECEIVED,
+    VF v for a vendor, consent INVITED if an embargo is active) and commits
+    the creation to the ledger (CM-11-006)
+  → CASE_MANAGER sends Invite(Actor, VulnerabilityCaseStub,
+    actor=case_actor_id, attributedTo=case_owner_id) → invitee's inbox
 
-Invitee sends Accept(Invite, actor=invitee_id, to=[case_actor_id])
+Invitee sends Accept(Invite(stub), actor=invitee_id, to=[case_actor_id])
   → CASE_MANAGER's inbox (NOT the case owner's inbox)
 
 AcceptInviteActorToCaseReceivedUseCase, at every receiver of a copy:
   1. Commits the receipt CaseLedgerEntry (guarded; CLP-10-006)
   2. CASE_MANAGER gate (create_case_manager_gated_tree, BT-17-001):
      a non-manager stops here and the handler reports REFUSED (HP-01-005)
-  3. Creates the CaseParticipant at RM.START, persists it, advances it to
-     RM.RECEIVED through the ParticipantStatus writer (ADR-0089)
-  4. Emits Add(CaseParticipant), commits its CaseLedgerEntry →
-     Announce(CaseLedgerEntry) broadcast
-  5. Emits Announce(VulnerabilityCase) to the invitee and backfills the
-     prior ledger to it
+  3. Activates the existing record: RM stays RECEIVED, VF V for a vendor,
+     consent SIGNATORY if an embargo is active (CM-11-001) — joining, not a
+     judgement of the case
+  4. Emits Announce(VulnerabilityCase) to the participant and replays the
+     prior ledger to it (CM-11-008)
+  5. Queues the full-case Invite(Actor, VulnerabilityCase) after the last
+     replayed entry, carrying its ledger tail position (CM-11-010)
+
+Participant replies to the full-case Invite, carrying its own ledger position:
+  Accept (RV) → RM.VALID · TentativeReject (RI) → RM.INVALID ·
+  Reject (RC) → RM.CLOSED (CM-11-011)
+
+Reject(Invite(stub)) instead of Accept → RM.CLOSED on the kept, inert record
+(CM-11-007)
 ```
 
 ### Key Rules
@@ -259,9 +278,11 @@ AcceptInviteActorToCaseReceivedUseCase, at every receiver of a copy:
   (`resolve_receiving_actor_id()`), never as a CASE_MANAGER address looked
   up from the store: that ran the tree under a foreign identity and let the
   gate pass for a store that was not the manager's (BT-17-006, #3823).
-- No `RmEngageCaseActivity` is emitted on behalf of the invitee.
-  `Accept(Invite)` is semantically equivalent to engaging, so the
-  separate engage step is redundant.
+- No `RmEngageCaseActivity` is emitted on behalf of the invitee. Accepting
+  the stub Invite is *joining* — RM stays `RECEIVED` (CM-11-001) — and
+  accepting the full-case Invite is RV (`RM.VALID`, CM-11-011). Neither is
+  engagement: only the participant's own `Join(VulnerabilityCase)` records
+  `RM.ACCEPTED` (CM-11-004).
 
 ### Implementation Pattern: Role-Gated Emit, CASE_MANAGER Executes
 
@@ -443,13 +464,13 @@ bridge.execute_with_setup(tree, actor_id=invitee_id)   # spoofed actor
 ```
 
 ```python
-# ✅ CORRECT — the CASE_MANAGER advances the invitee's RM state through the sole
-# writer, in its own DataLayer, attributing the write to the invitee — no proxy
-# activity and no spoofed invitee BT (ADR-0089):
+# ✅ CORRECT — the CASE_MANAGER advances the participant's RM state through the
+# sole writer, in its own DataLayer, attributing the write to the participant —
+# no proxy activity and no spoofed participant BT (ADR-0089):
 BTBridge(datalayer=dl).execute_with_setup(
     CreateParticipantStatusNode(
         actor_id=invitee_id,        # subject of the write
-        rm_state=RM.ACCEPTED,
+        rm_state=RM.VALID,          # Accept of the full-case Invite (CM-11-011)
         vf_state=None, d_state=None, pxa_state=None,
     ),
     actor_id=case_actor_id,         # the executing actor (owner of this store)
@@ -457,9 +478,10 @@ BTBridge(datalayer=dl).execute_with_setup(
 )
 ```
 
-The `Accept(Invite)` message is the invitee's engage decision. The CASE_MANAGER
-records that decision as a direct RM state update, without emitting a proxy
-`RmEngageCaseActivity` (PCR-08-010).
+A reply to the full-case Invite is the participant's judgement of the case
+(RV/RI/RC, CM-11-011; ADR-0070). The CASE_MANAGER records it as a direct RM
+state update, without emitting a proxy activity on the participant's behalf
+(PCR-08-010). The stub `Accept` moves no RM state at all (CM-11-001).
 
 ---
 

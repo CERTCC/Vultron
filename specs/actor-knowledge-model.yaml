@@ -51,16 +51,21 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `target` field is the one slot that MAY carry a reference to the case rather than the
-      case inline, and only in two forms: the case URI, when the recipient already holds the case
-      (a participant or the CASE_MANAGER being addressed about it); or the selective-disclosure
-      stub (`as_VulnerabilityCaseStub`) an `Invite` sends to an actor that does not yet hold it.
-      A full case MUST NOT travel in `target`; the factory reduces one to its URI.
+      The `target` field is the one slot that MAY carry a reference to the case rather
+      than the case inline, and only in two forms: the case URI, when the recipient
+      already holds the case (a participant or the CASE_MANAGER being addressed about
+      it, as in the full-case Invite of CM-11-010); or the case stub
+      (`VulnerabilityCaseStub`, CM-11-013) the stub Invite sends to an actor that does
+      not yet hold the case. A full case MUST NOT travel in `target`; the factory
+      reduces one to its URI.
     verification: >-
-      `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py` checks every
-      trigger-port activity's `target`: a `VulnerabilityCase` there is a URI or carries only stub
-      keys. `test/wire/as2/factories/test_case_context.py` checks `case_target_ref` reduces a
-      full case to its URI and leaves a stub and a URI alone.
+      `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py` checks
+      every trigger-port activity's `target`: a case there is a URI or an object of type
+      `VulnerabilityCaseStub`. `test/wire/as2/factories/test_case_context.py` checks
+      `case_target_ref` reduces a full case to its URI and leaves a stub and a URI
+      alone.
+    adr:
+    - ADR-0114
     stories:
     - story_2022_053
     - story_2022_024

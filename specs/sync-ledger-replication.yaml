@@ -147,11 +147,14 @@ groups:
     kind: protocol
     statement: >-
       Replication MUST originate from the replication leader (the actor holding the
-      CASE_MANAGER role) and be sent to each Participant Actor individually
+      CASE_MANAGER role) and be sent individually to every active participant
+      (CM-10-004).
     verification: >-
       Integration tests in `test/demo/` confirm that replication originates from the
-      actor holding the CASE_MANAGER role and is addressed to each Participant
-      Actor individually.
+      actor holding the CASE_MANAGER role, is addressed to each active participant
+      individually, and is not addressed to an inert participant.
+    adr:
+    - ADR-0114
     stories:
     - story_2022_045
     - story_2022_046

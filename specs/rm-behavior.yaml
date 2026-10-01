@@ -873,7 +873,10 @@ groups:
     kind: protocol
     statement: >-
       A Participant entering RM Received SHOULD initiate a report validation
-      process to determine whether the report is Valid or Invalid.
+      process to determine whether the report is Valid or Invalid. A Participant
+      that joined a case through an Invite validates the case instead, once it
+      has joined, by replying to the full-case Invite (CM-11-011); an invitee
+      that has not joined has nothing to validate.
     rationale: >-
       Received is the intake state that exists specifically to await validation.
       Failing to validate leaves the report stuck and blocks all subsequent
@@ -904,6 +907,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-009
       note: Proceed only after validating received reports
+    adr:
+    - ADR-0070
 
   - id: RMB-09-002
     priority: MAY
@@ -1397,7 +1402,7 @@ groups:
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
-      A Participant SHOULD NOT close a report (q^rm ∈ {I,D,A} → C) while an
+      A Participant SHOULD NOT close a report (q^rm ∈ {R,I,D,A} → C) while an
       active embargo is in force (q^em ∈ {A,R}) unless they first communicate
       their closure intent and continued embargo stance to other Participants.
     rationale: >-
@@ -1407,13 +1412,14 @@ groups:
     testable: true
     preconditions:
     - rm_state:
+        - RECEIVED
         - INVALID
         - DEFERRED
         - ACCEPTED
       em_state:
         - ACTIVE
         - REVISE
-      description: Participant is in RM Invalid/Deferred/Accepted; EM state is Active or Revise
+      description: Participant is in RM Received/Invalid/Deferred/Accepted; EM state is Active or Revise
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -1426,6 +1432,48 @@ groups:
         SHOULD communicate intent to adhere or terminate compliance when closing
         during an active embargo
 
+  - id: RMB-14-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The RM transition function MUST permit closing from *Received*
+      (q^rm R → C) in addition to I → C, A → C and D → C, and MUST NOT permit
+      closing from *Valid* (VP-02-004). A `Reject` sent from RM Received — of a
+      report Offer, a stub Invite (CM-11-007) or a full-case Invite
+      (CM-11-011) — is the R → C transition.
+    rationale: >-
+      `Reject` means close and `TentativeReject` means invalid, so a hard no
+      from *Received* needs its own edge rather than a bypass of the transition
+      table. *Valid* keeps no close edge: a participant that found a report
+      valid decides to engage or defer before it leaves (ADR-0114).
+    verification: >-
+      The RM transition table test asserts R → C is permitted and V → C is
+      not, and `docs/topics/process_models/rm/formal_model.md` states the same
+      transition function.
+    adr:
+    - ADR-0114
+    stories:
+    - story_2022_006
+  - id: RMB-14-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Every RM closure MUST be written as transitions the RM transition function
+      permits; no closure path may override the transition table. A
+      participant at RM Valid that leaves the case (`Leave(VulnerabilityCase)`,
+      CM-23-012) MUST be recorded as V → D → C.
+    rationale: >-
+      Closing from *Received* and from *Valid* used to go through the
+      `force_rm_state` override, which skips the table. With R → C in the table
+      (RMB-14-004) and *Valid* routed through *Deferred*, every closure is an
+      ordinary transition (ADR-0114).
+    verification: >-
+      A test confirms a `Leave` from RM Valid records V → D → C, and an
+      architecture test confirms no closure path calls `force_rm_state`.
+    adr:
+    - ADR-0114
+    stories:
+    - story_2022_006
 - id: RMB-15
   title: RM Write-Boundary Transition Validation
   description: >-
