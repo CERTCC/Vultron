@@ -141,7 +141,7 @@ Consistency".
 
 ## Config in Fixtures
 
-`vultron/config/app.py` keeps a process-global `_config_cache`. Prefer
+`vultron/config/app.py` caches `get_config()` process-wide. Prefer
 `config_override()`; where you cannot, `monkeypatch.undo()` MUST precede
 `reload_config()` in teardown, or the patched value is pinned into the cache for
 the rest of the session. A module that depends on a `VULTRON_*` setting MUST set
