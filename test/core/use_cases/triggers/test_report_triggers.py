@@ -701,7 +701,7 @@ class TestSvcSubmitReportUseCase:
         assert link is not None, "VultronReportCaseLink not found in DataLayer"
         assert isinstance(link, VultronReportCaseLink)
         assert link.report_id == report_id
-        assert link.trusted_case_creator_id == self.vendor.id_
+        assert link.case_creator_id == self.vendor.id_
 
     @pytest.mark.spec("TRIG-07-001")
     def test_submit_report_returns_offer_dict(self):

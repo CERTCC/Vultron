@@ -415,7 +415,7 @@ class TestFindCaseActorId:
     def test_link_path_takes_precedence(
         self, cm_dl: SqliteDataLayer, cm_participant: CaseParticipant
     ) -> None:
-        """A link with trusted_case_actor_id wins over the role path.
+        """A link with case_manager_id wins over the role path.
 
         The two resolution paths disagree here on purpose: the link records
         ``case-actor-from-link`` while the roster names ``cm_participant``, so
@@ -426,7 +426,7 @@ class TestFindCaseActorId:
             VultronReportCaseLink(
                 report_id="https://example.org/reports/r1",
                 case_id=_CM_CASE_ID,
-                trusted_case_actor_id=link_actor_id,
+                case_manager_id=link_actor_id,
             )
         )
         cm_dl.create(cm_participant)
@@ -538,7 +538,7 @@ class TestFindCaseActorId:
     ) -> None:
         """Only a *completed* link records a trusted address.
 
-        A pending link carries ``trusted_case_creator_id`` — the actor a
+        A pending link carries ``case_creator_id`` — the actor a
         proposal went *to* — which is a proposal target, not a confirmed
         authority.  With no CASE_MANAGER on the roster to corroborate it, there
         is nothing to route to.
@@ -546,7 +546,7 @@ class TestFindCaseActorId:
         cm_dl.create(
             VultronReportCaseLink(
                 report_id="https://example.org/reports/other",
-                trusted_case_creator_id=(
+                case_creator_id=(
                     "https://example.org/actors/case-actor-unrelated"
                 ),
             )
