@@ -16,34 +16,39 @@
 """
 Trigger router for case-management behaviors.
 
-Thin wrapper: validates request → calls adapter → returns response.
+Thin wrapper: validates the HTTP body, builds the verb's core request and hands
+it to :func:`~vultron.adapters.driving.fastapi.trigger_runner.run_trigger`.
 All domain logic lives in vultron.core.use_cases.triggers.case.
 """
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
     get_trigger_dispatcher,
     get_trigger_dl,
-    get_trigger_service,
 )
-from vultron.adapters.driving.fastapi.errors import domain_error_translation
-from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-from vultron.adapters.driving.fastapi.trigger_models import (
+from vultron.adapters.driving.fastapi.trigger_runner import run_trigger
+from vultron.core.models.use_case_result import (
+    ActivityResult,
+    CaseResult,
+    StatusResult,
+)
+from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
+from vultron.core.use_cases.triggers.request_bodies import (
     AddObjectToCaseRequest,
     AddOnBehalfStatusRequest,
     AddReportToCaseRequest,
     CaseTriggerRequest,
     CreateCaseRequest,
 )
-from vultron.adapters.driving.fastapi.trigger_runner import run_trigger
-from vultron.core.models.use_case_result import StatusResult
-from vultron.core.ports.datalayer import DataLayer
-from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
-from vultron.core.ports.trigger_service import TriggerServicePort
 from vultron.core.use_cases.triggers.requests import (
+    AddObjectToCaseTriggerRequest,
     AddOnBehalfStatusTriggerRequest,
+    AddReportToCaseTriggerRequest,
+    CreateCaseTriggerRequest,
+    DeferCaseTriggerRequest,
+    EngageCaseTriggerRequest,
 )
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
@@ -60,25 +65,28 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "and returns the activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_engage_case",
+    response_model=ActivityResult,
 )
 def trigger_engage_case(
     actor_id: str,
     body: CaseTriggerRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the engage-case behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004, TRIG-03-001, TRIG-03-002,
-        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
+        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.engage_case(actor_id, body.case_id)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+    return run_trigger(
+        EngageCaseTriggerRequest(actor_id=actor_id, case_id=body.case_id),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -92,25 +100,28 @@ def trigger_engage_case(
         "and returns the activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_defer_case",
+    response_model=ActivityResult,
 )
 def trigger_defer_case(
     actor_id: str,
     body: CaseTriggerRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the defer-case behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004, TRIG-03-001, TRIG-03-002,
-        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001
+        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.defer_case(actor_id, body.case_id)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+    return run_trigger(
+        DeferCaseTriggerRequest(actor_id=actor_id, case_id=body.case_id),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -126,28 +137,32 @@ def trigger_defer_case(
         "delegate here after performing type validation (TRIG-10-001)."
     ),
     operation_id="actors_trigger_add_object_to_case",
+    response_model=ActivityResult,
 )
 def trigger_add_object_to_case(
     actor_id: str,
     body: AddObjectToCaseRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """Add an existing AS2 object to a case.
 
     Implements:
         TRIG-10-001, TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004,
-        TRIG-03-001, TRIG-03-002, TRIG-04-001, TRIG-06-001, TRIG-06-002
+        TRIG-03-001, TRIG-03-002, TRIG-04-001, TRIG-06-001, TRIG-06-002,
+        TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.add_object_to_case(
+    return run_trigger(
+        AddObjectToCaseTriggerRequest(
             actor_id=actor_id,
             case_id=body.case_id,
             object_id=body.object_id,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -161,31 +176,34 @@ def trigger_add_object_to_case(
         "VulnerabilityReport to the new case."
     ),
     operation_id="actors_trigger_create_case",
+    response_model=CaseResult,
 )
 def trigger_create_case(
     actor_id: str,
     body: CreateCaseRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> CaseResult:
     """
     Trigger the create-case behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004, TRIG-03-001, TRIG-03-002,
-        TRIG-04-001
+        TRIG-04-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.create_case(
+    return run_trigger(
+        CreateCaseTriggerRequest(
             actor_id=actor_id,
             name=body.name,
             content=body.content,
             report_id=body.report_id,
             to=body.to,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -197,29 +215,32 @@ def trigger_create_case(
         "queues an AddReportToCaseActivity in the actor's outbox."
     ),
     operation_id="actors_trigger_add_report_to_case",
+    response_model=ActivityResult,
 )
 def trigger_add_report_to_case(
     actor_id: str,
     body: AddReportToCaseRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """
     Trigger the add-report-to-case behavior for the given actor.
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004, TRIG-03-001, TRIG-03-002,
-        TRIG-04-001
+        TRIG-04-001, TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.add_report_to_case(
+    return run_trigger(
+        AddReportToCaseTriggerRequest(
             actor_id=actor_id,
             case_id=body.case_id,
             report_id=body.report_id,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result.model_dump()
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(

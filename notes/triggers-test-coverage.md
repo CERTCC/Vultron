@@ -69,6 +69,15 @@ When you add a new trigger use case, create the matching `test_<use_case>.py`
 file in the same PR. Do not rely on integration coverage in
 `test_trignotify.py` or scenario demos to substitute for per-use-case tests.
 
+There is no facade-level suite to lean on either: `test_service.py` (48 tests
+over the retired `TriggerService`) was ported into the per-use-case files
+above and the per-router suites when the facade went (#3833, ADR-0110). The
+route-layer checks that every router suite used to repeat per endpoint — 202,
+the store the dispatcher is handed, the queued flush — live once, parametrized
+over the registry, in
+`test/adapters/driving/fastapi/test_trigger_routes_contract.py`; a per-router
+suite carries only the verb's domain assertions.
+
 ## PR-scope discipline
 
 Avoid bundling case-trigger and embargo-trigger changes in the same PR

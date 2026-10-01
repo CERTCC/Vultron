@@ -36,8 +36,7 @@ from vultron.core.states.em import EM
 def _no_outbox_delivery():
     """Suppress real outbox delivery for every test in this module."""
     with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
+        "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler",
         new_callable=AsyncMock,
     ):
         yield
@@ -203,28 +202,3 @@ def test_trigger_terminate_embargo_invalid_em_state_returns_409(
     assert resp.status_code == status.HTTP_409_CONFLICT
     data = resp.json()
     assert data["detail"]["error"] == "Conflict"
-
-
-def test_terminate_embargo_schedules_outbox_handler(
-    client_triggers, dl, actor, case_with_embargo
-):
-    """D5-6-TRIGDELIV: terminate-embargo schedules outbox delivery after execution."""
-    case_obj, _ = case_with_embargo
-    with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
-        new_callable=AsyncMock,
-    ) as mock_outbox:
-        resp = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/terminate-embargo",
-            json={"case_id": case_obj.id_},
-        )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
-    mock_outbox.assert_called_once()
-    assert mock_outbox.call_args.args[0] == actor.id_
-    assert mock_outbox.call_args.args[1] is dl
-    # No third positional: that slot is `emitter` now, and a store
-    # passed there silently becomes the emitter (see the ratchet in
-    # test/architecture/test_outbox_handler_emitter_keyword.py).
-    assert len(mock_outbox.call_args.args) == 2
-    assert "emitter" not in mock_outbox.call_args.kwargs

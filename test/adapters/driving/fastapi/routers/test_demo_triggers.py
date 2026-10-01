@@ -26,20 +26,12 @@ from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
 from vultron.adapters.utils import strip_id_prefix
-from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
-    get_trigger_dl,
-    get_trigger_service,
-)
+from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     demo_triggers as demo_triggers_router,
 )
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
-)
-from vultron.core.use_cases.triggers.service import TriggerService
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -115,19 +107,9 @@ def client_demo(dl):
     """
     from unittest.mock import AsyncMock, patch
 
-    from vultron.adapters.driven.sync_activity_adapter import (
-        SyncActivityAdapter,
-    )
-
     app = FastAPI()
     app.include_router(demo_triggers_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-    )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     mock_emitter = AsyncMock()
     with patch(
         "vultron.adapters.driving.fastapi.outbox_handler.get_default_emitter",
@@ -142,11 +124,7 @@ def client_trigger_only(dl):
     """Test client with only general trigger router — no demo routes."""
     app = FastAPI()
     app.include_router(trigger_case_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
-    )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     yield TestClient(app)
     app.dependency_overrides = {}
 
@@ -165,6 +143,105 @@ def case_with_actor(dl, actor):
     dl.create(participant)
     _add_case_manager(case_obj, dl)
     return case_obj
+
+
+@pytest.fixture
+def vendor_case(dl, actor):
+    """A case where the actor is an engaged VENDOR at the initial VF state.
+
+    The VF hop vf→Vf is role-gated to the Vendor (ADR-0075), and fix readiness
+    (``VF``) entails RM ∈ {ACCEPTED, DEFERRED, CLOSED} (CSB-15), so the demo
+    ``notify-fix-ready`` ratchet needs both the role and an RM.ACCEPTED status
+    that the bare ``case_with_actor`` participant does not carry.
+    """
+    from vultron.core.models.dimensions import RmDimension
+    from vultron.core.states.rm import RM
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_ParticipantStatus,
+    )
+
+    case_obj = as_VulnerabilityCase(name="TEST-DEMO-VENDOR-CASE")
+    participant = as_CaseParticipant(
+        attributed_to=actor.id_,
+        context=case_obj.id_,
+        case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor.id_,
+                context=case_obj.id_,
+                rm=RmDimension(state=RM.ACCEPTED),
+            )
+        ],
+    )
+    case_obj.case_participants.append(participant.id_)
+    case_obj.actor_participant_index[actor.id_] = participant.id_
+    dl.create(case_obj)
+    dl.create(participant)
+    _add_case_manager(case_obj, dl)
+    return case_obj
+
+
+# ---------------------------------------------------------------------------
+# Tests: POST /actors/{actor_id}/demo/notify-fix-ready  (DEMOMA-07-001)
+# ---------------------------------------------------------------------------
+
+
+class TestDemoNotifyFixReady:
+    """The two-hop VF ratchet (vf→Vf→VF) over the real dispatcher."""
+
+    @pytest.mark.spec("DEMOMA-07-001")
+    @pytest.mark.spec("TRIG-01-002")
+    def test_two_hops_leave_the_vendor_at_vf_fix_ready(
+        self, client_demo: TestClient, dl, actor, vendor_case
+    ):
+        """One request walks vf→Vf→VF; the response is the second hop's
+        status and the stored participant status reads ``VF``."""
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.cs import CS_vf
+
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/notify-fix-ready",
+            json={"case_id": vendor_case.id_},
+        )
+        assert response.status_code == status.HTTP_202_ACCEPTED, response.text
+        body = response.json()
+        assert set(body) == {"activity_id", "status_id"}
+        assert body["status_id"] is not None
+
+        participant = dl.read(vendor_case.actor_participant_index[actor.id_])
+        assert isinstance(participant, CaseParticipant)
+        vf_states = [
+            ps.vf.state
+            for ps in participant.participant_statuses
+            if ps.vf is not None
+        ]
+        assert vf_states[-1] == CS_vf.VF
+        assert CS_vf.Vf in vf_states, "the first hop (vf→Vf) must be recorded"
+        status_obj = dl.read(body["status_id"])
+        assert status_obj is not None
+
+    @pytest.mark.spec("TRIG-07-001")
+    def test_both_hops_are_queued_and_drained(
+        self, client_demo: TestClient, dl, actor, vendor_case
+    ):
+        """Two Add(ParticipantStatus) activities are emitted and the flushes the
+        route schedules drain them both."""
+        before = set(dl.outbox_list())
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/notify-fix-ready",
+            json={"case_id": vendor_case.id_},
+        )
+        assert response.status_code == status.HTTP_202_ACCEPTED, response.text
+        # ``client_demo`` runs the background flushes with a no-op emitter, so
+        # nothing the route queued is left behind.
+        assert set(dl.outbox_list()) - before == set()
+
+    def test_unknown_case_returns_404(self, client_demo: TestClient, actor):
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/notify-fix-ready",
+            json={"case_id": "urn:uuid:no-such-case"},
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 # ---------------------------------------------------------------------------

@@ -19,9 +19,8 @@
   groundwork) and at runtime through :func:`result_type_of`.
 - Every core request derives from its verb's body model, which owns the
   fields; ``actor_id`` is the one field the core adds (TRIG-06-001).
-- The adapter module re-exports the body models unchanged, so the OpenAPI
-  component names survive (TRIG-12-003) and ``CaseTriggerRequest`` is one
-  class.
+- The body models are the OpenAPI component schemas the routers import by
+  name (TRIG-12-003), and ``CaseTriggerRequest`` is one class.
 - The ``end_time`` rule is declared once and covers both the initial proposal
   and the revision (CS-22-001); the revision copy had no test before #3831.
 """
@@ -33,7 +32,6 @@ from typing import assert_type
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from vultron.adapters.driving.fastapi import trigger_models
 from vultron.core.models.use_case_result import (
     ActivityResult,
     CaseResult,
@@ -216,20 +214,9 @@ def _body_models() -> list[type[BaseModel]]:
     ]
 
 
-def test_adapter_module_re_exports_every_body_model_unchanged() -> None:
-    """TRIG-12-003: the OpenAPI component names are the same class objects."""
-    for body in _body_models():
-        assert getattr(trigger_models, body.__name__) is body
-        assert body.__name__ in trigger_models.__all__
-    assert (
-        trigger_models.EvaluateEmbargoRequest
-        is request_bodies.AcceptEmbargoRequest
-    )
-
-
 def test_case_trigger_request_is_defined_once() -> None:
     assert requests.CaseTriggerRequest is CaseTriggerRequest
-    assert trigger_models.CaseTriggerRequest is CaseTriggerRequest
+    assert request_bodies.CaseTriggerRequest is CaseTriggerRequest
 
 
 @pytest.mark.parametrize("body", _body_models(), ids=lambda cls: cls.__name__)

@@ -214,11 +214,11 @@ Design decisions for the `UseCaseResult` type hierarchy (`HandlerResult` /
 dispatcher boundary, the two semantically distinct request paths (`VultronEvent`
 vs `TriggerRequest`), why `UseCaseRequest` was not introduced, the trigger-side
 collapse to a one-method `TriggerDispatcher` port over a verb registry with a
-typed result hierarchy, and the ratchet test design. Received side and
-dispatcher chain are implemented; the trigger side is decided (ADR-0110) and
-planned as staged tasks, of which the golden OpenAPI snapshot (#3828), the
-typed result hierarchy with one request-model family (#3831), and the verb
-registry with the one-method port (#3832) are built. ADRs:
+typed result hierarchy, and the ratchet test design. Both sides are
+implemented: the received side and dispatcher chain, and the trigger side's
+golden OpenAPI snapshot (#3828), typed result hierarchy with one request-model
+family (#3831), verb registry with the one-method port (#3832) and route
+cutover that retired `TriggerService` (#3833, ADR-0110). ADRs:
 `docs/adr/0040-use-case-result-envelope.md` (original),
 `docs/adr/0095-received-side-handler-result.md` (received-side half), and
 `docs/adr/0110-trigger-dispatcher-port-over-verb-registry.md` (trigger-side half).

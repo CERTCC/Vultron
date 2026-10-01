@@ -24,9 +24,9 @@ The bodies live in core, not in the FastAPI adapter, because the core
 ``*TriggerRequest`` models in :mod:`vultron.core.use_cases.triggers.requests`
 derive from them and add ``actor_id`` (ADR-0110): one family, one
 ``CaseTriggerRequest``, one ``end_time`` validator. Core MUST NOT import the
-adapter layer (ARCH-03-001), so the base of the family is defined here and
-``vultron/adapters/driving/fastapi/trigger_models.py`` re-exports it under the
-names the routers and the OpenAPI document already use.
+adapter layer (ARCH-03-001), so the base of the family is defined here and the
+FastAPI routers import it from here under the names the OpenAPI document
+already uses.
 
 The models are declared as classes, not built with ``create_model``: FastAPI
 renders each class docstring as the component schema ``description``, and
@@ -157,10 +157,6 @@ class AcceptEmbargoRequest(CaseTriggerRequest):
     """
 
     proposal_id: NonEmptyString | None = None
-
-
-# Backward-compatible alias
-EvaluateEmbargoRequest = AcceptEmbargoRequest
 
 
 class RejectEmbargoRequest(CaseTriggerRequest):

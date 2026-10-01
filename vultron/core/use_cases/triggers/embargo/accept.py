@@ -106,6 +106,3 @@ class SvcAcceptEmbargoUseCase(SvcEmbargoTriggerBase):
                 self._case.id_,
                 lr.em_after,
             )
-
-
-SvcEvaluateEmbargoUseCase = SvcAcceptEmbargoUseCase

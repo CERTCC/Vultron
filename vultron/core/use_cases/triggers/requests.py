@@ -4,9 +4,8 @@ These are core-layer domain models (no HTTP imports) that carry every
 parameter a trigger use case needs, including ``actor_id``.  Each one derives
 from the verb's request *body* model in
 :mod:`vultron.core.use_cases.triggers.request_bodies` — the class FastAPI
-validates the HTTP body against, re-exported by
-``vultron/adapters/driving/fastapi/trigger_models.py`` — and adds ``actor_id``
-through :class:`TriggerRequest`.  The two families are therefore one
+validates the HTTP body against — and adds ``actor_id`` through
+:class:`TriggerRequest`.  The two families are therefore one
 (ADR-0110): the body model owns the fields and their validators (the
 ``end_time`` rule is declared once, on ``ProposeEmbargoRequest``), and
 ``CaseTriggerRequest`` is defined once and re-exported here for its existing
@@ -133,7 +132,7 @@ class RejectReportTriggerRequest(OfferTriggerRequest):
 
     Deliberately not derived from ``RejectReportRequest``: that body requires
     the ``note`` key so a client must state a reason (TRIG-03-004), while the
-    core request accepts the coerced ``None`` the service passes through.
+    core request accepts the coerced ``None`` the route passes through.
     """
 
     note: NonEmptyString | None = None
@@ -187,10 +186,6 @@ class AcceptEmbargoTriggerRequest(
     TriggerRequest[ActivityResult], AcceptEmbargoRequest
 ):
     pass
-
-
-# Backward-compatible alias
-EvaluateEmbargoTriggerRequest = AcceptEmbargoTriggerRequest
 
 
 class RejectEmbargoTriggerRequest(
@@ -381,7 +376,6 @@ __all__ = [
     "CreateCaseTriggerRequest",
     "DeferCaseTriggerRequest",
     "EngageCaseTriggerRequest",
-    "EvaluateEmbargoTriggerRequest",
     "InvalidateReportTriggerRequest",
     "InviteActorToCaseTriggerRequest",
     "LeaveCaseTriggerRequest",

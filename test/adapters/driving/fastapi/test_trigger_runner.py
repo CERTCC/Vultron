@@ -231,8 +231,8 @@ def test_emitting_outbox_falls_back_for_a_foreign_authority(
 ) -> None:
     """A CaseActor on another container cannot be drained from here; the emit
     was kept in the requester's store, so that is what is drained (#2484)."""
-    assert emitting_outbox(_FOREIGN_ACTOR, _ACTOR, dl, dl) == (_ACTOR, dl)
-    assert emitting_outbox(_ACTOR, _ACTOR, dl, dl) == (_ACTOR, dl)
-    flush_id, flush_dl = emitting_outbox(_CASE_ACTOR, _ACTOR, dl, dl)
+    assert emitting_outbox(_FOREIGN_ACTOR, _ACTOR, dl) == (_ACTOR, dl)
+    assert emitting_outbox(_ACTOR, _ACTOR, dl) == (_ACTOR, dl)
+    flush_id, flush_dl = emitting_outbox(_CASE_ACTOR, _ACTOR, dl)
     assert isinstance(flush_dl, SqliteDataLayer)
     assert (flush_id, flush_dl.actor_id) == (_CASE_ACTOR, _CASE_ACTOR)

@@ -31,17 +31,20 @@ non-trigger route under either prefix is noticed rather than silently excluded.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from typing import Any
 
 import pytest
+from fastapi import FastAPI
 from fastapi.routing import APIRoute
+from starlette.routing import BaseRoute
 
 from test.adapters.driving.fastapi.test_openapi_trigger_snapshot import (
     DEMO_PATH_FRAGMENT,
     TRIGGER_PATH_FRAGMENT,
     build_prototype_app,
+    is_frozen_path,
 )
-from vultron.adapters.driving.fastapi.routers import trigger_case
 from vultron.trigger_registry import TriggerExposure, entries, lookup_entry
 
 #: Reads under ``/demo/`` that are not triggers (SYNC-01-002, TRIG-09-001).
@@ -59,9 +62,15 @@ _FRAGMENT_TO_EXPOSURE = {
 
 
 @pytest.fixture(scope="module")
-def paths() -> dict[str, Any]:
-    """``paths`` of the prototype app's OpenAPI document, built once."""
-    document: dict[str, Any] = build_prototype_app().openapi()
+def app() -> FastAPI:
+    """The prototype app, built once: construction is slow."""
+    return build_prototype_app()
+
+
+@pytest.fixture(scope="module")
+def paths(app: FastAPI) -> dict[str, Any]:
+    """``paths`` of the prototype app's OpenAPI document."""
+    document: dict[str, Any] = app.openapi()
     paths: dict[str, Any] = document["paths"]
     return paths
 
@@ -76,7 +85,7 @@ def _mounted(paths: dict[str, Any]) -> set[tuple[str, str]]:
     }
 
 
-def _trigger_routes(
+def trigger_routes(
     paths: dict[str, Any],
 ) -> dict[tuple[TriggerExposure, str], str]:
     """``(exposure, verb)`` → path for every POST under either prefix."""
@@ -100,7 +109,7 @@ def test_trigger_routes_and_registry_rows_are_in_bijection(
     paths: dict[str, Any],
 ) -> None:
     """Exact equality: mounted ``(prefix, verb)`` == registry ``(exposure, verb)``."""
-    mounted = set(_trigger_routes(paths))
+    mounted = set(trigger_routes(paths))
     registered = {(row.exposure, row.verb) for row in entries()}
     assert mounted == registered, (
         "trigger routes and registry rows disagree.\n"
@@ -119,7 +128,7 @@ def test_every_row_is_mounted_under_its_exposures_prefix(
 ) -> None:
     """General-purpose rows under ``/trigger/`` only, demo-only under ``/demo/``
     only — each row's path carries its own prefix and not the other's."""
-    routes = _trigger_routes(paths)
+    routes = trigger_routes(paths)
     own = next(
         f for f, exp in _FRAGMENT_TO_EXPOSURE.items() if exp is exposure
     )
@@ -136,7 +145,7 @@ def test_every_row_is_mounted_under_its_exposures_prefix(
 def test_every_mounted_verb_looks_up_to_its_row(paths: dict[str, Any]) -> None:
     """The lookup function answers for each mounted verb with the same row the
     enumeration carries — one table, two views."""
-    for (exposure, verb), path in _trigger_routes(paths).items():
+    for (exposure, verb), path in trigger_routes(paths).items():
         row = lookup_entry(verb)
         assert row.exposure is exposure, (path, row)
 
@@ -154,15 +163,58 @@ def test_only_the_known_ledger_reads_are_non_trigger_routes(
     assert non_post == set(_KNOWN_NON_TRIGGER_ROUTES)
 
 
-@pytest.mark.spec("TRIG-12-001")
-def test_add_on_behalf_status_declares_its_rows_result_type() -> None:
-    """The first route on the shared helper declares the ``response_model`` its
-    registry row names; the remaining routes gain theirs when ``TriggerService``
-    is retired and the snapshot is regenerated for them (TRIG-12-003)."""
-    row = lookup_entry("add-on-behalf-status")
-    (route,) = [
+def _api_routes(routes: Iterable[BaseRoute]) -> Iterator[APIRoute]:
+    """Every ``APIRoute`` leaf, through included routers.
+
+    ``include_router`` registers a wrapper that holds the original router, so
+    the leaves are not on ``app.routes`` directly; this descends until it finds
+    them.  Paths come back without the mount prefix, which ``is_frozen_path``
+    does not need.
+    """
+    for route in routes:
+        if isinstance(route, APIRoute):
+            yield route
+            continue
+        nested: Iterable[BaseRoute] | None = getattr(
+            getattr(route, "original_router", None), "routes", None
+        ) or getattr(route, "routes", None)
+        if nested is not None:
+            yield from _api_routes(nested)
+
+
+def _trigger_api_routes(app: FastAPI) -> list[APIRoute]:
+    """Every mounted ``POST`` under ``/trigger/`` or ``/demo/``."""
+    return [
         r
-        for r in trigger_case.router.routes
-        if isinstance(r, APIRoute) and r.path.endswith(f"/{row.verb}")
+        for r in _api_routes(app.routes)
+        if is_frozen_path(r.path) and "POST" in (r.methods or set())
     ]
-    assert route.response_model is row.result_type
+
+
+@pytest.mark.spec("TRIG-12-001")
+def test_every_trigger_route_declares_a_response_model(app: FastAPI) -> None:
+    """A route without a ``response_model`` describes no response body in the
+    OpenAPI document; exact equality so none can be missing or extra."""
+    routes = _trigger_api_routes(app)
+    assert len(routes) == len(entries())
+    missing = sorted(r.path for r in routes if r.response_model is None)
+    assert missing == []
+
+
+@pytest.mark.spec("TRIG-12-001")
+@pytest.mark.spec("TRIG-12-004")
+def test_every_trigger_route_response_model_is_its_rows_result_type(
+    app: FastAPI,
+) -> None:
+    """The declared ``response_model`` is the registry row's ``result_type``
+    — the same class, so OpenAPI and the pinned key set cannot drift apart."""
+    mismatched = {
+        r.path: (
+            getattr(r.response_model, "__name__", r.response_model),
+            lookup_entry(r.path.rsplit("/", 1)[-1]).result_type.__name__,
+        )
+        for r in _trigger_api_routes(app)
+        if r.response_model
+        is not lookup_entry(r.path.rsplit("/", 1)[-1]).result_type
+    }
+    assert mismatched == {}

@@ -261,7 +261,10 @@ def test_revision_ends_no_later_orders_by_end_time_and_keeps_b_on_a_tie(
     active = _make_embargo(dl, case.id_, days=45)
     shorter = _make_embargo(dl, case.id_, days=30)
     longer = _make_embargo(dl, case.id_, days=90)
-    equal = _make_embargo(dl, case.id_, days=45)
+    # Same instant, not the same ``days``: a second ``days_from_now_utc(45)``
+    # ends a second later whenever a second boundary falls between the two
+    # mints, which made this tie fail on a slow runner (#4010).
+    equal = _make_embargo(dl, case.id_, end_time=active.end_time)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
     def ends_no_later(revised: str) -> bool:

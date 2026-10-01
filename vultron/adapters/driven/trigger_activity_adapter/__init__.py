@@ -64,9 +64,9 @@ class TriggerActivityAdapter(
 ):
     """Driven adapter for constructing and persisting outbound wire activities.
 
-    Instantiate once per request with the DataLayer for that request; pass to
-    :class:`~vultron.core.use_cases.triggers.service.TriggerService` as
-    ``trigger_activity``.
+    Instantiate once per request with the DataLayer for that request; the
+    :class:`~vultron.core.trigger_dispatcher.RegistryTriggerDispatcher` hands
+    it to every trigger use case as ``trigger_activity``.
 
     Args:
         dl: The DataLayer for reading persisted objects and creating activities.

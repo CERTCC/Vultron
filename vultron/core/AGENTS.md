@@ -14,10 +14,9 @@
   (e.g., `CreateReportReceivedUseCase`). See CS-12-002.
 - **Trigger use cases** (actor-initiated actions): Use `Svc` prefix
   (e.g., `SvcEngageCaseUseCase`). See CS-12-002.
-- **Trigger service functions** in `trigger_services/`: Use a `_trigger`
-  **suffix** (not an `svc_` prefix). For example: `engage_case_trigger`
-  not `svc_engage_case`. The `Svc` prefix is reserved for use-case class
-  names only.
+- **Trigger-side module functions** (e.g. `replay_missing_entries_trigger` in
+  `use_cases/triggers/sync.py`): Use a `_trigger` **suffix** (not an `svc_`
+  prefix). The `Svc` prefix is reserved for use-case class names only.
 - **Domain class names**: Use CVD-domain vocabulary, not wire-format parallels
   (e.g., `CaseTransferOffer` not `VultronOffer`). See CS-12-001.
 

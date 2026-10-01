@@ -521,6 +521,30 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
 
+    def test_invalidate_report_raises_when_actor_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        request = InvalidateReportTriggerRequest(
+            actor_id="urn:uuid:no-such-actor", offer_id=self.offer.id_
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcInvalidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+    def test_invalidate_report_raises_when_offer_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        request = InvalidateReportTriggerRequest(
+            actor_id=self.vendor.id_, offer_id="urn:uuid:no-such-offer"
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcInvalidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
 
 class TestSvcRejectReportUseCase(_ReportTriggerBase):
     """execute() path tests for SvcRejectReportUseCase."""
@@ -568,6 +592,35 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
         ).execute()
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
+
+    def test_reject_report_raises_when_actor_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        self._seed_invalid()
+        request = RejectReportTriggerRequest(
+            actor_id="urn:uuid:no-such-actor",
+            offer_id=self.offer.id_,
+            note="Reason.",
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcRejectReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+    def test_reject_report_raises_when_offer_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        request = RejectReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id="urn:uuid:no-such-offer",
+            note="Reason.",
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcRejectReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
 
 
 # ---------------------------------------------------------------------------
