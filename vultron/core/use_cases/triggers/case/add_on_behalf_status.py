@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase[StatusResult]):
-    """Assert v→V or d→D on behalf of a notified-but-not-joined vendor/deployer.
+    """Assert v→V or d→D on behalf of an existing vendor/deployer participant.
 
     The ``actor_id`` in the request is the *asserting* actor (Case Manager or
     Case Owner); ``target_actor_id`` identifies the vendor or deployer whose
@@ -45,6 +45,11 @@ class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase[StatusResult]):
 
     Only ``CS_vf.Vf`` (v→V) and ``CS_d.D`` (d→D) may be asserted on behalf;
     ``CS_vf.VF`` (f→F) is rejected at the request layer (ADR-0084, PRM-06-005).
+
+    The target MUST already be a participant holding the asserted dimension's
+    role; otherwise the trigger is refused before any write and no participant
+    is created (PRM-06-006, ADR-0114) — the refusal surfaces as a
+    :exc:`~vultron.errors.VultronValidationError` naming the target.
 
     BT-15-001: the ``ParticipantStatus`` write happens inside the BT via
     ``CreateParticipantStatusNode``, not directly in ``execute()``.

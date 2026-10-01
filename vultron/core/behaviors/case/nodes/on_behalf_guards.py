@@ -20,25 +20,19 @@ Implements the narrow externally-evidenced on-behalf exceptions from ADR-0084:
 - :class:`CheckOnBehalfAuthorizedNode` — on-behalf assertion gate:
   asserting actor MUST hold ``CVDRole.CASE_MANAGER`` or ``CVDRole.CASE_OWNER``
   (ADR-0084, PRM-06-003/004)
-- :class:`EnsureOnBehalfParticipantExistsNode` — creates a minimal
-  ``CaseParticipant`` for the target actor when absent from the case
-  (ADR-0084, PRM-06-003/004)
+- :class:`CheckOnBehalfTargetIsParticipantNode` — the target actor MUST
+  already be a participant holding the asserted dimension's role; an
+  on-behalf assertion never creates a participant (ADR-0084, PRM-06-006)
 """
 
 import logging
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.participant.common import (
-    _create_and_attach_participant,
-)
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     _resolve_actor_roles,
 )
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-    DataLayerConditionWithPorts,
-)
+from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 
@@ -98,23 +92,23 @@ class CheckOnBehalfAuthorizedNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class EnsureOnBehalfParticipantExistsNode(DataLayerActionWithPorts):
-    """Ensure the target actor has a CaseParticipant; create one if absent.
+class CheckOnBehalfTargetIsParticipantNode(DataLayerConditionWithPorts):
+    """Gate on-behalf assertions: the target MUST already be a participant.
 
-    For on-behalf v→V (AC-1) and d→D (AC-2): the target (vendor or deployer)
-    may not yet be a case participant.  This node looks up the target in
-    ``actor_participant_index``; if absent, creates a minimal ``CaseParticipant``
-    with ``required_roles`` and attaches it to the case so that
-    ``CreateParticipantStatusNode`` can append a status to it.
+    An on-behalf ``v→V`` or ``d→D`` records a status *about* an existing
+    participant; it is never a way into a case (PRM-06-006, ADR-0084,
+    ADR-0114).  Joining is the Invite flow.  This node is a pure read: it
+    writes nothing, so it can sit ahead of every write in the on-behalf tree.
 
-    When both ``vf_state`` and ``d_state`` are requested on the same actor
-    (e.g. a combined vendor-deployer), pass both roles so the single new
-    ``CaseParticipant`` satisfies both the VF and D precondition checks.
+    Returns ``FAILURE`` naming the target when either:
 
-    Returns ``SUCCESS`` when the participant exists or was just created.
-    Returns ``FAILURE`` if the case cannot be resolved.
+    - the target is not in ``case.actor_participant_index`` (PRM-06-006), or
+    - the target's participant does not hold every role in
+      ``required_roles`` — ``VENDOR`` for ``v→V`` (PRM-06-003),
+      ``DEPLOYER`` for ``d→D`` (PRM-06-004).  Every missing role is named
+      (EH-07-001).
 
-    Per ADR-0084, PRM-06-003/004.
+    Returns ``SUCCESS`` otherwise.
     """
 
     def __init__(
@@ -129,50 +123,55 @@ class EnsureOnBehalfParticipantExistsNode(DataLayerActionWithPorts):
         self._target_actor_id = target_actor_id
         self._required_roles = required_roles
 
+    def _refuse(self, message: str) -> Status:
+        self.feedback_message = message
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        dl = self.datalayer
 
         case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure  # Regime 1: case must exist (ADR-0087)
 
-        if self._target_actor_id in case.actor_participant_index:
-            self.logger.debug(
-                "%s: target actor '%s' already has a participant in case '%s'",
-                self.name,
-                self._target_actor_id,
-                self._case_id,
-            )
-            return Status.SUCCESS
-
-        participant = CaseParticipant(
-            attributed_to=self._target_actor_id,
-            context=self._case_id,
-            case_roles=self._required_roles,
+        participant_id = case.actor_participant_index.get(
+            self._target_actor_id
         )
-        updated_case = _create_and_attach_participant(
-            dl,
-            participant,
-            self._case_id,
-            self._target_actor_id,
-            self.logger,
-        )
-        if updated_case is None:
-            self.feedback_message = (
-                f"Failed to create/attach participant for"
-                f" '{self._target_actor_id}' in case '{self._case_id}'"
+        if participant_id is None:
+            return self._refuse(
+                f"On-behalf target '{self._target_actor_id}' is not a"
+                f" participant in case '{self._case_id}' — an on-behalf"
+                f" status assertion never creates a participant; invite the"
+                f" actor to the case first (PRM-06-006, ADR-0084)"
             )
-            return Status.FAILURE
 
-        dl.save(updated_case)
-        self.logger.info(
-            "%s: created on-behalf participant '%s' with roles %s in case '%s'",
+        participant = self.datalayer.read(participant_id)
+        if not isinstance(participant, CaseParticipant):
+            return self._refuse(
+                f"On-behalf target '{self._target_actor_id}' is indexed in"
+                f" case '{self._case_id}' but its participant record"
+                f" '{participant_id}' could not be read"
+            )
+
+        missing = [
+            r for r in self._required_roles if not participant.has_role(r)
+        ]
+        if missing:
+            return self._refuse(
+                f"On-behalf target '{self._target_actor_id}' in case"
+                f" '{self._case_id}' does not hold"
+                f" {', '.join(str(r) for r in missing)}"
+                f" — on-behalf assertion blocked (PRM-06-003, PRM-06-004)"
+                f" (roles={[str(r) for r in participant.roles]!r})"
+            )
+
+        self.logger.debug(
+            "%s: on-behalf target '%s' is a participant in case '%s'",
             self.name,
             self._target_actor_id,
-            self._required_roles,
             self._case_id,
         )
         return Status.SUCCESS

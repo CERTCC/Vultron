@@ -13,20 +13,31 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Structural tests for add_on_behalf_status_trigger_bt (CSB-15-004 wiring).
+"""Structural tests for add_on_behalf_status_trigger_bt.
 
 Verifies that CheckSomeVendorAtVFNode is included in the tree when d_state is
-non-None and excluded when d_state is None.
+non-None and excluded when d_state is None (CSB-15-004), and that the tree
+creates no participant: the target-is-participant guard precedes every write
+(PRM-06-006).
 """
 
 import py_trees.behaviour
+import pytest
 
 from vultron.core.behaviors.case.add_on_behalf_status_trigger_tree import (
     add_on_behalf_status_trigger_bt,
 )
+from vultron.core.behaviors.case.nodes.on_behalf_guards import (
+    CheckOnBehalfAuthorizedNode,
+    CheckOnBehalfTargetIsParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.participant import (
+    CreateParticipantStatusNode,
+)
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckSomeVendorAtVFNode,
 )
+from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.enums.roles import CVDRole
 
@@ -74,3 +85,30 @@ def test_causal_gate_absent_when_d_state_none() -> None:
     """
     tree = _make_tree(d_state=None, vf_state=CS_vf.Vf)
     assert CheckSomeVendorAtVFNode.__name__ not in _child_type_names(tree)
+
+
+@pytest.mark.spec("PRM-06-006")
+@pytest.mark.parametrize(
+    "dimension",
+    [{"vf_state": CS_vf.Vf}, {"d_state": CS_d.D}],
+    ids=["v-to-V", "d-to-D"],
+)
+def test_every_guard_precedes_the_only_write(dimension) -> None:
+    """The tree never creates a participant; its guards all run before the
+    single status write, so a refusal leaves nothing behind (PRM-06-006)."""
+    tree = _make_tree(**dimension)
+    names = _child_type_names(tree)
+    write_at = names.index(CreateParticipantStatusNode.__name__)
+    guard_at = names.index(CheckOnBehalfTargetIsParticipantNode.__name__)
+    assert names[0] == CheckOnBehalfAuthorizedNode.__name__
+    assert guard_at < write_at
+    assert all(
+        isinstance(child, DataLayerConditionWithPorts)
+        for child in tree.children[:write_at]
+    ), "only read-only condition nodes may precede the status write"
+    assert not any(
+        "Participant" in name
+        and name.startswith(("Create", "Attach", "Ensure"))
+        for name in names
+        if name != CreateParticipantStatusNode.__name__
+    )
