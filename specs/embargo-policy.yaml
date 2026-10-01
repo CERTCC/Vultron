@@ -509,9 +509,9 @@ groups:
       The 90-day constant and the shared blackboard key are gone (#3390): the fallback is
       `ActorConfig.protocol_default_embargo_duration`, published as
       `protocol_default_embargo_duration` beside `actor_default_embargo_duration`, and the
-      actor default is the shortest published policy, ties broken by policy id. Once #4027
-      lands, the actor default is the one policy the CASE_OWNER's profile carries (EP-01-001,
-      CP-01-010), and the tie-break has nothing left to choose between. The third
+      actor default is the one `embargo_policy` the CASE_OWNER's inline profile carries
+      (`actor_default_duration()`; EP-01-001, CP-01-010), so there is no list to select
+      from. The third
       implicit duration — `EmbargoEvent.end_time`'s 45-day `default_factory` in
       `vultron/core/models/embargo_event.py` — is gone too (#3404): `end_time` is required
       with no default, so every construction site states the end it means, and the protocol
@@ -519,8 +519,9 @@ groups:
     verification: >-
       Inspection of `vultron/core/behaviors/case/nodes/embargo_resolution.py` and
       `vultron/core/services/embargo_duration.py` confirms the actor default and the protocol
-      default are resolved under distinct names, and that actor-default selection is
-      deterministic rather than positional. Inspection of
+      default are resolved under distinct names, and that the actor default is read from
+      the single policy field of the CASE_OWNER's inline profile rather than selected from
+      the store. Inspection of
       `vultron/core/models/embargo_event.py` confirms no independent default embargo duration
       remains on `EmbargoEvent.end_time`.
     adr:

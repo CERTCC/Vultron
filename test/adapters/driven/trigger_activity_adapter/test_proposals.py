@@ -18,14 +18,28 @@ from datetime import timedelta
 
 import pytest
 
-from vultron.core.models.actor import VultronOrganization
+from vultron.core.models.actor import CoreActor, VultronOrganization
 from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.semantic_registry import extract_event
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
 _VENDOR = "https://example.org/actors/vendor"
 _CASE_ACTOR = "https://example.org/actors/case-actor"
+
+
+def _vendor_profile(duration: timedelta) -> VultronOrganization:
+    """The sender's own profile, with a published policy of *duration*."""
+    return VultronOrganization(
+        id_=_VENDOR,
+        embargo_policy=EmbargoPolicy(
+            actor_id=_VENDOR,
+            inbox=f"{_VENDOR}/inbox",
+            preferred_duration=duration,
+        ),
+    )
 
 
 def _make_report(dl) -> as_VulnerabilityReport:
@@ -41,16 +55,7 @@ class TestCreateCaseProposal:
     ):
         """The sender's own profile, policy included, is the Create's actor."""
         report = _make_report(dl)
-        dl.save(
-            VultronOrganization(
-                id_=_VENDOR,
-                embargo_policy=EmbargoPolicy(
-                    actor_id=_VENDOR,
-                    inbox=f"{_VENDOR}/inbox",
-                    preferred_duration=timedelta(days=30),
-                ),
-            )
-        )
+        dl.save(_vendor_profile(timedelta(days=30)))
 
         _, blob = adapter.create_case_proposal(
             actor=_VENDOR, report_id=report.id_, case_actor_id=_CASE_ACTOR
@@ -77,3 +82,39 @@ class TestCreateCaseProposal:
             )
 
         assert list(dl.list_objects("CaseProposal")) == []
+
+    @pytest.mark.spec("CP-01-010")
+    def test_a_sender_whose_record_is_not_an_actor_is_refused(
+        self, adapter, dl
+    ):
+        """A record under the sender's id that is not an actor profile is a
+        fault, not a profile to send, and nothing is persisted."""
+        report = _make_report(dl)
+        dl.create(as_VulnerabilityReport(id_=_VENDOR, content="not an actor"))
+
+        with pytest.raises(TypeError, match="CP-01-010"):
+            adapter.create_case_proposal(
+                actor=_VENDOR, report_id=report.id_, case_actor_id=_CASE_ACTOR
+            )
+
+        assert list(dl.list_objects("CaseProposal")) == []
+
+    @pytest.mark.spec("CP-01-010")
+    def test_the_sealed_create_parses_and_extracts_the_senders_policy(
+        self, adapter, dl
+    ):
+        """What the sender seals is what the CASE_MANAGER's parse edge
+        accepts and hands to core: the profile and its policy survive."""
+        report = _make_report(dl)
+        dl.save(_vendor_profile(timedelta(days=30)))
+
+        _, blob = adapter.create_case_proposal(
+            actor=_VENDOR, report_id=report.id_, case_actor_id=_CASE_ACTOR
+        )
+        event = extract_event(parse_activity(json.loads(blob)))
+
+        profile = getattr(event, "proposer_profile", None)
+        assert isinstance(profile, CoreActor)
+        assert profile.id_ == _VENDOR
+        assert profile.embargo_policy is not None
+        assert profile.embargo_policy.preferred_duration == timedelta(days=30)

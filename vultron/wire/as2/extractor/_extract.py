@@ -26,6 +26,7 @@ from vultron.core.models.rsvp_deadline import (
     resolve_rsvp_deadline,
 )
 from vultron.enums.object_types import VultronObjectType as VOtype
+from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.extractor._builders import (
     _build_object_kwargs,
     _get_id,
@@ -112,11 +113,18 @@ def extract_intent(
 
     if "proposer_profile" in event_class.model_fields:
         # Create(CaseProposal)'s actor is the proposer's inline profile
-        # (CP-01-010); the parse edge refused any other shape, so anything
-        # that is not a profile here came in some other way and is left off.
+        # (CP-01-010).  The parse edge refuses any other shape; an activity
+        # that reached here some other way is refused the same way, so core
+        # always receives the profile (ADR-0032).
         actor = getattr(activity, "actor", None)
-        if isinstance(actor, CoreActor):
-            extra_kwargs["proposer_profile"] = actor
+        if not isinstance(actor, CoreActor):
+            raise VultronParseValidationError(
+                f"Create(CaseProposal) {activity.id_!r} carries no inline"
+                f" actor profile (got {type(actor).__name__}); the"
+                " proposer's profile is the only source of the CASE_OWNER's"
+                " actor default (CP-01-010)"
+            )
+        extra_kwargs["proposer_profile"] = actor
 
     return cast(
         AnyReceivedEvent,

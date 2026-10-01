@@ -221,7 +221,7 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
         "sender_proposed_embargo_duration": PortInformation(
             data_type=object, required=False
         ),
-        "owner_profile": PortInformation(data_type=object, required=False),
+        "owner_profile": PortInformation(data_type=object, required=True),
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {

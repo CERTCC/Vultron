@@ -126,7 +126,11 @@ def publish_embargo_policy(
         maximum_duration=terms.maximum_duration,
         notes=terms.notes,
     )
-    updated = actor.model_copy(update={"embargo_policy": policy})
+    # Re-validated, not ``model_copy(update=...)``: the profile's own
+    # validator is what holds the policy to this actor (EP-01-001).
+    updated = type(actor).model_validate(
+        {**dict(actor), "embargo_policy": policy}
+    )
     dl.save(updated)
     return policy, replaced
 

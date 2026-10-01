@@ -43,10 +43,9 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
     proposed_embargo: EmbargoEvent | None = None
     # The proposer's actor profile, sent inline as the Create's ``actor``
     # (CP-01-010).  Its ``embargo_policy`` is the CASE_OWNER's actor default
-    # for this case and no other (EP-04-003).  ``None`` only when the event
-    # did not come through the parse edge, which refuses a bare-URI actor;
-    # the use case refuses that too.
-    proposer_profile: CoreActor | None = None
+    # for this case and no other (EP-04-003).  Required: the parse edge and
+    # the extractor refuse a Create(CaseProposal) without one (ADR-0032).
+    proposer_profile: CoreActor
 
     @property
     def proposal_id(self) -> str | None:

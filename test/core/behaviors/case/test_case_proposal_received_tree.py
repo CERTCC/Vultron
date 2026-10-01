@@ -1353,14 +1353,16 @@ class TestADR0041EmbargoInit:
         self, make_payload
     ):
         """No inline profile means no actor default can be read, and the
-        CASE_MANAGER does not fetch one: the proposal is refused."""
+        CASE_MANAGER does not fetch one: the proposal is refused before it
+        reaches core, so no event — and no case — exists."""
+        from vultron.wire.as2.errors import VultronParseValidationError
+
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
         _seed_report(dl)
 
-        result = _run_full_bt(make_payload, dl, actor=_VENDOR_URI)
+        with pytest.raises(VultronParseValidationError, match="CP-01-010"):
+            _run_full_bt(make_payload, dl, actor=_VENDOR_URI)
 
-        assert result.disposition is HandlerDisposition.REFUSED
-        assert "CP-01-010" in (result.reason or "")
         assert list(dl.list_objects("VulnerabilityCase")) == []
 
     @pytest.mark.spec("CP-01-010")
@@ -1403,9 +1405,10 @@ class TestADR0041EmbargoInit:
     def test_a_policy_on_one_proposal_is_not_the_default_for_the_next(
         self, make_payload
     ):
-        """Two proposals for two reports carry different policies: each case
-        takes its own proposal's policy, and the second, with none, takes the
-        protocol default — the first profile is not retained (AC-4)."""
+        """Three proposals from the same vendor carry different policies: each
+        case takes its own proposal's policy — the shorter earlier one does
+        not win for the longer later one, and the last, with none, takes the
+        protocol default — so no profile is retained (AC-4)."""
         from vultron.config.actor import ActorConfig
         from vultron.core.models.embargo_event import EmbargoEvent
         from vultron.core.models.report import VulnerabilityReport
@@ -1420,7 +1423,11 @@ class TestADR0041EmbargoInit:
             protocol_default_embargo_duration=timedelta(days=5)
         )
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
-        report_ids = (_REPORT_URI, "https://example.org/reports/r-002")
+        report_ids = (
+            _REPORT_URI,
+            "https://example.org/reports/r-002",
+            "https://example.org/reports/r-003",
+        )
         for report_id in report_ids:
             dl.save(
                 VulnerabilityReport(id_=report_id, attributed_to=_REPORTER_URI)
@@ -1428,7 +1435,11 @@ class TestADR0041EmbargoInit:
 
         expected: dict[str, timedelta] = {}
         for index, (report_id, policy) in enumerate(
-            zip(report_ids, (timedelta(days=3), None), strict=True)
+            zip(
+                report_ids,
+                (timedelta(days=3), timedelta(days=20), None),
+                strict=True,
+            )
         ):
             activity = as_Create(
                 actor=_vendor_profile(policy),
@@ -1459,7 +1470,7 @@ class TestADR0041EmbargoInit:
             for c in dl.list_objects("VulnerabilityCase")
             if isinstance(c, VulnerabilityCase)
         ]
-        assert len(cases) == 2
+        assert len(cases) == 3
         for case in cases:
             (report_id,) = [
                 r
@@ -3334,7 +3345,6 @@ def test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued(
     from vultron.core.behaviors.case.nodes import (
         CommitNativeLedgerEntriesNode,
     )
-    from vultron.core.models.use_case_result import HandlerDisposition
     from vultron.core.use_cases.received.case_proposal import (
         CreateCaseProposalReceivedUseCase,
     )
