@@ -34,6 +34,18 @@ from vultron.core.behaviors.case.nodes.on_behalf_guards import (
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
 )
+from vultron.core.behaviors.case.nodes.participant.owner import (
+    AttachOwnerParticipantToCaseNode,
+    CreateOwnerParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.participant.participant_add import (
+    AttachParticipantToCaseNode,
+    CreateParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_participants import (
+    AddCaseActorParticipantNode,
+    AddVendorOwnerParticipantNode,
+)
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckSomeVendorAtVFNode,
 )
@@ -87,6 +99,17 @@ def test_causal_gate_absent_when_d_state_none() -> None:
     assert CheckSomeVendorAtVFNode.__name__ not in _child_type_names(tree)
 
 
+#: Every node that creates a participant or attaches one to a case roster.
+_PARTICIPANT_MINTING_NODES = (
+    AddCaseActorParticipantNode,
+    AddVendorOwnerParticipantNode,
+    AttachOwnerParticipantToCaseNode,
+    AttachParticipantToCaseNode,
+    CreateOwnerParticipantNode,
+    CreateParticipantNode,
+)
+
+
 @pytest.mark.spec("PRM-06-006")
 @pytest.mark.parametrize(
     "dimension",
@@ -106,9 +129,11 @@ def test_every_guard_precedes_the_only_write(dimension) -> None:
         isinstance(child, DataLayerConditionWithPorts)
         for child in tree.children[:write_at]
     ), "only read-only condition nodes may precede the status write"
-    assert not any(
-        "Participant" in name
-        and name.startswith(("Create", "Attach", "Ensure"))
-        for name in names
-        if name != CreateParticipantStatusNode.__name__
+    minted = [
+        type(node).__name__
+        for node in tree.iterate()
+        if isinstance(node, _PARTICIPANT_MINTING_NODES)
+    ]
+    assert minted == [], (
+        f"on-behalf tree must not mint a participant: {minted}"
     )

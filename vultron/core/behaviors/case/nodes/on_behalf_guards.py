@@ -30,16 +30,32 @@ import logging
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    ActorNotInCaseError,
+    ParticipantRecordUnreadableError,
+    _read_indexed_participant,
     _resolve_actor_roles,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
 
-class CheckOnBehalfAuthorizedNode(DataLayerConditionWithPorts):
+class _OnBehalfGuardNode(DataLayerConditionWithPorts):
+    """Shared refusal frame for the on-behalf guards."""
+
+    def _refuse(self, message: str, level: int = logging.WARNING) -> Status:
+        """Record *message* as the failure reason, log it, return FAILURE.
+
+        A policy refusal logs at WARNING; a broken store passes
+        ``logging.ERROR``.
+        """
+        self.feedback_message = message
+        self.logger.log(level, "%s: %s", self.name, message)
+        return Status.FAILURE
+
+
+class CheckOnBehalfAuthorizedNode(_OnBehalfGuardNode):
     """Gate on-behalf assertions: asserting actor MUST hold CASE_MANAGER or CASE_OWNER.
 
     Used as the first guard in the on-behalf status trigger tree (ADR-0084,
@@ -66,22 +82,19 @@ class CheckOnBehalfAuthorizedNode(DataLayerConditionWithPorts):
             self.datalayer, self._case_id, self._asserting_actor_id, self.name
         )
         if roles is None:
-            self.feedback_message = (
+            return self._refuse(
                 f"Could not resolve roles for actor '{self._asserting_actor_id}'"
                 f" in case '{self._case_id}'"
             )
-            return Status.FAILURE
 
         authorized = {CVDRole.CASE_MANAGER, CVDRole.CASE_OWNER}
         if not authorized.intersection(roles):
-            self.feedback_message = (
+            return self._refuse(
                 f"Actor '{self._asserting_actor_id}' does not hold"
                 f" CASE_MANAGER or CASE_OWNER in case '{self._case_id}'"
                 f" — on-behalf assertion blocked (PRM-06-003, ADR-0084)"
                 f" (roles={roles!r})"
             )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
 
         self.logger.debug(
             "%s: actor '%s' is authorized for on-behalf assertion (roles=%s)",
@@ -92,7 +105,7 @@ class CheckOnBehalfAuthorizedNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class CheckOnBehalfTargetIsParticipantNode(DataLayerConditionWithPorts):
+class CheckOnBehalfTargetIsParticipantNode(_OnBehalfGuardNode):
     """Gate on-behalf assertions: the target MUST already be a participant.
 
     An on-behalf ``v→V`` or ``d→D`` records a status *about* an existing
@@ -123,11 +136,6 @@ class CheckOnBehalfTargetIsParticipantNode(DataLayerConditionWithPorts):
         self._target_actor_id = target_actor_id
         self._required_roles = required_roles
 
-    def _refuse(self, message: str) -> Status:
-        self.feedback_message = message
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
-
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
@@ -137,23 +145,23 @@ class CheckOnBehalfTargetIsParticipantNode(DataLayerConditionWithPorts):
         if failure is not None:
             return failure  # Regime 1: case must exist (ADR-0087)
 
-        participant_id = case.actor_participant_index.get(
-            self._target_actor_id
-        )
-        if participant_id is None:
+        try:
+            participant = _read_indexed_participant(
+                self.datalayer, case, self._target_actor_id
+            )
+        except ActorNotInCaseError:
             return self._refuse(
                 f"On-behalf target '{self._target_actor_id}' is not a"
                 f" participant in case '{self._case_id}' — an on-behalf"
                 f" status assertion never creates a participant; invite the"
                 f" actor to the case first (PRM-06-006, ADR-0084)"
             )
-
-        participant = self.datalayer.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
+        except ParticipantRecordUnreadableError as exc:
             return self._refuse(
                 f"On-behalf target '{self._target_actor_id}' is indexed in"
                 f" case '{self._case_id}' but its participant record"
-                f" '{participant_id}' could not be read"
+                f" '{exc.resource_id}' could not be read",
+                level=logging.ERROR,
             )
 
         missing = [

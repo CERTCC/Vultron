@@ -17,9 +17,9 @@ The on-behalf assertions of ADR-0084 become reachable: a Case Manager records
 an existing vendor participant's awareness (v→V, PRM-06-003) or an existing
 deployer participant's deployment (d→D, PRM-06-004).  A target that is not a
 participant is refused and nothing is created (PRM-06-006), and fix readiness
-(f→F) is refused with a structured error (PRM-06-005).  The route runs through ``run_trigger`` over the registry-backed
-``TriggerDispatcher``: these tests run the real dispatcher
-over an in-memory store and reach it through the ``get_trigger_dl`` override
+(f→F) is refused with a structured error (PRM-06-005).  The route runs
+through ``run_trigger`` over the registry-backed ``TriggerDispatcher``: these
+tests run the real dispatcher over an in-memory store and reach it through the ``get_trigger_dl`` override
 seam (TRIG-06-002), exactly as deployment resolves it.
 """
 

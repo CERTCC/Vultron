@@ -26,6 +26,8 @@ Covers:
 - AC-4: Vendor-implies-V invariant blocks a joined vendor from asserting vf.
 """
 
+from typing import NamedTuple
+
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -131,15 +133,23 @@ def _add_participant(
     return participant
 
 
-def _snapshot(dl: SqliteDataLayer, case_id: str) -> tuple:
+class _StoreState(NamedTuple):
     """Roster, stored-object counts and outbox — what a refusal must not touch."""
+
+    roster: dict[str, str]
+    participants: list[object]
+    counts: dict[str, int]
+    outbox: set[str]
+
+
+def _store_state(dl: SqliteDataLayer, case_id: str) -> _StoreState:
     case = dl.read_case(case_id)
     assert case is not None
-    return (
-        dict(case.actor_participant_index),
-        list(case.case_participants),
-        dl.count_all(),
-        set(dl.outbox_list()),
+    return _StoreState(
+        roster=dict(case.actor_participant_index),
+        participants=list(case.case_participants),
+        counts=dl.count_all(),
+        outbox=set(dl.outbox_list()),
     )
 
 
@@ -180,7 +190,7 @@ class TestAddOnBehalfStatusVtoV:
     @pytest.mark.spec("PRM-06-006")
     def test_refuses_non_participant_vendor_and_creates_nothing(self):
         """A status update is never a way into a case (PRM-06-006)."""
-        before = _snapshot(self.dl, self.case.id_)
+        before = _store_state(self.dl, self.case.id_)
 
         with pytest.raises(VultronValidationError) as excinfo:
             _run(self.dl, self._request())
@@ -188,7 +198,7 @@ class TestAddOnBehalfStatusVtoV:
         message = str(excinfo.value)
         assert self.vendor_actor.id_ in message
         assert "PRM-06-006" in message
-        assert _snapshot(self.dl, self.case.id_) == before
+        assert _store_state(self.dl, self.case.id_) == before
 
     @pytest.mark.spec("PRM-06-003")
     def test_changes_only_vf_of_an_inert_vendor_invitee(self):
@@ -201,7 +211,7 @@ class TestAddOnBehalfStatusVtoV:
             RM.RECEIVED,
             CS_vf.vf,
         )
-        roster_before = _snapshot(self.dl, self.case.id_)[:2]
+        before = _store_state(self.dl, self.case.id_)
 
         result = _run(self.dl, self._request())
 
@@ -213,7 +223,11 @@ class TestAddOnBehalfStatusVtoV:
         assert last.rm is not None and last.rm.state == RM.RECEIVED
         assert last.d is None
         assert participant.roles == [CVDRole.VENDOR]
-        assert _snapshot(self.dl, self.case.id_)[:2] == roster_before
+        after = _store_state(self.dl, self.case.id_)
+        assert (after.roster, after.participants) == (
+            before.roster,
+            before.participants,
+        )
 
     def test_queues_outbox_activity_addressed_to_case_manager(self):
         _add_participant(
@@ -248,14 +262,14 @@ class TestAddOnBehalfStatusVtoV:
             [CVDRole.DEPLOYER],
             RM.ACCEPTED,
         )
-        before = _snapshot(self.dl, self.case.id_)
+        before = _store_state(self.dl, self.case.id_)
 
         with pytest.raises(VultronValidationError) as excinfo:
             _run(self.dl, self._request())
 
         assert self.vendor_actor.id_ in str(excinfo.value)
-        assert "vendor" in str(excinfo.value)
-        assert _snapshot(self.dl, self.case.id_) == before
+        assert "does not hold vendor" in str(excinfo.value)
+        assert _store_state(self.dl, self.case.id_) == before
 
     def test_refuses_target_whose_indexed_record_is_missing(self):
         """An index entry with no stored record is refused, not repaired."""
@@ -263,13 +277,17 @@ class TestAddOnBehalfStatusVtoV:
             "https://example.org/participants/missing"
         )
         self.dl.save(self.case)
-        before = _snapshot(self.dl, self.case.id_)
+        before = _store_state(self.dl, self.case.id_)
 
         with pytest.raises(VultronValidationError) as excinfo:
             _run(self.dl, self._request())
 
-        assert self.vendor_actor.id_ in str(excinfo.value)
-        assert _snapshot(self.dl, self.case.id_) == before
+        message = str(excinfo.value)
+        assert self.vendor_actor.id_ in message
+        assert "participant record" in message
+        assert "could not be read" in message
+        assert "is not a participant" not in message
+        assert _store_state(self.dl, self.case.id_) == before
 
     def test_blocked_when_asserting_actor_not_cm_or_co(self):
         """Non-CM/CO actor cannot make an on-behalf assertion (PRM-06-003)."""
@@ -295,7 +313,7 @@ class TestAddOnBehalfStatusVtoV:
         self.case.case_participants.append(coord_participant.id_)
         self.dl.save(self.case)
         self.dl.create(coord_participant)
-        before = _snapshot(self.dl, self.case.id_)
+        before = _store_state(self.dl, self.case.id_)
 
         request = AddOnBehalfStatusTriggerRequest(
             actor_id=coordinator_actor.id_,
@@ -305,7 +323,7 @@ class TestAddOnBehalfStatusVtoV:
         )
         with pytest.raises(VultronValidationError):
             _run(self.dl, request)
-        assert _snapshot(self.dl, self.case.id_) == before
+        assert _store_state(self.dl, self.case.id_) == before
 
 
 class TestAddOnBehalfStatusDtoD:
@@ -362,32 +380,32 @@ class TestAddOnBehalfStatusDtoD:
         _add_participant(
             self.dl, self.case, self.deployer_actor.id_, [CVDRole.DEPLOYER], rm
         )
-        before = _snapshot(self.dl, self.case.id_)
+        before = _store_state(self.dl, self.case.id_)
 
         with pytest.raises(VultronValidationError) as excinfo:
             _run(self.dl, self._request())
 
         assert excinfo.value.violations, "the entailment names its rule"
-        assert _snapshot(self.dl, self.case.id_) == before
+        assert _store_state(self.dl, self.case.id_) == before
         _, last = _last_status(self.dl, self.case.id_, self.deployer_actor.id_)
         assert last.rm is not None and last.rm.state == rm
         assert last.d is None or last.d.state == CS_d.d
 
     @pytest.mark.spec("PRM-06-006")
     def test_refuses_non_participant_deployer_and_creates_nothing(self):
-        before = _snapshot(self.dl, self.case.id_)
+        before = _store_state(self.dl, self.case.id_)
 
         with pytest.raises(VultronValidationError) as excinfo:
             _run(self.dl, self._request())
 
         assert self.deployer_actor.id_ in str(excinfo.value)
         assert "PRM-06-006" in str(excinfo.value)
-        assert _snapshot(self.dl, self.case.id_) == before
+        assert _store_state(self.dl, self.case.id_) == before
 
     @pytest.mark.spec("PRM-06-004")
     def test_refuses_target_without_deployer_role(self):
         """d→D on behalf of the vendor (no DEPLOYER role) is refused."""
-        before = _snapshot(self.dl, self.case.id_)
+        before = _store_state(self.dl, self.case.id_)
         request = AddOnBehalfStatusTriggerRequest(
             actor_id=self.cm_actor.id_,
             case_id=self.case.id_,
@@ -399,8 +417,8 @@ class TestAddOnBehalfStatusDtoD:
             _run(self.dl, request)
 
         assert self.vendor_actor.id_ in str(excinfo.value)
-        assert "deployer" in str(excinfo.value)
-        assert _snapshot(self.dl, self.case.id_) == before
+        assert "does not hold deployer" in str(excinfo.value)
+        assert _store_state(self.dl, self.case.id_) == before
 
 
 class TestAddOnBehalfRequestValidation:
